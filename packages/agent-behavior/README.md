@@ -107,7 +107,7 @@ the worktree PR.
 | --- | ------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | P1  | `Approvals`   | `facts`, `ask`, `outcomes`                                                                      | Ask a person whether a call may run; tell the rules how people answered before.          |
 | P2  | `Questions`   | `ask`                                                                                           | Ask a person questions (AskUserQuestion).                                                 |
-| P3  | `Models`      | `find`, `supportsTools`, `keysFor`                                                              | Find models by the name a person said; tell whether a conversation's model can call tools; name that model and the model a child gets by default. |
+| P3  | `Models`      | `find`, `current`                                                                               | Find models by the name a person said; tell what a conversation's model is now (tool support, its key, the key a child gets by default). |
 | P4  | `Verifier`    | `verify`                                                                                        | Judge whether a goal is met.                                                              |
 | P5  | `OutputStore` | `save`                                                                                          | Store an oversized output and return a path the model's read tool can open.               |
 | P6  | `Summarizer`  | `summarize`                                                                                     | Write a compaction summary with the host's model.                                         |
@@ -263,7 +263,7 @@ without `CallInputs.models`, after which the commit writes nothing. No rule func
 | `approval/`    | `repeatBlock(call, gateFacts)`; `decideApproval(call, host, mode, attendance, plan)`; `answerVerdict(answer, args)`                                                                                                                                                                              | The tool gate's `before`.                                                                                                                                                                                      |
 | `interaction/` | `decideAskUser(lineage, args)` with `askUserResult(questions, answer)`; `decideTodos(args)`                                                                                                                                                                                                      | The tools `AskUserQuestion` and `todo_write`.                                                                                                                                                                  |
 | `context/`     | `recallText(history, args)`; `offloadPlan(call, result, threshold)` with `offloadMarker(content, saved)`; `summaryDecision(summary)`                                                                                                                                                             | The tool `vcc_recall`; the tool gate's `after`; a compaction summary.                                                                                                                                          |
-| `driver/`      | `decideAtIdle(facts, inputs)` with `admitRound(facts, inputs, start)`; `decideOnOpen(facts, inputs)`; `decideUserStop(facts, inputs, requestKey)`; `ensureDriver(facts)`, `ensureReport(facts, input)`                                                                                           | The `idle-driver` job; `Lifecycle.onOpen`; the host's `userStop` entry; the operations that start the two jobs.                                                                                                |
+| `driver/`      | `decideAtIdle(facts, inputs)` with `admitRound(facts, inputs, start)`; `decideOnOpen(facts, inputs, open)`; `decideUserStop(facts, inputs, requestKey)`; `ensureDriver(facts)`, `ensureReport(facts, input)`                                                                                     | The `idle-driver` job; `Lifecycle.onOpen`; the host's `userStop` entry; the operations that start the two jobs.                                                                                                |
 
 Tool arguments arrive as plain JSON, so each rule checks their shape itself (`args.ts`) and reports a mistake in its own
 text; the tools' names, descriptions and schemas belong to the orchestration, which registers the three subagent tools
@@ -279,7 +279,7 @@ host's permission mode is `plan` or that record is active, and the tools that wr
 | `now`              | `Clock.now()`.                                                                                                                                                                                                               |
 | `settings`         | `Settings`, each getter read once for the decision.                                                                                                                                                                          |
 | `approvals`        | `Approvals.outcomes(thread, [])`; for the idle driver also `Approvals.outcomes(child, [])` of each child. A goal round's stop request matches its calls by `callKey`; a child with a `pending` outcome is awaiting approval. |
-| `models`           | `subagent`: `Models.keysFor(thread)`, plus `Models.find(name)` when the call names a model. `onOpen`: `ModelFacts.supportsTools` from `Models.supportsTools(thread)`.                                                        |
+| `models`           | `subagent`: the keys from `Models.current(thread)`, plus `Models.find(name)` when the call names a model. `decideOnOpen` takes `supportsTools` from `Models.current(thread)` as its own argument instead. |
 | `verdict`          | `update_goal` with `complete`: the verifier's verdict, below.                                                                                                                                                                |
 | `args`             | The tool call's final arguments.                                                                                                                                                                                             |
 
@@ -466,8 +466,8 @@ To check that a flow survives a crash at any step, sweep the crash over every aw
    counter and may shift after a restart, so strip them before comparing.
 
 `createScriptedHost(options)` implements `HostPorts` for tests and is independent of the fake harness.
-`options.settings` (a `HostSettingsSnapshot`) is required; `models` (default none), `supportsTools` (default true),
-`modelKeys` (the `Models.keysFor` answer; default `scripted/parent-model` and `scripted/child-model`) and
+`options.settings` (a `HostSettingsSnapshot`) is required; `models` (default none), `supportsTools` (default true) and
+`modelKeys` (default `scripted/parent-model` and `scripted/child-model`), which `Models.current` answers, and
 `approvalFacts` (default: category `other`, everything else off) are optional. Its controls:
 
 - `answerApproval`, `answerQuestion`, `giveVerdict`: queue an answer, first in, first out. A request with nothing

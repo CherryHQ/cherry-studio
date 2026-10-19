@@ -53,7 +53,6 @@ export type SubagentModelCandidate = {
 }
 export type ModelFacts = {
   readonly candidates: readonly SubagentModelCandidate[]
-  readonly supportsTools: boolean
   /** The model key of the conversation the call runs in; the host snapshot supplies it, never empty. */
   readonly parentModelKey: string
   /** The model key a child gets when none is named; the host snapshot supplies it, never empty. */

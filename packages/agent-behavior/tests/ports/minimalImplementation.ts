@@ -22,7 +22,7 @@ export const harness: HarnessPorts = {
 export const host: HostPorts = {
   approvals: { facts: unused, ask: unused, outcomes: unused },
   questions: { ask: unused },
-  models: { find: unused, supportsTools: unused, keysFor: unused },
+  models: { find: unused, current: unused },
   verifier: { verify: unused },
   outputStore: { save: unused },
   summarizer: { summarize: unused },

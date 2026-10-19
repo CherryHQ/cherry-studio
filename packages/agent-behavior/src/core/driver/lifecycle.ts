@@ -14,18 +14,23 @@ import { ensureDriver } from './jobs'
 export type OpenDecision = { readonly disarmed: boolean; readonly interrupted: number }
 
 /**
- * `onOpen` (D13, G-f, S-g; H12 stop before resume). On any open a goal whose model cannot call tools stops. On reopen
+ * `onOpen` (D13, G-f, S-g; H12 stop before resume). `open.supportsTools`: whether the conversation's model can call
+ * tools (from the host's `Models.current`). On any open a goal whose model cannot call tools stops. On reopen
  * an armed goal is disarmed; a goal round the restart interrupted stops (recorded as a stop, so results wait for the
  * person); running background children stop. Background runs whose record is still running end as interrupted, and so
  * do foreground runs whose calling tool died with the restart or with the stopped round. Results not delivered yet
  * land quietly when the conversation is idle, otherwise the driver delivers them. Stops follow the live facts, not
  * what this open writes, so a rerun after a crash between the commit and the stops stops again.
  */
-export function decideOnOpen(facts: ConversationFacts, inputs: CallInputs): Step<OpenDecision> {
+export function decideOnOpen(
+  facts: ConversationFacts,
+  inputs: CallInputs,
+  open: { readonly supportsTools: boolean }
+): Step<OpenDecision> {
   const ops: TxOp[] = []
   const effects: Effect[] = []
   const goal = facts.lineage.kind === 'root' ? currentGoal(facts.history) : undefined
-  const unsupported = goal?.phase === 'active' && inputs.models?.supportsTools === false
+  const unsupported = goal?.phase === 'active' && !open.supportsTools
   if (goal && unsupported)
     ops.push(
       goalStop(facts, inputs, goal, { code: 'unsupported_model', message: 'the current model has no tool calling' })

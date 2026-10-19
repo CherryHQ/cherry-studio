@@ -105,13 +105,14 @@ describe('scripted host', () => {
     expect(await host.outputStore.save(file)).toBe(await host.outputStore.save(file))
   })
 
-  // Catches empty model keys, which would record a spawn's origin with no model (B-G3), or keys a test cannot set.
-  it('names non-empty model keys, or the ones it was given', async () => {
-    const keys = await createScriptedHost({ settings }).models.keysFor(thread)
-    expect(keys.parentModelKey).not.toBe('')
-    expect(keys.defaultChildModelKey).not.toBe('')
+  // Catches empty model keys, which would record a spawn's origin with no model (B-G3), or a model a test cannot set.
+  it('names non-empty model keys, or the model it was given', async () => {
+    const current = await createScriptedHost({ settings }).models.current(thread)
+    expect(current.parentModelKey).not.toBe('')
+    expect(current.defaultChildModelKey).not.toBe('')
     const given = { parentModelKey: 'anthropic/opus', defaultChildModelKey: 'anthropic/sonnet' }
-    expect(await createScriptedHost({ settings, modelKeys: given }).models.keysFor(thread)).toEqual(given)
+    const host = createScriptedHost({ settings, modelKeys: given, supportsTools: false })
+    expect(await host.models.current(thread)).toEqual({ ...given, supportsTools: false })
   })
 
   // Catches settings read once at construction, which would hide Stage B rules that must see a mid-goal change.
