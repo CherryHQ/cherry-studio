@@ -288,9 +288,9 @@ describe('backgroundTasks', () => {
         expect(status?.pid).toBe(running.pid)
       } finally {
         await stopDetachedBackgroundTask(storageDir, running.id, true)
-        // Wait out the kill so the child cannot hold handles into storageDir. It is detached, so a
-        // rejected stop — one the identity guard may refuse — would otherwise leave it running for
-        // its full thirty seconds and past the end of the suite: the group is signalled directly.
+        // Wait out the kill so the child cannot hold handles into storageDir. The task is
+        // detached, so a stop the identity guard refuses would leave it running for its full
+        // thirty seconds and past the end of the suite: the group is signalled directly.
         await vi.waitFor(
           async () => {
             try {
