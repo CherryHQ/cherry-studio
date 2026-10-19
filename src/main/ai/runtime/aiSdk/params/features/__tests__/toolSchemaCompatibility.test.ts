@@ -1,4 +1,3 @@
-import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -57,7 +56,6 @@ function captureRequest() {
     model: string
     stream?: boolean
     tools: WireTool[]
-    toolConfig: { tools: { toolSpec: { name: string; description: string; inputSchema: { json: WireSchema } } }[] }
   }
   const requests: { url: string; body: WireBody; headers: Headers }[] = []
   const captureFetch: typeof globalThis.fetch = async (input, init) => {
@@ -74,30 +72,6 @@ const CHERRYIN_SCOPE = {
   aiSdkProviderId: 'cherryin',
   runtimeProviderId: 'cherryin',
   endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-}
-
-function getFunctionTool(params: LanguageModelV3CallOptions) {
-  const entry = params.tools?.[0]
-  if (entry?.type !== 'function') throw new Error('expected function fixture')
-  return entry
-}
-
-function exampleParams(): LanguageModelV3CallOptions {
-  return {
-    prompt: [],
-    providerOptions: { anthropic: { thinking: { type: 'disabled' } } },
-    tools: [
-      {
-        type: 'function',
-        name: 'custom_lookup',
-        description: 'Look up a value',
-        strict: true,
-        inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-        inputExamples: [{ input: { query: 'hello' } }],
-        providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' }, deferLoading: true } }
-      }
-    ]
-  }
 }
 
 describe('toolSchemaCompatibilityFeature', () => {
@@ -156,87 +130,6 @@ describe('toolSchemaCompatibilityFeature', () => {
     else expect(betas).toContain('advanced-tool-use-2025-11-20')
   })
 
-  it.each(['empty examples', 'allowedCallers', 'explicit beta'] as const)(
-    'omits CherryIN wire examples while preserving independent beta sources: %s',
-    async (variant) => {
-      const { requests, captureFetch } = captureRequest()
-      const model = wrapLanguageModel({
-        model: createCherryIn({
-          apiKey: 'test-key',
-          endpointType: 'anthropic',
-          anthropicBaseURL: 'http://127.0.0.1:1',
-          fetch: captureFetch,
-          headers:
-            variant === 'explicit beta'
-              ? { 'anthropic-beta': 'advanced-tool-use-2025-11-20,interleaved-thinking-2025-05-14' }
-              : undefined
-        })('anthropic/claude-haiku-5.5'),
-        middleware: await getMiddleware(CHERRYIN_SCOPE)
-      })
-      const lookup = tool({
-        description: 'Look up a value',
-        inputSchema: z.object({ query: z.string() }),
-        inputExamples: variant === 'empty examples' ? [] : [{ input: { query: 'hello' } }],
-        providerOptions: {
-          anthropic: {
-            cacheControl: { type: 'ephemeral' },
-            ...(variant === 'allowedCallers' ? { allowedCallers: ['direct'] } : {})
-          }
-        }
-      })
-      const before = structuredClone(lookup.inputExamples)
-      await expect(generateText({ model, prompt: 'hello', tools: { lookup }, maxRetries: 0 })).rejects.toBeDefined()
-      expect(requests).toHaveLength(1)
-      expect(requests[0].body.tools).toHaveLength(1)
-      const sent = requests[0].body.tools[0]
-      expect(sent.name).toBe('lookup')
-      expect(sent).not.toHaveProperty('input_examples')
-      expect(sent).toHaveProperty('cache_control', { type: 'ephemeral' })
-      expect(lookup.inputExamples).toEqual(before)
-      const betas =
-        requests[0].headers
-          .get('anthropic-beta')
-          ?.split(',')
-          .map((beta) => beta.trim()) ?? []
-      if (variant === 'empty examples') expect(betas).not.toContain('advanced-tool-use-2025-11-20')
-      else expect(betas).toContain('advanced-tool-use-2025-11-20')
-      if (variant === 'allowedCallers') expect(sent).toHaveProperty('allowed_callers', ['direct'])
-      if (variant === 'explicit beta') expect(betas).toContain('interleaved-thinking-2025-05-14')
-    }
-  )
-
-  it('keeps native Bedrock Converse tool schemas without input_examples', async () => {
-    const { requests, captureFetch } = captureRequest()
-    const tools = createMetaTools()
-    const model = wrapLanguageModel({
-      model: createAmazonBedrock({
-        region: 'us-east-1',
-        accessKeyId: 'test-key',
-        secretAccessKey: 'test-secret',
-        fetch: captureFetch
-      })('anthropic.claude-haiku-5-5'),
-      middleware: await getMiddleware({
-        aiSdkProviderId: 'bedrock',
-        runtimeProviderId: 'bedrock',
-        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-      })
-    })
-    await expect(generateText({ model, prompt: 'hello', tools, maxRetries: 0 })).rejects.toBeDefined()
-    expect(requests).toHaveLength(1)
-    expect(new URL(requests[0].url).pathname).toMatch(/\/converse$/)
-    const specs = requests[0].body.toolConfig.tools.map((entry) => entry.toolSpec)
-    expect(specs.map((spec) => spec.name)).toEqual(Object.keys(tools))
-    for (const [index, original] of Object.values(tools).entries()) {
-      expect(specs[index].description).toBe(original.description)
-      const expectedSchema = { ...(await asSchema(original.inputSchema).jsonSchema) }
-      delete expectedSchema.$schema
-      expect(specs[index].inputSchema.json).toEqual(expectedSchema)
-      expect(specs[index].inputSchema.json.type).toBe('object')
-      expect(Object.keys(specs[index].inputSchema.json.properties).length).toBeGreaterThan(0)
-      expect(specs[index]).not.toHaveProperty('input_examples')
-    }
-  })
-
   it('omits input_examples on consumed CherryIN Anthropic streams', async () => {
     const { requests, captureFetch } = captureRequest()
     const model = wrapLanguageModel({
@@ -257,130 +150,6 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(requests[0].body.stream).toBe(true)
     expect(requests[0].body.tools.map((entry) => entry.name)).toEqual(['tool_search', 'tool_inspect', 'tool_invoke'])
     for (const sent of requests[0].body.tools) expect(sent).not.toHaveProperty('input_examples')
-  })
-
-  it('removes examples from clean custom tools while preserving other fields and references', async () => {
-    const params = exampleParams()
-    const original = getFunctionTool(params)
-    const before = structuredClone(params)
-    const result = await transform(params, CHERRYIN_SCOPE)
-    expect(result).not.toBe(params)
-    expect(result.tools).not.toBe(params.tools)
-    const sent = getFunctionTool(result)
-    expect(sent).not.toBe(original)
-    expect(sent).not.toHaveProperty('inputExamples')
-    const { inputExamples: _examples, ...rest } = original
-    void _examples
-    expect(sent).toEqual(rest)
-    expect(sent.inputSchema).toBe(original.inputSchema)
-    expect(sent.providerOptions).toBe(original.providerOptions)
-    expect(result.providerOptions).toBe(params.providerOptions)
-    expect(result.prompt).toBe(params.prompt)
-    expect(params).toEqual(before)
-  })
-
-  it('cleans strict keywords and removes examples together without changing tool metadata', async () => {
-    const params = exampleParams()
-    const original = getFunctionTool(params)
-    original.inputSchema = { type: 'object', properties: { n: { type: 'integer', minimum: 0 } } }
-    const before = structuredClone(params)
-    const sent = getFunctionTool(await transform(params, CHERRYIN_SCOPE))
-    expect(sent).not.toHaveProperty('inputExamples')
-    expect(sent.inputSchema).toEqual({ type: 'object', properties: { n: { type: 'integer' } } })
-    expect(sent).toMatchObject({ name: 'custom_lookup', description: 'Look up a value', strict: true })
-    expect(sent.providerOptions).toBe(original.providerOptions)
-    expect(params).toEqual(before)
-  })
-
-  it('omits an empty inputExamples array', async () => {
-    const params = exampleParams()
-    const original = getFunctionTool(params)
-    original.inputExamples = []
-    expect((await transform(params, CHERRYIN_SCOPE)).tools![0]).not.toHaveProperty('inputExamples')
-    expect(original.inputExamples).toEqual([])
-  })
-
-  it('reuses tools and params when examples are absent, including undefined and empty tools', async () => {
-    for (const tools of [undefined, []] as LanguageModelV3CallOptions['tools'][]) {
-      const params: LanguageModelV3CallOptions = { prompt: [], tools }
-      expect(await transform(params, CHERRYIN_SCOPE)).toBe(params)
-    }
-    const params = exampleParams()
-    const original = getFunctionTool(params)
-    delete original.inputExamples
-    expect(await transform(params, CHERRYIN_SCOPE)).toBe(params)
-    expect((await transform(params, CHERRYIN_SCOPE)).tools![0]).toBe(original)
-    original.inputExamples = undefined
-    expect(await transform(params, CHERRYIN_SCOPE)).toBe(params)
-  })
-
-  it('preserves provider tools mixed with function tools by reference', async () => {
-    const params = exampleParams()
-    const providerTool = {
-      type: 'provider' as const,
-      id: 'anthropic.web_search' as const,
-      name: 'web_search',
-      args: {},
-      providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
-    }
-    params.tools!.unshift(providerTool)
-    const result = await transform(params, CHERRYIN_SCOPE)
-    expect(result.tools![0]).toBe(providerTool)
-    expect(result.tools![1]).not.toHaveProperty('inputExamples')
-  })
-
-  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, undefined])(
-    'preserves examples on non-target CherryIN endpoint %s',
-    async (endpointType) => {
-      const params = exampleParams()
-      expect(await transform(params, { ...CHERRYIN_SCOPE, endpointType })).toBe(params)
-      expect(getFunctionTool(params)).toHaveProperty('inputExamples', [{ input: { query: 'hello' } }])
-    }
-  )
-
-  it.each(['anthropic', 'newapi', 'aihubmix', 'dmxapi', 'azure-anthropic', 'google-vertex-anthropic', 'bedrock'])(
-    'preserves examples for runtime provider %s even with CherryIN aiSdkProviderId',
-    async (runtimeProviderId) => {
-      const params = exampleParams()
-      expect(await transform(params, { ...CHERRYIN_SCOPE, runtimeProviderId })).toBe(params)
-      expect(getFunctionTool(params)).toHaveProperty('inputExamples', [{ input: { query: 'hello' } }])
-    }
-  )
-
-  it('uses runtime CherryIN identity even when aiSdkProviderId differs', async () => {
-    expect(
-      (await transform(exampleParams(), { ...CHERRYIN_SCOPE, aiSdkProviderId: 'anthropic' })).tools![0]
-    ).not.toHaveProperty('inputExamples')
-  })
-
-  it('keeps shared inputs intact for a subsequent Anthropic transform', async () => {
-    const params = exampleParams()
-    const before = structuredClone(params)
-    const cherryin = await transform(params, CHERRYIN_SCOPE)
-    const anthropic = await transform(params, {
-      ...CHERRYIN_SCOPE,
-      runtimeProviderId: 'anthropic',
-      aiSdkProviderId: 'anthropic'
-    })
-    expect(cherryin.tools![0]).not.toHaveProperty('inputExamples')
-    expect(params).toEqual(before)
-    expect(anthropic).toBe(params)
-    expect(anthropic.tools![0]).toHaveProperty('inputExamples', [{ input: { query: 'hello' } }])
-  })
-
-  it('preserves schema business properties named input_examples and inputExamples', async () => {
-    const params = exampleParams()
-    getFunctionTool(params).inputSchema = {
-      type: 'object',
-      properties: { input_examples: { type: 'string' }, inputExamples: { type: 'number' } }
-    }
-    const result = await transform(params, CHERRYIN_SCOPE)
-    expect(result.tools![0]).not.toHaveProperty('inputExamples')
-    expect(getFunctionTool(result).inputSchema).toBe(getFunctionTool(params).inputSchema)
-    expect(getFunctionTool(result).inputSchema.properties).toEqual({
-      input_examples: { type: 'string' },
-      inputExamples: { type: 'number' }
-    })
   })
 
   it('strips unsupported validation keywords from nested strict schemas without mutating the source', async () => {

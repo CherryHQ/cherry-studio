@@ -234,10 +234,6 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
   const isGeminiEndpoint =
     scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && scope.sdkConfig.providerId !== 'google-vertex-maas'
 
-  // CherryIN's Anthropic upstream rejects input_examples (#21994).
-  const omitInputExamples =
-    scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && scope.sdkConfig.providerId === 'cherryin'
-
   let changed = false
   const droppedTools: string[] = []
   const transformedTools: NonNullable<LanguageModelV3CallOptions['tools']> = []
@@ -256,12 +252,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
-    if (omitInputExamples && tool.inputExamples != null) {
-      const { inputExamples: _inputExamples, ...rest } = tool
-      void _inputExamples
-      changed = true
-      transformedTools.push({ ...rest, inputSchema: inputSchema as JSONSchema7 })
-    } else if (inputSchema === tool.inputSchema) transformedTools.push(tool)
+    if (inputSchema === tool.inputSchema) transformedTools.push(tool)
     else {
       changed = true
       transformedTools.push({ ...tool, inputSchema: inputSchema as JSONSchema7 })
