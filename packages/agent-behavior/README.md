@@ -106,9 +106,9 @@ the worktree PR.
 
 Every operation and keyed effect carries a `Key`, and every `Key` is a pure function of facts: nothing mints an id.
 Only `src/core/keys.ts` mints a `Key`; an ESLint rule rejects the cast in `core/` and `orchestration/`, and only
-contract cases mint test keys. `keys`, `armSeq`, `idleDriverGeneration` and `nextRun` live in that module and are not
-exported: adapters pass keys through unchanged. An adapter restores a call key from its harness with `callKeyOf`,
-which throws `TypeError` for an empty or blank value.
+contract cases mint test keys. `keys`, `armSeq`, `idleDriverGeneration`, `withdrawGeneration` and `nextRun` live in
+that module and are not exported: adapters pass keys through unchanged. An adapter restores a call key from its
+harness with `callKeyOf`, which throws `TypeError` for an empty or blank value.
 
 In each format the one free-form id comes first and only colon-free numbers, fixed words or a hash follow, so ids
 containing `:` stay apart.
@@ -122,7 +122,7 @@ containing `:` stay apart.
 | `subagentSpawn(call)`                                      | `subagent-spawn:<call>`                                                | Spawning a child from a tool call.                                                                                                                    |
 | `subagentMessage(child, run)`                              | `subagent-msg:<child>:<run>`                                           | The message that starts or continues run `run` of `child`; the request id for `Helpers.message`.                                                      |
 | `subagentEnd(child, run)`                                  | `subagent-end:<child>:<run>`                                           | The record of how that run ended.                                                                                                                     |
-| `subagentNotify(parent, runs)`                             | `subagent-notify:<parent>:<sha256 hex>`                                | One notification of finished runs. The hash is of the JSON of the batch's `[child, run]` pairs sorted by child, then run, so the order does not matter. |
+| `subagentNotify(parent, runs, stops)`                      | `subagent-notify:<parent>:s<stops>:<sha256 hex>`                       | One notification of finished runs. The hash is of the JSON of the batch's `[child, run]` pairs sorted by child, then run, so the order does not matter; `stops` is `withdrawGeneration(history)`, so a batch a stop withdrew is offered again under a new key. |
 | `turnStop(requestKey)`                                     | `turn-stop:<requestKey>`                                               | A user stop.                                                                                                                                          |
 | `idleDriver(thread, generation)`                           | `idle-driver:<thread>:g<generation>`                                   | The thread's `idle-driver` job of that generation; `generation` is `idleDriverGeneration(history)`.                                                   |
 | `idleDriverExit(thread, generation)`                       | `idle-driver-exit:<thread>:g<generation>`                              | The exit record that driver writes in the transaction that decides it stops.                                                                          |
@@ -139,10 +139,11 @@ containing `:` stay apart.
 | `subagentStatus(compaction)`                               | `subagent-status:<compaction item>`                                    | The status message after that compaction.                                                                                                             |
 | `reopenStop(round)`                                        | `reopen-stop:<round item>`                                             | The stop `onOpen` records for the goal round a restart interrupted.                                                                                   |
 
-Three helpers read the history. `armSeq(history, goalId)` counts how often the goal went from unarmed (or unrecorded)
+Four helpers read the history. `armSeq(history, goalId)` counts how often the goal went from unarmed (or unrecorded)
 to armed, so a goal resumed after a reopen keeps its revision but gets new round keys. `idleDriverGeneration(history)`
-counts the thread's `idle-driver-exit` records, so the driver after an exit gets a new key. `nextRun(history, child)`
-is one past the highest run recorded for the child, or 1.
+counts the thread's `idle-driver-exit` records, so the driver after an exit gets a new key.
+`withdrawGeneration(history)` counts the thread's `turn-stop` records: a stop withdraws queued input and spends its
+key. `nextRun(history, child)` is one past the highest run recorded for the child, or 1.
 
 Rules adapters rely on:
 

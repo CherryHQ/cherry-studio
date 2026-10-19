@@ -24,10 +24,13 @@ export const keys = {
   subagentSpawn: (call: CallKey): Key => mint(`subagent-spawn:${call}`),
   subagentMessage: (child: ThreadId, run: number): Key => mint(`subagent-msg:${child}:${run}`),
   subagentEnd: (child: ThreadId, run: number): Key => mint(`subagent-end:${child}:${run}`),
-  /** Keyed by the batch's content in any order; JSON-encoding the pairs keeps ids containing `:` apart. */
-  subagentNotify: (parent: ThreadId, runs: readonly NotifiedRun[]): Key => {
+  /**
+   * Keyed by the batch's content in any order; JSON-encoding the pairs keeps ids containing `:` apart. `stops` is
+   * `withdrawGeneration(history)`: a stop withdraws a queued notification, so the batch offered again needs a new key.
+   */
+  subagentNotify: (parent: ThreadId, runs: readonly NotifiedRun[], stops: number): Key => {
     const pairs = runs.map(({ child, run }): readonly [string, number] => [child, run]).sort(byChildThenRun)
-    return mint(`subagent-notify:${parent}:${sha256Hex(JSON.stringify(pairs))}`)
+    return mint(`subagent-notify:${parent}:s${stops}:${sha256Hex(JSON.stringify(pairs))}`)
   },
   turnStop: (requestKey: string): Key => mint(`turn-stop:${requestKey}`),
   /** [plan choice] Job key of the thread's idle driver of `generation` (`idleDriverGeneration`); design §7.3 lists none. */
@@ -82,6 +85,11 @@ export function armSeq(history: readonly HistoryEntry[], goalId: string): number
     armed = goal.armed
   }
   return count
+}
+
+/** How many `turn-stop` records the thread has; each stop withdraws the input queued then (`Turns.stop`). */
+export function withdrawGeneration(history: readonly HistoryEntry[]): number {
+  return history.filter((entry) => entry.kind === 'record' && entry.record.type === 'turn-stop').length
 }
 
 /** How many idle drivers of the thread have exited: the generation of its live driver, or of the next one. */
