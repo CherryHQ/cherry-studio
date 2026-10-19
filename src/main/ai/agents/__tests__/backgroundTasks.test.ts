@@ -288,8 +288,20 @@ describe('backgroundTasks', () => {
         expect(status?.pid).toBe(running.pid)
       } finally {
         await stopDetachedBackgroundTask(storageDir, running.id, true)
-        // Wait out the kill so the child cannot hold handles into storageDir.
-        await vi.waitFor(() => expect(isPidAlive(running.pid)).toBe(false), { timeout: 10_000 })
+        // Wait out the kill so the child cannot hold handles into storageDir. It is detached, so a
+        // rejected stop — one the identity guard may refuse — would otherwise leave it running for
+        // its full thirty seconds and past the end of the suite: the group is signalled directly.
+        await vi.waitFor(
+          async () => {
+            try {
+              process.kill(-running.pid, 'SIGKILL')
+            } catch {
+              // already drained
+            }
+            expect(isPidAlive(running.pid)).toBe(false)
+          },
+          { timeout: 10_000 }
+        )
       }
     })
 
@@ -1064,6 +1076,58 @@ describe('backgroundTasks', () => {
           // The task's group first, so a shell that forked rather than exec'd leaves nothing
           // holding the temp directory; the bystander is this test's own to clean up.
           for (const target of [-taskPid, taskPid, bystanderPid]) {
+            try {
+              process.kill(target, 'SIGKILL')
+            } catch {
+              // already reaped
+            }
+          }
+        }
+      }
+    )
+
+    // The ownership entry outlives the shell by design — a leaderless task this app has been
+    // watching stays stoppable through it. It is also what a stale entry looks like: if the task's
+    // own members exit while the app is suspended and the pgid is handed to a replacement group
+    // before the next poll, the entry is still there and no timestamp check covers it, because the
+    // recorded leader no longer exists for `isRecycledPid` to compare against. The signal must
+    // then be refused rather than delivered on the strength of an entry that names only a number.
+    it.skipIf(process.platform === 'win32')(
+      'refuses to signal a replacement group the stale ownership entry still covers',
+      async () => {
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+          cwd: storageDir
+        })
+        // Ownership is established while the task's own group is live, so the app holds the entry.
+        expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+        expect(isPidAlive(record.pid)).toBe(true)
+
+        // A bystander this app has nothing to do with, killed by the test alone.
+        const bystander = spawn(nodeBin.replace(/^"|"$/g, ''), ['-e', 'setInterval(() => {}, 60_000)'], {
+          stdio: 'ignore'
+        })
+        bystander.unref()
+        await vi.waitFor(() => expect(isPidAlive(bystander.pid!)).toBe(true), { timeout: 10_000 })
+        const bystanderPid = bystander.pid!
+
+        // The task's own members are gone and the pgid now holds the bystander instead — the state
+        // a reuse leaves behind, with the ownership entry this app registered still in place.
+        psSteer.read = (args) => {
+          if (args[0] === '-axwwo') return `${record.pid} ${bystanderPid} ${bystanderPid} S Mon Jan  1 00:00:00 2001\n`
+          return null
+        }
+        const killSpy = vi.spyOn(process, 'kill')
+        try {
+          await expect(stopDetachedBackgroundTask(storageDir, record.id, true)).resolves.toBeUndefined()
+          // No group signal may reach the bystander: it is not this task's work.
+          expect(killSpy.mock.calls.filter(([pid]) => pid < 0)).toEqual([])
+          expect(isPidAlive(bystanderPid)).toBe(true)
+        } finally {
+          psSteer.read = null
+          killSpy.mockRestore()
+          for (const target of [bystanderPid, -record.pid, record.pid]) {
             try {
               process.kill(target, 'SIGKILL')
             } catch {
