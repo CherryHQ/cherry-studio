@@ -8,7 +8,7 @@ import {
   type MessageResult,
   type TurnInput
 } from '@cherrystudio/agent-behavior'
-import type { ThreadId } from '@cherrystudio/agent-runtime'
+import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { openPiHarness, type PiHarness } from './behaviorHarness'
 
@@ -168,5 +168,29 @@ describe('coding-agent behavior adapter', () => {
     await pi.harness.createThread()
     await pi.harness.settle()
     expect(order).toEqual(['open', 'job'])
+  })
+
+  // Catches a context filter that is consulted but whose omissions never reach the model request or the verifier's
+  // context, so an unadmitted goal round would still be sent.
+  it('leaves the markers the filter omits out of the request and the model context', async () => {
+    let omit: readonly ItemId[] = []
+    const pi = await openPiHarness((ports) => ports.contextFilter.register({ omit: () => omit }))
+    const t = await pi.harness.createThread()
+    await pi.harness.withCall(t, (ports) =>
+      ports.ledger.transact(t, () => ({
+        ops: [{ type: 'append-quiet', thread: t, input: input('stale round'), key: key('stale') }],
+        effects: [],
+        result: null
+      }))
+    )
+    omit = [(await read(pi, t)).history.find((entry) => entry.kind === 'marker')!.id]
+    pi.harness.script(t, [{ text: 'done' }])
+    await pi.harness.sendUser(t, 'go')
+    await pi.harness.settle()
+    const request = JSON.stringify(pi.requests(t)[0])
+    expect(request).toContain('go')
+    expect(request).not.toContain('stale round')
+    const context = await pi.harness.withCall(t, (ports) => ports.ledger.modelContext(t))
+    expect(JSON.stringify(context)).not.toContain('stale round')
   })
 })
