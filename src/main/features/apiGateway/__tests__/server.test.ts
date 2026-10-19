@@ -1,3 +1,5 @@
+import { createServer, type ListenOptions, Server } from 'node:net'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -16,7 +18,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     PreferenceService: {
       // port 0 => OS picks a free port, so tests never collide.
-      get: (key: string) => (key.endsWith('port') ? 0 : '127.0.0.1')
+      get: (key: string) => {
+        if (key === 'app.language') return 'en-US'
+        return key.endsWith('port') ? 0 : '127.0.0.1'
+      }
     }
   })
 })
@@ -35,6 +40,7 @@ vi.mock('../app', async () => {
   return { buildApp: () => new Elysia({ adapter: node() }).get('/health', () => 'ok') }
 })
 
+import { mapGatewayBindError } from '../bindError'
 import { ApiGateway } from '../server'
 
 describe('ApiGateway server lifecycle', () => {
@@ -43,6 +49,86 @@ describe('ApiGateway server lifecycle', () => {
   afterEach(async () => {
     await gateway?.stop().catch(() => {})
     gateway = null
+    vi.restoreAllMocks()
+  })
+
+  it('preserves real OS EACCES fields, releases failed listeners, and permits a fresh allowed start', async (context) => {
+    gateway = new ApiGateway({ host: '127.0.0.1', port: 1001 })
+    try {
+      await gateway.start()
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'EACCES', syscall: 'listen', address: '127.0.0.1', port: 1001 })
+      expect(gateway.isRunning()).toBe(false)
+      expect(gateway.getHosts()).toEqual([])
+      const diagnostic = mapGatewayBindError(error, { host: '127.0.0.1', port: 1001 }, 'public') as Error
+      expect(diagnostic.message).toContain('refused permission')
+      expect(diagnostic.cause).toBe(error)
+      gateway = new ApiGateway({ host: '127.0.0.1', port: 0 })
+      await gateway.start()
+      expect(await (await fetch(`http://127.0.0.1:${gateway.getPort()}/health`)).text()).toBe('ok')
+      return
+    }
+    await gateway.stop()
+    context.skip('This platform permits binding TCP port 1001; no real privileged-port EACCES fixture')
+  })
+
+  it('keeps occupied-port failures as EADDRINUSE without permission recovery', async () => {
+    const occupied = createServer()
+    await new Promise<void>((resolve) => occupied.listen({ host: '127.0.0.1', port: 0 }, resolve))
+    try {
+      const address = occupied.address()
+      if (!address || typeof address === 'string') throw new Error('TCP fixture has no address')
+      const endpoint = { host: '127.0.0.1', port: address.port }
+      gateway = new ApiGateway(endpoint)
+      const error = await gateway.start().then(
+        () => {
+          throw new Error('Occupied port unexpectedly bound')
+        },
+        (error: unknown) => error
+      )
+      expect(error).toMatchObject({ code: 'EADDRINUSE', syscall: 'listen' })
+      expect(mapGatewayBindError(error, endpoint, 'public')).toBe(error)
+      expect(gateway.isRunning()).toBe(false)
+    } finally {
+      await new Promise<void>((resolve, reject) => occupied.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+
+  it('reports a controlled second-bind IPv6 refusal with its assigned port and releases IPv4', async () => {
+    const listen = Server.prototype.listen
+    let refused: Error | undefined
+    let assignedPort = 0
+    vi.spyOn(Server.prototype, 'listen').mockImplementation(function (
+      this: Server,
+      ...args: Parameters<Server['listen']>
+    ) {
+      const options = args[0] as ListenOptions
+      if (options.host === '::1') {
+        assignedPort = options.port!
+        refused = Object.assign(new Error('controlled IPv6 listen refusal'), {
+          code: 'EACCES',
+          syscall: 'listen',
+          address: '::1',
+          port: assignedPort
+        })
+        queueMicrotask(() => this.emit('error', refused))
+        return this
+      }
+      return Reflect.apply(listen, this, args)
+    })
+    const endpoint = { host: '127.0.0.1', port: 0 }
+    gateway = new ApiGateway(endpoint)
+    await expect(gateway.start()).rejects.toBeDefined()
+    expect(assignedPort).toBeGreaterThan(0)
+    expect(gateway.getHosts()).toEqual([])
+    expect(gateway.isRunning()).toBe(false)
+    const diagnostic = mapGatewayBindError(refused, endpoint, 'internal') as Error
+    expect(diagnostic.message).toContain(`::1, requested TCP port ${assignedPort}`)
+    expect(diagnostic.cause).toBe(refused)
+    vi.restoreAllMocks()
+    gateway = new ApiGateway({ host: '127.0.0.1', port: assignedPort })
+    await gateway.start()
+    expect(gateway.isRunning()).toBe(true)
   })
 
   it('starts and reports running', async () => {

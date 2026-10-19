@@ -209,6 +209,7 @@ Two explicit listeners share that port and the MCP session store; the IPv6 socke
 If IPv6 is unavailable, IPv4 remains usable and only its addresses are advertised.
 A port conflict fails startup and releases both listeners. Local HTTP and remote WebSocket clients share the port. Rebinding only
 releases the listening handles; existing local streams and MCP sessions continue.
+An OS-refused bind (`EACCES`) reports the failed address/port with listener-appropriate recovery guidance; IPv4/IPv6 and port-conflict behavior is otherwise unchanged.
 The settings card explains network exposure and pairing requirements in plain language.
 Actual bound addresses appear only in the collapsed connection details, including while access is disabled.
 
