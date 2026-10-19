@@ -33,8 +33,6 @@ export type FakeHarnessOptions = {
   readonly scripts?: (thread: ThreadId, lineage: ConversationFacts['lineage']) => readonly ScriptedReply[]
 }
 export interface FakeHarness extends ContractHarness {
-  /** Ports bound to the current epoch's installation scope (what `install()` receives in Stage C). */
-  readonly ports: HarnessPorts
   /** Await points passed since creation. */
   readonly awaitPoints: number
   /** Crash at the n-th await point from now (1-based): that point and all later work of this epoch never settle. */
@@ -251,9 +249,6 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
   options.install?.(installed)
 
   return {
-    get ports() {
-      return installed
-    },
     get awaitPoints() {
       return awaitPoints
     },

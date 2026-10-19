@@ -430,7 +430,6 @@ runs on it, and adds controls for the tests that build on it. Options, all optio
 
 Beyond `ContractHarness` it offers:
 
-- `ports`: the current `HarnessPorts`, with outbound ports bound to a scope that never ends; replaced on every restart.
 - `advanceClock(ms)`: the clock moves only when the test advances it.
 - `awaitPoints`: await points passed since creation. Every outbound port call, every model request and every tool call
   of a run is one; `clock.now` is not.
