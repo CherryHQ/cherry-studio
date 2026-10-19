@@ -6,6 +6,7 @@ export const BROWSER_TOOL_NAMES = [
   'call_web_tool',
   'find',
   'list_tabs',
+  'list_downloads',
   'click',
   'hover',
   'scroll',
