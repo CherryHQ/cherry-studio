@@ -17186,7 +17186,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "GPT 5.6 Terra",
+      "name": "GPT-5.6 Terra",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
@@ -22968,5 +22968,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "371e196f7e841bbc"
+  "version": "e3a5b9fc7ed99d23"
 }

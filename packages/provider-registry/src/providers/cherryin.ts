@@ -36,6 +36,16 @@ const deepSeekModelOverrides = [
   }
 ] satisfies Array<Partial<ProviderModelOverride>>
 
+const openAIModelOverrides = [
+  {
+    modelId: 'gpt-5-6-terra',
+    apiModelId: 'openai/gpt-5.6-terra',
+    parameterSupport: { temperature: { supported: false } },
+    reason:
+      'CherryIN rejects temperature on the GPT-5.6 Terra offer: HTTP 400 "Unsupported parameter: \'temperature\' is not supported with this model."'
+  }
+] satisfies Array<Partial<ProviderModelOverride>>
+
 const qwenAudioCompatibilityOverrides = [
   {
     apiModelId: 'qwen/qwen3.5-9b',
@@ -153,5 +163,5 @@ export default defineProvider({
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: [...deepSeekModelOverrides, ...qwenAudioCompatibilityOverrides]
+  overrides: [...deepSeekModelOverrides, ...openAIModelOverrides, ...qwenAudioCompatibilityOverrides]
 })
