@@ -1,7 +1,7 @@
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { UsageFact } from '../core/facts'
-import type { ToolDefinition } from '../ports/harness'
+import type { MessageResult, ToolDefinition } from '../ports/harness'
 import { check, same } from './assert'
 import {
   assistantTexts,
@@ -9,6 +9,7 @@ import {
   childSpec,
   holds,
   key,
+  latch,
   markersWith,
   message,
   read,
@@ -137,6 +138,46 @@ export const childCases: readonly ContractCase[] = [
       await h.settle()
       check(markersWith(await read(h, child), key('c34-steer')).length === 0, 'a withdrawn steer must add no input')
       check((await read(h, t)).children.get(child)?.runUsage.length === 1, 'a withdrawn steer must start no run')
+    }
+  },
+  // Catches a steer that keeps its tool call waiting for the child's next boundary after the caller's turn stopped
+  // (H3): a run ends only once its calls return, so the stop would wait on the child, or on an approval it waits for.
+  {
+    name: 'stopping a turn withdraws the steer one of its tool calls waits on, without waiting for the child',
+    covers: ['helpers.message', 'turns.stop', 'tools.register'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const steering = latch()
+      const sent: { child?: ThreadId; answer?: MessageResult } = {}
+      const steerer: ToolDefinition = {
+        ...toolBase('steerer'),
+        async run(_call, ports) {
+          const answer = ports.helpers.message(sent.child!, message('steer'), key('c35-steer'), 1)
+          steering.release()
+          sent.answer = await answer
+          return { text: sent.answer.status, isError: false }
+        }
+      }
+      const h = await open((p) => {
+        p.tools.register(hold.tool)
+        p.tools.register(steerer)
+      })
+      const t = await h.createThread()
+      const child = await spawnBackground(h, t, 'c35')
+      sent.child = child
+      h.script(child, [callTool('hold', { id: 'c35' }), reply('child done')])
+      await h.withCall(t, (p) => p.helpers.message(child, message('work'), key('c35-msg')))
+      await hold.started('c35')
+      h.script(t, [callTool('steerer', {}), reply('never')])
+      await h.sendUser(t, 'go')
+      await steering.promise
+      await h.withCall(t, (p) => p.turns.stop(t, 'user'))
+      same(sent.answer, { run: 1, status: 'withdrawn' }, 'stopping the turn must withdraw the steer its call waits on')
+      check((await read(h, t)).children.get(child)?.running === true, 'the stop must return while the child still runs')
+      hold.release('c35')
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c35-msg')))
+      check(markersWith(await read(h, child), key('c35-steer')).length === 0, 'a withdrawn steer must add no input')
     }
   },
   // Catches a child stop that ignores its run number, resolves before that run has ended, or reports it as completed.
