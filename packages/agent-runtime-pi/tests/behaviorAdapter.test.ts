@@ -1,3 +1,6 @@
+import { join } from 'node:path'
+
+import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -8,7 +11,7 @@ import {
   type MessageResult,
   type TurnInput
 } from '@cherrystudio/agent-behavior'
-import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
+import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import { openPiHarness, type PiHarness } from './behaviorHarness'
 
@@ -38,6 +41,7 @@ const spec: ChildSpec = {
     status: 'running'
   }
 }
+const noLifecycle = { onOpen: async () => {}, onCompacted: async () => {}, onClose: async () => {} }
 async function spawn(pi: PiHarness, parent: ThreadId, fork?: ChildSpec['fork']): Promise<ThreadId> {
   const { spawned } = await pi.harness.withCall(parent, (ports) =>
     ports.ledger.transact(parent, () => ({
@@ -92,7 +96,7 @@ describe('coding-agent behavior adapter', () => {
     ])
     const parent = await pi.harness.createThread()
     const child = await spawn(pi, parent)
-    pi.harness.script(child, [{ text: 'first' }, { text: 'second' }])
+    pi.harness.script(child, [{ text: 'first' }, { text: 'second' }, { text: 'third' }])
     late = () => pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('late'), key('late')))
     await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
     await sent.promise
@@ -100,6 +104,15 @@ describe('coding-agent behavior adapter', () => {
     expect(admissions).toEqual([{ run: 1, status: 'queued' }])
     expect(answer).toEqual({ outcome: 'completed', text: 'second' })
     expect((await read(pi, parent)).children.get(child)?.runUsage).toHaveLength(2)
+    // A run Pi started with the late message on its own would take 'third' and write its marker a second time.
+    const next = await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('next'), key('next')))
+    expect(
+      await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, next.run, key('next')))
+    ).toEqual({ outcome: 'completed', text: 'third' })
+    const lateMarkers = (await read(pi, child)).history.filter(
+      (entry) => entry.kind === 'marker' && entry.key === key('late')
+    )
+    expect(lateMarkers).toHaveLength(1)
   })
 
   // Catches a fork that starts the child empty or copies the parent's history past the fork point.
@@ -117,6 +130,29 @@ describe('coding-agent behavior adapter', () => {
       entry.kind === 'assistant' ? entry.text : entry.kind
     )
     expect(copied).toEqual(['user', 'one', 'record'])
+  })
+
+  // Catches a fork of a stored (file-backed) parent that starts the child empty, copies history past the fork point
+  // or leaves a child that cannot run; every other test forks in memory.
+  it('forks a child of a stored parent up to the fork point and runs it', async () => {
+    const pi = await openPiHarness(() => {})
+    const parent = await pi.behavior.openConversation(SessionManager.create(pi.cwd, join(pi.cwd, 'sessions')))
+    pi.harness.script(parent, [{ text: 'one' }, { text: 'two' }])
+    await pi.harness.sendUser(parent, 'first')
+    await pi.harness.settle()
+    await pi.harness.sendUser(parent, 'second')
+    await pi.harness.settle()
+    const at = (await read(pi, parent)).history.find((entry) => entry.kind === 'assistant' && entry.text === 'one')!.id
+    const child = await spawn(pi, parent, { from: parent, at })
+    const copied = (await read(pi, child)).history.map((entry) =>
+      entry.kind === 'assistant' ? entry.text : entry.kind
+    )
+    expect(copied).toEqual(['user', 'one', 'record'])
+    pi.harness.script(child, [{ text: 'forked' }])
+    const sent = await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('go'), key('go')))
+    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, sent.run, key('go')))).toEqual(
+      { outcome: 'completed', text: 'forked' }
+    )
   })
 
   // Catches onCompacted running while Pi still compacts, where the quiet input it adds (the subagent status after a
@@ -192,5 +228,162 @@ describe('coding-agent behavior adapter', () => {
     expect(request).not.toContain('stale round')
     const context = await pi.harness.withCall(t, (ports) => ports.ledger.modelContext(t))
     expect(JSON.stringify(context)).not.toContain('stale round')
+  })
+
+  // Catches helpers.stop rejecting for a child of an earlier process (D5: never loaded), which fails onOpen, so a
+  // stored conversation whose record says that child was running can no longer be opened.
+  it('opens a stored conversation whose onOpen stops a child of an earlier process', async () => {
+    let stops = 0
+    const pi = await openPiHarness((ports) =>
+      ports.lifecycle.register({
+        ...noLifecycle,
+        onOpen: async (thread, { reopened }, bound) => {
+          if (!reopened) return
+          for (const entry of (await bound.ledger.read(thread)).history) {
+            if (entry.kind !== 'record' || entry.record.type !== 'subagent-run') continue
+            if (entry.record.value.status !== 'running') continue
+            await bound.helpers.stop(entry.record.value.sessionId, entry.record.value.run)
+            stops += 1
+          }
+        }
+      })
+    )
+    const stored = SessionManager.inMemory(pi.cwd)
+    const earlier = runtimeId<'thread'>('earlier-child')
+    const record = encodeEntry({ type: 'subagent-run', value: { ...spec.record, sessionId: earlier } }, key('earlier'))
+    stored.appendCustomEntry(record.kind, record.data)
+    await expect(pi.behavior.openConversation(stored)).resolves.toBe(stored.getSessionId())
+    expect(stops).toBe(1)
+  })
+
+  // Catches a message to a child whose session is still being built recording its key before it fails, so the same
+  // key sent again answers 'started' while the child never runs.
+  it('keeps the key of a message sent while the child launches', async () => {
+    const building = latch()
+    const pi = await openPiHarness(
+      () => {},
+      [],
+      async (request, open) => {
+        if (request.child) await building.promise
+        return open(request)
+      }
+    )
+    const parent = await pi.harness.createThread()
+    const spawning = spawn(pi, parent)
+    const [child] = (await read(pi, parent)).children.keys()
+    const send = () =>
+      pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('early'), key('early')))
+    await expect(send()).rejects.toThrow()
+    building.release()
+    await spawning
+    pi.harness.script(child, [{ text: 'ran' }])
+    expect(await send()).toEqual({ run: 1, status: 'started' })
+    expect((await read(pi, parent)).children.get(child)?.running).toBe(true)
+    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 1, key('early')))).toEqual({
+      outcome: 'completed',
+      text: 'ran'
+    })
+  })
+
+  // Catches a root session that fails to build staying in the conversation table: opening it again reports it as
+  // already open, and close() skips it.
+  it('opens a conversation again after its session failed to build', async () => {
+    let failing = true
+    const pi = await openPiHarness(
+      () => {},
+      [],
+      (request, open) => {
+        if (!failing) return open(request)
+        failing = false
+        return Promise.reject(new Error('build failed'))
+      }
+    )
+    const manager = SessionManager.inMemory(pi.cwd)
+    await expect(pi.behavior.openConversation(manager)).rejects.toThrow('build failed')
+    await expect(pi.behavior.openConversation(manager)).resolves.toBe(manager.getSessionId())
+  })
+
+  // Catches a person's text submitted while the session is still being built waiting in the inbox forever.
+  it('starts text submitted while the session was being built', async () => {
+    const building = latch()
+    const pi = await openPiHarness(
+      () => {},
+      [],
+      async (request, open) => {
+        await building.promise
+        return open(request)
+      }
+    )
+    const manager = SessionManager.inMemory(pi.cwd)
+    const t = runtimeId<'thread'>(manager.getSessionId())
+    const opening = pi.behavior.openConversation(manager)
+    pi.harness.script(t, [{ text: 'answered' }])
+    await pi.harness.sendUser(t, 'early')
+    building.release()
+    await opening
+    await pi.harness.settle()
+    expect((await read(pi, t)).history.some((entry) => entry.kind === 'assistant' && entry.text === 'answered')).toBe(
+      true
+    )
+  })
+
+  // Catches one session that fails to dispose leaving the conversations after it unclosed and the harness open.
+  it('closes every conversation when one fails to dispose', async () => {
+    const closed: ThreadId[] = []
+    let first = true
+    const pi = await openPiHarness(
+      (ports) =>
+        ports.lifecycle.register({
+          ...noLifecycle,
+          onClose: async (thread) => {
+            closed.push(thread)
+          }
+        }),
+      [],
+      async (request, open) => {
+        const native = await open(request)
+        if (!first) return native
+        first = false
+        return {
+          ...native,
+          dispose: async () => {
+            await native.dispose()
+            throw new Error('dispose failed')
+          }
+        }
+      }
+    )
+    const a = await pi.harness.createThread()
+    const b = await pi.harness.createThread()
+    await expect(pi.harness.close()).rejects.toThrow('dispose failed')
+    expect(new Set(closed)).toEqual(new Set([a, b]))
+    await expect(pi.harness.createThread()).rejects.toThrow('closed')
+  })
+
+  // Catches a quiet input whose write fails once the commit returned (the disk, a session subscriber) ending as an
+  // unhandled rejection instead of reaching onError.
+  it('reports a quiet input that fails to write', async () => {
+    const failure = new Error('subscriber failed')
+    const pi = await openPiHarness(
+      () => {},
+      [],
+      async (request, open) => {
+        const native = await open(request)
+        native.session.subscribe((event) => {
+          if (event.type === 'message_end' && event.message.role === 'custom') throw failure
+        })
+        return native
+      }
+    )
+    const t = await pi.harness.createThread()
+    await pi.harness.withCall(t, (ports) =>
+      ports.ledger.transact(t, () => ({
+        ops: [{ type: 'append-quiet', thread: t, input: input('status'), key: key('quiet') }],
+        effects: [],
+        result: null
+      }))
+    )
+    await pi.harness.settle()
+    expect(pi.errors).toEqual([failure])
   })
 })

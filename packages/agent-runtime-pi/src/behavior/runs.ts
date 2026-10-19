@@ -179,6 +179,8 @@ export function noteMessage(conv: Conversation, message: MessageEndEvent['messag
 export function messageChild(adapter: Adapter, conv: Conversation, input: TurnInput, key: string): MessageResult {
   const existing = conv.submissions.get(key)
   if (existing) return existing.admission as MessageResult
+  // Nothing is recorded for a child still launching, so the same key can be sent once it has launched.
+  if (!conv.native) throw new Error(`Child ${conv.thread} is still launching`)
   const active = conv.active
   if (!active) {
     const admission: MessageResult = { run: conv.runs + 1, status: 'started' }
