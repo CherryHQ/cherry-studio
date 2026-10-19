@@ -1,19 +1,12 @@
 import type { ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 
-import type {
-  BoundPorts,
-  HarnessPorts,
-  Key,
-  LifecycleHandlers,
-  PortMethod,
-  SubagentOrigin
-} from '@cherrystudio/agent-behavior'
+import type { BoundPorts, HarnessPorts, Key, LifecycleHandlers, SubagentOrigin } from '@cherrystudio/agent-behavior'
 import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { AgentRuntimeSession } from '../session'
 import { conversationExtension } from './extension'
 import { commit, modelContext, readFacts } from './ledger'
-import { retract, startTurn, stopRun, submit } from './runs'
+import { awaitAnswer, messageChild, retract, startTurn, stopRun, submit } from './runs'
 import {
   type Adapter,
   type Conversation,
@@ -63,9 +56,6 @@ export interface PiBehavior {
 
 type Scope = { ended: boolean; readonly owner?: Owner }
 
-const later = (method: PortMethod) => (): Promise<never> =>
-  Promise.reject(new Error(`${method} is not implemented yet`))
-
 export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   const conversations = new Map<ThreadId, Conversation>()
   const jobs = new Map<string, JobRecord>()
@@ -114,7 +104,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         read: (thread) => enter(scope, () => readFacts(adapter, thread)),
         transact: (thread, decide) =>
           enter(scope, async () => {
-            const { step, applied } = commit(adapter, thread, decide)
+            const { step, applied } = commit(adapter, thread, decide, scope.owner)
             for (const job of applied.jobs) startJob(job)
             // H1 coding-agent: the commit reserved the children; their sessions are built right after it.
             await Promise.all(
@@ -136,9 +126,14 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         stop: (thread) => enter(scope, () => stopRun(adapter, conversation(thread)))
       },
       helpers: {
-        message: later('helpers.message'),
-        awaitAnswer: later('helpers.awaitAnswer'),
-        stop: later('helpers.stop')
+        message: (child, input, key) => enter(scope, () => messageChild(adapter, conversation(child), input, key)),
+        awaitAnswer: (child, run, key) => enter(scope, () => awaitAnswer(conversation(child), run, key)),
+        // H3: stops run `run` only while it is the child's active run.
+        stop: (child, run) =>
+          enter(scope, async () => {
+            const conv = conversation(child)
+            if (conv.active?.run === run) await stopRun(adapter, conv)
+          })
       },
       waits: {
         // H5: inputs a failed run left do not hold `untilIdle`; neither wait resolves inside a run.

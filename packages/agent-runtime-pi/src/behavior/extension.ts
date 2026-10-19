@@ -5,7 +5,7 @@ import type { ToolDefinition } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 
 import { callKeyFor } from './history'
-import { endingOf, finishRun, noteMessage } from './runs'
+import { endingOf, finishRun, flushHeld, noteMessage } from './runs'
 import type { Adapter, Conversation } from './state'
 
 /** The adapter's side of one conversation's session: the package's tools, run boundaries and inbound handlers. */
@@ -23,6 +23,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       // Pi drops an abort made before it started the run (a prompt's input handlers); repeat it now.
       if (run.stopRequested) ctx.abort()
     })
+    pi.on('turn_start', () => flushHeld(conv))
     pi.on('message_end', (event) => noteMessage(conv, event.message))
     pi.on('agent_settled', (event) => {
       if (conv.active && !conv.active.pending) finishRun(adapter, conv, endingOf(conv.active, event.aborted))
