@@ -219,20 +219,16 @@ function ModelPicker({
 
   return (
     <>
-      <div className="@container/consultation-model min-w-0">
-        <div className="flex min-w-0 flex-col gap-2 @md/consultation-model:flex-row @md/consultation-model:items-center @md/consultation-model:gap-3">
-          <h3 className="text-sm font-medium">{t('settings.doctor.agent.model_picker.title')}</h3>
-          <div className="flex min-w-0 @md/consultation-model:flex-1">
-            <DefaultModelSelector
-              model={model}
-              providers={providers}
-              filter={filter}
-              includeAgentOnlyModels
-              onSelect={selectModel}
-              placeholder={t('settings.doctor.agent.model_picker.empty')}
-            />
-          </div>
-        </div>
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">{t('settings.doctor.agent.model_picker.title')}</h3>
+        <DefaultModelSelector
+          model={model}
+          providers={providers}
+          filter={filter}
+          includeAgentOnlyModels
+          onSelect={selectModel}
+          placeholder={t('settings.doctor.agent.model_picker.empty')}
+        />
       </div>
       {currentCheckState.status === 'failed' ? (
         <Alert
