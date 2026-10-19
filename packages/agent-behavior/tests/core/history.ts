@@ -60,15 +60,14 @@ export const callTo = (name: string, args: JsonValue = {}, callId = `c${++items}
 })
 export const result = (
   tool: string,
-  options: { isError?: boolean; blocked?: string; details?: JsonValue; text?: string; callId?: string } = {}
+  options: { isError?: boolean; details?: JsonValue; text?: string; callId?: string } = {}
 ): HistoryEntry => ({
   kind: 'tool-result',
   id: item(),
   callId: options.callId ?? 'c',
   callKey: callKeyOf(`key:${options.callId ?? 'c'}`),
   tool,
-  isError: options.isError ?? options.blocked !== undefined,
-  ...(options.blocked === undefined ? {} : { blocked: options.blocked }),
+  isError: options.isError ?? false,
   ...(options.details === undefined ? {} : { details: options.details }),
   text: options.text ?? ''
 })
