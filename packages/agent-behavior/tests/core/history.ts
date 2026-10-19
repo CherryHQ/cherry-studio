@@ -152,7 +152,6 @@ export function facts(history: readonly HistoryEntry[], options: FactsOptions = 
   const children = new Map<ThreadId, ChildFacts>()
   for (const [id, child] of Object.entries(options.children ?? {}))
     children.set(thread(id), {
-      thread: thread(id),
       running: false,
       runUsage: [],
       lastItem: `${id}-last` as ItemId,

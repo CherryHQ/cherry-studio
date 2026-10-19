@@ -187,7 +187,6 @@ export type HistoryEntry =
 
 /** [plan choice] No `awaitingApproval`: the adapter cannot read host approval outcomes inside its commit; the core derives it from `CallInputs.approvals`. */
 export interface ChildFacts {
-  readonly thread: ThreadId
   /** Durable: the child's `pi.live.run` exists. */
   readonly running: boolean
   /** Index `i` is run `i + 1`: the sum of the usage on the child's own entries of that run. */
