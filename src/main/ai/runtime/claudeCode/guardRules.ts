@@ -19,6 +19,7 @@ import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolP
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
+  resolveDelegationApproval,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -59,7 +60,9 @@ export const WORKSPACE_PATH_FIELDS = {
  * structured policy registry; an entry counts only while its MCP server is mounted.
  */
 export function approvalRequiredRuntimeNames(mountedServers: ReadonlySet<string>): readonly string[] {
-  return listBuiltinToolPolicies({ approval: 'required', mountedServers }).map(toMcpRuntimeName)
+  return listBuiltinToolPolicies({ mountedServers })
+    .filter(({ approval }) => approval !== 'auto')
+    .map(toMcpRuntimeName)
 }
 
 function bashCommand(ctx: ToolGuardContext): string | undefined {
@@ -218,8 +221,20 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     reason: 'AskUserQuestion requires a live user response.'
   },
   {
-    // Cross-Session delegation keeps its one-hop live-approval ceiling in every mode. This is the
-    // policy entry's explicit exception to ordinary Full Access approval lifting.
+    id: 'delegation-approval',
+    bypassBehavior: 'enforce',
+    match: {
+      when: (ctx) =>
+        findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)?.approval === 'delegation' &&
+        resolveDelegationApproval(ctx.permissionMode, ctx.interaction) !== 'allow'
+          ? {}
+          : null
+    },
+    effect: 'ask',
+    reason: (_hit, ctx) => `The ${ctx.toolName} tool requires approval in this permission mode.`,
+    headless: { predicate: 'either', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+  },
+  {
     id: 'non-bypassable-approval',
     bypassBehavior: 'enforce',
     match: { when: (ctx) => matchesRequiredApproval(ctx, 'enforce') },
