@@ -7,7 +7,6 @@ import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { createAiUsagePlugin } from '@main/ai/hooks/billingHook'
 import type { AppProviderSettingsMap } from '@main/ai/types'
-import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { resolveFileProcessingFileInfo } from '@main/features/fileProcessing/tasks/jobExecution'
@@ -358,14 +357,7 @@ async function summarizeFrames(
           abortSignal: signal,
           messages: [{ role: 'user', content }]
         },
-        [
-          createAiUsagePlugin(
-            createAiUsageCaptureContext({
-              providerId: vision.providerId,
-              modelId: vision.modelId
-            })
-          )
-        ]
+        [createAiUsagePlugin(vision.usage)]
       )
       assignSummaries(batch, result.text, summaries)
     } catch {

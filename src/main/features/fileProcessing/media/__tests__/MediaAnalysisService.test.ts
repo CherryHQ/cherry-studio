@@ -4,12 +4,37 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AiCoreModule from '@cherrystudio/ai-core'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
 
 import type * as MediaExecutionConfigModule from '../mediaExecutionConfig'
-import type { MediaExecutionConfig } from '../mediaExecutionConfig'
+import type { MediaExecutionConfig, MediaVisionExecutionConfig } from '../mediaExecutionConfig'
+
+const visionExecution = (): MediaVisionExecutionConfig => ({
+  uniqueModelId: 'openai::gpt-4o',
+  providerId: 'openai',
+  modelId: 'gpt-4o',
+  endpointType: 'openai-chat-completions',
+  baseUrl: 'https://api.openai.com/v1',
+  sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' },
+  usage: createAiUsageCaptureContext({
+    providerId: 'openai',
+    providerName: 'OpenAI',
+    modelId: 'gpt-4o',
+    modelName: 'GPT-4o',
+    pricing: {
+      input: { perMillionTokens: 2.5, currency: 'USD' },
+      output: { perMillionTokens: 10, currency: 'USD' }
+    },
+    billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: 'UTC', periods: [] },
+    trustProviderReportedCost: true,
+    reportedCostCurrency: 'USD',
+    credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
+  })
+})
 
 const runtime = vi.hoisted(() => ({
   tempRoot: '',
@@ -38,7 +63,7 @@ const runtime = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/ai-core')>()
+  const actual = await importOriginal<typeof AiCoreModule>()
   return { ...actual, generateText: runtime.generateText }
 })
 vi.mock('@main/features/fileProcessing/tasks/jobExecution', () => ({
@@ -433,14 +458,7 @@ describe('MediaAnalysisService', () => {
     runtime.config = {
       ...runtime.config,
       asr: null,
-      vision: {
-        uniqueModelId: 'openai::gpt-4o',
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        endpointType: 'openai-chat-completions',
-        baseUrl: 'https://api.openai.com/v1',
-        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' }
-      },
+      vision: visionExecution(),
       budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
     }
     runtime.probe.mockResolvedValue({
@@ -492,14 +510,7 @@ describe('MediaAnalysisService', () => {
     runtime.config = {
       ...runtime.config,
       asr: null,
-      vision: {
-        uniqueModelId: 'openai::gpt-4o',
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        endpointType: 'openai-chat-completions',
-        baseUrl: 'https://api.openai.com/v1',
-        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' }
-      },
+      vision: visionExecution(),
       budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
     }
     runtime.probe.mockResolvedValue({
@@ -533,14 +544,7 @@ describe('MediaAnalysisService', () => {
     runtime.config = {
       ...runtime.config,
       asr: null,
-      vision: {
-        uniqueModelId: 'openai::gpt-4o',
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        endpointType: 'openai-chat-completions',
-        baseUrl: 'https://api.openai.com/v1',
-        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' }
-      },
+      vision: visionExecution(),
       budget: { maxFrames: 1, targetIntervalMs: 4_000, maxEdgePx: 640, jpegQuality: 70 }
     }
     runtime.probe.mockResolvedValue({
@@ -571,9 +575,7 @@ describe('MediaAnalysisService', () => {
     }>
     expect(plugins?.map((plugin) => plugin.name)).toEqual(['ai-usage-capture'])
     const requestContext: {
-      middlewares?: Array<{
-        wrapGenerate: (args: { doGenerate: () => Promise<{ usage: unknown }> }) => Promise<unknown>
-      }>
+      middlewares?: Array<{ wrapGenerate: (args: unknown) => Promise<unknown> }>
     } = {}
     plugins[0]?.configureContext?.(requestContext)
     const record = vi.spyOn(aiUsageRecordService, 'recordInvocation').mockImplementation(() => undefined)
@@ -584,7 +586,20 @@ describe('MediaAnalysisService', () => {
       expect.objectContaining({
         modality: 'language',
         usage: expect.objectContaining({ inputTokens: 4, outputTokens: 6 }),
-        context: expect.objectContaining({ providerId: 'openai', modelId: 'gpt-4o' })
+        context: expect.objectContaining({
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          modelId: 'gpt-4o',
+          modelName: 'GPT-4o',
+          trustProviderReportedCost: true,
+          reportedCostCurrency: 'USD',
+          credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+          pricingSnapshot: expect.objectContaining({
+            inputPerMillionTokens: 5,
+            outputPerMillionTokens: 20,
+            billing: expect.objectContaining({ mode: 'multiplier', multiplier: 2 })
+          })
+        })
       })
     )
   })
