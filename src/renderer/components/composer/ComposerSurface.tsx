@@ -310,7 +310,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       <button
         data-ui="chat.composer.action.pause"
         type="button"
-        className="flex size-7.5 items-center justify-center rounded-full text-error hover:bg-accent"
+        className="text-error flex size-7.5 items-center justify-center rounded-full hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void props.onPause()}>
         <CirclePause size={20} />
@@ -328,6 +328,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       id="inputbar"
       data-ui="chat.composer"
       data-composer-inputbar=""
+      data-voice-target-id={voiceTargetId}
       data-composer-presentation="regular"
       onPointerDownCapture={markVoiceTargetCurrent}
       onFocusCapture={markVoiceTargetCurrent}
@@ -341,6 +342,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
           <textarea
             dir="auto"
             ref={textareaRef}
+            data-voice-target-id={voiceTargetId}
             aria-label={props.placeholder}
             value={props.text}
             placeholder={props.placeholder}
@@ -476,7 +478,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             </>
           )}
           {showAiDisclaimer ? (
-            <div className="-mt-3 pt-1.5 pb-2.5 text-center text-[11px] text-muted-foreground">
+            <div className="text-muted-foreground -mt-3 pt-1.5 pb-2.5 text-center text-[11px]">
               {t('chat.input.ai_disclaimer')}
             </div>
           ) : null}

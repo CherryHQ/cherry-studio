@@ -23,6 +23,7 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
+import { pageOf, queryPage } from './agentPagination'
 import {
   createSessionTx,
   getSession,
@@ -32,7 +33,6 @@ import {
   listPersistedInteractions,
   listSessions,
   listWorkspaces,
-  pageOf,
   readPersistedContent,
   readPersistedFileContent,
   sha256,
@@ -132,13 +132,15 @@ export function registerAgentMethods(
 
   on('agent.agents.list', ({ cursor, limit }) => listAgents(cursor, limit))
   on('agent.workspaces.list', ({ agentId, cursor, limit }) => listWorkspaces(agentId, cursor, limit))
-  on('agent.sessions.list', (params) => {
-    const page = listSessions(params)
-    return {
-      items: page.items.flatMap((session) => toSessionSummary(session, hub.activeExecutionId(session.id)) ?? []),
-      nextCursor: page.nextCursor
-    }
-  })
+  on('agent.sessions.list', (params) =>
+    queryPage((attemptLimit) => {
+      const page = listSessions({ ...params, limit: attemptLimit })
+      return {
+        items: page.items.flatMap((session) => toSessionSummary(session, hub.activeExecutionId(session.id)) ?? []),
+        nextCursor: page.nextCursor
+      }
+    }, params.limit)
+  )
   on('agent.sessions.get', ({ sessionId }) => ({ session: summaryOf(sessionId) }))
   on('agent.sessions.create', (params, auth) => {
     const method = 'agent.sessions.create'
