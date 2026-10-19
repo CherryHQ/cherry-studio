@@ -243,7 +243,7 @@ export function gateFacts(thread: ThreadState, window: readonly ToolCallFact[]):
   for (const { entry } of thread.entries)
     if (entry.kind === 'record' && entry.record.type === 'plan') plan = entry.record.value
   const goalRound = thread.active?.goalRound === true
-  return { lineage: thread.lineage, plan, goalRound, callWindow: goalRound ? [...window] : [] }
+  return { plan, goalRound, callWindow: goalRound ? [...window] : [] }
 }
 
 export type CommitContext = {
