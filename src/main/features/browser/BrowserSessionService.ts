@@ -8,6 +8,8 @@ import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { DownloadManagerService } from '@main/services/download/DownloadManagerService'
+import { markBrowserDownload } from '@main/services/download/takeover'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
@@ -66,12 +68,14 @@ export class BrowserSessionService extends BaseService {
 
   protected onInit(): void {
     const guests = new Map<Electron.WebContents, () => void>()
-    const ordinary = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
-    const profiles = [
-      ordinary,
-      session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview)),
-      session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
-    ]
+    const browserPartitions = [
+      getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
+      getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
+      getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact)
+    ] as const
+    const ordinary = session.fromPartition(browserPartitions[0])
+    const profiles = browserPartitions.map((partition) => session.fromPartition(partition))
+    this.takeOverBrowserDownloads(browserPartitions)
     const track = (_event: Electron.Event | undefined, guest: Electron.WebContents) => {
       if (
         guest.isDestroyed() ||
@@ -132,6 +136,48 @@ export class BrowserSessionService extends BaseService {
             void server.close().catch((error) => logger.warn('Failed to release browser control', { error }))
       })
     )
+  }
+
+  /**
+   * Hands browser-initiated downloads to the download manager. `blob:`/`data:`
+   * URLs stay on Electron's own path: they have no range-addressable resource to
+   * re-request, so cancelling them here would lose the download entirely.
+   */
+  private takeOverBrowserDownloads(partitions: readonly string[]): void {
+    const listeners = partitions.map((partition) => {
+      const target = session.fromPartition(partition)
+      const onWillDownload = (event: Electron.Event, item: Electron.DownloadItem) => {
+        const url = item.getURL()
+        if (!url.startsWith('http:') && !url.startsWith('https:')) return
+        const manager = this.downloadManager()
+        // No manager in this build: leave the item on Electron's own path.
+        if (!manager) return
+        event.preventDefault()
+        markBrowserDownload(item)
+        void manager
+          .start({
+            url,
+            fileName: item.getFilename(),
+            mime: item.getMimeType() || undefined,
+            partition,
+            source: 'browser'
+          })
+          .catch((error) => logger.warn('Failed to enqueue browser download', { error }))
+      }
+      target.on('will-download', onWillDownload)
+      return () => target.removeListener('will-download', onWillDownload)
+    })
+    this.registerDisposable(() => {
+      for (const remove of listeners) remove()
+    })
+  }
+
+  private downloadManager(): DownloadManagerService | undefined {
+    try {
+      return application.get('DownloadManagerService')
+    } catch {
+      return undefined
+    }
   }
 
   async createMcpEndpoint() {
