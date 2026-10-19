@@ -218,8 +218,10 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         () => 'done' as const,
         () => 'failed' as const
       )
-      .then((outcome) => {
+      .then(async (outcome) => {
         scope.ended = true
+        // Ending the job is a commit of its own, so a crash can fall after its last step (Stage A review M12).
+        await point(e)
         if (!alive(e)) return never<void>()
         job.state = outcome
         e.jobRuns.delete(job.key)
