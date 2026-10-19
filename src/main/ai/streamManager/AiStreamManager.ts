@@ -372,6 +372,8 @@ export class AiStreamManager extends BaseService {
   private readonly inFlightChatContinuations = new Map<string, Promise<void>>()
   /** Stop drains in flight by topic and reason, so duplicate abort requests join instead of stacking. */
   private readonly drainingTopics = new Map<string, Promise<void>>()
+  /** Turn id each topic's last user Stop already drained, so a late duplicate Stop does not re-abort. */
+  private readonly stoppedTurnsByTopic = new Map<string, string>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -1261,6 +1263,15 @@ export class AiStreamManager extends BaseService {
       const stoppedTurnId = isAgentSessionTopic(topicId)
         ? application.get('AgentSessionRuntimeService').getLiveTurnId(extractAgentSessionId(topicId))
         : undefined
+
+      // The renderer's Stop arrives twice (explicit abort + `sdkStop`'s transport signal). When the
+      // first drain has already resolved, its dedup entry is gone, so the late twin would start a
+      // fresh drain — and the turn now live is the successor that stop just resumed. Recording the
+      // drained turn lets the twin recognise itself and stop short of cancelling that successor.
+      if (reason === USER_STOP_ABORT_REASON && stoppedTurnId !== undefined) {
+        if (this.stoppedTurnsByTopic.get(topicId) === stoppedTurnId) return
+        this.stoppedTurnsByTopic.set(topicId, stoppedTurnId)
+      }
 
       this.abort(topicId, reason)
       await Promise.allSettled(loopPromises)

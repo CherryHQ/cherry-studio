@@ -2014,6 +2014,38 @@ describe('AiStreamManager', () => {
       expect(continuationListener.pausedResults).toHaveLength(0)
     })
 
+    it('rejects a duplicate user Stop that lands after the first drain already resolved', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      mockHandleUserStop.mockImplementation(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+
+      // The second IPC message of the same Stop runs only now, after the first drain released its
+      // dedup entry. The turn it would abort is the successor the first stop admitted, so a fresh
+      // drain here would capture and cancel it — the user's one Stop must not kill the next turn.
+      await expect(mgr.abortAndDrain('agent-session:session-1', 'user-requested')).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
     it('runs a queued remote cancellation through its own guard instead of joining a stale drain', async () => {
       vi.useRealTimers()
       const topicId = 'agent-session:session-1'
