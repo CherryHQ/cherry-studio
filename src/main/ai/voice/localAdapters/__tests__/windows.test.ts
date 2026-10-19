@@ -30,6 +30,34 @@ vi.mock('@application', async () => {
 
 let directory: string
 const wav = Buffer.from('UklGRiYAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQIAAAAAAA==', 'base64')
+
+function wavWithUInt16(offset: number, value: number): Buffer {
+  const changed = Buffer.from(wav)
+  changed.writeUInt16LE(value, offset)
+  return changed
+}
+
+function wavWithUInt32(offset: number, value: number): Buffer {
+  const changed = Buffer.from(wav)
+  changed.writeUInt32LE(value, offset)
+  return changed
+}
+
+function wavWithEmptyData(): Buffer {
+  const changed = Buffer.from(wav.subarray(0, 44))
+  changed.writeUInt32LE(changed.length - 8, 4)
+  changed.writeUInt32LE(0, 40)
+  return changed
+}
+
+function offsetWavView(): Uint8Array {
+  const carrier = new Uint8Array(wav.length + 6)
+  carrier.set([0x11, 0x22], 0)
+  carrier.set(wav, 2)
+  carrier.set([0x33, 0x44, 0x55, 0x66], wav.length + 2)
+  return carrier.subarray(2, 2 + wav.length)
+}
+
 const voices = [{ id: 'HKEY_LOCAL_MACHINE\\voices\\exact', name: 'SAPI voice', locale: 'zh-CN', quality: 1 }]
 const capabilities = {
   operation: 'capabilities',
@@ -154,11 +182,100 @@ describe('Windows system ASR adapter', () => {
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
   })
 
-  it('rejects other audio formats before probing the engine', async () => {
+  it('rejects a non-WAV container before probing even when the bytes are canonical WAV', async () => {
     await expect(
-      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ ...input, mediaType: 'audio/wav' })
+      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ audio: wav, mediaType: 'audio/mpeg' })
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
     expect(mocks.nativeRequest).not.toHaveBeenCalled()
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('transcribes canonical PCM16 mono 16 kHz WAV without decoding WebM', async () => {
+    const result = await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate({
+      audio: wav,
+      mediaType: 'audio/wav'
+    })
+    expect(result).toMatchObject({
+      text: 'private transcript',
+      language: 'zh',
+      durationInSeconds: 1 / 16000,
+      segments: []
+    })
+    expect(result.response.modelId).toBe(WINDOWS_ASR_MODEL_ID)
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(mocks.nativeRequest.mock.calls.map(([request]) => request.operation)).toEqual(['probe_asr', 'transcribe'])
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('transcribes a byte-offset canonical WAV view and forwards only those bytes', async () => {
+    const audio = offsetWavView()
+    expect(audio.byteOffset).not.toBe(0)
+    expect(audio.byteLength).toBe(wav.length)
+    const result = await createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, { language: 'zh-CN' }).doGenerate({
+      audio,
+      mediaType: 'audio/wav'
+    })
+    expect(result).toMatchObject({ text: 'private transcript', language: 'zh', durationInSeconds: 1 / 16000 })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it.each([
+    ['empty bytes', new Uint8Array()],
+    ['a truncated header', wav.subarray(0, 30)],
+    ['an empty data chunk', wavWithEmptyData()],
+    ['stereo PCM', wavWithUInt16(22, 2)],
+    ['a non-16 kHz sample rate', wavWithUInt32(24, 48_000)]
+  ])('rejects WAV with %s before probing or decoding', async (_description, audio) => {
+    await expect(
+      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
+    ).rejects.toMatchObject({ reason: 'invalid_audio' })
+    expect(mocks.nativeRequest).not.toHaveBeenCalled()
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('cancels canonical WAV transcription without decoding and removes scratch', async () => {
+    const controller = new AbortController()
+    let started!: () => void
+    const recognitionStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    mocks.nativeRequest.mockImplementation(async (request, { signal }) => {
+      if (request.operation === 'probe_asr') return { operation: 'probe_asr', result: { locale: request.locale } }
+      expect(await readFile(request.inputPath)).toEqual(wav)
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new SystemSpeechError('cancelled')), { once: true })
+        started()
+      })
+    })
+    const result = Promise.resolve(
+      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({
+        audio: wav,
+        mediaType: 'audio/wav',
+        abortSignal: controller.signal
+      })
+    ).catch((error: unknown) => error)
+    const startedFirst = await Promise.race([recognitionStarted.then(() => true), result.then(() => false)])
+    expect(startedFirst).toBe(true)
+    controller.abort()
+    expect(await result).toMatchObject({ reason: 'aborted' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it('cleans canonical WAV scratch after a native timeout', async () => {
+    mocks.nativeRequest.mockImplementation(async (request) => {
+      if (request.operation === 'probe_asr') return { operation: 'probe_asr', result: { locale: request.locale } }
+      expect(await readFile(request.inputPath)).toEqual(wav)
+      throw new SystemSpeechError('timeout')
+    })
+    await expect(
+      createLocalTranscriptionModel(WINDOWS_ASR_MODEL_ID, {}).doGenerate({ audio: wav, mediaType: 'audio/wav' })
+    ).rejects.toMatchObject({ reason: 'timeout' })
+    expect(mocks.decode).not.toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
   })
 
   it.each(['timeout', 'transcription_failed'] as const)('cleans derived audio after %s', async (code) => {

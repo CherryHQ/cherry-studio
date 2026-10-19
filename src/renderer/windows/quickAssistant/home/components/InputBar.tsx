@@ -116,14 +116,15 @@ const InputBar = ({
         value={text}
         placeholder={placeholder}
         autoFocus
+        data-voice-target-id={dictationTargetId}
         onFocus={markDictationTarget}
         onPointerDown={markDictationTarget}
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+        className="placeholder:text-muted-foreground h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
       />
       {dictationStatus && (
-        <span role="status" className="text-xs text-muted-foreground">
+        <span role="status" className="text-muted-foreground text-xs">
           {dictationStatus}
           {dictationError && `: ${dictationError}`}
         </span>
@@ -161,7 +162,7 @@ const InputBar = ({
       )}
       {['starting', 'stopping', 'transcribing'].includes(dictation.phase) && (
         <>
-          <LoaderCircle aria-hidden className="size-4 animate-spin text-muted-foreground" />
+          <LoaderCircle aria-hidden className="text-muted-foreground size-4 animate-spin" />
           <Button
             type="button"
             variant="ghost"

@@ -1,5 +1,5 @@
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
-import { createAgent, runAgentFileTask, selectAgentWorkspace, startNewAgentTask } from './agents'
+import { createAgent, runAgentFileTask, selectAgentWorkspace, startBuiltinAssistantTask } from './agents'
 import { expect, test } from './fixture'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
 import { dismissOnboarding, selectSidebarApp } from './navigation'
@@ -50,7 +50,7 @@ test(...caseDefinition('A-04'), async ({ app, mainWindow: page }) => {
 test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   test.setTimeout(10 * 60_000)
   const modelName = await ensureAgentModel(app, page)
-  await startNewAgentTask(page, 'Cherry Assistant')
+  await startBuiltinAssistantTask(page)
 
   const agentView = page.locator('[data-ui="agent.view"]:visible').first()
   const model = agentView
