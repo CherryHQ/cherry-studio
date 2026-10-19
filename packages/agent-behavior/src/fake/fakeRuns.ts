@@ -20,6 +20,7 @@ import type {
   ToolDefinition
 } from '../ports/harness'
 import {
+  type ActiveRun,
   append,
   appendInput,
   buildFacts,
@@ -39,6 +40,8 @@ import { replyAt } from './scriptedModel'
 /** What the run loop needs from the harness. */
 export interface RunHost {
   readonly state: FakeState
+  /** Restored runs a stop marked before resume (H12); like the state, the marks survive restarts. */
+  readonly stopMarks: WeakSet<ActiveRun>
   /** The live epoch; every restart replaces it. */
   epoch(): Epoch
   alive(epoch: Epoch): boolean
@@ -100,8 +103,8 @@ export function retract(host: RunHost, thread: ThreadState, key: string): Retrac
 
 /**
  * Withdraws queued input, aborts the active run together with the foreground children its calls own, and resolves
- * once that run ended. A restored run that has not resumed yet (H12's stop before resume) ends here as aborted, its open
- * calls aborted and none rerun.
+ * once that run ended. A restored run that has not resumed yet (H12's stop before resume) is only marked, with those
+ * children, like Durable's `abortTask`; it stays active until `resumeRun` ends it.
  */
 export async function stopRun(host: RunHost, thread: ThreadState): Promise<void> {
   const epoch = host.epoch()
@@ -111,20 +114,27 @@ export async function stopRun(host: RunHost, thread: ThreadState): Promise<void>
   const active = thread.active
   if (!active) return
   const loop = epoch.loops.get(thread.id)
-  loop?.abort.abort()
+  if (loop) loop.abort.abort()
+  else host.stopMarks.add(active)
   const owned = [...host.state.threads.values()].filter(
     (child) => child.owner?.thread === thread.id && child.owner.run === active.run
   )
   await Promise.all(owned.map((child) => stopRun(host, child)))
-  if (loop) return loop.done
-  if (!host.alive(epoch)) return never()
-  if (thread.active !== active) return
-  for (const call of openCalls(thread)) append(thread, resultEntry(nextItem(host.state), call, ABORTED))
-  finish(host, epoch, thread, ending(thread, 'aborted'))
+  return loop?.done
 }
 
-/** Continues a run a restart cut: its open tool calls first, under the replay rules, then the loop. */
-export const resumeRun = (host: RunHost, thread: ThreadState): void => launch(host, thread, true)
+/**
+ * Continues a run a restart cut: its open tool calls first, under the replay rules, then the loop. A run marked by a
+ * stop before resume ends as aborted instead, its open calls aborted and none rerun.
+ */
+export function resumeRun(host: RunHost, thread: ThreadState): void {
+  const epoch = host.epoch()
+  if (!host.stopMarks.has(thread.active!)) launch(host, thread, true)
+  else if (host.alive(epoch)) {
+    for (const call of openCalls(thread)) append(thread, resultEntry(nextItem(host.state), call, ABORTED))
+    finish(host, epoch, thread, ending(thread, 'aborted'))
+  }
+}
 
 /** Resolves once `ready()` holds; checked now and after every change to the thread's runs or queued input. */
 export function waitFor(epoch: Epoch, thread: ThreadId, ready: () => boolean): Promise<void> {
