@@ -154,10 +154,13 @@ function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<stri
  * Adding the empty map is validation-neutral: a missing `properties` and `{}`
  * declare the same empty property set, `additionalProperties` keeps its
  * meaning, and the original schema still validates tool calls locally.
+ * A root `$ref` is left alone because providers (the pinned Google adapter)
+ * merge root siblings over the referenced definition, so an empty `properties`
+ * map would erase the referenced parameters.
  */
 function addMissingProperties(node: JSONSchema7Definition): JSONSchema7Definition {
   if (typeof node !== 'object' || Array.isArray(node)) return node
-  if (node.type !== 'object' || Object.hasOwn(node, 'properties')) return node
+  if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
   return { ...node, properties: {} }
 }
 

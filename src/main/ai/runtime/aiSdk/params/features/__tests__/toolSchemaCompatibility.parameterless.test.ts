@@ -1,8 +1,9 @@
 /** Regression coverage for the parameterless tool-schema pass (issue #21957). */
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
-import { generateText, tool, wrapLanguageModel } from 'ai'
+import { generateText, jsonSchema, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
@@ -83,8 +84,6 @@ describe('parameterless function-tool schemas', () => {
       description: 'root',
       required: ['q'],
       additionalProperties: false,
-      $ref: '#/$defs/x',
-      $defs: { x: { type: 'object' } },
       anyOf: [{ type: 'object' }, { type: 'object', properties: { q: { type: 'string' } } }]
     }
     const params: LanguageModelV3CallOptions = {
@@ -96,8 +95,25 @@ describe('parameterless function-tool schemas', () => {
 
     expect(transformed.inputSchema).toEqual({ ...inputSchema, properties: {} })
     expect(transformed.inputSchema.anyOf).toBe(inputSchema.anyOf)
-    expect(transformed.inputSchema.$defs).toBe(inputSchema.$defs)
     expect(Object.hasOwn(inputSchema, 'properties')).toBe(false)
+  })
+
+  it('preserves an object root with $ref by reference without mutation', async () => {
+    const inputSchema: JSONSchema7 = {
+      type: 'object',
+      $ref: '#/$defs/Input',
+      $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
+    }
+    const original = structuredClone(inputSchema)
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'lookup', inputSchema }]
+    }
+
+    const result = await transform(params)
+
+    expect(result).toBe(params)
+    expect(inputSchema).toEqual(original)
   })
 
   it.each([
@@ -155,5 +171,40 @@ describe('parameterless function-tool schemas', () => {
     const sent = (capturedBody as { tools: Array<{ function: { parameters: unknown } }> }).tools[0].function.parameters
     expect(sent).toEqual({ type: 'object', additionalProperties: false, properties: {} })
     expect(inputSchema).toEqual({ type: 'object', additionalProperties: false })
+  })
+
+  it('preserves referenced parameters at the Google request boundary', async () => {
+    const inputSchema: JSONSchema7 = {
+      type: 'object',
+      $ref: '#/$defs/Input',
+      $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
+    }
+    let capturedBody: unknown
+    const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+      capturedBody = JSON.parse(String(init?.body))
+      return new Response(JSON.stringify({ error: { message: 'captured' } }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+    const model = wrapLanguageModel({
+      model: createGoogleGenerativeAI({ apiKey: 'x', fetch: captureFetch })('gemini-3.5-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        tools: { lookup: tool({ description: 'lookup', inputSchema: jsonSchema(inputSchema) }) }
+      })
+    ).rejects.toBeDefined()
+
+    const sent = (capturedBody as { tools: Array<{ functionDeclarations: Array<{ parameters: unknown }> }> }).tools[0]
+      .functionDeclarations[0].parameters
+    expect(sent).toEqual({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'] })
   })
 })
