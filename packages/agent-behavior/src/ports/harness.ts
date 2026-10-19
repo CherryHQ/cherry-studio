@@ -31,7 +31,9 @@ export interface Ledger {
   /**
    * Reads `thread`'s facts, calls `decide` synchronously, applies its operations in one commit and returns the result
    * and effects. Rejects, writing nothing, when `decide` throws or an operation cannot apply (an unknown thread, or
-   * `append-quiet` on a conversation that is not idle).
+   * `append-quiet` on a conversation that is not idle). A `spawn-child` with `fork` may report `fork.from`'s own id in
+   * `spawned` when the adapter re-owns that conversation in the background in place (coding-agent may; Durable cannot
+   * and must fork); callers treat the reported id as the new child's either way.
    */
   transact<R extends JsonValue>(
     thread: ThreadId,
@@ -216,7 +218,10 @@ export type GatePorts = Pick<HarnessPorts, 'memory' | 'clock'>
 export interface GateHandlers {
   /** Block the call (the reason becomes its error result) or rewrite its arguments. */
   before(call: GateCall, facts: GateFacts, ports: GatePorts): Promise<GateVerdict>
-  /** Replace the result, or keep it by returning `undefined`. */
+  /**
+   * Replace the result, or keep it by returning `undefined`. `call` is the call `before` saw, `nested` included, with
+   * the arguments it ran with.
+   */
   after(call: GateCall, result: ToolResultFact, ports: GatePorts): Promise<ToolResultFact | undefined>
 }
 /**
@@ -228,7 +233,8 @@ export interface GateHandlers {
  * late-bound `Conversation.entries()`, or an in-process window that resets on restart (harness-limited row 5).
  * @harness fake Called by the run loop with facts computed from its log; the window is kept in memory.
  * @keys The call key is `callKeyOf` applied to Durable's tool task id or to coding-agent's `<sessionId>:<toolCallId>`;
- * approvals are memoized under `cherry.approval:<callKey>`.
+ * history carries the same key as `callKey` on the call and on its result; approvals are memoized under
+ * `cherry.approval:<callKey>`.
  * @waits `before` may wait for a person through the host's `Approvals`; on Durable a crash while waiting asks again.
  */
 export interface ToolGate {
@@ -253,16 +259,23 @@ export interface ContextFilter {
 
 export type RequestAllowance = { readonly ok: true } | { readonly ok: false; readonly text: string }
 export interface RequestMeterHandler {
-  /** `requestsInRun` counts the requests this run already made, compaction requests included. */
-  allow(thread: ThreadId, requestsInRun: number): RequestAllowance
+  /**
+   * `requestsInRun` counts the requests this run already made, compaction requests included. `lineage` is `'child'`
+   * for a conversation spawned as a child and `'root'` otherwise.
+   */
+  allow(thread: ThreadId, requestsInRun: number, lineage: 'root' | 'child'): RequestAllowance
 }
 /**
  * H11. Refuse a child's next model request once its run reached the cap.
  *
- * @harness coding-agent Wraps the stream function and the summarizer.
+ * Every conversation's requests are metered, each with its lineage, so the cap applies to children only.
+ *
+ * @harness coding-agent Wraps the stream function and the summarizer; a subagent session is `'child'`.
  * @harness durable The model bridge counts per session id, rebuilt from the run's entries, and fails a refused request
- * with a non-retryable `quota exceeded` error; the adapter reports such a child run as `limit_reached`.
- * @harness fake Counts the scripted model's requests per run; a refusal ends the run with an error carrying its text.
+ * with a non-retryable `quota exceeded` error; the adapter reports such a child run as `limit_reached`. A conversation
+ * with a parent is `'child'`.
+ * @harness fake Counts the scripted model's requests per run; a refusal ends the run with an error carrying its text. A
+ * spawned conversation is `'child'`.
  */
 export interface RequestMeter {
   /** Called during install. */

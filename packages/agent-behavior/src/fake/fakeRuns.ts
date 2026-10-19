@@ -220,7 +220,8 @@ async function turn(
     await host.point(epoch)
     if (!host.alive(epoch)) return never()
     if (loop.abort.signal.aborted) return ending(thread, 'aborted')
-    const allowance: RequestAllowance = epoch.meter?.allow(thread.id, active.requests) ?? { ok: true }
+    const lineage = thread.lineage.kind === 'subagent' ? 'child' : 'root'
+    const allowance: RequestAllowance = epoch.meter?.allow(thread.id, active.requests, lineage) ?? { ok: true }
     if (!allowance.ok) return fail(state, thread, 'limit_reached', allowance.text)
     const omitted = new Set(epoch.filter?.omit(thread.id, buildFacts(state, thread.id)))
     thread.requests.push(modelEntries(thread).flatMap(({ entry }) => (omitted.has(entry.id) ? [] : [entry.id])))
@@ -266,12 +267,19 @@ async function callTool(
   call: ToolCallFact,
   replaying: boolean
 ): Promise<ToolResult> {
-  const key = callKeyOf(`${thread.id}:${call.callId}`)
+  const key = call.callKey
   const intent = replaying ? host.state.intents.get(key) : undefined
   if (intent?.replay === 'unsafe') return INTERRUPTED
   const scope = host.toolScope(epoch, { thread: thread.id, run: thread.active!.run })
   try {
-    let gated: GateCall = { key, thread: thread.id, tool: call.name, args: intent ? intent.args : call.args }
+    // The fake makes no nested calls.
+    let gated: GateCall = {
+      key,
+      thread: thread.id,
+      tool: call.name,
+      args: intent ? intent.args : call.args,
+      nested: false
+    }
     if (!intent) {
       loop.window.push(call)
       const verdict: GateVerdict = (await epoch.gate?.before(gated, gateFacts(thread, loop.window), scope.ports)) ?? {}
@@ -328,7 +336,8 @@ function appendReply(
 ): readonly ToolCallFact[] {
   const toolCalls = (reply.toolCalls ?? []).map(({ name, args }): ToolCallFact => {
     thread.calls += 1
-    return { callId: `call-${thread.calls}`, name, args }
+    const callId = `call-${thread.calls}`
+    return { callId, callKey: callKeyOf(`${thread.id}:${callId}`), name, args }
   })
   const stop = toolCalls.length > 0 ? 'toolUse' : 'stop'
   const usage = reply.usage ?? ZERO_USAGE
@@ -346,6 +355,7 @@ const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResult): Histor
   kind: 'tool-result',
   id,
   callId: call.callId,
+  callKey: call.callKey,
   tool: call.name,
   ...result
 })

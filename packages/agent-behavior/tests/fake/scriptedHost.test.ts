@@ -16,7 +16,7 @@ const settings: HostSettingsSnapshot = {
 }
 const thread = 't' as ThreadId
 const call = { thread, key: callKeyOf('call-1') }
-const tool = { callId: 'call-1', name: 'bash', args: {} }
+const tool = { callId: 'call-1', callKey: call.key, name: 'bash', args: {} }
 
 describe('scripted host', () => {
   // Catches a host that answers instantly, which would make Stage B's awaiting-approval rules (D23, slot counting) untestable.
@@ -103,6 +103,15 @@ describe('scripted host', () => {
     const host = createScriptedHost({ settings })
     const file = { name: 'out-abc.txt', content: 'x', key: call.key, tool: 'bash' }
     expect(await host.outputStore.save(file)).toBe(await host.outputStore.save(file))
+  })
+
+  // Catches empty model keys, which would record a spawn's origin with no model (B-G3), or keys a test cannot set.
+  it('names non-empty model keys, or the ones it was given', async () => {
+    const keys = await createScriptedHost({ settings }).models.keysFor(thread)
+    expect(keys.parentModelKey).not.toBe('')
+    expect(keys.defaultChildModelKey).not.toBe('')
+    const given = { parentModelKey: 'anthropic/opus', defaultChildModelKey: 'anthropic/sonnet' }
+    expect(await createScriptedHost({ settings, modelKeys: given }).models.keysFor(thread)).toEqual(given)
   })
 
   // Catches settings read once at construction, which would hide Stage B rules that must see a mid-goal change.

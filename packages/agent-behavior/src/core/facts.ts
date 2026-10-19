@@ -16,7 +16,13 @@ export type UsageFact = {
   readonly totalTokens: number
   readonly costUsd: number
 }
-export type ToolCallFact = { readonly callId: string; readonly name: string; readonly args: JsonValue }
+/** `callKey` is the call's `CallKey`, the same key the gate and the host's approvals see. */
+export type ToolCallFact = {
+  readonly callId: string
+  readonly callKey: CallKey
+  readonly name: string
+  readonly args: JsonValue
+}
 
 /** The first eight keep today's customType (agent-runtime-pi), so stored sessions need no migration. Durable refuses only `pi.` kinds. */
 export const ENTRY_KINDS = {
@@ -131,7 +137,11 @@ export type PolicyRecord =
   | { readonly type: 'subagent-run'; readonly value: SubagentRunRecord }
   | { readonly type: 'subagent-origin'; readonly value: SubagentOrigin }
   | { readonly type: 'plan'; readonly value: PlanState }
-  | { readonly type: 'turn-stop'; readonly value: { readonly by: 'user'; readonly at: number } }
+  /** `cause`: a person's stop, a `/goal` command, or the stop a reopen makes; a stored stop without one reads as 'user'. */
+  | {
+      readonly type: 'turn-stop'
+      readonly value: { readonly by: 'user'; readonly cause: 'user' | 'goal-command' | 'reopen'; readonly at: number }
+    }
   /** The idle driver of `generation` stopped; written by the transaction that decided it (H4). */
   | { readonly type: 'idle-driver-exit'; readonly value: { readonly generation: number } }
 /** Enters the model context. */
@@ -143,7 +153,7 @@ export type MarkerFact =
 
 /** Ordered and full-lineage: entries folded by compaction or hidden by reset are included. */
 export type HistoryEntry =
-  | { readonly kind: 'user'; readonly id: ItemId }
+  | { readonly kind: 'user'; readonly id: ItemId; readonly text: string }
   | {
       readonly kind: 'assistant'
       readonly id: ItemId
@@ -157,6 +167,8 @@ export type HistoryEntry =
       readonly kind: 'tool-result'
       readonly id: ItemId
       readonly callId: string
+      /** The `CallKey` of the call this result answers, equal to that call's `ToolCallFact.callKey`. */
+      readonly callKey: CallKey
       readonly tool: string
       readonly isError: boolean
       readonly blocked?: string
@@ -180,6 +192,8 @@ export interface ChildFacts {
   readonly running: boolean
   /** Index `i` is run `i + 1`: the sum of the usage on the child's own entries of that run. */
   readonly runUsage: readonly UsageFact[]
+  /** The child's last history entry, where a fork of the child's whole history ends (S-j). */
+  readonly lastItem: ItemId
 }
 export interface LiveFacts {
   /** No active run and an empty inbox (Durable: no `pi.live.run`, empty `pi.inbox`). */
@@ -223,6 +237,8 @@ export type GateCall = {
   readonly thread: ThreadId
   readonly tool: string
   readonly args: JsonValue
+  /** Another tool made this call; `before` and `after` see the same value. */
+  readonly nested: boolean
 }
 export type GateFacts = {
   readonly lineage: ConversationFacts['lineage']
@@ -230,5 +246,4 @@ export type GateFacts = {
   readonly goalRound: boolean
   /** [plan choice] In a goal round: that round's calls in call order, up to and including this one; otherwise empty (C16). */
   readonly callWindow: readonly ToolCallFact[]
-  readonly nested: boolean
 }
