@@ -274,24 +274,25 @@ async function probeJson(
   pidRegistryPath?: string
 ): Promise<unknown> {
   const { ffprobePath } = requireInitData()
-  const result = await runCommand(
-    ffprobePath,
-    [
-      '-v',
-      'error',
-      '-print_format',
-      'json',
-      '-show_entries',
-      'format=duration,start_time,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,channels,duration,start_time:stream_disposition=attached_pic,default',
-      '-i',
-      filePath
-    ],
-    signal,
-    logger,
-    { pidRegistryPath }
-  )
-  if (result.truncated) throw new Error('Media probe output exceeded buffer; refusing truncated JSON')
-  return JSON.parse(result.stdout)
+  const args = [
+    '-v',
+    'error',
+    '-print_format',
+    'json',
+    '-show_entries',
+    'format=duration,start_time,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,channels,duration,start_time,nb_read_packets:stream_disposition=attached_pic,default',
+    '-i',
+    filePath
+  ]
+  const readProbe = async (countPackets: boolean): Promise<FfprobeResult> => {
+    const commandArgs = countPackets ? ['-count_packets', ...args] : args
+    const result = await runCommand(ffprobePath, commandArgs, signal, logger, { pidRegistryPath })
+    if (result.truncated) throw new Error('Media probe output exceeded buffer; refusing truncated JSON')
+    return JSON.parse(result.stdout) as FfprobeResult
+  }
+  const probe = await readProbe(false)
+  if ((probe.streams ?? []).filter((stream) => stream.codec_type === 'audio').length < 2) return probe
+  return readProbe(true)
 }
 
 async function sourceAudioMap(

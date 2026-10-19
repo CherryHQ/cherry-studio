@@ -135,12 +135,12 @@ export class MediaAnalysisService extends BaseService {
         hasAudio: probe.hasAudio,
         hasVideo: probe.hasVideo
       },
-      ...(audio.completed ? { audio: { segments: audio.segments } } : {}),
+      ...(audio.completed || audio.segments.length > 0 ? { audio: { segments: audio.segments } } : {}),
       ...(visual.frames.length > 0 ? { visuals: visual.frames } : {}),
       warnings
     }
 
-    const hasSpeech = audio.completed && audio.segments.some((segment) => segment.text.trim())
+    const hasSpeech = audio.segments.some((segment) => segment.text.trim())
     const hasVisualContent = visual.frames.some((frame) => frame.summary?.trim() || frame.ocrText?.trim())
     const successfulSilence = audio.completed && probe.hasAudio && !hasSpeech
     if (!hasSpeech && !hasVisualContent && !successfulSilence) {
@@ -159,6 +159,7 @@ export class MediaAnalysisService extends BaseService {
     if (!probe.hasAudio) return { completed: false, segments: [], warnings: [] }
     if (!execution.asr) return { completed: false, segments: [], warnings: ['audio_transcription_failed'] }
 
+    const segments: MediaAudioSegment[] = []
     try {
       const outputDir = join(jobDir, 'audio')
       await mkdir(outputDir, { recursive: true })
@@ -166,7 +167,6 @@ export class MediaAnalysisService extends BaseService {
         { filePath, outputDir, maxChunkBytes: MAX_AUDIO_CHUNK_BYTES },
         signal
       )
-      const segments: MediaAudioSegment[] = []
       let noSpeech = false
 
       for (const chunk of extracted.chunks) {
@@ -212,7 +212,7 @@ export class MediaAnalysisService extends BaseService {
     } catch {
       signal?.throwIfAborted()
       logger.warn('Audio analysis failed')
-      return { completed: false, segments: [], warnings: ['audio_transcription_failed'] }
+      return { completed: false, segments, warnings: ['audio_transcription_failed'] }
     }
   }
 
