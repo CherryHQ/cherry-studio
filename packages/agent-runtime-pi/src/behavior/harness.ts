@@ -4,7 +4,7 @@ import type { BoundPorts, HarnessPorts, Key, LifecycleHandlers, SubagentOrigin }
 import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { AgentRuntimeSession } from '../session'
-import { conversationExtension } from './extension'
+import { conversationExtension, meterRequests } from './extension'
 import { commit, modelContext, readFacts } from './ledger'
 import { awaitAnswer, drain, messageChild, retract, startTurn, stopRun, submit } from './runs'
 import {
@@ -203,6 +203,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       ...(child && { child })
     })
     conv.native = native
+    meterRequests(adapter, conv, native.session)
     native.session.subscribe((event) => {
       if (event.type !== 'compaction_end') return
       const compacted = event.result !== undefined
