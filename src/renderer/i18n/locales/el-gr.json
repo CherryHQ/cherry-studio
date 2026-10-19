@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
   "settings.messages.title": "Ρυθμίσεις μηνυμάτων",
   "settings.messages.use_serif_font": "Χρήση μορφής Serif",
+  "settings.messages.user_content.default_expanded.hint": "Εμφάνιση ολόκληρων των μεγάλων μηνυμάτων χρήστη από προεπιλογή. Τα μηνύματα που αναπτύσσετε ή συμπτύσσετε χειροκίνητα διατηρούν την επιλογή σας για αυτήν τη συνεδρία.",
+  "settings.messages.user_content.default_expanded.label": "Ανάπτυξη μεγάλων μηνυμάτων χρήστη από προεπιλογή",
   "settings.messages.wide_mode": "Λειτουργία ευρείας διάταξης",
   "settings.miniApps.cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
   "settings.miniApps.cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
