@@ -206,6 +206,34 @@ describe('dsh receipt identities', () => {
     expect(getSubagentTaskStatusFromIndex(resumed, 'call-launch', 'done')).toBe('invoking')
   })
 
+  // The live cache keeps only the latest edge per task, so the start that revived a settled run
+  // can be replaced by a progress edge before the next rebuild: the revival must survive it.
+  it('keeps a resumed run alive when the live cache advances past its start', () => {
+    const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
+    const history = {
+      m1: [
+        launch,
+        taskEvent({ event: 'notification', taskId: 'agent-77', toolUseId: 'call-launch', status: 'completed' })
+      ]
+    }
+    const live = { activeMessageIds: new Set<string>(), liveBackgroundTaskIds: new Set(['agent-77']) }
+    const dead = { activeMessageIds: new Set<string>(), liveBackgroundTaskIds: new Set<string>() }
+
+    const started = buildAgentLaunchIndex(history, {
+      'agent-77': { event: 'started', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' }
+    })
+    expect(getSubagentTaskStatusFromIndex(started, 'call-launch', 'done', live)).toBe('invoking')
+
+    // The progress edge replaced the start in the cache; the run is still the runtime's current one.
+    const progressed = buildAgentLaunchIndex(history, {
+      'agent-77': { event: 'progress', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' }
+    })
+    expect(getSubagentTaskStatusFromIndex(progressed, 'call-launch', 'done', live)).toBe('invoking')
+
+    // Without a voucher the edge stays settled, exactly as a stale cache edge must.
+    expect(getSubagentTaskStatusFromIndex(progressed, 'call-launch', 'done', dead)).toBeUndefined()
+  })
+
   it('defers a nonterminal edge that nothing vouches for to the row it answers', () => {
     const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
     // A turn that settled with the child still at in_progress — a process exit before any terminal
