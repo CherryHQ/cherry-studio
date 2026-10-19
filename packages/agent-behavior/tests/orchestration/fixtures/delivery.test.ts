@@ -23,8 +23,11 @@ const afterJob =
           registered,
           registered === kind
             ? async (bound, job) => {
-                await handler(bound, job)
-                after()
+                try {
+                  await handler(bound, job)
+                } finally {
+                  after()
+                }
               }
             : handler
         )
@@ -79,9 +82,11 @@ const heldRead = wrapJob('subagent-report', (ports) => ({
   ledger: { ...ports.ledger, read: async (thread) => firstRead.promise.then(() => ports.ledger.read(thread)) }
 }))
 const stopWatched = wrapTool('stop_subagent', (run) => async (call, ports) => {
-  const result = await run(call, ports)
-  stopAnswered.release()
-  return result
+  try {
+    return await run(call, ports)
+  } finally {
+    stopAnswered.release()
+  }
 })
 describeScenario({
   name: 'the model stops a background subagent before its first input',

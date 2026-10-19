@@ -51,6 +51,27 @@ export type World = {
   read(thread: ThreadId): Promise<ConversationFacts>
 }
 
+/** The most commits one tool call or job run may make; the fake answers in microtasks, so a spin never times out. */
+const COMMIT_CAP = 200
+function capped(ports: BoundPorts): BoundPorts {
+  let commits = 0
+  return {
+    ...ports,
+    ledger: {
+      ...ports.ledger,
+      transact: (thread, decide) =>
+        ++commits > COMMIT_CAP
+          ? Promise.reject(new Error(`More than ${COMMIT_CAP} commits in one call: a decision loop spins`))
+          : ports.ledger.transact(thread, decide)
+    }
+  }
+}
+const capCommits = (ports: HarnessPorts): HarnessPorts => ({
+  ...ports,
+  tools: { register: (tool) => ports.tools.register({ ...tool, run: (call, bound) => tool.run(call, capped(bound)) }) },
+  jobs: { register: (kind, handler) => ports.jobs.register(kind, (bound, job) => handler(capped(bound), job)) }
+})
+
 /** A fake harness with the package installed on a scripted host. */
 export function world(options: WorldOptions = {}): World {
   const host = createScriptedHost({
@@ -62,7 +83,8 @@ export function world(options: WorldOptions = {}): World {
   const fake = createFakeHarness({
     scripts: options.scripts,
     install: (ports) => {
-      entries = install(options.wrap ? options.wrap(ports) : ports, options.patchHost?.(host) ?? host).entries
+      const wrapped = capCommits(options.wrap ? options.wrap(ports) : ports)
+      entries = install(wrapped, options.patchHost?.(host) ?? host).entries
       options.extra?.(ports)
     }
   })
