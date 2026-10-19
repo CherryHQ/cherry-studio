@@ -1,6 +1,7 @@
 import { preferenceService } from '@renderer/data/PreferenceService'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 
+import { createAudioSpectrum, type AudioSpectrum } from './audioSpectrum'
 import { microphoneErrorReason } from './microphoneDevices'
 import {
   voiceService,
@@ -35,10 +36,12 @@ export interface DictationSnapshot {
   readonly recoveryAvailable: boolean
   readonly retryAvailable?: true
   readonly error?: DictationErrorCategory
+  readonly analyser?: AnalyserNode
 }
 
 export interface DictationRun {
   readonly result: Promise<void>
+  stop(): Promise<void>
   cancel(): Promise<void>
 }
 
@@ -107,6 +110,7 @@ interface ActiveDictation {
   readonly chunks: Blob[]
   capture?: Promise<MediaStream>
   stream?: MediaStream
+  spectrum?: AudioSpectrum
   recorder?: DictationMediaRecorder
   recorderStopped?: Promise<void>
   resolveRecorderStopped?: () => void
@@ -218,6 +222,12 @@ export class DictationService {
       result: this.startRun(runToken, generation, target).finally(() => {
         if (this.pendingStart === runToken) this.pendingStart = undefined
       }),
+      stop: () =>
+        this.currentRunToken !== runToken
+          ? Promise.resolve()
+          : this.active?.runToken === runToken && this.active.recorder
+            ? this.stop()
+            : this.cancelRun(runToken),
       cancel: () => this.cancelRun(runToken)
     }
   }
@@ -325,6 +335,7 @@ export class DictationService {
       active.recorder.onstop = () => active.resolveRecorderStopped?.()
       active.startedAt = this.now()
       active.recorder.start()
+      active.spectrum = createAudioSpectrum(stream)
       this.startTimers(active)
       this.publish('recording')
     } catch (error) {
@@ -600,6 +611,8 @@ export class DictationService {
   }
 
   private stopActiveTracks(active: ActiveDictation): void {
+    active.spectrum?.dispose()
+    active.spectrum = undefined
     if (!active.stream) return
     this.stopTracks(active.stream)
     active.stream = undefined
@@ -657,6 +670,7 @@ export class DictationService {
       phase,
       elapsedMs,
       recoveryAvailable,
+      ...(phase === 'recording' && this.active?.spectrum && { analyser: this.active.spectrum.analyser }),
       ...(retryAvailable && { retryAvailable }),
       ...(error && { error })
     })

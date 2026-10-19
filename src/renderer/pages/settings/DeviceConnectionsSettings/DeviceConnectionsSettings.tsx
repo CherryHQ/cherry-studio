@@ -258,7 +258,7 @@ const DeviceConnectionsSettings: FC = () => {
   return (
     <SettingsContentColumn
       theme={theme}
-      className="@container flex h-[calc(100vh-var(--navbar-height))] min-w-0 flex-col pb-12"
+      className="@container min-w-0 pb-12"
       innerClassName="flex min-h-full max-w-6xl flex-col">
       <div className="min-w-0">
         <SettingTitle className="justify-start gap-2">

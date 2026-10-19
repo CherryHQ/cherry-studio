@@ -227,6 +227,18 @@ describe('DynamicVirtualList', () => {
         expect.objectContaining({ rangeExtractor: customRangeExtractor })
       )
     })
+
+    it('keeps requested rows mounted alongside the visible and sticky ranges', () => {
+      let extracted: number[] = []
+      mocks.useVirtualizer.mockImplementationOnce((options: { rangeExtractor: (range: unknown) => number[] }) => {
+        extracted = options.rangeExtractor({ startIndex: 1, endIndex: 2 })
+        return mocks.virtualizer
+      })
+
+      render(<DynamicVirtualList {...defaultProps} isSticky={(index) => index === 0} keepMountedIndexes={[4]} />)
+
+      expect(extracted).toEqual([0, 1, 2, 4])
+    })
   })
 
   describe('ref api', () => {

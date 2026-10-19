@@ -20,6 +20,12 @@ text, audio or user path is logged by the package.
 
 ## Build and test
 
+`pnpm dev`, `pnpm debug`, `pnpm dev:watch` and `pnpm start` prepare the native helper
+on supported Windows and macOS hosts. They build it when missing or older than its
+native sources, and reuse the existing executable otherwise. Run
+`pnpm prepare:system-speech` to prepare it independently. `pnpm install` builds only
+the JavaScript boundary; native preparation requires the platform build tools below.
+
 ```sh
 pnpm --filter @cherrystudio/system-speech test
 pnpm --filter @cherrystudio/system-speech typecheck
@@ -41,9 +47,9 @@ app's deep strict signature, and a capabilities round trip. The helper is signed
 its dedicated empty entitlement policy rather than Electron's inherited relaxations.
 A packaged helper smoke does not replace VoiceSessionService/IpcApi integration verification.
 
-Windows x64 system ASR and TTS use the SAPI helper under `windows/`. ASR is
-explicitly selected as `local-voice::windows-system-asr`; it does not replace the
-platform's default ASR model. A `probe_asr` request initializes the installed recognizer and
+Windows x64 system ASR and TTS use the SAPI helper under `windows/`. On Windows
+x64, `resolveDefaultAsrModel` recommends `local-voice::windows-system-asr` when
+no model is explicitly selected. An explicit selection is preserved. A `probe_asr` request initializes the installed recognizer and
 dictation grammar before transcription; it does not activate a microphone or
 install assets. Main decodes recorded WebM/Opus through the same utility process
 as Apple ASR, then sends the derived mono 16 kHz WAV to SAPI. Its build and
