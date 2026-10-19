@@ -181,11 +181,12 @@ export function facts(history: readonly HistoryEntry[], options: FactsOptions = 
  * children get the ids in `children`, in order. Effects are not applied: tests start turns explicitly.
  */
 export function apply(history: readonly HistoryEntry[], step: Step, children: readonly string[] = []): HistoryEntry[] {
-  const seen = facts(history).keysSeen
+  const seen = new Set(facts(history).keysSeen)
   const next = [...history]
   let spawned = 0
   for (const op of step.ops) {
     if (seen.has(op.key)) continue
+    seen.add(op.key)
     if (op.type === 'append-record') next.push(record(op.record, op.key))
     if (op.type === 'append-quiet') next.push(inputEntry(op.input, op.key))
     if (op.type === 'spawn-child')
