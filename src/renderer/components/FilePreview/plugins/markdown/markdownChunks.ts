@@ -332,6 +332,25 @@ const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\]:([ \t]*)([\s\S]*)$
 const MAX_LABEL_SOURCE_CHARS = 999
 
 /**
+ * The form a reference label is matched by: backslash escapes resolved, runs of whitespace — which
+ * a label that wraps carries a line ending as — collapsed to one space, and case folded. Two labels
+ * in this form are the one the parser resolves a reference against.
+ */
+function normalizeReferenceLabel(label: string): string {
+  let resolved = ''
+  for (let index = 0; index < label.length; index += 1) {
+    const character = label[index]
+    if (character === '\\') {
+      index += 1
+      resolved += label[index] ?? ''
+    } else {
+      resolved += character
+    }
+  }
+  return resolved.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+/**
  * A bare link destination — whitespace-free, and not starting with `<`, which belongs to the angle
  * brackets. Its parentheses have to balance, which `balancedParens` checks where it is accepted.
  */
@@ -1139,8 +1158,12 @@ const ASCII_PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/
  * destination and a raw tag or comment render none at all, and an autolink renders its URL. What
  * survives is punctuation the slug's normalizer absorbs, so emphasis and code markers pass through
  * untouched and only the constructs that carry readable text need reading.
+ *
+ * @param source - The heading's inline source.
+ * @param definesLabel - Whether the document defines a reference label. A reference it does not
+ *   define is not a link: the whole construct stays literal text, brackets included.
  */
-function headingRenderedText(source: string): string {
+function headingRenderedText(source: string, definesLabel: (label: string) => boolean): string {
   let text = ''
   // Label content read so far, against the budget below.
   let labelChars = 0
@@ -1251,7 +1274,20 @@ function headingRenderedText(source: string): string {
           : -1
         labelChars += (follow >= label.end ? follow : segment.length) - label.end
         const nested = label.closed && holdsLink(segment.slice(open + 1, label.end - 1))
-        if (label.closed && !nested && follow >= label.end) {
+        // A reference is a link only where the document defines its label: `[text][ref]`,
+        // `[text][]` and `[text]` all degrade to literal text without one, brackets included, and
+        // the slug the renderer numbers comes from that literal text. An inline `[text](dest)` is a
+        // link whatever the document holds, so only the reference forms consult it.
+        const referenceLabel =
+          segment[label.end] === '['
+            ? segment.slice(label.end + 1, reference.end - 1) || segment.slice(open + 1, label.end - 1)
+            : segment.slice(open + 1, label.end - 1)
+        const unresolved =
+          label.closed && segment[label.end] !== '(' && !definesLabel(normalizeReferenceLabel(referenceLabel))
+        if (unresolved) {
+          text += segment.slice(index, follow)
+          index = follow
+        } else if (label.closed && !nested && follow >= label.end) {
           // A link renders its label; an image renders none once it has a destination, while one
           // without is the literal text the parser leaves standing. A label cannot hold a link, so
           // reading it is one level deep and never recurses again.
@@ -1351,7 +1387,7 @@ function wrappedLinkLabel(
   index: number,
   definitionSource: string,
   container: DefinitionContainer
-): { text: string; tail: string; lines: number } | null {
+): { text: string; label: string; tail: string; lines: number } | null {
   // A label opens at a bracket: prose that only carries the closing `]:` is a paragraph the way it
   // stands, and reading a label from its second character would hoist it as one.
   if (definitionSource[0] !== '[') return null
@@ -1379,6 +1415,7 @@ function wrappedLinkLabel(
         // The label is carried the way it was written, line endings included — the parser reads
         // and normalizes it whole again wherever the definition lands.
         text: `[${labelLines.join('\n')}]:${after[1]}${after[2]}`,
+        label: labelLines.join('\n'),
         tail: after[2],
         lines: span
       }
@@ -1391,7 +1428,7 @@ function wrappedLinkLabel(
   }
 }
 
-function linkDefinition(lines: string[], index: number): { text: string; lines: number } | null {
+function linkDefinition(lines: string[], index: number): { text: string; label: string; lines: number } | null {
   const start = DEFINITION_CONTAINER.exec(lines[index])
   // A first marker indented four columns or more — a tab counts as up to four — opens indented
   // code, not a container, so no definition opens behind it.
@@ -1414,6 +1451,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
   let body: string[]
   let tail: string
   let span: number
+  let definitionLabel: string
   if (label) {
     // A label the parser would refuse — one of whitespace alone, or one longer than the 999
     // characters it allows — leaves the line a paragraph. The count is over the label as written,
@@ -1422,12 +1460,14 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
     body = [`[${label[1]}]:${label[2]}${label[3]}`]
     tail = label[3]
     span = 1
+    definitionLabel = label[1]
   } else {
     const wrapped = wrappedLinkLabel(lines, index, definitionSource, { quotes, quoteColumns, labelColumn })
     if (!wrapped) return null
     body = [wrapped.text]
     tail = wrapped.tail
     span = wrapped.lines
+    definitionLabel = wrapped.label
   }
   // The destination may sit a line below the label, but only when the label's own line ends with
   // the colon: a run that is present yet not a destination condemns the line to paragraphhood.
@@ -1497,7 +1537,7 @@ function linkDefinition(lines: string[], index: number): { text: string; lines: 
     span += 1
     titleClosed = scan === 'closed'
   }
-  return { text: body.join('\n'), lines: span }
+  return { text: body.join('\n'), label: definitionLabel, lines: span }
 }
 
 /**
@@ -1783,23 +1823,25 @@ export function splitMarkdownChunks(
   // document order as the walk meets the headings — behind quote or list markers a heading still
   // counts, inside a fence or an HTML block it does not — and each chunk receives the slugs of the
   // headings its lines render. The entries are keyed by the line the heading's text sits on, and a
-  // line may render more than one heading, so each holds every occurrence in document order.
-  const slugOrder = new Map<string, string[]>()
-  const lineHeadings = new Array<{ base: string; slug: string }[] | undefined>(lines.length).fill(undefined)
-  const recordHeading = (line: number, text: string): void => {
-    const base = normalizeHeadingText(text)
-    const seen = slugOrder.get(base) ?? []
-    const slug = seen.length === 0 ? base : `${base}-${seen.length}`
-    seen.push(slug)
-    slugOrder.set(base, seen)
-    ;(lineHeadings[line] ??= []).push({ base, slug })
+  // line may render more than one heading, so each holds every occurrence in document order. The
+  // heading's inline source is recorded here and its slug is assigned below, once the whole
+  // document's definitions are known: a reference the document never defines is literal text, and
+  // whether one is defined can only be settled after the last line has been read.
+  const lineHeadings = new Array<Array<{ source: string; plain: boolean }> | undefined>(lines.length).fill(undefined)
+  const recordHeading = (line: number, source: string, plain = false): void => {
+    ;(lineHeadings[line] ??= []).push({ source, plain })
   }
+  // Every reference label the document defines, in the form references are matched by. A heading
+  // may sit above the definition it references, so the set is only complete once the walk ends.
+  const definedLabels = new Set<string>()
   // A raw HTML block's lines are the tags the renderer parses into elements, so a complete heading
   // tag anywhere in the block numbers the document's ids the same way an ATX heading does — one a
   // single line may hold several of. The block is scanned whole, since its tag, text and closing
   // tag may sit on different lines.
   const recordHtmlHeadings = (line: number, content: string): void => {
-    for (const match of content.matchAll(HTML_HEADING_TAG)) recordHeading(line, htmlHeadingText(match[2]))
+    // `htmlHeadingText` already reads the tag's content the way the renderer does, so this entry
+    // needs no inline scan of its own.
+    for (const match of content.matchAll(HTML_HEADING_TAG)) recordHeading(line, htmlHeadingText(match[2]), true)
   }
   // The raw text of the open HTML block, gathered line by line to scan once the block closes: a
   // heading counted line by line would miss one whose tag spans lines, and counting it on the line
@@ -2081,6 +2123,7 @@ export function splitMarkdownChunks(
       (previousStatus === 'paragraph' && !opensBlock) || containerHoldsCode ? null : linkDefinition(lines, i)
     if (definition) {
       definitions.push(definition.text)
+      definedLabels.add(normalizeReferenceLabel(definition.label))
       definitionLines += definition.lines
       bufferChars += definition.text.length + 1
       i += definition.lines - 1
@@ -2099,7 +2142,7 @@ export function splitMarkdownChunks(
     if (!blank && !containerHoldsCode) {
       const atx = ATX_HEADING.exec(uncontained)
       if (atx) {
-        recordHeading(i, headingRenderedText(atx[1] ?? ''))
+        recordHeading(i, atx[1] ?? '')
       } else if (previousStatus === 'paragraph' && SETEXT_UNDERLINE.test(uncontained)) {
         // The underline completes the open paragraph, but only in the container that paragraph sits
         // in: a marker that opens a block of its own leaves it a line of prose instead.
@@ -2113,7 +2156,7 @@ export function splitMarkdownChunks(
             .slice(paragraphStart, i)
             .map((part) => part.slice((DEFINITION_CONTAINER.exec(part)?.[0] ?? '').length))
             .join('\n')
-          recordHeading(paragraphStart, headingRenderedText(text))
+          recordHeading(paragraphStart, text)
         }
       }
     }
@@ -2176,6 +2219,24 @@ export function splitMarkdownChunks(
   // A block still open at the end of the document closes here, its headings counted with the rest.
   if (htmlBlankBlock) closeHtmlBlock()
 
+  // Every definition the walk found is now known, so each heading's text can be read the way the
+  // renderer reads it and the document's ids numbered in the order the headings stand.
+  const definesLabel = (label: string): boolean => definedLabels.has(label)
+  const slugOrder = new Map<string, string[]>()
+  const lineSlugs = new Array<{ base: string; slug: string }[] | undefined>(lines.length)
+  for (let i = 0; i < lines.length; i++) {
+    for (const heading of lineHeadings[i] ?? []) {
+      const base = normalizeHeadingText(
+        heading.plain ? heading.source : headingRenderedText(heading.source, definesLabel)
+      )
+      const seen = slugOrder.get(base) ?? []
+      const slug = seen.length === 0 ? base : `${base}-${seen.length}`
+      seen.push(slug)
+      slugOrder.set(base, seen)
+      ;(lineSlugs[i] ??= []).push({ base, slug })
+    }
+  }
+
   const prefix = definitions.length > 0 ? `${definitions.join('\n')}\n\n` : ''
   const prefixLines = definitionLines > 0 ? definitionLines + 1 : 0
   const chunks: MarkdownChunk[] = []
@@ -2184,7 +2245,7 @@ export function splitMarkdownChunks(
     if (end <= start) continue
     const chunkSlugs = new Map<string, string[]>()
     for (let i = start; i < end; i++) {
-      for (const heading of lineHeadings[i] ?? []) {
+      for (const heading of lineSlugs[i] ?? []) {
         const assigned = chunkSlugs.get(heading.base) ?? []
         assigned.push(heading.slug)
         chunkSlugs.set(heading.base, assigned)

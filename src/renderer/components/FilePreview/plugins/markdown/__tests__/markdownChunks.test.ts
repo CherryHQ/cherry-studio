@@ -2477,6 +2477,28 @@ describe('heading ids assigned from the text the renderer reads', () => {
     expect(renderedHeadingIds(content)).toEqual(['chunk--title', 'chunk--title-1'])
   })
 
+  it('keeps an unresolved reference in the text a heading renders', () => {
+    // A reference the document never defines renders as literal text, so `# [Alpha][r] Beta` slugs
+    // on `alphar-beta` and the plain `# Alpha Beta` below it takes `alpha-beta` — the id
+    // `[jump](#alpha-beta)` resolves. Stripping the reference syntax keyed the first heading on
+    // `alpha-beta` as well, so the duplicate was numbered `alpha-beta-1` and the link beside it
+    // aimed at a fragment no chunk mounted.
+    const content = '# [Alpha][r] Beta\n\n' + 'filler\n\n'.repeat(3100) + '# Alpha Beta\n\n[jump](#alpha-beta)'
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(renderedHeadingIds(content)).toEqual(['chunk--alphar-beta', 'chunk--alpha-beta'])
+  })
+
+  it('strips a reference the document does define', () => {
+    // The same shape with `[r]` defined is a real link, so both headings read `Alpha Beta` and the
+    // second takes the `-1` — the guard must not turn a resolved reference into literal text.
+    const content =
+      '[r]: /url\n\n# [Alpha][r] Beta\n\n' + 'filler\n\n'.repeat(3100) + '# Alpha Beta\n\n[jump](#alpha-beta-1)'
+
+    expect(chunkHeadingIds(content)).toEqual(renderedHeadingIds(content))
+    expect(renderedHeadingIds(content)).toEqual(['chunk--alpha-beta', 'chunk--alpha-beta-1'])
+  })
+
   it('numbers a struck-through heading toward the text the renderer reads', () => {
     // The renderer reads `~~bar~~` as the `del` it renders — no text of its own — so both headings
     // read `foobarbaz` and the second takes the `-1` the link beside it points at. Counting the
