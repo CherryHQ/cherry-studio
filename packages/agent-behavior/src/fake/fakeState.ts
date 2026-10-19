@@ -174,6 +174,11 @@ export function appendInput(state: FakeState, thread: ThreadState, key: string):
 }
 
 export const isIdle = (thread: ThreadState): boolean => thread.active === undefined && thread.inbox.length === 0
+/** The input submitted under `key` ran to the end of its run, was withdrawn, or was never recorded (a 'busy' start). */
+export function inputDone(thread: ThreadState, key: string): boolean {
+  const state = thread.submissions.get(key)?.state
+  return state === undefined || state === 'settled' || state === 'withdrawn'
+}
 
 const MODEL_KINDS: ReadonlySet<HistoryEntry['kind']> = new Set(['user', 'assistant', 'tool-result', 'marker'])
 /** The entries the model sees next: those after the last compaction that enter its context. */
