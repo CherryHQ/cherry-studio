@@ -11,6 +11,8 @@
   "agent.session.workspace_status.inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
   "agent.session.workspace_status.missing": "Η διαδρομή του χώρου εργασίας δεν υπάρχει: {{path}}",
   "agent.session.workspace_status.not_directory": "Η διαδρομή του χώρου εργασίας δεν είναι κατάλογος: {{path}}",
+  "ai.image.error.empty_response": "Ο πάροχος εικόνων επέστρεψε επιτυχή απόκριση χωρίς αξιοποιήσιμα δεδομένα εικόνας (πάροχος «{{provider}}», μοντέλο «{{model}}»). Η λειτουργία μπορεί να έχει χρεωθεί. Δεν επαναλήφθηκε αυτόματα.",
+  "ai.image.error.unusable_response": "Δεν ήταν δυνατή η επεξεργασία της απόκρισης του παρόχου εικόνων (πάροχος «{{provider}}», μοντέλο «{{model}}», HTTP 200). Η λειτουργία μπορεί να έχει χρεωθεί. Δεν επαναλήφθηκε αυτόματα.",
   "apiGateway.docs.description": "HTTP API του Cherry Studio συμβατό με OpenAI, Anthropic και Gemini, καθώς και endpoints αποκλειστικά του Cherry (μοντέλα, βάσεις γνώσης)",
   "apiGateway.docs.language_switcher_label": "Γλώσσα τεκμηρίωσης",
   "apiGateway.docs.operations.chat_completions": "Δημιουργεί ένα chat completion. Το σώμα αιτήματος και απόκρισης ακολουθεί τη μορφή OpenAI Chat Completions· με `stream: true` η έξοδος γίνεται σταδιακά.",

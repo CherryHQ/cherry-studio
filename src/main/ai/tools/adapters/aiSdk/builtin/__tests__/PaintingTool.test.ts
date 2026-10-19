@@ -44,10 +44,13 @@ vi.mock('@logger', () => ({
   }
 }))
 
+import { ImageResponseContractError } from '@main/ai/imageResponseContractError'
+
 import {
   generateImageFromPrompt,
   PAINTING_EDIT_NOT_SUPPORTED_NOTE,
   PAINTING_ERROR_NOTE,
+  PAINTING_UNUSABLE_RESPONSE_NOTE,
   PAINTING_MODEL_NOT_CONFIGURED_NOTE
 } from '../../../../painting'
 import { createGenerateImageToolEntry, GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
@@ -252,6 +255,15 @@ describe('generate_image', () => {
     const result = await callExecute({ prompt: 'a cat' })
 
     expect(result).toEqual({ error: PAINTING_ERROR_NOTE })
+  })
+
+  it('tells the model not to retry when the provider returned no usable image', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockRejectedValue(new ImageResponseContractError('no usable image', { cause: new Error('x') }))
+
+    const result = await callExecute({ prompt: 'a cat' })
+
+    expect(result).toEqual({ error: PAINTING_UNUSABLE_RESPONSE_NOTE })
   })
 
   it('rethrows an abort instead of converting it to an error discriminant', async () => {

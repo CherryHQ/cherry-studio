@@ -4,10 +4,11 @@ import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { modelMessageSchema } from 'ai'
+import { APICallError, modelMessageSchema, NoImageGeneratedError, RetryError } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type * as MainI18n from '@main/i18n'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -75,6 +76,11 @@ vi.mock('@application', () => ({
   }
 }))
 
+// Resolve main catalog strings in en-US regardless of the mocked app language.
+vi.mock('@main/i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof MainI18n>()
+  return { ...actual, t: (key: string, params?: Record<string, string | number>) => actual.t(key, params, 'en-US') }
+})
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
     getById: (...args: unknown[]) => mockAssistantGetById(...args)
@@ -764,6 +770,173 @@ describe('AiService', () => {
     })
 
     expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
+  })
+
+  function stubImageTransport(service: InstanceType<typeof AiService>) {
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model'
+      }
+    })
+  }
+
+  it('reports a billing-aware contract failure when upstream succeeds but yields no usable image', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    // Mirrors the executor wrap: the SDK's NoImageGeneratedError inside a generic error.
+    const sdkFailure = new Error('Failed to generate image: No image generated.', {
+      cause: new NoImageGeneratedError({ responses: [] })
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'edit this image',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(Error)
+    expect((rejection as Error).message).toMatch(
+      /successful response but no usable image data.*test-provider.*test-model.*may still have been billed.*not retried automatically/s
+    )
+    expect((rejection as Error).cause).toBe(sdkFailure)
+  })
+
+  it('classifies an unusable image response wrapped by the SDK retry error', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    // RetryError keeps the attempts in `errors`/`lastError`, not in `cause`.
+    const sdkFailure = new RetryError({
+      message: 'Failed after 3 attempts.',
+      reason: 'maxRetriesExceeded',
+      errors: [new Error('timeout'), new NoImageGeneratedError({ responses: [] })]
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'edit this image',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect((rejection as Error).message).toMatch(
+      /successful response but no usable image data.*may still have been billed/s
+    )
+    expect((rejection as Error).cause).toBe(sdkFailure)
+  })
+
+  it('reports a billing-aware contract failure when a successful response cannot be processed', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    // Mirrors the executor wrap: the SDK's APICallError inside a generic error.
+    // The body must actually fail the image response schema (data must be an array).
+    const sdkFailure = new Error('Failed to generate image: Invalid JSON response', {
+      cause: new APICallError({
+        message: 'Invalid JSON response',
+        url: 'https://provider.example/v1/images/edits',
+        requestBodyValues: {},
+        statusCode: 200,
+        responseBody: '{"data":"not-an-array"}'
+      })
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'edit this image',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(Error)
+    expect((rejection as Error).message).toMatch(
+      /could not be processed.*test-provider.*test-model.*HTTP 200.*may still have been billed.*not retried automatically/s
+    )
+    expect((rejection as Error).cause).toBe(sdkFailure)
+    expect((rejection as { statusCode?: unknown }).statusCode).toBe(200)
+    // Raw bodies/URLs stay behind the provider-error redaction boundary —
+    // only the numeric status crosses IPC (see serializeNestedProviderError).
+    expect('responseBody' in (rejection as object)).toBe(false)
+    expect('url' in (rejection as object)).toBe(false)
+  })
+
+  it('reports a contract failure when the HTTP-200 body fails JSON parsing', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    const sdkFailure = new APICallError({
+      message: 'Invalid JSON response from MiniMax',
+      cause: new SyntaxError('Unexpected token < in JSON'),
+      url: 'https://provider.example/v1/image_generation',
+      requestBodyValues: {},
+      statusCode: 200,
+      responseBody: '<html>'
+    })
+    mockGenerateImage.mockRejectedValueOnce(sdkFailure)
+
+    const rejection = await service
+      .generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+      .catch((error: unknown) => error)
+
+    expect((rejection as Error).message).toMatch(/could not be processed.*HTTP 200/s)
+    expect((rejection as Error).cause).toBe(sdkFailure)
+  })
+
+  it('preserves explicit provider rejections returned with HTTP 200', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    const providerRejection = new APICallError({
+      message: 'insufficient balance',
+      url: 'https://provider.example/v1/image_generation',
+      requestBodyValues: {},
+      statusCode: 200,
+      responseBody: '{"base_resp":{"status_code":1008,"status_msg":"insufficient balance"}}'
+    })
+    mockGenerateImage.mockRejectedValueOnce(providerRejection)
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+    ).rejects.toBe(providerRejection)
+  })
+
+  it('passes retryable image failures through without the contract message', async () => {
+    const service = createService()
+    stubImageTransport(service)
+    const timeout = new APICallError({
+      message: 'gateway timeout',
+      url: 'https://provider.example/v1/images/edits',
+      requestBodyValues: {},
+      statusCode: 504
+    })
+    mockGenerateImage.mockRejectedValueOnce(timeout)
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+    ).rejects.toBe(timeout)
   })
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {

@@ -11,6 +11,8 @@
   "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",
   "agent.session.workspace_status.missing": "工作區路徑不存在：{{path}}",
   "agent.session.workspace_status.not_directory": "工作區路徑不是資料夾：{{path}}",
+  "ai.image.error.empty_response": "圖像服務商回傳了成功回應，但沒有可用的圖像資料（服務商「{{provider}}」，模型「{{model}}」）。此次操作可能仍已計費，未自動重試。",
+  "ai.image.error.unusable_response": "圖像服務商回傳的回應無法處理（服務商「{{provider}}」，模型「{{model}}」，HTTP 200）。此次操作可能仍已計費，未自動重試。",
   "apiGateway.docs.description": "與 OpenAI、Anthropic 和 Gemini 相容的 Cherry Studio HTTP API，並提供 Cherry 專用端點（模型、知識庫）",
   "apiGateway.docs.language_switcher_label": "說明文件語言",
   "apiGateway.docs.operations.chat_completions": "建立一次對話補全。請求與回應格式與 OpenAI Chat Completions 一致；設定 `stream: true` 可串流輸出。",
