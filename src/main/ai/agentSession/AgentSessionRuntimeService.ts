@@ -303,6 +303,8 @@ type AgentSessionRuntimeEntry = {
   pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
+  /** Retry that arrived during a steer handoff, before the continuation turn existed to own it. */
+  pendingSteerApiRetry?: AgentSessionApiRetryInfo & { startedAt: string }
   /** Single-flight finalization of the current detached flow batch. */
   backgroundFlowFlush?: Promise<void>
 }
@@ -2150,16 +2152,23 @@ export class AgentSessionRuntimeService extends BaseService {
     if (turn) {
       // A stable id updates one durable history row instead of creating dozens of rows in a
       // provider outage. It remains in the assistant message after the ephemeral cache clears.
+      entry.pendingSteerApiRetry = undefined
       this.deliverRuntimeChunk(entry, {
         type: 'data-agent-api-retry',
         id: `agent-api-retry-${turn.assistantMessageId}`,
         data: { ...retry, startedAt }
       })
+    } else {
+      // A steer handoff has no live turn yet: the retry would leave no durable trace, and the
+      // continuation content that follows clears the transient cache. Hold it for the continuation.
+      entry.pendingSteerApiRetry = { ...retry, startedAt }
     }
   }
 
   /** The ephemeral retry status IS the shared-cache entry — read it back instead of shadowing it. */
   private clearApiRetry(entry: AgentSessionRuntimeEntry): void {
+    // A retry held for a continuation that never arrives must not resurface on the next turn.
+    entry.pendingSteerApiRetry = undefined
     const cache = application.get('CacheService')
     if (cache.getShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId))?.status !== 'retrying') return
     cache.setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
@@ -3230,6 +3239,16 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
+    // A retry that arrived mid-handoff had no turn to attach to; the continuation now owns the row.
+    const heldRetry = entry.pendingSteerApiRetry
+    if (heldRetry) {
+      entry.pendingSteerApiRetry = undefined
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-agent-api-retry',
+        id: `agent-api-retry-${continuationTurn.assistantMessageId}`,
+        data: heldRetry
+      })
+    }
     await this.refreshTurnTraceContext(entry, continuationTurn)
     if (
       !this.isCurrentEntry(entry) ||

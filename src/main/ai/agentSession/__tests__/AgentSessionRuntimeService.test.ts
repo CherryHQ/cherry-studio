@@ -1092,6 +1092,40 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
     })
 
+    it('holds a retry that arrives during a steer handoff and flushes it onto the continuation', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      ;(service as any).currentTurn(entry).controller = { enqueue }
+
+      // The steer rolls the turn: no live turn exists while the continuation is being created.
+      const turn = (service as any).currentTurn(entry)
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: { id: 'steer-1', role: 'user', data: { parts: [] } } as any }],
+        headless: false
+      })
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+      expect(enqueue).not.toHaveBeenCalled()
+      expect(entry.pendingSteerApiRetry).toMatchObject(retryEvent.retry)
+
+      // The real continuation path runs here: it persists the placeholder, opens A2, and must
+      // attach the held retry to the continuation's own assistant row. The continuation is still a
+      // steer-transition, so `deliverRuntimeChunk` buffers it for A2's stream instead of enqueuing.
+      mocks.saveMessage.mockImplementation(({ message }: any) => ({ ...message, id: 'assistant-continuation' }))
+      await (service as any).startContinuationTurn(entry)
+
+      expect(entry.pendingSteerApiRetry).toBeUndefined()
+      expect(entry.runtimeState.execution.buffer).toContainEqual({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-continuation',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
+      })
+    })
+
     it('clears the status when the turn completes', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
