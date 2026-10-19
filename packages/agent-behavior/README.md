@@ -81,10 +81,10 @@ the run a message was accepted into, and `ChildFacts.runUsage[i]` sums the usage
 last boundary into the next run, the answer is that next run's end.
 
 On reopen the harness restores every conversation with its runs and jobs, and `Lifecycle.onOpen` decides what to stop.
-Inside `onOpen` the package calls only `ledger.*`, `turns.stop` and `helpers.stop`; a stop there ends the interrupted
-run as aborted before any resumed work (H12, stop before resume), and no conversation's run resumes before its own
-`onOpen` has run. On Durable a submit or a wait would enable scheduling first, so these stops are marks
-(`Harness.abortTask`, `abortSubmission`).
+Inside `onOpen` the package calls only `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now`; a stop there ends the
+interrupted run as aborted before any resumed work (H12, stop before resume), and no conversation's run resumes before
+its own `onOpen` has run. On Durable a submit or a wait would enable scheduling first, so these stops are marks
+(`Harness.abortTask`, `abortSubmission`); reading the clock enables nothing.
 
 ### Host ports (P1 to P8)
 

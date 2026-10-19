@@ -268,7 +268,8 @@ export interface LifecycleHandlers {
  * H12. Let the package settle a conversation when it opens, after it is compacted, and when it closes.
  *
  * On reopen the harness restores every conversation with its runs and jobs, and `onOpen` decides what to stop; the
- * rules stay in the package. `onOpen` calls only `ledger.*`, `turns.stop` and `helpers.stop`: no submits, no waits.
+ * rules stay in the package. `onOpen` calls only `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now`: no submits,
+ * no waits.
  * Stop before resume: a run a restart interrupted, stopped from `onOpen`, ends as aborted before any resumed work (no
  * open call reruns, no further model request), and the stop may resolve as soon as that mark is durable. No
  * conversation's interrupted run resumes before its own `onOpen` has run.
