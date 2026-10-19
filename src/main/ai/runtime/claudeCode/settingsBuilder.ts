@@ -539,7 +539,9 @@ async function buildToolPermissions(
         ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
         : undefined
     if (delegationApproval === 'deny') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+      // Delegation never runs unattended, and the delivered Agent has to hear where its reply
+      // goes — the "ask the user anyway" wording is impossible advice for a call that did not run.
+      return { behavior: 'deny', message: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL }
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.

@@ -497,15 +497,17 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
 
     it.each(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'] as const)(
-      'denies unattended delegation in %s',
+      'denies unattended delegation in %s with the delivery-aware denial',
       async (permissionMode) => {
         for (const interaction of [
           HEADLESS,
           { ...HEADLESS, userResponse: 'stream' },
           { ...INTERACTIVE, userResponse: 'unavailable' }
         ] as const) {
-          await expect(evaluate(makeCtx({ toolName, permissionMode, interaction }))).resolves.toMatchObject({
-            effect: 'deny'
+          await expect(evaluate(makeCtx({ toolName, permissionMode, interaction }))).resolves.toEqual({
+            effect: 'deny',
+            reason: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL,
+            ruleId: 'delegation-approval'
           })
         }
       }

@@ -240,7 +240,9 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     },
     effect: 'ask',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool requires approval in this permission mode.`,
-    headless: { predicate: 'either', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+    // Same delivery-aware denial as `non-bypassable-approval` and canUseTool: a denied delegation
+    // cannot be answered by "proceed without asking the user".
+    headless: { predicate: 'either', reason: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL }
   },
   {
     id: 'non-bypassable-approval',

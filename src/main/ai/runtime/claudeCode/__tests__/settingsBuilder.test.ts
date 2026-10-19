@@ -1949,14 +1949,13 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const delegationAwareDenials = [...NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES, ...DELEGATION_RUNTIME_NAMES]
     const toolsRequiringAResponder = [
       'AskUserQuestion',
       'EnterPlanMode',
       'ExitPlanMode',
       'EnterWorktree',
-      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.filter(
-        (name) => !NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES.includes(name)
-      )
+      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.filter((name) => !delegationAwareDenials.includes(name))
     ]
     for (const toolName of toolsRequiringAResponder) {
       const result = await settings.canUseTool?.(toolName, {}, {
@@ -1972,7 +1971,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
     // Delegation tools get the delivery-aware denial: they cannot run unattended, and the wording
     // must tell the delivered Agent where its reply actually goes.
-    for (const toolName of NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+    for (const toolName of delegationAwareDenials) {
       const result = await settings.canUseTool?.(toolName, {}, {
         signal: { aborted: false },
         toolUseID: 'tool-use-1'
@@ -2019,8 +2018,16 @@ describe('buildClaudeCodeSessionSettings', () => {
     for (const toolName of liftable) {
       await expect(decide(toolName)).resolves.toEqual({ behavior: 'allow', updatedInput: {} })
     }
-    // The delegation ceiling and tools whose whole function is a user-authored answer still deny.
-    for (const toolName of [...DELEGATION_RUNTIME_NAMES, 'AskUserQuestion', 'EnterPlanMode']) {
+    // The delegation ceiling keeps its delivery-aware denial — a denied delegation cannot be
+    // answered by "proceed without asking the user".
+    for (const toolName of DELEGATION_RUNTIME_NAMES) {
+      await expect(decide(toolName)).resolves.toEqual({
+        behavior: 'deny',
+        message: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL
+      })
+    }
+    // Tools whose whole function is a user-authored answer keep the generic wording.
+    for (const toolName of ['AskUserQuestion', 'EnterPlanMode']) {
       await expect(decide(toolName)).resolves.toEqual({
         behavior: 'deny',
         message:
