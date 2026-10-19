@@ -128,7 +128,6 @@ export const SETTINGS: HostSettingsSnapshot = {
 }
 export const MODELS: ModelFacts = {
   candidates: [],
-  supportsTools: true,
   parentModelKey: 'p/parent',
   defaultChildModelKey: 'p/child'
 }
