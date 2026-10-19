@@ -48,6 +48,8 @@ export function AgentLaunchIndexProvider({
   const presentation = useMemo<AgentResumePresentation>(
     () => ({
       renderResumeHeader: (toolResponse, canNavigate) => {
+        // A failed or cancelled delivery resumed nothing, so its group keeps the diagnostic row.
+        if (toolResponse.status === 'error' || toolResponse.status === 'cancelled') return undefined
         const state = resolveResumeReceiptState(
           toolResponse.response,
           getPartLaunchToolCallId(toolResponse),

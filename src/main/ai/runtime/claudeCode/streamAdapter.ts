@@ -114,6 +114,8 @@ type ToolStreamState = {
   inputClosed: boolean
   callEmitted: boolean
   parentToolCallId?: string | null
+  /** Frozen at input start, so a result arriving after a later send keeps its originating round. */
+  resumedViaCallId?: string | null
   sdkBlockType?: string
   serverName?: string
   serverId?: string
@@ -879,6 +881,7 @@ export class ClaudeCodeStreamAdapter {
     this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
+      this.captureToolResumeMarker(state)
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
@@ -1104,6 +1107,7 @@ export class ClaudeCodeStreamAdapter {
     this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
+      this.captureToolResumeMarker(state)
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
@@ -1905,8 +1909,14 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  /** Freeze the marker a tool starts under; its result must keep the round the tool began in. */
+  private captureToolResumeMarker(state: ToolStreamState): void {
+    if (state.resumedViaCallId !== undefined) return
+    state.resumedViaCallId = state.parentToolCallId ? (this.resumeMarkers.get(state.parentToolCallId) ?? null) : null
+  }
+
   private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
-    const resumedViaCallId = state.parentToolCallId ? this.resumeMarkers.get(state.parentToolCallId) : undefined
+    const resumedViaCallId = state.resumedViaCallId ?? undefined
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
