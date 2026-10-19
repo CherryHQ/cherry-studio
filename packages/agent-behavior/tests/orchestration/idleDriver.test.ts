@@ -80,7 +80,8 @@ async function finishBackgroundRun(w: World, t: ThreadId): Promise<void> {
 const ONE_ROUND = { goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 } }
 
 describe('idle driver', () => {
-  // Catches a driver that never admits its rounds, keeps going past the goal's stop, or never exits (D38, H4).
+  // Catches a driver that never admits its rounds, keeps going past the goal's stop, or never exits (D38, H4), and a
+  // context filter that hides a round from its own first request until the driver admits it (C1).
   it('starts and admits goal rounds until the goal stops, then exits', async () => {
     const w = world({ settings: { goalDefaults: { maxGoalRounds: 2, maxGoalRoundsCeiling: 50, blockedAfter: 3 } } })
     const t = await w.fake.createThread()
@@ -97,6 +98,9 @@ describe('idle driver', () => {
     expect(currentGoal(facts.history)?.lastStop?.code).toBe('round_limit')
     expect(records(facts, 'idle-driver-exit').map(({ value }) => value.generation)).toEqual([0])
     expect(w.host.emitted.filter((event) => event.type === 'goal-round')).toHaveLength(2)
+    // One request per round: each must see that round's marker.
+    const requests = w.fake.requestLog(t)
+    expect(markers(facts, 'goal-round').map((round, at) => requests[at]?.includes(round.id))).toEqual([true, true])
   })
 
   // Catches a notification refused as busy being dropped or ending the driver (Stage B Task 10 carry): it must wait
