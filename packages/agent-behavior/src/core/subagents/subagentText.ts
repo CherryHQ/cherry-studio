@@ -16,6 +16,12 @@ export const RECOVERY_HINT =
   'Your previous run was interrupted. Check the current state of the workspace first and do not redo work that is already done.'
 export const FORK_WITH_MODEL =
   "A fork shares this conversation's prompt cache and must use the current model; drop model or fork."
+/** The result a fork gives each call of its fork point, with `isError: false` (`ChildSpec.fork`). */
+export const FORK_PLACEHOLDER_RESULT =
+  'This tool call was still running when the subagent started; its result is not available here.'
+/** The result a child's open calls get before a message starts its next run, with `isError: true` (H3). */
+export const INTERRUPTED_CALL_RESULT =
+  'This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.'
 const STOPPED: { readonly [end in Exclude<RunEndFacts['outcome'], 'completed'>]: string } = {
   failed: 'The subagent failed',
   truncated: 'The subagent hit its output limit before finishing',

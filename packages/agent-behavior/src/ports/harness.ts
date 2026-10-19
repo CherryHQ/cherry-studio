@@ -81,20 +81,23 @@ export type MessageResult = { readonly run: number; readonly status: 'started' |
  * child (a steer) joins that run and never starts one: when that run ends before a boundary takes the steer, the steer
  * is withdrawn (G-C5). A steer sent through a tool call's ports is also withdrawn when that call aborts, so stopping
  * the caller's turn never waits for the child's next boundary. `ChildFacts.runUsage` partitions the child's usage by
- * these runs.
+ * these runs. Before a message starts a run, each call of the child's last assistant entry that has no result gets one
+ * with `INTERRUPTED_CALL_RESULT` as its text and `isError: true`, unless that entry ended in an error or was aborted.
  *
- * @harness coding-agent `message` steers a running child and loads then continues a finished one; a steer that missed
- * the run's last boundary, or whose tool call's signal aborted, is withdrawn, not carried into the next run;
- * `awaitAnswer` follows `message_end` until the run that took the message ends; `stop` aborts the child session only if
- * its active run number is `run`.
+ * @harness coding-agent `message` steers a running child and loads then continues a finished one, answering its open
+ * calls first; a steer that missed the run's last boundary, or whose tool call's signal aborted, is withdrawn, not
+ * carried into the next run; `awaitAnswer` follows `message_end` until the run that took the message ends; `stop`
+ * aborts the child session only if its active run number is `run`.
  * @harness durable `message` is `conversation(child).submit({ whenBusy: 'followUp', requestId: key })` for an idle
- * child; a steer submits with `whenBusy: 'steer'` only while its run is `pi.live.run`, and aborts the submission when
- * that run ends before taking it or the calling tool task aborts. `awaitAnswer` refetches that submission by request
- * id, waits and reads the answer entry; `stop` checks that the child's active run is `run`, then calls
- * `conversation(child).abort()`, or before resume marks it as `Turns.stop` does.
+ * child, after appending the results its open calls lack; a steer submits with `whenBusy: 'steer'` only while its run
+ * is `pi.live.run`, and aborts the submission when that run ends before taking it or the calling tool task aborts.
+ * `awaitAnswer` refetches that submission by request id, waits and reads the answer entry; `stop` checks that the
+ * child's active run is `run`, then calls `conversation(child).abort()`, or before resume marks it as `Turns.stop`
+ * does.
  * @harness fake Children are fake conversations; a steer waits for the child's next boundary and is withdrawn when the
- * run ends first or the calling tool's signal aborts; `awaitAnswer` waits for the run the message actually joined;
- * `stop` aborts only when the fake child's active run is `run`.
+ * run ends first or the calling tool's signal aborts; a message that starts a run answers the open calls first;
+ * `awaitAnswer` waits for the run the message actually joined; `stop` aborts only when the fake child's active run is
+ * `run`.
  * @keys `message` keys are request ids (`subagent-msg:<child>:<n>`, `subagent-steer:<call>:<run>`): the same key returns
  * the original result and adds no input, also after its run ended. `awaitAnswer` is bound to the message `key`, not to
  * `run`.

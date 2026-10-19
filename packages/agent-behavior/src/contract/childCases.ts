@@ -1,12 +1,16 @@
-import type { ThreadId } from '@cherrystudio/agent-runtime'
+import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { UsageFact } from '../core/facts'
+import type { ChildSpec } from '../core/decisions'
+import type { ConversationFacts, HistoryEntry, UsageFact } from '../core/facts'
+import { FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from '../core/subagents/subagentText'
 import type { MessageResult, ToolDefinition } from '../ports/harness'
 import { check, same } from './assert'
 import {
+  append,
   assistantTexts,
   callTool,
   childSpec,
+  echoTool,
   holds,
   key,
   latch,
@@ -29,6 +33,24 @@ const usage = (input: number, output: number, costUsd: number): UsageFact => ({
   totalTokens: input + output,
   costUsd
 })
+/** A background child of the transacting thread forked from `from` at `at`. */
+const forkSpec = (label: string, from: ThreadId, at: ItemId): ChildSpec => {
+  const base = childSpec('background', label)
+  return {
+    ...base,
+    fork: { from, at },
+    origin: { ...base.origin, fork: true },
+    record: { ...base.record, fork: true }
+  }
+}
+/** Each call of the last assistant entry that calls `tool`, with the text of the result that answers it after it. */
+function answersTo(facts: ConversationFacts, tool: string): { readonly answered: string | undefined }[] {
+  const at = facts.history.findLastIndex((e) => e.kind === 'assistant' && e.toolCalls.some((c) => c.name === tool))
+  const reply: HistoryEntry | undefined = facts.history[at]
+  if (reply?.kind !== 'assistant') return []
+  const later = toolResults({ ...facts, history: facts.history.slice(at + 1) })
+  return reply.toolCalls.map((call) => ({ answered: later.find((result) => result.callId === call.callId)?.text }))
+}
 
 export const childCases: readonly ContractCase[] = [
   // Catches a parent stop that misses its foreground child or kills a background one (owner decision Q1).
@@ -340,6 +362,99 @@ export const childCases: readonly ContractCase[] = [
       )
       await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c33-msg')))
       same((await read(h, t)).children.get(child)?.runUsage, [own], "a fork's run usage must sum only its own entries")
+    }
+  },
+  // Catches a fork whose copy of the fork point keeps that entry's calls without results (I4): the child's first model
+  // request would carry tool calls no result answers, which providers reject or each SDK patches differently.
+  {
+    name: 'a fork answers each call of its fork point with the placeholder result',
+    covers: ['ledger.transact', 'ledger.read', 'tools.register'],
+    needs: [],
+    async run(open) {
+      const forked: { child?: ThreadId } = {}
+      const forker: ToolDefinition = {
+        ...toolBase('forker'),
+        async run(call, ports) {
+          const at = (await ports.ledger.read(call.thread)).history.findLast((e) => e.kind === 'assistant')!.id
+          const { spawned } = await ports.ledger.transact(call.thread, () =>
+            step([{ type: 'spawn-child', spec: forkSpec('c37', call.thread, at), key: key('c37') }], null)
+          )
+          forked.child = spawned[0].child
+          return { text: 'forked', isError: false }
+        }
+      }
+      const h = await open((p) => {
+        p.tools.register(forker)
+        p.tools.register(echoTool())
+      })
+      const t = await h.createThread()
+      h.script(t, [
+        {
+          text: '',
+          toolCalls: [
+            { name: 'echo', args: {} },
+            { name: 'forker', args: {} }
+          ]
+        },
+        reply('done')
+      ])
+      await h.sendUser(t, 'go')
+      await h.settle()
+      const child = forked.child!
+      same(
+        answersTo(await read(h, child), 'forker'),
+        [{ answered: FORK_PLACEHOLDER_RESULT }, { answered: FORK_PLACEHOLDER_RESULT }],
+        'a fork must answer every call of its fork point with the placeholder, the ones that ran in the parent too'
+      )
+      check(
+        toolResults(await read(h, child)).every((result) => !result.isError),
+        'a placeholder result must not be an error'
+      )
+    }
+  },
+  // Catches a run started on a child whose last reply has calls without results (I4, H3; S-j forks a whole history):
+  // the run's first model request would carry those calls unanswered.
+  {
+    name: 'a message that starts a child run first answers the calls its last reply left open',
+    covers: ['helpers.message', 'helpers.awaitAnswer', 'ledger.read'],
+    needs: [],
+    async run(open) {
+      const forked: { child?: ThreadId } = {}
+      const forker: ToolDefinition = {
+        ...toolBase('forker'),
+        async run(call, ports) {
+          // Forking at a record after this reply leaves the reply's call without a result in the child.
+          await ports.ledger.transact(call.thread, () => step([append(call.thread, 'forking', 'c38-notice')], null))
+          const at = (await ports.ledger.read(call.thread)).history.at(-1)!.id
+          const { spawned } = await ports.ledger.transact(call.thread, () =>
+            step([{ type: 'spawn-child', spec: forkSpec('c38', call.thread, at), key: key('c38') }], null)
+          )
+          forked.child = spawned[0].child
+          return { text: 'forked', isError: false }
+        }
+      }
+      const h = await open((p) => p.tools.register(forker))
+      const t = await h.createThread()
+      h.script(t, [callTool('forker', {}), reply('done')])
+      await h.sendUser(t, 'go')
+      await h.settle()
+      const child = forked.child!
+      h.script(child, [reply('child answer')])
+      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c38-msg')))
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c38-msg')))
+      const facts = await read(h, child)
+      same(
+        answersTo(facts, 'forker'),
+        [{ answered: INTERRUPTED_CALL_RESULT }],
+        'a message that starts a run must first answer the open calls of the last reply'
+      )
+      const answer = facts.history.findIndex((e) => e.kind === 'tool-result' && e.text === INTERRUPTED_CALL_RESULT)
+      const input = facts.history.findIndex((e) => e.kind === 'marker' && e.key === key('c38-msg'))
+      const result = facts.history[answer]
+      check(
+        result?.kind === 'tool-result' && result.isError && answer < input,
+        'the interrupted result must be an error that precedes the run input'
+      )
     }
   },
   // Catches an adapter that builds a child's tools by name or not at all, so a 'parent-only' tool runs in the child.
