@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createWebSearchClient } from '../createWebSearchClient'
 import { bocha } from '../providers/bocha'
 import { crawl4ai } from '../providers/crawl4ai'
+import { deepseek } from '../providers/deepseek'
 import { exa } from '../providers/exa'
 import { exaMcp } from '../providers/exaMcp'
 import { firecrawl } from '../providers/firecrawl'
@@ -102,6 +103,81 @@ describe('portable provider contracts', () => {
     expect(requests[0].body).toBeUndefined()
     expect(new Headers(requests[0].headers).get('x-api-key')).toBe('test-key')
     expect(result.results[0].content).toBe('Serply Description')
+  })
+
+  it('posts DeepSeek search calls and prefers the model-facing summary', async () => {
+    const { client, requests } = setup(deepseek, fixture('deepseek-search-response.json'))
+    const result = await client.execute(search('deepseek'))
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/tools/search')
+    expect(requests[0].method).toBe('POST')
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', count: 4 })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'DeepSeek Result Title',
+        url: 'https://example.com/deepseek-result',
+        content: 'DeepSeek Summary',
+        sourceInput: 'hello'
+      },
+      {
+        title: 'DeepSeek Snippet Only',
+        url: 'https://snippet.example/page',
+        content: 'DeepSeek Snippet',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
+  it('clamps DeepSeek search parameters to the documented API limits', async () => {
+    const { client, requests } = setup(deepseek, fixture('deepseek-search-response.json'))
+    await client.execute({
+      providerId: 'deepseek',
+      capability: 'searchKeywords',
+      input: `x${'y'.repeat(200)}`,
+      config: { apiHost: 'https://service.example/proxy', maxResults: 500 },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: `x${'y'.repeat(127)}`, count: 50 })
+  })
+
+  it.each([
+    ['preserves a supplementary character at the limit', `${'a'.repeat(127)}🚀`, `${'a'.repeat(127)}🚀`],
+    ['truncates after a supplementary character', `${'a'.repeat(127)}𠮷extra`, `${'a'.repeat(127)}𠮷`],
+    ['counts supplementary characters as single code points', '🚀'.repeat(129), '🚀'.repeat(128)]
+  ])('DeepSeek %s', async (_name, input, expectedQuery) => {
+    const { client, requests } = setup(deepseek, fixture('deepseek-search-response.json'))
+    await client.execute({ ...search('deepseek'), input })
+    expect(JSON.parse(requests[0].body!).query).toBe(expectedQuery)
+  })
+
+  it('fetches pages through the DeepSeek Fetch API and tolerates a missing title', async () => {
+    const { client, requests } = setup(deepseek, fixture('deepseek-fetch-response.json'))
+    const result = await client.execute({
+      providerId: 'deepseek',
+      capability: 'fetchUrls',
+      input: 'https://example.com/article',
+      config: { apiHost: 'https://service.example/proxy' },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/tools/fetch')
+    expect(requests[0].method).toBe('POST')
+    expect(JSON.parse(requests[0].body!)).toEqual({ url: 'https://example.com/article' })
+    expect(result.results[0]).toEqual({
+      title: 'DeepSeek Fetched Page',
+      content: 'Fetched page content in Markdown.',
+      url: 'https://example.com/article',
+      sourceInput: 'https://example.com/article'
+    })
+
+    const untitled = setup(deepseek, JSON.stringify({ content: 'Markdown body only' }))
+    const untitledResult = await untitled.client.execute({
+      providerId: 'deepseek',
+      capability: 'fetchUrls',
+      input: 'https://example.com/article',
+      config: { apiHost: 'https://service.example/proxy' },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(untitledResult.results[0].title).toBe('https://example.com/article')
   })
 
   it('keeps SearXNG search separate from discovery and retains hits needing host enrichment', async () => {

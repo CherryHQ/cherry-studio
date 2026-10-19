@@ -10,7 +10,8 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'firecrawl',
   'crawl4ai',
   'parallel',
-  'serply'
+  'serply',
+  'deepseek'
 ] as const)
 
 export type RemoteProviderId = (typeof REMOTE_PROVIDER_IDS)[number]
