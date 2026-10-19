@@ -34,7 +34,10 @@ export const keys = {
   idleDriver: (thread: ThreadId, generation: number): Key => mint(`idle-driver:${thread}:g${generation}`),
   /** The exit record that driver writes in the transaction that decides it stops (H4). */
   idleDriverExit: (thread: ThreadId, generation: number): Key => mint(`idle-driver-exit:${thread}:g${generation}`),
-  /** [plan choice] `runKey` is the new run's spawn key or the continuation's message key: a spawn's commit has no child id yet. */
+  /**
+   * [plan choice] `runKey` is the spawn key, an in-place continuation's message key, or a forked continuation's
+   * `subagentContinue(call)` key: a spawning commit has no child id yet.
+   */
   subagentReport: (runKey: Key): Key => mint(`subagent-report:${runKey}`),
   /** The goal record a goal tool call writes (create_goal, update_goal); one per call. */
   goalCall: (call: CallKey): Key => mint(`goal-call:${call}`),
