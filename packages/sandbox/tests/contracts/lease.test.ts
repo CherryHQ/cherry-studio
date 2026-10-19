@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 import { createLease } from '../../src/backends/mxc/lease.js'
 import { compilePolicy } from '../../src/backends/mxc/policy.js'
+import { completionExitCode } from '../../src/cli/completionExitCode.js'
 import { deferred } from '../../src/host/deferred.js'
 import { createInstance } from '../../src/host/instance.js'
 import { SandboxError } from '../../src/host/SandboxError.js'
@@ -172,6 +173,26 @@ async function sdkProcess(limits: Partial<ReturnType<typeof spec>['limits']> = {
     }
   }
 }
+
+it.each(['before', 'after'])('reports CLI output overflow as 124 %s root exit', async (ordering) => {
+  vi.useFakeTimers()
+  const process = await sdkProcess({ outputBytes: 4 })
+  const output = Promise.all([readAll(process.instance.stdout), readAll(process.instance.stderr)])
+  if (ordering === 'after') await process.exit()
+  process.output.end('over budget')
+  process.errors.end()
+  if (ordering === 'before') await process.exit()
+  await vi.advanceTimersByTimeAsync(process.request.limits.ioDrainTimeoutMs)
+  const completion = await process.instance.completion
+  expect(completion.reason).toBe(ordering === 'before' ? 'limit' : 'exited')
+  expect(completion.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'LIMIT_EXCEEDED' })]))
+  expect(completionExitCode(completion, false, undefined)).toBe(124)
+  expect(completionExitCode(completion, false, 'SIGINT')).toBe(130)
+  expect(completionExitCode(completion, true, 'SIGINT')).toBe(125)
+  expect(completionExitCode({ ...completion, cleanup: 'incomplete' }, false, 'SIGINT')).toBe(125)
+  expect(completionExitCode({ ...completion, tree: 'unknown' }, false, undefined)).toBe(125)
+  await output
+})
 
 it('collects tail bytes after the real SDK reports process completion and before each pipe reaches EOF', async () => {
   vi.useFakeTimers()

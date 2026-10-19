@@ -203,7 +203,9 @@ Windows. It verifies allowed
 reads, writes visible to an existing host descriptor, and denied outside reads
 with a positive control, denied writes, and refusal of unsupported Windows deny
 overrides. Windows tests also cover loopback refusal against a reachable listener,
-detached descendant termination, ACL entry restoration and special-path rejection.
+detached descendant termination, granted file access, host ACL preservation or
+restoration, and special-path rejection. BaseContainer grants do not require host
+ACL mutations.
 macOS requires Xcode command-line tools. Windows CI uses GitHub's hosted
 `windows-11-arm` runner and checks the actual BaseContainer tier before running
 CLI, Node/Python RPC and boundary tests. Windows Server CI runs only the sandbox

@@ -1,11 +1,12 @@
 import { realpathSync } from 'node:fs'
-import { constants } from 'node:os'
 import { isAbsolute, parse } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { parseArgs } from 'node:util'
 
 import { SandboxManager } from '@cherrystudio/sandbox'
 import type { SandboxSpec } from '@cherrystudio/sandbox/types'
+
+import { completionExitCode } from './completionExitCode.js'
 
 const help = `Sandbox CLI — uses the package's public SandboxManager API.
 Usage: pnpm --filter @cherrystudio/sandbox lab <probe|run> [options] -- /absolute/executable [args...]
@@ -136,11 +137,7 @@ async function run(sandbox: SandboxManager, spec: SandboxSpec & { channel: 'none
     drainTimer = setTimeout(() => outputAbort.abort(), spec.limits.ioDrainTimeoutMs)
     await Promise.all([input, output])
     process.stderr.write(`${JSON.stringify({ completion })}\n`)
-    if (ioFailed || completion.tree === 'unknown' || completion.cleanup !== 'complete') return 125
-    if (interrupted) return 128 + constants.signals[interrupted]
-    if (completion.reason === 'limit') return 124
-    if (completion.reason !== 'exited' || completion.issues.length) return 125
-    return completion.target.exitCode ?? 128 + (constants.signals[completion.target.signal as NodeJS.Signals] ?? 0)
+    return completionExitCode(completion, ioFailed, interrupted)
   } finally {
     clearTimeout(drainTimer)
     inputAbort.abort()
