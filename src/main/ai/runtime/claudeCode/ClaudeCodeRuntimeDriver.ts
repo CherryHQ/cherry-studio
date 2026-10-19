@@ -47,7 +47,6 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import { resolveAgentFallbackPolicy } from '../modelFallback'
 import type {
@@ -553,6 +552,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       disabledTools: [...(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])],
       promptVariables: this.turnPromptVariables
     }
+    // The shared policy snapshot is refreshed by writers that do not know a turn is live (the
+    // bounded-warm callback, the MCP catalog refresh). Freezing the admitted mode on it keeps a save
+    // landing mid-backoff from widening the gate this turn is decided against.
+    this.toolPolicySnapshot?.pinPermissionMode(this.connectionConfig?.live.toolPolicy.permissionMode)
     this.lastSdkUserMessageSupportsImages = supportsImages
   }
 
@@ -1103,6 +1106,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.lastUserInput = undefined
     this.lastSdkUserMessage = undefined
     this.turnAdmission = undefined
+    // The turn boundary is where a saved mode change becomes applicable again.
+    this.toolPolicySnapshot?.clearPermissionModePin()
   }
 
   /**
