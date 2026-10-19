@@ -2006,6 +2006,135 @@ describe('ClaudeCodeStreamAdapter', () => {
       }
     })
 
+    // Blocks of an already-observed response keep the round that response began in: a queued send
+    // landing mid-response must not re-tag blocks the child had started emitting under it.
+    it('keeps blocks of an observed response on the marker it began under', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          id: 'msg-launch',
+          content: [{ type: 'tool_use', id: 'launch-use', name: 'Agent', input: { prompt: 'review' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'launch-use',
+              content: JSON.stringify({ status: 'async_launched', agentId: 'agent-a1b2c3d4e5f6' }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      // Response A is observed before the receipt …
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { id: 'resp-A', content: [{ type: 'text', text: 'First round findings' }] }
+      } as any)
+      // … the queued send advances the live marker …
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          id: 'msg-send',
+          content: [{ type: 'tool_use', id: 'send-use', name: 'SendMessage', input: { to: 'agent-a1b2c3d4e5f6' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'send-use',
+              content: JSON.stringify({
+                success: true,
+                message: 'Message queued for delivery to agent-a1b2c3d4e5f6 at its next tool round.',
+                pin: { id: 'agent-a1b2c3d4e5f6', name: 'worker', ref: 'abc' }
+              }),
+              is_error: false
+            }
+          ]
+        }
+      } as any)
+      // … and a new block of that same response keeps the response's originating marker.
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          id: 'resp-A',
+          content: [{ type: 'tool_use', id: 'read-use', name: 'Read', input: { file_path: '/tmp/a.ts' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_result', tool_use_id: 'read-use', content: 'file contents', is_error: false }]
+        }
+      } as any)
+
+      const readChunks = parts.filter((part) => 'toolCallId' in part && part.toolCallId === 'read-use') as Array<{
+        providerMetadata?: Record<string, Record<string, unknown>>
+      }>
+      expect(readChunks.length).toBeGreaterThan(0)
+      for (const chunk of readChunks) {
+        expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBeUndefined()
+      }
+
+      // A subsequent response picks the latest marker up.
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          id: 'resp-B',
+          content: [{ type: 'tool_use', id: 'grep-use', name: 'Grep', input: { pattern: 'x' } }]
+        }
+      } as any)
+      adapter.handleMessage({
+        type: 'user',
+        parent_tool_use_id: 'launch-use',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          content: [{ type: 'tool_result', tool_use_id: 'grep-use', content: 'match', is_error: false }]
+        }
+      } as any)
+      const grepChunks = parts.filter((part) => 'toolCallId' in part && part.toolCallId === 'grep-use') as Array<{
+        providerMetadata?: Record<string, Record<string, unknown>>
+      }>
+      const grepStamped = grepChunks.filter((chunk) => chunk.providerMetadata !== undefined)
+      expect(grepStamped.length).toBeGreaterThan(0)
+      for (const chunk of grepStamped) {
+        expect(chunk.providerMetadata?.cherry?.resumedViaCallId).toBe('send-use')
+      }
+    })
+
     it('enriches a local workflow task from its launch receipt without handling remote agents', () => {
       const { adapter, statusEvents } = createAdapter()
 
