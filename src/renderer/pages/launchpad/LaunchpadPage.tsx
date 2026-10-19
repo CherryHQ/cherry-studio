@@ -32,7 +32,7 @@ const BASE_URL = 'https://www.cherry-ai.com/'
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_SURFACE_CLASS =
-  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-card'
+  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-transparent transition-[background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:bg-accent motion-reduce:transition-none'
 const APP_ICON_FRAME_CLASS =
   'relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
 const APP_ICON_CLASS = 'size-11 object-contain'

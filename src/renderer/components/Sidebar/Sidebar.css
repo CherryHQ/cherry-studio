@@ -6,6 +6,24 @@
 .sidebar-action {
   color: var(--muted-foreground);
   background-color: transparent;
+  transition:
+    background-color 200ms ease-in-out,
+    border-color 200ms ease-in-out,
+    color 200ms ease-in-out;
+}
+
+.sidebar-action [data-slot='sidebar-entry-icon'],
+.sidebar-action [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
+  color: var(--muted-foreground);
+  transition: color 200ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-action,
+  .sidebar-action [data-slot='sidebar-entry-icon'],
+  .sidebar-action [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
+    transition: none;
+  }
 }
 
 .sidebar-action:where(:hover, :focus-visible):not([aria-disabled='true']) {
@@ -17,6 +35,12 @@
 .sidebar-action[data-state='open'] {
   color: var(--sidebar-accent-foreground);
   background-color: var(--sidebar-active-bg);
+}
+
+.sidebar-action[data-active='true'] {
+  border: 0.5px solid var(--border-subtle);
+  outline: none;
+  box-shadow: none;
 }
 
 .sidebar-action[data-active='true'] [data-slot='sidebar-entry-icon'],
@@ -31,4 +55,9 @@
 .sidebar-action[aria-disabled='true'] {
   color: var(--foreground-disabled);
   background-color: transparent;
+}
+
+.sidebar-action[aria-disabled='true'] [data-slot='sidebar-entry-icon'],
+.sidebar-action[aria-disabled='true'] [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
+  color: var(--foreground-disabled);
 }

@@ -12,7 +12,7 @@ The main Sidebar changes layout through edge dragging, leaves an empty shortcut 
 
 - Keep edge dragging for expanded, icon-only, and hidden layouts, with hover recovery when hidden. Keep the existing `ui.sidebar.width` persistence. Do not add a title-bar Sidebar toggle or layout menu.
 - Keep application discovery in the existing title-bar Launchpad entry. Show an empty-list hint in expanded and floating layouts explaining how to pin apps through their context menus.
-- Use shared buttons and circular icon targets and pill-shaped expanded rows. Inactive icons are muted on transparent surfaces; hover uses a faint neutral fill; selection uses a stronger neutral fill and theme-colored icons, without accent-colored backgrounds or decorative borders. Keep visible inset keyboard focus, accessible names, and full-name tooltips. Preserve shortcut ordering, resource identities, navigation, middle-click, context menus, and unavailable-resource behavior.
+- Use shared buttons, circular icon targets, and pill-shaped expanded rows. Inactive icons stay muted on hover; hover uses a faint neutral fill. Selection follows the title-bar tab background, with theme-colored icons and a subtle 0.5px border without shadows. Use 200ms color transitions and respect reduced motion. Keep visible inset keyboard focus, accessible names, and full-name tooltips. Preserve shortcut ordering, resource identities, navigation, middle-click, context menus, and unavailable-resource behavior.
 - Keep the default layout and favorites. Do not introduce sections, recent items, folders, virtualization, or a new persistence format. Measure performance before proposing further optimization.
 
 ## Alternatives considered

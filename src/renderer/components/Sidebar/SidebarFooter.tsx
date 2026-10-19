@@ -49,7 +49,7 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
   ) : null
 
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-3 [-webkit-app-region:no-drag]">
+    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-1.5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <Button

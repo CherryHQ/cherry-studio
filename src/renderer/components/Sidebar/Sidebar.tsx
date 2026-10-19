@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@cherrystudio/ui'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { isMac } from '@renderer/utils/platform'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
@@ -228,6 +228,7 @@ export function Sidebar({
       className={cn(
         'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col',
         windowDragClassName,
+        isWin && 'pt-1',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Search */}
