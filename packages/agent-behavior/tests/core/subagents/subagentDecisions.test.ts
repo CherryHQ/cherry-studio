@@ -6,6 +6,7 @@ import type { HistoryEntry } from '../../../src/core/facts'
 import { keys } from '../../../src/core/keys'
 import {
   allowRequest,
+  budgetStops,
   decideMessage,
   decideRunEnd,
   decideSpawn,
@@ -135,7 +136,7 @@ describe('messaging and stopping', () => {
   it('steers a running child and continues a finished one in the background', () => {
     expect(message([runEntry(run('a'))], live)).toMatchObject({
       ops: [],
-      effects: [{ type: 'message-child', key: 'subagent-steer:k1' }]
+      effects: [{ type: 'message-child', key: 'subagent-steer:k1:1', run: 1 }]
     })
     const interrupted = [runEntry(run('a', { status: 'finished', outcome: 'interrupted' }))]
     const continued = message(interrupted)
@@ -207,6 +208,47 @@ describe('messaging and stopping', () => {
     ])
     expect(stop.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1 }])
     expect(decideUserStopSubagent(facts([runEntry(run('f', { background: false }))]), 'f' as never).result).toBe(false)
+  })
+
+  // Catches a stop that waits for a run no input has reached (G-C4): the wait would never end, and the report job would
+  // start the stopped run afterwards anyway.
+  it('ends a run no input has reached as stopped, without waiting', () => {
+    const history = [runEntry(run('a'))]
+    const stop = decideStop(facts(history), inputs({ args: { id: 'a' } }))
+    expect(stop.result).toMatchObject({ kind: 'ended', result: { isError: false, details: { stopped: true, run: 1 } } })
+    expect(stop.ops).toMatchObject([
+      { record: { value: { status: 'finished', outcome: 'stopped', modelStopped: true } }, key: 'subagent-end:a:1' }
+    ])
+    expect(stop.effects).toEqual([])
+    const input = { runKey: keys.subagentMessage('a' as never, 1), run: 1, text: '', child: 'a' as never }
+    expect(reportTarget(facts(apply(history, stop)), input)).toBeUndefined()
+  })
+
+  // Catches a person's or the budget's stop leaving a run no input has reached to its report job, which would start it
+  // anyway, while message_subagent waited on a message never sent (G-C4 for every stopper).
+  it('ends a run no input has reached for the person and the budget too', () => {
+    const history = [runEntry(run('a'))]
+    const user = decideUserStopSubagent(facts(history), 'a' as never)
+    expect(user.ops).toMatchObject([
+      { record: { value: { status: 'finished', outcome: 'stopped', stoppedBy: 'user' } }, key: 'subagent-end:a:1' },
+      { type: 'ensure-job' }
+    ])
+    expect(user.effects).toEqual([])
+    const budget = budgetStops(facts(history), ['a' as never])
+    expect(budget.ops).toMatchObject([
+      { record: { value: { status: 'finished', outcome: 'stopped', stoppedBy: 'budget' } }, key: 'subagent-end:a:1' }
+    ])
+    expect(budget.effects).toEqual([])
+    expect(message(apply(history, budget)).result).toMatchObject({ kind: 'continued', run: 2 })
+  })
+
+  // Catches a steer for a run whose first input has not arrived: no run is going to take it, and starting one would
+  // leave a run the parent never records (G-C5).
+  it('refuses a message to a run that has not started yet', () => {
+    expect(message([runEntry(run('a'))]).result).toMatchObject({
+      kind: 'refused',
+      text: expect.stringContaining('has not started its run yet')
+    })
   })
 
   // Catches a stopped run recorded with its raw end, a second end record, or a model-stopped run waking the driver.

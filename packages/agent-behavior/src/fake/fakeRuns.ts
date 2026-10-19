@@ -77,11 +77,22 @@ export function submit(host: RunHost, thread: ThreadState, key: string, input: T
   return admission
 }
 
-/** H3: a running child takes the message at its next boundary; an idle one starts a run with it. */
-export function message(host: RunHost, thread: ThreadState, input: TurnInput, key: string): MessageResult {
+/** H3: a running child takes the message at its next boundary; an idle one starts a run with it, unless it steers `run`. */
+export function message(
+  host: RunHost,
+  thread: ThreadState,
+  input: TurnInput,
+  key: string,
+  run?: number
+): MessageResult {
   const existing = thread.submissions.get(key)
   if (existing) return existing.admission as MessageResult
   const active = thread.active
+  if (run !== undefined && active?.run !== run) {
+    const withdrawn: MessageResult = { run, status: 'withdrawn' }
+    thread.submissions.set(key, { input, admission: withdrawn, state: 'withdrawn' })
+    return withdrawn
+  }
   const admission: MessageResult = active
     ? { run: active.run, status: 'queued' }
     : { run: thread.runs + 1, status: 'started' }
@@ -194,8 +205,8 @@ function finish(host: RunHost, epoch: Epoch, thread: ThreadState, end: RunEnding
   thread.active = undefined
   for (const submission of thread.submissions.values())
     if (submission.run === run && submission.state === 'running') submission.state = 'settled'
-  // Messages that missed the run's last boundary stay queued, like inbox items after a failure (DP K6).
-  thread.inbox.push(...thread.steer.splice(0))
+  // A steer that missed the run's last boundary is withdrawn, never carried into the next run (G-C5).
+  for (const key of thread.steer.splice(0)) thread.submissions.get(key)!.state = 'withdrawn'
   epoch.loops.delete(thread.id)
   if (end.live === 'completed') drain(host, thread)
   wake(epoch, thread.id)
@@ -216,7 +227,7 @@ async function turn(
     const ended = await runCalls(host, epoch, thread, loop, open, true)
     if (!host.alive(epoch)) return never()
     if (ended) return ended
-    placeSteer(state, thread)
+    placeSteer(state, epoch, thread)
   }
   for (;;) {
     await host.point(epoch)
@@ -236,7 +247,7 @@ async function turn(
     const ended = await runCalls(host, epoch, thread, loop, calls, false)
     if (!host.alive(epoch)) return never()
     if (ended) return ended
-    if (!placeSteer(state, thread) && calls.length === 0) return ending(thread, 'completed')
+    if (!placeSteer(state, epoch, thread) && calls.length === 0) return ending(thread, 'completed')
   }
 }
 
@@ -346,9 +357,11 @@ function appendReply(
   return toolCalls
 }
 
-function placeSteer(state: FakeState, thread: ThreadState): boolean {
+function placeSteer(state: FakeState, epoch: Epoch, thread: ThreadState): boolean {
   const keys = thread.steer.splice(0)
   for (const key of keys) appendInput(state, thread, key)
+  // The steers' `message` calls answer now (G-C5).
+  if (keys.length > 0) wake(epoch, thread.id)
   return keys.length > 0
 }
 

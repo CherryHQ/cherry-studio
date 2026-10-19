@@ -16,7 +16,7 @@ import { currentGoal, goalCounts } from '../goal/goalHistory'
 import { BUDGET_REFUSAL, budgetExceeded } from '../goal/goalState'
 import type { CallInputs, SubagentModelCandidate } from '../hostFacts'
 import { type Key, keys, nextRun } from '../keys'
-import { awaitingApproval, isLive, readSubagents, resolveChild, runningBackground } from './subagentLedger'
+import { awaitingApproval, isLive, readSubagents, resolveChild, runningBackground, runStarted } from './subagentLedger'
 import {
   capText,
   FORK_WITH_MODEL,
@@ -156,7 +156,8 @@ export type MessageDecision =
  * in the background as its next run. A finished background child continues in place; a finished foreground child is
  * forked from its whole history into a new background child, and later calls on the old id reach the new one
  * (`resolveChild`). A message to a run being stopped waits for that stop to be recorded; a child the user stopped
- * cannot be continued.
+ * cannot be continued. A steer only joins a running run (G-C5): one whose first input has not arrived refuses it, and
+ * when the run ends before taking it the caller decides again.
  */
 export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): Step<MessageDecision> {
   if (facts.lineage.kind === 'subagent') return refuse({ kind: 'refused', text: IN_SUBAGENT })
@@ -174,7 +175,19 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
   if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
   const { child, latest } = target
   if (isLive(facts, latest) && !latest.stoppedBy) {
-    const steer: Effect = { type: 'message-child', child, input: messageInput(message), key: keys.subagentSteer(call) }
+    // A steer joins a running run only (G-C5); this one's report job has not sent its first input yet.
+    if (facts.children.get(child)?.running !== true)
+      return refuse({
+        kind: 'refused',
+        text: `Subagent ${child} has not started its run yet. Message it again once it is running.`
+      })
+    const steer: Effect = {
+      type: 'message-child',
+      child,
+      input: messageInput(message),
+      key: keys.subagentSteer(call, latest.run),
+      run: latest.run
+    }
     return { ops: [], effects: [steer], result: { kind: 'queued', child, text: queuedText(child) } }
   }
   if (latest.stoppedBy === 'user')
@@ -233,29 +246,55 @@ function listed(facts: Facts, inputs: CallInputs): string[] {
     })
 }
 
-/** The record that `by` stopped `record`'s run; a user's stop stays theirs while the run winds down (Y4). */
-const stopRecord = (facts: Facts, record: SubagentRunRecord, by: SubagentStopper): TxOp => ({
-  type: 'append-record',
-  thread: facts.thread,
-  record: {
-    type: 'subagent-run',
-    value: {
-      ...record,
-      stoppedBy: record.stoppedBy === 'user' ? 'user' : by,
-      ...(by === 'model' ? { modelStopped: true } : {})
+/**
+ * `by` stops `record`'s run; a user's stop stays theirs while the run winds down (Y4). A run no input has reached ends
+ * here as stopped (`ended`), so its report job sends nothing and nobody waits for it (G-C4); a started run gets the stop
+ * record and a `stop-child` effect, and its end is recorded once it has wound down.
+ */
+function stopRun(
+  facts: Facts,
+  record: SubagentRunRecord,
+  by: SubagentStopper
+): { readonly ops: TxOp[]; readonly effects: Effect[]; readonly ended: boolean } {
+  const { sessionId: child, run } = record
+  const value: SubagentRunRecord = {
+    ...record,
+    stoppedBy: record.stoppedBy === 'user' ? 'user' : by,
+    ...(by === 'model' ? { modelStopped: true } : {})
+  }
+  if (runStarted(facts, child, run) || facts.children.get(child)?.running === true)
+    return {
+      ops: [
+        {
+          type: 'append-record',
+          thread: facts.thread,
+          record: { type: 'subagent-run', value },
+          key: keys.subagentStop(child, run, by)
+        }
+      ],
+      effects: [{ type: 'stop-child', child, run }],
+      ended: false
     }
-  },
-  key: keys.subagentStop(record.sessionId, record.run, by)
-})
-const stopEffect = (record: SubagentRunRecord): Effect => ({
-  type: 'stop-child',
-  child: record.sessionId,
-  run: record.run
-})
+  const ended: SubagentRunRecord = { ...value, status: 'finished', outcome: 'stopped' }
+  return {
+    ops: [
+      {
+        type: 'append-record',
+        thread: facts.thread,
+        record: { type: 'subagent-run', value: ended },
+        key: keys.subagentEnd(child, run)
+      }
+    ],
+    effects: [],
+    ended: true
+  }
+}
 
 export type StopDecision =
   | { readonly kind: 'refused'; readonly text: string }
   | { readonly kind: 'not-running'; readonly result: ToolResultFact }
+  /** No input had reached the run: its end is recorded as stopped, and its report job sends none (G-C4). */
+  | { readonly kind: 'ended'; readonly result: ToolResultFact }
   /** Await `helpers.awaitAnswer(child, run, key)` for the partial output, then `stoppedResult`. */
   | { readonly kind: 'stopping'; readonly child: ThreadId; readonly run: number; readonly key: Key }
 
@@ -277,10 +316,13 @@ export function decideStop(facts: Facts, inputs: CallInputs): Step<StopDecision>
       }
     })
   }
+  const { ops, effects, ended } = stopRun(facts, latest, 'model')
   return {
-    ops: [stopRecord(facts, latest, 'model')],
-    effects: [stopEffect(latest)],
-    result: { kind: 'stopping', child, run: latest.run, key: keys.subagentMessage(child, latest.run) }
+    ops,
+    effects,
+    result: ended
+      ? { kind: 'ended', result: stoppedResult(child, latest.run, { outcome: 'aborted', text: '' }) }
+      : { kind: 'stopping', child, run: latest.run, key: keys.subagentMessage(child, latest.run) }
   }
 }
 export const stoppedResult = (child: ThreadId, run: number, answer: RunEndFacts): ToolResultFact => ({
@@ -293,7 +335,9 @@ export const stoppedResult = (child: ThreadId, run: number, answer: RunEndFacts)
 export function decideUserStopSubagent(facts: Facts, child: ThreadId): Step<boolean> {
   const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
   if (!ledger?.latest.background || !isLive(facts, ledger.latest)) return refuse(false)
-  return { ops: [stopRecord(facts, ledger.latest, 'user')], effects: [stopEffect(ledger.latest)], result: true }
+  const { ops, effects, ended } = stopRun(facts, ledger.latest, 'user')
+  // Like `decideRunEnd`: the driver delivers the end of a run nobody else will record.
+  return { ops: ended ? [...ops, ensureDriver(facts)] : ops, effects, result: true }
 }
 
 /** D10, §11.4: once the goal's budget is used up, its background children that are still running stop. */
@@ -301,11 +345,9 @@ export function budgetStops(facts: Facts, children: readonly ThreadId[]): Step<n
   const live = readSubagents(facts.history).filter(
     ({ child, latest }) => children.includes(child) && latest.background && isLive(facts, latest) && !latest.stoppedBy
   )
-  return {
-    ops: live.map(({ latest }) => stopRecord(facts, latest, 'budget')),
-    effects: live.map(({ latest }) => stopEffect(latest)),
-    result: live.length
-  }
+  // The driver that decided this delivers the ends it records here when it decides again.
+  const stops = live.map(({ latest }) => stopRun(facts, latest, 'budget'))
+  return { ops: stops.flatMap(({ ops }) => ops), effects: stops.flatMap(({ effects }) => effects), result: live.length }
 }
 
 /**

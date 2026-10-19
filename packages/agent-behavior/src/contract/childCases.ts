@@ -96,8 +96,9 @@ export const childCases: readonly ContractCase[] = [
       same(await send('c12-first'), { run: 1, status: 'started' }, 'an idle child must start a run')
       same(await send('c12-first'), { run: 1, status: 'started' }, 'the same key must return the original admission')
       await hold.started('c12')
-      same(await send('c12-second'), { run: 1, status: 'queued' }, 'a message to a running child must join its run')
+      const second = send('c12-second')
       hold.release('c12')
+      same(await second, { run: 1, status: 'queued' }, 'a message to a running child must join its run')
       same(
         await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c12-first'))),
         { outcome: 'completed', text: 'answer' },
@@ -115,6 +116,27 @@ export const childCases: readonly ContractCase[] = [
         inputs === 2 && (await read(h, t)).children.get(child)?.runUsage.length === 1,
         'a key whose run ended must add no input and start no run'
       )
+    }
+  },
+  // Catches a steer that starts a run nobody recorded when its run had already ended (G-C5): the parent never learns of
+  // that run, and its output is never delivered.
+  {
+    name: 'a steer for a run that has ended is withdrawn and starts no run',
+    covers: ['helpers.message', 'helpers.awaitAnswer', 'ledger.read'],
+    needs: [],
+    async run(open) {
+      const h = await open(() => {})
+      const t = await h.createThread()
+      const child = await spawnBackground(h, t, 'c34')
+      h.script(child, [reply('done'), reply('never')])
+      const first = await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c34-go')))
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, first.run, key('c34-go')))
+      const steer = () => h.withCall(t, (p) => p.helpers.message(child, message('late'), key('c34-steer'), first.run))
+      same(await steer(), { run: first.run, status: 'withdrawn' }, 'a steer for an ended run must be withdrawn')
+      same(await steer(), { run: first.run, status: 'withdrawn' }, 'the same key must return the original answer')
+      await h.settle()
+      check(markersWith(await read(h, child), key('c34-steer')).length === 0, 'a withdrawn steer must add no input')
+      check((await read(h, t)).children.get(child)?.runUsage.length === 1, 'a withdrawn steer must start no run')
     }
   },
   // Catches a child stop that ignores its run number, resolves before that run has ended, or reports it as completed.
