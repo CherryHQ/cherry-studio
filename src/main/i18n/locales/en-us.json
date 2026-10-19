@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU did not complete the document (status: {{status}}). Retry after checking the server.",
   "file_processing.errors.open_mineru_unreachable": "Could not connect to Open MinerU. Check that the server is running and the address is correct.",
   "file_processing.errors.pdf_page_limit_exceeded": "This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again.",
+  "local_model.errors.chat_not_downloaded": "This local model is not fully downloaded. Download it again in Settings > Dependencies > Local Models.",
   "notification.action_required.agent": "Agent needs your input",
   "notification.action_required.assistant": "Assistant needs your input",
   "notification.completion.agent": "Agent task complete",

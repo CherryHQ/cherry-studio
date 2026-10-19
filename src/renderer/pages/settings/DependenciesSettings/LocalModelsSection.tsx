@@ -10,9 +10,39 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { cn } from '@renderer/utils/style'
-import type { LocalModelBundleId, LocalModelCapability, LocalModelStatus } from '@shared/data/presets/localModel'
+import {
+  LOCAL_MODEL_CAPABILITIES,
+  type LocalChatModelFit,
+  type LocalModelBundleId,
+  type LocalModelCapability,
+  type LocalModelStatus
+} from '@shared/data/presets/localModel'
+import type { OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('LocalModelsSection')
+
+const GROUP_TITLE_KEYS = {
+  embedding: 'settings.dependencies.localModels.group.embedding',
+  ocr: 'settings.dependencies.localModels.group.ocr',
+  asr: 'settings.dependencies.localModels.group.asr',
+  tts: 'settings.dependencies.localModels.group.tts',
+  llm: 'settings.dependencies.localModels.group.llm'
+} as const satisfies Record<LocalModelCapability, string>
+
+const FIT_BADGES = {
+  recommended: {
+    labelKey: 'settings.dependencies.localModels.fit.recommended',
+    className: 'border-success-border bg-success-subtle text-success-subtle-foreground'
+  },
+  runnable: {
+    labelKey: 'settings.dependencies.localModels.fit.runnable',
+    className: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
+  },
+  not_recommended: {
+    labelKey: 'settings.dependencies.localModels.fit.not_recommended',
+    className: 'border-error-border bg-error-subtle text-error-subtle-foreground'
+  }
+} as const satisfies Record<LocalChatModelFit, { labelKey: string; className: string }>
 
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
@@ -54,6 +84,11 @@ const MODEL_CARDS = {
     icon: <MessageSquareText className="size-5" />,
     nameKey: 'settings.dependencies.localModels.chat.qwen3_5_4b',
     sources: ['unsloth/Qwen3.5-4B-GGUF']
+  },
+  'qwen3.5-9b-q4_k_m': {
+    icon: <MessageSquareText className="size-5" />,
+    nameKey: 'settings.dependencies.localModels.chat.qwen3_5_9b',
+    sources: ['unsloth/Qwen3.5-9B-GGUF']
   }
 } as const satisfies Record<LocalModelBundleId, { icon: ReactNode; nameKey: string; sources: readonly string[] }>
 
@@ -106,14 +141,14 @@ function useLocalModelCard(id: LocalModelBundleId) {
   }
 }
 
-interface ModelCardProps {
-  id: LocalModelBundleId
-  capability: LocalModelCapability
+type ListedModel = OutputFor<'local_model.list'>['models'][number]
+
+interface ModelCardProps extends ListedModel {
   /** Lifted so the section can hide every card at once when the platform is unsupported. */
   onStatusChange: (id: LocalModelBundleId, status: LocalModelStatus) => void
 }
 
-const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
+const ModelCard: FC<ModelCardProps> = ({ id, capability, memory, onStatusChange }) => {
   const { t } = useTranslation()
   const { status, percent, notice, download, cancel, remove } = useLocalModelCard(id)
   const { icon, nameKey, sources } = MODEL_CARDS[id]
@@ -125,6 +160,12 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   const ready = status === 'ready'
   const downloading = status === 'downloading'
   const retrying = status === 'error'
+  const memoryText =
+    memory &&
+    t('settings.dependencies.localModels.memory', {
+      size: (memory.bytes / 1024 ** 3).toFixed(1),
+      context: memory.contextSize / 1024
+    })
 
   return (
     <div
@@ -149,6 +190,18 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
               </Badge>
             )}
           </div>
+          {memory && (
+            <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs leading-5">
+              <Badge
+                variant="outline"
+                className={cn('px-1.5 py-0 text-[11px] leading-4', FIT_BADGES[memory.fit].className)}>
+                {t(FIT_BADGES[memory.fit].labelKey)}
+              </Badge>
+              <span className="truncate" title={memoryText}>
+                {memoryText}
+              </span>
+            </div>
+          )}
           <div className="mt-0.5 flex flex-col text-xs leading-5">
             {sources.map((source) => (
               <a
@@ -225,11 +278,9 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
   )
 }
 
-type ListedModel = { id: LocalModelBundleId; capability: LocalModelCapability }
-
 /**
- * Local model download cards, one per installable bundle as reported by the registry.
- * Each is wired to its own download backend over IpcApi.
+ * Local model download cards, one per installable bundle as reported by the registry and
+ * grouped by what the model is for. Each is wired to its own download backend over IpcApi.
  */
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
@@ -264,6 +315,10 @@ const LocalModelsSection: FC = () => {
   }, [])
 
   const unsupported = models.length > 0 && models.every((model) => statuses[model.id] === 'unsupported')
+  const groups = LOCAL_MODEL_CAPABILITIES.map((capability) => ({
+    capability,
+    models: models.filter((model) => model.capability === capability)
+  })).filter((group) => group.models.some((model) => statuses[model.id] !== 'unsupported'))
 
   return (
     <div className="min-w-0">
@@ -294,9 +349,18 @@ const LocalModelsSection: FC = () => {
           {t('settings.dependencies.localModels.unsupported')}
         </div>
       ) : (
-        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {models.map((model) => (
-            <ModelCard key={model.id} id={model.id} capability={model.capability} onStatusChange={handleStatusChange} />
+        <div className="space-y-4">
+          {groups.map(({ capability, models: groupModels }) => (
+            <section key={capability}>
+              <h3 className="mb-2 font-medium text-muted-foreground text-xs leading-5">
+                {t(GROUP_TITLE_KEYS[capability])}
+              </h3>
+              <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {groupModels.map((model) => (
+                  <ModelCard key={model.id} {...model} onStatusChange={handleStatusChange} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}

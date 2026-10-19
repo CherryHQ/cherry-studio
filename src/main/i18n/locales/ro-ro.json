@@ -145,6 +145,7 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU nu a finalizat procesarea documentului (stare: {{status}}). Verificați serverul și reîncercați.",
   "file_processing.errors.open_mineru_unreachable": "Conectarea la Open MinerU a eșuat. Verificați dacă serverul rulează și adresa este corectă.",
   "file_processing.errors.pdf_page_limit_exceeded": "Acest PDF depășește limita de {{maxPages}} pagini pentru serviciul curent de analiză a documentelor. Împarte manual PDF-ul, apoi adaugă-l din nou.",
+  "local_model.errors.chat_not_downloaded": "Acest model local nu este descărcat complet. Descarcă-l din nou din Setări > Dependențe de mediu > Modele Locale.",
   "notification.action_required.agent": "Agentul are nevoie de intervenția ta",
   "notification.action_required.assistant": "Asistentul are nevoie de intervenția ta",
   "notification.completion.agent": "Sarcina agentului a fost finalizată",

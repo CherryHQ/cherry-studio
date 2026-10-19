@@ -20,7 +20,8 @@ export interface LocalLlmModel {
 }
 
 export const LOCAL_LLM_MODELS = [
-  { bundleId: 'qwen3.5-4b-q4_k_m', name: 'Qwen3.5 4B', group: 'Qwen', contextWindow: 65_536 }
+  { bundleId: 'qwen3.5-4b-q4_k_m', name: 'Qwen3.5 4B', group: 'Qwen', contextWindow: 65_536 },
+  { bundleId: 'qwen3.5-9b-q4_k_m', name: 'Qwen3.5 9B', group: 'Qwen', contextWindow: 65_536 }
 ] as const satisfies readonly LocalLlmModel[]
 
 export function localLlmUniqueModelId(bundleId: LocalModelBundleId): UniqueModelId {
