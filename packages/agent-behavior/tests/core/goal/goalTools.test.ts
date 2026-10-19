@@ -116,4 +116,14 @@ describe('/goal command', () => {
       'emit'
     ])
   })
+
+  // Catches a pause that stops when only a failed run's leftover inputs are queued: no run is going, and the stop
+  // would withdraw the person's queued message.
+  it('stops nothing when only leftover inputs are queued', () => {
+    const leftovers = run([goalEntry(goal())], 'pause', { idle: false, leftoverInputs: 1 })
+    expect(leftovers.effects.map((e) => e.type)).toEqual(['emit'])
+    expect(leftovers.ops).not.toContainEqual(
+      expect.objectContaining({ record: expect.objectContaining({ type: 'turn-stop' }) })
+    )
+  })
 })
