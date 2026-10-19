@@ -2,6 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 
 import type { BrowserController } from '../browserController'
 import { handleDialog } from './dialog'
+import { handleListDownloads } from './downloads'
 import { handleExecute } from './execute'
 import { handleConsoleMessages, handleFind, handleNetworkRequests } from './inspect'
 import { handleInteraction } from './interact'
@@ -22,6 +23,7 @@ export const toolHandlers: Record<
   screenshot: handleScreenshot,
   snapshot: handleSnapshot,
   list_tabs: handleListTabs,
+  list_downloads: handleListDownloads,
   switch_tab: handleSwitchTab,
   close_tab: handleCloseTab,
   reset: handleReset,

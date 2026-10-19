@@ -6,7 +6,7 @@ import { app, dialog, session, shell } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { DownloadSource } from '@shared/data/types/download'
+import type { DownloadSource, DownloadState } from '@shared/data/types/download'
 
 import { uniquifyFileName } from './downloadPath'
 import { fileNameFromUrl, resolveDownloadPath, sanitizeDownloadFileName } from './downloadPath'
@@ -15,6 +15,7 @@ import { DownloadStore, type DownloadTaskRecord } from './downloadStore'
 import { DownloadTask } from './DownloadTask'
 import { probeDownload } from './probe'
 import { planSegments, MAX_SEGMENT_CONNECTIONS } from './segmentedDownload'
+import { SpeedMeter } from './speedMeter'
 
 const logger = loggerService.withContext('DownloadManagerService')
 
@@ -36,6 +37,31 @@ export interface StartDownloadInput {
   source?: DownloadSource
 }
 
+/** A task row plus the numbers a status consumer cannot derive from the database alone. */
+export interface DownloadSnapshot {
+  id: string
+  fileName: string
+  url: string
+  state: DownloadState
+  receivedBytes: number
+  totalBytes: number
+  /** 0-100 with one decimal; null while the size is still unknown. */
+  percent: number | null
+  speedBytesPerSecond: number
+  /** Null when the size is unknown or the transfer is not running. */
+  etaSeconds: number | null
+  connections: number
+  supportsRanges: boolean
+  filePath: string
+  error: string | null
+}
+
+export interface DownloadSnapshotOptions {
+  /** Restricts the result to one task. Unknown ids yield an empty list. */
+  taskId?: string
+  limit?: number
+}
+
 /**
  * Owns the download queue. Tasks are rows in `download_task`; this service only
  * decides which rows may run now, and hands each one to {@link DownloadTask}.
@@ -53,6 +79,7 @@ export class DownloadManagerService extends BaseService {
   private readonly running = new Map<string, AbortController>()
   /** Paths claimed by tasks that have not touched the disk yet. */
   private readonly reserved = new Set<string>()
+  private readonly speeds = new SpeedMeter()
   private active = 0
 
   protected onInit(): void {
@@ -77,6 +104,38 @@ export class DownloadManagerService extends BaseService {
 
   get(taskId: string): DownloadTaskRecord | undefined {
     return this.store.get(taskId)?.task
+  }
+
+  /**
+   * Status view for the MCP tool and any future UI: the persisted row plus a
+   * measured rate and the numbers derived from it.
+   */
+  snapshot(options: DownloadSnapshotOptions = {}): DownloadSnapshot[] {
+    const rows = options.taskId
+      ? [this.store.get(options.taskId)?.task].filter((task): task is DownloadTaskRecord => task !== undefined)
+      : this.store.listAll(options.limit ?? 20)
+    return rows.map((task) => this.toSnapshot(task))
+  }
+
+  private toSnapshot(task: DownloadTaskRecord): DownloadSnapshot {
+    const speed = this.speeds.get(task.id)
+    const remaining = task.totalBytes - task.receivedBytes
+    return {
+      id: task.id,
+      fileName: task.fileName,
+      url: task.url,
+      state: task.state,
+      receivedBytes: task.receivedBytes,
+      totalBytes: task.totalBytes,
+      percent:
+        task.totalBytes > 0 ? Math.min(100, Math.round((task.receivedBytes / task.totalBytes) * 1000) / 10) : null,
+      speedBytesPerSecond: Math.round(speed),
+      etaSeconds: speed > 0 && remaining > 0 ? Math.ceil(remaining / speed) : null,
+      connections: task.connections,
+      supportsRanges: task.supportsRanges,
+      filePath: task.filePath,
+      error: task.error ?? null
+    }
   }
 
   async start(input: StartDownloadInput): Promise<DownloadTaskRecord> {
@@ -263,7 +322,10 @@ export class DownloadManagerService extends BaseService {
           mime: task.mime ?? undefined
         },
         store: this.store,
-        fetchImpl: this.fetchFor(task.partition)
+        fetchImpl: this.fetchFor(task.partition),
+        onProgress: (received) => {
+          this.speeds.update(taskId, received)
+        }
       })
       const result = await runner.run(controller.signal)
       if (result === 'completed') logger.info('Download completed', { taskId, bytes: task.totalBytes })
@@ -274,6 +336,7 @@ export class DownloadManagerService extends BaseService {
         logger.warn('Download failed', { taskId, error: message })
       }
     } finally {
+      this.speeds.stop(taskId)
       this.running.delete(taskId)
       this.active -= 1
       this.pump()
