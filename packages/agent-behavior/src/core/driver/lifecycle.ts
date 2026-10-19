@@ -47,7 +47,7 @@ export function decideOnOpen(facts: ConversationFacts, inputs: CallInputs): Step
     ops.push({
       type: 'append-record',
       thread: facts.thread,
-      record: { type: 'turn-stop', value: { by: 'user', cause: 'reopen', at: inputs.now } },
+      record: { type: 'turn-stop', value: { cause: 'reopen', at: inputs.now } },
       key: keys.reopenStop(start.id)
     })
     effects.push({ type: 'stop-turn', thread: facts.thread, cause: 'goal-pause' })
@@ -92,7 +92,7 @@ export const decideUserStop = (facts: ConversationFacts, inputs: CallInputs, req
     {
       type: 'append-record',
       thread: facts.thread,
-      record: { type: 'turn-stop', value: { by: 'user', cause: 'user', at: inputs.now } },
+      record: { type: 'turn-stop', value: { cause: 'user', at: inputs.now } },
       key: keys.turnStop(requestKey)
     }
   ],

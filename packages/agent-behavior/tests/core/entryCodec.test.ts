@@ -44,7 +44,7 @@ const records: PolicyRecord[] = [
   },
   { type: 'subagent-origin', value: { parentToolCallId: 'call-1', fork: false, description: 'scan', modelKey: 'p/m' } },
   { type: 'plan', value: { active: true, at: 7 } },
-  { type: 'turn-stop', value: { by: 'user', cause: 'goal-command', at: 9 } },
+  { type: 'turn-stop', value: { cause: 'goal-command', at: 9 } },
   { type: 'idle-driver-exit', value: { generation: 2 } }
 ]
 const markers: MarkerFact[] = [
@@ -160,16 +160,6 @@ describe('entry codec', () => {
     })
   })
 
-  // Catches a stop stored before `cause` existed being skipped or read without a cause, so the rules lose or misread it.
-  it('reads a turn stop stored without a cause as a user stop', () => {
-    expect(decodeEntry({ id, kind: ENTRY_KINDS.turnStop, data: { by: 'user', at: 9, key: 'k' } })).toEqual({
-      kind: 'record',
-      id,
-      key: 'k',
-      record: { type: 'turn-stop', value: { by: 'user', cause: 'user', at: 9 } }
-    })
-  })
-
   // Review focus 2: a foreign or corrupt entry must be skipped, not crash every read of the conversation.
   it.each([
     ['a pi.* kind', { kind: 'pi.user', data: {} }],
@@ -188,8 +178,9 @@ describe('entry codec', () => {
       'a run record with an unknown stopper',
       { kind: 'cherry.subagent-state', data: { sessionId: 'c', run: 1, status: 'finished', stoppedBy: 'cat' } }
     ],
-    // Catches a stop cause outside its union decoded as one, which the rules would then trust.
-    ['a turn stop with an unknown cause', { kind: 'cherry.turn-stop', data: { by: 'user', at: 1, cause: 'cat' } }]
+    // Catches a stop cause outside its union, or none, decoded as one, which the rules would then trust.
+    ['a turn stop with an unknown cause', { kind: 'cherry.turn-stop', data: { at: 1, cause: 'cat' } }],
+    ['a turn stop without a cause', { kind: 'cherry.turn-stop', data: { at: 1 } }]
   ] as const)('skips %s without throwing', (_name, raw) => {
     expect(decodeEntry({ id, ...raw })).toBeUndefined()
   })

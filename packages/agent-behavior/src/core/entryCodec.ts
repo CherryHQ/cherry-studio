@@ -132,9 +132,8 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         ? { type: 'plan', value: f as PlanState }
         : undefined
     case ENTRY_KINDS.turnStop:
-      // A stop stored before `cause` existed was a person's.
-      return f.by === 'user' && typeof f.at === 'number' && isOptionalMember(f.cause, STOP_CAUSES)
-        ? { type: 'turn-stop', value: { ...f, cause: f.cause ?? 'user' } as TurnStop }
+      return typeof f.at === 'number' && isMember(f.cause, STOP_CAUSES)
+        ? { type: 'turn-stop', value: f as TurnStop }
         : undefined
     case ENTRY_KINDS.idleDriverExit:
       return typeof f.generation === 'number'
