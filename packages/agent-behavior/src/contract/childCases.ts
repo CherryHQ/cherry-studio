@@ -140,6 +140,32 @@ export const childCases: readonly ContractCase[] = [
       check((await read(h, t)).children.get(child)?.runUsage.length === 1, 'a withdrawn steer must start no run')
     }
   },
+  // Catches a steer carried into the next run when the run it joined ends before a boundary takes it (G-C5): the next
+  // run would start with input nobody sent it, which on a parent's tool call is a run the parent never recorded.
+  {
+    name: 'a steer whose run ends before a boundary takes it is withdrawn, not carried into the next run',
+    covers: ['helpers.message', 'helpers.stop', 'helpers.awaitAnswer', 'ledger.read'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      const child = await spawnBackground(h, t, 'c36')
+      h.script(child, [callTool('hold', { id: 'c36' }), reply('next')])
+      const send = (label: string, run?: number) =>
+        h.withCall(t, (p) => p.helpers.message(child, message(label), key(label), run))
+      same(await send('c36-go'), { run: 1, status: 'started' }, 'an idle child must start run 1')
+      await hold.started('c36')
+      const steer = send('c36-steer', 1)
+      await h.withCall(t, (p) => p.helpers.stop(child, 1))
+      same(await send('c36-again'), { run: 2, status: 'started' }, 'a message after the run ended must start run 2')
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 2, key('c36-again')))
+      // Awaited only now, so a harness that carries the steer into run 2 answers it there and fails here.
+      same(await steer, { run: 1, status: 'withdrawn' }, 'a steer its run ended without taking must be withdrawn')
+      check(markersWith(await read(h, child), key('c36-steer')).length === 0, 'the steer must not reach run 2')
+      check((await read(h, t)).children.get(child)?.runUsage.length === 2, 'the steer must start no run of its own')
+    }
+  },
   // Catches a steer that keeps its tool call waiting for the child's next boundary after the caller's turn stopped
   // (H3): a run ends only once its calls return, so the stop would wait on the child, or on an approval it waits for.
   {
