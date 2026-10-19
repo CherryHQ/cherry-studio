@@ -7,14 +7,10 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import type { AppProviderSettingsMap } from '@main/ai/types'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { describeVoiceModel } from '@main/ai/voice/localAdapters'
 import { resolveDefaultAsrModel } from '@main/ai/voice/voicePlatform'
 import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/config/resolveProcessorConfig'
-import {
-  APPLE_ASR_MODEL_ID,
-  FUNASR_MODEL_ID,
-  WINDOWS_ASR_MODEL_ID,
-  type LocalTranscriptionModelId
-} from '@shared/ai/localVoice'
+import { isTranscriptionModelId, type LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { parseUniqueModelId, UniqueModelIdSchema, type UniqueModelId } from '@shared/data/types/model'
 import { DEFAULT_MEDIA_FRAME_BUDGET, MEDIA_PIPELINE_VERSION, type MediaFrameBudget } from '@shared/types/mediaAnalysis'
@@ -61,11 +57,7 @@ export interface MediaExecutionConfig {
 function resolveAsrExecutionConfig(): MediaAsrExecutionConfig | null {
   const preferences = application.get('PreferenceService')
   const rawModelId = preferences.get('feature.voice.recognition.model_id').trim()
-  const explicit = rawModelId
-    ? rawModelId === APPLE_ASR_MODEL_ID || rawModelId === WINDOWS_ASR_MODEL_ID || rawModelId === FUNASR_MODEL_ID
-      ? rawModelId
-      : null
-    : undefined
+  const explicit = rawModelId ? (isTranscriptionModelId(rawModelId) ? rawModelId : null) : undefined
   if (explicit === null) return null
 
   const modelId = resolveDefaultAsrModel(
@@ -79,9 +71,10 @@ function resolveAsrExecutionConfig(): MediaAsrExecutionConfig | null {
   if (!modelId) return null
 
   const language = preferences.get('feature.voice.recognition.language').trim()
+  const acceptsLanguage = describeVoiceModel(modelId).model?.localeSelection != null
   return {
     modelId,
-    ...(language && modelId !== FUNASR_MODEL_ID ? { language } : {})
+    ...(language && acceptsLanguage ? { language } : {})
   }
 }
 

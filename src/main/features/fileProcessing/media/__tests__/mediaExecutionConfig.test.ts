@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, WINDOWS_ASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, QWEN3_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID } from '@shared/ai/localVoice'
 import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
 
 const state = vi.hoisted(() => ({
@@ -71,6 +71,13 @@ describe('resolveMediaExecutionConfig', () => {
 
     state.preferences.set('feature.voice.recognition.model_id', FUNASR_MODEL_ID)
     await expect(resolveMediaExecutionConfig()).resolves.toMatchObject({ asr: { modelId: FUNASR_MODEL_ID } })
+  })
+
+  it('accepts explicit Qwen3 ASR and omits a language it cannot take', async () => {
+    state.preferences.set('feature.voice.recognition.model_id', QWEN3_ASR_MODEL_ID)
+    state.preferences.set('feature.voice.recognition.language', 'zh-CN')
+
+    expect((await resolveMediaExecutionConfig()).asr).toEqual({ modelId: QWEN3_ASR_MODEL_ID })
   })
 
   it('forwards language to an explicit Windows ASR model', async () => {

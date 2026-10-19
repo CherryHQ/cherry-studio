@@ -3,7 +3,7 @@ import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { application } from '@application'
-import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { generateText as aiCoreGenerateText, type TranscriptionResult } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { createAiUsagePlugin } from '@main/ai/hooks/billingHook'
 import type { AppProviderSettingsMap } from '@main/ai/types'
@@ -173,42 +173,48 @@ export class MediaAnalysisService extends BaseService {
 
       for (const chunk of extracted.chunks) {
         signal?.throwIfAborted()
+        const bytes = new Uint8Array(await readFile(chunk.path))
+        const transcription = startTranscription(
+          {
+            modelId: execution.asr.modelId,
+            input: { kind: TranscriptionInputKind.Audio, audio: bytes },
+            output: TranscriptionOutputKind.Final,
+            options: { ...(execution.asr.language && { language: execution.asr.language }) }
+          },
+          signal
+        )
+        let result: TranscriptionResult | undefined
         try {
-          const bytes = new Uint8Array(await readFile(chunk.path))
-          const result = await startTranscription(
-            {
-              modelId: execution.asr.modelId,
-              input: { kind: TranscriptionInputKind.Audio, audio: bytes },
-              output: TranscriptionOutputKind.Final,
-              options: { ...(execution.asr.language && { language: execution.asr.language }) }
-            },
-            signal
-          ).completed
-          if (result.segments.length > 0) {
-            for (const segment of result.segments) {
-              const text = segment.text.trim()
-              if (!text) continue
-              segments.push({
-                startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.startSecond),
-                endMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.endSecond),
-                text
-              })
-            }
-          } else if (result.text.trim()) {
-            segments.push({
-              startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs),
-              endMs: sourceAudioMs(probe.audioStartMs, chunk.endMs),
-              text: result.text.trim()
-            })
-          }
+          result = await transcription.completed
         } catch (error) {
           signal?.throwIfAborted()
-          if (error instanceof VoiceRuntimeError && error.reason === 'no_speech') {
-            noSpeech = true
-            continue
-          }
-          throw error
+          if (error instanceof VoiceRuntimeError && error.reason === 'no_speech') noSpeech = true
+          else throw error
+        } finally {
+          await transcription.closed
         }
+        if (!result) continue
+        let accepted = 0
+        if (result.segments.length > 0) {
+          for (const segment of result.segments) {
+            const text = segment.text.trim()
+            if (!text) continue
+            accepted += 1
+            segments.push({
+              startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.startSecond),
+              endMs: sourceAudioMs(probe.audioStartMs, chunk.startMs, segment.endSecond),
+              text
+            })
+          }
+        } else if (result.text.trim()) {
+          accepted += 1
+          segments.push({
+            startMs: sourceAudioMs(probe.audioStartMs, chunk.startMs),
+            endMs: sourceAudioMs(probe.audioStartMs, chunk.endMs),
+            text: result.text.trim()
+          })
+        }
+        if (accepted === 0) noSpeech = true
       }
 
       return { completed: true, segments, warnings: noSpeech || segments.length === 0 ? ['no_speech'] : [] }
