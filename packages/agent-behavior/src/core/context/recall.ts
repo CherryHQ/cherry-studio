@@ -10,7 +10,7 @@ const CLIP = 300
 
 type Recalled = { readonly index: number; readonly label: string; readonly text: string }
 
-/** `#N` numbers the messages of the full lineage, compaction-folded ones included (README context); records are not messages. */
+/** `#N` numbers the messages of the full lineage, compaction-folded ones included (agent-runtime-pi README context); records are not messages. */
 function recallable(history: readonly HistoryEntry[]): Recalled[] {
   const recalled: Recalled[] = []
   const push = (label: string, text: string) => recalled.push({ index: recalled.length, label, text })

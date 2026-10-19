@@ -1,7 +1,7 @@
 import type { RunEndFacts, SubagentRunRecord, SubagentStopper } from '../facts'
 import type { PendingResult } from './subagentLedger'
 
-/** Model requests one child run may make, compaction summaries included (README subagents; Claude Code's fork limit). */
+/** Model requests one child run may make, compaction summaries included (agent-runtime-pi README subagents; Claude Code's fork limit). */
 export const MAX_SUBAGENT_REQUESTS = 200
 /** Background children one parent may run at once unless the user sets another cap; the host's `Settings` default. */
 export const DEFAULT_MAX_BACKGROUND = 20
@@ -96,7 +96,7 @@ function itemText(item: PendingResult): string {
         : `${head} was stopped because the goal's budget is used up.${partial}`
   }
 }
-/** One message for every pending result, oldest first (README subagents: results that end together merge). */
+/** One message for every pending result, oldest first (agent-runtime-pi README subagents: results that end together merge). */
 export function notificationText(items: readonly PendingResult[], othersRunning: number): string {
   const footer =
     othersRunning === 0
