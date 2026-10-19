@@ -46,8 +46,8 @@ export interface RunHost {
   alive(epoch: Epoch): boolean
   /** Counts one await point; never settles once `epoch` is dead, including when the armed crash fires here. */
   point(epoch: Epoch): Promise<void>
-  /** Ports bound to one tool call, which `close` ends. */
-  toolScope(epoch: Epoch, owner: Owner): { readonly ports: BoundPorts; close(): void }
+  /** Ports bound to one tool call, which `close` ends; `signal` is the call's abort signal. */
+  toolScope(epoch: Epoch, owner: Owner, signal: AbortSignal): { readonly ports: BoundPorts; close(): void }
 }
 
 /** What dead-epoch work awaits: a crashed process never answers. */
@@ -281,7 +281,7 @@ async function callTool(
   const key = call.callKey
   const intent = replaying ? host.state.intents.get(key) : undefined
   if (intent?.replay === 'unsafe') return INTERRUPTED
-  const scope = host.toolScope(epoch, { thread: thread.id, run: thread.active!.run })
+  const scope = host.toolScope(epoch, { thread: thread.id, run: thread.active!.run }, loop.abort.signal)
   try {
     // The fake makes no nested calls.
     let gated: GateCall = {
