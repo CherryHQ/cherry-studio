@@ -224,6 +224,7 @@ export function buildFacts(state: FakeState, id: ThreadId): ConversationFacts {
     history: thread.entries.map(({ entry }) => entry),
     live: {
       idle: isIdle(thread),
+      leftoverInputs: thread.active ? 0 : thread.inbox.length,
       queuedUserInput: thread.inbox.some((key) => thread.submissions.get(key)?.input.kind === USER_INPUT),
       hostCallInFlight: false,
       ...(last && { runEnd: { outcome: last.live } }),

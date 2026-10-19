@@ -13,7 +13,7 @@ export const HARNESS_PORT_METHODS = [
   'helpers.stop',
   'jobs.register',
   'waits.untilIdle',
-  'waits.untilTurnEnd',
+  'waits.untilRunEnd',
   'memory.remember',
   'clock.now',
   'tools.register',

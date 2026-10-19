@@ -35,9 +35,21 @@ const GOAL_PHASES: Members<GoalPhase> = { active: true, paused: true, blocked: t
 const NOTICE_LEVELS: Members<GoalNotice['level']> = { info: true, error: true }
 const RUN_STATUSES: Members<SubagentRunRecord['status']> = { running: true, finished: true }
 const ROUND_KINDS: Members<RoundDetails['kind']> = { work: true, hint: true, 'wrap-up': true }
+const OUTCOMES: Members<SubagentOutcome> = {
+  completed: true,
+  failed: true,
+  truncated: true,
+  aborted: true,
+  limit_reached: true,
+  stopped: true,
+  interrupted: true
+}
+const STOPPERS: Members<SubagentStopper> = { model: true, user: true, budget: true }
 
 const isMember = (value: JsonValue, members: object): boolean =>
   typeof value === 'string' && Object.hasOwn(members, value)
+const isOptionalMember = (value: JsonValue | undefined, members: object): boolean =>
+  value === undefined || isMember(value, members)
 const isFields = (value: JsonValue): value is Fields =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 const withKey = (fields: Fields, key: string | undefined): Fields => (key === undefined ? fields : { ...fields, key })
@@ -57,6 +69,8 @@ export function encodeEntry(fact: PolicyRecord | MarkerFact, key?: string): Enco
       return { kind: ENTRY_KINDS.plan, data: withKey(fact.value, key) }
     case 'turn-stop':
       return { kind: ENTRY_KINDS.turnStop, data: withKey(fact.value, key) }
+    case 'idle-driver-exit':
+      return { kind: ENTRY_KINDS.idleDriverExit, data: withKey(fact.value, key) }
     case 'goal-round':
       return { kind: ENTRY_KINDS.goalRound, data: withKey(fact.round, key) }
     case 'subagent-notification':
@@ -97,7 +111,11 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         ? { type: 'goal-notice', value: f as GoalNotice }
         : undefined
     case ENTRY_KINDS.subagentRun:
-      return typeof f.sessionId === 'string' && typeof f.run === 'number' && isMember(f.status, RUN_STATUSES)
+      return typeof f.sessionId === 'string' &&
+        typeof f.run === 'number' &&
+        isMember(f.status, RUN_STATUSES) &&
+        isOptionalMember(f.outcome, OUTCOMES) &&
+        isOptionalMember(f.stoppedBy, STOPPERS)
         ? { type: 'subagent-run', value: f as SubagentRunRecord }
         : undefined
     case ENTRY_KINDS.subagentOrigin:
@@ -114,6 +132,10 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
     case ENTRY_KINDS.turnStop:
       return f.by === 'user' && typeof f.at === 'number'
         ? { type: 'turn-stop', value: f as { readonly by: 'user'; readonly at: number } }
+        : undefined
+    case ENTRY_KINDS.idleDriverExit:
+      return typeof f.generation === 'number'
+        ? { type: 'idle-driver-exit', value: f as { readonly generation: number } }
         : undefined
     default:
       return undefined
@@ -150,7 +172,8 @@ function decodeRuns(list: JsonValue): DeliveredRun[] | undefined {
   for (const item of list) {
     if (!isFields(item)) return undefined
     const { sessionId, run, outcome, stoppedBy } = item
-    if (typeof sessionId !== 'string' || typeof run !== 'number' || typeof outcome !== 'string') return undefined
+    if (typeof sessionId !== 'string' || typeof run !== 'number' || !isMember(outcome, OUTCOMES)) return undefined
+    if (!isOptionalMember(stoppedBy, STOPPERS)) return undefined
     const delivered = { sessionId: sessionId as ThreadId, run, outcome: outcome as SubagentOutcome }
     runs.push(stoppedBy === undefined ? delivered : { ...delivered, stoppedBy: stoppedBy as SubagentStopper })
   }

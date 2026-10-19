@@ -50,11 +50,14 @@ export type RetractResult = 'withdrawn' | 'already-started' | 'settled' | 'not-f
  * deduplicates by scanning history for `data.key`; `retract` withdraws the reservation; `stop` aborts the session.
  * @harness durable `submit({ type: 'input', whenBusy: 'reject', entry: { kind, data: { ...data, key } }, requestId: key })`:
  * `ConversationBusy` is 'busy'; an idle conversation with inbox items queues the input behind them; `retract` aborts the
- * submission; `stop` is `conversation(id).abort()`.
+ * submission; `stop` is `conversation(id).abort()`, except before resume (H12), where it is
+ * `Harness.abortTask(pi.live.run.taskId)` plus `abortSubmission` for each queued input, neither of which enables
+ * scheduling.
  * @harness fake A per-thread inbox in front of the scripted model, with Durable's admission rules.
  * @keys The key is the request id: the same key returns the original admission and never adds a second input; a
  * 'busy' answer records nothing, so the key stays usable; a withdrawn key is spent.
- * @waits `stop` resolves once the conversation is idle.
+ * @waits `stop` resolves once the conversation is idle. Before resume (H12) it ends the run a restart interrupted as
+ * aborted before any resumed work and may resolve as soon as that mark is durable.
  */
 export interface Turns {
   /** 'started' when idle; 'queued' behind inbox items a failed run left; 'busy', recording nothing, while a run is active. */
@@ -68,20 +71,28 @@ export type MessageResult = { readonly run: number; readonly status: 'started' |
 /**
  * H3. Message a child, wait for its answer, stop it.
  *
+ * A child's run is what one run-starting input begins, an input that finds the child idle; a message to a running
+ * child (a steer) joins that run. `ChildFacts.runUsage` partitions the child's usage by these runs.
+ *
  * @harness coding-agent `message` steers a running child and loads then continues a finished one; `awaitAnswer`
- * follows `message_end` until the run ends; `stop` aborts the child session only if its active run number is `run`.
+ * follows `message_end` until the run that took the message ends; `stop` aborts the child session only if its active
+ * run number is `run`.
  * @harness durable `message` is `conversation(child).submit({ whenBusy: running ? 'steer' : 'followUp', requestId: key })`;
  * `awaitAnswer` refetches that submission by request id, waits and reads the answer entry; `stop` checks that the
- * child's active run is `run`, then calls `conversation(child).abort()`.
- * @harness fake Children are fake conversations; a message to a running child is placed at its next boundary; `stop`
- * aborts only when the fake child's active run is `run`.
- * @keys `message` keys are request ids (`subagent-msg:<child>:<n>`); `awaitAnswer` takes the key of the message that
- * started the run.
+ * child's active run is `run`, then calls `conversation(child).abort()`, or before resume marks it as `Turns.stop` does.
+ * @harness fake Children are fake conversations; a message to a running child is placed at its next boundary, or
+ * carried into the next run when it missed the last one; `awaitAnswer` waits for the run the message actually joined;
+ * `stop` aborts only when the fake child's active run is `run`.
+ * @keys `message` keys are request ids (`subagent-msg:<child>:<n>`): the same key returns the original result and adds
+ * no input, also after its run ended. `awaitAnswer` is bound to the message `key`, not to `run`.
  * @waits `awaitAnswer` keeps no state: after a restart the same key re-establishes the wait, and a run that already ended
- * answers at once. `stop` resolves once that run has ended, or at once when it does nothing.
+ * answers at once. It resolves with the end of the run that took message `key`: `run` is the run the message was
+ * accepted into, and when the harness carries the message into the next run, it resolves with that run's end; a message
+ * withdrawn before it ran answers with the end of run `run`. `stop` resolves once that run has ended, or at once when it
+ * does nothing.
  */
 export interface Helpers {
-  /** 'started' with the new run's number when the child is idle; 'queued' with the running run's number otherwise. */
+  /** 'started' with the new run's number when the child is idle; 'queued' with the number of the running run otherwise. */
   message(child: ThreadId, input: TurnInput, key: Key): Promise<MessageResult>
   awaitAnswer(child: ThreadId, run: number, key: Key): Promise<RunEndFacts>
   /**
@@ -97,10 +108,18 @@ export type JobHandler = (ports: BoundPorts, job: JobSpec) => Promise<void>
  *
  * @harness coding-agent An in-process promise per job; nothing is rebuilt on reopen, since runs do not resume.
  * @harness durable One `cherry.job` task definition, owned by the conversation, `background: true`, with
- * `abandonOnRestart` for 'abandon' jobs; its single phase runs the handler, which reruns safely because every step is keyed.
- * @harness fake An in-memory job table; on restart 'resume' jobs rerun from the start and 'abandon' jobs are dropped.
+ * `abandonOnRestart` for 'abandon' jobs; its single phase runs the handler, which reruns safely because every step is
+ * keyed. Jobs are deduplicated by op key, never by kind; an 'abandon' job created before a reopen counts as ended from
+ * that reopen on, although Durable marks it only once scheduling resumes.
+ * @harness fake An in-memory job table; on restart 'abandon' jobs are dropped before any `onOpen` and 'resume' jobs
+ * rerun from the start after it.
  * @keys Only the `ensure-job` operation creates a job; its key stays in `keysSeen` while the job lives and leaves when
- * it finishes, fails or is abandoned.
+ * it finishes, fails or is abandoned, which a restart does from the reopen on, before `onOpen`. A key whose job ended
+ * creates a new job. The idle driver's key is `keys.idleDriver(thread, n)`, where `n` counts the thread's
+ * `idle-driver-exit` records (`idleDriverGeneration`): the driver's final decide, the one that decides it stops, writes
+ * its exit record under `keys.idleDriverExit(thread, n)` in that same transaction. An ensure committed before that
+ * transaction is seen by the decide, so the driver goes on; one committed after it computes `n + 1` and creates a new
+ * job, so no wakeup is lost.
  */
 export interface Jobs {
   /** Called during install. */
@@ -108,23 +127,28 @@ export interface Jobs {
 }
 
 /**
- * H5. Wait until a conversation is idle, or until its current turn ends; waiting keeps no state.
+ * H5. Wait until a conversation has no run, or until its current run ends; waiting keeps no state.
  *
- * @harness coding-agent `untilIdle` resolves at `agent_before_settle` (completed), never while a host call is in
- * flight; `untilTurnEnd` is `turn_end`.
- * @harness durable Read `pi.live.run.taskId` in a commit, then `waitForTask`; re-established when a phase reruns.
- * @harness fake Resolved by the fake's run loop.
- * @waits Both resolve at once when nothing runs; `untilIdle` also waits for queued input to drain.
+ * @harness coding-agent `untilIdle` resolves at `agent_before_settle` (completed) or `agent_end` (any other outcome),
+ * never while a host call is in flight; `untilRunEnd` resolves at `agent_end`. Neither resolves at `turn_end`, which
+ * follows every model request and its tool results.
+ * @harness durable Read `pi.live.run` in a commit; while it exists, `waitForTask(pi.live.run.taskId)` and read it again.
+ * A run hands over to a new generation task after every tool round, and queued input starts the next run in the commit
+ * that ends this one, so both waits loop until `pi.live.run` is gone. Re-established when a phase reruns.
+ * @harness fake Resolved by the fake's run loop once the thread has no active run.
+ * @waits Both resolve at once when no run is active. `untilRunEnd` resolves when the current run ends and queued input
+ * starts no other in its place; `untilIdle` resolves when no run is active, even while inputs a failed run left are
+ * still queued (`LiveFacts.leftoverInputs`).
  */
 export interface Waits {
   untilIdle(thread: ThreadId): Promise<void>
-  untilTurnEnd(thread: ThreadId): Promise<void>
+  untilRunEnd(thread: ThreadId): Promise<void>
 }
 
 /**
  * H6. Remember an answer from a person or a model so a restart never asks again.
  *
- * @harness coding-agent A map scoped to the call; restarts do not resume calls, so nothing needs to outlive them.
+ * @harness coding-agent An in-session store; restarts do not resume calls, so nothing needs to outlive the session.
  * @harness durable `api.memo(name, candidate)`: persistent, first writer wins; hooks and tasks share one namespace,
  * hence the `cherry.` prefix.
  * @harness fake A map that survives simulated restarts.
@@ -243,10 +267,19 @@ export interface LifecycleHandlers {
 /**
  * H12. Let the package settle a conversation when it opens, after it is compacted, and when it closes.
  *
- * @harness coding-agent `session_start`, `session_compact` and `session_shutdown`.
- * @harness durable The host calls `onOpen` after `Harness.open` and `inspect()` and before `resume()`, so its writes and
- * stops land before any resumed work; compaction completion is observed through a watch; `close()` writes nothing.
- * @harness fake `onOpen` at creation and, before any resumed run or job, on every restart; `onClose` on close.
+ * On reopen the harness restores every conversation with its runs and jobs, and `onOpen` decides what to stop; the
+ * rules stay in the package. `onOpen` calls only `ledger.*`, `turns.stop` and `helpers.stop`: no submits, no waits.
+ * Stop before resume: a run a restart interrupted, stopped from `onOpen`, ends as aborted before any resumed work (no
+ * open call reruns, no further model request), and the stop may resolve as soon as that mark is durable. No
+ * conversation's interrupted run resumes before its own `onOpen` has run.
+ *
+ * @harness coding-agent `session_start`, `session_compact` and `session_shutdown`; runs do not resume, so there is no
+ * stop before resume.
+ * @harness durable The host calls `onOpen` for every conversation after `Harness.open` and `inspect()` and before
+ * `resume()`. Stops there only mark (`abortTask`, `abortSubmission`), because `abort()`, `submit` and the waits enable
+ * scheduling; compaction completion is observed through a watch; `close()` writes nothing.
+ * @harness fake `onOpen` at creation and, on every restart, for every conversation before any resumed run or job; a stop
+ * there ends the restored run at once; `onClose` on close.
  */
 export interface Lifecycle {
   /** Called during install. */

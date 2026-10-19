@@ -30,10 +30,11 @@ export const turnCases: readonly ContractCase[] = [
       check(markersWith(await read(h, t), key('c8-busy')).length === 1, 'the reused key must start exactly one turn')
     }
   },
-  // Catches input jumping ahead of a failed run's leftovers, or a withdrawn turn that still runs (DP K6, G2).
+  // Catches input jumping ahead of a failed run's leftovers, leftovers missing from the facts or holding untilIdle, or a withdrawn turn that still runs (DP K6, G2).
+  // Premise: Durable's default `followUpMode: 'one-at-a-time'`; with 'all', `c9-q` would start with the leftover.
   {
     name: 'start queues behind inbox items a failed run left, and retract withdraws it',
-    covers: ['turns.start', 'turns.retract', 'waits.untilTurnEnd', 'tools.register'],
+    covers: ['turns.start', 'turns.retract', 'waits.untilRunEnd', 'waits.untilIdle', 'tools.register'],
     needs: [],
     async run(open) {
       const hold = holds()
@@ -59,10 +60,16 @@ export const turnCases: readonly ContractCase[] = [
       await h.sendUser(t, 'go')
       await hold.started('c9-b')
       await h.sendUser(t, 'follow')
-      const ended = h.withCall(t, (p) => p.waits.untilTurnEnd(t))
+      const ended = h.withCall(t, (p) => p.waits.untilRunEnd(t))
       hold.release('c9-b')
       await ended
-      check((await read(h, t)).live.runEnd?.outcome === 'error', 'the scripted error must fail the run')
+      const failed = await read(h, t)
+      check(failed.live.runEnd?.outcome === 'error', 'the scripted error must fail the run')
+      check(
+        !failed.live.idle && failed.live.leftoverInputs === 1,
+        'a failed run must leave its queued input in the inbox, reported as a leftover'
+      )
+      await h.withCall(t, (p) => p.waits.untilIdle(t))
       check(
         (await start('c9-q')) === 'queued',
         'input to an idle conversation holding inbox items must queue behind them'
@@ -100,35 +107,55 @@ export const turnCases: readonly ContractCase[] = [
       check(!assistantTexts(after).includes('never'), 'a stopped run must make no further model request')
     }
   },
-  // Catches waits that resolve early, letting the driver decide on a still-running turn (design §6.1 H5).
+  // Catches waits that resolve at a turn boundary inside the run (Durable's generation handover after a tool round), letting the driver decide on a running run (H5).
   {
     name: 'waits resolve only when the run ends',
-    covers: ['waits.untilIdle', 'waits.untilTurnEnd', 'tools.register'],
+    covers: ['waits.untilIdle', 'waits.untilRunEnd', 'tools.register'],
     needs: [],
     async run(open) {
       const hold = holds()
       const h = await open((p) => p.tools.register(hold.tool))
       const t = await h.createThread()
-      h.script(t, [callTool('hold', { id: 'c15' }), reply('done')])
-      await h.withCall(t, (p) => p.waits.untilIdle(t))
+      h.script(t, [callTool('hold', { id: 'c15-a' }), callTool('hold', { id: 'c15-b' }), reply('done')])
       await h.sendUser(t, 'go')
-      await hold.started('c15')
-      const ended = { idle: false, turnEnd: false }
+      await hold.started('c15-a')
+      const ended = { idle: false, runEnd: false }
       const idle = h
         .withCall(t, (p) => p.waits.untilIdle(t))
         .then(() => {
           ended.idle = true
         })
-      const turnEnd = h
-        .withCall(t, (p) => p.waits.untilTurnEnd(t))
+      const runEnd = h
+        .withCall(t, (p) => p.waits.untilRunEnd(t))
         .then(() => {
-          ended.turnEnd = true
+          ended.runEnd = true
         })
       await read(h, t)
       await read(h, t)
-      same(ended, { idle: false, turnEnd: false }, 'waits must not resolve while the run is active')
-      hold.release('c15')
-      await Promise.all([idle, turnEnd])
+      same(ended, { idle: false, runEnd: false }, 'waits must not resolve while a tool call runs')
+      hold.release('c15-a')
+      await hold.started('c15-b')
+      await read(h, t)
+      await read(h, t)
+      same(ended, { idle: false, runEnd: false }, 'waits must not resolve at the turn boundary after a tool round')
+      hold.release('c15-b')
+      await Promise.all([idle, runEnd])
+      check((await read(h, t)).live.idle, 'the conversation must be idle once both waits resolved')
+    }
+  },
+  // Catches a wait that pends on a conversation with no run, which hangs every caller that waits on an idle thread.
+  {
+    name: 'both waits resolve immediately when the conversation is idle',
+    covers: ['waits.untilIdle', 'waits.untilRunEnd'],
+    needs: [],
+    async run(open) {
+      const h = await open(() => {})
+      const t = await h.createThread()
+      await h.withCall(t, (p) => Promise.all([p.waits.untilIdle(t), p.waits.untilRunEnd(t)]))
+      h.script(t, [reply('done')])
+      await h.sendUser(t, 'go')
+      await h.settle()
+      await h.withCall(t, (p) => Promise.all([p.waits.untilIdle(t), p.waits.untilRunEnd(t)]))
     }
   }
 ]

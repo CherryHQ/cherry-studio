@@ -84,9 +84,8 @@ describe('port naming and documentation', () => {
   // waits the design assigns it, which leaves an adapter author guessing.
   it('documents every port for each harness, with its keys and waits', () => {
     const ports = portInterfaces()
-    expect(ports.map((port) => port.name.text)).toEqual(
-      expect.arrayContaining(['Ledger', 'Lifecycle', 'Approvals', 'Settings'])
-    )
+    // Catches a port the discovery skips (a member not typed by a plain reference), which would escape this check.
+    expect(ports).toHaveLength(20)
     const gaps = ports.flatMap((port) => {
       const name = port.name.text
       const harnesses = tagTexts(port, 'harness').map((text) => text.split(/\s+/)[0])

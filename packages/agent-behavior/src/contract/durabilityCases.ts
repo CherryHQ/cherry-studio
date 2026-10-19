@@ -1,15 +1,17 @@
+import { idleDriverGeneration, keys } from '../core/keys'
 import type { JobHandler, BoundPorts } from '../ports/harness'
 import { check, rejects, same } from './assert'
 import { append, key, latch, noticeTexts, read, step, transact } from './fixtures'
 import type { ContractCase } from './harness'
 
 export const durabilityCases: readonly ContractCase[] = [
-  // Catches resume jobs that skip or repeat keyed steps, or abandon jobs that keep running (design §6.1 H4).
+  // Catches resume jobs that skip or repeat keyed steps, or abandon jobs that keep running or still count as live in onOpen (design §6.1 H4).
   {
     name: 'resume jobs rerun from the start after a restart; abandon jobs are dropped',
-    covers: ['jobs.register', 'ledger.transact'],
+    covers: ['jobs.register', 'ledger.transact', 'lifecycle.register'],
     needs: ['restart'],
     async run(open) {
+      let abandonLiveAtOpen: boolean | undefined
       const gates = { resume: latch(), abandon: latch() }
       const reached = { resume: latch(), abandon: latch() }
       const calls = { resume: 0, abandon: 0 }
@@ -34,6 +36,13 @@ export const durabilityCases: readonly ContractCase[] = [
       const h = await open((p) => {
         p.jobs.register('subagent-report', job('resume'))
         p.jobs.register('idle-driver', job('abandon'))
+        p.lifecycle.register({
+          async onOpen(thread, { reopened }, ports) {
+            if (reopened) abandonLiveAtOpen = (await ports.ledger.read(thread)).keysSeen.has(key('c16-abandon'))
+          },
+          onCompacted: async () => {},
+          onClose: async () => {}
+        })
       })
       const t = await h.createThread()
       const ensure = (kind: 'subagent-report' | 'idle-driver', onRestart: 'resume' | 'abandon', label: string) =>
@@ -44,7 +53,7 @@ export const durabilityCases: readonly ContractCase[] = [
       await ensure('idle-driver', 'abandon', 'c16-abandon')
       await Promise.all([reached.resume.promise, reached.abandon.promise])
       await h.restart()
-      check(!(await read(h, t)).keysSeen.has(key('c16-abandon')), 'an abandoned job must leave keysSeen on restart')
+      check(abandonLiveAtOpen === false, 'an abandoned job must leave keysSeen from the reopen on, before onOpen')
       gates.resume.release()
       gates.abandon.release()
       await h.settle()
@@ -57,6 +66,87 @@ export const durabilityCases: readonly ContractCase[] = [
       await ensure('idle-driver', 'abandon', 'c16-abandon')
       await h.settle()
       check(noticeTexts(await read(h, t)).includes('abandon b'), "an abandoned job's key must be usable again")
+    }
+  },
+  // Catches a job table that keeps an ended job's key, so a later ensure under that key never runs (design §6.1 H4).
+  {
+    name: 'a job key is usable again once its job has ended',
+    covers: ['jobs.register', 'ledger.transact'],
+    needs: [],
+    async run(open) {
+      let runs = 0
+      const h = await open((p) =>
+        p.jobs.register('subagent-report', async () => {
+          runs += 1
+        })
+      )
+      const t = await h.createThread()
+      const ensure = () =>
+        transact(h, t, () =>
+          step(
+            [
+              {
+                type: 'ensure-job',
+                job: { kind: 'subagent-report', scope: t, input: null, onRestart: 'resume' },
+                key: key('c29')
+              }
+            ],
+            null
+          )
+        )
+      await ensure()
+      await h.settle()
+      const keySeen = (await read(h, t)).keysSeen.has(key('c29'))
+      same([runs, keySeen], [1, false], 'a finished job must have run once and left keysSeen')
+      await ensure()
+      await h.settle()
+      same(runs, 2, 'an ensure under the key of an ended job must create a new job')
+    }
+  },
+  // Catches jobs deduplicated by kind, which drops the next driver's ensure while the previous driver exits and loses its wakeup (H4).
+  {
+    name: 'an ensure under the next driver generation creates a job while the previous driver is exiting',
+    covers: ['jobs.register', 'ledger.transact'],
+    needs: [],
+    async run(open) {
+      const exited = latch()
+      const finish = latch()
+      let runs = 0
+      // The final decide: the driver stops and records its exit in the same transaction.
+      const driver: JobHandler = async (ports, spec) => {
+        runs += 1
+        await ports.ledger.transact(spec.scope, (f) => {
+          const generation = idleDriverGeneration(f.history)
+          return step(
+            [
+              {
+                type: 'append-record',
+                thread: spec.scope,
+                record: { type: 'idle-driver-exit', value: { generation } },
+                key: keys.idleDriverExit(spec.scope, generation)
+              }
+            ],
+            null
+          )
+        })
+        exited.release()
+        await finish.promise
+      }
+      const h = await open((p) => p.jobs.register('idle-driver', driver))
+      const t = await h.createThread()
+      const ensure = () =>
+        transact(h, t, (f) => {
+          const driverKey = keys.idleDriver(t, idleDriverGeneration(f.history))
+          const job = { kind: 'idle-driver', scope: t, input: null, onRestart: 'abandon' } as const
+          return step(f.keysSeen.has(driverKey) ? [] : [{ type: 'ensure-job', job, key: driverKey }], driverKey)
+        })
+      const first = (await ensure()).result
+      await exited.promise
+      const second = (await ensure()).result
+      check(second !== first, 'the exit record must move the driver key to the next generation')
+      finish.release()
+      await h.settle()
+      check(runs === 2, 'an ensure under the next generation must create a job while the previous driver still lives')
     }
   },
   // Catches a memo that forgets across restarts or stores a failed answer, so a person is asked again (DP K3).
@@ -86,7 +176,7 @@ export const durabilityCases: readonly ContractCase[] = [
       check((await remember('c17-fail', 'later')) === 'later', 'a rejected produce must store nothing')
     }
   },
-  // Catches a clock that returns fractional or relative time (e.g. performance.now()) or a negative value, which breaks budgets and stop timestamps.
+  // Catches a clock that returns fractional or backwards time, or a negative value, which breaks budgets and stop timestamps.
   {
     name: 'clock reads non-decreasing whole milliseconds',
     covers: ['clock.now'],

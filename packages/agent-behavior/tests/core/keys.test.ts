@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { callKeyOf, type GoalSnapshot, type HistoryEntry } from '../../src/core/facts'
-import { armSeq, keys, nextRun } from '../../src/core/keys'
+import { armSeq, idleDriverGeneration, keys, nextRun } from '../../src/core/keys'
 import { deepFreeze, withoutEnvironment } from './purity'
 
 const thread = (value: string) => value as ThreadId
@@ -49,15 +49,18 @@ describe('keys', () => {
   // Catches a format change: keys are stored as data.key and used as Durable request ids, so a restarted harness
   // would stop recognising work it already did (design §7.3).
   it('derives the design §7.3 formats', () => {
-    expect(keys.goalFromCall(call)).toBe('goal:task-7')
-    expect(keys.goalFromCommand('msg-1')).toBe('goal:msg-1')
-    expect(keys.goalRound('goal:task-7', 3, 2, 1)).toBe('goal-round:goal:task-7:r3:v2:a1')
-    expect(keys.goalAdmit(keys.goalRound('goal:task-7', 3, 2, 1))).toBe('goal-admit:goal-round:goal:task-7:r3:v2:a1')
+    expect(keys.goalFromCall(call)).toBe('goal:call:task-7')
+    expect(keys.goalFromCommand('msg-1')).toBe('goal:cmd:msg-1')
+    expect(keys.goalRound('goal:call:task-7', 3, 2, 1)).toBe('goal-round:goal:call:task-7:r3:v2:a1')
+    expect(keys.goalAdmit(keys.goalRound('goal:call:task-7', 3, 2, 1))).toBe(
+      'goal-admit:goal-round:goal:call:task-7:r3:v2:a1'
+    )
     expect(keys.subagentSpawn(call)).toBe('subagent-spawn:task-7')
     expect(keys.subagentMessage(thread('child-1'), 2)).toBe('subagent-msg:child-1:2')
     expect(keys.subagentEnd(thread('child-1'), 2)).toBe('subagent-end:child-1:2')
     expect(keys.turnStop('req-9')).toBe('turn-stop:req-9')
-    expect(keys.idleDriver(thread('p'))).toBe('idle-driver:p')
+    expect(keys.idleDriver(thread('p'), 0)).toBe('idle-driver:p:g0')
+    expect(keys.idleDriverExit(thread('p'), 0)).toBe('idle-driver-exit:p:g0')
     expect(keys.subagentReport(keys.subagentSpawn(call))).toBe('subagent-report:subagent-spawn:task-7')
     expect(keys.approvalMemo(call)).toBe('cherry.approval:task-7')
     expect(keys.askMemo(call)).toBe('cherry.ask:task-7')
@@ -77,13 +80,15 @@ describe('keys', () => {
     expect(key).toMatch(/^subagent-notify:p:[0-9a-f]{64}$/)
   })
 
-  // Review focus 3: ids containing ':' must not make two different inputs share a key.
+  // Catches a batch key that joins `child:run` pairs (two runs vs one run of child `a:1:b`), or one goal id for a call key and an equal request key.
   it('stays injective when ids contain the separator', () => {
-    expect(keys.subagentNotify(thread('p'), [{ child: thread('a:1'), run: 2 }])).not.toBe(
-      keys.subagentNotify(thread('p'), [{ child: thread('a'), run: 12 }])
-    )
-    expect(keys.subagentMessage(thread('a:1'), 2)).not.toBe(keys.subagentMessage(thread('a'), 12))
-    expect(keys.goalRound('g:r1', 2, 3, 4)).not.toBe(keys.goalRound('g', 1, 2, 3))
+    expect(
+      keys.subagentNotify(thread('p'), [
+        { child: thread('a'), run: 1 },
+        { child: thread('b'), run: 2 }
+      ])
+    ).not.toBe(keys.subagentNotify(thread('p'), [{ child: thread('a:1:b'), run: 2 }]))
+    expect(keys.goalFromCall(callKeyOf('req-1'))).not.toBe(keys.goalFromCommand('req-1'))
   })
 
   // Catches design §7.3's bug: a goal disarmed on reopen and resumed keeps its revision, so without a new armSeq the
@@ -102,6 +107,19 @@ describe('keys', () => {
     expect(keys.goalRound('g', 3, 2, armSeq(history.slice(0, 3), 'g'))).not.toBe(
       keys.goalRound('g', 3, 2, armSeq(history, 'g'))
     )
+  })
+
+  // Catches a driver key unchanged by the driver's exit, so an ensure after the exit is dropped as the exiting driver's and its wakeup is lost (H4).
+  it('moves the idle driver to the next generation with each exit record', () => {
+    const exit = (generation: number): HistoryEntry => ({
+      kind: 'record',
+      id: `item-${++ids}` as ItemId,
+      record: { type: 'idle-driver-exit', value: { generation } }
+    })
+    const history = deepFreeze([goalRecord('g', 1, true), exit(0), runRecord('c1', 1), exit(1)])
+    expect(withoutEnvironment(() => idleDriverGeneration([]))).toBe(0)
+    expect(idleDriverGeneration(history.slice(0, 2))).toBe(1)
+    expect(idleDriverGeneration(history)).toBe(2)
   })
 
   // Catches a continuation reusing run n's message key, which Durable answers with the old submission instead of run n+1.
