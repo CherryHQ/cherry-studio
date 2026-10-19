@@ -27,6 +27,10 @@ const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   bypassApproval: 'lift'
 }).map(toMcpRuntimeName)
 const DELEGATION_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'delegation' }).map(toMcpRuntimeName)
+const NON_BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
+  approval: 'required',
+  bypassApproval: 'enforce'
+}).map(toMcpRuntimeName)
 const NON_HOST_MCP_SERVERS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
   mountedServers: NON_HOST_MCP_SERVERS
