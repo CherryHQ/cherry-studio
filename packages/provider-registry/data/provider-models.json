@@ -18563,9 +18563,9 @@
       "providerId": "minimax"
     },
     {
-      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "apiModelId": "MiniMax-M3.1-Flash",
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
-      "modelId": "minimax-m3-1-flash-preview",
+      "modelId": "minimax-m3-1-flash",
       "providerId": "minimax",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -18766,9 +18766,9 @@
       "providerId": "minimax-global"
     },
     {
-      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "apiModelId": "MiniMax-M3.1-Flash",
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
-      "modelId": "minimax-m3-1-flash-preview",
+      "modelId": "minimax-m3-1-flash",
       "providerId": "minimax-global",
       "reasoningContracts": {
         "anthropic-messages": {

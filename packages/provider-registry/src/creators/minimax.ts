@@ -1,6 +1,18 @@
 import type { ReasoningEffort } from '../schemas/enums'
 import { defineCreator } from './types'
 
+// Open-weight MiniMax models ignore temperature.
+const openWeightParams = {
+  temperature: { supported: false },
+  topP: { supported: true },
+  topK: { supported: false },
+  frequencyPenalty: true,
+  presencePenalty: true,
+  maxTokens: true,
+  stopSequences: true,
+  systemMessage: true
+}
+
 const m31Efforts: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
 export default defineCreator({
@@ -9,21 +21,26 @@ export default defineCreator({
   modelsDevProviders: ['minimax', 'minimax-cn'],
   idPrefixes: ['minimax', 'abab'],
   reasoningFamilies: [
-    { pattern: '^minimax-m3[.-]1-flash-preview$', effort: m31Efforts, toggle: false },
+    { pattern: '^minimax-m3[.-]1-flash$', effort: m31Efforts, toggle: false },
     { pattern: 'minimax-m\\d' }
   ],
   models: [
     {
-      id: 'minimax-m3-1-flash-preview',
-      name: 'MiniMax-M3.1-Flash-Preview',
+      id: 'minimax-m3-1-flash',
+      name: 'MiniMax-M3.1-Flash',
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
       contextWindow: 1_000_000,
+      parameterSupport: openWeightParams,
       reasoning: { controls: [{ kind: 'effort', values: m31Efforts, default: 'max' }] }
     },
     { id: 'minimax-m2-1' },
-    { id: 'minimax-m3', maxOutputTokens: 524288 },
+    {
+      id: 'minimax-m3',
+      maxOutputTokens: 524288,
+      parameterSupport: openWeightParams
+    },
     {
       id: 'image-01',
       name: 'image-01',
