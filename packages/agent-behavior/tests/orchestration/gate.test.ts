@@ -63,7 +63,8 @@ describe('tool gate', () => {
     expect(result).toMatchObject({ isError: true, text: expect.stringContaining(deniedReason('not on main')) })
   })
 
-  // Catches a pending approval the turn's stop cannot withdraw (G-C1): the stop would wait for the person's answer.
+  // Catches a pending approval the turn's stop cannot withdraw (G-C1): the stop would wait for the person's answer; or
+  // a withdrawn ask remembered as answered, so a rerun of the call would never ask.
   it('withdraws a pending approval when the turn stops', async () => {
     const w = world({ extra: register(tool('danger')), host: { approvalFacts: asking } })
     const t = await w.fake.createThread()
@@ -75,6 +76,7 @@ describe('tool gate', () => {
     const [result] = toolResults(await w.read(t))
     expect(result).toMatchObject({ isError: true, text: expect.stringContaining(ASK_WITHDRAWN) })
     expect(await w.host.approvals.outcomes(t, [])).toEqual([])
+    expect(JSON.stringify(w.fake.persistentLog())).not.toContain(`cherry.approval:${result.callKey}`)
   })
 
   // Catches the gate ignoring the goal round's call window, so a stuck model repeats a call forever (R4, block half).
