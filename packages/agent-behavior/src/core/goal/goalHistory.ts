@@ -66,12 +66,16 @@ export function admittedRounds(history: readonly HistoryEntry[]): ReadonlySet<st
   }
   return admitted
 }
-/** H10: round markers to leave out of model requests. */
+/**
+ * H10: round markers to leave out of model requests. The round that started the latest run is admitted only after
+ * it started (R1), so its first requests still see it; only earlier unadmitted rounds are left out.
+ */
 export function unadmittedRoundItems(history: readonly HistoryEntry[]): ItemId[] {
   const admitted = admittedRounds(history)
-  return history.flatMap((entry) => {
+  const current = lastIndex(history, startsTurn)
+  return history.flatMap((entry, at) => {
     const round = roundOf(entry)
-    return round && !admitted.has(round.id) ? [entry.id] : []
+    return round && at !== current && !admitted.has(round.id) ? [entry.id] : []
   })
 }
 
