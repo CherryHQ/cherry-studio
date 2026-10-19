@@ -261,6 +261,7 @@ export interface MessageRenderConfig {
   messageFont: string
   fontSize: number
   renderInputMessageAsMarkdown: boolean
+  userMessageDefaultExpanded: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
@@ -279,6 +280,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   messageFont: 'system',
   fontSize: 14,
   renderInputMessageAsMarkdown: false,
+  userMessageDefaultExpanded: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
