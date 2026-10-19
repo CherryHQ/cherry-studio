@@ -28,9 +28,9 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
           return decided.summary
         })
         return { summary }
-      } catch {
+      } catch (error) {
         // D33: a failed summary cancels the compaction; nothing falls back to the conversation's model.
-        return { decline: true }
+        return { decline: true, reason: error instanceof Error ? error.message : String(error) }
       }
     },
     // The status a compaction leaves is written by the driver once the conversation is idle (S-i).
