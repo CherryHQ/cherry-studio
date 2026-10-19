@@ -496,11 +496,11 @@ function computeAgentLaunchIndex(
   const taskIdByCallId = new Map<string, string>()
   const latestTaskEventByTaskId = new Map<string, AgentTaskEventPartData>()
   const taskOriginMessageIdByTaskId = new Map<string, string>()
-  const applyTaskEvent = (data: AgentTaskEventPartData): void => {
+  const applyTaskEvent = (data: AgentTaskEventPartData, liveEdge = false): void => {
     if (data.toolUseId && !taskIdByCallId.has(data.toolUseId)) taskIdByCallId.set(data.toolUseId, data.taskId)
     latestTaskEventByTaskId.set(data.taskId, {
       ...data,
-      status: resolveTaskStatusAfter(latestTaskEventByTaskId.get(data.taskId)?.status, data)
+      status: resolveTaskStatusAfter(latestTaskEventByTaskId.get(data.taskId)?.status, data, liveEdge)
     })
   }
   if (!partsByMessageId)
@@ -562,7 +562,8 @@ function computeAgentLaunchIndex(
   }
   for (const data of Object.values(lateTaskEvents)) {
     if (data.toolUseId) taskBoundCallIds.add(data.toolUseId)
-    applyTaskEvent(data)
+    // The cache's edge is the live run's own belief — see resolveTaskStatusAfter.
+    applyTaskEvent(data, true)
   }
   for (const callId of taskBoundCallIds) {
     if (dshResumeCallIds.has(callId)) dshTaskRootCallIds.add(callId)
@@ -595,14 +596,19 @@ export const TERMINAL_TASK_STATUSES: ReadonlySet<NonNullable<AgentTaskEventPartD
 /**
  * The status a lifecycle edge leaves behind: a settled task only revives when a new run starts.
  * Events reach consumers from two orderings (parts, then the live cache), so a stale
- * pre-completion edge can apply after the completion did.
+ * pre-completion edge can apply after the completion did. A live-cache edge is the runtime's
+ * current belief instead — it revives on any nonterminal status, because the cache keeps only the
+ * latest edge per task and the start that justified the revival may already be gone; staleness is
+ * settled downstream, where a nonterminal edge is only trusted while the task is live.
  */
 export function resolveTaskStatusAfter(
   existing: AgentTaskEventPartData['status'] | undefined,
-  data: AgentTaskEventPartData
+  data: AgentTaskEventPartData,
+  liveEdge = false
 ): NonNullable<AgentTaskEventPartData['status']> {
   const incoming = data.status ?? existing ?? 'pending'
   if (
+    !liveEdge &&
     existing &&
     TERMINAL_TASK_STATUSES.has(existing) &&
     !TERMINAL_TASK_STATUSES.has(incoming) &&
