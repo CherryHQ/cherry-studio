@@ -309,6 +309,15 @@ export function useAgentChatRuntimeState({
     liveAssistants,
     reset: resetOverlay
   } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages, {
+    onUpdate: (_executionId, event) => {
+      const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+      const turnOrigin =
+        cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
+        projected?.metadata?.turnOrigin ??
+        event.message.metadata?.turnOrigin
+      autoReadService.update({ ...event, enabled: autoReadEnabled, scope: sessionTopicId, eligible: !turnOrigin })
+    },
+    onLeave: () => autoReadService.cancelScope(sessionTopicId),
     onFinish: (executionId, event) => {
       errorToastsRef.current?.onFinish(executionId, event)
       handleExecutionFinish(executionId, event)
