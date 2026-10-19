@@ -60,7 +60,6 @@ export type ThreadState = {
   readonly script: ScriptedReply[]
   cursor: number
   calls: number
-  reopened: boolean
   /** Ids each model request saw; an observation log, not part of `persistentSnapshot`. */
   readonly requests: (readonly ItemId[])[]
 }
@@ -147,7 +146,6 @@ export function addThread(state: FakeState, lineage: Lineage, seed: Seed, owner?
     script: [...seed(id, lineage)],
     cursor: 0,
     calls: 0,
-    reopened: false,
     requests: []
   }
   state.threads.set(id, thread)
@@ -229,7 +227,6 @@ export function buildFacts(state: FakeState, id: ThreadId): ConversationFacts {
       queuedUserInput: thread.inbox.some((key) => thread.submissions.get(key)?.input.kind === USER_INPUT),
       hostCallInFlight: false,
       ...(last && { runEnd: { outcome: last.live } }),
-      reopened: thread.reopened,
       pendingLaunches: 0
     },
     children,

@@ -168,7 +168,6 @@ export function facts(history: readonly HistoryEntry[], options: FactsOptions = 
       leftoverInputs: 0,
       queuedUserInput: false,
       hostCallInFlight: false,
-      reopened: false,
       pendingLaunches: 0,
       ...options.live
     },
