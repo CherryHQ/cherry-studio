@@ -4,7 +4,7 @@ import { fieldsOf, stringField } from '../../core/args'
 import type { ModelFacts } from '../../core/hostFacts'
 import type { Key } from '../../core/keys'
 import { decideMessage, decideSpawn, decideStop, stoppedResult } from '../../core/subagents/subagentDecisions'
-import { continuedText, startedText } from '../../core/subagents/subagentText'
+import { continuedText, notDeliveredText, startedText } from '../../core/subagents/subagentText'
 import type { ToolCall, ToolDefinition, ToolOutcome, TransactResult } from '../../ports/harness'
 import type { HostPorts } from '../../ports/host'
 import { runChild, SUBAGENT_TOOL_NAME } from '../childRuns'
@@ -98,8 +98,12 @@ async function message(context: Context, call: ToolCall): Promise<ToolOutcome> {
       case 'refused':
         return { text: decision.text, isError: true }
       case 'queued':
-        // G-C5: the run ended before it took the steer, which started nothing; continue the child instead.
-        if (executed.messaged?.status === 'withdrawn') continue
+        if (executed.messaged?.status === 'withdrawn') {
+          // H3: the turn stopped and its call withdrew the steer; the child runs on, so deciding again would steer it.
+          if (call.signal.aborted) return { text: notDeliveredText(decision.child), isError: true }
+          // G-C5: the run ended before it took the steer, which started nothing; continue the child instead.
+          continue
+        }
         return { text: decision.text, isError: false, details: { sessionId: decision.child, continued: false } }
       case 'continued': {
         const child = decision.child ?? spawnedChild(executed.spawned, decision.key)

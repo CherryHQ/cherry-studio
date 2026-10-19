@@ -46,9 +46,16 @@ export interface FakeHarness extends ContractHarness {
 
 /**
  * One call's ports: they work while it runs, reject once it ended, and never settle once its epoch died. `reopen` marks
- * an `onOpen` of a restart and collects the jobs it ensures, which start once every `onOpen` has run.
+ * an `onOpen` of a restart and collects the jobs it ensures, which start once every `onOpen` has run. `signal` is a
+ * tool call's abort signal.
  */
-type Scope = { readonly epoch: Epoch; ended: boolean; readonly owner?: Owner; readonly reopen?: JobRecord[] }
+type Scope = {
+  readonly epoch: Epoch
+  ended: boolean
+  readonly owner?: Owner
+  readonly reopen?: JobRecord[]
+  readonly signal?: AbortSignal
+}
 
 const REOPEN_RULE = 'onOpen on reopen calls only ledger.*, turns.stop, helpers.stop and clock.now (H12)'
 /** H12: on Durable a submit or a wait from `onOpen` enables scheduling before resume, so the fake refuses them. */
@@ -97,8 +104,8 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     epoch: () => epoch,
     alive,
     point,
-    toolScope(e, owner) {
-      const scope: Scope = { epoch: e, ended: false, owner }
+    toolScope(e, owner, signal) {
+      const scope: Scope = { epoch: e, ended: false, owner, signal }
       return {
         ports: bound(scope),
         close: () => {
@@ -127,9 +134,18 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
             const target = thread(child)
             const accepted = message(host, target, input, key, run)
             if (accepted.status !== 'queued') return accepted
-            // A steer answers once a boundary took it, or once its run ended first and withdrew it (G-C5).
+            // A steer answers once a boundary took it, or once its run ended first or its tool call aborted (G-C5, H3).
             const submission = target.submissions.get(key)!
-            await waitFor(scope.epoch, child, () => submission.state !== 'queued')
+            const withdraw = () => {
+              if (alive(scope.epoch)) retract(host, target, key)
+            }
+            if (scope.signal?.aborted) withdraw()
+            scope.signal?.addEventListener('abort', withdraw, { once: true })
+            try {
+              await waitFor(scope.epoch, child, () => submission.state !== 'queued')
+            } finally {
+              scope.signal?.removeEventListener('abort', withdraw)
+            }
             return submission.state === 'withdrawn' ? { run: accepted.run, status: 'withdrawn' } : accepted
           }),
         awaitAnswer: (child, run, key) =>

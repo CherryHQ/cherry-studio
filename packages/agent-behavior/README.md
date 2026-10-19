@@ -313,8 +313,8 @@ Beyond [What the adapters provide](#what-the-adapters-provide), each adapter mus
 - Ask `onCompacting` before every compaction, under the key the `CompactionRequest.key` TSDoc names for the harness, and
   pass the verdict through; meter a compaction during a run as one of its requests. Never call `Summarizer` itself.
 - Pass each tool call's turn abort signal to `GateHandlers.before` as `call.signal`, and withdraw a steer that misses
-  its run (`Helpers.message` called with `run` answers `withdrawn`; the key `subagent-steer:<callKey>:<run>` is spent)
-  instead of carrying it into the next run.
+  its run, or whose tool call aborts first (`Helpers.message` called with `run` answers `withdrawn`; the key
+  `subagent-steer:<callKey>:<run>` is spent), instead of carrying it into the next run or holding the stopped turn.
 - Contain no product constants or stop-code literals; they come from the package's results.
 
 Not in the package yet: `enter_plan_mode` and `exit_plan_mode` (PR-3d); the shutdown record `onClose` writes for
