@@ -124,6 +124,14 @@ export async function convertDocx(
         )
       } else if (block.type === 'table') {
         const tableDepth = block.listDepth ?? block.bullet ?? 0
+        if (block.bullet) {
+          result.push(
+            new docx.Paragraph({
+              ...listMarker(block),
+              children: [new docx.TextRun('\u00a0')]
+            })
+          )
+        }
         result.push(
           new docx.Table({
             width: { size: 100, type: docx.WidthType.PERCENTAGE },

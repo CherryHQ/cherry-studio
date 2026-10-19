@@ -90,6 +90,43 @@ describe('document conversion', () => {
     expect(workbook.worksheets[0].getColumn(1).width).toBe(90)
   })
 
+  it('keeps a quote nested inside a list table for every validating format', async () => {
+    const markdown = '- > | A | B |\n  > | --- | --- |\n  > | 1 | 2 |'
+    const workbook = await readWorkbook(
+      Uint8Array.from((await convertDocumentBundle({ markdown, format: 'xlsx' })).bytes).buffer
+    )
+    expect(workbook.worksheets[0].getCell('B2').value).toBe('2')
+    const pptx = await JSZip.loadAsync((await convertDocumentBundle({ markdown, format: 'pptx' })).bytes)
+    const slides = await Promise.all(pptx.file(/^ppt\/slides\/slide\d+\.xml$/).map((slide) => slide.async('string')))
+    expect(slides.some((xml) => xml.includes('<a:tbl>') && xml.includes('>2<'))).toBe(true)
+    expect((await convertDocumentBundle({ markdown, format: 'html' })).bytes.toString()).toContain('<table')
+    expect((await convertDocumentBundle({ markdown, format: 'md' })).bytes.toString()).toContain('| 1 | 2 |')
+    vi.spyOn(printService, 'toDocumentPdfBuffer').mockResolvedValue(Buffer.from('%PDF'))
+    expect((await convertDocumentBundle({ markdown, format: 'pdf' })).bytes.toString()).toBe('%PDF')
+    await expect(
+      convertDocumentBundle({ markdown: '- > | A | B |\n  > | --- | --- |\n  > | 1 | 2 | 3 |', format: 'xlsx' })
+    ).rejects.toMatchObject({ code: 'INVALID_TABLE' })
+  })
+
+  it.each([
+    ['inline', '- > | A | B |\n  > | --- | --- |\n  > | 1 | 2 |'],
+    ['file', '- > | A | B |\n  > | --- | --- |\n  > | 1 | 2 |'],
+    ['draft', '- > | A | B |\n  > | --- | --- |\n  > | 1 | 2 |'],
+    ['inline', '> - | A | B |\n>   | --- | --- |\n>   | 1 | 2 |'],
+    ['file', '> - | A | B |\n>   | --- | --- |\n>   | 1 | 2 |'],
+    ['draft', '> - | A | B |\n>   | --- | --- |\n>   | 1 | 2 |']
+  ] as const)('accepts a nested quote and list table from %s Markdown', async (source, markdown) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'document-export-'))
+    roots.push(root)
+    const filePath = path.join(root, 'nested.md')
+    await writeFile(filePath, source === 'draft' ? 'Saved content' : markdown)
+    const input = source === 'inline' ? { markdown } : { filePath, ...(source === 'draft' ? { draft: markdown } : {}) }
+    const workbook = await readWorkbook(
+      Uint8Array.from((await convertDocumentBundle({ ...input, format: 'xlsx' })).bytes).buffer
+    )
+    expect(workbook.worksheets[0].getCell('A2').value).toBe('1')
+  })
+
   it('validates malformed tables without rejecting valid nested Markdown tables', async () => {
     await expect(
       convertDocumentBundle({ markdown: '| A | B |\n| --- | --- |\n| 1 | 2 | 3 |', format: 'xlsx' })

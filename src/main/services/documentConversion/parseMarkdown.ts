@@ -153,7 +153,7 @@ export function parseMarkdown(
   let title = ''
   let listDepth = 0
   const lists: { next?: number; current?: number; first: boolean }[] = []
-  let quoteDepth = 0
+  const containers: Array<'quote' | 'list'> = []
   const openItem = () => {
     if (!listDepth) return {}
     const list = lists.at(-1)
@@ -207,8 +207,10 @@ export function parseMarkdown(
           .filter((line) => line.trim())
           .map((line, index) => {
             let content = line
-            for (let depth = 0; depth < quoteDepth; depth++) content = content.replace(/^\s*>\s?/, '')
-            if (listDepth && index === 0) content = content.replace(/^\s*(?:[-+*]|\d+[.)])\s+/, '')
+            for (const container of containers) {
+              if (container === 'quote') content = content.replace(/^\s*>\s?/, '')
+              else if (index === 0) content = content.replace(/^\s*(?:[-+*]|\d+[.)])\s+/, '')
+            }
             return content
           })
         const columns = tableCellCount(sourceRows[0])
@@ -241,12 +243,14 @@ export function parseMarkdown(
       blocks.push(...tableImages)
     } else if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') {
       listDepth++
+      containers.push('list')
       lists.push({
         next: token.type === 'ordered_list_open' ? Number(token.attrGet('start') ?? 1) : undefined,
         first: false
       })
     } else if (token.type === 'bullet_list_close' || token.type === 'ordered_list_close') {
       listDepth--
+      containers.pop()
       lists.pop()
     } else if (token.type === 'list_item_open') {
       const list = lists.at(-1)
@@ -256,9 +260,9 @@ export function parseMarkdown(
         if (list.next !== undefined) list.next++
       }
     } else if (token.type === 'blockquote_open') {
-      quoteDepth++
+      containers.push('quote')
     } else if (token.type === 'blockquote_close') {
-      quoteDepth--
+      containers.pop()
     } else if (token.type === 'inline') {
       for (const piece of readInline(token.children ?? [], interpretSafeHtml)) {
         if (piece.kind === 'image') {

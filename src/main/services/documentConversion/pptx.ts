@@ -190,6 +190,18 @@ export async function convertPptx(
         const autoPage = block.rows.length > 8 || block.rows.some((row) => row.some((cell) => cell.length > 80))
         const height = Math.min(5.3, block.rows.length * 0.45)
         const target = autoPage && y > 1.25 ? newSlide() : ensureSpace(height)
+        if (block.bullet) {
+          const marker = placed(block, true)
+          target.addText('\u00a0', {
+            x: marker.x,
+            y,
+            w: Math.min(0.45, marker.w),
+            h: 0.35,
+            fontSize: 14,
+            margin: 0,
+            bullet: bulletOptions(block)
+          })
+        }
         const rows: PptxGenJS.TableRow[] = block.rows.map((row, rowIndex) =>
           row.flatMap((text, column): PptxGenJS.TableCell[] => {
             const cell = block.cells?.[rowIndex]?.[column]

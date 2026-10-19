@@ -754,4 +754,87 @@ describe('Office list membership', () => {
       officeDocuments.length = 0
     }
   })
+
+  it('writes the opening Office marker only when a table starts the list item', async () => {
+    const opening = '1. | A | B |\n   | --- | --- |\n   | 1 | 2 |\n2. Next\n'
+    const parsed = parseMarkdown(opening)
+    expect(parsed.find((block) => block.type === 'table')).toMatchObject({
+      bullet: 1,
+      orderedNumber: 1,
+      listDepth: 1
+    })
+    const word = await JSZip.loadAsync(await convertDocx(parsed, new Map(), 'Table'))
+    const documentXml = await word.file('word/document.xml')!.async('string')
+    const numberingXml = await word.file('word/numbering.xml')!.async('string')
+    const numbered = paragraphs(documentXml).filter((item) => item.numId)
+    const tableMarker = numbered.find((item) => item.text !== 'Next')
+    const next = numbered.find((item) => item.text === 'Next')
+    expect(numberingLevel(numberingXml, tableMarker?.numId, tableMarker?.ilvl)).toEqual({ start: '1', indent: '720' })
+    expect(numberingLevel(numberingXml, next?.numId, next?.ilvl)).toEqual({ start: '2', indent: '720' })
+    expect(tableIndents(documentXml)).toContainEqual({ width: '720', type: 'dxa' })
+    expect(documentXml.indexOf('<w:numId')).toBeLessThan(documentXml.indexOf('<w:tbl>'))
+
+    const zip = await JSZip.loadAsync(await convertPptx(parsed, new Map(), 'Table'))
+    const slideXml = await Promise.all(
+      Object.keys(zip.files)
+        .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+        .sort()
+        .map((name) => zip.file(name)!.async('string'))
+    )
+    const shapes = slideXml.flatMap((xml, slide) =>
+      [...xml.matchAll(/<p:(sp|graphicFrame)\b[\s\S]*?<\/p:\1>/g)].map((match) => ({
+        kind: match[1],
+        text: [...match[0].matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)].map((part) => part[1]).join(''),
+        x: Number(match[0].match(/<a:off x="(-?\d+)"/)?.[1]),
+        marker: pptxMarker(match[0]),
+        startAt: match[0].match(/startAt="(\d+)"/)?.[1],
+        slide
+      }))
+    )
+    const marker = shapes.find((shape) => shape.kind === 'sp' && shape.marker === 'number' && shape.startAt === '1')
+    const table = shapes.find((shape) => shape.kind === 'graphicFrame')
+    const following = shapes.find((shape) => shape.text === 'Next')
+    expect(marker?.slide).toBe(table?.slide)
+    expectStep(table!.x - marker!.x, STEP)
+    expect(following).toMatchObject({ marker: 'number', startAt: '2' })
+
+    const continued = parseMarkdown('1. Intro\n   | A | B |\n   | --- | --- |\n   | 1 | 2 |\n2. Next\n')
+    const continuedTable = continued.find((block) => block.type === 'table')
+    expect(continuedTable?.type).toBe('table')
+    expect(continuedTable && 'bullet' in continuedTable ? continuedTable.bullet : undefined).toBeUndefined()
+    expect(continuedTable && 'listDepth' in continuedTable ? continuedTable.listDepth : undefined).toBe(1)
+    const continuedXml = await (
+      await JSZip.loadAsync(await convertDocx(continued, new Map(), 'Continued'))
+    )
+      .file('word/document.xml')!
+      .async('string')
+    const continuedNumbers = paragraphs(continuedXml).filter((item) => item.numId)
+    expect(continuedNumbers.map((item) => item.text)).toEqual(['Intro', 'Next'])
+
+    const nested = parseMarkdown('- Parent\n  - | A | B |\n    | --- | --- |\n    | 1 | 2 |\n- Next\n')
+    const nestedXml = await (
+      await JSZip.loadAsync(await convertDocx(nested, new Map(), 'Nested'))
+    )
+      .file('word/document.xml')!
+      .async('string')
+    const nestedItems = paragraphs(nestedXml).filter((item) => item.numId)
+    expect(nestedItems.map((item) => item.ilvl)).toEqual(['0', '1', '0'])
+    expect(nestedItems.map((item) => item.text)).toEqual(['Parent', '\u00a0', 'Next'])
+
+    const longRows = Array.from({ length: 24 }, (_value, index) => `   | ${index} | cell |`).join('\n')
+    const paged = parseMarkdown(`1. | A | B |\n   | --- | --- |\n${longRows}\n2. Next\n`)
+    const pagedZip = await JSZip.loadAsync(await convertPptx(paged, new Map(), 'Paged'))
+    const pagedSlides = await Promise.all(
+      Object.keys(pagedZip.files)
+        .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+        .sort()
+        .map((name) => pagedZip.file(name)!.async('string'))
+    )
+    const tableSlides = pagedSlides.filter((xml) => xml.includes('<a:tbl>'))
+    expect(tableSlides.length).toBeGreaterThan(1)
+    expect(tableSlides[0]).toContain('startAt="1"')
+    expect(tableSlides.slice(1).every((xml) => !xml.includes('startAt="1"'))).toBe(true)
+    const nextSlide = pagedSlides.find((xml) => xml.includes('>Next<'))
+    expect(nextSlide).toContain('startAt="2"')
+  })
 })
