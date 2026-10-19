@@ -20,7 +20,7 @@ sources:
 
 可信第一方代码可以直接在 main 执行，不经过这些接口，也不获得沙盒隔离保证。通过本 API 启动的目标必须进入受限执行环境，不提供 `sandbox: false` 或失败后普通执行的分支。
 
-当前 [MXC demo](../../packages/sandbox/README.md)已改用 `@microsoft/mxc-sdk@1.0.0`，公共 API、CLI 共用 `SandboxManager → MxcBackend`。2026-10-12 用户确认本轮以“沙盒能执行、双向 RPC 能跑通”为验收目标：硬链接、可写目录 Unix socket 和后代回收差异记录为限制，不再阻断启动。macOS 使用 `mxc-command-v1`；`channel=none` 提供原始标准流，`channel=stdio` 通过 `vscode-jsonrpc` 提供 request/handle 和必需的宿主授权回调。`tree: unverified` 表示已完成目标进程/SDK 资源处理，但不保证脱离进程组的后代全部退出。下面的完整 API、schema/握手、严格分帧和三平台矩阵仍是后续设计目标，不应视为本轮已实现或必须先完成的条件。
+当前 [MXC demo](../../packages/sandbox/README.md)已改用 `@microsoft/mxc-sdk@1.0.1`，公共 API、CLI 共用 `SandboxManager → MxcBackend`。2026-10-12 用户确认本轮以“沙盒能执行、双向 RPC 能跑通”为验收目标：硬链接、可写目录 Unix socket 和后代回收差异记录为限制，不再阻断启动。macOS 使用 `mxc-command-v1`；`channel=none` 提供原始标准流，`channel=stdio` 通过 `vscode-jsonrpc` 提供 request/handle 和必需的宿主授权回调。`tree: unverified` 表示已完成目标进程/SDK 资源处理，但不保证脱离进程组的后代全部退出。下面的完整 API、schema/握手、严格分帧和三平台矩阵仍是后续设计目标，不应视为本轮已实现或必须先完成的条件。
 
 2026-09-25 的[上游复用调研](./backend-options.md#23-sandbox-runtime-调研与复用边界)不改变本文类型或 RPC 设计。上游标准流探针仅证明 Node/Python 双向通信可行，不能作为本包已实现或已验收的依据；后端必须独立兑现实例权限、可信启动、整树退出与清理语义。
 

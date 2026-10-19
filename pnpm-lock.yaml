@@ -1922,8 +1922,8 @@ importers:
   packages/sandbox:
     dependencies:
       '@microsoft/mxc-sdk':
-        specifier: 1.0.0
-        version: 1.0.0
+        specifier: 1.0.1
+        version: 1.0.1
       vscode-jsonrpc:
         specifier: 9.0.3
         version: 9.0.3
@@ -4359,8 +4359,8 @@ packages:
   '@mermaid-js/parser@1.0.1':
     resolution: {integrity: sha512-opmV19kN1JsK0T6HhhokHpcVkqKpF+x2pPDKKM2ThHtZAB5F4PROopk0amuVYK5qMrIA4erzpNm8gmPNJgMDxQ==}
 
-  '@microsoft/mxc-sdk@1.0.0':
-    resolution: {integrity: sha512-7aVR+GHVKveIknZmUtkAEFwUBp61qgEmhJRe1ZyKHJ274yWlKWB/ZfDP/u/whfmDyck0wRNKZN49atlF+SZt2Q==}
+  '@microsoft/mxc-sdk@1.0.1':
+    resolution: {integrity: sha512-2cP925G5+lQyKzjBVha8uNtVd7XESgDBtgi1yCYYSo9M3xiFyZWtCO4SWPGTk509rdI6nqjyGcZxvEP3t6l8Hg==}
     engines: {node: '>=24.0.0'}
 
   '@mistralai/mistralai@1.11.0':
@@ -18795,7 +18795,7 @@ snapshots:
     dependencies:
       langium: 4.2.1
 
-  '@microsoft/mxc-sdk@1.0.0':
+  '@microsoft/mxc-sdk@1.0.1':
     dependencies:
       koffi: 3.3.3
       node-pty: 1.1.0

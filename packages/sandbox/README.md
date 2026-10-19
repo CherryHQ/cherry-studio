@@ -1,7 +1,7 @@
 # Sandbox package
 
 Independent `@cherrystudio/sandbox` package. The public macOS and Windows backends use
-`@microsoft/mxc-sdk@1.0.0`; the CLI and application callers share `SandboxManager`.
+`@microsoft/mxc-sdk@1.0.1`; the CLI and application callers share `SandboxManager`.
 Node and Python guests can call registered host methods and receive host requests
 through JSON-RPC 2.0 with Content-Length framing over standard input/output.
 

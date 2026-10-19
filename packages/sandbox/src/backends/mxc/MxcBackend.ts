@@ -16,7 +16,7 @@ export class MxcBackend implements SandboxBackend {
         kind: 'native' as const,
         os: process.platform === 'darwin' ? 'macos' : process.platform
       },
-      backend: { id: this.id, version: '1.0.0' },
+      backend: { id: this.id, version: '1.0.1' },
       requirements: [] as SandboxProbe['requirements']
     }
     try {

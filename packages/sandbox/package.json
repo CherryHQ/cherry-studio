@@ -29,7 +29,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@microsoft/mxc-sdk": "1.0.0",
+    "@microsoft/mxc-sdk": "1.0.1",
     "vscode-jsonrpc": "9.0.3"
   },
   "devDependencies": {
