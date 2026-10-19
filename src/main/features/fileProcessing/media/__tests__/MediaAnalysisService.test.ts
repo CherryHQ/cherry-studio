@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as AiCoreModule from '@cherrystudio/ai-core'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
+import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
 
@@ -57,7 +58,6 @@ const runtime = vi.hoisted(() => ({
   extractFrames: vi.fn(),
   detectSceneChanges: vi.fn(),
   transcribe: vi.fn(),
-  generateSpeech: vi.fn(),
   ocrImage: vi.fn(),
   generateText: vi.fn()
 }))
@@ -76,6 +76,11 @@ vi.mock('../mediaExecutionConfig', async (importOriginal) => {
     resolveMediaExecutionConfig: vi.fn(async () => runtime.config)
   }
 })
+vi.mock('@main/ai/voice/execution', () => ({
+  startTranscription: (request: unknown, signal?: AbortSignal) => ({
+    completed: runtime.transcribe(request, signal)
+  })
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const mocked = mockApplicationFactory({
@@ -86,7 +91,6 @@ vi.mock('@application', async () => {
   })
   const delegated = mocked.application.get.getMockImplementation()
   mocked.application.get.mockImplementation((name: string) => {
-    if (name === 'AiService') return { transcribe: runtime.transcribe, generateSpeech: runtime.generateSpeech }
     if (name === 'FileProcessingService') return { ocrImage: runtime.ocrImage }
     return delegated?.call(mocked.application, name)
   })
@@ -149,7 +153,6 @@ beforeEach(async () => {
     text: 'hello',
     segments: [{ text: 'hello', startSecond: 1, endSecond: 2 }]
   })
-  runtime.generateSpeech.mockReset()
   runtime.ocrImage.mockReset()
   runtime.generateText.mockReset()
   service = new MediaAnalysisService()
@@ -165,12 +168,14 @@ describe('MediaAnalysisService', () => {
     const analysis = await service.analyze(file)
     expect(analysis.audio?.segments).toEqual([{ startMs: 6_000, endMs: 7_000, text: 'hello' }])
     expect(runtime.transcribe).toHaveBeenCalledWith(
-      APPLE_ASR_MODEL_ID,
-      expect.any(Uint8Array),
-      { language: 'en-US' },
-      expect.any(AbortSignal)
+      {
+        modelId: APPLE_ASR_MODEL_ID,
+        input: { kind: TranscriptionInputKind.Audio, audio: expect.any(Uint8Array) },
+        output: TranscriptionOutputKind.Final,
+        options: { language: 'en-US' }
+      },
+      undefined
     )
-    expect(runtime.generateSpeech).not.toHaveBeenCalled()
     expect(await readdir(runtime.tempRoot)).toEqual([])
   })
 

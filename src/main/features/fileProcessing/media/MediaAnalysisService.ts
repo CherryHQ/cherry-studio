@@ -7,9 +7,11 @@ import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { createAiUsagePlugin } from '@main/ai/hooks/billingHook'
 import type { AppProviderSettingsMap } from '@main/ai/types'
+import { startTranscription } from '@main/ai/voice/execution'
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { resolveFileProcessingFileInfo } from '@main/features/fileProcessing/tasks/jobExecution'
+import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import type { FileHandle } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
@@ -60,7 +62,7 @@ export class MediaAnalysisError extends Error {
 
 @Injectable('MediaAnalysisService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiService', 'FileManager', 'FileProcessingService', 'MediaFfmpegService'])
+@DependsOn(['FileManager', 'FileProcessingService', 'MediaFfmpegService'])
 export class MediaAnalysisService extends BaseService {
   async probe(file: FileHandle, signal?: AbortSignal): Promise<ClassifiedMediaProbe> {
     signal?.throwIfAborted()
@@ -173,14 +175,15 @@ export class MediaAnalysisService extends BaseService {
         signal?.throwIfAborted()
         try {
           const bytes = new Uint8Array(await readFile(chunk.path))
-          const result = await application
-            .get('AiService')
-            .transcribe(
-              execution.asr.modelId,
-              bytes,
-              { ...(execution.asr.language && { language: execution.asr.language }) },
-              signal ?? new AbortController().signal
-            )
+          const result = await startTranscription(
+            {
+              modelId: execution.asr.modelId,
+              input: { kind: TranscriptionInputKind.Audio, audio: bytes },
+              output: TranscriptionOutputKind.Final,
+              options: { ...(execution.asr.language && { language: execution.asr.language }) }
+            },
+            signal
+          ).completed
           if (result.segments.length > 0) {
             for (const segment of result.segments) {
               const text = segment.text.trim()
