@@ -3,7 +3,9 @@ import { defineCreator } from './types'
 export default defineCreator({
   id: 'iflytek',
   name: 'iFlytek (Spark / Xunfei MaaS)',
+  idPrefixes: ['spark-x'],
   reasoningFamilies: [
+    { pattern: '^spark-x2' },
     // Xunfei MaaS (讯飞星辰) model IDs omit hyphens and dots, e.g.
     // `xopdeepseekv32`, `xopdeepseekv4pro`, `xopglmv47flash`, `xopkimik26`,
     // `xopqwen35397b`, `xsparkx2`. Map them straight onto the canonical
@@ -26,5 +28,25 @@ export default defineCreator({
     // xsparkx2 -> spark-x2, xsparkx2flash -> spark-x2-flash (thinking toggle).
     // Narrow to `x2` so xsparkx1 / xsparkx3 etc. are not treated as reasoning.
     { pattern: '^xsparkx2', toggle: true }
+  ],
+  models: [
+    {
+      id: 'spark-x2-agent',
+      name: 'Spark X2 Agent',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      contextWindow: 262_144
+    },
+    {
+      id: 'spark-x2',
+      name: 'Spark X2',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      contextWindow: 196_608
+    },
+    {
+      id: 'spark-x2-flash',
+      name: 'Spark X2 Flash',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      contextWindow: 262_144
+    }
   ]
 })

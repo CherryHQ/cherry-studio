@@ -27,6 +27,27 @@ const endpointsOf = (providerId: string, modelId: string): string[] | undefined 
   return entry.endpointTypes
 }
 
+describe('xfyun Coding Plan endpoint matrix', () => {
+  it('exposes the documented tooling alias over all three protocols', () => {
+    expect(endpointsOf('xfyun-coding', 'astron-code-latest')).toEqual([
+      'openai-chat-completions',
+      'openai-responses',
+      'anthropic-messages'
+    ])
+  })
+
+  it('does not claim undocumented protocols for the remaining model ids', () => {
+    const otherOverrides = (provider('xfyun-coding').overrides ?? []).filter(
+      ({ modelId }) => modelId !== 'astron-code-latest'
+    )
+
+    expect(otherOverrides.length).toBeGreaterThan(0)
+    for (const override of otherOverrides) {
+      expect(override.endpointTypes, override.modelId).toBeUndefined()
+    }
+  })
+})
+
 describe('dashscope (Bailian) endpoint matrix', () => {
   /**
    * Bailian serves the whole qwen line on Chat Completions — the OpenAI-compatible Chat doc

@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "1b44511badb438e6",
-    "count": 66,
+    "version": "7e1e71b6403174ab",
+    "count": 68,
     "entries": [
       {
         "id": "cherryin",
@@ -710,6 +710,14 @@
       {
         "id": "xirang",
         "name": "Xirang"
+      },
+      {
+        "id": "xfyun",
+        "name": "iFlytek Astron MaaS"
+      },
+      {
+        "id": "xfyun-coding",
+        "name": "iFlytek Astron Coding Plan"
       },
       {
         "id": "tokenhub",
