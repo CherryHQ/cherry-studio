@@ -5,8 +5,9 @@ import MarkdownIt from 'markdown-it'
 import sharp from 'sharp'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { DocumentBlock } from '../documentModel'
+import type { DocumentBlock, DocumentTextRun } from '../documentModel'
 import { convertDocx } from '../docx'
+import { prepareStaticHtml } from '../html'
 import { extractHtmlDocument } from '../htmlDocument'
 import { parseMarkdown } from '../parseMarkdown'
 import { convertPptx } from '../pptx'
@@ -359,6 +360,90 @@ describe('adjacent emphasis serialization', () => {
         expect.objectContaining({ text: 'space', italic: true })
       ])
     })
+  })
+
+  it('splits prepared pre-wrap paragraph boundaries before styled Markdown wrapping', async () => {
+    const source = '<p style="white-space:pre-wrap;font-weight:bold">First\n\nSecond</p>'
+    const prepared = await prepareStaticHtml(source, {})
+    expect(prepared.html).toContain('First')
+    document.body.innerHTML = prepared.html
+    const blocks = extractHtmlDocument().blocks
+    const sourceRun = blocks
+      .flatMap((block) => ('runs' in block ? (block.runs ?? []) : []))
+      .find((run) => run.text.includes('First'))
+    expect(sourceRun?.text).toContain('First')
+    expect(sourceRun?.text).toContain('Second')
+    expect(sourceRun?.bold).toBe(true)
+
+    const markdown = documentToMarkdown(blocks, (source) => source)
+    const parsed = parseMarkdown(markdown)
+    expect(
+      parsed.filter((block) => block.type === 'text').map((block) => (block.type === 'text' ? block.text : ''))
+    ).toEqual(['First', 'Second'])
+    for (const block of parsed) {
+      if (block.type !== 'text') continue
+      expect(block.runs?.some((run) => run.text.includes('First') || run.text.includes('Second'))).toBe(true)
+      for (const run of block.runs ?? []) {
+        if (run.text.trim()) expect(run.bold).toBe(true)
+        expect(run.text).not.toMatch(/\*\*/)
+      }
+    }
+  })
+
+  it('splits blank lines inside and across styled runs without splitting a soft break', () => {
+    const cases: Array<{ runs: DocumentTextRun[]; texts: string[]; marks: Array<Partial<DocumentTextRun>> }> = [
+      {
+        runs: [{ text: 'First\r\n \r\nSecond', bold: true, italic: true, strike: true }],
+        texts: ['First', 'Second'],
+        marks: [
+          { bold: true, italic: true, strike: true },
+          { bold: true, italic: true, strike: true }
+        ]
+      },
+      {
+        runs: [
+          { text: 'First\n', bold: true },
+          { text: '\nSecond', italic: true }
+        ],
+        texts: ['First', 'Second'],
+        marks: [{ bold: true }, { italic: true }]
+      },
+      {
+        runs: [
+          { text: 'First\n\n', bold: true, link: 'https://example.com/a' },
+          { text: 'Second', bold: true, link: 'https://example.com/a' }
+        ],
+        texts: ['First', 'Second'],
+        marks: [
+          { bold: true, link: 'https://example.com/a' },
+          { bold: true, link: 'https://example.com/a' }
+        ]
+      },
+      {
+        runs: [{ text: 'First\nSecond', bold: true }],
+        texts: ['First\nSecond'],
+        marks: [{ bold: true }]
+      },
+      {
+        runs: [{ text: 'First\n\u00a0\nSecond', bold: true }],
+        texts: ['First\n\u00a0\nSecond'],
+        marks: [{ bold: true }]
+      }
+    ]
+    for (const item of cases) {
+      const markdown = documentToMarkdown([{ type: 'text', text: '', runs: item.runs }], (source) => source)
+      const parsed = parseMarkdown(markdown).filter((block) => block.type === 'text')
+      expect(parsed.map((block) => (block.type === 'text' ? block.text : ''))).toEqual(item.texts)
+      parsed.forEach((block, index) => {
+        if (block.type !== 'text') return
+        const visible = (block.runs ?? []).filter((run) => run.text.trim())
+        expect(visible.length).toBeGreaterThan(0)
+        for (const run of visible) {
+          expect(run).toMatchObject(item.marks[index] ?? {})
+          expect(run.text).not.toMatch(/\*\*|~~/)
+        }
+      })
+    }
   })
 
   it('keeps bold-to-italic punctuation, strike punctuation, and emoji through Markdown reimport', () => {

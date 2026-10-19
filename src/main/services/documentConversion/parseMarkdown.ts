@@ -242,6 +242,7 @@ export function parseMarkdown(
       blocks.push({ type: 'table', title, rows, cells, ...openItem() })
       blocks.push(...tableImages)
     } else if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') {
+      if (lists.at(-1)?.first) blocks.push({ type: 'text', text: '', ...openItem() })
       listDepth++
       containers.push('list')
       lists.push({

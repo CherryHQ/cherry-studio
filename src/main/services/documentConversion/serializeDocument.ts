@@ -99,23 +99,54 @@ function mergeNode(node: PhrasingContent): PhrasingContent {
   return { ...node, children: mergePhrasing(node.children) }
 }
 
-function runsToMarkdown(runs: DocumentTextRun[]): string {
-  const children: PhrasingContent[] = []
-  for (const run of coalesceRuns(runs)) {
-    const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(run.text)
-    if (!match) continue
-    const [, lead, core, trail] = match
-    if (lead) children.push({ type: 'text', value: lead })
-    if (core) children.push(styledPhrasing(core, run))
-    if (trail) children.push({ type: 'text', value: trail })
+function paragraphRanges(text: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = []
+  const pattern = /\r?\n[ \t]*\r?\n/g
+  let cursor = 0
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index ?? 0
+    if (index > cursor) ranges.push({ start: cursor, end: index })
+    cursor = index + match[0].length
   }
-  const phrasing = mergePhrasing(children)
-  const edgeSpace = (node: PhrasingContent | undefined) => node?.type === 'text' && /^\s+$/.test(node.value)
-  while (edgeSpace(phrasing[0])) phrasing.shift()
-  while (edgeSpace(phrasing.at(-1))) phrasing.pop()
-  if (!phrasing.length) return ''
-  const tree: Root = { type: 'root', children: [{ type: 'paragraph', children: phrasing }] }
-  return String(inlineMarkdown.stringify(tree)).replace(/\n+$/, '')
+  if (cursor < text.length) ranges.push({ start: cursor, end: text.length })
+  return ranges
+}
+
+function runsToMarkdown(runs: DocumentTextRun[]): string {
+  const merged = coalesceRuns(runs)
+  let offset = 0
+  const located = merged.map((run) => {
+    const start = offset
+    offset += run.text.length
+    return { run, start, end: offset }
+  })
+  const paragraphs: string[] = []
+  let runIndex = 0
+  for (const { start, end } of paragraphRanges(merged.map((run) => run.text).join(''))) {
+    while (runIndex < located.length && located[runIndex].end <= start) runIndex++
+    const children: PhrasingContent[] = []
+    for (let index = runIndex; index < located.length && located[index].start < end; index++) {
+      const item = located[index]
+      const from = Math.max(item.start, start)
+      const to = Math.min(item.end, end)
+      if (from >= to) continue
+      const text = item.run.text.slice(from - item.start, to - item.start)
+      const match = /^(\s*)([\s\S]*?)(\s*)$/.exec(text)
+      if (!match) continue
+      const [, lead, core, trail] = match
+      if (lead) children.push({ type: 'text', value: lead })
+      if (core) children.push(styledPhrasing(core, item.run))
+      if (trail) children.push({ type: 'text', value: trail })
+    }
+    const phrasing = mergePhrasing(children)
+    const edgeSpace = (node: PhrasingContent | undefined) => node?.type === 'text' && /^\s+$/.test(node.value)
+    while (edgeSpace(phrasing[0])) phrasing.shift()
+    while (edgeSpace(phrasing.at(-1))) phrasing.pop()
+    if (!phrasing.length) continue
+    const tree: Root = { type: 'root', children: [{ type: 'paragraph', children: phrasing }] }
+    paragraphs.push(String(inlineMarkdown.stringify(tree)).replace(/\n+$/, ''))
+  }
+  return paragraphs.join('\n\n')
 }
 
 function coalesceRuns(runs: DocumentTextRun[]): DocumentTextRun[] {
@@ -336,27 +367,37 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
     return block.type === 'heading' ? `${'#'.repeat(Math.min(6, block.level))} ${content}` : content
   }
   const ancestors: { depth: number; width: number }[] = []
+  const rendered = flattenDocumentBlocks(blocks).map((block) => {
+    const body = bodyOf(block)
+    if (isItemStart(block)) {
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= block.bullet) ancestors.pop()
+      const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
+      const marker = block.orderedNumber !== undefined ? `${block.orderedNumber}.` : '-'
+      const width = marker.length + 1
+      ancestors.push({ depth: block.bullet, width })
+      return { block, body, markdown: withMarker(body, indent, marker, width) }
+    }
+    const depth = listDepthOf(block)
+    if (!depth) {
+      ancestors.length = 0
+      return { block, body, markdown: body }
+    }
+    while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth > depth) ancestors.pop()
+    const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
+    return { block, body, markdown: indentLines(body, indent) }
+  })
   return (
-    flattenDocumentBlocks(blocks)
-      .map((block) => {
-        const body = bodyOf(block)
-        if (isItemStart(block)) {
-          while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth >= block.bullet) ancestors.pop()
-          const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
-          const marker = block.orderedNumber !== undefined ? `${block.orderedNumber}.` : '-'
-          const width = marker.length + 1
-          ancestors.push({ depth: block.bullet, width })
-          return withMarker(body, indent, marker, width)
-        }
-        const depth = listDepthOf(block)
-        if (!depth) {
-          ancestors.length = 0
-          return body
-        }
-        while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth > depth) ancestors.pop()
-        const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
-        return indentLines(body, indent)
+    rendered
+      .map((entry, index) => {
+        if (!index) return entry.markdown
+        const previous = rendered[index - 1]
+        const tight =
+          isItemStart(previous.block) &&
+          !previous.body.trim() &&
+          isItemStart(entry.block) &&
+          entry.block.bullet > previous.block.bullet
+        return `${tight ? '\n' : '\n\n'}${entry.markdown}`
       })
-      .join('\n\n') + '\n'
+      .join('') + '\n'
   )
 }
