@@ -15,9 +15,11 @@ import type {
   PolicyRecord,
   RunEndFacts,
   ToolCallFact,
+  ToolResultFact,
   UsageFact
 } from '../core/facts'
 import type { Key } from '../core/keys'
+import { FORK_PLACEHOLDER_RESULT } from '../core/subagents/subagentText'
 import type {
   ContextFilterHandler,
   GateHandlers,
@@ -153,6 +155,24 @@ export function addThread(state: FakeState, lineage: Lineage, seed: Seed, owner?
 export function append(thread: ThreadState, entry: HistoryEntry): void {
   thread.entries.push({ entry, run: thread.active?.run })
 }
+
+/** The calls of the assistant entry at `at` that no later entry answers. */
+export function unansweredCalls(entries: readonly StoredEntry[], at: number): readonly ToolCallFact[] {
+  const reply = entries[at]?.entry
+  if (reply?.kind !== 'assistant') return []
+  const answered = new Set(
+    entries.slice(at).flatMap(({ entry }) => (entry.kind === 'tool-result' ? [entry.callId] : []))
+  )
+  return reply.toolCalls.filter((call) => !answered.has(call.callId))
+}
+export const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResultFact): HistoryEntry => ({
+  kind: 'tool-result',
+  id,
+  callId: call.callId,
+  callKey: call.callKey,
+  tool: call.name,
+  ...result
+})
 
 type MarkerEntry = Extract<HistoryEntry, { kind: 'marker' }>
 /** `input` as the keyed marker it stores, or undefined when it is not one; the caller assigns the id. */
@@ -304,6 +324,9 @@ function prepare(state: FakeState, thread: ThreadId, op: TxOp, context: CommitCo
         const owner = spec.boundary === 'foreground' ? context.owner : undefined
         const child = addThread(state, lineage, context.seed, owner)
         for (const { entry } of copied) append(child, { ...entry, id: nextItem(state) })
+        // The fork point's calls run on in the parent (`ChildSpec.fork`).
+        for (const call of unansweredCalls(copied, copied.length - 1))
+          append(child, resultEntry(nextItem(state), call, { text: FORK_PLACEHOLDER_RESULT, isError: false }))
         append(child, recordEntry(state, { type: 'subagent-origin', value: spec.origin }, key))
         const record = { ...spec.record, sessionId: child.id }
         append(parent, recordEntry(state, { type: 'subagent-run', value: record }, key))

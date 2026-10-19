@@ -68,7 +68,7 @@ export type { Key } from './core/keys'
 export { turnOrigin } from './core/goal/goalHistory'
 export { delegationStatus, subagentViews } from './core/subagents/subagentLedger'
 export type { DelegationStatus } from './core/subagents/subagentLedger'
-export { DEFAULT_MAX_BACKGROUND } from './core/subagents/subagentText'
+export { DEFAULT_MAX_BACKGROUND, FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from './core/subagents/subagentText'
 export type {
   TransactResult,
   Ledger,
