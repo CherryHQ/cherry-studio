@@ -1149,6 +1149,48 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
     })
+
+    // A retry held across the steer boundary belongs to the continuation's row, not to the
+    // ephemeral status widget. Content can resume inside the same handoff (the pre-steer turn
+    // keeps streaming its buffered tail), and that chunk used to clear BOTH the cache entry and
+    // the held retry — so `startContinuationTurn` had nothing durable to attach and the
+    // continuation lost the `data-agent-api-retry` row entirely.
+    it('keeps a held retry when content resumes inside the steer handoff', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      ;(service as any).currentTurn(entry).controller = { enqueue: vi.fn() }
+
+      const turn = (service as any).currentTurn(entry)
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: { id: 'steer-1', role: 'user', data: { parts: [] } } as any }],
+        headless: false
+      })
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+      expect(entry.pendingSteerApiRetry).toMatchObject(retryEvent.retry)
+
+      // The pre-steer content resumes before the continuation exists.
+      mocks.cacheGetShared.mockImplementation((key: string) => (key === RETRY_KEY ? { status: 'retrying' } : undefined))
+      mocks.cacheSetShared.mockClear()
+      ;(service as any).handleRuntimeEvent(entry, contentChunk)
+
+      // The transient status clears (the stream is live again), but the durable record survives.
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
+      expect(entry.pendingSteerApiRetry).toMatchObject(retryEvent.retry)
+
+      mocks.saveMessage.mockImplementation(({ message }: any) => ({ ...message, id: 'assistant-continuation' }))
+      await (service as any).startContinuationTurn(entry)
+
+      expect(entry.pendingSteerApiRetry).toBeUndefined()
+      expect(entry.runtimeState.execution.buffer).toContainEqual({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-continuation',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
+      })
+    })
   })
 
   // Gates the out-of-turn approval denial in `canUseTool`: a detached background agent can call a

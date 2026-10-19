@@ -1918,7 +1918,10 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'chunk': {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
-        this.clearApiRetry(entry)
+        // A retry HELD for a continuation is not this turn's status: the pre-steer content can
+        // resume inside the handoff, and its chunk must not drop the durable record the
+        // continuation still has to attach.
+        this.clearApiRetryStatus(entry)
         this.deliverRuntimeChunk(entry, event.chunk)
         break
       }
@@ -2169,6 +2172,11 @@ export class AgentSessionRuntimeService extends BaseService {
   private clearApiRetry(entry: AgentSessionRuntimeEntry): void {
     // A retry held for a continuation that never arrives must not resurface on the next turn.
     entry.pendingSteerApiRetry = undefined
+    this.clearApiRetryStatus(entry)
+  }
+
+  /** Only the transient status. A retry held across a steer boundary keeps its durable record. */
+  private clearApiRetryStatus(entry: AgentSessionRuntimeEntry): void {
     const cache = application.get('CacheService')
     if (cache.getShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId))?.status !== 'retrying') return
     cache.setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
