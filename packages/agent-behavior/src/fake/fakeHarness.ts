@@ -27,8 +27,6 @@ import {
 export type FakeHarnessOptions = {
   /** Registers handlers at creation and again after every restart. */
   readonly install?: (ports: HarnessPorts) => void
-  /** Start of the manual clock; default 0. */
-  readonly now?: number
   /** Seeds the script of each conversation as it is created (children created inside jobs included). */
   readonly scripts?: (thread: ThreadId, lineage: ConversationFacts['lineage']) => readonly ScriptedReply[]
 }
@@ -39,7 +37,6 @@ export interface FakeHarness extends ContractHarness {
   crashAt(n: number): void
   /** Resolves when the armed crash fires; already resolved if it has fired. */
   whenCrashed(): Promise<void>
-  advanceClock(ms: number): void
   /** Ids of the entries each model request on `thread` saw, after the context filter. */
   requestLog(thread: ThreadId): readonly (readonly ItemId[])[]
   /** The persistent state as JSON, for crash-equivalence checks (see Step 4). */
@@ -66,7 +63,7 @@ function reopenPorts(ports: BoundPorts): BoundPorts {
 }
 
 export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness {
-  const state = createState(options.now ?? 0)
+  const state = createState()
   const seed: Seed = (thread, lineage) => options.scripts?.(thread, lineage) ?? []
   let epoch = createEpoch()
   let awaitPoints = 0
@@ -146,7 +143,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         untilRunEnd: (id) => enter(scope, () => waitFor(scope.epoch, id, () => !thread(id).active))
       },
       memory: { remember: (name, produce) => enter(scope, () => remember(scope, name, produce)) },
-      clock: { now: () => state.clock }
+      clock: { now: () => 0 }
     }
     return scope.reopen ? reopenPorts(ports) : ports
   }
@@ -312,9 +309,6 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       crash = { at: awaitPoints + n, fired, fire }
     },
     whenCrashed: () => crash?.fired ?? never(),
-    advanceClock(ms) {
-      state.clock += ms
-    },
     requestLog: (thread) => threadOf(state, thread).requests,
     persistentLog: () => persistentSnapshot(state)
   }

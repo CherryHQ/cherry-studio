@@ -78,7 +78,6 @@ export type FakeState = {
   /** Final arguments and replay rule of every call that reached its tool, for replay after a restart. */
   readonly intents: Map<CallKey, { readonly args: JsonValue; readonly replay: 'safe' | 'unsafe' }>
   readonly counters: { threads: number; items: number; users: number }
-  clock: number
 }
 
 /** One run loop of the epoch that started it. */
@@ -102,13 +101,12 @@ export type Epoch = {
 export const USER_INPUT = 'user'
 export const ZERO_USAGE: UsageFact = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
 
-export const createState = (clock: number): FakeState => ({
+export const createState = (): FakeState => ({
   threads: new Map(),
   memo: new Map(),
   jobs: new Map(),
   intents: new Map(),
-  counters: { threads: 0, items: 0, users: 0 },
-  clock
+  counters: { threads: 0, items: 0, users: 0 }
 })
 export const createEpoch = (): Epoch => ({
   dead: false,
