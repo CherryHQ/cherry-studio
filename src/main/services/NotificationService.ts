@@ -3,13 +3,10 @@ import { app, Notification as ElectronNotification } from 'electron'
 
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
-import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { messageService } from '@data/services/MessageService'
-import { modelService } from '@data/services/ModelService'
-import { notificationRecordService } from '@data/services/NotificationRecordService'
+import { type CreateNotificationRecordInput, notificationRecordService } from '@data/services/NotificationRecordService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
@@ -19,15 +16,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
-import {
-  getContextUsageModelCandidates,
-  isExpectedModelUsage,
-  resolveMaxTokens
-} from '@shared/ai/agentSessionContextUsage'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import type { UniqueModelId } from '@shared/data/types/model'
-import type { CreateNotificationRecordInput } from '@shared/data/types/notification'
-import { hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import {
   CONVERSATION_NOTIFICATION_ACTION_KEY,
@@ -40,12 +29,6 @@ import { openNotificationInMainWindow, openRouteInMainWindow } from './mainWindo
 
 const logger = loggerService.withContext('NotificationService')
 const sentenceSegmenter = new Intl.Segmenter(undefined, { granularity: 'sentence' })
-
-interface ContextNotificationState {
-  stage: string
-  activeModel?: string
-  models: Record<string, { stage: string; warned: boolean }>
-}
 
 /** OS notification category gates — all off means the Dock badge must clear (#20709). */
 const OS_NOTIFICATION_PREF_KEYS = [
@@ -72,6 +55,8 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 @DependsOn(['AgentSessionRuntimeService', 'AiStreamManager', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
+  private completedBudgetPeriod?: string
+
   protected onInit(): void {
     this.registerDisposable(
       application.get('AiStreamManager').onConversationCompleted((event) => this.handleConversationCompleted(event))
@@ -103,31 +88,6 @@ export class NotificationService extends BaseService {
             }
           }
         )
-    )
-    this.registerDisposable(
-      application
-        .get('CacheService')
-        .subscribeSharedChange('agent.session.context_usage.${sessionId}', (usage, _old, key) => {
-          const sessionId = key.slice('agent.session.context_usage.'.length)
-          const topicId = `agent-session:${sessionId}`
-          if (!usage) {
-            this.resetContextUsage(topicId)
-            return
-          }
-          try {
-            const session = agentSessionService.getById(sessionId)
-            const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-            const model = agent?.model
-              ? modelService.findByIdTx(application.get('DbService').getDb(), agent.model)
-              : undefined
-            if (!isExpectedModelUsage(usage, getContextUsageModelCandidates(model ?? undefined))) return
-            const max = resolveMaxTokens(usage, model?.contextWindow)
-            if (max)
-              void this.observeContextUsage({ topicId, model: model?.id ?? usage.model, used: usage.totalTokens, max })
-          } catch (error) {
-            logger.warn('Failed to resolve Agent context usage', { error })
-          }
-        })
     )
     const purge = () => {
       try {
@@ -234,64 +194,6 @@ export class NotificationService extends BaseService {
     }
   }
 
-  public resetContextUsage(topicId: string): void {
-    try {
-      this.writeState(`notification:context:${topicId}`, { stage: crypto.randomUUID(), models: {} })
-    } catch (error) {
-      logger.warn('Failed to reset context notification', { error })
-    }
-  }
-
-  public async observeContextUsage(input: {
-    topicId: string
-    model: string
-    used: number
-    max: number
-    stage?: string
-  }): Promise<void> {
-    try {
-      if (!Number.isFinite(input.used) || input.used < 0 || !Number.isFinite(input.max) || input.max <= 0) return
-      const key = `notification:context:${input.topicId}`
-      let state = this.readState<ContextNotificationState>(key)
-      if (isAgentSessionTopic(input.topicId) && state?.activeModel && state.activeModel !== input.model) {
-        this.resetContextUsage(input.topicId)
-        state = this.readState<ContextNotificationState>(key)
-      }
-      const stage = input.stage ?? state?.stage ?? 'initial'
-      const previous = state?.models[input.model]
-      if (previous?.stage === stage && previous.warned) return
-      const warned = input.used / input.max >= 0.9
-      if (previous?.stage === stage && previous.warned === warned) return
-      if (!warned) {
-        this.writeState(key, {
-          stage: state?.stage ?? 'initial',
-          activeModel: input.model,
-          models: { ...state?.models, [input.model]: { stage, warned } }
-        })
-        return
-      }
-      const recorded = await this.publish({
-        eventKey: `context:${JSON.stringify([input.topicId, input.model, stage])}`,
-        category: 'usage',
-        kind: 'context-warning',
-        createdAt: Date.now(),
-        title: t('notification.center.context_title'),
-        message: t('notification.center.context_message', { percent: Math.round((input.used / input.max) * 100) }),
-        target: { kind: 'conversation', ...this.resolveConversationTarget(input.topicId) }
-      })
-      if (!recorded) return
-      const current = this.readState<ContextNotificationState>(key)
-      if ((current?.stage ?? 'initial') !== (state?.stage ?? 'initial')) return
-      this.writeState(key, {
-        stage: current?.stage ?? 'initial',
-        activeModel: input.model,
-        models: { ...current?.models, [input.model]: { stage, warned } }
-      })
-    } catch (error) {
-      logger.warn('Failed to observe context usage', { error })
-    }
-  }
-
   private refreshDailyBudget(): void {
     try {
       const preferences = application.get('PreferenceService')
@@ -312,7 +214,7 @@ export class NotificationService extends BaseService {
       const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
       const cycle = this.readState<string>('notification:daily-budget-cycle')
       const period = cycle ? `${day}:${cycle}` : day
-      if (this.readState<string>('notification:daily-budget') === period) return
+      if (this.completedBudgetPeriod === period) return
       const total = aiUsageRecordService.stats({ from, to, groupBy: 'model', metric: 'tokens', limit: 1 }).totals
         .totalTokens
       const limit = (budget * threshold) / 100
@@ -329,11 +231,9 @@ export class NotificationService extends BaseService {
           budget: `${budget / 1000}k`
         }),
         target: { kind: 'settings', tab: 'usage' }
+      }).then((recorded) => {
+        if (recorded) this.completedBudgetPeriod = period
       })
-        .then((recorded) => {
-          if (recorded) this.writeState('notification:daily-budget', period)
-        })
-        .catch((error) => logger.warn('Failed to retain daily notification marker', { error }))
     } catch (error) {
       logger.warn('Failed to check daily notification budget', { error })
     }
@@ -380,37 +280,6 @@ export class NotificationService extends BaseService {
     })
 
     electronNotification.show()
-  }
-
-  public async observeChatContextUsage({
-    topicId,
-    modelId,
-    tokens,
-    anchorMessageId
-  }: {
-    topicId: string
-    modelId: UniqueModelId
-    tokens: number
-    anchorMessageId?: string
-  }): Promise<void> {
-    try {
-      const model = modelService.findByIdTx(application.get('DbService').getDb(), modelId)
-      if (!model?.contextWindow || !anchorMessageId) return
-      const path = messageService.getPathToNode(anchorMessageId)
-      const boundary = path.findLast((message) => hasClearContextPart(message.data.parts) || message.compactionSummary)
-      const compacted = path
-        .flatMap((message) => message.data.parts ?? [])
-        .findLast((part) => part.type === 'data-compaction-anchor' && part.data.status === 'done')
-      await this.observeContextUsage({
-        topicId,
-        model: modelId,
-        used: tokens,
-        max: model.contextWindow,
-        stage: `${boundary?.id ?? 'initial'}:${compacted?.type === 'data-compaction-anchor' ? compacted.id : ''}`
-      })
-    } catch (error) {
-      logger.warn('Failed to resolve chat context usage', { error })
-    }
   }
 
   private handleConversationCompleted({

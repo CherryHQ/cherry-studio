@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 
-import type { CreateNotificationRecordInput } from '@shared/data/types/notification'
+import type { NotificationRecord } from '@shared/data/types/notification'
 import type { NotificationSource } from '@shared/types/notification'
 
 import { mockAttachmentPresenceService } from './AttachmentPresenceService'
@@ -86,10 +86,8 @@ export const mockJobManager = {
 }
 
 export const mockNotificationService = {
-  resetContextUsage: vi.fn(),
-  observeChatContextUsage: vi.fn(async () => undefined),
   publish: vi.fn(
-    async (_input: CreateNotificationRecordInput, _options?: { source?: NotificationSource; completion?: boolean }) =>
+    async (_input: Partial<NotificationRecord>, _options?: { source?: NotificationSource; completion?: boolean }) =>
       true
   )
 }

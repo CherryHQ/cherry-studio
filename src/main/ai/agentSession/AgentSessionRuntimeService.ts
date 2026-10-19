@@ -2090,7 +2090,6 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
-    application.getExisting('NotificationService')?.resetContextUsage(`agent-session:${entry.sessionId}`)
 
     const turn = this.currentTurn(entry)
     if (anchor && turn?.controller && this.isTurnLive(entry, turn)) {

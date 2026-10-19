@@ -3,12 +3,10 @@ import { useMemo } from 'react'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
-  type AgentSessionContextUsage,
-  getContextUsageModelCandidates,
-  isExpectedModelUsage,
-  resolveMaxTokens
+  type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { Model } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 
 const EMPTY_SESSION_ID = '__none__'
 
@@ -39,4 +37,59 @@ export function useAgentSessionContextUsage(
   const percentage = rawPercentage === undefined ? null : Math.round(Math.min(100, Math.max(0, rawPercentage)))
 
   return { usage: effectiveUsage, percentage, maxTokens }
+}
+
+// Claude Code ignores the window Cherry declares for its own models and applies its per-plan one, so
+// there `usage.maxTokens` is the effective window — the catalog cannot tell a 200K session from its
+// `[1m]` twin, since both rows resolve to the same entry. Elsewhere it is only our compaction budget.
+function resolveMaxTokens(usage: AgentSessionContextUsage | null, contextWindow: number | undefined): number | null {
+  if (!usage) return null
+  const reported = usage.maxTokens > 0 ? usage.maxTokens : null
+  if (typeof contextWindow !== 'number' || contextWindow <= 0) return reported
+  if (reported && usage.model.trim().toLowerCase().startsWith('claude-')) return Math.min(contextWindow, reported)
+  return contextWindow
+}
+
+// The usage cache deliberately survives reconnects, so a stale entry from the previous model must
+// not be divided by the new model's window.
+function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
+  if (!model) return undefined
+  let parsed: ReturnType<typeof parseUniqueModelId>
+  try {
+    parsed = parseUniqueModelId(model.id)
+  } catch {
+    // `ModelSchema` rejects these, so this is unreachable by design — but a throw here unmounts the
+    // pane, and returning nothing would disable filtering entirely. Match on the id itself instead.
+    return [model.apiModelId ?? model.id]
+  }
+
+  const apiModelId = model.apiModelId ?? parsed.modelId
+  const candidates = [apiModelId, parsed.modelId]
+  try {
+    candidates.push(formatGatewayModelId(parsed.providerId, apiModelId))
+  } catch {
+    // Some models are intentionally not gateway-addressable; their direct ids remain valid candidates.
+  }
+
+  return candidates
+}
+
+function isExpectedModelUsage(
+  usage: AgentSessionContextUsage | null,
+  expectedModels: readonly (string | null | undefined)[] | undefined
+): boolean {
+  if (!usage) return true
+  const expected = expectedModels?.map(normalizeModelId).filter((model): model is string => Boolean(model))
+  if (!expected?.length) return true
+
+  const actual = normalizeModelId(usage.model)
+  return Boolean(actual && expected.includes(actual))
+}
+
+function normalizeModelId(model: string | null | undefined): string | undefined {
+  const normalized = model
+    ?.trim()
+    .replace(/\[1m\]$/i, '')
+    .toLowerCase()
+  return normalized || undefined
 }

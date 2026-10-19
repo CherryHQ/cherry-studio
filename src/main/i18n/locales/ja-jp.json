@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "バックアップは完了しましたが、クリーンアップに失敗しました",
   "notification.center.budget_message": "本日のトークン使用量が予算の{{percent}}%に達しました（{{used}} / {{budget}}）。",
   "notification.center.budget_title": "1日のトークン予算アラート",
-  "notification.center.context_message": "この会話はコンテキストウィンドウの{{percent}}%を使用しています。",
-  "notification.center.context_title": "コンテキストウィンドウがまもなく上限に達します",
   "notification.center.knowledge_complete": "ナレッジベースの埋め込みが完了しました",
   "notification.center.queue_complete": "{{count}}件のタスクがすべて完了しました",
   "notification.center.target_unavailable": "この通知のリンク先は利用できなくなりました。",

@@ -44,7 +44,10 @@ function NotificationItem({
   const { t, i18n } = useTranslation()
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [activating, setActivating] = useState(false)
-  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
+  const { appUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
+    const { default: UpdateDialogPopup } = await import('./UpdateDialogPopup')
+    return UpdateDialogPopup.show({ releaseInfo })
+  })
   const { trigger: markRead } = useMutation('PATCH', '/notifications/:id', {
     refresh: ['/notifications', '/notifications/unread-count']
   })
@@ -61,7 +64,7 @@ function NotificationItem({
     setActivating(true)
     try {
       if (expandable) {
-        await markRead({ params: { id: record.id }, body: { read: true } })
+        if (record.readAt === null) await markRead({ params: { id: record.id }, body: { read: true } })
         setExpanded(!expanded)
       } else {
         await ipcApi.request('notification.activate', { id: record.id })
@@ -72,25 +75,6 @@ function NotificationItem({
       toast.error(t('notification.center.activation_failed'))
     } finally {
       setActivating(false)
-    }
-  }
-
-  const update = async () => {
-    if (!canUpdate || appUpdateState.checking || appUpdateState.downloading) return
-    try {
-      if (appUpdateState.downloaded) {
-        const { default: UpdateDialogPopup } = await import('./UpdateDialogPopup')
-        await UpdateDialogPopup.show({ releaseInfo: appUpdateState.info })
-      } else {
-        updateAppUpdateState({ checking: true, manualCheck: true, lastErrorKey: null })
-        await ipcApi.request('app.updater.check_for_update')
-      }
-    } catch (error) {
-      logger.error('Failed to start update from notification', error as Error)
-      updateAppUpdateState({ manualCheck: false })
-      toast.error(t('settings.about.updateError'))
-    } finally {
-      updateAppUpdateState({ checking: false })
     }
   }
 
@@ -160,7 +144,9 @@ function NotificationItem({
             </p>
           )}
           {canUpdate && (
-            <Button onClick={() => void update()} disabled={appUpdateState.checking || appUpdateState.downloading}>
+            <Button
+              onClick={() => void checkForUpdate()}
+              disabled={appUpdateState.checking || appUpdateState.downloading}>
               {appUpdateState.downloading
                 ? `${t('settings.about.downloading')} ${Math.round(appUpdateState.downloadProgress)}%`
                 : appUpdateState.downloaded

@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Sicherung abgeschlossen; Bereinigung fehlgeschlagen",
   "notification.center.budget_message": "Die tägliche Token-Nutzung hat {{percent}} % Ihres Budgets erreicht ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Warnung zum täglichen Token-Budget",
-  "notification.center.context_message": "Diese Unterhaltung nutzt {{percent}} % ihres Kontextfensters.",
-  "notification.center.context_title": "Kontextfenster fast voll",
   "notification.center.knowledge_complete": "Einbettung der Wissensdatenbank abgeschlossen",
   "notification.center.queue_complete": "Alle {{count}} Aufgaben abgeschlossen",
   "notification.center.target_unavailable": "Das Ziel dieser Benachrichtigung ist nicht mehr verfügbar.",

@@ -2122,26 +2122,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    const persisted = await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
-    const tokens = exec.finalMessage?.metadata?.stats?.contextTokens
-    if (
-      persisted &&
-      stream.isPersistentConversation &&
-      !isAgentSessionTopic(stream.topicId) &&
-      typeof tokens === 'number' &&
-      Number.isFinite(tokens)
-    ) {
-      try {
-        void application.getExisting('NotificationService')?.observeChatContextUsage({
-          topicId: stream.topicId,
-          modelId: exec.modelId,
-          tokens,
-          anchorMessageId: exec.anchorMessageId
-        })
-      } catch (error) {
-        logger.warn('Failed to observe persisted chat context', { topicId: stream.topicId, error })
-      }
-    }
+    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
   }
 
   private async broadcastExecutionPaused(
@@ -2180,7 +2161,7 @@ export class AiStreamManager extends BaseService {
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
     invoke: (listener: StreamListener) => void | Promise<void>
-  ): Promise<boolean> {
+  ): Promise<void> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
     const orderedListeners = [
@@ -2225,7 +2206,6 @@ export class AiStreamManager extends BaseService {
       }
     }
     for (const id of dead) stream.listeners.delete(id)
-    return !suppressNotification
   }
 
   /**

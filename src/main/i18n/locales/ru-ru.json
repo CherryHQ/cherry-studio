@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Резервное копирование завершено; ошибка очистки",
   "notification.center.budget_message": "Суточное использование токенов достигло {{percent}}% вашего бюджета ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Предупреждение о суточном бюджете токенов",
-  "notification.center.context_message": "Этот разговор использует {{percent}}% своего контекстного окна.",
-  "notification.center.context_title": "Контекстное окно почти заполнено",
   "notification.center.knowledge_complete": "Векторизация базы знаний завершена",
   "notification.center.queue_complete": "Все задачи завершены: {{count}}",
   "notification.center.target_unavailable": "Связанный с этим уведомлением объект больше недоступен.",

@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Yedekleme tamamlandı; temizleme başarısız oldu",
   "notification.center.budget_message": "Günlük token kullanımı bütçenizin %{{percent}} oranına ulaştı ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Günlük token bütçesi uyarısı",
-  "notification.center.context_message": "Bu konuşma, bağlam penceresinin %{{percent}} oranını kullanıyor.",
-  "notification.center.context_title": "Bağlam penceresi neredeyse dolu",
   "notification.center.knowledge_complete": "Bilgi tabanı vektörleştirmesi tamamlandı",
   "notification.center.queue_complete": "{{count}} görevin tamamı tamamlandı",
   "notification.center.target_unavailable": "Bu bildirimin bağlantılı öğesi artık kullanılamıyor.",

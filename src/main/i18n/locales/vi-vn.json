@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Sao lưu hoàn tất; dọn dẹp thất bại",
   "notification.center.budget_message": "Lượng token sử dụng trong ngày đã đạt {{percent}}% ngân sách ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Cảnh báo ngân sách token hằng ngày",
-  "notification.center.context_message": "Cuộc hội thoại này đang sử dụng {{percent}}% cửa sổ ngữ cảnh.",
-  "notification.center.context_title": "Cửa sổ ngữ cảnh gần đầy",
   "notification.center.knowledge_complete": "Hoàn tất tạo vector nhúng cho cơ sở tri thức",
   "notification.center.queue_complete": "Đã hoàn thành tất cả {{count}} tác vụ",
   "notification.center.target_unavailable": "Đích liên kết của thông báo này không còn khả dụng.",

@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Backup complete; cleanup failed",
   "notification.center.budget_message": "Daily token usage reached {{percent}}% of your budget ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Daily token budget alert",
-  "notification.center.context_message": "This conversation is using {{percent}}% of its context window.",
-  "notification.center.context_title": "Context window nearly full",
   "notification.center.knowledge_complete": "Knowledge base embedding complete",
   "notification.center.queue_complete": "All {{count}} tasks completed",
   "notification.center.target_unavailable": "This notification's target is no longer available.",

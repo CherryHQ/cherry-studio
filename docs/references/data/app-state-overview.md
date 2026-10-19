@@ -83,9 +83,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
-| `notification:daily-budget` | `NotificationService` | Local calendar date with optional cycle UUID | Last daily budget warning period; prevents replay after restart. |
 | `notification:daily-budget-cycle` | `NotificationService` | UUID string | Reset when the budget or threshold value changes; allows another warning on the next qualifying usage, even when returning to a previously used setting. |
-| `notification:context:<topicId>` | `NotificationService` | `{ stage: string, activeModel?: string, models: Record<string, { stage: string, warned: boolean }> }` | Context warning generation and consumed threshold per model; reset on compaction, an Agent model switch, or a new context stage. |
 | `appUpdater:notification:<version>` | `AppUpdaterService` | `true` | Version already observed, including while Official notifications are disabled; retained beyond notification dismissal and 30-day history expiry. |
 
 ## Related Source Code

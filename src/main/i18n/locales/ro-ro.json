@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Copie de siguranță finalizată; curățarea a eșuat",
   "notification.center.budget_message": "Utilizarea zilnică de tokenuri a atins {{percent}}% din buget ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Alertă de buget zilnic de tokenuri",
-  "notification.center.context_message": "Această conversație utilizează {{percent}}% din fereastra de context.",
-  "notification.center.context_title": "Fereastra de context este aproape plină",
   "notification.center.knowledge_complete": "Vectorizarea bazei de cunoștințe a fost finalizată",
   "notification.center.queue_complete": "Toate cele {{count}} sarcini au fost finalizate",
   "notification.center.target_unavailable": "Destinația acestei notificări nu mai este disponibilă.",

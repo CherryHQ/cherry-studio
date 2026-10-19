@@ -1,17 +1,10 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
-import { topicTable } from '@data/db/schemas/topic'
-import { userModelTable } from '@data/db/schemas/userModel'
-import { userProviderTable } from '@data/db/schemas/userProvider'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { notificationRecordService } from '@data/services/NotificationRecordService'
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'
-import { AiStreamManager } from '@main/ai/streamManager'
-import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
-import { MessageServiceBackend } from '@main/ai/streamManager/persistence/backends/MessageServiceBackend'
 import type { ApprovalRequestedEvent } from '@main/ai/types'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
@@ -397,18 +390,25 @@ describe('NotificationService', () => {
     expect(mocks.electronNotifications).toHaveLength(0)
   })
 
-  it('retries context history after a transient write failure and reports committed delivery separately', async () => {
+  it('retries failed history writes and preserves committed notifications when delivery fails', async () => {
     dbh.sqlite.exec(
       "CREATE TRIGGER fail_notification BEFORE INSERT ON notification_record BEGIN SELECT RAISE(ABORT, 'write failed'); END"
     )
-    const usage = { topicId: 'topic-1', model: 'p::a', used: 900, max: 1000 }
+    const input = {
+      eventKey: 'budget-retry',
+      category: 'usage' as const,
+      kind: 'daily-budget',
+      title: 'Daily budget',
+      message: '80% used',
+      createdAt: Date.now()
+    }
     try {
-      await service.observeContextUsage(usage)
+      await expect(service.publish(input)).resolves.toBe(false)
       expect(notificationRecordService.unreadCount()).toBe(0)
     } finally {
       dbh.sqlite.exec('DROP TRIGGER fail_notification')
     }
-    await service.observeContextUsage(usage)
+    await expect(service.publish(input)).resolves.toBe(true)
     expect(notificationRecordService.unreadCount()).toBe(1)
     mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
       type === WindowType.Main ? [mainWindowInfo({ isFocused: true })] : []
@@ -429,141 +429,29 @@ describe('NotificationService', () => {
     expect(notificationRecordService.unreadCount()).toBe(2)
   })
 
-  it('warns once per context stage and model, persisting dedup across service restarts', async () => {
-    const usage = { topicId: 'topic-1', model: 'p::m', used: 900, max: 1000, stage: 'initial' }
-    await service.observeContextUsage(usage)
-    await service.observeContextUsage(usage)
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
-    await service._doStop()
-    BaseService.resetInstances()
-    await initService()
-    await service.observeContextUsage(usage)
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(1)
-    await service.observeContextUsage({ ...usage, stage: 'compacted' })
-    await service.observeContextUsage({ ...usage, model: 'p::new', stage: 'compacted' })
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(3)
-  })
-
-  it('does not re-alert alternating models in the same multi-model context stage', async () => {
-    for (const model of ['p::a', 'p::b', 'p::a', 'p::b']) {
-      await service.observeContextUsage({ topicId: 'topic-1', model, used: 900, max: 1000, stage: 'shared-stage' })
-    }
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(2)
-    service.resetContextUsage('topic-1')
-    await service.observeContextUsage({ topicId: 'topic-1', model: 'p::a', used: 900, max: 1000 })
-    expect(notificationRecordService.list({ category: 'usage' }).items).toHaveLength(3)
-  })
-
-  it('retains a queued chat context warning when the following turn compacts below the threshold', async () => {
-    const topicId = 'queued-context'
-    const modelId = 'context-provider::model'
-    dbh.db.insert(userProviderTable).values({ providerId: 'context-provider', name: 'Provider', orderKey: 'a0' }).run()
-    dbh.db
-      .insert(userModelTable)
-      .values({
-        id: modelId,
-        providerId: 'context-provider',
-        modelId: 'model',
-        name: 'Model',
-        capabilities: [],
-        supportsStreaming: true,
-        contextWindow: 1000,
-        orderKey: 'a0'
-      })
-      .run()
-    dbh.db.insert(topicTable).values({ id: topicId, name: 'Queued context', orderKey: 'a0' }).run()
-    dbh.db
-      .insert(messageTable)
-      .values(
-        withRoot(topicId, [
-          { id: 'context-user', topicId, role: 'user', status: 'success', data: { parts: [] } },
-          {
-            id: 'context-first',
-            parentId: 'context-user',
-            topicId,
-            role: 'assistant',
-            status: 'pending',
-            modelId,
-            data: { parts: [] }
-          },
-          {
-            id: 'context-next',
-            parentId: 'context-first',
-            topicId,
-            role: 'assistant',
-            status: 'pending',
-            modelId,
-            data: { parts: [] },
-            compactionSummary: 'Compacted context'
-          }
-        ])
+  it.each(['read', 'dismissed'] as const)(
+    'retains a %s budget reminder across restart without replay',
+    async (state) => {
+      mocks.preferenceValues['app.notification.daily_budget.tokens'] = 100_000
+      recordUsage('crossing', 80_000)
+      await vi.waitFor(() => expect(notificationRecordService.unreadCount()).toBe(1))
+      const [record] = notificationRecordService.list({ category: 'usage' }).items
+      notificationRecordService.markRead(record.id)
+      const readAt = notificationRecordService.getById(record.id)!.readAt
+      if (state === 'dismissed') notificationRecordService.dismiss(record.id)
+      await service._doStop()
+      BaseService.resetInstances()
+      await initService()
+      mocks.electronNotifications.length = 0
+      recordUsage('after-restart', 1_000)
+      await Promise.resolve()
+      expect(notificationRecordService.unreadCount()).toBe(0)
+      expect(notificationRecordService.list({ category: 'usage' }).items).toEqual(
+        state === 'dismissed' ? [] : [{ ...record, readAt }]
       )
-      .run()
-    const tokens = [950, 100]
-    const originalGet = vi.mocked(application.get).getMockImplementation()!
-    vi.mocked(application.get).mockImplementation(((name: string) =>
-      name === 'AiService'
-        ? {
-            streamText: async () =>
-              new ReadableStream({
-                start(controller) {
-                  controller.enqueue({ type: 'start', messageMetadata: { stats: { contextTokens: tokens.shift() } } })
-                  controller.enqueue({ type: 'text-start', id: 'text' })
-                  controller.enqueue({ type: 'text-delta', id: 'text', delta: 'Completed' })
-                  controller.enqueue({ type: 'text-end', id: 'text' })
-                  controller.enqueue({ type: 'finish' })
-                  controller.close()
-                }
-              })
-          }
-        : originalGet(name as never)) as typeof application.get)
-    vi.spyOn(application, 'getExisting').mockImplementation((name: string) =>
-      name === 'NotificationService' ? service : application.getContainer().getInstance(name)
-    )
-    const manager = new AiStreamManager()
-    const completed: ConversationCompletedEvent[] = []
-    manager.onConversationCompleted((event) => completed.push(event))
-    const start = (messageId: string) =>
-      manager.send({
-        topicId,
-        isPersistentConversation: true,
-        models: [
-          { modelId, request: { conversation: { id: topicId, topicId }, trigger: 'submit-message', messageId } }
-        ],
-        listeners: [
-          new PersistenceListener({
-            topicId,
-            modelId,
-            backend: new MessageServiceBackend({ assistantMessageId: messageId }),
-            onPersistFailed: vi.fn()
-          })
-        ]
-      })
-    let warningsBeforeContinuation = 0
-    vi.spyOn(manager, 'dispatch').mockImplementation(async () => {
-      warningsBeforeContinuation = notificationRecordService.list({ category: 'usage' }).items.length
-      start('context-next')
-      return { mode: 'started' }
-    })
-    try {
-      start('context-first')
-      manager.enqueuePendingSteer(topicId, 'queued-user')
-      await vi.waitFor(() => {
-        expect(mocks.loggerError.mock.calls).toEqual([])
-        expect(completed).toHaveLength(1)
-      })
-      expect(warningsBeforeContinuation).toBe(1)
-      expect(notificationRecordService.list({ category: 'usage' }).items).toEqual([
-        expect.objectContaining({
-          kind: 'context-warning',
-          target: { kind: 'conversation', conversationType: 'assistant', conversationId: topicId }
-        })
-      ])
-    } finally {
-      await manager._doStop()
-      await manager._doDestroy()
+      expect(mocks.electronNotifications).toHaveLength(0)
     }
-  })
+  )
 
   it('warns when committed usage crosses 80 percent once per local day without double-counting cache tokens', async () => {
     await service._doStop()

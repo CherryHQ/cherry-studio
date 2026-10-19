@@ -18,7 +18,7 @@ import { defineRoute } from '../define'
  * directly by the main process. NotificationService broadcasts the originating Notification back
  * to the renderer as the existing action-click dispatch seam.
  *
- * Event `notification.conversation`: carries a presentation-ready task-completion or approval-request
+ * Event `notification.conversation`: carries a presentation-ready approval-request
  * notification to one foreground full-chrome renderer. Background system notifications stay
  * main-owned.
  */

@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { NotificationCategorySchema, type NotificationRecord } from '../../types/notification'
+import type { CursorPaginationResponse } from '../types'
 
 export const ListNotificationsQuerySchema = z.object({
   category: NotificationCategorySchema.optional(),
@@ -8,7 +9,7 @@ export const ListNotificationsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50)
 })
 export type ListNotificationsQuery = z.infer<typeof ListNotificationsQuerySchema>
-export type NotificationPage = { items: NotificationRecord[]; nextCursor?: string }
+export type NotificationPage = CursorPaginationResponse<NotificationRecord>
 
 export const ReadNotificationSchema = z.strictObject({ read: z.literal(true) })
 export const ReadConversationNotificationsSchema = z.strictObject({

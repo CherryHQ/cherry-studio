@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Το αντίγραφο ασφαλείας ολοκληρώθηκε· η εκκαθάριση απέτυχε",
   "notification.center.budget_message": "Η ημερήσια χρήση token έφτασε το {{percent}}% του ορίου σας ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Προειδοποίηση ημερήσιου ορίου token",
-  "notification.center.context_message": "Αυτή η συνομιλία χρησιμοποιεί το {{percent}}% του παραθύρου συμφραζομένων της.",
-  "notification.center.context_title": "Το παράθυρο συμφραζομένων είναι σχεδόν πλήρες",
   "notification.center.knowledge_complete": "Η ενσωμάτωση της βάσης γνώσεων ολοκληρώθηκε",
   "notification.center.queue_complete": "Ολοκληρώθηκαν και οι {{count}} εργασίες",
   "notification.center.target_unavailable": "Ο προορισμός αυτής της ειδοποίησης δεν είναι πλέον διαθέσιμος.",

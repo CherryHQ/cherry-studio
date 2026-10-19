@@ -153,8 +153,6 @@
   "notification.center.backup_warning": "Copia de seguridad completada; error en la limpieza",
   "notification.center.budget_message": "El uso diario de tokens ha alcanzado el {{percent}}% de tu presupuesto ({{used}} / {{budget}}).",
   "notification.center.budget_title": "Aviso de presupuesto diario de tokens",
-  "notification.center.context_message": "Esta conversación está utilizando el {{percent}}% de su ventana de contexto.",
-  "notification.center.context_title": "Ventana de contexto casi llena",
   "notification.center.knowledge_complete": "Vectorización de la base de conocimientos completada",
   "notification.center.queue_complete": "Se han completado las {{count}} tareas",
   "notification.center.target_unavailable": "El destino de esta notificación ya no está disponible.",
