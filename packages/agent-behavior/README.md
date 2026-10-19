@@ -424,13 +424,11 @@ comment naming the bug it catches.
 runs on it, and adds controls for the tests that build on it. Options, all optional:
 
 - `install(ports)`: registers handlers at creation and again after every restart.
-- `now`: start of the manual clock, default 0.
 - `scripts(thread, lineage)`: seeds the script of each conversation as it is created, children created inside jobs
   included.
 
 Beyond `ContractHarness` it offers:
 
-- `advanceClock(ms)`: the clock moves only when the test advances it.
 - `awaitPoints`: await points passed since creation. Every outbound port call, every model request and every tool call
   of a run is one; `clock.now` is not.
 - `crashAt(n)` and `whenCrashed()`: crash at the n-th await point from now (1-based). That point and all later work of
