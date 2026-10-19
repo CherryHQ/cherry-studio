@@ -47,7 +47,7 @@ describe('goal usage', () => {
       assistant('b', { usage: usage(5) })
     ]
     expect(tokens(history)).toBe(0)
-    expect(unadmittedRoundItems(history)).toEqual([history[1].id])
+    expect(unadmittedRoundItems(facts(history))).toEqual([history[1].id])
   })
 
   // Catches a notification turn billed while the goal is unarmed, or not billed while it is armed (agent-runtime-pi
