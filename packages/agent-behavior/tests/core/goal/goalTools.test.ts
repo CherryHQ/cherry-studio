@@ -29,7 +29,8 @@ describe('goal tools', () => {
     })
   })
 
-  // Catches an update applied to a goal the model saw at another revision (README goal: stale references).
+  // Catches an update applied to a goal the model saw at another revision (agent-runtime-pi README goal: stale
+  // references).
   it('refuses a stale revision with the current view', () => {
     const outcome = update([user(), goalEntry(goal({ revision: 2 }))], { ...ref, action: 'pause' })
     expect(outcome.ops).toEqual([])

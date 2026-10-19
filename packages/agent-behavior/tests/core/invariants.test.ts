@@ -4,31 +4,34 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { decideApproval } from '../../src/core/approval/approval'
+import { answerVerdict, decideApproval, repeatBlock } from '../../src/core/approval/approval'
 import { offloadPlan } from '../../src/core/context/offload'
 import { recallText } from '../../src/core/context/recall'
 import { admitRound, decideAtIdle } from '../../src/core/driver/idle'
-import { decideOnOpen, decideUserStop } from '../../src/core/driver/lifecycle'
+import { decideOnOpen, decidePermissionModeChanged, decideUserStop } from '../../src/core/driver/lifecycle'
 import { decodeEntry, encodeEntry } from '../../src/core/entryCodec'
 import { type ConversationFacts, ENTRY_KINDS, type EntryKind, type HistoryEntry } from '../../src/core/facts'
 import { decideGoalCommand } from '../../src/core/goal/goalCommand'
-import { goalUsage, turnOrigin } from '../../src/core/goal/goalHistory'
+import { goalUsage, turnOrigin, unadmittedRoundItems } from '../../src/core/goal/goalHistory'
 import { decideCreateGoal, decideUpdateGoal } from '../../src/core/goal/goalTools'
 import { decideAskUser } from '../../src/core/interaction/askUser'
 import { decideTodos } from '../../src/core/interaction/todo'
+import { keys } from '../../src/core/keys'
 import {
   budgetStops,
   decideMessage,
   decideRunEnd,
   decideSpawn,
   decideStop,
-  decideUserStopSubagent
+  decideUserStopSubagent,
+  reportTarget
 } from '../../src/core/subagents/subagentDecisions'
-import { subagentViews } from '../../src/core/subagents/subagentLedger'
+import { interruptRoute, runStopping, subagentViews } from '../../src/core/subagents/subagentLedger'
 import {
   apply,
   assistant,
   call,
+  callTo,
   facts,
   goal,
   goalEntry,
@@ -37,6 +40,7 @@ import {
   result,
   run,
   runEntry,
+  thread,
   turnStop,
   usage,
   user
@@ -302,6 +306,26 @@ describe('purity (AC7)', () => {
   add('decideOnOpen', facts([goalEntry(goal()), runEntry(run('a'))], live), (f) =>
     decideOnOpen(f, inputs(), { reopened: true, supportsTools: true })
   )
+  add('decidePermissionModeChanged', facts([goalEntry(goal())]), (f) => decidePermissionModeChanged(f))
+  add(
+    'reportTarget',
+    {
+      f: facts([runEntry(run('a'))], live),
+      i: { runKey: keys.subagentSpawn(call('k')), run: 1, text: 't', child: thread('a') }
+    },
+    ({ f, i }) => reportTarget(f, i)
+  )
+  add('runStopping', [runEntry(run('a', { stoppedBy: 'model' }))], (h) => runStopping(h, 'a' as never, 1))
+  add('interruptRoute', [runEntry(run('a'))], (h) => interruptRoute(h, 'a' as never))
+  add('unadmittedRoundItems', drive(5).history, (h) => unadmittedRoundItems(h))
+  const repeated = callTo('read', { path: 'x' })
+  add('repeatBlock', { goalRound: true, plan: undefined, callWindow: [repeated, repeated, repeated] }, (f) =>
+    repeatBlock(
+      { key: repeated.callKey, thread: 'parent' as never, tool: 'read', args: { path: 'x' }, nested: false },
+      f
+    )
+  )
+  add('answerVerdict', { kind: 'granted' as const, args: { path: 'y' } }, (a) => answerVerdict(a, { path: 'x' }))
   add('decideApproval', host, (h) =>
     decideApproval(
       { key: call('k'), thread: 'parent' as never, tool: 'x', args: {}, nested: false },

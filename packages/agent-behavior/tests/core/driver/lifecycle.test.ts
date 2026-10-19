@@ -36,7 +36,8 @@ describe('decideOnOpen', () => {
     })
   })
 
-  // Catches a background child resuming after a restart (S-g) or its result waking the agent (README subagents).
+  // Catches a background child resuming after a restart (S-g) or its result waking the agent (agent-runtime-pi README
+  // subagents).
   it('ends interrupted background runs and delivers pending results quietly', () => {
     const history = [user(), runEntry(run('a')), runEntry(run('b', { status: 'finished', outcome: 'completed' }))]
     const open = decideOnOpen(
