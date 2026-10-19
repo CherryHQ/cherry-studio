@@ -4,11 +4,10 @@ export type {
   ThreadId,
   InputId,
   ItemId,
-  DelegationId,
+  SubagentId,
   NativeInputId,
   Thread,
   ItemRef,
-  DelegationRef,
   NativeInputRef,
   BusyPolicy,
   InputDraft,
@@ -26,13 +25,14 @@ export type {
   JsonValue,
   Completeness,
   RuntimeMessage,
-  Delegation,
+  Subagent,
   Activity,
   ThreadSnapshot,
   ObservationPayload,
   ObservationSink,
   Observation,
   ThreadHandle,
+  ThreadInput,
   AgentRuntime
 } from './contracts'
 export { runtimeId } from './contracts'
