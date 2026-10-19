@@ -28,23 +28,9 @@ export const NON_PROGRESS_TOOLS: ReadonlySet<string> = new Set([
 export type GoalUsage = { readonly tokens: number; readonly usd: number }
 export type GoalProgress = { readonly progressRounds: number; readonly noProgressRounds: number }
 export type GoalCounts = { readonly usage: GoalUsage; readonly progress: GoalProgress }
-export type GoalErrorCode =
-  | 'invalid_objective'
-  | 'invalid_limit'
-  | 'stale_revision'
-  | 'no_goal'
-  | 'goal_exists'
-  | 'not_human_turn'
-  | 'no_capacity'
-  | 'invalid_action'
-  | 'in_subagent'
-
 /** A refused goal change; decisions turn it into an error result, so nothing is written. */
 export class GoalError extends Error {
-  constructor(
-    readonly code: GoalErrorCode,
-    message: string
-  ) {
+  constructor(message: string) {
     super(message)
     this.name = 'GoalError'
   }
@@ -70,19 +56,19 @@ export function phaseForStop(code: GoalStopCode): GoalPhase {
 function checkObjective(objective: string): string {
   const trimmed = objective.trim()
   if (trimmed.length === 0 || trimmed.length > MAX_OBJECTIVE_CHARS)
-    throw new GoalError('invalid_objective', `objective must be 1-${MAX_OBJECTIVE_CHARS} characters`)
+    throw new GoalError(`objective must be 1-${MAX_OBJECTIVE_CHARS} characters`)
   return trimmed
 }
 function checkCap(cap: number, ceiling: number): number {
   if (!Number.isInteger(cap) || cap < 1 || cap > ceiling)
-    throw new GoalError('invalid_limit', `max_goal_rounds must be an integer between 1 and ${ceiling}`)
+    throw new GoalError(`max_goal_rounds must be an integer between 1 and ${ceiling}`)
   return cap
 }
 function checkBudget(budget: GoalBudget | undefined): GoalBudget | undefined {
   if (!budget) return undefined
   for (const value of [budget.tokens, budget.usd])
     if (value !== undefined && !(Number.isFinite(value) && value > 0))
-      throw new GoalError('invalid_limit', 'budget values must be positive numbers')
+      throw new GoalError('budget values must be positive numbers')
   return budget.tokens === undefined && budget.usd === undefined ? undefined : budget
 }
 
@@ -173,9 +159,8 @@ export const stopGoal = (
 
 /** The same goal armed; unchanged when it already is. Throws when it is complete or has no capacity. */
 export function resumeGoal(goal: GoalSnapshot, now: number, usage: GoalUsage): GoalSnapshot {
-  if (goal.phase === 'complete') throw new GoalError('invalid_action', GOAL_COMPLETE_MESSAGE)
-  if (!hasCapacity(goal, usage))
-    throw new GoalError('no_capacity', 'raise max_goal_rounds or the budget before resuming')
+  if (goal.phase === 'complete') throw new GoalError(GOAL_COMPLETE_MESSAGE)
+  if (!hasCapacity(goal, usage)) throw new GoalError('raise max_goal_rounds or the budget before resuming')
   if (goal.phase !== 'active') return { ...reactivate(bump(goal, now, {})), armed: true }
   return goal.armed ? goal : { ...goal, armed: true }
 }
