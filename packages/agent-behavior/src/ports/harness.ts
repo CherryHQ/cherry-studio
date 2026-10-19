@@ -46,8 +46,10 @@ export type RetractResult = 'withdrawn' | 'already-started' | 'settled' | 'not-f
 /**
  * H2. Give the agent a turn, take back one that has not started, stop the current one.
  *
- * @harness coding-agent `start` during settle continues the settle, otherwise sends the input with a turn trigger and
- * deduplicates by scanning history for `data.key`; `retract` withdraws the reservation; `stop` aborts the session.
+ * @harness coding-agent `start` sends the input with a turn trigger and deduplicates by scanning history for
+ * `data.key`; a `start` during settle begins a new run rather than continuing the settling one, whose waits (H5) resolve
+ * at `agent_settled`, not at `agent_before_settle` or `agent_end`. `retract` withdraws the reservation; `stop` aborts
+ * the session.
  * @harness durable `submit({ type: 'input', whenBusy: 'reject', entry: { kind, data: { ...data, key } }, requestId: key })`:
  * `ConversationBusy` is 'busy'; an idle conversation with inbox items queues the input behind them; `retract` aborts the
  * submission; `stop` is `conversation(id).abort()`, except before resume (H12), where it is
@@ -131,9 +133,10 @@ export interface Jobs {
 /**
  * H5. Wait until a conversation has no run, or until its current run ends; waiting keeps no state.
  *
- * @harness coding-agent `untilIdle` resolves at `agent_before_settle` (completed) or `agent_end` (any other outcome),
- * never while a host call is in flight; `untilRunEnd` resolves at `agent_end`. Neither resolves at `turn_end`, which
- * follows every model request and its tool results.
+ * @harness coding-agent `untilIdle` and `untilRunEnd` both resolve at `agent_settled`, not at `agent_before_settle` or
+ * `agent_end`, and `untilIdle` never while a host call is in flight. A `start` during settle begins a new run (H2)
+ * rather than continuing the settling one. Neither resolves at `turn_end`, which follows every model request and its
+ * tool results.
  * @harness durable Read `pi.live.run` in a commit; while it exists, `waitForTask(pi.live.run.taskId)` and read it again.
  * A run hands over to a new generation task after every tool round, and queued input starts the next run in the commit
  * that ends this one, so both waits loop until `pi.live.run` is gone. Re-established when a phase reruns.
@@ -188,6 +191,11 @@ export interface ToolDefinition {
   /** After a crash a 'safe' call reruns; an 'unsafe' one gets an interrupted result. */
   readonly replay: 'safe' | 'unsafe'
   readonly executionMode: 'parallel' | 'sequential'
+  /**
+   * `'parent-only'` tools are not registered in child conversations. Adapters filter a child's tools by this field only,
+   * never by tool name.
+   */
+  readonly availability: 'all' | 'parent-only'
   readonly modelOnly: true
   run(call: ToolCall, ports: BoundPorts): Promise<ToolOutcome>
 }
