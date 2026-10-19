@@ -1956,6 +1956,418 @@
       "providerId": "aihubmix"
     },
     {
+      "apiModelId": "auto",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto",
+      "name": "Auto (account strategy)",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-best",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-best",
+      "name": "Auto Best",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-coding",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-coding",
+      "name": "Auto Coding",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-fastest-quality",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-fastest-quality",
+      "name": "Auto Fastest Quality",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-reasoning",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-reasoning",
+      "name": "Auto Reasoning",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-task",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-task",
+      "name": "Auto Task",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-tooling",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-tooling",
+      "name": "Auto Tool Use",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-value",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-value",
+      "name": "Auto Value",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-value-coding",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-value-coding",
+      "name": "Auto Value Coding",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-value-reasoning",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-value-reasoning",
+      "name": "Auto Value Reasoning",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-value-tooling",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-value-tooling",
+      "name": "Auto Value Tool Use",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-fable-5-1",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-opus-4-6",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-opus-4-7",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-opus-4-8",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-opus-5",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-opus-5-5",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-sonnet-4-6",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-sonnet-5",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "claude-sonnet-5-5",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "deepseek-v4-flash",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "deepseek-v4-pro",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gemini-3.5-flash-lite",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gemini-3-5-flash-lite",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gemini-3.8-flash",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gemini-3-8-flash",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "glm-5.3",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "glm-5-3",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gpt-5.5",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-5-5",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gpt-5.6-luna",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-5-6-luna",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gpt-5.6-sol",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-5-6-sol",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gpt-5.6-terra",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-5-6-terra",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "gpt-6.1-sol",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-6-1-sol",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-6-astra",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-6-luna",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "gpt-6-sol",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "apiModelId": "kimi-k2.7-code",
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "kimi-k2-7-code",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
+      "capabilities": {
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "file-search"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "kimi-k3",
+      "providerId": "aistupidlevel",
+      "reason": "AI Stupid Level routes text only; non-text input is rejected with 400 unsupported_content"
+    },
+    {
       "apiModelId": "global.anthropic.claude-fable-5",
       "modelId": "claude-fable-5",
       "pricing": {
@@ -41413,5 +41825,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "40f7a97c43483a3a"
+  "version": "98241a0204b80fc6"
 }
