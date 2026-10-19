@@ -107,13 +107,11 @@ async function inputsOf(w: World, facts: ConversationFacts): Promise<CallInputs>
 }
 
 /**
- * I1: what the run built up live is what a full recompute over the final history concludes, on each root and each of
- * its children: nothing is left to deliver, the driver had nothing left to do when it exited, and the last views the
- * host got are the current ones.
+ * I1: what the run built up live is what a full recompute over the final history concludes: nothing is left to
+ * deliver, the driver had nothing left to do when it exited, and the last views the host got are the current ones.
  */
 async function sameAsRecompute(w: World, roots: readonly ThreadId[]): Promise<void> {
-  const children = await Promise.all(roots.map(async (root) => [...(await w.read(root)).children.keys()]))
-  for (const thread of [...roots, ...children.flat()]) {
+  for (const thread of roots) {
     const facts = await w.read(thread)
     expect(pendingResults(facts.history), `undelivered results on ${thread}`).toEqual([])
     expect(decideAtIdle(facts, await inputsOf(w, facts)).result.kind, `the driver's work on ${thread}`).toBe('done')

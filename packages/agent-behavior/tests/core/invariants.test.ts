@@ -317,7 +317,7 @@ describe('purity (AC7)', () => {
   )
   add('runStopping', [runEntry(run('a', { stoppedBy: 'model' }))], (h) => runStopping(h, 'a' as never, 1))
   add('interruptRoute', [runEntry(run('a'))], (h) => interruptRoute(h, 'a' as never))
-  add('unadmittedRoundItems', drive(5).history, (h) => unadmittedRoundItems(h))
+  add('unadmittedRoundItems', facts(drive(5).history, { live: { idle: false } }), (f) => unadmittedRoundItems(f))
   const repeated = callTo('read', { path: 'x' })
   add('repeatBlock', { goalRound: true, plan: undefined, callWindow: [repeated, repeated, repeated] }, (f) =>
     repeatBlock(
