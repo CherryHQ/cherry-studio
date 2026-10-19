@@ -297,6 +297,10 @@ export interface LifecycleHandlers {
  * the stopped run and its foreground children may still appear active in the facts, so `onOpen` must not decide on
  * facts read after its own stop. No conversation's interrupted run resumes before its own `onOpen` has run.
  *
+ * `onCompacted` may be called while a run is active (coding-agent's automatic compaction fires inside a run), and
+ * `hostCallInFlight` may still be true when it starts. It must not `append-quiet` there: it ensures the idle driver,
+ * which writes the compaction status once the conversation is idle.
+ *
  * @harness coding-agent `session_start`, `session_compact` and `session_shutdown`; runs do not resume, so there is no
  * stop before resume.
  * @harness durable The host calls `onOpen` for every conversation after `Harness.open` and `inspect()` and before
