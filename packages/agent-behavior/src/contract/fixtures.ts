@@ -25,6 +25,7 @@ export const toolBase = (name: string, replay: 'safe' | 'unsafe' = 'safe'): Omit
   schema: { type: 'object' },
   replay,
   executionMode: 'sequential',
+  availability: 'all',
   modelOnly: true
 })
 export const echoTool = (): ToolDefinition => ({

@@ -17,7 +17,10 @@ export interface ContractHarness {
   withCall<T>(thread: ThreadId, use: (ports: BoundPorts) => Promise<T>): Promise<T>
   /** Appends replies the model gives `thread`'s runs, in order; a request past the end fails its run. */
   script(thread: ThreadId, replies: readonly ScriptedReply[]): void
-  /** Submits a person's text: starts a run when idle, otherwise queues it as a follow-up. */
+  /**
+   * Delivers a person's text as user input; if the conversation is busy it stays in the inbox and is handled with
+   * leftover semantics.
+   */
   sendUser(thread: ThreadId, text: string): Promise<void>
   /** Compacts `thread` now (a compaction entry appears), then calls `onCompacted`. */
   compact(thread: ThreadId): Promise<void>

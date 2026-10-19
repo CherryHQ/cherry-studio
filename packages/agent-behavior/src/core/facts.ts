@@ -190,7 +190,10 @@ export interface LiveFacts {
    */
   readonly leftoverInputs: number
   readonly queuedUserInput: boolean
-  /** Only coding-agent can report true. */
+  /**
+   * A host entry (prompt or compact) has been accepted but has not yet started as a run, or a compaction is in progress.
+   * Only coding-agent can report true.
+   */
   readonly hostCallInFlight: boolean
   /** The most recently finished run; absent until a run ends. */
   readonly runEnd?: { readonly outcome: 'completed' | 'error' | 'aborted' }
