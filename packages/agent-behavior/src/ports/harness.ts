@@ -132,23 +132,28 @@ export interface Jobs {
 }
 
 /**
- * H5. Wait until a conversation has no run, or until its current run ends; waiting keeps no state.
+ * H5. Wait until a conversation has no run, or until an input submitted under a key has run to its end; waiting keeps
+ * no state.
  *
- * @harness coding-agent `untilIdle` and `untilRunEnd` both resolve at `agent_settled`, not at `agent_before_settle` or
- * `agent_end`, and `untilIdle` never while a host call is in flight. A `start` during settle begins a new run (H2)
- * rather than continuing the settling one. Neither resolves at `turn_end`, which follows every model request and its
- * tool results.
- * @harness durable Read `pi.live.run` in a commit; while it exists, `waitForTask(pi.live.run.taskId)` and read it again.
- * A run hands over to a new generation task after every tool round, and queued input starts the next run in the commit
- * that ends this one, so both waits loop until `pi.live.run` is gone. Re-established when a phase reruns.
- * @harness fake Resolved by the fake's run loop once the thread has no active run.
- * @waits Both resolve at once when no run is active. `untilRunEnd` resolves when the current run ends and queued input
- * starts no other in its place; `untilIdle` resolves when no run is active, even while inputs a failed run left are
- * still queued (`LiveFacts.leftoverInputs`).
+ * @harness coding-agent `untilIdle` resolves at `agent_settled`, not at `agent_before_settle` or `agent_end`, and never
+ * while a host call is in flight; a `start` during settle answers 'busy' (H2), so nothing continues the settling run.
+ * `untilDone` follows the adapter's own submission ledger (inbox and runs) to the end of the run that took the input.
+ * Neither resolves at `turn_end`, which follows every model request and its tool results.
+ * @harness durable `untilIdle` reads `pi.live.run` in a commit; while it exists, `waitForTask(pi.live.run.taskId)` and
+ * read it again. A run hands over to a new generation task after every tool round, and queued input starts the next
+ * run in the commit that ends this one, so the wait loops until `pi.live.run` is gone. `untilDone` refetches the
+ * submission by request id and waits the same way for the run it joined. Both are re-established when a phase reruns.
+ * @harness fake Resolved by the fake's run loop: `untilIdle` once the thread has no active run, `untilDone` once the
+ * submission settled or was withdrawn.
+ * @keys `untilDone` takes the key `Turns.start` was called with, the input's request id.
+ * @waits `untilIdle` resolves at once when no run is active, even while inputs a failed run left are still queued
+ * (`LiveFacts.leftoverInputs`). `untilDone` resolves once the input submitted under `key` has run to its end in
+ * whatever run it joined, after any inputs queued before it; at once when it was withdrawn, or when nothing was
+ * submitted under `key` (a 'busy' start records nothing).
  */
 export interface Waits {
   untilIdle(thread: ThreadId): Promise<void>
-  untilRunEnd(thread: ThreadId): Promise<void>
+  untilDone(thread: ThreadId, key: Key): Promise<void>
 }
 
 /**
