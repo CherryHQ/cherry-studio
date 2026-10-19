@@ -39,6 +39,7 @@ export type ApprovalRequest = {
  * @waits `ask` waits for a person until answered or `signal` aborts.
  */
 export interface Approvals {
+  /** A child's call comes with the child's thread; answer it by the agent tool policy of its root conversation. */
   facts(call: CallRef, tool: ToolCallFact): Promise<ApprovalHostFacts>
   ask(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalAnswer>
   /** [plan choice] Persisted outcomes of `calls` on `thread`; an empty list asks for every call the host knows there. */
@@ -150,6 +151,11 @@ export interface Observation {
 
 /**
  * P8. Settings read once per decision.
+ *
+ * The gate reads `permissionMode` and `attendance` with the thread of the conversation that made the call, a child's
+ * included; answer a child's as its root conversation's (its permission mode and whether a person attends it).
+ * `attendance` is `'unavailable'` only when nobody can respond: a call that needs approval is then blocked, so
+ * answering it for a child whose root has a person attending denies every such call the child makes.
  *
  * @harness coding-agent Read from Cherry's preferences at decision time.
  * @harness durable The same reads; nothing is stored in the harness.
