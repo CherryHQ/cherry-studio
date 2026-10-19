@@ -1,6 +1,7 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { ScriptedReply } from '../contract/harness'
+import { isFields } from '../core/args'
 import type { JobKind, JobSpec, TurnInput, TxOp } from '../core/decisions'
 import { decodeEntry } from '../core/entryCodec'
 import type {
@@ -158,8 +159,6 @@ export function append(thread: ThreadState, entry: HistoryEntry): void {
 }
 
 type MarkerEntry = Extract<HistoryEntry, { kind: 'marker' }>
-const isFields = (value: JsonValue): value is { readonly [field: string]: JsonValue } =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 /** `input` as the keyed marker it stores, or undefined when it is not one; the caller assigns the id. */
 function markerOf(input: TurnInput, key: string): MarkerEntry | undefined {
   const data = { ...(isFields(input.data) ? input.data : {}), key }
