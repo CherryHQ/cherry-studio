@@ -84,10 +84,14 @@ export class MediaFfmpegService extends BaseService {
     const generation = this.generation
     let waiting = true
     let rejectWaiting: (reason?: unknown) => void = () => undefined
+    const onQueuedAbort = () => {
+      if (waiting && signal) rejectWaiting(signal.reason)
+    }
     const caller = new Promise<MediaFfmpegContract['methods'][M]['output']>((resolve, reject) => {
       rejectWaiting = reject
       const start = () => {
         waiting = false
+        signal?.removeEventListener('abort', onQueuedAbort)
         if (signal?.aborted) {
           reject(signal.reason)
           return
@@ -102,14 +106,8 @@ export class MediaFfmpegService extends BaseService {
     })
     // `queued` already has a rejection handler. `caller` can reject while a
     // consumer is still attaching its own, so observe it without swallowing it.
-    void caller.catch(() => undefined)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        if (waiting) rejectWaiting(signal.reason)
-      },
-      { once: true }
-    )
+    void caller.finally(() => signal?.removeEventListener('abort', onQueuedAbort)).catch(() => undefined)
+    signal?.addEventListener('abort', onQueuedAbort, { once: true })
     return caller
   }
 
