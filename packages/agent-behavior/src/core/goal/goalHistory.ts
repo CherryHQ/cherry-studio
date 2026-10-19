@@ -89,9 +89,9 @@ type Branch = {
 const runKey = (child: ThreadId, run: number) => `${child}:${run}`
 
 /**
- * README goal §6.1: a request counts toward goal G when G was active then and the request was made in one of G's
- * admitted rounds, or with G armed in a turn a notification started; judged where its input ends. A child run counts
- * toward the goal of the request whose call started it (the last request before its first record).
+ * agent-runtime-pi README goal §6.1: a request counts toward goal G when G was active then and the request was made
+ * in one of G's admitted rounds, or with G armed in a turn a notification started; judged where its input ends. A child
+ * run counts toward the goal of the request whose call started it (the last request before its first record).
  */
 function readBranch(history: readonly HistoryEntry[]): Branch {
   const branch: Branch = { counted: [], owners: new Map(), latestRuns: new Map() }
@@ -180,9 +180,9 @@ const normalized = (text: string) => text.replace(/\s+/g, ' ').trim()
 const isProgress = (result: Entry<'tool-result'>) => !result.isError && !NON_PROGRESS_TOOLS.has(result.tool)
 
 /**
- * README goal §7.2: a round moves the objective when one of its tool results succeeded and does more than read or
- * bookkeep, or its last text reply (not one cut off by the output limit) differs from the previous round's. A round
- * the user aborted counts for nothing; a person's message or arming the goal starts the streak over.
+ * agent-runtime-pi README goal §7.2: a round moves the objective when one of its tool results succeeded and does
+ * more than read or bookkeep, or its last text reply (not one cut off by the output limit) differs from the previous
+ * round's. A round the user aborted counts for nothing; a person's message or arming the goal starts the streak over.
  */
 export function goalProgress(history: readonly HistoryEntry[], goalId: string): GoalProgress {
   const admitted = admittedRounds(history)

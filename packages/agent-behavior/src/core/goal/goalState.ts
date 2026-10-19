@@ -2,7 +2,7 @@ import type { GoalBudget, GoalPhase, GoalSnapshot, GoalStopCode, RoundDetails, T
 import type { GoalDefaults } from '../hostFacts'
 
 const MAX_OBJECTIVE_CHARS = 4000
-/** Rounds without progress before a hint round, and before the goal stops (README goal §7.2). */
+/** Rounds without progress before a hint round, and before the goal stops (agent-runtime-pi README goal §7.2). */
 export const HINT_AFTER_ROUNDS = 2
 export const STOP_AFTER_ROUNDS = 3
 /** Identical calls in a row within one round before they are blocked, and before the goal stops. */
