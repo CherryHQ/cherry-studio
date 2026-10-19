@@ -308,7 +308,7 @@ beforeEach(() => {
   })
   createAgentMock.mockResolvedValue({
     id: 'created-agent',
-    type: 'claude-code',
+    type: 'pi',
     name: 'Created Agent',
     description: 'Created from selector',
     accessiblePaths: [],
@@ -521,11 +521,9 @@ describe('AgentSelector', () => {
 
     await waitFor(() =>
       expect(createAgentMock).toHaveBeenCalledWith({
-        type: 'claude-code',
+        type: 'pi',
         name: 'Created Agent',
         model: MODEL.id,
-        planModel: MODEL.id,
-        smallModel: MODEL.id,
         description: 'Created from selector',
         instructions: '',
         knowledgeBaseIds: [],
