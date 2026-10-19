@@ -166,6 +166,8 @@ type SessionsBaseProps = {
     defaults: CreateAgentSessionDefaults
   ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
   onShowMissingAgentSelection?: () => void | Promise<void>
+  /** Active while this list is permanently deleting `id`; `null` when that attempt settles. */
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   panePosition?: TopicTabPosition
   presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
@@ -392,6 +394,7 @@ const Sessions = ({
   onSetPanePosition,
   onCreateSession,
   onShowMissingAgentSelection,
+  onLocalPermanentDeletePendingChange,
   panePosition,
   presentation = 'left-panel',
   revealRequest,
@@ -988,36 +991,50 @@ const Sessions = ({
       if (isAgentSessionBusy(id)) throw new Error(t('recycle_bin.delete.busy'))
 
       const { replacement, wasActive } = planSessionRemoval(id)
-      const outcome = await deleteSessionWithOutcome(id, {
-        permanent: true,
-        showFeedback: false,
-        onDeleted: () => {
-          const current = activeSessionIdRef.current
-          const clearedDuringDelete = current == null && wasActive
-          if (current !== id && !clearedDuringDelete) return
-          grant?.commitDiscard()
+      // Hold missing-session recovery until this attempt settles. The by-id NOT_FOUND
+      // notification can arrive before the IPC reply, which is not user navigation.
+      onLocalPermanentDeletePendingChange?.(id)
+      try {
+        const outcome = await deleteSessionWithOutcome(id, {
+          permanent: true,
+          showFeedback: false,
+          onDeleted: () => {
+            const current = activeSessionIdRef.current
+            const clearedDuringDelete = current == null && wasActive
+            if (current !== id && !clearedDuringDelete) return
+            grant?.commitDiscard()
+          }
+        })
+        if (outcome.status === 'failed') {
+          await reload().catch(() => undefined)
+          throw new Error(outcome.error || t('agent.session.delete.error.failed'))
         }
-      })
-      if (outcome.status === 'failed') {
-        await reload().catch(() => undefined)
-        throw new Error(outcome.error || t('agent.session.delete.error.failed'))
+        if (outcome.status !== 'succeeded') {
+          await reload().catch(() => undefined)
+          throw new Error(t('recycle_bin.delete.stale'))
+        }
+        // Tabs close inside deleteSessionWithOutcome only when this id was actually deleted.
+        // Invalidation can clear the current id while the user is still on the deleted session.
+        const current = activeSessionIdRef.current
+        if (current !== null && current !== id) return
+        if (current !== id && !(current === null && wasActive)) return
+        if (replacement) {
+          setTrackedActiveSessionId(replacement.id, replacement)
+          return
+        }
+        setTrackedActiveSessionId(null, null)
+      } finally {
+        onLocalPermanentDeletePendingChange?.(null)
       }
-      if (outcome.status !== 'succeeded') {
-        await reload().catch(() => undefined)
-        throw new Error(t('recycle_bin.delete.stale'))
-      }
-      // Tabs close inside deleteSessionWithOutcome only when this id was actually deleted.
-      // Invalidation can clear the current id while the user is still on the deleted session.
-      const current = activeSessionIdRef.current
-      if (current !== null && current !== id) return
-      if (current !== id && !(current === null && wasActive)) return
-      if (replacement) {
-        setTrackedActiveSessionId(replacement.id, replacement)
-        return
-      }
-      setTrackedActiveSessionId(null, null)
     },
-    [deleteSessionWithOutcome, planSessionRemoval, reload, setTrackedActiveSessionId, t]
+    [
+      deleteSessionWithOutcome,
+      onLocalPermanentDeletePendingChange,
+      planSessionRemoval,
+      reload,
+      setTrackedActiveSessionId,
+      t
+    ]
   )
 
   const openPermanentDelete = useCallback(

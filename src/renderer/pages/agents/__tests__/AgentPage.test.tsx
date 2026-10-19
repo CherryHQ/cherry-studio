@@ -677,11 +677,13 @@ vi.mock('../components/Sessions', () => ({
   default: ({
     agentSessionsSource,
     agentIdFilter,
+    onLocalPermanentDeletePendingChange,
     onSetPanePosition,
     presentation
   }: {
     agentSessionsSource?: unknown
     agentIdFilter?: string | null
+    onLocalPermanentDeletePendingChange?: (id: string | null) => void
     onSetPanePosition?: (position: 'left' | 'right') => void | Promise<void>
     presentation?: string
   }) => {
@@ -694,6 +696,12 @@ vi.mock('../components/Sessions', () => ({
         data-testid="session-resource-panel">
         <button type="button" onClick={() => void onSetPanePosition?.('left')}>
           Move sessions left
+        </button>
+        <button type="button" onClick={() => onLocalPermanentDeletePendingChange?.('session-open')}>
+          Begin pending delete
+        </button>
+        <button type="button" onClick={() => onLocalPermanentDeletePendingChange?.(null)}>
+          End pending delete
         </button>
       </div>
     )
@@ -1604,6 +1612,70 @@ describe('AgentPage', () => {
       (call) => call[0]?.search && Object.keys(call[0].search).length === 0
     )
     expect(recoveryNavigations).toHaveLength(1)
+  })
+
+  it('holds missing-session recovery while the open session is being permanently deleted', async () => {
+    // The by-id query reports NOT_FOUND before permanent delete settles. Recovery must not
+    // replace the route with the global latest session until that attempt ends without a neighbor.
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
+    agentPageMocks.showSidebar = true
+    agentPageMocks.routeSearch = { sessionId: 'session-open' }
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-open' }
+    activeSessionMocks.sessionSource = 'query'
+
+    const view = render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Begin pending delete' }))
+    activeSessionMocks.session = null
+    activeSessionMocks.sessionSource = 'none'
+    activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'session-open')
+    view.rerender(<AgentPage />)
+
+    expect(agentPageMocks.navigate).not.toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: {},
+      replace: true
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'End pending delete' }))
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: {},
+        replace: true
+      })
+    )
+  })
+
+  it('still recovers a missing session that is not the one being permanently deleted', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
+    agentPageMocks.showSidebar = true
+    agentPageMocks.routeSearch = { sessionId: 'session-other' }
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-other' }
+    activeSessionMocks.sessionSource = 'query'
+    activeSessionMocks.error = undefined
+
+    const view = render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Begin pending delete' }))
+    expect(agentPageMocks.navigate).not.toHaveBeenCalledWith({
+      to: '/app/agents',
+      search: {},
+      replace: true
+    })
+
+    activeSessionMocks.session = null
+    activeSessionMocks.sessionSource = 'none'
+    activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'session-other')
+    view.rerender(<AgentPage />)
+
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: {},
+        replace: true
+      })
+    )
   })
 
   it.each(['success', 'not-found', 'failure', 'cancelled'])(

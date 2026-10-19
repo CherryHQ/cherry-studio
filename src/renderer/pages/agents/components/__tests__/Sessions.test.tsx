@@ -3518,6 +3518,128 @@ describe('Sessions', () => {
     expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
   })
 
+  it('holds the pending delete until the neighbor is selected', async () => {
+    // Pending starts before the delete reply and clears only after the neighbor is selected.
+    const events: string[] = []
+    const onLocalPermanentDeletePendingChange = (id: string | null) => {
+      events.push(id === null ? 'clear' : `pending:${id}`)
+    }
+    sessionDataMocks.deleteSessionWithOutcome.mockImplementation(async (_id, options) => {
+      expect(events).toEqual(['pending:session-b'])
+      events.push('delete')
+      options?.onDeleted?.()
+      return { status: 'succeeded' }
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    const setActiveSessionId = vi.fn(() => events.push('select'))
+    setupSessions()
+    render(
+      <SessionsForTest
+        activeSessionId="session-b"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+
+    await openPermanentDelete('Beta session')
+    await vi.waitFor(() => expect(events).toEqual(['pending:session-b', 'delete', 'select', 'clear']))
+    expect(setActiveSessionId).toHaveBeenCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
+  })
+
+  it('keeps a genuine user selection and its draft when permanent delete settles later', async () => {
+    const events: string[] = []
+    const commitDiscard = vi.fn()
+    const onLocalPermanentDeletePendingChange = (id: string | null) => {
+      events.push(id === null ? 'clear' : `pending:${id}`)
+    }
+    let finishDelete: () => void = () => undefined
+    sessionDataMocks.deleteSessionWithOutcome.mockImplementation(
+      (_id, options?: { onDeleted?: () => void }) =>
+        new Promise((resolve) => {
+          finishDelete = () => {
+            options?.onDeleted?.()
+            resolve({ status: 'succeeded' })
+          }
+        })
+    )
+    fileNavigationMocks.request = (transition, options) => {
+      expect(options).toEqual({ deferDraftDisposal: true })
+      void transition({ commitDiscard })
+    }
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await params.action()
+      return true
+    })
+    const setActiveSessionId = vi.fn()
+    crossWorkspaceSessions()
+    const view = render(
+      <SessionsForTest
+        activeSessionId="session-b"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+
+    await openPermanentDelete('Beta session')
+    await vi.waitFor(() => expect(events).toEqual(['pending:session-b']))
+    view.rerender(
+      <SessionsForTest
+        activeSessionId="session-a"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+    finishDelete()
+    await vi.waitFor(() => expect(events).toEqual(['pending:session-b', 'clear']))
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+  })
+
+  it('clears the pending delete and keeps the draft when permanent delete fails or is stale', async () => {
+    const pending: Array<string | null> = []
+    const commitDiscard = vi.fn()
+    const onLocalPermanentDeletePendingChange = (id: string | null) => {
+      pending.push(id)
+    }
+    fileNavigationMocks.request = (transition, options) => {
+      expect(options).toEqual({ deferDraftDisposal: true })
+      void transition({ commitDiscard })
+    }
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'failed', error: 'disk locked' })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('disk locked')
+      return false
+    })
+    const setActiveSessionId = vi.fn()
+    crossWorkspaceSessions()
+    render(
+      <SessionsForTest
+        activeSessionId="session-b"
+        setActiveSessionId={setActiveSessionId}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+      />
+    )
+
+    await openPermanentDelete('Beta session')
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(pending).toEqual(['session-b', null])
+
+    pending.length = 0
+    sessionDataMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'stale' })
+    permanentDeletePopupMocks.show.mockImplementation(async (params: { action: () => Promise<void> }) => {
+      await expect(params.action()).rejects.toThrow('recycle_bin.delete.stale')
+      return false
+    })
+    await openPermanentDelete('Beta session')
+    expect(commitDiscard).not.toHaveBeenCalled()
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(pending).toEqual(['session-b', null])
+  })
+
   it('keeps the deferred draft when permanent delete fails, is stale, or the user selects another session', async () => {
     const commitDiscard = vi.fn()
     let navigationSettled = Promise.resolve()
