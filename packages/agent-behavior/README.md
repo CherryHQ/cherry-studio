@@ -240,7 +240,7 @@ coding-agent: `<sessionId>:<toolCallId>`), so a call, its result and the host's 
 the case `a tool call and its result read back under the gate's call key` asserts it. Two mappings are easy to miss:
 
 - Durable records a call the gate blocked as a tool result whose text is `Tool call blocked: <reason>`. Project it as a
-  `tool-result` with `isError: true` and `blocked: '<reason>'`; the gate cases assert `blocked`.
+  `tool-result` with `isError: true` and that text; the gate cases look for the reason in it.
 - coding-agent stores markers as `custom_message` entries and records as `custom` entries. Pass `customType` as
   `RawEntry.kind`; for a `custom_message`, `details` as `RawEntry.data` and the text of `content` as `RawEntry.text`;
   for a `custom` entry, its `data` as `RawEntry.data`.

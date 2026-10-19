@@ -54,9 +54,11 @@ export interface RunHost {
 /** What dead-epoch work awaits: a crashed process never answers. */
 export const never = <T>(): Promise<T> => new Promise<T>(() => {})
 
-type ToolResult = ToolResultFact & { readonly blocked?: string }
-const ABORTED: ToolResult = { isError: true, text: 'Tool call aborted' }
-const INTERRUPTED: ToolResult = { isError: true, text: 'Tool call interrupted by a restart and may have partially run' }
+const ABORTED: ToolResultFact = { isError: true, text: 'Tool call aborted' }
+const INTERRUPTED: ToolResultFact = {
+  isError: true,
+  text: 'Tool call interrupted by a restart and may have partially run'
+}
 const LIVE = { completed: 'completed', failed: 'error', limit_reached: 'error', aborted: 'aborted' } as const
 
 /** H2 admission: a repeated key returns its first answer; while a run is active, 'busy' and nothing recorded. */
@@ -266,7 +268,7 @@ async function callTool(
   loop: Loop,
   call: ToolCallFact,
   replaying: boolean
-): Promise<ToolResult> {
+): Promise<ToolResultFact> {
   const key = call.callKey
   const intent = replaying ? host.state.intents.get(key) : undefined
   if (intent?.replay === 'unsafe') return INTERRUPTED
@@ -284,8 +286,7 @@ async function callTool(
       loop.window.push(call)
       const verdict: GateVerdict = (await epoch.gate?.before(gated, gateFacts(thread, loop.window), scope.ports)) ?? {}
       if (!host.alive(epoch)) return never()
-      if (verdict.block !== undefined)
-        return { isError: true, blocked: verdict.block, text: `Tool call blocked: ${verdict.block}` }
+      if (verdict.block !== undefined) return { isError: true, text: `Tool call blocked: ${verdict.block}` }
       if (verdict.args !== undefined) gated = { ...gated, args: verdict.args }
     }
     const found = epoch.tools.get(call.name)
@@ -351,7 +352,7 @@ function placeSteer(state: FakeState, thread: ThreadState): boolean {
   return keys.length > 0
 }
 
-const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResult): HistoryEntry => ({
+const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResultFact): HistoryEntry => ({
   kind: 'tool-result',
   id,
   callId: call.callId,

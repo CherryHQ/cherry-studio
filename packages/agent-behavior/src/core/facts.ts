@@ -171,7 +171,6 @@ export type HistoryEntry =
       readonly callKey: CallKey
       readonly tool: string
       readonly isError: boolean
-      readonly blocked?: string
       readonly details?: JsonValue
       readonly text: string
     }
