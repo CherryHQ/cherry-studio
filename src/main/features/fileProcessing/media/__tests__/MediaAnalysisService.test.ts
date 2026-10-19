@@ -232,6 +232,57 @@ describe('MediaAnalysisService', () => {
     )
   })
 
+  it('retains completed speech when a later audio chunk fails and retries the analysis', async () => {
+    runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
+      const firstPath = join(outputDir, 'first.wav')
+      const secondPath = join(outputDir, 'second.wav')
+      await writeFile(firstPath, Buffer.from('RIFF-first'))
+      await writeFile(secondPath, Buffer.from('RIFF-second'))
+      return {
+        chunks: [
+          { path: firstPath, startMs: 0, endMs: 5_000, byteLength: 10 },
+          { path: secondPath, startMs: 5_000, endMs: 10_000, byteLength: 11 }
+        ],
+        sampleRateHz: 16000,
+        channels: 1
+      }
+    })
+    runtime.transcribe
+      .mockResolvedValueOnce({
+        text: 'first phrase',
+        segments: [{ text: 'first phrase', startSecond: 1, endSecond: 2 }]
+      })
+      .mockRejectedValueOnce(new Error('second chunk failed'))
+
+    const analysis = await service.analyze(file)
+    expect(analysis.audio?.segments).toEqual([{ startMs: 1_000, endMs: 2_000, text: 'first phrase' }])
+    expect(analysis.warnings).toContain('audio_transcription_failed')
+    expect(runtime.cache.size).toBe(0)
+
+    await service.analyze(file)
+    expect(runtime.extractAudio).toHaveBeenCalledTimes(2)
+  })
+
+  it('retains completed speech when a later chunk cannot be read', async () => {
+    runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
+      const firstPath = join(outputDir, 'first.wav')
+      await writeFile(firstPath, Buffer.from('RIFF-first'))
+      return {
+        chunks: [
+          { path: firstPath, startMs: 0, endMs: 5_000, byteLength: 10 },
+          { path: join(outputDir, 'missing.wav'), startMs: 5_000, endMs: 10_000, byteLength: 10 }
+        ],
+        sampleRateHz: 16000,
+        channels: 1
+      }
+    })
+
+    const analysis = await service.analyze(file)
+    expect(analysis.audio?.segments).toEqual([{ startMs: 1_000, endMs: 2_000, text: 'hello' }])
+    expect(analysis.warnings).toContain('audio_transcription_failed')
+    expect(runtime.cache.size).toBe(0)
+  })
+
   it('keeps useful video OCR when no ASR model is configured', async () => {
     runtime.config = {
       ...runtime.config,
