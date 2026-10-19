@@ -177,6 +177,22 @@ describe('shared artifact acquisition', () => {
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toContain('registry.npmmirror.com')
   })
 
+  it('installs a scoped package from its registry tarball URL', async () => {
+    const artifact = {
+      ...FIXTURE_ARTIFACT,
+      platforms: {
+        'linux-x64': { ...FIXTURE_ARTIFACT.platforms['linux-x64'], packageName: '@scope/runtime-linux-x64' }
+      }
+    }
+
+    await installArtifact(artifact, new AbortController().signal, undefined, ['npmjs', 'npmmirror'])
+
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toBe(
+      'https://registry.npmjs.org/@scope/runtime-linux-x64/-/runtime-linux-x64-1.25.1.tgz'
+    )
+    expect(fs.readFileSync(artifactEntryPath(artifact), 'utf8')).toBe('binding')
+  })
+
   it('maps source preference to registry order once', () => {
     expect(artifactRegistryOrder('china-first')).toEqual(['npmmirror', 'npmjs'])
     expect(artifactRegistryOrder('global-first')).toEqual(['npmjs', 'npmmirror'])

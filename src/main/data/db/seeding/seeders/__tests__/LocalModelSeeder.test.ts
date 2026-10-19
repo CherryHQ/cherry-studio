@@ -12,6 +12,7 @@ import {
   LOCAL_EMBEDDING_PROVIDER_NAME,
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
+import { LOCAL_LLM_PROVIDER_ID, localLlmUniqueModelId } from '@shared/data/presets/localLlm'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 describe('LocalModelSeeder', () => {
@@ -79,5 +80,46 @@ describe('LocalModelSeeder', () => {
       .from(userModelTable)
       .where(eq(userModelTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID))
     expect(models).toHaveLength(1)
+  })
+
+  it('lists local chat models disabled until they are installed', async () => {
+    new LocalModelSeeder().run(dbh.db)
+
+    const [model] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, localLlmUniqueModelId('qwen3.5-4b-q4_k_m')))
+    expect(model).toMatchObject({ providerId: LOCAL_LLM_PROVIDER_ID, isEnabled: false, supportsStreaming: true })
+  })
+
+  it('keeps an installed local chat model enabled when it seeds again', async () => {
+    const seeder = new LocalModelSeeder()
+    seeder.run(dbh.db)
+    const id = localLlmUniqueModelId('qwen3.5-4b-q4_k_m')
+    await dbh.db.update(userModelTable).set({ isEnabled: true }).where(eq(userModelTable.id, id))
+
+    seeder.run(dbh.db)
+
+    const [model] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, id))
+    expect(model.isEnabled).toBe(true)
+  })
+
+  it('gives a chat model row from an earlier release the current tool support, reasoning toggle and context window', async () => {
+    const seeder = new LocalModelSeeder()
+    seeder.run(dbh.db)
+    const id = localLlmUniqueModelId('qwen3.5-4b-q4_k_m')
+    await dbh.db
+      .update(userModelTable)
+      .set({ capabilities: [], reasoning: null, contextWindow: 32_768 })
+      .where(eq(userModelTable.id, id))
+
+    seeder.run(dbh.db)
+
+    const [model] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, id))
+    expect(model.capabilities).toEqual(
+      expect.arrayContaining([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING])
+    )
+    expect(model.reasoning).toEqual({ controls: [{ kind: 'toggle', default: false }] })
+    expect(model.contextWindow).toBe(65_536)
   })
 })

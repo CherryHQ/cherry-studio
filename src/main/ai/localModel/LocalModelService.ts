@@ -1,3 +1,5 @@
+import os from 'node:os'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -10,6 +12,7 @@ import type {
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
 import { capabilityHooksFor } from './capabilities/capabilityHooks'
+import { chatModelMemoryFit } from './capabilities/llm/memoryFit'
 import { ALL_MODEL_BUNDLE_IDS, defaultBundleForCapability, getModelBundle } from './catalog/catalog'
 import type { SharedArtifactId } from './catalog/types'
 import { BundleInstaller, type ResolveDownloadSourcePreference } from './installation/BundleInstaller'
@@ -46,12 +49,31 @@ export class LocalModelService extends BaseService {
     }
   }
 
+  protected async onAllReady(): Promise<void> {
+    // Files may have been added or deleted while the app was closed.
+    await Promise.all(ALL_MODEL_BUNDLE_IDS.map((id) => this.installerFor(id).syncInstallState()))
+  }
+
   protected async onStop(): Promise<void> {
     await Promise.all(ALL_MODEL_BUNDLE_IDS.map((id) => this.installerFor(id).settle()))
   }
 
-  listModels(): Array<{ id: LocalModelBundleId; capability: LocalModelCapability }> {
-    return ALL_MODEL_BUNDLE_IDS.map((id) => ({ id, capability: getModelBundle(id).capability }))
+  listModels() {
+    const totalMemoryBytes = os.totalmem()
+    return ALL_MODEL_BUNDLE_IDS.map((id) => {
+      const { capability, runtime } = getModelBundle(id)
+      const chat = runtime?.chat
+      if (!chat) return { id, capability }
+      return {
+        id,
+        capability,
+        memory: {
+          bytes: chat.memoryBytes.maxContext,
+          contextSize: chat.maxContextSize,
+          fit: chatModelMemoryFit(chat, totalMemoryBytes)
+        }
+      }
+    })
   }
 
   refreshStatus(id: LocalModelBundleId): ReturnType<BundleInstaller['getStatusInfo']> {

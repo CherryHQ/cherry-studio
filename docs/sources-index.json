@@ -79,7 +79,7 @@
     },
     {
       "path": "docs/references/ai/local-models.md",
-      "sources": ["src/main/ai/localModel","src/renderer/hooks/useLocalModel.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/presets/localModel.ts","src/shared/ipc/schemas/localModel.ts"]
+      "sources": ["src/main/ai/localModel","src/main/ai/provider/custom/localLlm","src/renderer/hooks/useLocalModel.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/presets/localLlm.ts","src/shared/data/presets/localModel.ts","src/shared/ipc/schemas/localModel.ts"]
     },
     {
       "path": "docs/references/ai/model-retry.md",

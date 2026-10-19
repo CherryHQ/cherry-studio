@@ -192,6 +192,49 @@ export const SHARED_ARTIFACTS = {
         ]
       }
     }
+  },
+  /** llama.cpp prebuilt binaries for the `node-llama-cpp` JS loader (patched via
+   * patches/node-llama-cpp@3.22.1.patch to read `CHERRY_NODE_LLAMA_CPP_BINS_DIR`). The loader
+   * looks for `<binsDir>/<folder>/llama-addon.node`, so `installSubdir` must end in the
+   * package's own bins folder name. `version` must match package.json's pin. */
+  'node-llama-cpp': {
+    id: 'node-llama-cpp',
+    version: '3.22.1',
+    // Every prebuilt binary is linked with LC_BUILD_VERSION minos 14.0.
+    minimumMacOS: '14.0',
+    installDirKey: 'feature.llama_cpp.binary',
+    provenance: {
+      license: {
+        spdx: 'MIT',
+        url: 'https://github.com/withcatai/node-llama-cpp/blob/0ad4a867b05f35def42ffc84d501e9a55077b531/LICENSE'
+      },
+      upstream: {
+        url: 'https://github.com/withcatai/node-llama-cpp',
+        revision: '0ad4a867b05f35def42ffc84d501e9a55077b531'
+      }
+    },
+    // macOS Apple Silicon only for now; Windows/Linux need their CUDA/Vulkan/CPU variant rules.
+    platforms: {
+      'darwin-arm64': {
+        packageName: '@node-llama-cpp/mac-arm64-metal',
+        tarballSha256: '6315f36a1af49e83a7535cdccffe2e633b70119e3ab96871853849efc9be9a93',
+        tarballPrefix: 'package/bins/mac-arm64-metal/',
+        installSubdir: '3.22.1/mac-arm64-metal',
+        entryFile: 'llama-addon.node',
+        supportFiles: [
+          '_nlcBuildMetadata.json',
+          'libggml-base.dylib',
+          'libggml-blas.so',
+          'libggml-cpu-apple_m1.so',
+          'libggml-cpu-apple_m2_m3.so',
+          'libggml-cpu-apple_m4.so',
+          'libggml-metal.so',
+          'libggml.metal.v0.5.0.dylib',
+          'libllama-common.dylib',
+          'libllama.metal.v0.5.0.dylib'
+        ]
+      }
+    }
   }
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 
@@ -573,6 +616,129 @@ export const LOCAL_MODEL_BUNDLES = {
             repo: 'csukuangfj/vad',
             revision: 'fba88cd2e921609e7675c3aaf51e0b9b295da4bc',
             remoteFile: 'silero_vad.onnx'
+          }
+        ]
+      }
+    ]
+  },
+  'qwen3.5-4b-q4_k_m': {
+    id: 'qwen3.5-4b-q4_k_m',
+    capability: 'llm',
+    installDirKey: 'feature.llm.qwen3_5_4b',
+    requires: ['node-llama-cpp'],
+    runtime: {
+      chat: {
+        maxContextSize: 65_536,
+        // Thinking-mode general settings from the Qwen3.5 model card.
+        sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 },
+        memoryBytes: { maxContext: 6_187_757_632, minContext: 4_129_402_944 }
+      }
+    },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: 'https://huggingface.co/Qwen/Qwen3.5-4B/blob/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/LICENSE'
+      },
+      upstream: {
+        url: 'https://huggingface.co/Qwen/Qwen3.5-4B',
+        revision: '851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a'
+      },
+      conversion: {
+        url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF',
+        revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
+        license: {
+          spdx: 'Apache-2.0',
+          url: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/tree/e87f176479d0855a907a41277aca2f8ee7a09523'
+        }
+      }
+    },
+    files: [
+      {
+        key: 'weights',
+        relPath: 'Qwen3.5-4B-Q4_K_M.gguf',
+        sha256: '00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4',
+        sizeBytes: 2_740_937_888,
+        minBytes: 2_740_937_888,
+        weight: 2741,
+        sources: [
+          {
+            source: 'modelscope',
+            repo: 'unsloth/Qwen3.5-4B-GGUF',
+            revision: '167b4afc359863325cb4164418c715421b4e9118',
+            remoteFile: 'Qwen3.5-4B-Q4_K_M.gguf'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'unsloth/Qwen3.5-4B-GGUF',
+            revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
+            remoteFile: 'Qwen3.5-4B-Q4_K_M.gguf'
+          },
+          {
+            source: 'huggingface',
+            repo: 'unsloth/Qwen3.5-4B-GGUF',
+            revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
+            remoteFile: 'Qwen3.5-4B-Q4_K_M.gguf'
+          }
+        ]
+      }
+    ]
+  },
+  'qwen3.5-9b-q4_k_m': {
+    id: 'qwen3.5-9b-q4_k_m',
+    capability: 'llm',
+    installDirKey: 'feature.llm.qwen3_5_9b',
+    requires: ['node-llama-cpp'],
+    runtime: {
+      chat: {
+        maxContextSize: 65_536,
+        sampling: { temperature: 1, topP: 0.95, topK: 20, presencePenalty: 1.5 },
+        memoryBytes: { maxContext: 9_135_007_808, minContext: 7_138_519_104 }
+      }
+    },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: 'https://huggingface.co/Qwen/Qwen3.5-9B/blob/c202236235762e1c871ad0ccb60c8ee5ba337b9a/LICENSE'
+      },
+      upstream: {
+        url: 'https://huggingface.co/Qwen/Qwen3.5-9B',
+        revision: 'c202236235762e1c871ad0ccb60c8ee5ba337b9a'
+      },
+      conversion: {
+        url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF',
+        revision: '3885219b6810b007914f3a7950a8d1b469d598a5',
+        license: {
+          spdx: 'Apache-2.0',
+          url: 'https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/tree/3885219b6810b007914f3a7950a8d1b469d598a5'
+        }
+      }
+    },
+    files: [
+      {
+        key: 'weights',
+        relPath: 'Qwen3.5-9B-Q4_K_M.gguf',
+        sha256: '03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8',
+        sizeBytes: 5_680_522_464,
+        minBytes: 5_680_522_464,
+        weight: 5681,
+        sources: [
+          {
+            source: 'modelscope',
+            repo: 'unsloth/Qwen3.5-9B-GGUF',
+            revision: 'ae90f0d1c1be2b9250b0ef68265615f6fe3c777b',
+            remoteFile: 'Qwen3.5-9B-Q4_K_M.gguf'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'unsloth/Qwen3.5-9B-GGUF',
+            revision: '3885219b6810b007914f3a7950a8d1b469d598a5',
+            remoteFile: 'Qwen3.5-9B-Q4_K_M.gguf'
+          },
+          {
+            source: 'huggingface',
+            repo: 'unsloth/Qwen3.5-9B-GGUF',
+            revision: '3885219b6810b007914f3a7950a8d1b469d598a5',
+            remoteFile: 'Qwen3.5-9B-Q4_K_M.gguf'
           }
         ]
       }

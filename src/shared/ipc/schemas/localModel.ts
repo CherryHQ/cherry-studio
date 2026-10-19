@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import {
+  LOCAL_CHAT_MODEL_FITS,
   LOCAL_MODEL_BUNDLE_IDS,
   LOCAL_MODEL_CAPABILITIES,
   LOCAL_MODEL_DOWNLOAD_RESULTS,
@@ -29,11 +30,20 @@ export const localModelRequestSchemas = {
     output: z.object({ supported: z.boolean() })
   }),
   // Everything installable, in catalog order. `capability` is what the cards render
-  // their name/icon from, so a new bundle needs no component change.
+  // their name/icon from, so a new bundle needs no component change. Chat models add the
+  // estimated memory for their full context and how that fits this machine.
   'local_model.list': defineRoute({
     input: z.void(),
     output: z.object({
-      models: z.array(z.object({ id: z.enum(LOCAL_MODEL_BUNDLE_IDS), capability: z.enum(LOCAL_MODEL_CAPABILITIES) }))
+      models: z.array(
+        z.object({
+          id: z.enum(LOCAL_MODEL_BUNDLE_IDS),
+          capability: z.enum(LOCAL_MODEL_CAPABILITIES),
+          memory: z
+            .object({ bytes: z.number(), contextSize: z.number(), fit: z.enum(LOCAL_CHAT_MODEL_FITS) })
+            .optional()
+        })
+      )
     })
   }),
   // `errorCode` is present exactly when `status` is 'error' and says why (failed

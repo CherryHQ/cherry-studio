@@ -316,6 +316,47 @@ describe('LocalModelsSection', () => {
     )
   })
 
+  it('groups cards by what they are for and drops a group this platform cannot run', async () => {
+    const chat = 'qwen3.5-4b-q4_k_m'
+    mockRequest.mockImplementation(async (route) => {
+      if (route === 'local_model.list') return { models: [...LISTED_MODELS.models, { id: chat, capability: 'llm' }] }
+      return undefined
+    })
+    publishLocalModelStatus(chat, { status: 'unsupported', percent: 0 })
+
+    render(<LocalModelsSection />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'settings.dependencies.localModels.group.embedding' })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'settings.dependencies.localModels.group.ocr' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'settings.dependencies.localModels.group.llm' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('labels a chat model with how its memory need fits this machine', async () => {
+    const chat = 'qwen3.5-9b-q4_k_m'
+    mockRequest.mockImplementation(async (route) => {
+      if (route !== 'local_model.list') return undefined
+      return {
+        models: [
+          { id: EMBEDDING, capability: 'embedding' },
+          { id: chat, capability: 'llm', memory: { bytes: 9_135_007_808, contextSize: 65_536, fit: 'runnable' } }
+        ]
+      }
+    })
+
+    render(<LocalModelsSection />)
+
+    const [embedding, chatCard] = await screen.findAllByRole('listitem')
+    expect(within(chatCard).getByText('settings.dependencies.localModels.fit.runnable')).toBeInTheDocument()
+    expect(within(chatCard).getByText('settings.dependencies.localModels.memory')).toBeInTheDocument()
+    expect(within(embedding).queryByText(/settings\.dependencies\.localModels\.fit\./)).not.toBeInTheDocument()
+  })
+
   it('hides unsupported model downloads while retaining the supported ASR card', async () => {
     mockRequest.mockImplementation(async (route) => {
       if (route === 'local_model.list')

@@ -5,13 +5,16 @@ sources:
   - src/renderer/hooks/useLocalModel.ts
   - src/shared/data/cache/cacheSchemas.ts
   - src/shared/data/presets/localModel.ts
+  - src/shared/data/presets/localLlm.ts
+  - src/main/ai/provider/custom/localLlm
   - src/shared/ipc/schemas/localModel.ts
 ---
 
 # Local Models
 
-Cherry Studio can run four model capabilities on the user's own machine: knowledge-base
-embedding, PaddleOCR text recognition, FunASR Nano speech recognition, and speech synthesis with Qwen3-TTS or Kokoro. Their model
+Cherry Studio can run five model capabilities on the user's own machine: knowledge-base
+embedding, PaddleOCR text recognition, FunASR Nano speech recognition, speech synthesis with Qwen3-TTS or Kokoro,
+and chat with Qwen3.5 through node-llama-cpp (Apple Silicon only for now). Their model
 bundles and required native runtimes are fetched on demand rather than shipped in the installer.
 
 One module owns the whole path: what can be installed, how bytes get onto disk safely,
@@ -45,7 +48,8 @@ src/main/ai/localModel/
     ├── capabilityHooks.ts         ← removal behavior keyed by capability
     ├── embedding/                 ← facade, protocol, pooling, model paths, limits
     ├── ocr/                       ← facade, protocol, model paths
-    └── asr/                       ← facade, protocol, FunASR model paths
+    ├── asr/                       ← facade, protocol, FunASR model paths
+    └── llm/                       ← chat facade and protocol (node-llama-cpp)
 ```
 
 ## The catalog is the only per-model code
@@ -89,7 +93,7 @@ This metadata is for auditability; `repo` or `sources` still own the actual down
 Two words, deliberately distinct, both declared in `src/shared/data/presets/localModel.ts`
 so the renderer can speak them too:
 
-- A **capability** classifies models (`embedding`, `ocr`, `asr`, `tts`). It does not identify an installation.
+- A **capability** classifies models (`embedding`, `ocr`, `asr`, `tts`, `llm`). It does not identify an installation.
 - A **bundle id** identifies the exact model files/format/quantization a user installs.
   Status, download, cancellation, removal and inference preserve this identity.
 
@@ -214,7 +218,8 @@ weighted progress scale. Two consequences worth keeping:
 
 What a capability contributes is narrow, and only what the generic installation layer cannot know:
 refusing removal while the model is still referenced, releasing the inference worker around
-the delete, and any housekeeping once the files are gone.
+the delete, any housekeeping once the files are gone, and mirroring the install state into
+data that should exist only while the model is installed (`syncInstallState`).
 
 ## Removal
 
@@ -309,7 +314,7 @@ Commands use one generic IPC surface (`local_model.*`), addressed by bundle id:
 
 | Route | Purpose |
 |---|---|
-| `list` | Everything installable, with each bundle's capability |
+| `list` | Everything installable, with each bundle's capability (and a chat model's memory fit) |
 | `get_status` / `download` / `cancel` / `remove` | That bundle's lifecycle |
 | `get_acceleration_capability` | Whether this platform has a hardware provider |
 
@@ -323,8 +328,8 @@ The renderer observes the map with the read-only `useSharedCacheValue` hook. On 
 snapshot; it ignores the response body. Disk remains the durable fact, Shared Cache is the
 cross-window projection, and an old RPC completion has no renderer state to overwrite.
 
-The settings cards render from `list`, one card per capability bundle, with name and subtitle
-read from the capability's i18n keys. Shipping a new capability therefore needs no new route
+The settings cards render from `list`, one card per bundle grouped under its capability, with
+name and subtitle read from the capability's i18n keys. Shipping a new capability therefore needs no new route
 or handler, but does require the catalog, shared vocabulary and presentation described below.
 
 ## Adding a model
@@ -347,13 +352,68 @@ The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
 rather than on a user's machine.
 
+## Local chat
+
+Chat models run in their own `inference.llm` utility process through node-llama-cpp. Its native
+binaries are the `node-llama-cpp` shared artifact (the npm `@node-llama-cpp/<platform>` package);
+the JS package is an app dependency patched to load them from the artifact directory. Only
+`darwin-arm64` (Metal) ships today, on macOS 14 or later (the minimum its binaries are linked
+for); other platforms need their CUDA/Vulkan/CPU variant rules first.
+
+The process differs from the other capabilities because a chat model is large and conversations
+are long:
+
+- The model stays loaded; cancellation is **cooperative** (generation stops at its next token)
+  and the process idles out after 10 minutes instead of 60 seconds, so an agent paused on a tool
+  call does not reload the weights.
+- Each request carries its full history and reuses the shared context sequence; there is no
+  per-conversation state in the process, so independent conversations can alternate.
+- Qwen3.5 is a hybrid model whose state cannot be rewound token by token, so reuse depends on the
+  checkpoint LlamaChat takes just before each reply's thought segment. Thinking is therefore turned
+  off with a zero thought budget, not with a template that drops the thought block: the next turn
+  then resumes from that checkpoint instead of re-reading the whole prompt.
+- Text and reasoning deltas stream back as events. Thinking follows the model's reasoning toggle
+  (`reasoningEffort` in the provider options) and stays off when nothing is selected.
+- Tools reach node-llama-cpp as grammar-constrained functions. `toolSchema.ts` rewrites each JSON
+  Schema into the subset its grammar compiles (`anyOf` → `oneOf`, untyped → any value, referenced
+  `allOf` parts merged, …), since unknown shapes otherwise compile to `null`. The grammar requires
+  every declared property, so an optional one also accepts `null`, and those nulls are removed
+  before the call reaches the tool. Tool results attach to their call in the model turn.
+- The context grows to 64k tokens. A prompt that still does not fit fails as a non-retryable
+  `400`, so retry layers and agents stop instead of resending it.
+
+The catalog ships Qwen3.5 4B and 9B (Q4_K_M). Each chat bundle records `memoryBytes`: what the
+weights plus context need at its full context and at 8k, estimated once with node-llama-cpp's
+`GgufInsights` (`configurationResolver.resolveAndScoreConfig({ targetContextSize })`) for the
+pinned file on Metal, so it must be re-measured when the weights change. `list` compares it with
+`os.totalmem()` (`capabilities/llm/memoryFit.ts`). Memory is shared with the GPU and the rest of
+the system, so a model is **recommended** when its full context fits in half of memory, and
+**runnable** when an 8k context fits in about two thirds (llama.cpp then shrinks the context to
+what fits); otherwise it is **not recommended**. The fit says nothing about speed or answer
+quality.
+
+| Model | Full 64k context | 8k context | 8 GB | 16 GB | 24 GB+ |
+|---|---|---|---|---|---|
+| 4B | 5.8 GB | 3.8 GB | runnable | recommended | recommended |
+| 9B | 8.5 GB | 6.6 GB | not recommended | runnable | recommended |
+
+The AI SDK side is the `local-llm` provider (`provider/custom/localLlm`), separate from
+`local-embedding`. The seeder creates its provider row and one model row per chat bundle, with
+the bundle id as `modelId`. Rows start **disabled**: the `llm` capability's `syncInstallState`
+enables a row once the bundle is installed and disables it after removal, and
+`LocalModelService` re-syncs from disk at startup. The files on disk remain the install state;
+the row only decides whether the model selector lists the model.
+
 ## Known limits
 
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
-- No streaming inference. Every request is one round trip with a complete result; a
-  transcription capability that wants partial output would add a response frame type.
+- No streaming inference outside chat. Other requests are one round trip with a complete result.
+- Local chat is text-only.
+- Switching to another conversation re-reads its whole prompt. An agent's prompt is about 35k
+  tokens, roughly a minute or two on Apple Silicon; later turns in the same conversation resume
+  in seconds.
 
 
 ## Downloadable Qwen3-TTS

@@ -50,6 +50,9 @@ export interface CapabilityHooks {
   /** Housekeeping once the files are gone — e.g. clearing a preference that points at
    * the model, which would otherwise strand every consumer on an unavailable engine. */
   afterRemove?: () => Promise<void>
+  /** Mirror whether the bundle is installed into state that exists only for installed models
+   * (a model-selector row). Runs after a download completes, after removal, and at startup. */
+  syncInstallState?: (installed: boolean) => Promise<void>
 }
 
 /**
@@ -187,6 +190,8 @@ export class BundleInstaller {
       await this.runSharedArtifactFinalizer()
     }
 
+    if (outcome.kind === 'result' && outcome.result === 'ready') await this.syncInstallState(true)
+
     if (this.attempt?.controller === controller) this.attempt = null
     this.publishStatus(outcome.terminal)
     if (outcome.kind === 'error') throw outcome.error
@@ -306,6 +311,17 @@ export class BundleInstaller {
     }
   }
 
+  /** Without `installed`, reads it from disk. Never throws: the files stay the install state. */
+  async syncInstallState(installed?: boolean): Promise<void> {
+    const sync = this.hooks.syncInstallState
+    if (!sync) return
+    try {
+      await sync(installed ?? this.getStatus() === 'ready')
+    } catch (error) {
+      logger.warn('failed to sync local model install state', { bundle: this.bundle.id, error: String(error) })
+    }
+  }
+
   /**
    * Delete the bundle's files. Returns whether they were actually removed — a capability
    * may refuse while the model is still in use.
@@ -332,6 +348,7 @@ export class BundleInstaller {
       const root = localModelStorageService.bundleRootDir(this.bundle)
       await this.hooks.terminateRuntimeThen(() => fs.promises.rm(root, { recursive: true, force: true }))
       await this.hooks.afterRemove?.()
+      await this.syncInstallState(false)
       await this.runSharedArtifactFinalizer()
       this.publishStatus({ status: 'not_downloaded', percent: 0 })
       return { removed: true }

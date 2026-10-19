@@ -16,6 +16,7 @@ import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/pr
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
+import { LOCAL_LLM_PROVIDER_ID } from '@shared/data/presets/localLlm'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -242,6 +243,15 @@ export async function resolveProviderAiSdkConfig(
       match: (p) => p.id === LOCAL_EMBEDDING_PROVIDER_ID,
       build: withoutCredential((ctx) => ({
         providerId: LOCAL_EMBEDDING_PROVIDER_ID,
+        endpoint: ctx.endpoint,
+        providerSettings: {}
+      }))
+    },
+    // Local chat runs in the `inference.llm` utility process, so it has no endpoint either.
+    {
+      match: (p) => p.id === LOCAL_LLM_PROVIDER_ID,
+      build: withoutCredential((ctx) => ({
+        providerId: LOCAL_LLM_PROVIDER_ID,
         endpoint: ctx.endpoint,
         providerSettings: {}
       }))

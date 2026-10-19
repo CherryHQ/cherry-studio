@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+
+import { describe, expect, it, vi } from 'vitest'
 
 import { FUNASR_SUPPORTED_PLATFORM_KEYS } from '@shared/ai/localVoice'
 import {
@@ -7,6 +9,7 @@ import {
   LOCAL_MODEL_CAPABILITIES
 } from '@shared/data/presets/localModel'
 
+import { isArtifactSupported } from '../../acquisition/tarballArtifact'
 import {
   ALL_MODEL_BUNDLE_IDS,
   bundleDtype,
@@ -151,6 +154,43 @@ describe('local model catalog', () => {
         'sherpa-onnx-cxx-api.dll'
       ])
     })
+  })
+
+  it('downloads node-llama-cpp binaries built for the JS loader the app ships', () => {
+    const appPackage = JSON.parse(readFileSync(new URL('../../../../../../package.json', import.meta.url), 'utf8'))
+
+    expect(SHARED_ARTIFACTS['node-llama-cpp'].version).toBe(appPackage.dependencies['node-llama-cpp'])
+  })
+
+  it('installs node-llama-cpp binaries under the folder name its loader looks up', () => {
+    for (const files of Object.values(SHARED_ARTIFACTS['node-llama-cpp'].platforms)) {
+      const packageFolder = files.tarballPrefix.split('/').filter(Boolean).pop()
+      expect(files.installSubdir.split('/').pop()).toBe(packageFolder)
+      expect(files.entryFile).toBe('llama-addon.node')
+      expect(files.supportFiles).toContain('_nlcBuildMetadata.json')
+    }
+  })
+
+  it('does not offer the node-llama-cpp runtime on a macOS release its binaries cannot load', () => {
+    const onMac = (version: string) =>
+      vi.stubGlobal('process', { ...process, platform: 'darwin', arch: 'arm64', getSystemVersion: () => version })
+
+    onMac('13.6.1')
+    expect(isArtifactSupported(SHARED_ARTIFACTS['node-llama-cpp'])).toBe(false)
+    onMac('14.0')
+    expect(isArtifactSupported(SHARED_ARTIFACTS['node-llama-cpp'])).toBe(true)
+    vi.unstubAllGlobals()
+  })
+
+  it('gives every chat model the runtime and weights the llm process loads', () => {
+    const chatBundles = bundles.filter((bundle) => bundle.capability === 'llm')
+
+    expect(chatBundles.length).toBeGreaterThan(0)
+    for (const bundle of chatBundles) {
+      expect(bundle.requires).toContain('node-llama-cpp')
+      expect(bundle.runtime?.chat?.maxContextSize).toBeGreaterThan(0)
+      expect(bundleFile(bundle, 'weights').relPath).toMatch(/\.gguf$/)
+    }
   })
 
   it('throws on an unknown file key rather than yielding an undefined path', () => {
