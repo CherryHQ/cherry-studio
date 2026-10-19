@@ -280,7 +280,8 @@ async function callTool(
         return { isError: true, blocked: verdict.block, text: `Tool call blocked: ${verdict.block}` }
       if (verdict.args !== undefined) gated = { ...gated, args: verdict.args }
     }
-    const tool = epoch.tools.get(call.name)
+    const found = epoch.tools.get(call.name)
+    const tool = thread.lineage.kind === 'subagent' && found?.availability === 'parent-only' ? undefined : found
     if (!tool) return { isError: true, text: `No tool named ${call.name} is registered` }
     host.state.intents.set(key, { args: gated.args, replay: tool.replay })
     const result = await execute(tool, gated, loop.abort.signal, scope.ports)

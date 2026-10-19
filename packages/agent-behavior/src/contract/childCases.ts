@@ -14,7 +14,8 @@ import {
   reply,
   spawnBackground,
   step,
-  toolBase
+  toolBase,
+  toolResults
 } from './fixtures'
 import type { ContractCase } from './harness'
 
@@ -165,6 +166,37 @@ export const childCases: readonly ContractCase[] = [
         (await read(h, t)).children.get(child)?.runUsage,
         [first, usage(23, 9, 0.625)],
         'run usage must sum each run on its own'
+      )
+    }
+  },
+  // Catches an adapter that builds a child's tools by name or not at all, so a 'parent-only' tool runs in the child.
+  {
+    name: 'a parent-only tool runs for the parent and is absent from a spawned child',
+    covers: ['tools.register', 'ledger.transact'],
+    needs: [],
+    async run(open) {
+      const callers: ThreadId[] = []
+      const parentOnly: ToolDefinition = {
+        ...toolBase('parent_only'),
+        availability: 'parent-only',
+        async run(call) {
+          callers.push(call.thread)
+          return { text: 'ran', isError: false }
+        }
+      }
+      const h = await open((p) => p.tools.register(parentOnly))
+      const t = await h.createThread()
+      h.script(t, [callTool('parent_only', {}), reply('parent done')])
+      await h.sendUser(t, 'go')
+      await h.settle()
+      const child = await spawnBackground(h, t, 'c30')
+      h.script(child, [callTool('parent_only', {}), reply('child done')])
+      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c30-msg')))
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c30-msg')))
+      same(callers, [t], 'a parent-only tool must run for the parent and never in a child')
+      check(
+        toolResults(await read(h, child))[0]?.isError === true,
+        'a child calling a parent-only tool must get an error result'
       )
     }
   },
