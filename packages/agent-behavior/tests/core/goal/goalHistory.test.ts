@@ -102,6 +102,14 @@ describe('turns and round stops', () => {
     expect(turnOrigin(history, history[1].id)).toBe('goal-round')
   })
 
+  // Catches a second notion of what starts a turn: a quiet result written while idle would turn the person's finished
+  // turn into a notification turn, and goal accounting would follow it.
+  it('takes a quiet notification for no turn start', () => {
+    const history = [user(), assistant('x'), marker({ type: 'subagent-notification', runs: [], quiet: true })]
+    expect(turnStarter(history)).toBe('human')
+    expect(turnOrigin(history, history[2].id)).toBe('human')
+  })
+
   // Catches a stop request lost to a later call, or the repeat counter not resetting on a different call (R4).
   it('asks for the latest stop the round shows', () => {
     const same = callTo('read', { path: 'a' })
