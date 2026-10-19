@@ -268,8 +268,8 @@ describe('coding-agent behavior adapter', () => {
     expect(stops).toBe(1)
   })
 
-  // Catches a run another extension starts in an adapter session going unnoticed: it has no input or run of the
-  // adapter's, yet the conversation reads idle and settled() may resolve while it runs.
+  // Catches a run another extension starts going unnoticed: it has no run number or end, so untilRunEnd resolves at
+  // once, and the adapter does not drain at its settle, so input submitted while it runs stays stuck.
   it('reports a run the adapter did not start', async () => {
     let foreign: ExtensionAPI | undefined
     const pi = await openPiHarness(() => {}, [
@@ -355,8 +355,9 @@ describe('coding-agent behavior adapter', () => {
     )
   })
 
-  // Catches one session that fails to dispose leaving the conversations after it unclosed and the harness open.
-  it('closes every conversation when one fails to dispose', async () => {
+  // Catches one session that fails to abort or dispose leaving the others undisposed, the harness open, or a failure
+  // unreported.
+  it('closes every conversation when one fails to abort and dispose', async () => {
     const closed: ThreadId[] = []
     let first = true
     const pi = await openPiHarness(
@@ -372,8 +373,15 @@ describe('coding-agent behavior adapter', () => {
         const native = await open(request)
         if (!first) return native
         first = false
+        const session = new Proxy(native.session, {
+          get: (target, property) =>
+            property === 'abort'
+              ? () => Promise.reject(new Error('abort failed'))
+              : Reflect.get(target, property, target)
+        })
         return {
           ...native,
+          session,
           dispose: async () => {
             await native.dispose()
             throw new Error('dispose failed')
@@ -383,7 +391,12 @@ describe('coding-agent behavior adapter', () => {
     )
     const a = await pi.harness.createThread()
     const b = await pi.harness.createThread()
-    await expect(pi.harness.close()).rejects.toThrow('dispose failed')
+    const failure: unknown = await pi.harness.close().catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).errors.map((error: Error) => error.message)).toEqual([
+      'abort failed',
+      'dispose failed'
+    ])
     expect(new Set(closed)).toEqual(new Set([a, b]))
     await expect(pi.harness.createThread()).rejects.toThrow('closed')
   })

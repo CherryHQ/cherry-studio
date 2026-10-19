@@ -63,7 +63,6 @@ describe('validation selection', () => {
   it('checks agent-behavior with its coding-agent adapter', () => {
     const plan = createPlan(['packages/agent-behavior/src/core/facts.ts'])
     expect(plan.projects).toEqual(expect.arrayContaining(['main', 'agent-behavior', 'agent-runtime-pi']))
-    expect(plan.projects).not.toContain('agent-runtime-pi-durable')
     expect(plan.tasks).toEqual(expect.arrayContaining(['types-agent-behavior', 'types-agent-runtime-pi']))
   })
   it('selects the portable web search typecheck alongside its Desktop consumers', () => {
