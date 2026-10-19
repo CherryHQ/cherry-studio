@@ -20,14 +20,19 @@ one job:
 
 | Directory   | Holds                                                                                    | Rule                                                                                                                                                  |
 | ----------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core/`     | Facts, host facts, entry codecs, `Step` / `TxOp` / `Effect`, key derivation, `sha256Hex` | Synchronous and pure: imports no other layer, has no `async`, `await`, `Promise` or `yield`, and touches no clock, randomness, process, `fetch` or timers. |
+| `core/`     | Facts, host facts, entry codecs, `Step` / `TxOp` / `Effect`, key derivation, `sha256Hex`, and the rule topics `goal/`, `subagents/`, `approval/`, `interaction/`, `context/`, `driver/` | Synchronous and pure: imports no other layer, has no `async`, `await`, `Promise` or `yield`, and touches no clock, randomness, process, `fetch` or timers. |
 | `ports/`    | The harness ports (`harness.ts`) and the host ports (`host.ts`)                          | Interfaces and TSDoc only; imports core types only.                                                                                                   |
 | `fake/`     | `createFakeHarness`, `createScriptedHost`                                                | The in-memory second implementation of the ports.                                                                                                     |
 | `contract/` | `harnessContract` and the `ContractHarness` an adapter implements                        | The cases every harness must pass.                                                                                                                    |
 
-`orchestration/` (the tools, jobs, tool gate and host entry points that run the rules over the ports) and the rule
-functions are added by later PRs. Until then, goal and subagent semantics stay in the
-[agent-runtime-pi README](../agent-runtime-pi/README.md) and move here when the adapters adopt this package.
+The rule functions live in `core/`: each topic folder maps facts to a `Step` or a plain result, synchronously and
+without I/O, and none of them is exported ([The rule core](#the-rule-core) lists them). `orchestration/` (the tools,
+jobs, tool gate and host entry points that run them over the ports) is added by a later PR; until the adapters adopt
+this package, goal and subagent semantics stay in the [agent-runtime-pi README](../agent-runtime-pi/README.md). Three
+pure projections and one constant are exported for adapters and the host: `delegationStatus(record)` gives
+`Delegation.status` for a run record, `turnOrigin(history, item)` names who started the turn an entry belongs to (a
+person, a goal round or a notification), `subagentViews(facts, approvals)` lists the background children as the host
+shows them, and `DEFAULT_MAX_BACKGROUND` is the default of the host's `Settings.maxBackground()`.
 
 `"."` is the only export. Everything an adapter needs comes from `@cherrystudio/agent-behavior`; a deep import such as
 `@cherrystudio/agent-behavior/core/facts` is a lint error (`barrel/closed`). An adapter depends on the package as
@@ -117,8 +122,8 @@ contract cases mint test keys. `keys`, `armSeq`, `idleDriverGeneration` and `nex
 exported: adapters pass keys through unchanged. An adapter restores a call key from its harness with `callKeyOf`,
 which throws `TypeError` for an empty or blank value.
 
-In each format the one free-form id comes first and only colon-free numbers or a hash follow, so ids containing `:`
-stay apart.
+In each format the one free-form id comes first and only colon-free numbers, fixed words or a hash follow, so ids
+containing `:` stay apart.
 
 | Member                                                     | Format                                                                 | Identifies                                                                                                                                            |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -133,9 +138,18 @@ stay apart.
 | `turnStop(requestKey)`                                     | `turn-stop:<requestKey>`                                               | A user stop.                                                                                                                                          |
 | `idleDriver(thread, generation)`                           | `idle-driver:<thread>:g<generation>`                                   | The thread's `idle-driver` job of that generation; `generation` is `idleDriverGeneration(history)`.                                                   |
 | `idleDriverExit(thread, generation)`                       | `idle-driver-exit:<thread>:g<generation>`                              | The exit record that driver writes in the transaction that decides it stops.                                                                          |
-| `subagentReport(runKey)`                                   | `subagent-report:<runKey>`                                             | A run's `subagent-report` job. `runKey` is the new run's spawn key or the continuation's message key, because a spawn's commit has no child id yet.  |
+| `subagentReport(runKey)`                                   | `subagent-report:<runKey>`                                             | A run's `subagent-report` job. `runKey` is the new run's spawn key, an in-place continuation's message key, or a forked continuation's `subagentContinue(call)` key, because a spawning commit has no child id yet. |
 | `approvalMemo(call)`, `askMemo(call)`, `verdictMemo(call)` | `cherry.approval:<call>`, `cherry.ask:<call>`, `cherry.verdict:<call>` | `Memory` names for an approval, an AskUserQuestion answer and a verifier verdict.                                                                     |
 | `summaryMemo(compactionKey)`                               | `cherry.summary:<compactionKey>`                                       | The `Memory` name of a compaction summary.                                                                                                            |
+| `goalCall(call)`                                           | `goal-call:<call>`                                                     | The goal record a goal tool call writes; one per call, so a rerun finds it.                                                                           |
+| `goalCommand(requestKey)`, `goalNotice(requestKey)`        | `goal-cmd:<requestKey>`, `goal-notice:<requestKey>`                    | The goal record and the notice a `/goal` command writes.                                                                                              |
+| `goalStop(goalId, revision, armSeq)`                       | `goal-stop:<goalId>:v<revision>:a<armSeq>`                             | A stop the core decides outside a call (the idle driver, `onOpen`); a stop disarms and bumps the revision.                                            |
+| `goalDisarm(goalId, armSeq)`                               | `goal-disarm:<goalId>:a<armSeq>`                                       | Disarming that arming of the goal when its conversation reopens.                                                                                      |
+| `goalCounts(goalId, revision, progressRounds)`             | `goal-counts:<goalId>:v<revision>:p<progressRounds>`                   | A record that only refreshes the counts a goal shows.                                                                                                 |
+| `subagentSteer(call)`, `subagentContinue(call)`            | `subagent-steer:<call>`, `subagent-continue:<call>`                    | A `message_subagent` call's message to a running child (its request id), and the record of a continuation.                                            |
+| `subagentStop(child, run, by)`                             | `subagent-stop:<child>:<run>:<by>`                                     | The record that the model, the user or the budget stopped that run, written before the child stops.                                                   |
+| `subagentStatus(compaction)`                               | `subagent-status:<compaction item>`                                    | The status message after that compaction.                                                                                                             |
+| `reopenStop(round)`                                        | `reopen-stop:<round item>`                                             | The stop `onOpen` records for the goal round a restart interrupted.                                                                                   |
 
 Three helpers read the history. `armSeq(history, goalId)` counts how often the goal went from unarmed (or unrecorded)
 to armed, so a goal resumed after a reopen keeps its revision but gets new round keys. `idleDriverGeneration(history)`
@@ -219,17 +233,134 @@ reports it truthfully: on Durable the call has a `parent`; on coding-agent (Pi 1
 ### History projection
 
 The adapter projects its stored history into `HistoryEntry`, decoding custom kinds with `decodeEntry`. A `user` entry
-carries the text of the person's message. Every tool call (a `ToolCallFact` in an assistant entry's `toolCalls`) and
-every `tool-result` carries `callKey`: the adapter computes it with `callKeyOf` from the same id as the gate's
-`GateCall.key` (Durable: the tool task id; coding-agent: `<sessionId>:<toolCallId>`), so a call, its result and the
-host's approval outcomes for it share one key; the case `a tool call and its result read back under the gate's call
-key` asserts it. Two mappings are easy to miss:
+carries the text of the person's message. The `text` of `user` and `assistant` entries (and of tool results and markers)
+is what `vcc_recall` numbers and searches, so an image appears in it as `[image]` and an assistant's thinking is left
+out. Every tool call (a `ToolCallFact` in an assistant entry's `toolCalls`) and every `tool-result` carries `callKey`:
+the adapter computes it with `callKeyOf` from the same id as the gate's `GateCall.key` (Durable: the tool task id;
+coding-agent: `<sessionId>:<toolCallId>`), so a call, its result and the host's approval outcomes for it share one key;
+the case `a tool call and its result read back under the gate's call key` asserts it. Two mappings are easy to miss:
 
 - Durable records a call the gate blocked as a tool result whose text is `Tool call blocked: <reason>`. Project it as a
   `tool-result` with `isError: true` and `blocked: '<reason>'`; the gate cases assert `blocked`.
 - coding-agent stores markers as `custom_message` entries and records as `custom` entries. Pass `customType` as
   `RawEntry.kind`; for a `custom_message`, `details` as `RawEntry.data` and the text of `content` as `RawEntry.text`;
   for a `custom` entry, its `data` as `RawEntry.data`.
+
+## The rule core
+
+`core/` holds the rules, and the `orchestration/` of a later PR calls them. For one decision the orchestration fills a
+`CallInputs`, runs `Ledger.transact(thread, (facts) => decide(facts, inputs, ...))`, and then runs the `effects` of the
+returned `Step` in order, as [Applying a step](#applying-a-step) describes for its operations. A rule reads only
+`ConversationFacts` and `CallInputs` and keeps nothing between calls: every decision recomputes from the full history,
+and a rerun with the same facts and key decides the same thing. A rule that must recognise a rerun looks for its own key
+in the history (the goal tools, `decideSpawn`, `decideMessage`, `decideRunEnd`, `admitRound`, the compaction status);
+the caller drops any other operation whose key is in `keysSeen`. The one throw is a wiring mistake, `decideSpawn`
+without `CallInputs.models`, after which the commit writes nothing. No rule function is exported.
+
+| Folder         | Decision entry points                                                                                                                                                                                                                                                                            | Serves                                                                                                                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `goal/`        | `decideGoalCommand(facts, inputs, text, requestKey)`; `decideGetGoal(facts)`, `decideCreateGoal(facts, inputs, call)`, `decideUpdateGoal(facts, inputs, call)` with `unverifiedText(reason)`; `unadmittedRoundItems(history)`                                                                    | The `/goal` command; the tools `get_goal`, `create_goal`, `update_goal`; the context filter.                                                                                                                   |
+| `subagents/`   | `decideSpawn`, `decideMessage` (both `(facts, inputs, call)`), `decideStop(facts, inputs)`; `decideUserStopSubagent(facts, child)`; `reportTarget(facts, input)` and `decideRunEnd(facts, child, run, answer, report)`; `allowRequest(requestsInRun, lineage)`; `interruptRoute(history, child)` | The tools `subagent`, `message_subagent`, `stop_subagent`; the host's stop of a background child; a run's end, foreground or in its `subagent-report` job; the request meter; the host's interrupt of a child. |
+| `approval/`    | `repeatBlock(call, gateFacts)`; `decideApproval(call, host, mode, attendance, plan)`; `answerVerdict(answer, args)`                                                                                                                                                                              | The tool gate's `before`.                                                                                                                                                                                      |
+| `interaction/` | `decideAskUser(lineage, args)` with `askUserResult(questions, answer)`; `decideTodos(args)`                                                                                                                                                                                                      | The tools `AskUserQuestion` and `todo_write`.                                                                                                                                                                  |
+| `context/`     | `recallText(history, args)`; `offloadPlan(call, result, threshold)` with `offloadMarker(content, saved)`; `summaryDecision(summary)`                                                                                                                                                             | The tool `vcc_recall`; the tool gate's `after`; a compaction summary.                                                                                                                                          |
+| `driver/`      | `decideAtIdle(facts, inputs)` with `admitRound(facts, inputs, start)`; `decideOnOpen(facts, inputs)`; `decideUserStop(facts, inputs, requestKey)`; `ensureDriver(facts)`, `ensureReport(facts, input)`                                                                                           | The `idle-driver` job; `Lifecycle.onOpen`; the host's `userStop` entry; the operations that start the two jobs.                                                                                                |
+
+Tool arguments arrive as plain JSON, so each rule checks their shape itself (`args.ts`) and reports a mistake in its own
+text; the tools' names, descriptions and schemas belong to the orchestration, which registers the three subagent tools
+as `'parent-only'`. `turns.ts` holds `startsTurn`, the one definition of which history entry begins a run: a person's
+message, a goal round, or a notification that is not quiet. Plan mode is read here, never written: the gate blocks edits
+and calls that would ask a person while the latest `plan` record is active, `decideAtIdle` starts no round while the
+host's permission mode is `plan` or that record is active, and the tools that write the record come later.
+
+### Gathering the inputs
+
+| `CallInputs` field | The orchestration fills it from                                                                                                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `now`              | `Clock.now()`.                                                                                                                                                                                                               |
+| `settings`         | `Settings`, each getter read once for the decision.                                                                                                                                                                          |
+| `approvals`        | `Approvals.outcomes(thread, [])`; for the idle driver also `Approvals.outcomes(child, [])` of each child. A goal round's stop request matches its calls by `callKey`; a child with a `pending` outcome is awaiting approval. |
+| `models`           | `subagent`: `Models.keysFor(thread)`, plus `Models.find(name)` when the call names a model. `onOpen`: `ModelFacts.supportsTools` from `Models.supportsTools(thread)`.                                                        |
+| `verdict`          | `update_goal` with `complete`: the verifier's verdict, below.                                                                                                                                                                |
+| `args`             | The tool call's final arguments.                                                                                                                                                                                             |
+
+`Approvals.facts` fills `ApprovalHostFacts` for `decideApproval`; the host computes `withinAllowedRoots` per permission
+mode and tool category. The tool gate's `after` hands the `GateCall` it received to `offloadPlan` as it is, `nested`
+included.
+
+### Acting on a decision
+
+The effects of a `Step` run after its commit, in order:
+
+| Effect          | Run as                               |
+| --------------- | ------------------------------------ |
+| `start-turn`    | `Turns.start(thread, input, key)`    |
+| `retract-turn`  | `Turns.retract(thread, key)`         |
+| `stop-turn`     | `Turns.stop(thread, cause)`          |
+| `message-child` | `Helpers.message(child, input, key)` |
+| `stop-child`    | `Helpers.stop(child, run)`           |
+| `emit`          | `Observation.emit(event)`            |
+
+What the caller does with the result of each entry point:
+
+- `decideAtIdle` decides once per wake of the `idle-driver` job, and the job loops on it. `wait` (`user-first`,
+  `host-call` or `busy`) wrote nothing: await `Waits.untilIdle`, then decide again. `stop-children`, `stop-goal`,
+  `status` and `quiet` only need their operations and effects applied: then decide again. `notify` and `start-round`
+  carry a `start-turn` effect: run it, and a `busy` answer (nothing was recorded) sends both back to the loop alike.
+  Once `start-round` was taken, commit `admitRound(facts, inputs, { round, key })`: it admits the round, or withdraws it
+  with a `retract-turn` effect, and when `Turns.retract` answers `already-started` the caller stops that run with
+  `Turns.stop(thread, 'goal-withdraw')`. `done` wrote the driver's `idle-driver-exit` record in the same transaction:
+  end the job.
+- `update_goal` with `complete` takes two decisions. The first returns a `VerifyDraft` (`{ verify }`) and writes
+  nothing; judge it with `Verifier.verify` behind `Memory.remember(keys.verdictMemo(call), ...)`, then decide again with
+  `CallInputs.verdict`. When the verifier fails, write nothing and answer an error result with `unverifiedText(reason)`.
+- `/goal` always answers with a notice, never a model turn. The command has no rerun guard: before deciding, the host
+  entry checks `keysSeen` for `keys.goalNotice(requestKey)` and, when it is there, answers with that notice instead of
+  deciding again.
+- `subagent` (`decideSpawn`): read the new child from `TransactResult.spawned` under the result's `key`, or from its
+  `child` when this call already spawned it. A background spawn created its `subagent-report` job in the same commit; a
+  foreground one is messaged and awaited by the calling tool. Either way a run's input goes through
+  `Helpers.message(child, input, keys.subagentMessage(child, run))`, and its end through
+  `Helpers.awaitAnswer(child, run, thatKey)` and then `decideRunEnd(facts, child, run, answer, runReport(answer))`. The
+  `subagent-report` job finds its run with `reportTarget`, which is `undefined` once the end is recorded: exit.
+- `message_subagent` (`decideMessage`): `queued` carries the `message-child` effect; `continued` is answered with
+  `continuedText(from, child)`, where `child` comes from `TransactResult.spawned` under `key` when the result has none
+  (a finished foreground child was forked into a new background child); `stopping` means that run is being stopped:
+  await `Helpers.awaitAnswer(child, run, key)`, then `transact(decideMessage)` again.
+- `stop_subagent` (`decideStop`): `stopping` is answered after `Helpers.awaitAnswer(child, run, key)` with
+  `stoppedResult(child, run, answer)`; `not-running` carries its own result.
+- The tool gate's `before` gets `decideApproval`'s answer: `allow` runs the call (with `args` when the host rewrote
+  them), `block` stops it with its `reason`, and `ask` asks a person through `Approvals.ask` behind
+  `Memory.remember(keys.approvalMemo(call), ...)`, then maps the answer with `answerVerdict(answer, args)`;
+  `repeatBlock` may also block with its own text. Its `after` asks `offloadPlan` for a file name: save the full text
+  with `OutputStore.save`, and replace what the model sees with `offloadMarker(text, saved)`, giving `{ error }` when
+  the save failed.
+- `AskUserQuestion` (`decideAskUser`) either answers at once (`answered`, an error result for a malformed call or a
+  subagent) or returns the `questions` to ask: `Questions.ask` behind `Memory.remember(keys.askMemo(call), ...)`, then
+  the result is `askUserResult(questions, answer)`, with `answer` `undefined` when the turn was aborted while waiting.
+- After every step that touches a subagent, emit `subagentViews(await ledger.read(thread), approvals)` as an
+  `Observation`: the decisions carry no view event, since a spawning step does not know the child's id yet.
+- `decideOnOpen` runs in `onOpen`, before any resumed work, so its effects are the stops described under
+  [Ports](#ports). Every user stop of the host (the stop button, the foreground stop a child thread's interrupt turns
+  into, any stop that does not come through `/goal`) goes through `decideUserStop`: a goal's `aborted` judgement and the
+  suppression of waking results read only `turn-stop` records, so a stop that bypasses it lets the goal start another
+  round and the results wake the agent as usual.
+- When the host leaves plan mode (it switches the permission mode, or a later `exit_plan_mode`), ensure the idle driver
+  with `ensureDriver`: `decideAtIdle` answers `done` while plan mode is on and the driver has exited, so an armed goal
+  would otherwise stay still.
+
+### What the adapters provide
+
+Beyond [History projection](#history-projection):
+
+- A `tool-result` entry's `details` is projected unchanged: the rules read `blockedReport` from an `update_goal` result
+  and `outcome` from an `AskUserQuestion` result.
+- When `Waits.untilIdle` resolves, `LiveFacts.runEnd` is already the run that just ended; `ChildFacts.lastItem` is the
+  child's last history entry.
+
+Not in the contract yet: `ApprovalRequest` is `{ call, tool, reason? }`, but `decideApproval` answers `ask` with a
+`presentation` (`'stream'` or `'message'`), so the ask has no way to pass it to the host until the contract adds the
+field.
 
 ## Running the contract in an adapter
 
