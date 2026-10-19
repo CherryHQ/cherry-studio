@@ -2,7 +2,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { streamText, tool, type TextStreamPart, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import * as z from 'zod'
 
 const prompt = [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'lookup' }] }]
 const complete = (index = 0, id = 'a', args = '{"x":1}') => ({
