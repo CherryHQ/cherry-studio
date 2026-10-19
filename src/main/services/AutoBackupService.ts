@@ -241,7 +241,14 @@ export class AutoBackupService extends BaseService {
         delay = nextAnchoredRun(Date.now(), settings.startMinute, settings.intervalMinutes) - Date.now()
       }
       if (mode === 'startup') {
-        delay = Math.max(STARTUP_GRACE_PERIOD_MS, delay)
+        const earliest = Date.now() + STARTUP_GRACE_PERIOD_MS
+        if (settings.startMinute != null && earliest > Date.now() + delay) {
+          // The grace period would push this run past its slot; take the first slot the grace
+          // period still leaves reachable so the run stays on the anchor grid.
+          delay = nextAnchoredRun(earliest, settings.startMinute, settings.intervalMinutes) - Date.now()
+        } else {
+          delay = Math.max(STARTUP_GRACE_PERIOD_MS, delay)
+        }
       }
     }
 

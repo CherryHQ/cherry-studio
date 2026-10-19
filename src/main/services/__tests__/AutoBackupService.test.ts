@@ -124,15 +124,16 @@ describe('AutoBackupService', () => {
   }
 
   describe('sync_start anchor', () => {
-    const wallClock = (hours: number, minutes = 0) => new Date(2026, 9, 20, hours, minutes).getTime()
-    const clock = () => new Date(Date.now()).toTimeString().slice(0, 5)
+    const wallClock = (hours: number, minutes = 0, seconds = 0) =>
+      new Date(2026, 9, 20, hours, minutes, seconds).getTime()
+    const clock = (withSeconds = false) => new Date(Date.now()).toTimeString().slice(0, withSeconds ? 8 : 5)
 
     /** Leaves only webdav enabled and pins "now" to a real wall-clock time. */
-    const isolateWebdavAt = async (hours: number, minutes = 0) => {
+    const isolateWebdavAt = async (hours: number, minutes = 0, seconds = 0) => {
       setPreference('data.backup.s3.auto_sync', false)
       setPreference('data.backup.local.auto_sync', false)
       setPreference('data.backup.nutstore.auto_sync', false)
-      vi.setSystemTime(wallClock(hours, minutes))
+      vi.setSystemTime(wallClock(hours, minutes, seconds))
     }
 
     beforeEach(() => {
@@ -231,6 +232,23 @@ describe('AutoBackupService', () => {
       await vi.advanceTimersByTimeAsync(60_000)
       expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
       expect(clock()).toBe('18:00')
+    })
+
+    it('keeps the first run on the grid when the startup grace would overshoot its slot', async () => {
+      setPreference('data.backup.webdav.sync_start', 18 * 60)
+      setPreference('data.backup.webdav.sync_interval', 6 * 60)
+      await isolateWebdavAt(17, 59, 30)
+      await recreateService()
+
+      // The 18:00 slot is 30s away, so the 60s grace would push the run to 18:00:30 — off the grid.
+      // The next slot the grace still leaves reachable is 00:00.
+      await vi.advanceTimersByTimeAsync(61_000)
+      expect(mocks.backupToWebdav).not.toHaveBeenCalled()
+      expect(clock(true)).toBe('18:00:31')
+
+      await vi.advanceTimersByTimeAsync(5 * 3600_000 + 59 * 60_000 + 29_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock(true)).toBe('00:00:00')
     })
 
     it('re-schedules from the grid when the anchor changes', async () => {
