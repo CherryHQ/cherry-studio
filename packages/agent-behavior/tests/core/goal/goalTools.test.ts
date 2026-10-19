@@ -110,7 +110,7 @@ describe('/goal command', () => {
     const busy = run([goalEntry(goal())], 'PAUSE', { idle: false })
     expect(busy.effects).toContainEqual({ type: 'stop-turn', thread: 'parent', cause: 'goal-pause' })
     expect(busy.ops).toContainEqual(
-      expect.objectContaining({ record: { type: 'turn-stop', value: { by: 'user', cause: 'goal-command', at: 1000 } } })
+      expect.objectContaining({ record: { type: 'turn-stop', value: { cause: 'goal-command', at: 1000 } } })
     )
     expect(run([goalEntry(goal({ armed: false }))], 'clear', { idle: false }).effects.map((e) => e.type)).toEqual([
       'emit'

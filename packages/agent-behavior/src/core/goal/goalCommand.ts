@@ -77,7 +77,7 @@ export function decideGoalCommand(
                   {
                     type: 'append-record',
                     thread: facts.thread,
-                    record: { type: 'turn-stop', value: { by: 'user', cause: 'goal-command', at: inputs.now } },
+                    record: { type: 'turn-stop', value: { cause: 'goal-command', at: inputs.now } },
                     key: keys.turnStop(requestKey)
                   }
                 ],
