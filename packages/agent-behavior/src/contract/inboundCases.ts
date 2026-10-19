@@ -5,12 +5,14 @@ import type { CallKey, GateFacts } from '../core/facts'
 import type { GateHandlers, LifecycleHandlers, ToolDefinition } from '../ports/harness'
 import { check, same } from './assert'
 import {
+  aborted,
   append,
   assistantTexts,
   callTool,
   echoTool,
   holds,
   key,
+  latch,
   message,
   noticeTexts,
   read,
@@ -105,6 +107,35 @@ export const inboundCases: readonly ContractCase[] = [
         'the gate and the tool must see one call key'
       )
       same(nestedAfter, [false], "after() must get the call's nested flag, false for a call the model made")
+    }
+  },
+  // Catches a gate that cannot tell its call's turn stopped (G-C1): an approval it waits for would hold the stop until
+  // a person answers.
+  {
+    name: "the gate's call signal aborts when its turn stops",
+    covers: ['toolGate.register', 'turns.stop'],
+    needs: [],
+    async run(open) {
+      const entered = latch()
+      let sawAbort = false
+      const h = await open((p) => {
+        p.tools.register(echoTool())
+        p.toolGate.register(
+          passGate(async (call) => {
+            entered.release()
+            await aborted(call.signal)
+            sawAbort = call.signal.aborted
+            return { block: 'stopped while waiting' }
+          })
+        )
+      })
+      const t = await h.createThread()
+      h.script(t, [callTool('echo', { text: 'x' }), reply('never')])
+      await h.sendUser(t, 'go')
+      await entered.promise
+      await h.withCall(t, (p) => p.turns.stop(t, 'user'))
+      check(sawAbort, "the gate's call signal must abort when the call's turn stops")
+      check((await read(h, t)).live.runEnd?.outcome === 'aborted', 'the stop must end the run the gate held')
     }
   },
   // Catches an adapter whose history keys and gate keys disagree, so approvals can never be matched to calls (B-G2).

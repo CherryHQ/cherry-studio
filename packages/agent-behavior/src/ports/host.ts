@@ -19,7 +19,12 @@ import type {
   VerifierVerdict
 } from '../core/hostFacts'
 
-export type ApprovalRequest = { readonly call: CallRef; readonly tool: ToolCallFact }
+/** `presentation`: show the ask inline in the conversation's stream, or as a message (from `Settings.attendance`). */
+export type ApprovalRequest = {
+  readonly call: CallRef
+  readonly tool: ToolCallFact
+  readonly presentation: 'stream' | 'message'
+}
 /**
  * P1. Ask a person whether a call may run; tell the rules how people answered before.
  *
