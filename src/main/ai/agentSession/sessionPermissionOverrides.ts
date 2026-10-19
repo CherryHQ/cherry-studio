@@ -11,13 +11,15 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
  * agent out of its Plan Only restriction, so the approved execution stays a property of the
  * approving session alone and the shared setting is left untouched.
  *
- * Overrides are retired when the session's runtime entry is removed, when an explicit agent
- * update carries a new `permission_mode` — the row is then the user's own choice again — and
+ * Overrides are retired when the session is closed — whether or not its runtime entry is still
+ * there, since replacing the approved-plan history closes an entry-less session — when an explicit
+ * agent update carries a new `permission_mode` — the row is then the user's own choice again — and
  * when the session is reassigned to another agent. Those retires work by agent ownership, not by
  * live entries: a handoff restores its override after `closeSession` removed the entry, so the
- * entry-less override must still die with the edit or the reassignment. A per-agent edit epoch
- * and a per-session reassignment epoch let a pending handoff restore recognize either instead of
- * resurrecting what they invalidated; the reassignment epoch survives the override's deletion.
+ * entry-less override must still die with the close, the edit or the reassignment. A per-agent edit
+ * epoch, a per-session reassignment epoch and a per-session close generation let a pending handoff
+ * restore recognize either instead of resurrecting what they invalidated; the reassignment epoch
+ * and the close generation both survive the override's deletion.
  */
 interface SessionPermissionOverride {
   agentId: string
@@ -30,6 +32,10 @@ const agentPermissionEditEpochs = new Map<string, number>()
  *  synchronously, yet a reassignment landing during the handoff teardown must still count. */
 const sessionAgentOwners = new Map<string, string | null>()
 const sessionReassignmentEpochs = new Map<string, number>()
+/** Close count per session. It outlives the override for the same reason: a Stop landing during
+ *  the handoff teardown closes a session whose entry (and override) the handoff already removed,
+ *  and that second close must still invalidate the handoff's pending restore. */
+const sessionCloseGenerations = new Map<string, number>()
 
 export function setSessionEffectivePermissionMode(sessionId: string, agentId: string, mode: AgentPermissionMode): void {
   sessionPermissionModes.set(sessionId, { agentId, mode })
@@ -44,6 +50,7 @@ export function getSessionEffectivePermissionMode(sessionId: string, agentId: st
 
 export function clearSessionEffectivePermissionMode(sessionId: string): void {
   sessionPermissionModes.delete(sessionId)
+  sessionCloseGenerations.set(sessionId, (sessionCloseGenerations.get(sessionId) ?? 0) + 1)
 }
 
 /**
@@ -88,4 +95,14 @@ export function retireAgentSessionPermissionModes(agentId: string): void {
 /** Epoch stamp to compare against {@link retireAgentSessionPermissionModes} after an await. */
 export function agentPermissionEditEpoch(agentId: string): number {
   return agentPermissionEditEpochs.get(agentId) ?? 0
+}
+
+/**
+ * Generation stamp to compare against {@link clearSessionEffectivePermissionMode} after an await.
+ * The handoff's own close is what it waits on, so its restore runs one generation ahead of a Stop
+ * that closes the same session in that window — and a session whose approved-plan history was
+ * replaced is another generation ahead again, since that edit also closes the session.
+ */
+export function sessionCloseGeneration(sessionId: string): number {
+  return sessionCloseGenerations.get(sessionId) ?? 0
 }

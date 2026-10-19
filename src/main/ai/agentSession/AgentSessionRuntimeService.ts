@@ -123,6 +123,7 @@ import {
   getSessionEffectivePermissionMode,
   retireAgentSessionPermissionModes,
   retireReassignedSessionPermissionMode,
+  sessionCloseGeneration,
   sessionReassignmentEpoch,
   setSessionEffectivePermissionMode,
   tracksSessionPermission
@@ -1112,7 +1113,14 @@ export class AgentSessionRuntimeService extends BaseService {
   closeSession(sessionId: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
-    if (!entry) return priorClosing?.promise ?? Promise.resolve()
+    // No entry means no connection left to carry an approved execution, so any session-scoped
+    // permission is dead — including one a handoff restored across the replacement it needed it
+    // for. Replacing the approved-plan history closes a session the handoff already emptied, and
+    // without this it would keep that override alive against the saved row.
+    if (!entry) {
+      clearSessionEffectivePermissionMode(sessionId)
+      return priorClosing?.promise ?? Promise.resolve()
+    }
     const fallbackConnection = this.currentConnection(entry)
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
@@ -1640,8 +1648,9 @@ export class AgentSessionRuntimeService extends BaseService {
    * The close retires session-scoped state with the entry, but the approved permission recorded for
    * this handoff must outlive it — the replacement startup re-derives its permission mode from the
    * override registry, so it is carried back across. An agent row that left `plan` while the result
-   * settled is the user's own edit, and a session reassigned away (even back) is no longer this
-   * handoff's to restore; either keeps the override retired.
+   * settled is the user's own edit, a session reassigned away (even back) is no longer this
+   * handoff's to restore, and a Stop landing while the teardown awaits drops the follow-up the
+   * override existed to bridge; each keeps the override retired.
    */
   private async stopApprovedPlanTurn(
     entry: AgentSessionRuntimeEntry,
@@ -1656,18 +1665,24 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.liveTurn(entry) && this.liveTurn(entry) !== turn) return
     // Capture before pausing: the pause aborts the stream whose listener runs `closeSession`, which
     // retires the override synchronously — reading afterwards would hand the restart `plan` again.
-    // The epochs ride along: an explicit permission edit or a reassignment landing while the
-    // teardown awaits is newer than this handoff and must not be resurrected past it. The
-    // reassignment epoch is independent of the override, which the close already deleted.
+    // The stamps ride along: an explicit permission edit, a reassignment, or a further close (the
+    // user's Stop, or the edit that replaces the approved-plan history) landing while the teardown
+    // awaits is newer than this handoff and must not be resurrected past it. The reassignment epoch
+    // and the close generation are independent of the override, which the close already deleted.
     const approvedPermission = getSessionEffectivePermissionMode(entry.sessionId, entry.agentId)
     const permissionEditEpoch = agentPermissionEditEpoch(entry.agentId)
     const reassignmentEpoch = sessionReassignmentEpoch(entry.sessionId)
     streamManager.pauseRuntimeTurn(entry.topicId, 'plan-approved-model-handoff')
+    // Read after the pause: the abort it triggered may already have closed the session through the
+    // stream's own listener, and that close belongs to this teardown. Only the close performed just
+    // below is this handoff's, so any further one is a competing teardown of the same session.
+    const closeGeneration = sessionCloseGeneration(entry.sessionId)
     await this.closeSession(entry.sessionId)
     if (
       approvedPermission &&
       agentPermissionEditEpoch(entry.agentId) === permissionEditEpoch &&
       sessionReassignmentEpoch(entry.sessionId) === reassignmentEpoch &&
+      sessionCloseGeneration(entry.sessionId) === closeGeneration + 1 &&
       agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'plan'
     ) {
       setSessionEffectivePermissionMode(entry.sessionId, entry.agentId, approvedPermission)

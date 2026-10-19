@@ -1032,6 +1032,103 @@ describe('AgentSessionRuntimeService', () => {
       expect(getSessionEffectivePermissionMode('session-1', 'agent-1')).toBeUndefined()
     })
 
+    it('retires the approved permission when the approved-plan history is replaced after the teardown', async () => {
+      // Editing/resending the first user message replaces the history the approval authorized, and
+      // it runs `closeSession` on a session the handoff already emptied — so the entry-less early
+      // return must still retire the override. Left alive it outranks the saved `plan` row at the
+      // next startup, letting a fresh Plan Only session edit files without a new approval.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-history',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-history',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const realCloseSession = service.closeSession.bind(service)
+      const closeSession = vi
+        .spyOn(service, 'closeSession')
+        .mockImplementation((sessionId: string) => realCloseSession(sessionId))
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-history' })
+
+      const result = service.respondToolApproval('approval-plan-history', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledWith('session-1'))
+      await closeSession.mock.results[0]?.value
+      // The handoff restored it across the connection replacement it needed it for.
+      expect(getSessionEffectivePermissionMode('session-1', 'agent-1')).toBe('acceptEdits')
+
+      // The follow-up never landed; instead the user edited the first message, which replaces the
+      // approved-plan history and closes the (already entry-less) session.
+      await service.closeSession('session-1')
+
+      expect(getSessionEffectivePermissionMode('session-1', 'agent-1')).toBeUndefined()
+    })
+
+    it('does not restore the approved permission when the user stops while the teardown pends', async () => {
+      // A Stop during the pending teardown closes the session the handoff is still tearing down:
+      // the renderer drops its follow-up, so there is no replacement connection left for the
+      // override to bridge and the restore must be abandoned rather than resurrected.
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'test-runtime',
+        model: baseTurnInput.modelId,
+        configuration: { permission_mode: 'plan' }
+      })
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-plan-stopped',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-plan-stopped',
+        toolName: 'ExitPlanMode',
+        originalInput: { plan: '# Plan' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const closeGate = createDeferred<void>()
+      const realCloseSession = service.closeSession.bind(service)
+      const closeSession = vi
+        .spyOn(service, 'closeSession')
+        .mockImplementation((sessionId: string) => realCloseSession(sessionId))
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-plan-stopped' })
+      getEntry(service).connection = {
+        send: vi.fn(),
+        close: vi.fn(() => closeGate.promise),
+        refreshTraceContext: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+
+      const result = service.respondToolApproval('approval-plan-stopped', { approved: true }, undefined, {
+        executionModelId: switchedModelId
+      })
+      expect(result).toEqual({ dispatched: true, handoff: 'started' })
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledWith('session-1'))
+      // The entry is gone and the override with it; the connection teardown is what still pends.
+      expect((service as any).entries.has('session-1')).toBe(false)
+      expect(getSessionEffectivePermissionMode('session-1', 'agent-1')).toBeUndefined()
+
+      // The user's Stop lands in that window: an entry-less close the abandoned handoff must see.
+      // It joins the still-pending barrier rather than awaiting it, so do not await this call.
+      void service.closeSession('session-1')
+      await vi.waitFor(() => expect(closeSession).toHaveBeenCalledTimes(2))
+
+      closeGate.resolve()
+      await closeSession.mock.results[0]?.value
+      expect(getSessionEffectivePermissionMode('session-1', 'agent-1')).toBeUndefined()
+    })
+
     it('retires the override when the session is reassigned and refuses a foreign owner on read', () => {
       setSessionEffectivePermissionMode('session-1', 'agent-1', 'acceptEdits')
       const service = new AgentSessionRuntimeService()
