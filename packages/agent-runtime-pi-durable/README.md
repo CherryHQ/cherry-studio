@@ -27,8 +27,8 @@ background subtrees are not. These effects are not application-wide cancellation
 
 ## Input and output
 
-The access additionally provides `submit({ ...input, deduplicationKey? })`,
-`lookupInput(query)`, and `retractInput(nativeRef)`. Busy rejection comes from native
+Every Durable access provides `input.submit({ ...input, deduplicationKey? })` and
+`input.policies`, plus `lookupInput(query)` and `retractInput(nativeRef)`. Busy rejection comes from native
 `ConversationBusy`; uncertain failures return `unknown`. Once native admission
 returns, a failed status read cannot erase the acknowledged receipt. Deduplication
 is native and conversation-scoped: the host must reuse the original immutable
@@ -43,11 +43,16 @@ is not proven, the adapter emits `gap: mapping-reset` and a replacing snapshot.
 Consumers must not merge these by text. Images and nested-tool progress are not
 represented by the current common text/reasoning protocol.
 
-Native ownership records and live task graph edges expose child SessionRefs. Open
-and observe a child separately; parent output does not recursively contain it. On
-restart discovery covers the current native task graph, not every historical child.
-Delegation status stays `unknown` where the adapter has no completion evidence.
-The adapter never delivers a child's result back to its parent; native tasks own that.
+Native ownership records and live task graph edges expose `Subagent` relationships
+through `snapshot.subagents` and `subagent.upsert`. Their IDs use the native child
+conversation ID within the parent, so subsequent inputs retain the same relationship.
+They carry no assignment completion status. Open and observe a child separately;
+parent output does not recursively contain it. On restart discovery covers the
+current native task graph, not every historical child.
+
+Child access can submit further input after the parent access is released. Direct
+conversation input does not create a reporter task or another parent result. The
+adapter never delivers child results to the parent; native tasks own that behavior.
 
 ## Validation
 
@@ -59,5 +64,7 @@ pnpm test:agent-runtime-pi-durable packages/agent-runtime-pi-durable/tests/runti
 pnpm --filter @cherrystudio/agent-runtime-pi-durable typecheck
 ```
 
+The child test covers continued conversation, busy rejection, steering, independent
+observation after release, stable relationship identity, and unchanged parent output.
 The SQLite test closes and reopens an orderly runtime; it is not a crash-recovery or
 external-tool side-effect test. No live provider or Electron acceptance is claimed.

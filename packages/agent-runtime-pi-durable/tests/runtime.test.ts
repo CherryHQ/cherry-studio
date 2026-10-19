@@ -18,6 +18,14 @@ import { runtimeId, type ObservationPayload, type OperationResult } from '@cherr
 
 import { createPiDurableRuntime, type PiDurableRuntimeOptions, type PiDurableThreadHandle } from '../src'
 
+function gate() {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -85,7 +93,7 @@ describe('Pi Durable runtime contract', () => {
     const second = confirmed(await runtime.open(first.thread))
     const left = await observe(first)
     const right = await observe(second)
-    const receipt = await first.submit(draft('question'))
+    const receipt = await first.input.submit(draft('question'))
     expect(receipt).toMatchObject({ status: 'acknowledged', nativeInput: { session: first.thread } })
     await expect
       .poll(() =>
@@ -114,7 +122,7 @@ describe('Pi Durable runtime contract', () => {
     await expect
       .poll(async () => confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
       .toMatchObject({ found: true, input: { outcome: 'completed' } })
-    expect(await first.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   })
 
   it('deduplicates queued input, rejects busy input without admission, and scopes withdrawal to its session', async () => {
@@ -123,16 +131,16 @@ describe('Pi Durable runtime contract', () => {
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
     const other = confirmed(await runtime.create(sessionOptions))
-    await session.submit(draft('start'))
+    await session.input.submit(draft('start'))
     await hold.reached
-    expect(await session.submit({ ...draft('rejected'), deduplicationKey: 'rejected' })).toMatchObject({
+    expect(await session.input.submit({ ...draft('rejected'), deduplicationKey: 'rejected' })).toMatchObject({
       status: 'rejected',
       error: { code: 'busy' }
     })
     expect(confirmed(await session.lookupInput({ by: 'deduplication-key', key: 'rejected' }))).toEqual({ found: false })
     const input = { ...draft('queued', 'follow-up'), deduplicationKey: 'queue-key' }
-    const first = await session.submit(input)
-    const duplicate = await session.submit(input)
+    const first = await session.input.submit(input)
+    const duplicate = await session.input.submit(input)
     expect(first).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
     expect(duplicate).toEqual(first)
     if (first.status !== 'acknowledged' || !first.nativeInput) throw new Error('No native receipt')
@@ -160,7 +168,7 @@ describe('Pi Durable runtime contract', () => {
     const { runtime, faux } = await setup(async () => new BrokenStatusStorage())
     faux.setResponses([fauxAssistantMessage('answer')])
     const session = confirmed(await runtime.create(sessionOptions))
-    const result = await session.submit(draft('admitted before read failure'))
+    const result = await session.input.submit(draft('admitted before read failure'))
     expect(result).toMatchObject({
       status: 'acknowledged',
       nativeInput: { session: session.thread },
@@ -199,13 +207,12 @@ describe('Pi Durable runtime contract', () => {
     ])
     const parent = confirmed(await runtime.create(sessionOptions))
     const parentEvents = await observe(parent)
-    await parent.submit(draft('delegate now'))
-    await expect.poll(() => parentEvents.some((event) => event.type === 'delegation.upsert')).toBe(true)
-    const relationship = parentEvents.find((event) => event.type === 'delegation.upsert')
-    if (relationship?.type !== 'delegation.upsert') throw new Error('No child reference')
-    const child = confirmed(await runtime.open(relationship.delegation.child))
+    await parent.input.submit(draft('delegate now'))
+    await expect.poll(() => parentEvents.some((event) => event.type === 'subagent.upsert')).toBe(true)
+    const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
+    if (relationship?.type !== 'subagent.upsert') throw new Error('No child reference')
+    const child = confirmed(await runtime.open(relationship.subagent.child!))
     const events = await observe(child)
-    await parent.release()
     await expect
       .poll(
         () =>
@@ -219,6 +226,61 @@ describe('Pi Durable runtime contract', () => {
       )
       .toBe(true)
     expect(child.thread).not.toEqual(parent.thread)
+    await expect
+      .poll(() =>
+        current(parentEvents)?.items.some(
+          (item) =>
+            item.type === 'message' && item.parts[0]?.text === 'parent finished' && item.completeness === 'complete'
+        )
+      )
+      .toBe(true)
+    const parentItems = current(parentEvents)!.items
+    await parent.release()
+    const started = gate()
+    const finish = gate()
+    onTestFinished(() => finish.resolve())
+    faux.setResponses([
+      async () => {
+        started.resolve()
+        await finish.promise
+        return fauxAssistantMessage('child interim')
+      },
+      (context) => {
+        expect(JSON.stringify(context.messages)).toContain('extra detail')
+        return fauxAssistantMessage('continued child output')
+      }
+    ])
+    const continued = await child.input.submit(draft('continue child'))
+    expect(continued).toMatchObject({ status: 'acknowledged' })
+    await started.promise
+    expect(await child.input.submit(draft('reject busy'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'busy' }
+    })
+    expect(await child.input.submit(draft('extra detail', 'steer'))).toMatchObject({ status: 'acknowledged' })
+    const retained = confirmed(await runtime.open(child.thread))
+    const retainedEvents = await observe(retained)
+    await child.release()
+    finish.resolve()
+    await expect
+      .poll(() =>
+        current(retainedEvents)?.items.some(
+          (item) =>
+            item.type === 'message' &&
+            item.parts[0]?.text === 'continued child output' &&
+            item.completeness === 'complete'
+        )
+      )
+      .toBe(true)
+    if (continued.status !== 'acknowledged' || !continued.nativeInput) throw new Error('Missing receipt')
+    await expect
+      .poll(async () => confirmed(await retained.lookupInput({ by: 'native-ref', ref: continued.nativeInput! })))
+      .toMatchObject({ found: true, input: { outcome: 'completed' } })
+    const reopenedParent = confirmed(await runtime.open(parent.thread))
+    const restored = await observe(reopenedParent)
+    await expect.poll(() => current(restored)).toMatchObject({ subagents: [relationship.subagent] })
+    expect(current(restored)!.subagents).toHaveLength(1)
+    expect(current(restored)!.items).toEqual(parentItems)
   })
 
   it('closes without cancelling durable work, reopens for observation only, then resumes explicitly', async () => {
@@ -228,11 +290,14 @@ describe('Pi Durable runtime contract', () => {
     const hold = blocked()
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
-    const receipt = await session.submit({ ...draft('survive restart'), deduplicationKey: 'restart-key' })
+    const receipt = await session.input.submit({ ...draft('survive restart'), deduplicationKey: 'restart-key' })
     await hold.reached
     expect(receipt.status).toBe('acknowledged')
     expect(await runtime.shutdown()).toEqual({ status: 'confirmed', value: { effect: 'closed' } })
-    expect(await session.submit(draft('too late'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(await session.input.submit(draft('too late'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'closed' }
+    })
 
     faux.setResponses([fauxAssistantMessage('resumed answer')])
     const reopened = confirmed(await createPiDurableRuntime(options))

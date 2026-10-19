@@ -4,7 +4,7 @@ export type BackendId = RuntimeId<'backend'>
 export type ThreadId = RuntimeId<'thread'>
 export type InputId = RuntimeId<'input'>
 export type ItemId = RuntimeId<'item'>
-export type DelegationId = RuntimeId<'delegation'>
+export type SubagentId = RuntimeId<'subagent'>
 export type NativeInputId = RuntimeId<'native-input'>
 
 /** Restore an opaque ID at a validated storage or transport boundary. */
@@ -20,10 +20,6 @@ export interface Thread {
 export interface ItemRef {
   readonly session: Thread
   readonly id: ItemId
-}
-export interface DelegationRef {
-  readonly session: Thread
-  readonly id: DelegationId
 }
 export interface NativeInputRef {
   readonly session: Thread
@@ -107,12 +103,11 @@ export interface ToolResultItem {
   readonly outcome: 'success' | 'error' | 'unknown'
 }
 export type ContentItem = MessageItem | ToolCallItem | ToolResultItem
-export interface Delegation {
-  readonly ref: DelegationRef
+export interface Subagent {
+  /** Stable within the parent's observed relationships, across child inputs and runs. */
+  readonly id: SubagentId
   readonly parent: Thread
-  readonly child: Thread
-  readonly trigger?: ItemRef
-  readonly status: 'active' | 'completed' | 'unknown'
+  readonly child?: Thread
 }
 export interface Activity {
   readonly scope: 'foreground'
@@ -123,7 +118,7 @@ export interface ThreadSnapshot {
   readonly coverage: 'live-only' | 'current-view' | 'retained-view'
   readonly items: readonly ContentItem[]
   readonly inputs: readonly InputState[]
-  readonly delegations?: readonly Delegation[]
+  readonly subagents?: readonly Subagent[]
   readonly activity: Activity
 }
 export type ObservationPayload =
@@ -132,7 +127,7 @@ export type ObservationPayload =
   | { readonly type: 'item.remove'; readonly ref: ItemRef }
   | { readonly type: 'input.changed'; readonly input: InputState }
   | { readonly type: 'activity.changed'; readonly activity: Activity }
-  | { readonly type: 'delegation.upsert'; readonly delegation: Delegation }
+  | { readonly type: 'subagent.upsert'; readonly subagent: Subagent }
   | { readonly type: 'diagnostic'; readonly error: RuntimeError }
   | { readonly type: 'gap'; readonly reason: 'overflow' | 'disconnected' | 'mapping-reset' }
   | { readonly type: 'closed'; readonly reason: 'stopped' | 'released' | 'shutdown' | 'source-lost' | 'consumer-error' }
@@ -140,10 +135,13 @@ export type ObservationSink = (event: ObservationPayload) => void | Promise<void
 export interface Observation {
   stop(): Promise<void>
 }
+export interface ThreadInput {
+  readonly policies: readonly BusyPolicy[]
+  submit(input: InputDraft): Promise<SubmitResult>
+}
 export interface ThreadHandle {
   readonly thread: Thread
-  readonly inputPolicies: readonly BusyPolicy[]
-  submit(input: InputDraft): Promise<SubmitResult>
+  readonly input?: ThreadInput
   observe(sink: ObservationSink): Promise<OperationResult<Observation>>
   interrupt?: () => Promise<OperationResult<InterruptReceipt>>
   release(): Promise<void>
