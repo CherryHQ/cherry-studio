@@ -197,6 +197,14 @@ export function useChatRuntimeState({
     disposeOverlay,
     reset: resetOverlay
   } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
+    onUpdate: (_executionId, event) =>
+      autoReadService.update({
+        ...event,
+        enabled: autoReadEnabled,
+        scope: topic.id,
+        eligible: event.message.id === branchFlowActiveNodeIdRef.current
+      }),
+    onLeave: () => autoReadService.cancelScope(topic.id),
     onFinish: (executionId, event) => {
       errorToastsRef.current?.onFinish(executionId, event)
       finishRef.current?.(executionId, event)

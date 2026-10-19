@@ -74,7 +74,7 @@ async function renderSubWindowAppShell({
   })
   vi.doMock('@renderer/utils/routeTitle', () => ({
     getDefaultRouteTitle: (url: string) => url,
-    isPageTitledRoute: () => false
+    isConversationRoute: () => false
   }))
   vi.doMock('@renderer/components/chat/shell/WindowFrameContext', () => ({
     WindowFrameProvider: ({ children }: { children: ReactNode }) => <>{children}</>

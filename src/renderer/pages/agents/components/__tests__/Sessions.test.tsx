@@ -315,6 +315,7 @@ const dataApiMocks = vi.hoisted(() => ({
   refetchAgents: vi.fn().mockResolvedValue(undefined),
   refetchChannels: vi.fn().mockResolvedValue(undefined),
   reorderAgent: vi.fn().mockResolvedValue(undefined),
+  reorderPin: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   restoreAgent: vi.fn().mockResolvedValue(undefined),
   updateWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -566,13 +567,15 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
             ? dataApiMocks.reorderAgent
             : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
               ? dataApiMocks.updateWorkspace
-              : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
-                ? dataApiMocks.deleteWorkspace
-                : method === 'DELETE' && path === '/agents/:agentId'
-                  ? dataApiMocks.deleteAgent
-                  : method === 'DELETE' && path === '/agents/:agentId/sessions'
-                    ? dataApiMocks.deleteAgentSessions
-                    : dataApiMocks.findOrCreateWorkspace,
+              : method === 'PATCH' && path === '/pins/:id/order'
+                ? dataApiMocks.reorderPin
+                : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
+                  ? dataApiMocks.deleteWorkspace
+                  : method === 'DELETE' && path === '/agents/:agentId'
+                    ? dataApiMocks.deleteAgent
+                    : method === 'DELETE' && path === '/agents/:agentId/sessions'
+                      ? dataApiMocks.deleteAgentSessions
+                      : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -3361,7 +3364,10 @@ describe('Sessions', () => {
     )
   })
 
-  it('rejects drops onto pinned sessions within an agent group', () => {
+  // Would catch: a pinned move being sent to `/agent-sessions/:id/order`, which
+  // writes the session's own orderKey and leaves the pinned order untouched, or
+  // the anchor being sent as a session id where the pin id is required.
+  it('reorders a pinned session through the pin order endpoint using pin ids', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
@@ -3370,30 +3376,75 @@ describe('Sessions', () => {
     })
     setupSessions({
       sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
-        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'b' })
+        createSession({ id: 'session-pinned-a', name: 'Alpha pinned', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-pinned-b', name: 'Beta pinned', agentId: 'agent-a', orderKey: 'b' })
       ],
-      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+      pinIdBySessionId: new Map([
+        ['session-pinned-a', 'pin-a'],
+        ['session-pinned-b', 'pin-b']
+      ])
     })
 
     render(<SessionsForTest />)
-    startDraggingSession('session-a')
+    startDraggingSession('session-pinned-a')
 
     act(() => {
       dndMocks.onDragEnd?.({
         active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
+          data: sortableData('item:session-pinned-a'),
+          id: 'item:session-pinned-a',
           rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
         },
         over: {
-          data: sortableData('item:session-pinned'),
-          id: 'item:session-pinned',
+          data: sortableData('item:session-pinned-b'),
+          id: 'item:session-pinned-b',
           rect: { top: 10, height: 20 }
         }
       })
     })
 
+    await vi.waitFor(() =>
+      expect(dataApiMocks.reorderPin).toHaveBeenCalledWith({ params: { id: 'pin-a' }, body: { after: 'pin-b' } })
+    )
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
+  })
+
+  // Would catch: dragging across the pinned boundary, which would silently pin or
+  // unpin a task — pin state must only change through the star button.
+  it('rejects dragging a pinned session onto an unpinned one', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-plain', name: 'Plain session', agentId: 'agent-a', orderKey: 'b' })
+      ],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+    startDraggingSession('session-pinned')
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-pinned'),
+          id: 'item:session-pinned',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: {
+          data: sortableData('item:session-plain'),
+          id: 'item:session-plain',
+          rect: { top: 10, height: 20 }
+        }
+      })
+    })
+
+    expect(dataApiMocks.reorderPin).not.toHaveBeenCalled()
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
   })
 
