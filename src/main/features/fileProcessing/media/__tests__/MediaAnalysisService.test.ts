@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AiCoreModule from '@cherrystudio/ai-core'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
+import { APPLE_ASR_MODEL_ID, QWEN3_ASR_MODEL_ID } from '@shared/ai/localVoice'
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
@@ -58,6 +58,7 @@ const runtime = vi.hoisted(() => ({
   extractFrames: vi.fn(),
   detectSceneChanges: vi.fn(),
   transcribe: vi.fn(),
+  closeTranscription: vi.fn(async () => undefined),
   ocrImage: vi.fn(),
   generateText: vi.fn()
 }))
@@ -77,9 +78,14 @@ vi.mock('../mediaExecutionConfig', async (importOriginal) => {
   }
 })
 vi.mock('@main/ai/voice/execution', () => ({
-  startTranscription: (request: unknown, signal?: AbortSignal) => ({
-    completed: runtime.transcribe(request, signal)
-  })
+  startTranscription: (request: unknown, signal?: AbortSignal) => {
+    const closed = runtime.closeTranscription()
+    void closed.catch(() => undefined)
+    return {
+      completed: runtime.transcribe(request, signal),
+      closed
+    }
+  }
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -113,7 +119,7 @@ vi.mock('@application', async () => {
 })
 
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
-import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
+import { VoiceCleanupError, VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService } from '@main/core/lifecycle'
 
 import { MediaAnalysisService } from '../MediaAnalysisService'
@@ -153,6 +159,7 @@ beforeEach(async () => {
     text: 'hello',
     segments: [{ text: 'hello', startSecond: 1, endSecond: 2 }]
   })
+  runtime.closeTranscription.mockReset().mockResolvedValue(undefined)
   runtime.ocrImage.mockReset()
   runtime.generateText.mockReset()
   service = new MediaAnalysisService()
@@ -333,6 +340,129 @@ describe('MediaAnalysisService', () => {
     expect(analysis.warnings).toContain('no_speech')
     await service.analyze(file)
     expect(runtime.transcribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats a resolved empty transcript as successful silence', async () => {
+    runtime.transcribe.mockResolvedValue({ text: '   ', segments: [] })
+
+    const analysis = await service.analyze(file)
+
+    expect(analysis.audio).toEqual({ segments: [] })
+    expect(analysis.warnings).toContain('no_speech')
+    await service.analyze(file)
+    expect(runtime.transcribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('maps Qwen3 text without segment times onto the source chunk window', async () => {
+    runtime.config = { ...runtime.config, asr: { modelId: QWEN3_ASR_MODEL_ID } }
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: true,
+      hasVideo: false,
+      mime: 'audio/mp4',
+      kind: 'audio',
+      audioStartMs: 2_000
+    })
+    runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
+      const path = join(outputDir, 'chunk.wav')
+      await writeFile(path, Buffer.from('RIFF-test'))
+      return { chunks: [{ path, startMs: 1_000, endMs: 4_000, byteLength: 9 }], sampleRateHz: 16000, channels: 1 }
+    })
+    runtime.transcribe.mockResolvedValue({ text: '明天开会', segments: [] })
+
+    const analysis = await service.analyze(file)
+
+    expect(analysis.audio?.segments).toEqual([{ startMs: 3_000, endMs: 6_000, text: '明天开会' }])
+    expect(analysis.warnings).not.toContain('no_speech')
+  })
+
+  it('keeps the no-speech warning when a silent chunk resolves beside spoken audio', async () => {
+    runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
+      const silentPath = join(outputDir, 'silent.wav')
+      const spokenPath = join(outputDir, 'spoken.wav')
+      await writeFile(silentPath, Buffer.from('RIFF-silent'))
+      await writeFile(spokenPath, Buffer.from('RIFF-spoken'))
+      return {
+        chunks: [
+          { path: silentPath, startMs: 0, endMs: 4_000, byteLength: 11 },
+          { path: spokenPath, startMs: 4_000, endMs: 8_000, byteLength: 11 }
+        ],
+        sampleRateHz: 16000,
+        channels: 1
+      }
+    })
+    runtime.transcribe.mockResolvedValueOnce({ text: '   ', segments: [] }).mockResolvedValueOnce({
+      text: 'hello',
+      segments: [{ text: 'hello', startSecond: 0.5, endSecond: 1.5 }]
+    })
+
+    const analysis = await service.analyze(file)
+
+    expect(analysis.audio?.segments).toEqual([{ startMs: 4_500, endMs: 5_500, text: 'hello' }])
+    expect(analysis.warnings).toContain('no_speech')
+  })
+
+  it('keeps later speech and the no-speech warning when an earlier chunk throws no_speech', async () => {
+    runtime.extractAudio.mockImplementation(async ({ outputDir }) => {
+      const silentPath = join(outputDir, 'silent.wav')
+      const spokenPath = join(outputDir, 'spoken.wav')
+      await writeFile(silentPath, Buffer.from('RIFF-silent'))
+      await writeFile(spokenPath, Buffer.from('RIFF-spoken'))
+      return {
+        chunks: [
+          { path: silentPath, startMs: 0, endMs: 4_000, byteLength: 11 },
+          { path: spokenPath, startMs: 4_000, endMs: 8_000, byteLength: 11 }
+        ],
+        sampleRateHz: 16000,
+        channels: 1
+      }
+    })
+    runtime.transcribe.mockRejectedValueOnce(new VoiceRuntimeError('no_speech')).mockResolvedValueOnce({
+      text: 'hello',
+      segments: [{ text: 'hello', startSecond: 0.5, endSecond: 1.5 }]
+    })
+
+    const analysis = await service.analyze(file)
+
+    expect(analysis.audio?.segments).toEqual([{ startMs: 4_500, endMs: 5_500, text: 'hello' }])
+    expect(analysis.warnings).toContain('no_speech')
+  })
+
+  it('propagates cancellation from an in-flight transcription and removes its job directory', async () => {
+    const controller = new AbortController()
+    const reason = new Error('cancelled')
+    runtime.transcribe.mockImplementation(
+      (_request: unknown, signal?: AbortSignal) =>
+        new Promise((_resolve, reject) => {
+          if (!signal) {
+            reject(new Error('transcription received no signal'))
+            return
+          }
+          if (signal.aborted) {
+            reject(signal.reason)
+            return
+          }
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
+
+    const pending = service.analyze(file, controller.signal)
+    await vi.waitFor(() => expect(runtime.transcribe).toHaveBeenCalledOnce())
+    controller.abort(reason)
+
+    await expect(pending).rejects.toBe(reason)
+    expect(await readdir(runtime.tempRoot)).toEqual([])
+  })
+
+  it('does not publish a transcript when transcription cleanup fails', async () => {
+    runtime.transcribe.mockResolvedValue({
+      text: 'hello',
+      segments: [{ text: 'hello', startSecond: 1, endSecond: 2 }]
+    })
+    runtime.closeTranscription.mockRejectedValue(new VoiceCleanupError())
+
+    await expect(service.analyze(file)).rejects.toMatchObject({ code: 'unusable_media_analysis' })
+    expect(runtime.cache.size).toBe(0)
   })
 
   it('reuses the cache until the file version changes', async () => {
