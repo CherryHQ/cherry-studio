@@ -54,10 +54,14 @@ describe('isDiagnosticReportEligible', () => {
 
   it('marks upstream server errors ineligible', () => {
     expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'Service Unavailable' }))).toBe(false)
-    expect(isDiagnosticReportEligible(makeError({ message: 'Service temporarily unavailable' }))).toBe(false)
     expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'fetch failed' }))).toBe(false)
     expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'unauthorized' }))).toBe(false)
     expect(isDiagnosticReportEligible(makeError({ statusCode: 503, message: 'insufficient_balance' }))).toBe(false)
+  })
+
+  it('keeps message-only service-unavailable errors eligible', () => {
+    expect(isDiagnosticReportEligible(makeError({ message: 'Service temporarily unavailable' }))).toBe(true)
+    expect(isDiagnosticReportEligible(makeError({ message: 'Service Unavailable' }))).toBe(true)
   })
 
   it('keeps a proxy failure that mentions service unavailable eligible', () => {

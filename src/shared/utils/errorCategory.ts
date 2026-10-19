@@ -101,19 +101,9 @@ export interface ErrorCategoryInput {
   text?: string
   status?: number
   finishReason?: string
-  /**
-   * Skip generic upstream phrases only. Structured HTTP 5xx still returns server,
-   * and later categories such as parse, knowledge, and deprecated still match.
-   */
-  ignoreMessageOnlyServer?: boolean
 }
 
-export function classifyErrorCategory({
-  text,
-  status,
-  finishReason,
-  ignoreMessageOnlyServer
-}: ErrorCategoryInput): ErrorCategory {
+export function classifyErrorCategory({ text, status, finishReason }: ErrorCategoryInput): ErrorCategory {
   switch (finishReason?.toLowerCase()) {
     case 'content-filter':
     case 'content_filter':
@@ -325,15 +315,12 @@ export function classifyErrorCategory({
     return 'proxy'
   }
 
-  // Message-only upstream wording. Explicit transport, TLS, and proxy matches above win.
-  const isExplicitTemporaryUnavailable = /\b(?:service|server|upstream)(?:\s+is)?\s+temporarily unavailable\b/.test(msg)
+  // Server errors (5xx / overloaded)
   if (
-    !ignoreMessageOnlyServer &&
-    (msg.includes('overloaded') ||
-      msg.includes('overload') ||
-      msg.includes('service unavailable') ||
-      msg.includes('internal server error') ||
-      isExplicitTemporaryUnavailable)
+    msg.includes('overloaded') ||
+    msg.includes('overload') ||
+    msg.includes('service unavailable') ||
+    msg.includes('internal server error')
   ) {
     return 'server'
   }

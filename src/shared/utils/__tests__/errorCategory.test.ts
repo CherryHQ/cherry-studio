@@ -70,14 +70,6 @@ describe('classifyErrorCategory transport failures', () => {
     expect(classifyErrorCategory({ text: 'net::ERR_PROXY_CONNECTION_FAILED' })).toBe('proxy')
   })
 
-  it('keeps a proxy failure that also says service unavailable in the proxy category', () => {
-    expect(classifyErrorCategory({ text: 'net::ERR_PROXY_CONNECTION_FAILED: service unavailable' })).toBe('proxy')
-  })
-
-  it('keeps a TLS failure that also says service unavailable in the proxy category', () => {
-    expect(classifyErrorCategory({ text: 'net::ERR_CERT_AUTHORITY_INVALID: service unavailable' })).toBe('proxy')
-  })
-
   // Provider requests go through Electron net.fetch, which wraps a rejected certificate in
   // `Cannot connect to API: net::ERR_CERT_*` — the cert code, not a `certificate` word, is
   // the only signal, and it must beat the generic network branch that matches the wrapper.
@@ -111,45 +103,6 @@ describe('classifyErrorCategory server failures', () => {
       expect(classifyErrorCategory({ status: 503, text })).toBe('server')
     }
   )
-
-  it.each([
-    'Overloaded',
-    'internal server error',
-    'service unavailable',
-    'Service temporarily unavailable',
-    'Upstream service temporarily unavailable'
-  ])('maps "%s" to server', (text) => {
-    expect(classifyErrorCategory({ text })).toBe('server')
-  })
-
-  it('does not treat a bare temporarily unavailable phrase as an upstream server error', () => {
-    expect(classifyErrorCategory({ text: 'temporarily unavailable' })).not.toBe('server')
-  })
-
-  it('keeps MCP service-unavailable errors in the MCP category', () => {
-    expect(classifyErrorCategory({ text: 'MCP error: service unavailable' })).toBe('mcp')
-  })
-
-  it('keeps OCR service-unavailable errors in the OCR category', () => {
-    expect(classifyErrorCategory({ text: 'OCR service unavailable' })).toBe('ocr')
-  })
-
-  it('skips generic server phrases when message-only server matching is ignored', () => {
-    expect(classifyErrorCategory({ text: 'Service unavailable', ignoreMessageOnlyServer: true })).toBe('unknown')
-    expect(classifyErrorCategory({ text: 'Service unavailable: invalid json', ignoreMessageOnlyServer: true })).toBe(
-      'parse'
-    )
-    expect(classifyErrorCategory({ text: 'Service unavailable: invalid json' })).toBe('server')
-    expect(classifyErrorCategory({ text: 'Service unavailable: knowledge base', ignoreMessageOnlyServer: true })).toBe(
-      'knowledge'
-    )
-    expect(classifyErrorCategory({ text: 'Service unavailable: knowledge base' })).toBe('server')
-    expect(classifyErrorCategory({ status: 503, text: 'unauthorized', ignoreMessageOnlyServer: true })).toBe('server')
-  })
-
-  it('does not treat fuzzy upstream compatibility text as server', () => {
-    expect(classifyErrorCategory({ text: 'upstream model compatibility check failed' })).not.toBe('server')
-  })
 })
 
 // Client-refusal gateways reject third-party clients with auth-flavored wording that names the

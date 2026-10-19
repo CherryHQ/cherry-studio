@@ -24,18 +24,9 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.spawnFailed
 }
 
-const CLAUDE_CODE_LOCAL_FAILURE =
-  /failed to spawn claude code process|claude code process exited|claude code process terminated/i
-const UPSTREAM_CONTEXT = /\b(?:api|gateway|http|provider|response|upstream)\b/i
-
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */
 export function classifyClaudeCodeTerminalReason(reason: string): ErrorCategory {
-  const normalized = reason.toLowerCase()
-  return classifyErrorCategory({
-    text: reason,
-    status: extractHttpStatus(reason),
-    ignoreMessageOnlyServer: CLAUDE_CODE_LOCAL_FAILURE.test(normalized) || !UPSTREAM_CONTEXT.test(normalized)
-  })
+  return classifyErrorCategory({ text: reason, status: extractHttpStatus(reason) })
 }
 
 export function recordClaudeCodeProcessExit(

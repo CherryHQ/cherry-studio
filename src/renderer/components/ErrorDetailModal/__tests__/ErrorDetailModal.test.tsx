@@ -829,7 +829,8 @@ describe('ErrorDetailContent diagnostics', () => {
 
   it.each([
     ['insufficient balance', { name: 'ProviderError', message: 'insufficient_balance', stack: null, statusCode: 402 }],
-    ['unknown', { name: 'ProviderError', message: 'something unexplained happened', stack: null }]
+    ['unknown', { name: 'ProviderError', message: 'something unexplained happened', stack: null }],
+    ['message-only service unavailable', { name: 'ProviderError', message: 'Service Unavailable', stack: null }]
   ] as const)('keeps the report action for %s errors and opens review', async (_label, error) => {
     const user = userEvent.setup()
     const onOpenDiagnosticReport = vi.fn()

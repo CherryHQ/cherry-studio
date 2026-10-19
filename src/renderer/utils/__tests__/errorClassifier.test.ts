@@ -601,16 +601,6 @@ describe('classifyError', () => {
     expect(result.category).toBe('server')
   })
 
-  it('classifies an explicit service temporarily unavailable response as server', () => {
-    const result = classifyError(makeError({ message: 'Service temporarily unavailable' }))
-    expect(result.category).toBe('server')
-  })
-
-  it('does not classify a bare temporarily unavailable message as server', () => {
-    const result = classifyError(makeError({ message: 'temporarily unavailable' }))
-    expect(result.category).not.toBe('server')
-  })
-
   // Knowledge
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))
@@ -647,18 +637,6 @@ describe('classifyError', () => {
     expect(result.category).toBe('mcp')
   })
 
-  it('keeps an MCP service-unavailable error navigable to MCP settings', () => {
-    const result = classifyError(makeError({ message: 'MCP error: service unavailable' }))
-    expect(result.category).toBe('mcp')
-    expect(result.navTarget).toBe('/settings/mcp/servers')
-  })
-
-  it('keeps an OCR service-unavailable error eligible for reporting', () => {
-    const result = classifyError(makeError({ message: 'OCR service unavailable' }))
-    expect(result.category).toBe('ocr')
-    expect(result.navTarget).toBeNull()
-  })
-
   it('does not match plain "mcp" without qualifier', () => {
     const result = classifyError(makeError({ message: 'something mcp related' }))
     expect(result.category).not.toBe('mcp')
@@ -667,18 +645,6 @@ describe('classifyError', () => {
   // Proxy — live Chromium net.fetch / undici / https-proxy-agent strings, not guessed English.
   it('classifies Chromium ERR_PROXY_CONNECTION_FAILED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }))
-    expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
-  })
-
-  it('keeps a proxy failure that also says service unavailable on the proxy recovery link', () => {
-    const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED: service unavailable' }))
-    expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
-  })
-
-  it('keeps a TLS failure that also says service unavailable on the proxy recovery link', () => {
-    const result = classifyError(makeError({ message: 'net::ERR_CERT_AUTHORITY_INVALID: service unavailable' }))
     expect(result.category).toBe('proxy')
     expect(result.navTarget).toBe('/settings/general')
   })

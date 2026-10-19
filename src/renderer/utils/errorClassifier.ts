@@ -94,6 +94,18 @@ function readStructuredStatus(value: unknown): number | undefined {
   return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined
 }
 
+/**
+ * A status-less RetryError copies the terminal phrase. Return that attempt's HTTP 5xx;
+ * earlier attempts do not supply a status.
+ */
+export function getErrorHttpStatus(error: SerializedError): number | undefined {
+  const outer = readStructuredStatus(error)
+  if (outer !== undefined) return outer
+  if (!isSerializedAiSdkRetryError(error)) return undefined
+  const terminalStatus = readStructuredStatus(error.lastError)
+  return terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600 ? terminalStatus : undefined
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
   const classify = (category: ErrorCategory): ErrorClassification => ({
@@ -111,13 +123,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
     return classify(errorBag.providerErrorCategory)
   }
-  // A status-less RetryError copies the terminal phrase. Pass that attempt's HTTP 5xx
-  // through the shared classifier; earlier attempts do not supply a status.
-  let numStatus = readStructuredStatus(errorBag)
-  if (numStatus === undefined && isSerializedAiSdkRetryError(error)) {
-    const terminalStatus = readStructuredStatus(error.lastError)
-    if (terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600) numStatus = terminalStatus
-  }
+  const numStatus = getErrorHttpStatus(error)
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
   let dataText = ''
