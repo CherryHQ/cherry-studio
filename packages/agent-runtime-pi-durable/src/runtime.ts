@@ -30,6 +30,7 @@ import {
   type RetractionReceipt,
   type RuntimeError,
   type ThreadHandle,
+  type ThreadInput,
   type Thread,
   type ShutdownReceipt,
   type SubmitResult
@@ -45,8 +46,11 @@ export interface PiDurableRuntimeOptions {
   readonly onError?: (error: unknown) => void
 }
 export type PiDurableSessionOptions = ConversationCreateOptions
-export interface PiDurableThreadHandle extends ThreadHandle {
+export interface PiDurableThreadInput extends ThreadInput {
   submit(input: InputDraft & { readonly deduplicationKey?: string }): Promise<SubmitResult>
+}
+export interface PiDurableThreadHandle extends ThreadHandle {
+  readonly input: PiDurableThreadInput
   lookupInput(query: InputQuery): Promise<OperationResult<InputLookup>>
   retractInput(ref: NativeInputRef): Promise<OperationResult<RetractionReceipt>>
 }
@@ -126,12 +130,11 @@ export async function createPiDurableRuntime(
     relations.set(record.id, record)
     const parent = refFor(record.owner.conversationId)
     live.get(record.owner.conversationId)?.projection.feed.publish({
-      type: 'delegation.upsert',
-      delegation: {
-        ref: { session: parent, id: runtimeId(`owner:${record.owner.taskId}:${record.id}`) },
+      type: 'subagent.upsert',
+      subagent: {
+        id: runtimeId(String(record.id)),
         parent,
-        child: refFor(record.id),
-        status: 'unknown'
+        child: refFor(record.id)
       }
     })
   }
@@ -217,54 +220,56 @@ export async function createPiDurableRuntime(
     const sameSession = (ref: Thread) => ref.backendId === entry.ref.backendId && ref.id === entry.ref.id
     return {
       thread: entry.ref,
-      inputPolicies: ['reject', 'steer', 'follow-up'],
-      submit(input) {
-        if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
-        if (!['reject', 'steer', 'follow-up'].includes(input.whenBusy))
-          return Promise.resolve({ status: 'unsupported', inputId: input.inputId, error: error('submit', 'policy') })
-        const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
-          if (unavailable()) return { ...rejected('submit', 'closed'), inputId: input.inputId }
-          try {
-            const submission = await entry.conversation.submit(
-              {
-                type: 'input',
-                content: input.text,
-                whenBusy: input.whenBusy === 'follow-up' ? 'followUp' : input.whenBusy,
-                requestId: input.deduplicationKey
-              },
-              context
-            )
-            logicalIds.set(submission.id, input.inputId)
-            let state: InputState = {
-              inputId: input.inputId,
-              nativeInput: { session: entry.ref, id: runtimeId(String(submission.id)) },
-              facts: ['accepted']
-            }
+      input: {
+        policies: ['reject', 'steer', 'follow-up'],
+        submit(input) {
+          if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
+          if (!['reject', 'steer', 'follow-up'].includes(input.whenBusy))
+            return Promise.resolve({ status: 'unsupported', inputId: input.inputId, error: error('submit', 'policy') })
+          const attempt = entry.admission.then(async (): Promise<SubmitResult> => {
+            if (unavailable()) return { ...rejected('submit', 'closed'), inputId: input.inputId }
             try {
-              const record = await submission.status(context)
-              publishInput(record)
-              state = inputState(record)
+              const submission = await entry.conversation.submit(
+                {
+                  type: 'input',
+                  content: input.text,
+                  whenBusy: input.whenBusy === 'follow-up' ? 'followUp' : input.whenBusy,
+                  requestId: input.deduplicationKey
+                },
+                context
+              )
+              logicalIds.set(submission.id, input.inputId)
+              let state: InputState = {
+                inputId: input.inputId,
+                nativeInput: { session: entry.ref, id: runtimeId(String(submission.id)) },
+                facts: ['accepted']
+              }
+              try {
+                const record = await submission.status(context)
+                publishInput(record)
+                state = inputState(record)
+              } catch (cause) {
+                report(cause)
+              }
+              entry.projection.feed.publish({ type: 'input.changed', input: state })
+              return {
+                status: 'acknowledged',
+                inputId: input.inputId,
+                nativeInput: state.nativeInput,
+                facts: state.facts
+              }
             } catch (cause) {
               report(cause)
+              return {
+                status: cause instanceof ConversationBusy ? 'rejected' : 'unknown',
+                inputId: input.inputId,
+                error: error('submit', cause instanceof ConversationBusy ? 'busy' : 'native-error')
+              }
             }
-            entry.projection.feed.publish({ type: 'input.changed', input: state })
-            return {
-              status: 'acknowledged',
-              inputId: input.inputId,
-              nativeInput: state.nativeInput,
-              facts: state.facts
-            }
-          } catch (cause) {
-            report(cause)
-            return {
-              status: cause instanceof ConversationBusy ? 'rejected' : 'unknown',
-              inputId: input.inputId,
-              error: error('submit', cause instanceof ConversationBusy ? 'busy' : 'native-error')
-            }
-          }
-        })
-        entry.admission = attempt.then(() => {})
-        return track(attempt)
+          })
+          entry.admission = attempt.then(() => {})
+          return track(attempt)
+        }
       },
       async observe(sink) {
         if (unavailable()) return rejected('observe', 'closed')

@@ -14,6 +14,7 @@ export type CompactionReason = 'manual' | 'threshold' | 'overflow'
 export type AgentRuntimeEvent =
   | { type: 'subagents'; subagents: SubagentView[] }
   | { type: 'session-append'; entries: SessionEntry[] }
+  | { type: 'input-placed'; inputId: string; entryId: string }
   | { type: 'compaction-start'; reason: CompactionReason }
   | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string }
   | { type: 'turn-complete'; headEntryId: string | undefined; aborted: boolean }
@@ -46,6 +47,9 @@ export class SessionEvents {
   handle(event: AgentSessionEvent): void {
     const entries = this.flush()
     switch (event.type) {
+      case 'input_placed':
+        this.listener({ type: 'input-placed', inputId: event.inputId, entryId: event.entryId })
+        break
       case 'compaction_start':
         this.summaryFailure = undefined
         this.listener({ type: 'compaction-start', reason: event.reason })

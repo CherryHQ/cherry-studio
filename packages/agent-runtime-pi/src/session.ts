@@ -16,7 +16,7 @@ import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compa
 import { type ToolOutputOffload, toolOutputOffloadExtension } from './offload'
 import { recallExtension } from './recall'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
-import { createSubagentExtension, type SubagentPort } from './subagent'
+import { createSubagentExtension, type SubagentPort, type SubagentMessageDetails } from './subagent'
 
 export type AgentRuntimeModel = Model<Api>
 
@@ -78,6 +78,8 @@ export interface AgentRuntimeSession {
   abort(): Promise<void>
   /** The user stops a background subagent (the host's stop button); false when it is not running. */
   stopSubagent(sessionId: string): boolean
+  /** Admits child input through its owning extension, including stored continuation. */
+  messageSubagent(sessionId: string, message: string, options?: { inputId?: string }): Promise<SubagentMessageDetails>
   /**
    * The user moves a running foreground subagent to the background: its call returns at once and
    * the same run goes on, ending in a notification. False for any other subagent.
@@ -238,6 +240,10 @@ async function buildSession(
         subagents?.controls.userAbort()
       }
       return session.abort()
+    },
+    async messageSubagent(sessionId, message, inputOptions) {
+      if (!subagents) throw new Error('Subagents are not configured.')
+      return subagents.controls.messageSubagent(sessionId, message, inputOptions)
     },
     stopSubagent: (sessionId) => subagents?.controls.stopSubagent(sessionId) ?? false,
     backgroundSubagent: (sessionId) => subagents?.controls.backgroundSubagent(sessionId) ?? false,

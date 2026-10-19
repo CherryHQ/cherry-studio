@@ -7,6 +7,8 @@ import {
   ThreadFeed,
   type ContentItem,
   type ContentPart,
+  type InputId,
+  type InputState,
   type ItemRef,
   type Thread
 } from '@cherrystudio/agent-runtime'
@@ -16,6 +18,7 @@ type PiMessage = AgentSession['messages'][number]
 export class PiProjection {
   readonly feed: ThreadFeed
   private ids = new WeakMap<object, string>()
+  private inputIds = new WeakMap<object, InputId>()
   private active = new Map<string, string>()
   private calls = new Map<string, ItemRef>()
   private unsubscribe: () => void = () => {}
@@ -32,7 +35,7 @@ export class PiProjection {
         coverage: 'current-view',
         items: [],
         inputs: [],
-        ...(children ? { delegations: [] } : {}),
+        ...(children ? { subagents: [] } : {}),
         activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
       },
       report
@@ -50,6 +53,7 @@ export class PiProjection {
   private reset(session: AgentSession): void {
     this.session = session
     this.ids = new WeakMap()
+    this.inputIds = new WeakMap()
     this.active.clear()
     this.calls.clear()
     this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
@@ -75,6 +79,14 @@ export class PiProjection {
   close(): void {
     this.unsubscribe()
     this.feed.close('shutdown')
+  }
+
+  recordInput(input: InputState & { readonly inputId: InputId }): void {
+    const previous = this.feed.snapshot.inputs.find((known) => known.inputId === input.inputId)
+    this.feed.publish({
+      type: 'input.changed',
+      input: { ...previous, ...input, facts: [...new Set([...(previous?.facts ?? []), ...input.facts])] }
+    })
   }
 
   private id(message: PiMessage): string {
@@ -119,14 +131,48 @@ export class PiProjection {
         outcome: message.isError ? 'error' : 'success'
       })
     } else if (message.role === 'user' || message.role === 'assistant' || message.role === 'system') {
-      items.unshift({ ref: this.itemRef(id), type: 'message', role: message.role, parts, completeness })
+      const inputId = this.inputIds.get(message)
+      items.unshift({
+        ref: this.itemRef(id),
+        type: 'message',
+        role: message.role,
+        parts,
+        completeness,
+        ...(inputId === undefined ? {} : { inputId })
+      })
     } else if (message.role === 'custom' && message.display) {
-      items.push({ ref: this.itemRef(id), type: 'message', role: 'user', parts, completeness })
+      const inputId = this.inputIds.get(message)
+      items.push({
+        ref: this.itemRef(id),
+        type: 'message',
+        role: 'user',
+        parts,
+        completeness,
+        ...(inputId === undefined ? {} : { inputId })
+      })
     }
     for (const item of items) this.feed.publish({ type: 'item.upsert', item })
   }
 
   private event(event: AgentSessionEvent): void {
+    if (event.type === 'input_placed') {
+      const inputId = runtimeId<'input'>(event.inputId)
+      this.inputIds.set(event.message, inputId)
+      this.write(event.message, this.id(event.message), 'complete')
+      this.recordInput({ inputId, facts: ['placed'] })
+    }
+    if (event.type === 'input_handled') {
+      this.recordInput({
+        inputId: runtimeId(event.inputId),
+        facts: ['locally-handled'],
+        ...(event.errorMessage === undefined
+          ? {}
+          : {
+              outcome: 'failed',
+              error: { operation: 'input', code: 'command-failed', message: event.errorMessage }
+            })
+      })
+    }
     if (event.type === 'compaction_end' && event.result) this.reset(this.session)
     if (event.type === 'message_start' || event.type === 'message_update' || event.type === 'message_end') {
       const message = event.message

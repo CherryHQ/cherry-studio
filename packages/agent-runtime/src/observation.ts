@@ -54,13 +54,10 @@ export class ThreadFeed {
       case 'activity.changed':
         this.value = { ...this.value, activity: next.activity }
         break
-      case 'delegation.upsert':
+      case 'subagent.upsert':
         this.value = {
           ...this.value,
-          delegations: [
-            ...(this.value.delegations ?? []).filter((item) => item.ref.id !== next.delegation.ref.id),
-            next.delegation
-          ]
+          subagents: [...(this.value.subagents ?? []).filter((item) => item.id !== next.subagent.id), next.subagent]
         }
         break
     }
