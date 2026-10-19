@@ -151,6 +151,33 @@ describe('agent-behavior boundary guards', () => {
       `import type { Key } from '../core/keys'\nexport const k = 'x' as unknown as Key`,
       SYNTAX
     ],
+    // Catches module state behind a `const`, with or without a type assertion, and classes with instance state, which
+    // the `let` ban misses (AC3, Stage A review M5).
+    [
+      'orchestration module collection',
+      `${SRC}/orchestration/probe.ts`,
+      `const seen = new Map<string, number>()\nexport const mark = (key: string) => seen.set(key, 1)`,
+      SYNTAX
+    ],
+    [
+      'orchestration module collection behind an assertion',
+      `${SRC}/orchestration/probe.ts`,
+      `const seen = new Map() as Map<string, number>\nexport const mark = (key: string) => seen.set(key, 1)`,
+      SYNTAX
+    ],
+    // Catches a promise made by hand through `withResolvers`, which the `new Promise` ban misses.
+    [
+      'orchestration promise resolvers',
+      `${SRC}/orchestration/probe.ts`,
+      `export function wait() {\n  const { promise } = Promise.withResolvers<void>()\n  return promise\n}`,
+      SYNTAX
+    ],
+    [
+      'orchestration class',
+      `${SRC}/orchestration/probe.ts`,
+      `export class Driver {\n  runs = 0\n  next() {\n    return ++this.runs\n  }\n}`,
+      SYNTAX
+    ],
     // Catches orchestration/ reaching the barrel through a file path, which the bare-directory pattern missed.
     [
       'orchestration → barrel file',
@@ -189,7 +216,7 @@ describe('agent-behavior boundary guards', () => {
     ],
     [
       `${SRC}/orchestration/probe.ts`,
-      `export function count(xs: readonly number[]) {\n  let n = 0\n  for (const x of xs) n += x\n  return n\n}`
+      `export const SCHEMA = { type: 'object' }\nexport const fresh = () => new AbortController().signal\nexport function count(xs: readonly number[]) {\n  let n = 0\n  for (const x of xs) n += x\n  return n\n}`
     ],
     [
       `${SRC}/contract/probe.ts`,

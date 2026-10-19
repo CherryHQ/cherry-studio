@@ -117,6 +117,9 @@ export type {
   Settings,
   HostPorts
 } from './ports/host'
+export { install } from './orchestration/install'
+export type { Installation } from './orchestration/install'
+export type { Entries, SubagentStop } from './orchestration/entries'
 export { harnessContract } from './contract/cases'
 export type {
   ContractCase,

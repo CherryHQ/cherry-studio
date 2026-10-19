@@ -103,3 +103,12 @@ export const decideUserStop = (facts: ConversationFacts, inputs: CallInputs, req
   effects: [{ type: 'stop-turn', thread: facts.thread, cause: 'user' }],
   result: null
 })
+
+/**
+ * The host changed the permission mode (D37): only an armed goal that plan mode may have held still has rounds to
+ * start, so the driver is woken for that alone; with nothing to do it would exit at once and leave a record each time.
+ */
+export function decidePermissionModeChanged(facts: ConversationFacts): Step<null> {
+  const goal = facts.lineage.kind === 'root' ? currentGoal(facts.history) : undefined
+  return { ops: goal?.phase === 'active' && goal.armed ? [ensureDriver(facts)] : [], effects: [], result: null }
+}
