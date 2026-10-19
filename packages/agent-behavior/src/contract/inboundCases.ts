@@ -95,7 +95,7 @@ export const inboundCases: readonly ContractCase[] = [
         'after() must replace the result'
       )
       check(
-        dangerResult?.isError === true && dangerResult.blocked === 'not allowed',
+        dangerResult?.isError === true && dangerResult.text.includes('not allowed'),
         'a blocked call must leave an error result naming the reason'
       )
       const echoKey = seen[0].slice('before:'.length)
