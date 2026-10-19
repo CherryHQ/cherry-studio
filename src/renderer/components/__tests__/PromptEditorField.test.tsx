@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { EditorView } from '@codemirror/view'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { loadLanguage } from '@uiw/codemirror-extensions-langs'
 import { type ComponentProps, type ReactNode, type Ref, useImperativeHandle, useRef, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,7 @@ type MockCodeEditorProps = ComponentProps<'textarea'> & {
   onChange?: (value: string) => void
   options?: { foldGutter?: boolean; lineNumbers?: boolean }
   theme?: unknown
+  editable?: boolean
 }
 
 const mocks = vi.hoisted(() => ({
@@ -64,7 +66,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/LazyCodeEditor', () => ({
-  LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme }: MockCodeEditorProps) => {
+  LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme, editable }: MockCodeEditorProps) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     mocks.codeEditorProps = { options, theme }
     useImperativeHandle(ref, () => ({
@@ -82,6 +84,7 @@ vi.mock('@renderer/components/LazyCodeEditor', () => ({
             aria-label="Prompt editor"
             placeholder={placeholder}
             value={value}
+            readOnly={editable === false}
             onChange={(event) => onChange?.(event.currentTarget.value)}
           />
         </div>
@@ -256,6 +259,29 @@ describe('PromptEditorField', () => {
     fireEvent.mouseDown(screen.getByTestId('editor-empty-area'))
 
     expect(editor).toHaveFocus()
+  })
+
+  it('rejects typing while disabled', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [value, setValue] = useState('')
+      return <PromptEditorField disabled label={<span>Prompt</span>} value={value} onChange={setValue} />
+    }
+
+    render(<Harness />)
+    await user.type(screen.getByLabelText('Prompt editor'), 'Typed text')
+
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('')
+  })
+
+  it('keeps the preview from switching to the editor while disabled', () => {
+    render(<PromptEditorField disabled label={<span>Prompt</span>} value="Original prompt" onChange={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    fireEvent.doubleClick(screen.getByTestId('markdown'))
+
+    expect(screen.queryByLabelText('Prompt editor')).not.toBeInTheDocument()
   })
 
   it('focuses the editor when autoFocus is enabled', async () => {

@@ -1,0 +1,2 @@
+event: message
+data: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"No search results found. Please try a different query."}],"isError":false}}
