@@ -205,7 +205,7 @@ describe('messaging and stopping', () => {
     expect(stop.ops).toMatchObject([
       { record: { value: { stoppedBy: 'user', modelStopped: true } }, key: 'subagent-stop:a:1:model' }
     ])
-    expect(stop.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1, by: 'model' }])
+    expect(stop.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1 }])
     expect(decideUserStopSubagent(facts([runEntry(run('f', { background: false }))]), 'f' as never).result).toBe(false)
   })
 
