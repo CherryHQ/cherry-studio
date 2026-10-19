@@ -40,6 +40,7 @@ export const durabilityCases: readonly ContractCase[] = [
           async onOpen(thread, { reopened }, ports) {
             if (reopened) abandonLiveAtOpen = (await ports.ledger.read(thread)).keysSeen.has(key('c16-abandon'))
           },
+          onCompacting: async () => ({ summary: 'summary' }),
           onCompacted: async () => {},
           onClose: async () => {}
         })
