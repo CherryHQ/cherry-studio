@@ -168,7 +168,12 @@ export function toExecutionFailure(
     ? error.providerErrorCategory
     : isErrorCategory(error.claudeCodeExitCategory)
       ? error.claudeCodeExitCategory
-      : classifyErrorCategory({ text: [body, frame?.type, frame?.code].filter(Boolean).join('\n'), status })
+      : classifyErrorCategory({
+          // A provider's own diagnosis can sit in the wrapper text the frame was extracted from,
+          // so classify against it as well as the unwrapped payload.
+          text: [body, frame?.type, frame?.code, raw].filter(Boolean).join('\n'),
+          status
+        })
   const message =
     safeText(
       getSafeProviderErrorMessage({

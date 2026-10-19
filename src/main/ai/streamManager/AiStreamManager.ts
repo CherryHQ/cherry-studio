@@ -252,7 +252,10 @@ function errorFromStreamChunk(errorText: string): SerializedError {
   if (frame.type !== undefined) error.providerErrorType = frame.type
   if (frame.code !== undefined) error.providerErrorCode = frame.code
   const category = classifyErrorCategory({
-    text: [frame.message, frame.type, frame.code].filter(Boolean).join('\n'),
+    // The provider's own diagnosis can live in the wrapper text the frame was extracted from
+    // (`API Error: 403 unsupported_country_region_territory · …`), so classify against that too.
+    // The displayed message stays the unwrapped frame payload.
+    text: [frame.message, frame.type, frame.code, errorText].filter(Boolean).join('\n'),
     status: frame.statusCode
   })
   if (category !== 'unknown') error.providerErrorCategory = category

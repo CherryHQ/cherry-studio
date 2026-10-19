@@ -39,6 +39,18 @@ describe('execution failure projection', () => {
     ).toBe('region')
   })
 
+  it('keeps the provider diagnosis from the SSE wrapper the frame was extracted from', () => {
+    const failure = toExecutionFailure({
+      name: 'StreamError',
+      stack: null,
+      statusCode: 403,
+      message:
+        'API Error: 403 unsupported_country_region_territory · event:error data:{"error":{"message":"Request rejected"}}'
+    })
+    expect(failure.message).toBe('Request rejected')
+    expect(failure.failure.reasonCode).toBe('region')
+  })
+
   it('keeps diagnostic bytes bounded and excludes credentials and local paths', () => {
     const failure = toExecutionFailure({
       name: 'Error',
