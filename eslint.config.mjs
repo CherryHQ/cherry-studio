@@ -1295,7 +1295,7 @@ export default defineConfig([
     files: ['packages/agent-behavior/src/ports/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
-        '(?:^|/)(?:orchestration|fake|contract|index)(?:/|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        '(?:^|/)(?:orchestration|fake|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
         'ports/ depends only on core/ types.'
       ),
       'no-restricted-syntax': [
@@ -1314,7 +1314,7 @@ export default defineConfig([
     files: ['packages/agent-behavior/src/orchestration/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': agentBehaviorLayer(
-        '(?:^|/)(?:fake|contract|index)(?:/|$)|^(?:\\.\\./)*\\.\\.?/?$',
+        '(?:^|/)(?:fake|contract|index)(?:[./]|$)|^(?:\\.\\./)*\\.\\.?/?$',
         'Orchestration never depends on the fake or the contract.'
       ),
       'no-restricted-syntax': [

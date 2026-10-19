@@ -114,6 +114,13 @@ describe('agent-behavior boundary guards', () => {
       `import { ENTRY_KINDS } from '../core/facts'\nexport type K = typeof ENTRY_KINDS`,
       SYNTAX
     ],
+    // Catches ports/ reaching the barrel through a file path, which the bare-directory pattern missed.
+    [
+      'ports → barrel file',
+      `${SRC}/ports/probe.ts`,
+      `import type { X } from '../index.js'\nexport type { X }`,
+      IMPORTS
+    ],
     [
       'ports → fake',
       `${SRC}/ports/probe.ts`,
@@ -143,6 +150,13 @@ describe('agent-behavior boundary guards', () => {
       `${SRC}/orchestration/probe.ts`,
       `import type { Key } from '../core/keys'\nexport const k = 'x' as unknown as Key`,
       SYNTAX
+    ],
+    // Catches orchestration/ reaching the barrel through a file path, which the bare-directory pattern missed.
+    [
+      'orchestration → barrel file',
+      `${SRC}/orchestration/probe.ts`,
+      `import { x } from '../index.js'\nexport { x }`,
+      IMPORTS
     ],
     [
       'orchestration → fake',
