@@ -298,10 +298,8 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         if (job.state === 'live' && job.spec.onRestart === 'abandon') job.state = 'abandoned'
       // The 'resume' jobs, then those each onOpen ensures: Durable runs no task before resume.
       const jobs = [...state.jobs.values()].filter((job) => job.state === 'live')
-      for (const thread of [...state.threads.values()]) {
-        thread.reopened = true
+      for (const thread of [...state.threads.values()])
         await lifecycle((handlers, ports) => handlers.onOpen(thread.id, { reopened: true }, ports), jobs)
-      }
       for (const job of jobs) startJob(job)
       for (const thread of [...state.threads.values()]) if (thread.active) resumeRun(host, thread)
     },

@@ -299,8 +299,8 @@ describe('purity (AC7)', () => {
   add('budgetStops', facts([runEntry(run('a'))], live), (f: ConversationFacts) => budgetStops(f, ['a' as never]))
   add('subagentViews', facts([runEntry(run('a'))], live), (f) => subagentViews(f, []))
   add('turnOrigin', drive(6).history, (h) => turnOrigin(h, h[h.length - 1].id))
-  add('decideOnOpen', facts([goalEntry(goal()), runEntry(run('a'))], { ...live, live: { reopened: true } }), (f) =>
-    decideOnOpen(f, inputs(), { supportsTools: true })
+  add('decideOnOpen', facts([goalEntry(goal()), runEntry(run('a'))], live), (f) =>
+    decideOnOpen(f, inputs(), { reopened: true, supportsTools: true })
   )
   add('decideApproval', host, (h) =>
     decideApproval(

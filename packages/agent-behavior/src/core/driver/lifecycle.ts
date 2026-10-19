@@ -12,8 +12,9 @@ import { goalStop, quietDelivery } from './idle'
 import { ensureDriver } from './jobs'
 
 /**
- * `onOpen` (D13, G-f, S-g; H12 stop before resume). `open.supportsTools`: whether the conversation's model can call
- * tools (from the host's `Models.current`). On any open a goal whose model cannot call tools stops. On reopen
+ * `onOpen` (D13, G-f, S-g; H12 stop before resume). `open.reopened` is the flag `onOpen` receives; `open.supportsTools`
+ * whether the conversation's model can call tools (from the host's `Models.current`). On any open a goal whose model
+ * cannot call tools stops. On reopen
  * an armed goal is disarmed; a goal round the restart interrupted stops (recorded as a stop, so results wait for the
  * person); running background children stop. Background runs whose record is still running end as interrupted, and so
  * do foreground runs whose calling tool died with the restart or with the stopped round. Results not delivered yet
@@ -23,7 +24,7 @@ import { ensureDriver } from './jobs'
 export function decideOnOpen(
   facts: ConversationFacts,
   inputs: CallInputs,
-  open: { readonly supportsTools: boolean }
+  open: { readonly reopened: boolean; readonly supportsTools: boolean }
 ): Step<null> {
   const ops: TxOp[] = []
   const effects: Effect[] = []
@@ -33,7 +34,7 @@ export function decideOnOpen(
     ops.push(
       goalStop(facts, inputs, goal, { code: 'unsupported_model', message: 'the current model has no tool calling' })
     )
-  if (!facts.live.reopened) return { ops, effects, result: null }
+  if (!open.reopened) return { ops, effects, result: null }
 
   // A stop disarms too; otherwise an armed goal is disarmed without a stop (the person resumes it).
   const disarm = goal?.armed === true && !unsupported

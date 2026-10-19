@@ -234,10 +234,7 @@ export const inboundCases: readonly ContractCase[] = [
       await h.settle()
       same(events, ['open:false', 'open:true'], 'onOpen must run at creation and again on reopen')
       const facts = await read(h, t)
-      check(
-        noticeTexts(facts).includes('disarmed') && facts.live.reopened,
-        "onOpen's writes must land on the reopened conversation"
-      )
+      check(noticeTexts(facts).includes('disarmed'), "onOpen's writes must land on the reopened conversation")
       check(hold.invocations('c21') === 1, 'a run stopped in onOpen must not resume its tool')
       check(
         !assistantTexts(facts).includes('after restart'),
