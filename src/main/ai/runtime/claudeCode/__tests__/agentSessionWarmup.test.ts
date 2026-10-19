@@ -482,6 +482,26 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
+  it.each(['doctor', 'support'] as const)('materializes no user MCP facts or snapshots for %s', async (role) => {
+    const agent = {
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      mcps: ['mcp-1'],
+      configuration: { builtin_role: role }
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request).toBeDefined()
+    expect(mocks.buildSessionSettings.mock.calls[0][2].mcpServerSnapshots.size).toBe(0)
+    expect(request?.connectionConfig.live.toolPolicy.mcps).toEqual([])
+    expect(mocks.findMcpServerByIdOrName).not.toHaveBeenCalled()
+    mocks.getAgent.mockReturnValue({ ...agent, mcps: ['other-mcp'] })
+    const current = await deriveConnectionConfig('session-1')
+    if (!current.ok || !request) throw new Error('expected request and config')
+    expect(current.config.rebuildSignature).toBe(request.connectionConfig.rebuildSignature)
+    expect(current.config.rebuildFactFingerprints.mcp).toBe(request.connectionConfig.rebuildFactFingerprints.mcp)
+  })
+
   it('captures MCP definition facts from the snapshot materialized before a connect-time edit', async () => {
     const materializedServer = {
       id: 'mcp-1',
@@ -1227,6 +1247,29 @@ describe('deriveConnectionConfig', () => {
     if (!result.ok) throw new Error('expected ok derive')
     return result.config
   }
+
+  it.each(['doctor', 'support', undefined] as const)('signs effective MCP facts for role %s', async (role) => {
+    const agent = { ...mocks.getAgent(), mcps: [], configuration: role ? { builtin_role: role } : {} }
+    mocks.getAgent.mockReturnValue(agent)
+    const before = await deriveSignature()
+    mocks.getAgent.mockReturnValue({ ...agent, mcps: ['mcp-1'] })
+    mocks.findMcpServerByIdOrName.mockReturnValue({
+      id: 'mcp-1',
+      name: 'server',
+      type: 'stdio',
+      command: 'user-server'
+    })
+    const after = await deriveSignature()
+    if (role) {
+      expect(after.rebuildSignature).toBe(before.rebuildSignature)
+      expect(after.rebuildFactFingerprints.mcp).toBe(before.rebuildFactFingerprints.mcp)
+      expect(after.live.toolPolicy.mcps).toEqual([])
+      expect(mocks.findMcpServerByIdOrName).not.toHaveBeenCalled()
+    } else {
+      expect(after.rebuildSignature).not.toBe(before.rebuildSignature)
+      expect(after.live.toolPolicy.mcps).toEqual(['mcp-1'])
+    }
+  })
 
   it('is a pure read: no rotation advance, no gateway effects, no settings materialization', async () => {
     const result = await deriveConnectionConfig('session-1')

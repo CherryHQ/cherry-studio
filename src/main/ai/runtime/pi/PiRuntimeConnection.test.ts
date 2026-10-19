@@ -13,6 +13,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { agentTable } from '@data/db/schemas/agent'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
+import { resolveAgentUserMcpIds } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import type * as AgentMcpServers from '@main/ai/runtime/agentMcpServers'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
@@ -392,7 +394,7 @@ beforeEach(() => {
         additionalSkillPaths: skills
           .filter((skill: { isEnabled: boolean }) => skill.isEnabled)
           .map((skill: { folderName: string }) => mocks.getSkillDirectory(skill.folderName)),
-        mcpServerSnapshots: new Map((agent.mcps ?? []).map((id: string) => [id, { id }])),
+        mcpServerSnapshots: new Map(resolveAgentUserMcpIds(agent).map((id: string) => [id, { id }])),
         linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
         signature: JSON.stringify({
           agent: {
@@ -507,6 +509,39 @@ it('rejects a Pi checkpoint with a missing native leaf before looking for histor
 })
 
 describe('PiRuntimeConnection', () => {
+  it.each(['doctor', 'support', undefined] as const)(
+    'warms and mounts effective user servers for role %s',
+    async (role) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'pi',
+        model: 'p::m',
+        mcps: ['user-mcp'],
+        configuration: role ? { builtin_role: role } : {}
+      })
+      const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('@main/ai/runtime/agentMcpServers')
+      mocks.buildAgentMcpServers.mockImplementation(
+        (session, agent, mounted, snapshots, channel, dataPath, knowledgeIds) =>
+          buildAgentMcpServers(session, agent, mounted, snapshots, channel, dataPath, knowledgeIds, {
+            sourceChannel: null,
+            channels: [],
+            allowAnyOwnedChannel: false
+          })
+      )
+      const connection = await new PiRuntimeConnection(input).start()
+      try {
+        expect(mocks.warmMcpToolCatalogs).toHaveBeenCalledExactlyOnceWith(role ? [] : ['user-mcp'])
+        const servers = mocks.createPiMcpExtension.mock.calls[0][1]
+        expect(servers['cherry-tools']).toBeDefined()
+        if (role) expect(servers['user-mcp']).toBeUndefined()
+        else expect(servers['user-mcp']).toBeDefined()
+      } finally {
+        await connection.close()
+        mocks.buildAgentMcpServers.mockReset()
+      }
+    }
+  )
+
   it.each(['default', 'acceptEdits'] as const)(
     'auto-approves mounted desktop tools in %s without a responder',
     async (mode) => {

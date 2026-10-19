@@ -12,6 +12,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { resolveAgentUserMcpIds } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
@@ -415,7 +416,7 @@ async function deriveConnectionConfigFromSnapshot(
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-    mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
+    mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(resolveAgentUserMcpIds(agent)),
     notificationContext
   }
   const rebuildFactFingerprints = Object.fromEntries(
@@ -434,7 +435,7 @@ async function deriveConnectionConfigFromSnapshot(
       toolPolicy: {
         permissionMode: agent.configuration?.permission_mode ?? null,
         disabledTools: [...(agent.disabledTools ?? [])].sort(),
-        mcps: [...(agent.mcps ?? [])].sort()
+        mcps: [...resolveAgentUserMcpIds(agent)].sort()
       }
     }
   }
@@ -489,7 +490,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   if (!agent?.model) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
-  const mcpServerSnapshots = captureMcpServerSnapshots(agent.mcps)
+  const mcpServerSnapshots = captureMcpServerSnapshots(resolveAgentUserMcpIds(agent))
 
   const uniqueModelId = connectionModelId ?? agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
@@ -565,7 +566,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     selectedKnowledgeBaseIds,
     {
       route: toConnectionRouteFacts(route),
-      mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
+      mcp: deriveMcpDefinitionFacts(resolveAgentUserMcpIds(agent), mcpServerSnapshots),
       skills: settings.skills ?? [],
       notificationContext,
       contextWindow: contextWindow ?? null,

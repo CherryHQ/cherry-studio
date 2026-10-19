@@ -3566,6 +3566,32 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
     }
 
+    it.each(['doctor', 'support', undefined] as const)(
+      'projects user warming and metadata before catalog access for role %s',
+      async (role) => {
+        const session = sessionWithMcps(['srv-a'])
+        if (role) mocks.getAgent.mockReturnValue({ ...mocks.getAgent(), configuration: { builtin_role: role } })
+        mocks.listMcpTools.mockReturnValue([{ name: 'search_docs', description: 'Search docs' }])
+        const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+        if (role) {
+          expect(mocks.warmToolsCache).not.toHaveBeenCalled()
+          expect(mocks.findByIdOrName).not.toHaveBeenCalled()
+          expect(mocks.listMcpTools).not.toHaveBeenCalled()
+          expect(settings.mcpToolMetadata).toBeUndefined()
+          expect(settings.mcpServers?.['srv-a']).toBeUndefined()
+          expect(settings.settingSources).toEqual([])
+        } else {
+          expect(mocks.warmToolsCache).toHaveBeenCalledWith('srv-a')
+          expect(settings.mcpToolMetadata?.['mcp__srv-a__search_docs']).toMatchObject({
+            serverId: 'srv-a',
+            name: 'search_docs'
+          })
+          expect(settings.mcpServers?.['srv-a']).toBeDefined()
+        }
+        expect(settings.mcpServers?.['cherry-tools']).toBeDefined()
+      }
+    )
+
     it('warms each configured MCP server once via warmToolsCache', async () => {
       const session = sessionWithMcps(['srv-a', 'srv-b'])
 

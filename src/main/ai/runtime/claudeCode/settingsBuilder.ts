@@ -20,6 +20,7 @@ import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import {
   resolveAgentCapabilities,
+  resolveAgentUserMcpIds,
   resolveAutomationAccess,
   resolveMountedMcpServers
 } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -254,7 +255,7 @@ export async function buildClaudeCodeSessionSettings(
     notificationContext
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
-  if (agent.mcps?.length) mcpToolMetadata ??= {}
+  if (resolveAgentUserMcpIds(agent).length) mcpToolMetadata ??= {}
 
   // 7. Post-timeout reconciliation. If the bounded warm hit its cap, the snapshot (step 4) and
   // metadata above were built from a still-cold cache, while the SDK bridge will expose the warmed

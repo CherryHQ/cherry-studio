@@ -35,7 +35,7 @@ vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { findById
 
 vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
 
-const { createClaudeAgentToolPolicySnapshot } = await import('../agentTools')
+const { createClaudeAgentToolPolicySnapshot, listClaudeAgentToolDescriptors } = await import('../agentTools')
 
 function makeAgent(disabledTools: string[] = [], mcps: string[] = []): AgentEntity {
   return { id: 'agent-1', mcps, disabledTools, configuration: {} } as unknown as AgentEntity
@@ -60,6 +60,32 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.listMcpTools.mockReturnValue([])
+  })
+
+  it.each(['doctor', 'support'] as const)('excludes user descriptors for %s, including live updates', async (role) => {
+    mocks.listMcpTools.mockReturnValue([{ name: 'search_docs', description: 'Search docs' }])
+    const open = makeAgent([], ['mcp-1'])
+    const sealed = { ...open, configuration: { builtin_role: role } }
+    const snapshot = await createClaudeAgentToolPolicySnapshot(open)
+    expect(snapshot.resolve('mcp__server__searchDocs')).toBeDefined()
+    mocks.findMcpServer.mockClear()
+    mocks.listMcpTools.mockClear()
+
+    const { descriptors, failedMcpIds } = await listClaudeAgentToolDescriptors(sealed)
+    expect(descriptors.some((tool) => tool.id === 'Bash')).toBe(true)
+    expect(descriptors.filter((tool) => tool.origin === 'mcp')).toEqual([])
+    expect(failedMcpIds.size).toBe(0)
+    await snapshot.update(sealed)
+    expect(snapshot.resolve('mcp__server__searchDocs')).toBeUndefined()
+    expect(snapshot.resolve('Bash')).toBeDefined()
+    expect(mocks.findMcpServer).not.toHaveBeenCalled()
+    expect(mocks.listMcpTools).not.toHaveBeenCalled()
+  })
+
+  it('keeps ids-only catalog callers open without configuration', async () => {
+    mocks.listMcpTools.mockReturnValue([{ name: 'search_docs', description: 'Search docs' }])
+    const { descriptors } = await listClaudeAgentToolDescriptors({ mcps: ['mcp-1'] })
+    expect(descriptors.filter((tool) => tool.origin === 'mcp').map((tool) => tool.name)).toEqual(['search_docs'])
   })
 
   it('reflects a disabledTools change after update() without a connection rebuild', async () => {

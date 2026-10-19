@@ -92,6 +92,11 @@ export function resolveAgentCapabilities(
   return (role && CAPABILITIES_BY_ROLE[role]) || DEFAULT_CAPABILITIES
 }
 
+/** User MCP servers this Agent's session may mount; a sealed Agent composes none. */
+export function resolveAgentUserMcpIds(agent: Pick<AgentEntity, 'mcps' | 'configuration'>): string[] {
+  return resolveAgentCapabilities(agent).environment === 'sealed' ? [] : (agent.mcps ?? [])
+}
+
 /** Resolve this session's host-tool surface; undefined means the assistant MCP servers stay unmounted. */
 export function resolveHostTools(
   agent: Pick<AgentEntity, 'type' | 'configuration'>,
