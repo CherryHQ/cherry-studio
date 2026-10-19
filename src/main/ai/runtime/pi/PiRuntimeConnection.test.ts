@@ -2,12 +2,14 @@ import type * as NodeFs from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
-import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import type { AgentSessionEvent, resizeImage } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
+import sharp from 'sharp'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
@@ -252,6 +254,8 @@ const fakeSession = {
 }
 
 const fakePi = {
+  resizeImage: async (...args: Parameters<typeof resizeImage>) =>
+    (await import('@earendil-works/pi-coding-agent')).resizeImage(...args),
   ModelRuntime: {
     create: async () => ({
       setRuntimeApiKey: mocks.setRuntimeApiKey,
@@ -530,6 +534,131 @@ describe('PiRuntimeConnection', () => {
       }
     }
   )
+
+  describe('LM Studio local images', () => {
+    async function startInlineConnection() {
+      const injection = mocks.resolveInjection.getMockImplementation()!
+      mocks.resolveInjection.mockImplementation(async (...args: unknown[]) => ({
+        ...(await injection(...args)),
+        inlineLocalImages: true
+      }))
+      return new PiRuntimeConnection(input).start()
+    }
+    function withImage(url: string): AgentRuntimeUserInput {
+      const result = userInput('Look', true)
+      result.message.data.parts!.push({ type: 'file', mediaType: 'image/jpeg', filename: 'second-photo.jpg', url })
+      return result
+    }
+    it('sends native image bytes and preserves follow-up and reminder semantics', async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), 'pi-send-'))
+      const file = path.join(directory, 'image.jpg')
+      const bytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#336699' } })
+        .jpeg()
+        .toBuffer()
+      await writeFile(file, bytes)
+      const conn = await startInlineConnection()
+      mocks.isStreaming = true
+      const submitted = createDeferred<{ text: string; options: any }>()
+      mocks.prompt.mockImplementationOnce(async (text, options) => {
+        submitted.resolve({ text, options })
+      })
+      conn.send(withImage(pathToFileURL(file).href))
+      const { text, options } = await submitted.promise
+      expect(text).toContain('<system-reminder>')
+      expect(text).not.toContain('second-photo.jpg')
+      expect(options.streamingBehavior).toBe('followUp')
+      expect(options.images).toHaveLength(1)
+      expect(Buffer.from(options.images[0].data, 'base64')).toEqual(bytes)
+      await conn.close()
+      await rm(directory, { recursive: true, force: true })
+    })
+    it('keeps JPEG paths and accepts unreadable attachments when image policy is false', async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), 'pi-text-image-'))
+      const file = path.join(directory, 'valid.jpg')
+      await sharp({ create: { width: 8, height: 8, channels: 3, background: '#336699' } })
+        .jpeg()
+        .toFile(file)
+      const injection = mocks.resolveInjection.getMockImplementation()!
+      mocks.resolveInjection.mockImplementation(async (...args: unknown[]) => ({
+        ...(await injection(...args)),
+        inlineLocalImages: false
+      }))
+      const conn = await new PiRuntimeConnection(input).start()
+      const resize = vi.spyOn(fakePi, 'resizeImage')
+      try {
+        const result = withImage(pathToFileURL(file).href)
+        result.message.data.parts!.push({
+          type: 'file',
+          mediaType: 'image/jpeg',
+          filename: 'missing.jpg',
+          url: pathToFileURL(path.join(directory, 'missing.jpg')).href
+        })
+        const submitted = createDeferred<{ text: string; options: any }>()
+        mocks.prompt.mockImplementationOnce(async (text, options) => {
+          submitted.resolve({ text, options })
+        })
+        conn.send(result)
+        const { text, options } = await submitted.promise
+        expect(text).toContain(file)
+        expect(text).toContain(path.join(directory, 'missing.jpg'))
+        expect(options?.images ?? []).toEqual([])
+        expect(resize.mock.calls).toEqual([])
+        expect((await collectUntilTerminal(conn.events)).at(-1)).toMatchObject({ type: 'turn-complete' })
+      } finally {
+        resize.mockRestore()
+        await conn.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+    it('rejects the whole submission with one named error and no prompt', async () => {
+      const conn = await startInlineConnection()
+      conn.send(withImage('file:///missing/second-photo.jpg'))
+      const events = conn.events[Symbol.asyncIterator]()
+      let event = (await events.next()).value
+      while (event?.type !== 'error') event = (await events.next()).value
+      expect(event).toMatchObject({
+        type: 'error',
+        error: { name: 'PiImagePreparationError', detailI18nValues: { filename: 'second-photo.jpg' } }
+      })
+      expect(mocks.prompt.mock.calls).toEqual([])
+      await conn.close()
+      expect((await events.next()).done).toBe(true)
+    })
+    it('does not prompt after close while preparing and queues image steers', async () => {
+      const conn = await startInlineConnection()
+      mocks.isStreaming = true
+      const bytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#336699' } })
+        .jpeg()
+        .toBuffer()
+      const imageInput = withImage(`data:image/jpeg;base64,${bytes.toString('base64')}`)
+      expect(conn.redirect(imageInput)).toBe(false)
+      expect(mocks.steer.mock.calls).toEqual([])
+      const processing = createDeferred<void>()
+      const prepared = createDeferred<Awaited<ReturnType<typeof fakePi.resizeImage>>>()
+      const resize = vi.spyOn(fakePi, 'resizeImage').mockImplementationOnce(() => {
+        processing.resolve()
+        return prepared.promise
+      })
+      try {
+        conn.send(imageInput)
+        await processing.promise
+        await conn.close()
+        prepared.resolve({
+          data: bytes.toString('base64'),
+          mimeType: 'image/jpeg',
+          width: 8,
+          height: 8,
+          originalWidth: 8,
+          originalHeight: 8,
+          wasResized: false
+        })
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(mocks.prompt.mock.calls).toEqual([])
+      } finally {
+        resize.mockRestore()
+      }
+    })
+  })
 
   it('does not auto-approve desktop tools when the server is not mounted', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)

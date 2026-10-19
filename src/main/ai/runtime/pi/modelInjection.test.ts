@@ -11,7 +11,7 @@ import type { ReasoningWireProfile } from '@cherrystudio/provider-registry'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 const serviceMocks = vi.hoisted(() => ({
@@ -48,6 +48,7 @@ import {
   assertPiProviderUsable,
   buildPiGatewayInjection,
   buildPiProviderInjection,
+  materializePiProviderStream,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiUnsupportedProviderError,
@@ -1282,5 +1283,124 @@ describe('Anthropic adaptive thinking projection', () => {
         rmSync(directory, { recursive: true, force: true })
       }
     })
+  })
+})
+
+describe('LM Studio Pi image policy', () => {
+  const provider = (overrides: Partial<Provider> = {}) =>
+    makeProvider({
+      id: 'lmstudio',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'http://localhost:1234/v1' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'http://localhost:1234' },
+        'openai-responses': { adapterFamily: 'openai', baseUrl: 'http://localhost:1234/v1' }
+      },
+      ...overrides
+    })
+  it.each([
+    [{}, ['openai-chat-completions'], true],
+    [{ id: 'custom-lm', presetProviderId: 'lmstudio' }, ['openai-chat-completions'], true],
+    [{ id: 'other', name: 'LM Studio' }, ['openai-chat-completions'], false],
+    [{ id: 'anthropic', presetProviderId: 'anthropic' }, ['openai-chat-completions'], false],
+    [{}, ['openai-chat-completions', 'anthropic-messages'], false],
+    [{ defaultChatEndpoint: 'openai-responses' }, ['openai-responses'], false],
+    [
+      {
+        endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'http://localhost:1234/v1' } }
+      },
+      ['openai-chat-completions'],
+      false
+    ]
+  ] as const)(
+    'limits policy to preset identity, actual endpoint and adapter (%j, %j)',
+    (overrides, endpoints, expected) => {
+      const injection = buildPiProviderInjection(
+        provider(overrides),
+        makeModel({ endpointTypes: [...endpoints], capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }),
+        REAL_KEY
+      )
+      expect(injection.inlineLocalImages).toBe(expected)
+    }
+  )
+
+  it.each<[Partial<Model>, boolean]>([
+    [{ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }, true],
+    [{ inputModalities: [MODALITY.IMAGE] }, true],
+    [{}, false]
+  ])('requires declared image input (%j)', async (declaration, expected) => {
+    const injection = buildPiProviderInjection(provider(), makeModel(declaration), REAL_KEY)
+    expect(injection.inlineLocalImages).toBe(expected)
+    expect(injection.providerConfig.models?.[0]?.input).toEqual(expected ? ['text', 'image'] : ['text'])
+    if (!expected) {
+      const original = vi.fn(() => ({}) as never)
+      injection.providerConfig.streamSimple = original
+      const materialized = await materializePiProviderStream(injection)
+      expect(materialized.streamSimple).toBe(original)
+      materialized.streamSimple({} as never, { messages: [] } as never)
+      expect(original.mock.calls).toEqual([[{}, { messages: [] }]])
+    }
+  })
+
+  it.each([false, true])(
+    'composes the caller payload hook before multi-image conversion (override=%s)',
+    async (override) => {
+      const injection = buildPiProviderInjection(
+        provider(),
+        makeModel({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }),
+        REAL_KEY
+      )
+      let observed: any
+      let receivedOptions: any
+      injection.providerConfig.streamSimple = (model, _context, options) => {
+        receivedOptions = options
+        observed = options!.onPayload!({ original: true }, model)
+        return {} as never
+      }
+      const { streamSimple } = await materializePiProviderStream(injection)
+      const payload = {
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,UkVE' } },
+              { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,QkxVRQ==' } }
+            ]
+          }
+        ]
+      }
+      const signal = new AbortController().signal
+      streamSimple({} as never, { messages: [] } as never, {
+        signal,
+        headers: { 'x-probe': 'kept' },
+        maxRetryDelayMs: 123,
+        onPayload: async (input) => {
+          await Promise.resolve()
+          if (override) return payload
+          Object.assign(input as object, payload)
+          return undefined
+        }
+      })
+      const body = await observed
+      expect(body.messages[0].content.map((part: any) => part.image_url.url)).toEqual(['UkVE', 'QkxVRQ=='])
+      expect(receivedOptions).toMatchObject({ signal, headers: { 'x-probe': 'kept' }, maxRetryDelayMs: 123 })
+    }
+  )
+
+  it('preserves single-image data URLs', async () => {
+    const injection = buildPiProviderInjection(
+      provider(),
+      makeModel({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }),
+      REAL_KEY
+    )
+    let observed: any
+    const body = { messages: [{ content: [{ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,UkVE' } }] }] }
+    injection.providerConfig.streamSimple = (model, _context, options) => {
+      observed = options!.onPayload!(body, model)
+      return {} as never
+    }
+    const { streamSimple } = await materializePiProviderStream(injection)
+    streamSimple({} as never, { messages: [] } as never)
+    expect(await observed).toEqual(body)
   })
 })

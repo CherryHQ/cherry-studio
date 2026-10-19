@@ -85,6 +85,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
+import { hasPiLocalImages, preparePiUserContent } from './piUserContent'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -163,6 +164,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private lastStopReason?: string
   private lastAgentError?: string
   private closed = false
+  private inlineLocalImages = false
   /** Injected model id (pi `apiModelId`), stamped on context-usage so the renderer's
    *  per-model usage filter matches the composer's model candidates. */
   private modelId = ''
@@ -238,6 +240,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.mcpServerSnapshots = initialSnapshot.mcpServerSnapshots
     this.disabledTools = normalizeDisabledTools(agent.disabledTools, initialSnapshot)
     const injection = await resolveInjection(initialSnapshot)
+    this.inlineLocalImages = injection.inlineLocalImages === true
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
 
@@ -484,6 +487,24 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
       return
     }
+    if (this.closed) return
+    if (this.inlineLocalImages && hasPiLocalImages(input.message)) {
+      this.promptRunActive = true
+      void preparePiUserContent(input.message)
+        .then(async ({ text, images }) => {
+          if (this.closed || this.session !== session) return
+          const content = input.systemReminder ? wrapSteerReminder(text) : text
+          await session.prompt(content, {
+            ...(session.isStreaming ? { streamingBehavior: 'followUp' as const } : {}),
+            images
+          })
+        })
+        .then(
+          () => this.finishPromptRun(),
+          (error) => this.finishPromptRun(error)
+        )
+      return
+    }
     const rawContent = buildAgentUserContent(input.message)
 
     // A `systemReminder` message is a steer the host re-queued as its own turn (an undelivered steer
@@ -527,9 +548,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const session = this.session
     if (!session?.isStreaming) return false
 
-    // buildAgentUserContent intentionally flattens attachments to filenames and absolute paths for
-    // filesystem agents; pi's native image channel stays unused until Cherry models multimodal agent
-    // attachments end-to-end.
+    if (this.inlineLocalImages && hasPiLocalImages(input.message)) return false
+
     const wrappedText = wrapSteerReminder(buildAgentUserContent(input.message))
     const pending: PendingSteer = { input }
     this.pendingSteers.push(pending)
