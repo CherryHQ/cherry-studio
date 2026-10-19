@@ -1,5 +1,7 @@
 export interface FfprobeStream {
+  index?: number
   codec_type?: string
+  channels?: number
   duration?: string
   disposition?: { attached_pic?: number | string; default?: number | string }
   start_time?: string
@@ -47,10 +49,34 @@ function isAttachedPicture(stream: FfprobeStream): boolean {
   return dispositionEnabled(stream.disposition?.attached_pic)
 }
 
-/** Audio stream FFmpeg extracts when `extractAudio` omits `-map`: default disposition, else the first. */
+function channelCount(stream: FfprobeStream): number {
+  const channels = stream.channels
+  return typeof channels === 'number' && Number.isFinite(channels) && channels > 0 ? channels : 0
+}
+
+/** One-input FFmpeg 8 score: channels, plus 5_000_000 for disposition.default. Ties keep the earlier stream. */
+const DEFAULT_AUDIO_DISPOSITION_SCORE = 5_000_000
+
+function audioSelectionScore(stream: FfprobeStream): number {
+  return channelCount(stream) + (dispositionEnabled(stream.disposition?.default) ? DEFAULT_AUDIO_DISPOSITION_SCORE : 0)
+}
+
 function selectedAudioStream(streams: readonly FfprobeStream[]): FfprobeStream | undefined {
   const audio = streams.filter((stream) => stream.codec_type === 'audio')
-  return audio.find((stream) => dispositionEnabled(stream.disposition?.default)) ?? audio[0]
+  return audio.reduce<FfprobeStream | undefined>((best, stream) => {
+    if (!best || audioSelectionScore(stream) > audioSelectionScore(best)) return stream
+    return best
+  }, undefined)
+}
+
+/** `-map` value for the same stream `selectedAudioStream` uses as the timeline offset. */
+export function audioExtractStreamMap(streams: readonly FfprobeStream[]): string | undefined {
+  const selected = selectedAudioStream(streams)
+  if (!selected) return undefined
+  const position = streams.indexOf(selected)
+  const index = selected.index ?? position
+  if (!Number.isInteger(index) || index < 0) return undefined
+  return `0:${index}`
 }
 
 function parseFiniteSeconds(value: string | undefined): number | undefined {

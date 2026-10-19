@@ -6,6 +6,7 @@ import { providerService } from '@data/services/ProviderService'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import type { AppProviderSettingsMap } from '@main/ai/types'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { resolveDefaultAsrModel } from '@main/ai/voice/voicePlatform'
 import { resolveProcessorConfigByFeature } from '@main/features/fileProcessing/config/resolveProcessorConfig'
 import {
@@ -45,6 +46,8 @@ export interface MediaVisionExecutionConfig {
     providerSettings: AppProviderSettingsMap[keyof AppProviderSettingsMap]
     modelId: string
   }
+  /** Frozen before the vision call. Completion must not re-read provider or credential state. */
+  usage: ReturnType<typeof createAiUsageCaptureContext>
 }
 
 export interface MediaExecutionConfig {
@@ -112,7 +115,7 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
     const provider = providerService.getByProviderId(providerId)
     if (!isVideoVisionSelectableModel(model, provider)) return null
     const endpoint = resolveEffectiveEndpoint(provider, model)
-    const { sdkConfig } = await resolveSdkConfig(provider, model, endpoint)
+    const { sdkConfig, credentialReceipt } = await resolveSdkConfig(provider, model, endpoint)
     return {
       uniqueModelId: parsed.data,
       providerId,
@@ -123,7 +126,19 @@ async function resolveVisionExecutionConfig(): Promise<MediaVisionExecutionConfi
         providerId: sdkConfig.providerId,
         providerSettings: sdkConfig.providerSettings,
         modelId: sdkConfig.modelId
-      }
+      },
+      usage: createAiUsageCaptureContext({
+        providerId: provider.id,
+        providerName: provider.name,
+        modelId: sdkConfig.modelId,
+        modelName: model.name,
+        pricing: model.pricing,
+        billing: provider.settings.billing,
+        billingModelId: modelId,
+        trustProviderReportedCost: provider.reportsActualCost,
+        reportedCostCurrency: provider.reportedCostCurrency,
+        credentialReceipt
+      })
     }
   } catch {
     return null

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  audioExtractStreamMap,
   classifyFfprobeResult,
   planFrameTimestamps,
   relativeInputSeekMs,
@@ -58,26 +59,73 @@ describe('classifyFfprobeResult', () => {
     ).toBe(0)
   })
 
-  it('takes the audio offset from the default stream FFmpeg extracts', () => {
+  it('offsets the audio stream FFmpeg 8 selects from one input and maps that same stream', () => {
     const format = { duration: '10', start_time: '0', format_name: 'mov,mp4' }
     expect(
       classifyFfprobeResult({
         format,
         streams: [
-          { codec_type: 'audio', start_time: '0.25', disposition: { default: 0 } },
-          { codec_type: 'audio', start_time: '0', disposition: { default: 1 } }
+          { index: 0, codec_type: 'audio', channels: 2, start_time: '0.25', disposition: { default: 1 } },
+          { index: 1, codec_type: 'audio', channels: 6, start_time: '0', disposition: { default: 0 } }
+        ]
+      }).audioStartMs
+    ).toBe(250)
+    expect(
+      audioExtractStreamMap([
+        { index: 0, codec_type: 'video' },
+        { index: 1, codec_type: 'audio', channels: 2, start_time: '0.25', disposition: { default: 1 } },
+        { index: 2, codec_type: 'audio', channels: 6, start_time: '0', disposition: { default: 0 } }
+      ])
+    ).toBe('0:1')
+    expect(
+      classifyFfprobeResult({
+        format,
+        streams: [
+          { codec_type: 'audio', channels: 2, start_time: '0.25', disposition: { default: 1 } },
+          { codec_type: 'audio', channels: 6, start_time: '0', disposition: { default: 1 } }
+        ]
+      }).audioStartMs
+    ).toBe(0)
+    expect(
+      audioExtractStreamMap([
+        { index: 0, codec_type: 'video' },
+        { index: 1, codec_type: 'audio', channels: 1, start_time: '2', disposition: { default: 0 } },
+        { index: 2, codec_type: 'audio', channels: 2, start_time: '0', disposition: { default: 0 } }
+      ])
+    ).toBe('0:2')
+    expect(
+      classifyFfprobeResult({
+        format,
+        streams: [
+          { codec_type: 'audio', channels: 1, start_time: '2', disposition: { default: 0 } },
+          { codec_type: 'audio', channels: 2, start_time: '0', disposition: { default: 0 } }
+        ]
+      }).audioStartMs
+    ).toBe(0)
+    expect(
+      audioExtractStreamMap([
+        { index: 0, codec_type: 'video' },
+        { index: 1, codec_type: 'audio', channels: 2, start_time: '0.25' },
+        { index: 2, codec_type: 'audio', channels: 6, start_time: '0' }
+      ])
+    ).toBe('0:2')
+    expect(
+      classifyFfprobeResult({
+        format,
+        streams: [
+          { codec_type: 'audio', channels: 2, start_time: '0.25' },
+          { codec_type: 'audio', channels: 2, start_time: '0', disposition: { default: 1 } }
         ]
       }).audioStartMs
     ).toBe(0)
     expect(
       classifyFfprobeResult({
         format,
-        streams: [
-          { codec_type: 'audio', start_time: '0.25', disposition: { default: 1 } },
-          { codec_type: 'audio', start_time: '0', disposition: { default: 0 } }
-        ]
+        streams: [{ codec_type: 'audio', start_time: '1.5', duration: '10' }]
       }).audioStartMs
-    ).toBe(250)
+    ).toBe(1_500)
+    expect(audioExtractStreamMap([{ codec_type: 'video' }])).toBeUndefined()
+    expect(audioExtractStreamMap([])).toBeUndefined()
   })
 
   it('sniffs WebM and Matroska DocType elements from bounded headers', () => {
