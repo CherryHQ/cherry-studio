@@ -1925,6 +1925,86 @@ describe('MessageService', () => {
   })
 
   describe('chat message file refs', () => {
+    describe('provisional tool-output refs', () => {
+      const fileA = '019606a0-0000-7000-8000-00000000fc01'
+      const fileB = '019606a0-0000-7000-8000-00000000fc02'
+      const anthropicThinkingRecovery = [{ endpointKey: 'endpoint-a', identities: ['old-signature'] }]
+      let messageId: string
+
+      beforeEach(async () => {
+        const topicId = 'topic-provisional-tool-output'
+        await seedTopicWithRoot(topicId)
+        await seedFileEntry(fileA)
+        await seedFileEntry(fileB)
+        const message = messageService.create(topicId, {
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] }
+        })
+        messageId = message.id
+        messageService.addToolOutputFileRef(messageId, fileA)
+      })
+
+      function readRefs() {
+        return dbh.db
+          .select()
+          .from(chatMessageFileRefTable)
+          .where(eq(chatMessageFileRefTable.sourceId, messageId))
+          .all()
+      }
+
+      it('protects provisional tool output without adding persisted parts', () => {
+        expect(readRefs().map(({ sourceId, fileEntryId, role }) => ({ sourceId, fileEntryId, role }))).toEqual([
+          { sourceId: messageId, fileEntryId: fileA, role: 'tool_output' }
+        ])
+        expect(messageService.getById(messageId).data.parts).toEqual([])
+      })
+
+      it('preserves the full provisional ref set when saving recovery metadata without parts', () => {
+        const before = readRefs()
+
+        messageService.update(messageId, { data: { anthropicThinkingRecovery } })
+
+        const saved = messageService.getById(messageId)
+        expect.soft(saved.data.anthropicThinkingRecovery).toEqual(anthropicThinkingRecovery)
+        expect.soft(saved.data.parts).toEqual([])
+        expect(readRefs()).toEqual(before)
+      })
+
+      it('preserves the full provisional ref set when updating status only', () => {
+        const before = readRefs()
+
+        messageService.update(messageId, { status: 'error' })
+
+        expect(messageService.getById(messageId).status).toBe('error')
+        expect(readRefs()).toEqual(before)
+      })
+
+      it('replaces provisional refs with the persisted tool-output parts', () => {
+        const data = partsWithPersistedToolOutput(fileB)
+
+        messageService.update(messageId, { data })
+
+        expect(messageService.getById(messageId).data.parts).toEqual(data.parts)
+        expect(readRefs().map(({ sourceId, fileEntryId, role }) => ({ sourceId, fileEntryId, role }))).toEqual([
+          { sourceId: messageId, fileEntryId: fileB, role: 'tool_output' }
+        ])
+      })
+
+      it('clears tool-output refs for explicit empty parts while retaining recovery metadata', () => {
+        messageService.update(messageId, {
+          data: { ...partsWithPersistedToolOutput(fileB), anthropicThinkingRecovery }
+        })
+
+        messageService.update(messageId, { data: { parts: [] } })
+
+        const saved = messageService.getById(messageId)
+        expect(saved.data.parts).toEqual([])
+        expect(readRefs()).toEqual([])
+        expect(saved.data.anthropicThinkingRecovery).toEqual(anthropicThinkingRecovery)
+      })
+    })
+
     it('syncs refs when reserving a new user message with file parts', async () => {
       const topicId = 'topic-ref-reserve'
       const fileId = '019606a0-0000-7000-8000-00000000fa01'
