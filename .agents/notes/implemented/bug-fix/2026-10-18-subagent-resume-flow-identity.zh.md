@@ -12,11 +12,11 @@ Status: implemented
 
 launch tool-use id 是子 agent 运行的唯一身份,并在每个边界上存活。
 
-**主进程。** flow anchor 在 drain 与连接重置后仍然保留;新连接从数据库恢复 launch root 与宿主行,重试按节流间隔进行,避免故障期间按 chunk 读库。task→tool-call 注册采用**首个注册优先**,续跑边永远不会顶替 launch root。flow root 的 anchor 跟随其内容实际流进的行——在存活回合里开流的一轮,在适配器中途 detach 之后仍留在该行,不会被劈到回合行与 launch 行两处(面板按消息顺序读一轮,劈开即乱序)。宿主行暂不可解析的 detached chunk 在受限预算内缓冲;溢出时整段前缀被放弃,抑制按前缀留下未闭合的**部件**记录——前缀已闭合的部件不会再发出任何内容,部件在重启或结束时退出记录,因此仍在流式的部件永不会被遗忘、记录也不会增长,兄弟流的重启同样不会放行会中止 SDK reader 的孤儿 delta。逐出持久化标记时同步失效对应 anchor,延迟输出因此会重新解析宿主行,而不是一直缓冲到 teardown。当前 SDK 的启动收据是散文格式(前缀与 `agentId:` trailer 之间夹着括号元数据);该原生格式通过共享文法解析,并按结构化格式同样的方式钉住收据自身的 call id。前台启动以子 agent 自己的报告作答,SDK 会把同一 trailer 附在其后——id 在 send 括号里重复、usage 块收尾——该尾部形态同样被识别,之后的 send 仍可继续该 agent。
+**主进程。** flow anchor 在 drain 与连接重置后仍然保留;新连接从数据库恢复 launch root 与宿主行,重试按节流间隔进行,避免故障期间按 chunk 读库。task→tool-call 注册采用**首个注册优先**,续跑边永远不会顶替 launch root。flow root 的 anchor 跟随其内容实际流进的行——在存活回合里开流的一轮,在适配器中途 detach 之后仍留在该行,不会被劈到回合行与 launch 行两处(面板按消息顺序读一轮,劈开即乱序)。宿主行暂不可解析的 detached chunk 在受限预算内缓冲;溢出时整段前缀被放弃,抑制按前缀留下未闭合的**部件**记录——前缀已闭合的部件不会再发出任何内容,部件在重启或结束时退出记录,因此仍在流式的部件永不会被遗忘、记录也不会增长,兄弟流的重启同样不会放行会中止 SDK reader 的孤儿 delta。逐出持久化标记时同步失效对应 anchor,延迟输出因此会重新解析宿主行,而不是一直缓冲到 teardown。当前 SDK 的启动收据是散文格式(前缀与 `agentId:` trailer 之间夹着括号元数据);该原生格式通过共享文法解析,并按结构化格式同样的方式钉住收据自身的 call id。前台启动以子 agent 自己的报告作答,SDK 会把同一 trailer 附在其后——id 在 send 括号里重复、usage 块收尾——该尾部形态同样被识别,之后的 send 仍可继续该 agent。工具保持自己开始时所属轮次的续跑标记:标记在输入开始时冻结,因此晚于后续 send 才落地(哪怕该 send 只是排队)的结果,仍留在工具开始时的轮次,而不会跟随后来的 send。
 
-**聊天渲染层。** 续跑收据呈现为 launch 风格条目:一个共享解析器决定 flow 目标(adapter 戳记 → 跨消息 launch 索引 → 子 agent 的运行时保留根,使后续 send 打开运行时保留任务的根);当历史 launch 不在已加载窗口内、但自身 call 是已被证实的根时,行保持可点击;任务状态改由列表级 launch 索引推导——已终结的任务只有新 run 的 `started` 边能复活——而不再依赖被清空的组内 parts;非终结的边只有在任务仍然存活(源轮次仍活跃,或仍在后台任务成员中)时才覆盖行状态,后台胶囊只在确实加载了可导航的行时才让位。
+**聊天渲染层。** 续跑收据呈现为 launch 风格条目:一个共享解析器决定 flow 目标(adapter 戳记 → 跨消息 launch 索引 → 子 agent 的运行时保留根,使后续 send 打开运行时保留任务的根);当历史 launch 不在已加载窗口内、但自身 call 是已被证实的根时,行保持可点击;任务状态改由列表级 launch 索引推导——已终结的任务只有新 run 的 `started` 边能复活——而不再依赖被清空的组内 parts;非终结的边只有在任务仍然存活(源轮次仍活跃,或仍在后台任务成员中)时才覆盖行状态,后台胶囊只在确实加载了可导航的行时才让位。失败或被取消的 send 不是续跑条目:它保留带失败提示的诊断行,而不是变成 flow 条目——行与工具组标题皆然。
 
-**flow 面板。** flow 按每次续跑切分轮次,轮次顺序按"开启该轮的 resume 调用"而非遍历位置(冷重启会把续跑内容移进 launch 所在行);每轮保留自己的 prompt;重复最终报告的 launch 结果文本被丢弃;冷续跑的 DSH 子 agent 自成一根;失败或被取消的 send 不再算续跑;状态面板同样允许新 run 的 `started` 边复活已终结的任务行。
+**flow 面板。** flow 按每次续跑切分轮次,轮次顺序按"开启该轮的 resume 调用"而非遍历位置(冷重启会把续跑内容移进 launch 所在行);每轮保留自己的 prompt;重复最终报告的 launch 结果文本被丢弃;冷续跑的 DSH 子 agent 自成一根;send 只有在投递结果可用之后才算续跑——待投递、失败与被取消的都不算;状态面板同样允许新 run 的 `started` 边复活已终结的任务行。
 
 ## Alternatives considered
 
@@ -36,7 +36,7 @@ launch tool-use id 是子 agent 运行的唯一身份,并在每个边界上存�
 ## Verification
 
 - Regression — `pnpm test:main src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`:220 通过,含恢复后的溢出抑制、marker 逐出时 anchor 失效、共享同一宿主行的交错 root、兄弟流溢出已完结部件后仍被抑制的未闭合部件、有界查找戳记,以及 flow root 在轮次流进的行上保持锚定。
-- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`:86 通过,含散文启动收据、前台回答尾部 trailer 的启动注册,以及其他工具形似收据的输出不会重标该 agent。
+- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`:87 通过,含散文启动收据、前台回答尾部 trailer 的启动注册,以及其他工具形似收据的输出不会重标该 agent,还有工具保持自己开始时所属轮次的续跑标记。
 - Regression — `pnpm test:shared src/shared/ai/__tests__/launchReceipt.test.ts`:6 通过(各种收据形态、伪造拒绝,以及前台回答携带的 trailer)。
-- Regression — `pnpm test:renderer` 面板与聊天渲染套件:198 与 239 通过,含存活度协调、胶囊可导航性与前置收据轮次;`typecheck:node` / `typecheck:web` 干净。
+- Regression — `pnpm test:renderer` 面板与聊天渲染套件:200 与 244 通过,含存活度协调、胶囊可导航性、前置收据轮次、失败 send 保留诊断行与组标题,以及未投递的 send 不参与轮次切分;`typecheck:node` / `typecheck:web` 干净。
 - Regression — 每个新回归测试都验证过"修复前失败、修复后通过"。
