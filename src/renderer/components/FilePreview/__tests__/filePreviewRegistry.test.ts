@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { imageExts } from '@shared/utils/file'
+import { previewFormats } from '@cherrystudio/file-preview/react'
 
 import {
   canProduceSelectionReference,
@@ -9,7 +9,6 @@ import {
   filePreviewRegistry,
   resolveExtensionPlugin
 } from '../filePreviewRegistry'
-import { imageFilePreviewPlugin } from '../plugins/image/imageFilePreviewPlugin'
 import { textFilePreviewPlugin } from '../plugins/text/textFilePreviewPlugin'
 import type { FilePreviewPlugin, FilePreviewPluginProps } from '../types'
 
@@ -141,12 +140,12 @@ describe('file preview registry', () => {
     expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })
 
-  it('declares the image plugin extensions as the shared image catalog plus the preview-only svg literals', () => {
-    expect(imageFilePreviewPlugin.extensions).toEqual([
-      ...imageExts.map((extension) => extension.slice(1)),
-      'svg',
-      'svgz'
-    ])
+  it('routes every format the file-preview package declares', () => {
+    for (const format of previewFormats) {
+      for (const extension of format.extensions) {
+        expect(resolveExtensionPlugin(`/tmp/source.${extension}`, filePreviewRegistry)?.id).toBe(format.id)
+      }
+    }
   })
 
   it('does not route an unknown extension through the registry', () => {
