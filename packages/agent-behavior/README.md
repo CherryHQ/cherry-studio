@@ -52,7 +52,7 @@ are named as a verb and an object and carry no harness noun (hook, commit, sessi
 | H2  | `Turns`         | `start`, `retract`, `stop`         | Give the agent a turn under a request key, take back one that has not started, stop the current one.      |
 | H3  | `Helpers`       | `message`, `awaitAnswer`, `stop`   | Message a child, wait for the answer of one of its runs, stop that run if it is still the child's active run. |
 | H4  | `Jobs`          | `register`                         | Finish what a call started after it returns, across restarts.                                             |
-| H5  | `Waits`         | `untilIdle`, `untilTurnEnd`        | Wait until a conversation is idle or its current turn ends; waiting keeps no state.                       |
+| H5  | `Waits`         | `untilIdle`, `untilRunEnd`         | Wait until a conversation has no run, or until its current run ends; waiting keeps no state.              |
 | H6  | `Memory`        | `remember`                         | Remember an answer from a person or a model so a restart never asks again.                                |
 | H7  | `Clock`         | `now`                              | Read the time in whole milliseconds; nothing mints ids, they derive from keys.                            |
 | H8  | `Tools`         | `register`                         | Put the package's model-only tools on the harness.                                                        |
@@ -73,6 +73,18 @@ the outbound ports because jobs are created by the `ensure-job` operation of `Le
 only says what a job kind runs. A Durable adapter still supplies `ContextFilter` but never consults its handler.
 
 `PortMethod` names every harness method as `port.method`; the contract must cover each one.
+
+A child's run is what one run-starting input begins: an input that finds the child idle starts a run, and a message to
+a running child (a steer) joins the run in progress. Runs are numbered from 1 in that order, `Helpers.message` reports
+the run a message was accepted into, and `ChildFacts.runUsage[i]` sums the usage of the child's own entries of run
+`i + 1`. `Helpers.awaitAnswer` is bound to the message key: when the harness carries a message that missed its run's
+last boundary into the next run, the answer is that next run's end.
+
+On reopen the harness restores every conversation with its runs and jobs, and `Lifecycle.onOpen` decides what to stop.
+Inside `onOpen` the package calls only `ledger.*`, `turns.stop` and `helpers.stop`; a stop there ends the interrupted
+run as aborted before any resumed work (H12, stop before resume), and no conversation's run resumes before its own
+`onOpen` has run. On Durable a submit or a wait would enable scheduling first, so these stops are marks
+(`Harness.abortTask`, `abortSubmission`).
 
 ### Host ports (P1 to P8)
 
@@ -96,8 +108,8 @@ the worktree PR.
 
 Every operation and keyed effect carries a `Key`, and every `Key` is a pure function of facts: nothing mints an id.
 Only `src/core/keys.ts` mints a `Key`; an ESLint rule rejects the cast in `core/` and `orchestration/`, and only
-contract cases mint test keys. `keys`, `armSeq` and `nextRun` live in that module and are not exported: adapters pass
-keys through unchanged. An adapter restores a call key from its harness with `callKeyOf`, which throws `TypeError` for
+contract cases mint test keys. `keys`, `armSeq`, `idleDriverGeneration` and `nextRun` live in that module and are not
+exported: adapters pass keys through unchanged. An adapter restores a call key from its harness with `callKeyOf`, which throws `TypeError` for
 an empty or blank value.
 
 In each format the one free-form id comes first and only colon-free numbers or a hash follow, so ids containing `:`
@@ -105,8 +117,8 @@ stay apart.
 
 | Member                                                     | Format                                                                 | Identifies                                                                                                                                            |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `goalFromCall(call)`                                       | `goal:<call>`                                                          | A goal a tool call creates.                                                                                                                           |
-| `goalFromCommand(requestKey)`                              | `goal:<requestKey>`                                                    | A goal the `/goal` command creates, from the host's request key.                                                                                      |
+| `goalFromCall(call)`                                       | `goal:call:<call>`                                                     | A goal a tool call creates.                                                                                                                           |
+| `goalFromCommand(requestKey)`                              | `goal:cmd:<requestKey>`                                                | A goal the `/goal` command creates, from the host's request key. The two prefixes differ, so a call key equal to a request key names another goal.   |
 | `goalRound(goalId, round, revision, armSeq)`               | `goal-round:<goalId>:r<round>:v<revision>:a<armSeq>`                   | One goal round.                                                                                                                                       |
 | `goalAdmit(roundKey)`                                      | `goal-admit:<roundKey>`                                                | The admission of that round.                                                                                                                          |
 | `subagentSpawn(call)`                                      | `subagent-spawn:<call>`                                                | Spawning a child from a tool call.                                                                                                                    |
@@ -114,43 +126,52 @@ stay apart.
 | `subagentEnd(child, run)`                                  | `subagent-end:<child>:<run>`                                           | The record of how that run ended.                                                                                                                     |
 | `subagentNotify(parent, runs)`                             | `subagent-notify:<parent>:<sha256 hex>`                                | One notification of finished runs. The hash is of the JSON of the batch's `[child, run]` pairs sorted by child, then run, so the order does not matter. |
 | `turnStop(requestKey)`                                     | `turn-stop:<requestKey>`                                               | A user stop.                                                                                                                                          |
-| `idleDriver(thread)`                                       | `idle-driver:<thread>`                                                 | The thread's `idle-driver` job.                                                                                                                       |
+| `idleDriver(thread, generation)`                           | `idle-driver:<thread>:g<generation>`                                   | The thread's `idle-driver` job of that generation; `generation` is `idleDriverGeneration(history)`.                                                   |
+| `idleDriverExit(thread, generation)`                       | `idle-driver-exit:<thread>:g<generation>`                              | The exit record that driver writes in the transaction that decides it stops.                                                                          |
 | `subagentReport(runKey)`                                   | `subagent-report:<runKey>`                                             | A run's `subagent-report` job. `runKey` is the new run's spawn key or the continuation's message key, because a spawn's commit has no child id yet.  |
 | `approvalMemo(call)`, `askMemo(call)`, `verdictMemo(call)` | `cherry.approval:<call>`, `cherry.ask:<call>`, `cherry.verdict:<call>` | `Memory` names for an approval, an AskUserQuestion answer and a verifier verdict.                                                                     |
 | `summaryMemo(compactionKey)`                               | `cherry.summary:<compactionKey>`                                       | The `Memory` name of a compaction summary.                                                                                                            |
 
-Two helpers read the history. `armSeq(history, goalId)` counts how often the goal went from unarmed (or unrecorded) to
-armed, so a goal resumed after a reopen keeps its revision but gets new round keys. `nextRun(history, child)` is one
-past the highest run recorded for the child, or 1.
+Three helpers read the history. `armSeq(history, goalId)` counts how often the goal went from unarmed (or unrecorded)
+to armed, so a goal resumed after a reopen keeps its revision but gets new round keys. `idleDriverGeneration(history)`
+counts the thread's `idle-driver-exit` records, so the driver after an exit gets a new key. `nextRun(history, child)`
+is one past the highest run recorded for the child, or 1.
 
 Rules adapters rely on:
 
 - `ConversationFacts.keysSeen` holds the keys of the thread's own entries (records and markers carry theirs as
   `data.key`) and the keys of live jobs ensured by a transaction on that thread. A spawn's key is on the parent's run
   record and on the child's origin record. A job's key stays while the job lives and leaves when it finishes, fails or
-  is abandoned.
+  is abandoned; a restart abandons a job from the reopen on, before `onOpen`. Once its job has ended, the key creates a
+  new job.
 - Dropping an operation whose key is already in `keysSeen` is the caller's job, done inside `decide`.
 - `Turns.start` and `Helpers.message` take the key as the request id. The same key returns the original admission and
-  never adds a second input. A `busy` answer records nothing, so its key stays usable. A withdrawn key is spent:
-  reserving again needs a new key.
+  never adds a second input, also after its run ended. A `busy` answer records nothing, so its key stays usable. A
+  withdrawn key is spent: reserving again needs a new key.
+- The idle driver's final decide, the one that decides it stops, writes its `idle-driver-exit` record under
+  `idleDriverExit(thread, generation)` in that same transaction. An ensure committed before it is seen by that decide,
+  so the driver goes on; one committed after it computes the next generation and creates a new job, so no wakeup is
+  lost. Jobs are therefore deduplicated by key, never by kind.
 - `Memory` names carry the `cherry.` prefix because hooks and tasks share one memo namespace on Durable.
 
 ## Entry kinds
 
 `ENTRY_KINDS` names the custom entry kinds. A record never enters the model's context; a marker does. The first eight
 kinds keep the `customType` strings agent-runtime-pi writes today, so stored sessions need no migration;
-`cherry.plan` and `cherry.turn-stop` are new. Durable refuses only `pi.` kinds, so all ten are storable there.
+`cherry.plan`, `cherry.turn-stop` and `cherry.idle-driver-exit` are new. Durable refuses only `pi.` kinds, so all
+eleven are storable there.
 
 | Fact (`type`)           | Kind (`ENTRY_KINDS.` member)                            | Class  | Stored `data`                                  | `decodeEntry` needs                                                                                                                                                    |
 | ----------------------- | ------------------------------------------------------- | ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `goal`                  | `cherry.goal` (`goal`)                                  | record | `GoalSnapshot` or `GoalCleared` fields, `key?` | `id` string and `revision` number; with `cleared`: `cleared` is `true` and `at` a number; otherwise `phase` is active, paused, blocked or complete and `armed` a boolean |
 | `goal-notice`           | `cherry.goal-notice` (`goalNotice`)                     | record | `GoalNotice` fields, `key?`                    | `text` string; `level` is info or error                                                                                                                                |
-| `subagent-run`          | `cherry.subagent-state` (`subagentRun`)                 | record | `SubagentRunRecord` fields, `key?`             | `sessionId` string, `run` number, `status` running or finished                                                                                                         |
+| `subagent-run`          | `cherry.subagent-state` (`subagentRun`)                 | record | `SubagentRunRecord` fields, `key?`             | `sessionId` string, `run` number, `status` running or finished; `outcome` and `stoppedBy`, when present, members of `SubagentOutcome` and `SubagentStopper`              |
 | `subagent-origin`       | `cherry.subagent-origin` (`subagentOrigin`)             | record | `SubagentOrigin` fields, `key?`                | `parentToolCallId`, `description`, `modelKey` strings; `fork` boolean                                                                                                  |
 | `plan`                  | `cherry.plan` (`plan`)                                  | record | `PlanState` fields, `key?`                     | `active` boolean, `at` number                                                                                                                                          |
 | `turn-stop`             | `cherry.turn-stop` (`turnStop`)                         | record | `{ by, at, key? }`                             | `by` is `'user'`, `at` a number                                                                                                                                        |
+| `idle-driver-exit`      | `cherry.idle-driver-exit` (`idleDriverExit`)            | record | `{ generation, key? }`                         | `generation` a number                                                                                                                                                  |
 | `goal-round`            | `cherry.goal-round` (`goalRound`)                       | marker | `RoundDetails` fields, `key?`                  | `id`, `goalId` strings; `revision`, `round` numbers; `kind` is work, hint or wrap-up                                                                                   |
-| `subagent-notification` | `cherry.subagent-notification` (`subagentNotification`) | marker | `{ subagents, quiet, key? }`                   | `subagents` an array whose items have `sessionId` string, `run` number, `outcome` string                                                                               |
+| `subagent-notification` | `cherry.subagent-notification` (`subagentNotification`) | marker | `{ subagents, quiet, key? }`                   | `subagents` an array whose items have `sessionId` string, `run` number, `outcome` a `SubagentOutcome`, and `stoppedBy`, when present, a `SubagentStopper`              |
 | `subagent-status`       | `cherry.subagent-status` (`subagentStatus`)             | marker | `{ key? }`                                     | Nothing; `data` may be missing                                                                                                                                         |
 | `subagent-message`      | `cherry.subagent-message` (`subagentMessage`)           | marker | `{ key? }`                                     | Nothing; `data` may be missing                                                                                                                                         |
 
@@ -167,6 +188,35 @@ above. It does not throw and does not validate fields beyond those checks. A rec
 `run`, `outcome` and `stoppedBy` of each run, drops the per-run `usage` that older entries carry, and reads any `quiet`
 other than `true` as `false`. The adapter maps the other history entries (user, assistant, tool result, compaction) to
 `HistoryEntry` itself.
+
+## Applying a step
+
+`Ledger.transact` applies the operations of the `Step` that `decide` returns, all in one commit, and rejects, writing
+nothing, when one cannot apply. The orchestration has already dropped every operation whose key is in `keysSeen`.
+
+| Operation       | How the adapter applies it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | What it leaves in `keysSeen`                                                                                                                                                                     | Contract cases                                                                                                                                                                                                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `append-record` | Store `encodeEntry(record, key)` on `op.thread` as an entry that never enters the model context (coding-agent: `pi.appendEntry(kind, data)`; Durable: `tx.appendEntry(conv, { kind, data })`). On Durable a `plan` record is also mirrored to a document in the same commit, because `beforeTool` reads plan state from documents.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `data.key` of the new entry, on `op.thread`.                                                                                                                                                     | `transact writes nothing when decide or an operation throws`; `applied operation keys are visible in keysSeen`; `the gate sees plan state and the goal round's call window`                                                                                                         |
+| `append-quiet`  | Add `op.input` to `op.thread` as a marker the model sees without starting a run: its `kind`, its `data` with `key` merged in, and its `text`. In the same commit check that no run is active and the inbox is empty, and reject the whole transaction otherwise. coding-agent: `pi.sendMessage(message, { triggerTurn: false })`; Durable: read `pi.live` and `pi.inbox`, then raw-append `{ kind, data, model: [user text] }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `data.key` of the marker, on `op.thread`.                                                                                                                                                        | `applied operation keys are visible in keysSeen`; `records stay out of the model context; quiet inputs enter it`; `quiet inputs are refused while a run is active`                                                                                                                  |
+| `spawn-child`   | Create a child of the transacting thread. `spec.boundary` sets ownership: a foreground child belongs to the current tool call and stops with it (Durable: `ownership: { kind: 'task', taskId }`); a background child hangs under the background anchor. With `spec.fork`, the child starts with `fork.from`'s history up to and including `fork.at`. In the same commit and under the op key, write the child's `subagent-origin` record (`spec.origin`) and the parent's `subagent-run` record (`spec.record` with `sessionId` set to the new child). Configure the child with the model `origin.modelKey` names and without the `subagent`, `message_subagent` and `stop_subagent` tools (Durable: `configure` with the extension array `api.agent()` resolves); `ChildSpec` carries no such settings, so this is the adapter's job. Report `{ key, child }` in `TransactResult.spawned`. | The op key, on the parent's run record and on the child's origin record.                                                                                                                         | `applied operation keys are visible in keysSeen`; `foreground children stop with the parent turn; background children do not`. No case covers `fork` yet.                                                                                                                           |
+| `ensure-job`    | Create a job of `job.kind` for its registered handler unless a live job already has the op key; deduplicate by key, never by kind (coding-agent: an in-process promise; Durable: `tx.createTask` of `cherry.job`, owned by the conversation, `background: true`, with `abandonOnRestart` for `'abandon'`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | The op key, on the transacting thread, while the job lives. It leaves when the job finishes, fails or is abandoned (from the reopen on, before `onOpen`), and the key can then create a new job. | `applied operation keys are visible in keysSeen`; `resume jobs rerun from the start after a restart; abandon jobs are dropped`; `a job key is usable again once its job has ended`; `an ensure under the next driver generation creates a job while the previous driver is exiting` |
+
+The tool gate reads the same history through `GateFacts`. `plan` is the latest `plan` record (Durable: the mirrored
+document). `goalRound` says whether the call's run started from a `cherry.goal-round` input: coding-agent reads it from
+the branch; Durable from the run's first input, through the late-bound `Conversation.entries()` of harness-limited row
+5; the fake from the run's starting input. `nested` says whether another tool made the call: on Durable the call has a
+`parent`; coding-agent and the fake have no nested calls, so it is `false` there.
+
+### History projection
+
+The adapter projects its stored history into `HistoryEntry`, decoding custom kinds with `decodeEntry`. Two mappings
+are easy to miss:
+
+- Durable records a call the gate blocked as a tool result whose text is `Tool call blocked: <reason>`. Project it as a
+  `tool-result` with `isError: true` and `blocked: '<reason>'`; the gate cases assert `blocked`.
+- coding-agent stores markers as `custom_message` entries and records as `custom` entries. Pass `customType` as
+  `RawEntry.kind`; for a `custom_message`, `details` as `RawEntry.data` and the text of `content` as `RawEntry.text`;
+  for a `custom` entry, its `data` as `RawEntry.data`.
 
 ## Running the contract in an adapter
 
@@ -202,7 +252,7 @@ needs (tools, jobs, tool gate, context filter, request meter, lifecycle). The ha
 | `sendUser(thread, text)`  | Submit a person's text: start a run when the conversation is idle, otherwise queue it as a follow-up.                                                                                                                   |
 | `compact(thread)`         | Compact `thread` now (a compaction entry appears), then call `onCompacted`.                                                                                                                                             |
 | `settle()`                | Resolve once no run is active and no job is live; inbox items a failed run left do not count.                                                                                                                           |
-| `restart()`               | Lose everything in memory and reopen from storage: install runs again, `onOpen(thread, { reopened: true }, ports)` runs for every conversation, then runs and `resume` jobs continue and `abandon` jobs are dropped.     |
+| `restart()`               | Lose everything in memory and reopen from storage: install runs again, `abandon` jobs are dropped, `onOpen(thread, { reopened: true }, ports)` runs for every conversation, then runs and `resume` jobs continue.     |
 | `close()`                 | Call `onClose` for every conversation, then shut down.                                                                                                                                                                  |
 
 A harness may skip only the cases whose `needs` it lacks, and `needs` has two values:
@@ -210,6 +260,10 @@ A harness may skip only the cases whose `needs` it lacks, and `needs` has two va
 - `restart`: coding-agent skips these, because its runs do not resume.
 - `context-filter`: Durable skips this, because it never consults `ContextFilter` (H10: with idle-driver rounds an
   unadmitted round never enters history).
+
+The case `start queues behind inbox items a failed run left, and retract withdraws it` assumes Durable's default
+`followUpMode: 'one-at-a-time'`. With `'all'`, the new input would start together with the leftover and could no longer
+be withdrawn.
 
 Every other difference between harnesses is a row of the Agent Note's
 [Capabilities limited by the harness](../../.agents/notes/proposed/architecture/2026-10-18-agent-behavior-package.md#capabilities-limited-by-the-harness)
@@ -245,10 +299,11 @@ Beyond `ContractHarness` it offers:
 - `requestLog(thread)`: the ids of the entries each model request on `thread` saw, after the context filter.
 
 `restart()` loses what a Durable restart loses (handlers, run loops, running jobs, waiters) and keeps what it keeps
-(entries, submissions, memo, the job table, the final arguments of tool calls). Every conversation gets
-`onOpen(reopened: true)` before any resumed work. Then runs resume: a tool call cut in the middle reruns with its
-final arguments when its tool is `replay: 'safe'`, and gets an interrupted result when the tool is `'unsafe'` and the
-call had reached it. `resume` jobs rerun from the start and `abandon` jobs are dropped.
+(entries, submissions, memo, the job table, the final arguments of tool calls). `abandon` jobs are dropped first. Every
+conversation then gets `onOpen(reopened: true)` before any resumed work, and a stop there ends the restored run at
+once as aborted. Then runs resume: a tool call cut in the middle reruns with its final arguments when its tool is
+`replay: 'safe'`, and gets an interrupted result when the tool is `'unsafe'` and the call had reached it. `resume` jobs
+rerun from the start.
 
 The fake fails fast on wiring mistakes. An `ensure-job` for a kind with no registered handler rejects the transaction,
 as does a foreground `spawn-child` outside a tool call; a call to a tool that is not registered returns an error
