@@ -35,7 +35,10 @@ export interface PiBehaviorOptions {
   readonly install: (ports: HarnessPorts) => void
   /** Builds the native session of a conversation the adapter opens (`createAgentRuntimeSession`, Pi's retry off). */
   readonly openSession: (request: BehaviorSessionRequest) => Promise<AgentRuntimeSession>
-  /** Errors no caller awaits: a job that threw, a run that failed to start, an automatic compaction's `onCompacted`. */
+  /**
+   * Errors no caller awaits: a job that threw, a run that failed to start, an automatic compaction's `onCompacted`,
+   * what a handler Pi calls threw, a quiet input that failed to write, a run the adapter did not start.
+   */
   readonly onError?: (error: unknown) => void
 }
 
@@ -135,11 +138,11 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       helpers: {
         message: (child, input, key) => enter(scope, () => messageChild(adapter, conversation(child), input, key)),
         awaitAnswer: (child, run, key) => enter(scope, () => awaitAnswer(conversation(child), run, key)),
-        // H3: stops run `run` only while it is the child's active run.
+        // H3: stops run `run` only while it is the child's active run; a child of an earlier process has none (D5).
         stop: (child, run) =>
           enter(scope, async () => {
-            const conv = conversation(child)
-            if (conv.active?.run === run) await stopRun(adapter, conv)
+            const conv = conversations.get(child)
+            if (conv?.active?.run === run) await stopRun(adapter, conv)
           })
       },
       waits: {
@@ -286,7 +289,13 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         sessionManager.getEntries().length > 0
       )
       conversations.set(thread, conv)
-      await track(openNative(conv))
+      try {
+        await track(openNative(conv))
+      } catch (error) {
+        // Never opened: the host may open it again.
+        conversations.delete(thread)
+        throw error
+      }
       const opening: JobRecord[] = []
       try {
         // After Pi's session_start: `onOpen` may stop or start turns, which need the session.
@@ -294,6 +303,8 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       } finally {
         // H12: a job ensured in onOpen starts once onOpen has run; its commit stands even if onOpen threw.
         for (const job of opening) startJob(job)
+        // So does a person's text submitted while the session was being built.
+        drain(adapter, conv)
       }
       return thread
     },
@@ -325,10 +336,19 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async close() {
       if (closed) return
       const all = [...conversations.values()]
-      // Every run first: a parent's tool call may be waiting on a foreground child.
-      await Promise.all(all.flatMap((conv) => conv.native?.session.abort() ?? []))
-      for (const conv of all) await conv.native?.dispose()
-      closed = true
+      const failures: unknown[] = []
+      try {
+        // Every run first: a parent's tool call may be waiting on a foreground child.
+        await Promise.all(all.flatMap((conv) => conv.native?.session.abort() ?? []))
+      } finally {
+        // A session that fails to dispose does not keep the others open.
+        for (const conv of all)
+          await conv.native?.dispose().catch((error: unknown) => {
+            failures.push(error)
+          })
+        closed = true
+      }
+      if (failures.length > 0) throw failures.length === 1 ? failures[0] : new AggregateError(failures)
     }
   }
 }

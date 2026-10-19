@@ -18,7 +18,13 @@ import { onTestFinished } from 'vitest'
 
 import type { ContractHarness, HarnessPorts, ScriptedReply, UsageFact } from '@cherrystudio/agent-behavior'
 
-import { createAgentRuntimeSession, createPiBehavior, type PiBehavior } from '../src'
+import {
+  type AgentRuntimeSession,
+  type BehaviorSessionRequest,
+  createAgentRuntimeSession,
+  createPiBehavior,
+  type PiBehavior
+} from '../src'
 
 type Script = {
   readonly replies: ScriptedReply[]
@@ -30,6 +36,8 @@ type Script = {
 export type PiHarness = {
   readonly harness: ContractHarness
   readonly behavior: PiBehavior
+  /** The sessions' working directory, removed when the test ends. */
+  readonly cwd: string
   /** The messages each model request of `thread` carried. */
   requests(thread: string): readonly Context['messages'][]
   /** Errors the adapter reported through `onError`. */
@@ -82,13 +90,18 @@ function replyOf(reply: ScriptedReply, nextCallId: () => string): Partial<Assist
   }
 }
 
+type OpenSession = (request: BehaviorSessionRequest) => Promise<AgentRuntimeSession>
+
 /**
  * The coding-agent harness the contract drives: real sessions from `createAgentRuntimeSession` over a provider that
- * answers each conversation from its own script. `extensions` go ahead of the adapter's in every session.
+ * answers each conversation from its own script. `extensions` go ahead of the adapter's in every session; `openSession`
+ * wraps how each session is built (to hold or fail a build).
  */
 export async function openPiHarness(
   install: (ports: HarnessPorts) => void,
-  extensions: readonly ExtensionFactory[] = []
+  extensions: readonly ExtensionFactory[] = [],
+  openSession: (request: BehaviorSessionRequest, open: OpenSession) => Promise<AgentRuntimeSession> = (request, open) =>
+    open(request)
 ): Promise<PiHarness> {
   const cwd = mkdtempSync(join(tmpdir(), 'pi-behavior-'))
   const scripts = new Map<string, Script>()
@@ -135,25 +148,26 @@ export async function openPiHarness(
   })
   const model = modelRuntime.getModel('contract', 'model')!
   const errors: unknown[] = []
+  const open: OpenSession = ({ sessionManager, extension }) =>
+    createAgentRuntimeSession({
+      cwd,
+      agentDir: cwd,
+      modelRuntime,
+      model,
+      sessionManager,
+      extensionFactories: [...extensions, extension],
+      settings: { retry: { enabled: false }, cacheWarming: 'off' },
+      // Manual compaction only, summarized without a model request, so it never takes a scripted reply.
+      compaction: {
+        enabled: false,
+        reserveTokens: 1,
+        keepRecentTokens: 1,
+        summarize: async () => 'Contract summary.'
+      }
+    })
   const behavior = createPiBehavior({
     install,
-    openSession: ({ sessionManager, extension }) =>
-      createAgentRuntimeSession({
-        cwd,
-        agentDir: cwd,
-        modelRuntime,
-        model,
-        sessionManager,
-        extensionFactories: [...extensions, extension],
-        settings: { retry: { enabled: false }, cacheWarming: 'off' },
-        // Manual compaction only, summarized without a model request, so it never takes a scripted reply.
-        compaction: {
-          enabled: false,
-          reserveTokens: 1,
-          keepRecentTokens: 1,
-          summarize: async () => 'Contract summary.'
-        }
-      }),
+    openSession: (request) => openSession(request, open),
     onError: (error) => {
       errors.push(error)
     }
@@ -174,5 +188,5 @@ export async function openPiHarness(
     restart: () => Promise.reject(new Error('coding-agent resumes no runs; the restart cases are skipped')),
     close: () => behavior.close()
   }
-  return { harness, behavior, requests: (thread) => scriptOf(thread).requests, errors }
+  return { harness, behavior, cwd, requests: (thread) => scriptOf(thread).requests, errors }
 }
