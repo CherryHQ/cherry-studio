@@ -341,7 +341,7 @@ export const inboundCases: readonly ContractCase[] = [
     async run(open) {
       const asked: CompactionRequest[] = []
       const compacted: ThreadId[] = []
-      let verdict: CompactionVerdict = { decline: true }
+      let verdict: CompactionVerdict = { decline: true, reason: 'contract decline' }
       const h = await open((p) =>
         p.lifecycle.register(
           lifecycle({
