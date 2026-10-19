@@ -11,11 +11,14 @@ import { WindowType } from '@main/core/window/types'
 import { MediaKind } from '@main/services/mediaProtocol'
 import type { LocalTranscriptionModelId, LocalSpeechModelId } from '@shared/ai/localVoice'
 import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigger } from '@shared/ai/localVoice'
+import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 
+import { startSpeech, startTranscription } from './execution'
+import type { VoiceExecution } from './executionTypes'
 import {
   getLocalVoiceStatus,
   installVoiceLocale,
@@ -38,14 +41,18 @@ import {
   applyPlaybackReport,
   beginPlaybackSynthesis,
   completePlaybackSynthesis,
+  readyPlaybackOutput,
   createPlaybackSnapshot,
   createPlaybackState,
   failPlayback,
   playbackPhase,
   type PlaybackState
 } from './playbackState'
+import { VoiceInputStream } from './VoiceInputStream'
 import { getMicrophoneStatus, openMicrophoneSettings, openSystemVoiceSettings } from './voicePlatform'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
+import { VoiceStream } from './VoiceStream'
+import { VoiceTextInput } from './VoiceTextInput'
 
 const logger = loggerService.withContext('VoiceSessionService')
 const PLAYBACK_CONFIRMATION_TIMEOUT_MS = 15_000
@@ -78,12 +85,16 @@ type Session = {
   requestId?: string
   // Not an inspection: the next manual admission must still be able to displace it.
   preflightAbort?: AbortController
+  execution?: VoiceExecution
   operation?: VoiceOperation
   speechPlan?: ReturnType<typeof resolveSpeechRequest>
   selectedModel?: LocalVoiceModelId
   resolvedAdapter?: string
   terminalStatus?: 'completed' | 'failed' | 'aborted'
   cleanup?: Promise<void>
+  textInput?: VoiceTextInput
+  inputStream?: VoiceInputStream
+  stream?: VoiceStream
   outputId?: string
   chunkCount?: number
   currentChunkIndex?: number
@@ -97,7 +108,8 @@ type ActiveOperation = { session: Session; requestId: string; controller: AbortC
 @Injectable('VoiceSessionService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn([
-  'AiService',
+  'TtsInferenceService',
+  'AsrInferenceService',
   'FileManager',
   'WindowManager',
   'UtilityProcessManager',
@@ -134,8 +146,10 @@ export class VoiceSessionService extends BaseService {
     this.accepting = false
     for (const controller of this.inspections.values()) controller.abort(new VoiceRuntimeError('aborted'))
     const cleanup = [...this.sessions.values()].map((session) => this.closeSession(session, true))
-    await Promise.allSettled([...cleanup, ...this.inspections.keys()])
+    const [results] = await Promise.all([Promise.allSettled(cleanup), Promise.allSettled(this.inspections.keys())])
     this.releaseLease()
+    const failures = results.filter((result) => result.status === 'rejected').map((result) => result.reason)
+    if (failures.length) throw new AggregateError(failures, 'Voice session cleanup failed')
   }
 
   protected override async onDestroy(): Promise<void> {
@@ -261,6 +275,94 @@ export class VoiceSessionService extends BaseService {
     return entry
   }
 
+  async startStreamingTranscription(owner: VoiceOwner, input: InputFor<'ai.voice.transcription.start'>) {
+    const session = this.requireLeaseSession(owner, input.sessionId)
+    if (session.kind !== 'recording' || session.phase !== 'recording' || session.inputStream)
+      throw new VoiceRuntimeError('invalid_request')
+    const { modelId, options } = resolveTranscriptionRequest(input)
+    try {
+      const result = await this.run(
+        session,
+        input.requestId,
+        modelId,
+        'transcription',
+        async (signal) => {
+          const source = new VoiceInputStream()
+          session.inputStream = source
+          const abort = () => source.close()
+          signal.addEventListener('abort', abort, { once: true })
+          const deadline = setTimeout(() => {
+            if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('timeout'))
+          }, 420_000)
+          deadline.unref()
+          try {
+            const execution = startTranscription(
+              {
+                modelId,
+                input: { kind: TranscriptionInputKind.PcmStream, format: input.format, chunks: source },
+                output: TranscriptionOutputKind.Revisions,
+                options
+              },
+              signal
+            )
+            const updates = (async () => {
+              for await (const update of execution.updates) {
+                signal.throwIfAborted()
+                application.get('IpcApiService').send(owner.windowId, 'ai.voice.transcript_event', {
+                  sessionId: session.id,
+                  requestId: input.requestId,
+                  type: 'revision',
+                  update
+                })
+              }
+            })()
+            const work = (async () => {
+              await execution.ready
+              signal.throwIfAborted()
+              application.get('IpcApiService').send(owner.windowId, 'ai.voice.transcript_event', {
+                sessionId: session.id,
+                requestId: input.requestId,
+                type: 'ready'
+              })
+              const [result] = await Promise.all([execution.completed, updates])
+              return result
+            })()
+            void updates.catch(() => undefined)
+            return await this.consumeExecution(session, execution, work)
+          } finally {
+            clearTimeout(deadline)
+            source.close()
+            signal.removeEventListener('abort', abort)
+            session.inputStream = undefined
+          }
+        },
+        { failurePhase: 'failed' }
+      )
+      await this.closeSession(session)
+      return { text: result.text }
+    } catch (error) {
+      await this.closeSession(session, true)
+      throw error
+    }
+  }
+
+  writeInput(owner: VoiceOwner, input: InputFor<'ai.voice.input.write'>): Promise<void> {
+    return this.requireInputStream(owner, input).write({ startFrame: input.startFrame, samples: input.samples })
+  }
+
+  finishInput(owner: VoiceOwner, input: InputFor<'ai.voice.input.finish'>): void {
+    const source = this.requireInputStream(owner, input)
+    source.finish(input.frames)
+    this.transition(this.requireLeaseSession(owner, input.sessionId), 'recognizing')
+  }
+
+  private requireInputStream(owner: VoiceOwner, input: { sessionId: string; requestId: string }): VoiceInputStream {
+    const session = this.requireLeaseSession(owner, input.sessionId)
+    if (!session.inputStream || session.requestId !== input.requestId || session.closed)
+      throw new VoiceRuntimeError('invalid_request')
+    return session.inputStream
+  }
+
   async transcribe(owner: VoiceOwner, input: InputFor<'ai.transcription.generate'>) {
     if (this.active || this.inspections.size) throw new VoiceRuntimeError('busy')
     const session = this.requireLeaseSession(owner, input.sessionId)
@@ -291,7 +393,16 @@ export class VoiceSessionService extends BaseService {
         if (!['audio/webm', 'video/webm', 'audio/webm;codecs=opus'].includes(audio.mime))
           throw new VoiceRuntimeError('invalid_audio')
         signal.throwIfAborted()
-        const transcript = await application.get('AiService').transcribe(modelId, audio.content, { language }, signal)
+        const execution = startTranscription(
+          {
+            modelId,
+            input: { kind: TranscriptionInputKind.Audio, audio: audio.content },
+            output: TranscriptionOutputKind.Final,
+            options: { language }
+          },
+          signal
+        )
+        const transcript = await this.consumeExecution(session, execution, execution.completed)
         signal.throwIfAborted()
         await this.deleteFile(session, input.fileEntryId)
         return { sessionId: session.id, requestId: input.requestId, ...transcript }
@@ -304,6 +415,21 @@ export class VoiceSessionService extends BaseService {
     )
     await this.closeSession(session)
     return result
+  }
+
+  writeText(owner: VoiceOwner, input: InputFor<'ai.voice.text.write'>): Promise<void> {
+    return this.requireTextInput(owner, input).write(input.sequence, input.event)
+  }
+
+  finishText(owner: VoiceOwner, input: InputFor<'ai.voice.text.finish'>): void {
+    this.requireTextInput(owner, input).finish(input.sequence)
+  }
+
+  private requireTextInput(owner: VoiceOwner, input: { sessionId: string; requestId: string }): VoiceTextInput {
+    const session = this.requireLeaseSession(owner, input.sessionId)
+    if (!session.textInput || session.requestId !== input.requestId || session.closed)
+      throw new VoiceRuntimeError('invalid_request')
+    return session.textInput
   }
 
   async speech(owner: VoiceOwner, input: InputFor<'ai.speech.generate'>) {
@@ -357,41 +483,115 @@ export class VoiceSessionService extends BaseService {
         throw new VoiceRuntimeError('invalid_request')
       session.speechPlan ??= plan
       const normalizedText = input.text.normalize('NFC').trim()
-      const result = await this.run(
+      const ready = Promise.withResolvers<OutputFor<'ai.speech.generate'>>()
+      const inputKind = input.textStream ? SpeechInputKind.TextStream : SpeechInputKind.Text
+      const streaming =
+        (input.preferStream || input.textStream) &&
+        describeVoiceModel(modelId).model?.voiceCapabilities.speech?.some(
+          (operation) => operation.input === inputKind && operation.output === SpeechOutputKind.PcmStream
+        )
+      if (input.textStream && (!streaming || input.remainingText?.length || input.retryAttemptId !== undefined))
+        throw new VoiceRuntimeError('unsupported')
+      const work = this.run(
         session,
         input.requestId,
         modelId,
         'speech',
         async (signal) => {
-          const result = await application
-            .get('AiService')
-            .generateSpeech(modelId, normalizedText, definiteOptions, signal)
-          signal.throwIfAborted()
-          const wav = Buffer.from(result.audio)
-          if (
-            result.mediaType !== 'audio/wav' ||
-            wav.length < 44 ||
-            wav.toString('ascii', 0, 4) !== 'RIFF' ||
-            wav.toString('ascii', 8, 12) !== 'WAVE' ||
-            wav.readUInt32LE(4) + 8 !== wav.length
+          if (input.textStream) session.textInput = new VoiceTextInput(normalizedText)
+          const execution = startSpeech(
+            {
+              modelId,
+              input: session.textInput
+                ? { kind: SpeechInputKind.TextStream, events: session.textInput }
+                : {
+                    kind: SpeechInputKind.Text,
+                    text: streaming ? [normalizedText, ...(input.remainingText ?? [])].join('\n') : normalizedText
+                  },
+              output: streaming ? SpeechOutputKind.PcmStream : SpeechOutputKind.Audio,
+              options: definiteOptions
+            },
+            signal
           )
-            throw new VoiceRuntimeError('invalid_audio')
-          if (session.closed || !this.accepting || session.owner.webContents.isDestroyed())
-            throw new VoiceRuntimeError('aborted')
-          const media = application.get('MediaProtocolService')
-          const outputId = media.store(MediaKind.Audio, wav, 'audio/wav', { webContentsId: owner.webContents.id })
-          session.outputId = outputId
-          session.currentChunkIndex = input.chunkIndex
-          if (input.chunkIndex === undefined) session.generatedUnchunked = true
-          signal.throwIfAborted()
-          session.playback = completePlaybackSynthesis(session.playback!)
-          this.publishPlayback(session)
-          this.armPlaybackTimeout(session)
-          return {
-            sessionId: session.id,
-            requestId: input.requestId,
-            output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const },
-            playback: createPlaybackSnapshot(session.playback, true)
+          session.execution = execution
+          try {
+            const result = await execution.output
+            if (result.kind === SpeechOutputKind.PcmStream) {
+              const stream = new VoiceStream(
+                { sessionId: session.id, requestId: input.requestId, attemptId: session.playback!.attemptId },
+                result.format,
+                signal,
+                (event) => application.get('IpcApiService').send(owner.windowId, 'ai.voice.stream_event', event),
+                () => {
+                  try {
+                    this.sendCommand(session, 'stop')
+                  } catch {
+                    logger.warn('Expired voice stream owner unavailable')
+                  }
+                  void this.closeSession(session, true).catch(() => logger.warn('Expired voice stream cleanup failed'))
+                }
+              )
+              session.stream = stream
+              session.generatedUnchunked = true
+              session.playback = readyPlaybackOutput(session.playback!)
+              this.publishPlayback(session)
+              const response: OutputFor<'ai.speech.generate'> = {
+                sessionId: session.id,
+                requestId: input.requestId,
+                output: {
+                  kind: SpeechOutputKind.PcmStream,
+                  id: input.requestId,
+                  ...result.format,
+                  capacityFrames: stream.capacityFrames
+                },
+                playback: createPlaybackSnapshot(session.playback, false),
+                ...(resolved && { resolved })
+              }
+              ready.resolve(response)
+              await stream.relay(result.chunks, execution.completed)
+              session.playback = completePlaybackSynthesis(session.playback)
+              this.publishPlayback(session)
+              return response
+            }
+            await this.consumeExecution(session, execution, Promise.resolve(result))
+            signal.throwIfAborted()
+            const wav = Buffer.from(result.audio)
+            if (
+              result.mediaType !== 'audio/wav' ||
+              wav.length < 44 ||
+              wav.toString('ascii', 0, 4) !== 'RIFF' ||
+              wav.toString('ascii', 8, 12) !== 'WAVE' ||
+              wav.readUInt32LE(4) + 8 !== wav.length
+            )
+              throw new VoiceRuntimeError('invalid_audio')
+            if (session.closed || !this.accepting || session.owner.webContents.isDestroyed())
+              throw new VoiceRuntimeError('aborted')
+            const media = application.get('MediaProtocolService')
+            const outputId = media.store(MediaKind.Audio, wav, 'audio/wav', { webContentsId: owner.webContents.id })
+            session.outputId = outputId
+            session.currentChunkIndex = input.chunkIndex
+            if (input.chunkIndex === undefined) session.generatedUnchunked = true
+            signal.throwIfAborted()
+            session.playback = completePlaybackSynthesis(session.playback!)
+            this.publishPlayback(session)
+            this.armPlaybackTimeout(session)
+            return {
+              sessionId: session.id,
+              requestId: input.requestId,
+              output: {
+                kind: SpeechOutputKind.Audio,
+                id: outputId,
+                url: media.getUrl(MediaKind.Audio, outputId),
+                mimeType: 'audio/wav' as const
+              },
+              playback: createPlaybackSnapshot(session.playback, true)
+            }
+          } finally {
+            session.textInput?.close()
+            if (session.execution === execution) {
+              await execution.cancel()
+              session.execution = undefined
+            }
           }
         },
         {
@@ -406,11 +606,29 @@ export class VoiceSessionService extends BaseService {
           }
         }
       )
+      void work.then(ready.resolve, ready.reject)
+      const result = await ready.promise
       return resolved ? { ...result, resolved } : result
     } catch (error) {
       await this.abandonUnstartedPlayback(session, input.requestId)
       throw error
     }
+  }
+
+  attachStream(owner: VoiceOwner, input: InputFor<'ai.voice.stream.attach'>): void {
+    this.requireStream(owner, input)?.attach()
+  }
+
+  acknowledgeStream(owner: VoiceOwner, input: InputFor<'ai.voice.stream.acknowledge'>): void {
+    this.requireStream(owner, input)?.acknowledge(input.frames)
+  }
+
+  private requireStream(owner: VoiceOwner, input: InputFor<'ai.voice.stream.attach'>): VoiceStream | undefined {
+    const session = this.requireLeaseSession(owner, input.sessionId)
+    const stream = session.stream
+    if (!stream || stream.identity.requestId !== input.requestId || stream.identity.attemptId !== input.attemptId)
+      return undefined
+    return stream
   }
 
   async releaseOutput(owner: VoiceOwner, input: InputFor<'ai.voice.output.release'>): Promise<void> {
@@ -434,7 +652,15 @@ export class VoiceSessionService extends BaseService {
     if (!session.playback) throw new VoiceRuntimeError('invalid_request')
     const next = applyPlaybackReport(session.playback, input)
     if (next === session.playback) return this.getState(owner)
+    if ((input.phase === 'completed' || input.phase === 'ended') && session.stream && !session.stream.drained)
+      throw new VoiceRuntimeError('invalid_request')
     if (input.phase === 'completed' && session.outputId) throw new VoiceRuntimeError('invalid_request')
+    if (input.phase === 'failed' && session.stream) {
+      session.stream.close()
+      await session.execution?.cancel()
+      await Promise.allSettled(session.pending)
+      if (session.closed) return this.getState(owner)
+    }
     session.playback = next
     if (!next.pendingCommand) this.clearPlaybackTimeout(session)
     if (input.phase === 'completed' || input.phase === 'stopped') {
@@ -450,9 +676,20 @@ export class VoiceSessionService extends BaseService {
     if (!session || session.id !== input.sessionId || session.closed || !session.playback) {
       throw new VoiceRuntimeError('invalid_request')
     }
-    const next = applyPlaybackCommand(session.playback, input.command, Boolean(session.outputId))
+    const next = applyPlaybackCommand(
+      session.playback,
+      input.command,
+      Boolean(session.outputId || (session.stream && !session.textInput))
+    )
     if (next === session.playback) return this.getState(owner)
-    session.playback = next
+    if (input.command === 'retry' && session.stream) {
+      session.stream.close()
+      await session.execution?.cancel()
+      await Promise.allSettled(session.pending)
+      if (session.closed || this.lease !== session) throw new VoiceRuntimeError('aborted')
+    }
+    session.playback =
+      input.command === 'retry' && session.stream ? { ...next, synthesis: 'generating', observed: 'empty' } : next
     this.publishPlayback(session)
     this.armPlaybackTimeout(session)
     try {
@@ -565,9 +802,20 @@ export class VoiceSessionService extends BaseService {
       const session = this.lease
       this.assertOwner(session, owner)
       if (session.files.size || session.pending.size || session.outputId) throw new VoiceRuntimeError('busy')
+      if (
+        input.retryAttemptId !== undefined &&
+        session.stream &&
+        session.playback?.pendingCommand === 'retry' &&
+        session.playback.attemptId === input.retryAttemptId
+      ) {
+        session.stream = undefined
+        return session
+      }
+      if (input.retryAttemptId !== undefined) throw new VoiceRuntimeError('invalid_request')
       this.validateNextChunk(session, input, trigger)
       return session
     }
+    if (input.retryAttemptId !== undefined) throw new VoiceRuntimeError('invalid_request')
     if (trigger === 'auto_read' && (this.lease || this.active)) throw new VoiceRuntimeError('busy')
     const occupied = this.lease ?? this.active?.session
     if (occupied && (occupied.kind !== 'playback' || this.lease !== occupied)) throw new VoiceRuntimeError('busy')
@@ -745,7 +993,12 @@ export class VoiceSessionService extends BaseService {
       sessionId: session.id,
       ...(session.source && { source: session.source }),
       ...(session.trigger && { trigger: session.trigger }),
-      ...(session.playback && { playback: createPlaybackSnapshot(session.playback, Boolean(session.outputId)) }),
+      ...(session.playback && {
+        playback: createPlaybackSnapshot(
+          session.playback,
+          Boolean(session.outputId || (session.stream && !session.textInput))
+        )
+      }),
       ...(reason && { reason })
     }
     this.publishState(state)
@@ -779,8 +1032,23 @@ export class VoiceSessionService extends BaseService {
       sessionId: session.id,
       revision: this.revision,
       command,
-      ...(session.playback && { playback: createPlaybackSnapshot(session.playback, Boolean(session.outputId)) })
+      ...(session.playback && {
+        playback: createPlaybackSnapshot(
+          session.playback,
+          Boolean(session.outputId || (session.stream && !session.textInput))
+        )
+      })
     })
+  }
+
+  private async consumeExecution<T>(session: Session, execution: VoiceExecution, result: Promise<T>): Promise<T> {
+    session.execution = execution
+    try {
+      return await result
+    } finally {
+      await execution.closed
+      if (session.execution === execution) session.execution = undefined
+    }
   }
 
   private async run<T>(
@@ -800,6 +1068,7 @@ export class VoiceSessionService extends BaseService {
     if (session.closed || (session.kind !== 'install' && this.lease !== session)) {
       throw new VoiceRuntimeError('aborted')
     }
+    if (session.execution) throw new VoiceRuntimeError('operation_failed')
     if (this.active || this.inspections.size || session.pending.size) throw new VoiceRuntimeError('busy')
     if (session.requestId === requestId && session.operation !== undefined)
       throw new VoiceRuntimeError('invalid_request')
@@ -932,14 +1201,19 @@ export class VoiceSessionService extends BaseService {
       return terminal ? session.cleanup.catch(() => this.closeSession(session, true)) : session.cleanup
     }
     session.closed = true
+    session.inputStream?.close()
+    session.textInput?.close()
+    session.stream?.close()
     this.clearPlaybackTimeout(session)
     this.removeOutput(session)
     this.syncSleepHold()
     session.detach()
     session.preflightAbort?.abort(new VoiceRuntimeError('aborted'))
     if (this.active?.session === session) this.active.controller.abort(new VoiceRuntimeError('aborted'))
+    const execution = session.execution
     const cleanup = (async () => {
       try {
+        if (execution) await execution.cancel()
         await Promise.allSettled(session.pending)
         for (const id of [...session.files.keys()]) {
           try {

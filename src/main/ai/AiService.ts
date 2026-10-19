@@ -8,7 +8,6 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
-  NoTranscriptGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -17,15 +16,9 @@ import {
   type AiPlugin,
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
-  generateSpeech as aiCoreGenerateSpeech,
   rerank as aiCoreRerank,
   type RuntimeProviderCallEvent,
-  type RuntimeProviderCallHandler,
-  type SpeechOptions,
-  type SpeechResult,
-  transcribe as aiCoreTranscribe,
-  type TranscriptionOptions,
-  type TranscriptionResult
+  type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
@@ -47,7 +40,6 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
-import type { LocalSpeechModelId, LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -109,8 +101,6 @@ import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
-import { createLocalSpeechModel, createLocalTranscriptionModel } from './voice/localAdapters'
-import { VoiceRuntimeError } from './voice/VoiceRuntimeError'
 
 const logger = loggerService.withContext('AiService')
 
@@ -1231,38 +1221,6 @@ export class AiService extends BaseService {
     // returns a non-OK response with no body), which would otherwise surface as a
     // message-less `Error` the renderer can't show.
     throw new Error(snapshot.error?.message || 'Image generation failed')
-  }
-
-  // ── Local one-shot voice ──
-
-  async generateSpeech(
-    modelId: LocalSpeechModelId,
-    text: string,
-    options: SpeechOptions,
-    signal: AbortSignal
-  ): Promise<SpeechResult> {
-    signal.throwIfAborted()
-    return aiCoreGenerateSpeech(createLocalSpeechModel(modelId, options), text, options, signal)
-  }
-
-  async transcribe(
-    modelId: LocalTranscriptionModelId,
-    audio: Uint8Array,
-    options: TranscriptionOptions,
-    signal: AbortSignal
-  ): Promise<TranscriptionResult> {
-    signal.throwIfAborted()
-    try {
-      const result = await aiCoreTranscribe(createLocalTranscriptionModel(modelId, options), audio, options, signal)
-      if (!result.text.trim()) throw new VoiceRuntimeError('no_speech')
-      return result
-    } catch (error) {
-      if (NoTranscriptGeneratedError.isInstance(error)) {
-        signal.throwIfAborted()
-        throw new VoiceRuntimeError('no_speech')
-      }
-      throw error
-    }
   }
 
   // ── Embedding ──

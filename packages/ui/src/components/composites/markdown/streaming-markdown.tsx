@@ -27,7 +27,9 @@ export interface StreamingMarkdownProps {
 const DEFAULT_ANIMATED: AnimateOptions = {
   animation: 'fadeIn',
   duration: 250,
-  easing: 'ease-out'
+  easing: 'ease-out',
+  // Per-word delays can hide a long paragraph after later blocks are already visible.
+  stagger: 0
 }
 
 export function StreamingMarkdown({
