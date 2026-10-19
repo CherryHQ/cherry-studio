@@ -439,10 +439,9 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
  * only correlation, which is also what lets a deferred round still show the request it carried.
  */
 function getReceiptTarget(part: CherryMessagePart, output: unknown): string | undefined {
-  // A failed or cancelled send resumed nothing: its input still names the target, but the child
-  // was never woken, so it must not split a round or root a flow.
-  const state = getToolPartState(part)
-  if (state === 'output-error' || state === 'output-denied' || state === 'cancelled') return undefined
+  // A send that has not delivered is not a continuation: its input names the target, but nothing
+  // resumed until the result landed, so the pending interval stays in the original round.
+  if (getToolPartState(part) !== 'output-available') return undefined
   const resumedAgentId = getResumedAgentId(output)
   if (resumedAgentId) return resumedAgentId
   const input = (part as { input?: { to?: unknown; agent_id?: unknown; subagent_id?: unknown } }).input
