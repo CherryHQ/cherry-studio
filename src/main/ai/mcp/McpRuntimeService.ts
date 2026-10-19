@@ -562,7 +562,9 @@ export class McpRuntimeService extends BaseService {
       } catch (error) {
         if (isUnsupportedProbeError(error)) {
           // A server that does not implement the probe method is not a dead transport.
-          getServerLogger(server).warn('Existing MCP connection probe method unsupported; keeping connection', { error })
+          getServerLogger(server).warn('Existing MCP connection probe method unsupported; keeping connection', {
+            error
+          })
         } else {
           assertCurrent()
           getServerLogger(server).warn('Existing MCP connection failed health check', { error })
