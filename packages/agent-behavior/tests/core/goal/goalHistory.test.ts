@@ -50,7 +50,8 @@ describe('goal usage', () => {
     expect(unadmittedRoundItems(history)).toEqual([history[1].id])
   })
 
-  // Catches a notification turn billed while the goal is unarmed, or not billed while it is armed (README goal §11.3).
+  // Catches a notification turn billed while the goal is unarmed, or not billed while it is armed (agent-runtime-pi
+  // README goal §11.3).
   it('bills a notification turn only to an armed goal', () => {
     const notify = marker({ type: 'subagent-notification', runs: [], quiet: false })
     expect(tokens([goalEntry(goal()), notify, assistant('a', { usage: usage(3) })])).toBe(3)
@@ -75,7 +76,8 @@ describe('goal usage', () => {
 })
 
 describe('goal progress', () => {
-  // Catches a streak that survives a person's message, or counts a round the user aborted (README goal §7.2).
+  // Catches a streak that survives a person's message, or counts a round the user aborted (agent-runtime-pi README goal
+  // §7.2).
   it('counts rounds without progress, reset by a person and not counting aborted rounds', () => {
     const quiet = (n: number) => [roundEntry(round(n)), admit(n), assistant('same text'), result('read')]
     const history = [goalEntry(goal()), ...quiet(1), ...quiet(2), ...quiet(3)]

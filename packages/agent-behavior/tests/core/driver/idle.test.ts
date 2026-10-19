@@ -136,7 +136,8 @@ describe('decideAtIdle: the goal (fixtures 4–6, 8)', () => {
     expect(resumed).toMatchObject({ kind: 'start-round', key: keys.goalRound('g1', 1, 1, 2) })
   })
 
-  // Catches our own withdrawal taken for the user's stop, or the user's stop ignored (README goal §6.3).
+  // Catches our own withdrawal taken for the user's stop, or the user's stop ignored (agent-runtime-pi README goal
+  // §6.3).
   it('stops on a user abort but goes on after its own withdrawal', () => {
     const aborted = { live: { runEnd: { outcome: 'aborted' as const } } }
     const history = [goalEntry(goal()), ...round(1, assistant('x'))]
@@ -192,7 +193,7 @@ describe('decideAtIdle: order and exit', () => {
     ).toMatchObject({ kind: 'start-round' })
   })
 
-  // Catches a used-up budget leaving the goal's background children running (README goal §11.4).
+  // Catches a used-up budget leaving the goal's background children running (agent-runtime-pi README goal §11.4).
   it('stops the goal background children first once its budget is used up', () => {
     const budget = goalEntry(goal({ revision: 3, roundsStarted: 1, budget: { tokens: 10 } }))
     const spent = [goalEntry(goal()), ...round(1, assistant('spawn', { usage: usage(4) }), runEntry(run('a'))), budget]

@@ -116,6 +116,41 @@ describe('subagent tools', () => {
     expect(await childInputs(w, CHILD)).toBe(2)
   })
 
+  // Catches S-j's wiring (AC10): a finished foreground child that is not forked into a new background child, a report
+  // job that cannot find that child by the continuation's key, or a later message on the old id that misses it.
+  it('message_subagent forks a finished foreground child and forwards its old id to the fork', async () => {
+    const w = world({
+      scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [reply('done once'), reply('done again')] : [])
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', SPAWN),
+      callTool('message_subagent', { id: CHILD, message: 'more' }),
+      reply('waiting'),
+      callTool('message_subagent', { id: CHILD, message: 'even more' }),
+      reply('waiting again'),
+      reply('read both')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    const fork = runRecords(facts).find(({ sessionId }) => sessionId !== CHILD)?.sessionId
+    expect(fork).toBeDefined()
+    expect(toolResults(facts).filter(({ tool }) => tool === 'message_subagent')).toMatchObject([
+      { isError: false, details: { sessionId: fork, continued: true } },
+      { isError: false, details: { sessionId: fork, continued: true } }
+    ])
+    expect(
+      markers(facts, 'subagent-notification').flatMap(({ marker }) =>
+        marker.runs.map(({ sessionId, run }) => [sessionId, run])
+      )
+    ).toEqual([
+      [fork, 1],
+      [fork, 2]
+    ])
+    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(1)
+  })
+
   // Catches a steer that reaches a run already ended starting a run the parent never records (G-C5): the message must
   // continue the child as a recorded run whose result is delivered.
   it('message_subagent continues the child when its run ends before the steer arrives', async () => {
