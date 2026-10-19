@@ -375,7 +375,35 @@ const CodeViewer = ({
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
   // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
-  const estimateSize = useCallback(() => Math.round(fontSize * 1.6), [fontSize])
+  const lineHeight = useMemo(() => Math.round(fontSize * 1.6), [fontSize])
+
+  const getWrapContentWidth = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (!scroller || scroller.clientWidth <= 0) return 0
+    const gutterPx = lineNumbers ? gutterDigits * fontSize * 0.6 + 16 : 0
+    const horizontalPadding = fontSize * 2
+    return Math.max(1, scroller.clientWidth - gutterPx - horizontalPadding)
+  }, [fontSize, gutterDigits, lineNumbers])
+
+  const estimateWrappedVisualRows = useCallback(
+    (line: string, contentWidth: number) => {
+      if (!wrapped || contentWidth <= 0) return 1
+      if (line.length === 0) return 1
+      const charWidth = fontSize * 0.6
+      const charsPerRow = Math.max(1, Math.floor(contentWidth / charWidth))
+      return Math.max(1, Math.ceil(line.length / charsPerRow))
+    },
+    [fontSize, wrapped]
+  )
+
+  const estimateSize = useCallback(
+    (index: number) => {
+      const contentWidth = getWrapContentWidth()
+      const visualRows = estimateWrappedVisualRows(rawLines[index] ?? '', contentWidth)
+      return lineHeight * visualRows
+    },
+    [estimateWrappedVisualRows, getWrapContentWidth, lineHeight, rawLines]
+  )
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -385,6 +413,59 @@ const CodeViewer = ({
     estimateSize,
     overscan: 20
   })
+
+  const previousRawLinesRef = useRef<string[] | null>(null)
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    let lastWidth = scroller.clientWidth
+    const observer = new ResizeObserver(() => {
+      const nextWidth = scroller.clientWidth
+      if (nextWidth === lastWidth) return
+      lastWidth = nextWidth
+      if (wrapped && !expanded) {
+        virtualizer.measure()
+      }
+    })
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [expanded, virtualizer, wrapped])
+
+  const previousWrapLayoutSignatureRef = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    if (!wrapped || expanded) return
+    const signature = `${lineNumbers}:${gutterDigits}:${fontSize}`
+    if (previousWrapLayoutSignatureRef.current === signature) return
+    previousWrapLayoutSignatureRef.current = signature
+    virtualizer.measure()
+  }, [expanded, fontSize, gutterDigits, lineNumbers, virtualizer, wrapped])
+
+  useLayoutEffect(() => {
+    if (!wrapped || expanded) {
+      previousRawLinesRef.current = rawLines
+      return
+    }
+
+    const previous = previousRawLinesRef.current
+    previousRawLinesRef.current = rawLines
+    if (!previous) return
+
+    const scroller = scrollerRef.current
+    const maxIndex = Math.max(previous.length, rawLines.length) - 1
+    for (let index = 0; index <= maxIndex; index++) {
+      if (previous[index] === rawLines[index]) continue
+      // Feed the virtualizer the row's real DOM height: writing an estimate would
+      // overwrite its measured size and drift every subsequent row's offset.
+      // Unmounted rows are skipped — they use fresh estimates until measured on mount.
+      const element = scroller?.querySelector<HTMLElement>(`[data-index="${index}"]`)
+      if (element) {
+        virtualizer.resizeItem(index, element.offsetHeight)
+      }
+    }
+  }, [expanded, rawLines, virtualizer, wrapped])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
@@ -515,7 +596,7 @@ const CodeViewer = ({
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
-            '--line-height': `${estimateSize()}px`,
+            '--line-height': `${lineHeight}px`,
             fontSize,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,

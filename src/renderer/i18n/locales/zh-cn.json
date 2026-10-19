@@ -4828,6 +4828,8 @@
   "settings.messages.show_message_outline": "显示消息大纲",
   "settings.messages.title": "消息设置",
   "settings.messages.use_serif_font": "使用衬线字体",
+  "settings.messages.user_content.default_expanded.hint": "默认完整显示较长的用户消息。手动展开或收起的消息会在本次会话中保留你的选择。",
+  "settings.messages.user_content.default_expanded.label": "默认展开长用户消息",
   "settings.messages.wide_mode": "宽布局模式",
   "settings.miniApps.cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
   "settings.miniApps.cache_description": "设置同时保持活跃状态的小程序最大数量",
