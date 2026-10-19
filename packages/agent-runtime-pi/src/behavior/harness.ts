@@ -11,14 +11,18 @@ import type {
 import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { AgentRuntimeSession } from '../session'
+import { conversationExtension } from './extension'
 import { commit, modelContext, readFacts } from './ledger'
+import { retract, startTurn, stopRun, submit } from './runs'
 import {
   type Adapter,
   type Conversation,
   type Installation,
   type JobRecord,
   newConversation,
-  type Owner
+  type Owner,
+  piIdle,
+  waitFor
 } from './state'
 
 export type BehaviorSessionRequest = {
@@ -70,6 +74,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   const installation: Installation = { tools: new Map(), jobs: new Map() }
   const installScope: Scope = { ended: false }
   let closed = false
+  let users = 0
   let lastNow = 0
   const clock = { now: () => (lastNow = Math.max(lastNow, Date.now())) }
 
@@ -125,13 +130,29 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
           }),
         modelContext: (thread) => enter(scope, () => modelContext(adapter, thread))
       },
-      turns: { start: later('turns.start'), retract: later('turns.retract'), stop: later('turns.stop') },
+      turns: {
+        start: (thread, input, key) => enter(scope, () => startTurn(adapter, conversation(thread), input, key)),
+        retract: (thread, key) => enter(scope, () => retract(conversation(thread), key)),
+        stop: (thread) => enter(scope, () => stopRun(adapter, conversation(thread)))
+      },
       helpers: {
         message: later('helpers.message'),
         awaitAnswer: later('helpers.awaitAnswer'),
         stop: later('helpers.stop')
       },
-      waits: { untilIdle: later('waits.untilIdle'), untilRunEnd: later('waits.untilRunEnd') },
+      waits: {
+        // H5: inputs a failed run left do not hold `untilIdle`; neither wait resolves inside a run.
+        untilIdle: (thread) =>
+          enter(scope, () => {
+            const conv = conversation(thread)
+            return waitFor(conv, () => conv.active === undefined && conv.hostCompacts === 0 && piIdle(conv))
+          }),
+        untilRunEnd: (thread) =>
+          enter(scope, () => {
+            const conv = conversation(thread)
+            return waitFor(conv, () => conv.active === undefined)
+          })
+      },
       memory: { remember: (name, produce) => enter(scope, () => remember(name, produce)) },
       clock
     }
@@ -169,7 +190,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
     conv.native = await options.openSession({
       sessionManager: conv.manager,
-      extension: () => {},
+      extension: conversationExtension(adapter, conv),
       ...(child && { child })
     })
   }
@@ -240,7 +261,12 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       return thread
     },
     withCall: (_thread, use) => withScope(undefined, use),
-    submitUser: () => Promise.reject(new Error('submitUser is not implemented yet')),
+    async submitUser(thread, text) {
+      if (closed) throw new Error('The coding-agent harness is closed')
+      users += 1
+      // A person's submissions get adapter-local keys; rules never see them.
+      submit(adapter, conversation(thread), `user:${users}`, text)
+    },
     compact: () => Promise.reject(new Error('compact is not implemented yet')),
     async settled() {
       do {
