@@ -56,6 +56,12 @@ three Linux shards; renderer retains five. Selected package tests run once in th
 own job. macOS/Windows retain the platform-gated test inventory (including
 system speech and sandbox; sandbox acceptance tests remain a separate explicit command); platform selection is deliberately conservative whenever main is selected.
 
+The Windows platform job uses `windows-2025` and prepares the MXC system-drive and
+Null-device permissions before sandbox execution. Host preparation uses `-NoSacl`
+for the CI token; MXC still applies the DACL and mandatory integrity label. Native
+success tests remain required. A separate sandbox contract test verifies that
+Windows builds below the adapter's minimum are refused without launching a target.
+
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
 accepts a skipped dependency only when the plan explicitly excludes it. The basic

@@ -261,7 +261,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-2022]
+        os: [macos-latest, windows-2025]
     steps:
       - uses: actions/checkout@v7
       - name: macOS native build prerequisites
@@ -272,6 +272,9 @@ jobs:
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         shell: bash
         run: ":"
+      - name: Prepare Windows sandbox host
+        if: runner.os == 'Windows'
+        run: pnpm --filter @cherrystudio/sandbox setup:windows -NoSacl
       - name: Platform contracts
         env:
           VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
