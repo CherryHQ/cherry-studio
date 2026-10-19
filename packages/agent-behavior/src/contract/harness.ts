@@ -24,8 +24,8 @@ export interface ContractHarness {
   /** Resolves once no run is active and no job is live; inbox items a failed run left do not count. */
   settle(): Promise<void>
   /**
-   * Loses everything in memory and reopens from storage: install runs again, `onOpen(reopened: true)` runs for every
-   * conversation, then runs and 'resume' jobs continue and 'abandon' jobs are dropped.
+   * Loses everything in memory and reopens from storage: install runs again, 'abandon' jobs are dropped,
+   * `onOpen(reopened: true)` runs for every conversation, then runs and 'resume' jobs continue.
    */
   restart(): Promise<void>
   /** Calls `onClose` for every conversation, then shuts down. */

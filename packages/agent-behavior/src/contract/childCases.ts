@@ -1,5 +1,6 @@
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
+import type { UsageFact } from '../core/facts'
 import type { ToolDefinition } from '../ports/harness'
 import { check, same } from './assert'
 import {
@@ -16,6 +17,15 @@ import {
   toolBase
 } from './fixtures'
 import type { ContractCase } from './harness'
+
+const usage = (input: number, output: number, costUsd: number): UsageFact => ({
+  input,
+  output,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: input + output,
+  costUsd
+})
 
 export const childCases: readonly ContractCase[] = [
   // Catches a parent stop that misses its foreground child or kills a background one (owner decision Q1).
@@ -69,7 +79,7 @@ export const childCases: readonly ContractCase[] = [
       same(bgEnd, { outcome: 'completed', text: 'bg done' }, 'the background child must finish its run')
     }
   },
-  // Catches a repeated message key starting a second run, or a message to a running child starting a new one (DP S8).
+  // Catches a repeated message key adding input or a run, also after its run ended (the report job's rerun), or a message to a running child starting a new one (DP S8).
   {
     name: 'message starts a child run once per key and joins a running run',
     covers: ['helpers.message', 'helpers.awaitAnswer'],
@@ -96,6 +106,13 @@ export const childCases: readonly ContractCase[] = [
         markersWith(facts, key('c12-first')).length === 1 && markersWith(facts, key('c12-second')).length === 1,
         'each message key must add exactly one input'
       )
+      same(await send('c12-first'), { run: 1, status: 'started' }, 'a key whose run ended must return its first result')
+      await h.settle()
+      const inputs = (await read(h, child)).history.filter((e) => e.kind === 'marker').length
+      check(
+        inputs === 2 && (await read(h, t)).children.get(child)?.runUsage.length === 1,
+        'a key whose run ended must add no input and start no run'
+      )
     }
   },
   // Catches a child stop that ignores its run number, resolves before that run has ended, or reports it as completed.
@@ -120,6 +137,35 @@ export const childCases: readonly ContractCase[] = [
       )
       const end = await h.withCall(t, (p) => p.helpers.awaitAnswer(child, run, key('c13-msg')))
       check(end.outcome === 'aborted', 'a stopped child run must end aborted')
+    }
+  },
+  // Catches a continuation numbered or billed as the first run, or a stale stop ending the next run (design §7.5, I4).
+  {
+    name: 'a message after a run ended starts the next run, and run usage keeps the runs apart',
+    covers: ['helpers.message', 'helpers.awaitAnswer', 'helpers.stop', 'ledger.read'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      const child = await spawnBackground(h, t, 'c26')
+      const [first, held, second] = [usage(10, 5, 0.25), usage(20, 7, 0.5), usage(3, 2, 0.125)]
+      h.script(child, [reply('one', first), callTool('hold', { id: 'c26' }, held), reply('two', second)])
+      const send = (label: string) => h.withCall(t, (p) => p.helpers.message(child, message(label), key(label)))
+      const answer = (run: number, label: string) => h.withCall(t, (p) => p.helpers.awaitAnswer(child, run, key(label)))
+      same(await send('c26-1'), { run: 1, status: 'started' }, 'an idle child must start run 1')
+      same(await answer(1, 'c26-1'), { outcome: 'completed', text: 'one' }, 'run 1 must answer the first message')
+      same(await send('c26-2'), { run: 2, status: 'started' }, 'a message after run 1 ended must start run 2')
+      await hold.started('c26')
+      await h.withCall(t, (p) => p.helpers.stop(child, 1))
+      check((await read(h, t)).children.get(child)?.running === true, 'stopping an ended run must not stop run 2')
+      hold.release('c26')
+      same(await answer(2, 'c26-2'), { outcome: 'completed', text: 'two' }, 'run 2 must answer the second message')
+      same(
+        (await read(h, t)).children.get(child)?.runUsage,
+        [first, usage(23, 9, 0.625)],
+        'run usage must sum each run on its own'
+      )
     }
   },
   // Catches a wait lost on restart, which strands the report job forever (design §7.4).

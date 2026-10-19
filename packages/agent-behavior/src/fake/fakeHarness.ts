@@ -14,7 +14,6 @@ import {
   createEpoch,
   createState,
   type Epoch,
-  isIdle,
   type JobRecord,
   modelContext,
   nextItem,
@@ -114,20 +113,22 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         awaitAnswer: (child, run, key) =>
           enter(scope, async () => {
             const target = thread(child)
-            if (!target.submissions.has(key)) throw new Error(`No message ${key} was sent to ${child}`)
-            await waitFor(scope.epoch, child, () => target.ends.has(run))
-            return target.ends.get(run)!.answer
+            const submission = target.submissions.get(key)
+            if (!submission) throw new Error(`No message ${key} was sent to ${child}`)
+            // The run that took the message; a message withdrawn before it ran answers with the run it was accepted into.
+            const ended = () => {
+              const answering = submission.run ?? (submission.state === 'withdrawn' ? run : undefined)
+              return answering === undefined ? undefined : target.ends.get(answering)
+            }
+            await waitFor(scope.epoch, child, () => ended() !== undefined)
+            return ended()!.answer
           }),
         stop: (child, run) =>
           enter(scope, () => (thread(child).active?.run === run ? stopRun(host, thread(child)) : undefined))
       },
       waits: {
-        untilIdle: (id) => enter(scope, () => waitFor(scope.epoch, id, () => isIdle(thread(id)))),
-        untilTurnEnd: (id) =>
-          enter(scope, () => {
-            const run = thread(id).active?.run
-            return waitFor(scope.epoch, id, () => thread(id).active?.run !== run)
-          })
+        untilIdle: (id) => enter(scope, () => waitFor(scope.epoch, id, () => !thread(id).active)),
+        untilRunEnd: (id) => enter(scope, () => waitFor(scope.epoch, id, () => !thread(id).active))
       },
       memory: { remember: (name, produce) => enter(scope, () => remember(scope, name, produce)) },
       clock: { now: () => state.clock }
@@ -271,15 +272,13 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       epoch = createEpoch()
       installed = installPorts(epoch)
       options.install?.(installed)
+      for (const job of state.jobs.values())
+        if (job.state === 'live' && job.spec.onRestart === 'abandon') job.state = 'abandoned'
       for (const thread of [...state.threads.values()]) {
         thread.reopened = true
         await lifecycle((handlers, ports) => handlers.onOpen(thread.id, { reopened: true }, ports))
       }
-      for (const job of state.jobs.values()) {
-        if (job.state !== 'live') continue
-        if (job.spec.onRestart === 'resume') startJob(job)
-        else job.state = 'abandoned'
-      }
+      for (const job of state.jobs.values()) if (job.state === 'live') startJob(job)
       for (const thread of [...state.threads.values()]) if (thread.active) resumeRun(host, thread)
     },
     async close() {
