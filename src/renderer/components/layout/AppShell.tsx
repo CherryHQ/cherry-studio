@@ -185,7 +185,7 @@ export const AppShell = () => {
 
   const contentArea = (
     <>
-      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pr-1.5 pb-1.5', isSettingsTabActive && 'pl-2')}>
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pr-1.5 pb-1.5', isSettingsTabActive && 'pl-1.5')}>
         <main
           data-ui="app.content"
           className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
