@@ -52,8 +52,11 @@ export const keys = {
   /** A record that only refreshes the counts a goal shows, once per value. */
   goalCounts: (goalId: string, revision: number, progressRounds: number): Key =>
     mint(`goal-counts:${goalId}:v${revision}:p${progressRounds}`),
-  /** A `message_subagent` call's message to a running child, and the record of a continuation it starts. */
-  subagentSteer: (call: CallKey): Key => mint(`subagent-steer:${call}`),
+  /**
+   * A `message_subagent` call's steer for run `run` of a running child, and the record of a continuation it starts. A
+   * decision again after a withdrawn steer that lands on a later run gets a new key (G-C5).
+   */
+  subagentSteer: (call: CallKey, run: number): Key => mint(`subagent-steer:${call}:${run}`),
   subagentContinue: (call: CallKey): Key => mint(`subagent-continue:${call}`),
   /** The record that run `run` of `child` was stopped by `by`. */
   subagentStop: (child: ThreadId, run: number, by: SubagentStopper): Key => mint(`subagent-stop:${child}:${run}:${by}`),

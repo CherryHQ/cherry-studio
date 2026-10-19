@@ -143,7 +143,8 @@ describe('keys', () => {
       keys.goalStop('g', 1, 1),
       keys.goalDisarm('g', 1),
       keys.goalCounts('g', 1, 1),
-      keys.subagentSteer(call),
+      keys.subagentSteer(call, 1),
+      keys.subagentSteer(call, 2),
       keys.subagentContinue(call),
       keys.subagentStop(child, 1, 'model'),
       keys.subagentStop(child, 1, 'user'),
@@ -153,5 +154,15 @@ describe('keys', () => {
     expect(new Set(all).size).toBe(all.length)
     expect(keys.goalStop('goal:call:k', 2, 3)).toBe('goal-stop:goal:call:k:v2:a3')
     expect(keys.subagentStop(child, 2, 'budget')).toBe('subagent-stop:c:1:2:budget')
+  })
+
+  // Catches a steer key without its run (G-C5): a decision again after a withdrawn steer that lands on a later run would
+  // reuse the withdrawn key, which the harness keeps answering 'withdrawn', so message_subagent would retry forever.
+  it('keys a steer by its call and the run it joins', () => {
+    const steer = withoutEnvironment(() => keys.subagentSteer(callKeyOf('c:1'), 2))
+    expect(steer).toBe('subagent-steer:c:1:2')
+    expect(keys.subagentSteer(callKeyOf('c:1'), 2)).toBe(steer)
+    expect(keys.subagentSteer(callKeyOf('c:1'), 3)).not.toBe(steer)
+    expect(keys.subagentSteer(callKeyOf('c'), 12)).not.toBe(steer)
   })
 })

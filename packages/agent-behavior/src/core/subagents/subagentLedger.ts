@@ -45,6 +45,14 @@ export const isLive = (facts: Facts, record: SubagentRunRecord): boolean =>
   record.status === 'running' &&
   (facts.children.get(record.sessionId)?.running === true || !runStarted(facts, record.sessionId, record.run))
 
+/** Someone stopped run `run` of `child`, or its end is recorded: an input that reaches it now must not run (G-C4). */
+export function runStopping(history: readonly HistoryEntry[], child: ThreadId, run: number): boolean {
+  const record = readSubagents(history)
+    .find((ledger) => ledger.child === child)
+    ?.runs.get(run)
+  return record !== undefined && (record.stoppedBy !== undefined || record.status === 'finished')
+}
+
 /** Background children running or about to, the most recently active first: they hold slots (S-e). */
 export const runningBackground = (facts: Facts): ChildLedger[] =>
   readSubagents(facts.history)
