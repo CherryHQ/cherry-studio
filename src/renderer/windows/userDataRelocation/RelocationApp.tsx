@@ -18,9 +18,9 @@ const RelocationApp = () => {
         <h1 className="text-sm font-medium text-foreground">{t('relocation.title')}</h1>
       </header>
 
-      <main className="flex min-h-0 flex-1 justify-center px-8 py-6 [-webkit-app-region:no-drag]">
-        <div className="flex h-full w-full max-w-[420px] flex-col">
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
+      <main className="flex min-h-0 flex-1 justify-center overflow-y-auto px-8 py-6 [-webkit-app-region:no-drag]">
+        <div className="flex min-h-full w-full max-w-[420px] flex-col">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
             {!progress && <Spinner label={t('relocation.preparing')} />}
             {stage === 'preparing' && <Spinner label={t('relocation.preparing')} />}
             {stage === 'copying' && progress && (
