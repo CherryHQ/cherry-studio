@@ -23,49 +23,44 @@ const IMPORTS = '@typescript-eslint/no-restricted-imports'
 const SYNTAX = 'no-restricted-syntax'
 const GLOBALS = 'no-restricted-globals'
 
+const LAYERS = ['core', 'ports', 'orchestration', 'contract', 'fake']
+const PACKAGE_BANS: readonly (readonly [string, string, string])[] = [
+  ['node', `import { readFile } from 'node:fs'\nexport { readFile }`, IMPORTS],
+  ['bare builtin', `import { createHash } from 'crypto'\nexport { createHash }`, IMPORTS],
+  ['pi', `import { Type } from '@earendil-works/pi-ai'\nexport { Type }`, IMPORTS],
+  ['electron', `import { app } from 'electron'\nexport { app }`, IMPORTS],
+  ['main', `import { x } from '@main/utils/file'\nexport { x }`, IMPORTS],
+  ['shared', `import { x } from '@shared/ai/piBuiltinTools'\nexport { x }`, IMPORTS],
+  ['logger', `import { loggerService } from '@logger'\nexport { loggerService }`, IMPORTS],
+  ['application', `import { application } from '@application'\nexport { application }`, IMPORTS],
+  ['ai sdk', `import { generateText } from 'ai'\nexport { generateText }`, IMPORTS],
+  ['ai provider', `import { openai } from '@ai-sdk/openai'\nexport { openai }`, IMPORTS],
+  ['adapter', `import { x } from '@cherrystudio/agent-runtime-pi'\nexport { x }`, IMPORTS],
+  ['runtime value', `import { runtimeId } from '@cherrystudio/agent-runtime'\nexport { runtimeId }`, IMPORTS],
+  [
+    'runtime protocol type',
+    `import type { MessageItem } from '@cherrystudio/agent-runtime'\nexport type { MessageItem }`,
+    SYNTAX
+  ],
+  ['runtime namespace', `import type * as Runtime from '@cherrystudio/agent-runtime'\nexport type { Runtime }`, SYNTAX]
+]
+
 describe('agent-behavior boundary guards', () => {
+  // Catches a layer block that drops a package-level ban: each layer rewrites the import rule (flat config is last-wins).
+  it.each(
+    LAYERS.flatMap((layer) => PACKAGE_BANS.map(([name, code, rule]) => [`${name} in ${layer}`, layer, code, rule]))
+  )('fires on %s', async (_name, layer, code, rule) => {
+    expect(await guardHits(`${SRC}/${layer}/probe.ts`, code)).toContain(rule)
+  })
+
   // Catches a guard that silently stops firing (flat-config last-wins override, a glob typo), letting harness, host
   // or environment code into a package that must run unchanged on coding-agent, Durable and the fake.
   it.each([
-    ['fake', `${SRC}/fake/probe.ts`, `import { readFile } from 'node:fs'\nexport { readFile }`, IMPORTS],
-    ['bare builtin', `${SRC}/fake/probe.ts`, `import { createHash } from 'crypto'\nexport { createHash }`, IMPORTS],
-    ['pi', `${SRC}/fake/probe.ts`, `import { Type } from '@earendil-works/pi-ai'\nexport { Type }`, IMPORTS],
-    ['electron', `${SRC}/fake/probe.ts`, `import { app } from 'electron'\nexport { app }`, IMPORTS],
-    ['main', `${SRC}/fake/probe.ts`, `import { x } from '@main/utils/file'\nexport { x }`, IMPORTS],
-    ['shared', `${SRC}/fake/probe.ts`, `import { x } from '@shared/ai/piBuiltinTools'\nexport { x }`, IMPORTS],
-    ['logger', `${SRC}/fake/probe.ts`, `import { loggerService } from '@logger'\nexport { loggerService }`, IMPORTS],
-    [
-      'application',
-      `${SRC}/fake/probe.ts`,
-      `import { application } from '@application'\nexport { application }`,
-      IMPORTS
-    ],
-    ['ai sdk', `${SRC}/fake/probe.ts`, `import { generateText } from 'ai'\nexport { generateText }`, IMPORTS],
-    ['ai provider', `${SRC}/fake/probe.ts`, `import { openai } from '@ai-sdk/openai'\nexport { openai }`, IMPORTS],
-    ['adapter', `${SRC}/fake/probe.ts`, `import { x } from '@cherrystudio/agent-runtime-pi'\nexport { x }`, IMPORTS],
     [
       'adapter deep import',
       'packages/agent-runtime-pi/src/probe.ts',
       `import { ENTRY_KINDS } from '@cherrystudio/agent-behavior/core/facts'\nexport { ENTRY_KINDS }`,
       'barrel/closed'
-    ],
-    [
-      'runtime value',
-      `${SRC}/fake/probe.ts`,
-      `import { runtimeId } from '@cherrystudio/agent-runtime'\nexport { runtimeId }`,
-      IMPORTS
-    ],
-    [
-      'runtime protocol type',
-      `${SRC}/fake/probe.ts`,
-      `import type { MessageItem } from '@cherrystudio/agent-runtime'\nexport type { MessageItem }`,
-      SYNTAX
-    ],
-    [
-      'runtime namespace',
-      `${SRC}/fake/probe.ts`,
-      `import type * as Runtime from '@cherrystudio/agent-runtime'\nexport type { Runtime }`,
-      SYNTAX
     ],
     [
       'core → ports',
@@ -82,6 +77,22 @@ describe('agent-behavior boundary guards', () => {
     ['core → fake', `${SRC}/core/probe.ts`, `import { x } from '../fake/fakeHarness'\nexport { x }`, IMPORTS],
     ['core → contract', `${SRC}/core/probe.ts`, `import { x } from '../contract/cases'\nexport { x }`, IMPORTS],
     ['core → barrel', `${SRC}/core/probe.ts`, `import { x } from '..'\nexport { x }`, IMPORTS],
+    // Catches core reaching the barrel through a file path, which the bare-directory pattern missed.
+    ['core → barrel file', `${SRC}/core/probe.ts`, `import { x } from '../index.js'\nexport { x }`, IMPORTS],
+    // Catches core reading the host's locale or time zone, which makes keys and decisions differ between machines.
+    [
+      'core Intl',
+      `${SRC}/core/probe.ts`,
+      `export const zone = () => new Intl.DateTimeFormat().resolvedOptions()`,
+      GLOBALS
+    ],
+    [
+      'core localeCompare',
+      `${SRC}/core/probe.ts`,
+      `export const cmp = (a: string, b: string) => a.localeCompare(b)`,
+      SYNTAX
+    ],
+    ['core toLocale', `${SRC}/core/probe.ts`, `export const show = (n: number) => n.toLocaleString()`, SYNTAX],
     ['core Date', `${SRC}/core/probe.ts`, `export const at = () => Date.now()`, GLOBALS],
     ['core Math.random', `${SRC}/core/probe.ts`, `export const roll = () => Math.random()`, 'no-restricted-properties'],
     ['core crypto', `${SRC}/core/probe.ts`, `export const id = () => crypto.randomUUID()`, GLOBALS],
@@ -137,6 +148,14 @@ describe('agent-behavior boundary guards', () => {
       'orchestration → fake',
       `${SRC}/orchestration/probe.ts`,
       `import { x } from '../fake/fakeHarness'\nexport { x }`,
+      IMPORTS
+    ],
+    // Catches contract cases depending on the fake or on orchestration, so they would stop being harness-neutral.
+    ['contract → fake', `${SRC}/contract/probe.ts`, `import { x } from '../fake/fakeHarness'\nexport { x }`, IMPORTS],
+    [
+      'contract → orchestration',
+      `${SRC}/contract/probe.ts`,
+      `import { x } from '../orchestration/gate'\nexport { x }`,
       IMPORTS
     ]
   ])('fires on %s', async (_name, file, code, rule) => {
