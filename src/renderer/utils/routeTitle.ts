@@ -94,17 +94,12 @@ export function isTopLevelRoute(url: string): boolean {
   return !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
 }
 
-/**
- * Routes whose tab title + icon are owned by the PAGE (the active topic /
- * session name and its assistant / agent emoji), not derived from the route.
- * Callers that auto-relabel tabs from the route (route localization, url-sync)
- * must skip these, or they clobber the page-set title/icon.
- */
-const PAGE_TITLED_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
+/** Conversation routes that use the fixed application title and default route icon. */
+const CONVERSATION_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
 
-export function isPageTitledRoute(url: string): boolean {
+export function isConversationRoute(url: string): boolean {
   const pathname = new URL(url, BASE_URL).pathname
-  return PAGE_TITLED_ROUTE_BASE_PATHS.has(getBasePath(pathname))
+  return CONVERSATION_ROUTE_BASE_PATHS.has(getBasePath(pathname))
 }
 
 /**
