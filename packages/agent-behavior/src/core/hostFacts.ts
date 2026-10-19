@@ -1,6 +1,6 @@
 import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { CallKey, GoalBudget, ToolCallFact } from './facts'
+import type { CallKey, GoalBudget } from './facts'
 
 export type CallRef = { readonly thread: ThreadId; readonly key: CallKey }
 export type ApprovalOutcome = {
@@ -87,6 +87,5 @@ export interface CallInputs {
   readonly approvals: readonly ApprovalOutcome[]
   readonly models?: ModelFacts
   readonly verdict?: VerifierVerdict
-  readonly callWindow?: readonly ToolCallFact[]
   readonly args?: JsonValue
 }
