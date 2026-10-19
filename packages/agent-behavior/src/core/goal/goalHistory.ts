@@ -4,6 +4,7 @@ import { fieldsOf, numberField, stringField } from '../args'
 import type { ConversationFacts, GoalCleared, GoalSnapshot, GoalStopCode, HistoryEntry, RoundDetails } from '../facts'
 import type { ApprovalOutcome } from '../hostFacts'
 import { armSeq } from '../keys'
+import { startsTurn } from '../turns'
 import {
   type GoalCounts,
   type GoalProgress,
@@ -26,11 +27,6 @@ export const roundOf = (entry: HistoryEntry): RoundDetails | undefined =>
   entry.kind === 'marker' && entry.marker.type === 'goal-round' ? entry.marker.round : undefined
 const isNotification = (entry: HistoryEntry): boolean =>
   entry.kind === 'marker' && entry.marker.type === 'subagent-notification'
-/** An input that starts a run: a person's message, a goal round, or a notification that wakes the agent. */
-export const startsTurn = (entry: HistoryEntry): boolean =>
-  entry.kind === 'user' ||
-  roundOf(entry) !== undefined ||
-  (entry.kind === 'marker' && entry.marker.type === 'subagent-notification' && !entry.marker.quiet)
 /** The last thing a run did, ignoring records and quiet markers written while idle. */
 const isActivity = (entry: HistoryEntry): boolean =>
   entry.kind === 'assistant' || entry.kind === 'tool-result' || startsTurn(entry)
