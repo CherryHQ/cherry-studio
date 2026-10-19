@@ -19,7 +19,7 @@ import type {
   VerifierVerdict
 } from '../core/hostFacts'
 
-export type ApprovalRequest = { readonly call: CallRef; readonly tool: ToolCallFact; readonly reason?: string }
+export type ApprovalRequest = { readonly call: CallRef; readonly tool: ToolCallFact }
 /**
  * P1. Ask a person whether a call may run; tell the rules how people answered before.
  *
