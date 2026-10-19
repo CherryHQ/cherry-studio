@@ -39,7 +39,7 @@ describe('decideOnOpen', () => {
     const open = decideOnOpen(facts(history, reopened({ idle: false })), inputs())
     expect(open.effects).toEqual([{ type: 'stop-turn', thread: 'parent', cause: 'goal-pause' }])
     expect(open.ops).toContainEqual(
-      expect.objectContaining({ record: { type: 'turn-stop', value: { by: 'user', cause: 'reopen', at: 1000 } } })
+      expect.objectContaining({ record: { type: 'turn-stop', value: { cause: 'reopen', at: 1000 } } })
     )
     const after = apply(history, open)
     expect(currentGoal(after)).toMatchObject({ armed: false, phase: 'active', revision: 2 })
@@ -124,7 +124,7 @@ describe('decideUserStop (R5)', () => {
         {
           type: 'append-record',
           thread: 'parent',
-          record: { type: 'turn-stop', value: { by: 'user', cause: 'user', at: 1000 } },
+          record: { type: 'turn-stop', value: { cause: 'user', at: 1000 } },
           key: 'turn-stop:req'
         }
       ],

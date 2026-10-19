@@ -137,10 +137,10 @@ export type PolicyRecord =
   | { readonly type: 'subagent-run'; readonly value: SubagentRunRecord }
   | { readonly type: 'subagent-origin'; readonly value: SubagentOrigin }
   | { readonly type: 'plan'; readonly value: PlanState }
-  /** `cause`: a person's stop, a `/goal` command, or the stop a reopen makes; a stored stop without one reads as 'user'. */
+  /** `cause`: a person's stop, a `/goal` command, or the stop a reopen makes. */
   | {
       readonly type: 'turn-stop'
-      readonly value: { readonly by: 'user'; readonly cause: 'user' | 'goal-command' | 'reopen'; readonly at: number }
+      readonly value: { readonly cause: 'user' | 'goal-command' | 'reopen'; readonly at: number }
     }
   /** The idle driver of `generation` stopped; written by the transaction that decided it (H4). */
   | { readonly type: 'idle-driver-exit'; readonly value: { readonly generation: number } }

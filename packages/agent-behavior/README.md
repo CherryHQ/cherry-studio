@@ -187,7 +187,7 @@ eleven are storable there.
 | `subagent-run`          | `cherry.subagent-state` (`subagentRun`)                 | record | `SubagentRunRecord` fields, `key?`             | `sessionId` string, `run` number, `status` running or finished; `outcome` and `stoppedBy`, when present, members of `SubagentOutcome` and `SubagentStopper`              |
 | `subagent-origin`       | `cherry.subagent-origin` (`subagentOrigin`)             | record | `SubagentOrigin` fields, `key?`                | `parentToolCallId`, `description`, `modelKey` strings; `fork` boolean                                                                                                  |
 | `plan`                  | `cherry.plan` (`plan`)                                  | record | `PlanState` fields, `key?`                     | `active` boolean, `at` number                                                                                                                                          |
-| `turn-stop`             | `cherry.turn-stop` (`turnStop`)                         | record | `{ by, cause, at, key? }`                      | `by` is `'user'`, `at` a number; `cause`, when present, is user, goal-command or reopen                                                                               |
+| `turn-stop`             | `cherry.turn-stop` (`turnStop`)                         | record | `{ cause, at, key? }`                          | `at` a number; `cause` is user, goal-command or reopen                                                                                                                 |
 | `idle-driver-exit`      | `cherry.idle-driver-exit` (`idleDriverExit`)            | record | `{ generation, key? }`                         | `generation` a number                                                                                                                                                  |
 | `goal-round`            | `cherry.goal-round` (`goalRound`)                       | marker | `RoundDetails` fields, `key?`                  | `id`, `goalId` strings; `revision`, `round` numbers; `kind` is work, hint or wrap-up                                                                                   |
 | `subagent-notification` | `cherry.subagent-notification` (`subagentNotification`) | marker | `{ subagents, quiet, key? }`                   | `subagents` an array whose items have `sessionId` string, `run` number, `outcome` a `SubagentOutcome`, and `stoppedBy`, when present, a `SubagentStopper`              |
@@ -205,8 +205,7 @@ above. It does not throw and does not validate fields beyond those checks. A rec
 `{ kind: 'record', id, key?, record }`, with `key` lifted out of `data`; a marker to
 `{ kind: 'marker', id, key?, marker, text }`, with `text` as stored or `''`. A decoded notification keeps `sessionId`,
 `run`, `outcome` and `stoppedBy` of each run, drops the per-run `usage` that older entries carry, and reads any `quiet`
-other than `true` as `false`, and reads a `turn-stop` stored without `cause` (written before it existed) as
-`cause: 'user'`. The adapter maps the other history entries (user, assistant, tool result, compaction) to
+other than `true` as `false`. The adapter maps the other history entries (user, assistant, tool result, compaction) to
 `HistoryEntry` itself, as [History projection](#history-projection) describes.
 
 ## Applying a step
