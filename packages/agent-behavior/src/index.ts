@@ -95,6 +95,8 @@ export type {
   RequestAllowance,
   RequestMeterHandler,
   RequestMeter,
+  CompactionRequest,
+  CompactionVerdict,
   LifecycleHandlers,
   Lifecycle,
   HarnessPorts,

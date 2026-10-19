@@ -6,6 +6,7 @@ import { type Entries, entries } from './entries'
 import { gateHandlers } from './gate'
 import { idleDriver } from './jobs/idleDriver'
 import { subagentReport } from './jobs/subagentReport'
+import { lifecycleHandlers } from './lifecycle'
 import { goalTools } from './tools/goal'
 import { interactionTools } from './tools/interaction'
 import { recallTool } from './tools/recall'
@@ -23,5 +24,6 @@ export function install(harness: HarnessPorts, host: HostPorts): Installation {
   harness.requestMeter.register({ allow: (_thread, requestsInRun, lineage) => allowRequest(requestsInRun, lineage) })
   harness.jobs.register('idle-driver', idleDriver(host))
   harness.jobs.register('subagent-report', subagentReport(host))
+  harness.lifecycle.register(lifecycleHandlers(host))
   return { entries: entries(host) }
 }
