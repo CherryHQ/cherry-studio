@@ -45,11 +45,8 @@ export function resolveTrustedRef(requestedRef: string, remoteRefs: RemoteRef[])
   const matched = kind === 'branch' ? branch : kind === 'tag' ? tag : undefined
   if (!kind || !matched) throw new Error(`Ref not found: ${requested}`)
 
-  if (kind === 'branch' && plainName !== 'main' && !plainName.startsWith('release/')) {
-    throw new Error('Only main, release/* branches, and v* tags are trusted')
-  }
   if (kind === 'tag' && !plainName.startsWith('v')) {
-    throw new Error('Only main, release/* branches, and v* tags are trusted')
+    throw new Error('Only v* release tags are supported')
   }
 
   const peeled = kind === 'tag' ? remoteRefs.find(({ name }) => name === `${tagRef}^{}`) : undefined

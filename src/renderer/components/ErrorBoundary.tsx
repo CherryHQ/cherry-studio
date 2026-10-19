@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import { ipcApi } from '@renderer/ipc'
-import { formatErrorDetails } from '@renderer/utils/errorDetails'
 
 const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
@@ -24,11 +24,12 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
       <Alert
         message={t('error.boundary.default.message')}
         showIcon
-        description={formatErrorDetails(error)}
+        description={<ErrorFallbackDetails error={error} />}
         type="error"
         action={
           <div className="flex items-center gap-2">
             <ErrorDetailAction error={error} source="renderer" operation="react.render" />
+            <ErrorFallbackCopyButton error={error} />
             <Button size="sm" onClick={debug}>
               {t('error.boundary.default.devtools')}
             </Button>

@@ -6,6 +6,7 @@ import {
   detailErrorFromHost,
   isDetailSuppressed,
   localizedSummaryFromHost,
+  readErrorDetailData,
   appErrorContextService
 } from '@renderer/services/AppErrorContextService'
 import { openLoadedErrorDetail } from '@renderer/services/appErrorDetailOpen'
@@ -23,6 +24,7 @@ export default function ToastHost() {
   const labels = useMemo(
     () => ({
       close: t('common.close'),
+      details: t('error.diagnosis.view_details'),
       error: t('common.error'),
       errorDescription: t('error.unknown'),
       loading: t('common.loading'),
@@ -35,7 +37,9 @@ export default function ToastHost() {
 }
 
 function renderErrorDetail(toast: ToastRecord) {
-  if (toast.type !== 'error' || isDetailSuppressed(toast.data)) return null
+  if (isDetailSuppressed(toast.data)) return null
+  const carriesFault = toast.type === 'error' || toast.cause !== undefined || readErrorDetailData(toast.data)?.source
+  if (!carriesFault) return null
   return <ToastErrorDetail toast={toast} />
 }
 

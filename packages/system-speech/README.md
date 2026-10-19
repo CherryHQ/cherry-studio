@@ -20,6 +20,12 @@ text, audio or user path is logged by the package.
 
 ## Build and test
 
+`pnpm dev`, `pnpm debug`, `pnpm dev:watch` and `pnpm start` prepare the native helper
+on supported Windows and macOS hosts. They build it when missing or older than its
+native sources, and reuse the existing executable otherwise. Run
+`pnpm prepare:system-speech` to prepare it independently. `pnpm install` builds only
+the JavaScript boundary; native preparation requires the platform build tools below.
+
 ```sh
 pnpm --filter @cherrystudio/system-speech test
 pnpm --filter @cherrystudio/system-speech typecheck

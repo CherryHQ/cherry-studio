@@ -336,8 +336,8 @@ Use these skills when they are available in the current runtime:
   metadata, references, and validation.
 - `gh-create-pr`: PR template compliance when reviewing PR workflow or PR
   documentation changes.
-- `cherry-pr-test`: Electron UI test workflow when review findings need local
-  app reproduction.
+- `cherry-electron-dev`: PR testing mode for Electron UI tests when review
+  findings need local app reproduction.
 
 ### External Skills And Websites
 

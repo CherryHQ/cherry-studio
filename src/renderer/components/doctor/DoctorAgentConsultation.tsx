@@ -45,6 +45,7 @@ import {
   doctorStateCacheKey
 } from '@shared/utils/doctor'
 import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 const PROPOSAL_STATUS_KEYS = {
   pending: 'settings.doctor.agent.proposal_status.pending',
@@ -165,7 +166,10 @@ function ModelPicker({
   const [checkState, setCheckState] = useState<ModelCheckState>({ status: 'idle' })
   const checkRequest = useRef(0)
   const filter = useCallback<ModelSelectorFilter>(
-    (candidate, provider) => provider?.isEnabled !== false && isGatewayRoutableModel(candidate),
+    (candidate, provider) =>
+      provider?.isEnabled !== false &&
+      !(provider && isExternalCliProvider(provider)) &&
+      isGatewayRoutableModel(candidate),
     []
   )
   const model =
@@ -232,6 +236,7 @@ function ModelPicker({
           model={model}
           providers={providers}
           filter={filter}
+          includeAgentOnlyModels
           onSelect={selectModel}
           placeholder={t('settings.doctor.agent.model_picker.empty')}
         />

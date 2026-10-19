@@ -17,7 +17,6 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -91,11 +90,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             await fetchServerVersion({ ...serverForUpdate, isActive: true }, true)
             await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
           } catch (error: any) {
-            void popup.error({
-              title: t('settings.mcp.startError'),
-              content: formatMcpError(error),
-              centered: true
-            })
+            toast.errorFromException(error, { category: 'mcp', mcpServer: server })
           }
         } else {
           await updateMcpServer({ body: { isActive: false } })
@@ -103,11 +98,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           setVersion(null)
         }
       } catch (error: any) {
-        void popup.error({
-          title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-          content: formatMcpError(error),
-          centered: true
-        })
+        toast.errorFromException(error, { category: 'mcp', mcpServer: server })
       } finally {
         setLoading(false)
       }

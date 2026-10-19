@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import { ipcApi } from '@renderer/ipc'
-import { formatErrorDetails } from '@renderer/utils/errorDetails'
 
 /**
  * Per-tab router error component (wired as `defaultErrorComponent` in TabRouter).
@@ -21,11 +21,12 @@ export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
       <Alert
         type="error"
         message={t('error.boundary.default.message')}
-        description={formatErrorDetails(error)}
+        description={<ErrorFallbackDetails error={error} />}
         className="max-w-xl"
       />
       <div className="flex items-center gap-2">
         <ErrorDetailAction error={error} source="router" operation="route.render" />
+        <ErrorFallbackCopyButton error={error} />
         <Button size="sm" onClick={() => reset()}>
           {t('common.retry')}
         </Button>
