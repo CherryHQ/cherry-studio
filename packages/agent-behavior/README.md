@@ -84,7 +84,8 @@ On reopen the harness restores every conversation with its runs and jobs, and `L
 Inside `onOpen` the package calls only `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now`; a stop there ends the
 interrupted run as aborted before any resumed work (H12, stop before resume), and no conversation's run resumes before
 its own `onOpen` has run. On Durable a submit or a wait would enable scheduling first, so these stops are marks
-(`Harness.abortTask`, `abortSubmission`); reading the clock enables nothing.
+(`Harness.abortTask`, `abortSubmission`); reading the clock enables nothing. Until resume the stopped run and its
+foreground children may still appear active in the facts, so `onOpen` must not decide on facts read after its own stop.
 
 ### Host ports (P1 to P8)
 
@@ -109,8 +110,8 @@ the worktree PR.
 Every operation and keyed effect carries a `Key`, and every `Key` is a pure function of facts: nothing mints an id.
 Only `src/core/keys.ts` mints a `Key`; an ESLint rule rejects the cast in `core/` and `orchestration/`, and only
 contract cases mint test keys. `keys`, `armSeq`, `idleDriverGeneration` and `nextRun` live in that module and are not
-exported: adapters pass keys through unchanged. An adapter restores a call key from its harness with `callKeyOf`, which throws `TypeError` for
-an empty or blank value.
+exported: adapters pass keys through unchanged. An adapter restores a call key from its harness with `callKeyOf`,
+which throws `TypeError` for an empty or blank value.
 
 In each format the one free-form id comes first and only colon-free numbers or a hash follow, so ids containing `:`
 stay apart.
@@ -142,8 +143,8 @@ Rules adapters rely on:
 - `ConversationFacts.keysSeen` holds the keys of the thread's own entries (records and markers carry theirs as
   `data.key`) and the keys of live jobs ensured by a transaction on that thread. A spawn's key is on the parent's run
   record and on the child's origin record. A job's key stays while the job lives and leaves when it finishes, fails or
-  is abandoned; a restart abandons a job from the reopen on, before `onOpen`. Once its job has ended, the key creates a
-  new job.
+  is abandoned; a restart abandons an `'abandon'` job from the reopen on, before `onOpen`, and resumes a `'resume'`
+  job. Once its job has ended, the key creates a new job.
 - Dropping an operation whose key is already in `keysSeen` is the caller's job, done inside `decide`.
 - `Turns.start` and `Helpers.message` take the key as the request id. The same key returns the original admission and
   never adds a second input, also after its run ended. A `busy` answer records nothing, so its key stays usable. A
@@ -300,15 +301,17 @@ Beyond `ContractHarness` it offers:
 
 `restart()` loses what a Durable restart loses (handlers, run loops, running jobs, waiters) and keeps what it keeps
 (entries, submissions, memo, the job table, the final arguments of tool calls). `abandon` jobs are dropped first. Every
-conversation then gets `onOpen(reopened: true)` before any resumed work, and a stop there ends the restored run at
-once as aborted. Then runs resume: a tool call cut in the middle reruns with its final arguments when its tool is
-`replay: 'safe'`, and gets an interrupted result when the tool is `'unsafe'` and the call had reached it. `resume` jobs
-rerun from the start.
+conversation then gets `onOpen(reopened: true)` before any resumed work. A stop there only marks the restored run,
+which stays active in the facts until resume ends it as aborted, and a job ensured there starts once every `onOpen` has
+run. Then runs resume: a tool call cut in the middle reruns with its final arguments when its tool is `replay: 'safe'`,
+and gets an interrupted result when the tool is `'unsafe'` and the call had reached it. `resume` jobs rerun from the
+start.
 
 The fake fails fast on wiring mistakes. An `ensure-job` for a kind with no registered handler rejects the transaction,
 as does a foreground `spawn-child` outside a tool call; a call to a tool that is not registered returns an error
-result. A script that runs out fails the next model request with `script exhausted`. After `close()`, the harness and
-its ports fail.
+result. Inside `onOpen` on reopen, every port method outside `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now`
+rejects with an error naming it. A script that runs out fails the next model request with `script exhausted`. After
+`close()`, the harness and its ports fail.
 
 To check that a flow survives a crash at any step, sweep the crash over every await point, as
 [`tests/fake/crashSweep.test.ts`](tests/fake/crashSweep.test.ts) does for a keyed report job:

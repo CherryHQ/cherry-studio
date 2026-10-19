@@ -4,7 +4,7 @@ import type { ContractHarness, ScriptedReply } from '../contract/harness'
 import type { JobKind, Step } from '../core/decisions'
 import type { ConversationFacts } from '../core/facts'
 import type { Key } from '../core/keys'
-import type { BoundPorts, HarnessPorts, LifecycleHandlers, TransactResult } from '../ports/harness'
+import type { BoundPorts, HarnessPorts, LifecycleHandlers, PortMethod, TransactResult } from '../ports/harness'
 import { message, never, resumeRun, retract, type RunHost, start, stopRun, submit, waitFor } from './fakeRuns'
 import {
   addThread,
@@ -48,8 +48,24 @@ export interface FakeHarness extends ContractHarness {
   persistentLog(): JsonValue
 }
 
-/** One call's ports: they work while it runs, reject once it ended, and never settle once its epoch died. */
-type Scope = { readonly epoch: Epoch; ended: boolean; readonly owner?: Owner }
+/**
+ * One call's ports: they work while it runs, reject once it ended, and never settle once its epoch died. `reopen` marks
+ * an `onOpen` of a restart and collects the jobs it ensures, which start once every `onOpen` has run.
+ */
+type Scope = { readonly epoch: Epoch; ended: boolean; readonly owner?: Owner; readonly reopen?: JobRecord[] }
+
+const REOPEN_RULE = 'onOpen on reopen calls only ledger.*, turns.stop, helpers.stop and clock.now (H12)'
+/** H12: on Durable a submit or a wait from `onOpen` enables scheduling before resume, so the fake refuses them. */
+function reopenPorts(ports: BoundPorts): BoundPorts {
+  const refuse = (method: PortMethod) => () => Promise.reject(new Error(`${method} is refused: ${REOPEN_RULE}`))
+  return {
+    ...ports,
+    turns: { ...ports.turns, start: refuse('turns.start'), retract: refuse('turns.retract') },
+    helpers: { ...ports.helpers, message: refuse('helpers.message'), awaitAnswer: refuse('helpers.awaitAnswer') },
+    waits: { untilIdle: refuse('waits.untilIdle'), untilRunEnd: refuse('waits.untilRunEnd') },
+    memory: { remember: refuse('memory.remember') }
+  }
+}
 
 export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness {
   const state = createState(options.now ?? 0)
@@ -78,9 +94,10 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     if (scope.ended) return Promise.reject(new Error('port used after its call ended'))
     return point(scope.epoch).then(() => (alive(scope.epoch) ? body() : never<T>()))
   }
-  const openScope = (): Scope => ({ epoch, ended: false })
+  const openScope = (reopen?: JobRecord[]): Scope => ({ epoch, ended: false, reopen })
   const host: RunHost = {
     state,
+    stopMarks: new WeakSet(),
     epoch: () => epoch,
     alive,
     point,
@@ -97,7 +114,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
 
   function bound(scope: Scope): BoundPorts {
     const thread = (id: ThreadId) => threadOf(state, id)
-    return {
+    const ports: BoundPorts = {
       ledger: {
         read: (id) => enter(scope, () => buildFacts(state, id)),
         transact: (id, decide) => enter(scope, () => commit(scope, id, decide)),
@@ -133,6 +150,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       memory: { remember: (name, produce) => enter(scope, () => remember(scope, name, produce)) },
       clock: { now: () => state.clock }
     }
+    return scope.reopen ? reopenPorts(ports) : ports
   }
 
   function installPorts(e: Epoch): HarnessPorts {
@@ -180,7 +198,8 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     const step = decide(buildFacts(state, thread))
     const hasJob = (kind: JobKind) => scope.epoch.jobHandlers.has(kind)
     const applied = applyOps(state, thread, step.ops, { owner: scope.owner, hasJob, seed })
-    for (const job of applied.jobs) startJob(job)
+    if (scope.reopen) scope.reopen.push(...applied.jobs)
+    else for (const job of applied.jobs) startJob(job)
     return { result: step.result, effects: step.effects, spawned: applied.spawned }
   }
 
@@ -213,17 +232,20 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     return state.memo.get(name) as T
   }
 
-  async function within<T>(body: (ports: BoundPorts) => Promise<T>): Promise<T> {
-    const scope = openScope()
+  async function within<T>(body: (ports: BoundPorts) => Promise<T>, reopen?: JobRecord[]): Promise<T> {
+    const scope = openScope(reopen)
     try {
       return await body(bound(scope))
     } finally {
       scope.ended = true
     }
   }
-  async function lifecycle(call: (handlers: LifecycleHandlers, ports: BoundPorts) => Promise<void>): Promise<void> {
+  async function lifecycle(
+    call: (handlers: LifecycleHandlers, ports: BoundPorts) => Promise<void>,
+    reopen?: JobRecord[]
+  ): Promise<void> {
     const handlers = epoch.lifecycle
-    if (handlers) await within((ports) => call(handlers, ports))
+    if (handlers) await within((ports) => call(handlers, ports), reopen)
   }
 
   options.install?.(installed)
@@ -274,11 +296,13 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       options.install?.(installed)
       for (const job of state.jobs.values())
         if (job.state === 'live' && job.spec.onRestart === 'abandon') job.state = 'abandoned'
+      // The 'resume' jobs, then those each onOpen ensures: Durable runs no task before resume.
+      const jobs = [...state.jobs.values()].filter((job) => job.state === 'live')
       for (const thread of [...state.threads.values()]) {
         thread.reopened = true
-        await lifecycle((handlers, ports) => handlers.onOpen(thread.id, { reopened: true }, ports))
+        await lifecycle((handlers, ports) => handlers.onOpen(thread.id, { reopened: true }, ports), jobs)
       }
-      for (const job of state.jobs.values()) if (job.state === 'live') startJob(job)
+      for (const job of jobs) startJob(job)
       for (const thread of [...state.threads.values()]) if (thread.active) resumeRun(host, thread)
     },
     async close() {
