@@ -57,12 +57,7 @@ export type Effect =
   | { readonly type: 'retract-turn'; readonly thread: ThreadId; readonly key: Key }
   | { readonly type: 'stop-turn'; readonly thread: ThreadId; readonly cause: StopCause }
   | { readonly type: 'message-child'; readonly child: ThreadId; readonly input: TurnInput; readonly key: Key }
-  | {
-      readonly type: 'stop-child'
-      readonly child: ThreadId
-      readonly run: number
-      readonly by: 'model' | 'user' | 'budget'
-    }
+  | { readonly type: 'stop-child'; readonly child: ThreadId; readonly run: number }
   | { readonly type: 'emit'; readonly event: BehaviorEvent }
 export type Step<R extends JsonValue = JsonValue> = {
   readonly ops: readonly TxOp[]

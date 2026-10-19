@@ -1,7 +1,7 @@
 import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { sha256Hex } from './digest'
-import type { CallKey, HistoryEntry } from './facts'
+import type { CallKey, HistoryEntry, SubagentStopper } from './facts'
 
 /** The only key type ports accept; this module is the only place one is minted (design §11.8). */
 export type Key = string & { readonly __key: true }
@@ -56,8 +56,7 @@ export const keys = {
   subagentSteer: (call: CallKey): Key => mint(`subagent-steer:${call}`),
   subagentContinue: (call: CallKey): Key => mint(`subagent-continue:${call}`),
   /** The record that run `run` of `child` was stopped by `by`. */
-  subagentStop: (child: ThreadId, run: number, by: 'model' | 'user' | 'budget'): Key =>
-    mint(`subagent-stop:${child}:${run}:${by}`),
+  subagentStop: (child: ThreadId, run: number, by: SubagentStopper): Key => mint(`subagent-stop:${child}:${run}:${by}`),
   /** The status message after the compaction entry `compaction`. */
   subagentStatus: (compaction: ItemId): Key => mint(`subagent-status:${compaction}`),
   /** The stop `onOpen` records for the goal round interrupted at `round` (the round's marker entry). */

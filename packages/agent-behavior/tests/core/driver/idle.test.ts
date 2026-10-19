@@ -198,7 +198,7 @@ describe('decideAtIdle: order and exit', () => {
     const spent = [goalEntry(goal()), ...round(1, assistant('spawn', { usage: usage(4) }), runEntry(run('a'))), budget]
     const step = idle(spent, { children: { a: { running: true, runUsage: [usage(20)] } } })
     expect(step.result).toEqual({ kind: 'stop-children', count: 1 })
-    expect(step.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1, by: 'budget' }])
+    expect(step.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1 }])
   })
 
   // Catches a driver that exits without its keyed exit record: an ensure racing the exit would be swallowed (H4).
