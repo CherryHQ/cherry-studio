@@ -31,9 +31,8 @@ export interface Ledger {
   /**
    * Reads `thread`'s facts, calls `decide` synchronously, applies its operations in one commit and returns the result
    * and effects. Rejects, writing nothing, when `decide` throws or an operation cannot apply (an unknown thread, or
-   * `append-quiet` on a conversation that is not idle). A `spawn-child` with `fork` may report `fork.from`'s own id in
-   * `spawned` when the adapter re-owns that conversation in the background in place (coding-agent may; Durable cannot
-   * and must fork); callers treat the reported id as the new child's either way.
+   * `append-quiet` on a conversation that is not idle). A `spawn-child` with `fork` always reports a new conversation id
+   * in `spawned`, never `fork.from` itself.
    */
   transact<R extends JsonValue>(
     thread: ThreadId,
