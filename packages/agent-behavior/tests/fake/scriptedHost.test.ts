@@ -22,7 +22,7 @@ describe('scripted host', () => {
   // Catches a host that answers instantly, which would make Stage B's awaiting-approval rules (D23, slot counting) untestable.
   it('keeps an unanswered approval pending and visible until an answer is queued', async () => {
     const host = createScriptedHost({ settings })
-    const answer = host.approvals.ask({ call, tool }, new AbortController().signal)
+    const answer = host.approvals.ask({ call, tool, presentation: 'stream' }, new AbortController().signal)
     expect(await host.approvals.outcomes(thread, [])).toEqual([{ call, state: 'pending' }])
     host.answerApproval({ kind: 'denied', feedback: 'no' })
     expect(await answer).toEqual({ kind: 'denied', feedback: 'no' })
@@ -44,7 +44,7 @@ describe('scripted host', () => {
   it('rejects an aborted ask and drops its pending outcome', async () => {
     const host = createScriptedHost({ settings })
     const controller = new AbortController()
-    const answer = host.approvals.ask({ call, tool }, controller.signal)
+    const answer = host.approvals.ask({ call, tool, presentation: 'stream' }, controller.signal)
     controller.abort(new Error('turn stopped'))
     await expect(answer).rejects.toThrow('turn stopped')
     expect(await host.approvals.outcomes(thread, [])).toEqual([])
@@ -88,9 +88,9 @@ describe('scripted host', () => {
     const other = { thread, key: callKeyOf('call-2') }
     const elsewhere = { thread: 'u' as ThreadId, key: call.key }
     const signal = new AbortController().signal
-    void host.approvals.ask({ call, tool }, signal)
-    void host.approvals.ask({ call: other, tool }, signal)
-    void host.approvals.ask({ call: elsewhere, tool }, signal)
+    void host.approvals.ask({ call, tool, presentation: 'stream' }, signal)
+    void host.approvals.ask({ call: other, tool, presentation: 'stream' }, signal)
+    void host.approvals.ask({ call: elsewhere, tool, presentation: 'stream' }, signal)
     expect(await host.approvals.outcomes(thread, [other])).toEqual([{ call: other, state: 'pending' }])
     expect(await host.approvals.outcomes(thread, [])).toEqual([
       { call, state: 'pending' },

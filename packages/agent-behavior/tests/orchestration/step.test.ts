@@ -117,7 +117,7 @@ describe('step', () => {
     const child = spawned[0].child
     const ref = { thread: child, key: callKeyOf(`${child}:call-1`) }
     const tool = { callId: 'call-1', callKey: ref.key, name: 'bash', args: {} }
-    void w.host.approvals.ask({ call: ref, tool }, new AbortController().signal)
+    void w.host.approvals.ask({ call: ref, tool, presentation: 'stream' }, new AbortController().signal)
     const inputs = await w.enter(t, (_entries, ports) => gatherInputs({ ports, host: w.host }, t))
     expect(inputs.approvals).toEqual([{ call: ref, state: 'pending' }])
   })

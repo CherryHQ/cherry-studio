@@ -295,7 +295,8 @@ async function callTool(
     }
     if (!intent) {
       loop.window.push(call)
-      const verdict: GateVerdict = (await epoch.gate?.before(gated, gateFacts(thread, loop.window), scope.ports)) ?? {}
+      const asked = { ...gated, signal: loop.abort.signal }
+      const verdict: GateVerdict = (await epoch.gate?.before(asked, gateFacts(thread, loop.window), scope.ports)) ?? {}
       if (!host.alive(epoch)) return never()
       if (verdict.block !== undefined) return { isError: true, text: `Tool call blocked: ${verdict.block}` }
       if (verdict.args !== undefined) gated = { ...gated, args: verdict.args }
