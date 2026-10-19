@@ -1,0 +1,119 @@
+import { describe, expect, it } from 'vitest'
+
+import type { JsonValue } from '@cherrystudio/agent-runtime'
+
+import type { HistoryEntry } from '../../../src/core/facts'
+import { decideGoalCommand } from '../../../src/core/goal/goalCommand'
+import { currentGoal } from '../../../src/core/goal/goalHistory'
+import { COMPLETE_INSTRUCTION } from '../../../src/core/goal/goalState'
+import { decideCreateGoal, decideUpdateGoal } from '../../../src/core/goal/goalTools'
+import { apply, assistant, call, facts, goal, goalEntry, inputs, result, roundEntry, user } from '../history'
+
+const k = call('k1')
+const update = (history: readonly HistoryEntry[], args: JsonValue, extra = {}) =>
+  decideUpdateGoal(facts(history), inputs({ args, ...extra }), k)
+const ref = { goal_id: 'g1', revision: 1 }
+
+describe('goal tools', () => {
+  // Catches create_goal outside a person's turn, a random id, or a rerun after a crash creating the goal twice.
+  it('creates a goal in a human turn under the call key, once', () => {
+    const history = [user()]
+    const created = decideCreateGoal(facts(history), inputs({ args: { objective: 'ship', max_goal_rounds: 0 } }), k)
+    const after = apply(history, created)
+    expect(currentGoal(after)).toMatchObject({ id: 'goal:call:k1', maxGoalRounds: 20 })
+    expect(created.ops.map((op) => op.type)).toEqual(['append-record', 'ensure-job'])
+    expect(decideCreateGoal(facts(after), inputs({ args: { objective: 'ship' } }), k).ops).toEqual([])
+    const inRound = [roundEntry({ id: 'r', goalId: 'g0', revision: 1, round: 1, kind: 'work' })]
+    expect(decideCreateGoal(facts(inRound), inputs({ args: { objective: 'x' } }), k).result).toMatchObject({
+      isError: true
+    })
+  })
+
+  // Catches an update applied to a goal the model saw at another revision (README goal: stale references).
+  it('refuses a stale revision with the current view', () => {
+    const outcome = update([user(), goalEntry(goal({ revision: 2 }))], { ...ref, action: 'pause' })
+    expect(outcome.ops).toEqual([])
+    expect(outcome.result).toMatchObject({ isError: true, text: expect.stringContaining('Stale goal reference') })
+  })
+
+  // Catches completion without the verifier, a verdict applied to a goal edited while the verifier ran, or a rerun
+  // after the completion losing the wrap-up instruction.
+  it('completes in two phases and re-checks the revision after the verdict', () => {
+    const history = [user(), goalEntry(goal())]
+    const args = { ...ref, action: 'complete', evidence: ' tests pass ' }
+    expect(update(history, args).result).toEqual({
+      verify: { objective: 'ship it', claim: { evidence: 'tests pass' } }
+    })
+    const met = update(history, args, { verdict: { verdict: 'met', reason: 'ok' } })
+    expect(currentGoal(apply(history, met))).toMatchObject({ phase: 'complete', armed: false })
+    // A replay-safe rerun after the write still tells the model to wrap up.
+    expect(update(apply(history, met), args).result).toMatchObject({
+      text: expect.stringContaining(COMPLETE_INSTRUCTION)
+    })
+    const edited = [...history, goalEntry(goal({ revision: 2, objective: 'more' }))]
+    expect(update(edited, args, { verdict: { verdict: 'met', reason: 'ok' } }).ops).toEqual([])
+  })
+
+  // Catches blocked accepted from the first goal round, or several reports in one round counted twice (X15).
+  it('accepts blocked only after consecutive goal rounds report it', () => {
+    const args = { ...ref, action: 'blocked', blocked_reason: 'no access' }
+    let history: HistoryEntry[] = [
+      goalEntry(goal({ roundsStarted: 1 })),
+      roundEntry({ id: 'r1', goalId: 'g1', revision: 1, round: 1, kind: 'work' })
+    ]
+    const report = (h: readonly HistoryEntry[]) => update(h, args)
+    const first = report(history)
+    expect(first.result).toMatchObject({ isError: true, details: { blockedReport: { round: 1, count: 1 } } })
+    history = [
+      ...history,
+      assistant('x'),
+      result('update_goal', { details: { blockedReport: { round: 1, count: 1 } } })
+    ]
+    expect(report(history).result).toMatchObject({ details: { blockedReport: { round: 1, count: 1 } } })
+    for (const n of [2, 3]) {
+      history = [
+        ...history,
+        goalEntry(goal({ roundsStarted: n })),
+        roundEntry({ id: `r${n}`, goalId: 'g1', revision: 1, round: n, kind: 'work' })
+      ]
+      const outcome = report(history)
+      if (n === 3)
+        expect(currentGoal(apply(history, outcome))).toMatchObject({
+          phase: 'blocked',
+          lastStop: { code: 'model_blocked' }
+        })
+      else
+        history = [...history, result('update_goal', { details: (outcome.result as { details: JsonValue }).details })]
+    }
+  })
+})
+
+describe('/goal command', () => {
+  const run = (history: readonly HistoryEntry[], text: string, live = {}) =>
+    decideGoalCommand(facts(history, { live }), inputs(), text, 'req-1')
+
+  // Catches "rounds"/"budget" followed by words parsed as an edit, or a number parsed as a new objective.
+  it('treats rounds and budget as an objective unless a number follows', () => {
+    expect(currentGoal(apply([], run([], 'rounds of golf')))).toMatchObject({
+      id: 'goal:cmd:req-1',
+      objective: 'rounds of golf'
+    })
+    expect(currentGoal(apply([goalEntry(goal())], run([goalEntry(goal())], 'budget $2.5')))).toMatchObject({
+      budget: { usd: 2.5 }
+    })
+    expect(run([], 'pause').result).toEqual({ text: 'No goal is set.', level: 'error' })
+  })
+
+  // Catches pause or clear aborting a person's turn while the goal is not driving it, or a pause that does not
+  // suppress wake-ups the way the user's stop button does.
+  it('stops the running turn only for an armed goal, recording the stop', () => {
+    const busy = run([goalEntry(goal())], 'PAUSE', { idle: false })
+    expect(busy.effects).toContainEqual({ type: 'stop-turn', thread: 'parent', cause: 'goal-pause' })
+    expect(busy.ops).toContainEqual(
+      expect.objectContaining({ record: { type: 'turn-stop', value: { by: 'user', cause: 'goal-command', at: 1000 } } })
+    )
+    expect(run([goalEntry(goal({ armed: false }))], 'clear', { idle: false }).effects.map((e) => e.type)).toEqual([
+      'emit'
+    ])
+  })
+})
