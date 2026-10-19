@@ -1,12 +1,66 @@
 import { describe, expect, it } from 'vitest'
 
-import { callTool, holds, reply, toolBase } from '../../src/contract/fixtures'
+import { callTool, holds, latch, reply, toolBase } from '../../src/contract/fixtures'
 import { currentGoal } from '../../src/core/goal/goalHistory'
 import { MAX_SUBAGENT_REQUESTS } from '../../src/core/subagents/subagentText'
+import type { HarnessPorts } from '../../src/ports/harness'
 import { markers, runRecords, world } from './world'
 
 const compactions = async (w: ReturnType<typeof world>, thread: Parameters<ReturnType<typeof world>['read']>[0]) =>
   (await w.read(thread)).history.filter((entry) => entry.kind === 'compaction')
+
+/**
+ * The parent forks child F while background child B's finished run waits on it for delivery, so F's history inherits
+ * B's records; the parent then delivers B's result itself.
+ */
+async function forkWithPendingResult() {
+  const hold = holds()
+  const reported = latch()
+  const releaseOnReport = (ports: HarnessPorts): HarnessPorts => ({
+    ...ports,
+    jobs: {
+      register: (kind, handler) =>
+        ports.jobs.register(
+          kind,
+          kind === 'subagent-report'
+            ? async (bound, job) => {
+                try {
+                  await handler(bound, job)
+                } finally {
+                  reported.release()
+                }
+              }
+            : handler
+        )
+    }
+  })
+  const w = world({
+    wrap: releaseOnReport,
+    extra: (p) => p.tools.register(hold.tool),
+    scripts: (_t, lineage) =>
+      lineage.kind === 'subagent'
+        ? lineage.origin.fork
+          ? [reply('fork done'), reply('fork read b')]
+          : [reply('b done')]
+        : []
+  })
+  const t = await w.fake.createThread()
+  w.fake.script(t, [
+    callTool('subagent', { description: 'b', prompt: 'do b', background: true }),
+    callTool('hold', { id: 'parent' }),
+    callTool('subagent', { description: 'f', prompt: 'fork it', fork: true }),
+    reply('done'),
+    reply('read b')
+  ])
+  await w.fake.sendUser(t, 'go')
+  await Promise.all([hold.started('parent'), reported.promise])
+  hold.release('parent')
+  await w.fake.settle()
+  const fork = runRecords(await w.read(t)).find(({ description }) => description === 'f')!.sessionId
+  const inherited = runRecords(await w.read(fork)).filter(({ description }) => description === 'b')
+  expect(inherited.at(-1)).toMatchObject({ status: 'finished', outcome: 'completed' })
+  return { w, t, fork }
+}
 
 describe('lifecycle handlers', () => {
   // Catches a compaction the package was never asked about, or a summary not kept for a rerun of the same compaction
@@ -136,5 +190,30 @@ describe('lifecycle handlers', () => {
     await w.fake.restart()
     await w.fake.settle()
     expect(currentGoal((await w.read(t)).history)?.lastStop?.code).toBe('unsupported_model')
+  })
+})
+
+describe('a forked child', () => {
+  // Catches a fork's driver taking the parent's run records it inherited for its own (C2): after a compaction it would
+  // list the parent's children and open a notification run the parent never recorded.
+  it('neither lists nor delivers the results it inherited after a compaction', async () => {
+    const { w, t, fork } = await forkWithPendingResult()
+    w.host.giveSummary('summary of the fork')
+    await w.fake.compact(fork)
+    await w.fake.settle()
+    expect(await compactions(w, fork)).toHaveLength(1)
+    const child = await w.read(fork)
+    expect(markers(child, 'subagent-status')).toEqual([])
+    expect(markers(child, 'subagent-notification')).toEqual([])
+    expect((await w.read(t)).children.get(fork)?.runUsage).toHaveLength(1)
+  })
+
+  // Catches a fork's reopen delivering the parent's results it inherited into its own context (C2).
+  it('delivers no inherited result when it reopens', async () => {
+    const { w, t, fork } = await forkWithPendingResult()
+    await w.fake.restart()
+    await w.fake.settle()
+    expect(markers(await w.read(fork), 'subagent-notification')).toEqual([])
+    expect((await w.read(t)).children.get(fork)?.runUsage).toHaveLength(1)
   })
 })
