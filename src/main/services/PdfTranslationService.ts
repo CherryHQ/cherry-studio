@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
+import { isIPv6 } from 'node:net'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 
@@ -153,7 +154,13 @@ const buildSidecarProxyEnv = (inheritedNoProxy: string | undefined, gatewayHost:
   const hosts = bypass
     .split(',')
     .map((entry) => entry.trim())
+    .map((entry) => {
+      const address = entry.startsWith('[') && entry.endsWith(']') ? entry.slice(1, -1) : entry
+      // httpx wraps IPv6 NO_PROXY entries itself; inherited brackets break its URL parser.
+      return isIPv6(address) ? address : entry
+    })
     .filter(Boolean)
+    .filter((entry, index, entries) => !isIPv6(entry) || entries.indexOf(entry) === index)
   // `new URL('http://[::1]:1/').hostname` keeps the brackets; NO_PROXY wants the bare address.
   const host = gatewayHost.replace(/^\[|\]$/g, '')
   if (!hosts.includes(host)) hosts.push(host)
