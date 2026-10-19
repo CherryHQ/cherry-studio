@@ -1,7 +1,7 @@
 export interface FfprobeStream {
   codec_type?: string
   duration?: string
-  disposition?: { attached_pic?: number | string }
+  disposition?: { attached_pic?: number | string; default?: number | string }
   start_time?: string
 }
 
@@ -39,9 +39,18 @@ function parseDurationMs(...candidates: Array<string | undefined>): number {
   return 0
 }
 
-function isAttachedPicture(stream: FfprobeStream): boolean {
-  const flag = stream.disposition?.attached_pic
+function dispositionEnabled(flag: number | string | undefined): boolean {
   return flag === 1 || flag === '1'
+}
+
+function isAttachedPicture(stream: FfprobeStream): boolean {
+  return dispositionEnabled(stream.disposition?.attached_pic)
+}
+
+/** Audio stream FFmpeg extracts when `extractAudio` omits `-map`: default disposition, else the first. */
+function selectedAudioStream(streams: readonly FfprobeStream[]): FfprobeStream | undefined {
+  const audio = streams.filter((stream) => stream.codec_type === 'audio')
+  return audio.find((stream) => dispositionEnabled(stream.disposition?.default)) ?? audio[0]
 }
 
 function parseFiniteSeconds(value: string | undefined): number | undefined {
@@ -195,7 +204,7 @@ export function classifyFfprobeResult(
 
 /** Offset that remains once FFmpeg drops the container format start and rewrites WAV time to zero. */
 function audioTimelineOffsetMs(probe: FfprobeResult): number {
-  const audio = (probe.streams ?? []).find((stream) => stream.codec_type === 'audio')
+  const audio = selectedAudioStream(probe.streams ?? [])
   const audioStartSeconds = parseFiniteSeconds(audio?.start_time)
   if (audioStartSeconds == null) return 0
   const formatStartSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0

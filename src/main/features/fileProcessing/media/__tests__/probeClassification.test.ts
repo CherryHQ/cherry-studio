@@ -58,6 +58,28 @@ describe('classifyFfprobeResult', () => {
     ).toBe(0)
   })
 
+  it('takes the audio offset from the default stream FFmpeg extracts', () => {
+    const format = { duration: '10', start_time: '0', format_name: 'mov,mp4' }
+    expect(
+      classifyFfprobeResult({
+        format,
+        streams: [
+          { codec_type: 'audio', start_time: '0.25', disposition: { default: 0 } },
+          { codec_type: 'audio', start_time: '0', disposition: { default: 1 } }
+        ]
+      }).audioStartMs
+    ).toBe(0)
+    expect(
+      classifyFfprobeResult({
+        format,
+        streams: [
+          { codec_type: 'audio', start_time: '0.25', disposition: { default: 1 } },
+          { codec_type: 'audio', start_time: '0', disposition: { default: 0 } }
+        ]
+      }).audioStartMs
+    ).toBe(250)
+  })
+
   it('sniffs WebM and Matroska DocType elements from bounded headers', () => {
     expect(sniffEbmlDocType(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x82, 0x84, ...Buffer.from('webm')]))).toBe(
       'webm'

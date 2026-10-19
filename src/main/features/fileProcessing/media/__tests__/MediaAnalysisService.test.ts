@@ -37,7 +37,10 @@ const runtime = vi.hoisted(() => ({
   generateText: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ai-core', () => ({ generateText: runtime.generateText }))
+vi.mock('@cherrystudio/ai-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cherrystudio/ai-core')>()
+  return { ...actual, generateText: runtime.generateText }
+})
 vi.mock('@main/features/fileProcessing/tasks/jobExecution', () => ({
   resolveFileProcessingFileInfo: vi.fn(async () => runtime.fileInfo)
 }))
@@ -80,6 +83,7 @@ vi.mock('@application', async () => {
   return mocked
 })
 
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService } from '@main/core/lifecycle'
 
@@ -523,6 +527,66 @@ describe('MediaAnalysisService', () => {
 
     await expect(service.analyze(file, controller.signal)).rejects.toBe(reason)
     expect(runtime.generateText).toHaveBeenCalledTimes(2)
+  })
+
+  it('records each vision batch through the application usage-capture plugin', async () => {
+    runtime.config = {
+      ...runtime.config,
+      asr: null,
+      vision: {
+        uniqueModelId: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        endpointType: 'openai-chat-completions',
+        baseUrl: 'https://api.openai.com/v1',
+        sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' }
+      },
+      budget: { maxFrames: 1, targetIntervalMs: 4_000, maxEdgePx: 640, jpegQuality: 70 }
+    }
+    runtime.probe.mockResolvedValue({
+      durationMs: 10_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => ({
+      frames: await Promise.all(
+        timestampsMs.map(async (timestampMs: number) => {
+          const path = join(outputDir, `frame-${timestampMs}.jpg`)
+          await writeFile(path, Buffer.from('jpeg'))
+          return { path, timestampMs }
+        })
+      )
+    }))
+    runtime.generateText.mockResolvedValue({ text: 'FRAME_0: kept' })
+
+    await service.analyze(file)
+
+    const plugins = runtime.generateText.mock.calls[0]?.[3] as Array<{
+      name: string
+      configureContext?: (context: {
+        middlewares?: Array<{ wrapGenerate: (args: unknown) => Promise<unknown> }>
+      }) => void
+    }>
+    expect(plugins?.map((plugin) => plugin.name)).toEqual(['ai-usage-capture'])
+    const requestContext: {
+      middlewares?: Array<{
+        wrapGenerate: (args: { doGenerate: () => Promise<{ usage: unknown }> }) => Promise<unknown>
+      }>
+    } = {}
+    plugins[0]?.configureContext?.(requestContext)
+    const record = vi.spyOn(aiUsageRecordService, 'recordInvocation').mockImplementation(() => undefined)
+    await requestContext.middlewares?.[0]?.wrapGenerate({
+      doGenerate: async () => ({ usage: { inputTokens: 4, outputTokens: 6, totalTokens: 10 } })
+    })
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modality: 'language',
+        usage: expect.objectContaining({ inputTokens: 4, outputTokens: 6 }),
+        context: expect.objectContaining({ providerId: 'openai', modelId: 'gpt-4o' })
+      })
+    )
   })
 
   it('retries ASR after a recoverable transcription failure instead of caching it', async () => {
