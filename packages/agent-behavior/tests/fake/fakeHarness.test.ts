@@ -1,23 +1,26 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ItemId } from '@cherrystudio/agent-runtime'
+import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
 import {
   aborted,
   append,
   callTool,
   childSpec,
+  holds,
   key,
   latch,
   noticeTexts,
   read,
   reply,
+  status,
   step,
   toolBase,
   toolResults
 } from '../../src/contract/fixtures'
+import type { JobKind, TxOp } from '../../src/core/decisions'
 import { createFakeHarness } from '../../src/fake/fakeHarness'
-import type { BoundPorts, ToolDefinition } from '../../src/ports/harness'
+import type { BoundPorts, LifecycleHandlers, ToolDefinition } from '../../src/ports/harness'
 
 const pendingAfter = <T>(promise: Promise<T>) =>
   Promise.race([
@@ -27,6 +30,11 @@ const pendingAfter = <T>(promise: Promise<T>) =>
     ),
     new Promise((resolve) => setTimeout(() => resolve('pending'), 20))
   ])
+const onReopen = (open: (thread: ThreadId, ports: BoundPorts) => Promise<void>): LifecycleHandlers => ({
+  onOpen: (thread, { reopened }, ports) => (reopened ? open(thread, ports) : Promise.resolve()),
+  onCompacted: async () => {},
+  onClose: async () => {}
+})
 
 describe('fake harness', () => {
   // Catches a "crash" that lets old work continue, which would make every crash test vacuous.
@@ -174,5 +182,107 @@ describe('fake harness', () => {
     expect(await fake.withCall(t, async (p) => p.clock.now())).toBe(1000)
     fake.advanceClock(250)
     expect(await fake.withCall(t, async (p) => p.clock.now())).toBe(1250)
+  })
+
+  // Catches a job ensured inside onOpen running twice, or before reopen completes (Durable runs no task before resume).
+  it('starts each job ensured in onOpen once, after the last onOpen', async () => {
+    const events: string[] = []
+    let ensured = false
+    const ensure = (thread: ThreadId, kind: JobKind, onRestart: 'resume' | 'abandon'): TxOp => ({
+      type: 'ensure-job',
+      job: { kind, scope: thread, input: null, onRestart },
+      key: key(`open-${onRestart}`)
+    })
+    const fake = createFakeHarness({
+      install: (p) => {
+        p.jobs.register('subagent-report', async () => {
+          events.push('job:resume')
+        })
+        p.jobs.register('idle-driver', async () => {
+          events.push('job:abandon')
+        })
+        p.lifecycle.register(
+          onReopen(async (thread, ports) => {
+            if (!ensured) {
+              ensured = true
+              await ports.ledger.transact(thread, () =>
+                step([ensure(thread, 'subagent-report', 'resume'), ensure(thread, 'idle-driver', 'abandon')], null)
+              )
+            }
+            // A port call passes an await point, where a job started too early would run.
+            await ports.ledger.read(thread)
+            events.push('opened')
+          })
+        )
+      }
+    })
+    await fake.createThread()
+    await fake.createThread()
+    await fake.restart()
+    await fake.settle()
+    expect(events.slice(0, 2)).toEqual(['opened', 'opened'])
+    expect(events.slice(2).sort()).toEqual(['job:abandon', 'job:resume'])
+  })
+
+  // Catches onOpen logic that treats a just-stopped run as idle, which Durable rejects at commit.
+  it('shows a run stopped in onOpen as active until resume ends it', async () => {
+    const hold = holds()
+    const seen: { idle?: boolean; quiet?: string } = {}
+    const fake = createFakeHarness({
+      install: (p) => {
+        p.tools.register(hold.tool)
+        p.lifecycle.register(
+          onReopen(async (thread, ports) => {
+            await ports.turns.stop(thread, 'goal-pause')
+            seen.idle = (await ports.ledger.read(thread)).live.idle
+            seen.quiet = await ports.ledger
+              .transact(thread, () =>
+                step([{ type: 'append-quiet', thread, input: status('quiet'), key: key('quiet') }], null)
+              )
+              .then(
+                () => 'applied',
+                () => 'refused'
+              )
+          })
+        )
+      }
+    })
+    const t = await fake.createThread()
+    fake.script(t, [callTool('hold', { id: 'stopped' }), reply('after restart')])
+    await fake.sendUser(t, 'go')
+    await hold.started('stopped')
+    await fake.restart()
+    await fake.settle()
+    expect(seen).toEqual({ idle: false, quiet: 'refused' })
+    expect((await read(fake, t)).live.runEnd?.outcome).toBe('aborted')
+    expect(hold.invocations('stopped')).toBe(1)
+  })
+
+  // Catches onOpen handlers that submit or wait, which on Durable silently enable scheduling.
+  it('rejects a submit or a wait from onOpen on reopen', async () => {
+    const answers: string[] = []
+    const fake = createFakeHarness({
+      install: (p) =>
+        p.lifecycle.register(
+          onReopen(async (thread, ports) => {
+            const calls = [
+              () => ports.turns.start(thread, status('submitted'), key('open-start')),
+              () => ports.waits.untilIdle(thread)
+            ]
+            for (const call of calls)
+              await call().then(
+                () => answers.push('allowed'),
+                (error: Error) => answers.push(error.message)
+              )
+          })
+        )
+    })
+    const t = await fake.createThread()
+    await fake.restart()
+    expect(answers).toEqual([
+      expect.stringMatching(/^turns\.start .*onOpen/),
+      expect.stringMatching(/^waits\.untilIdle .*onOpen/)
+    ])
+    expect((await read(fake, t)).history).toEqual([])
   })
 })
