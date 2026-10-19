@@ -14,6 +14,7 @@ import {
   createEpoch,
   createState,
   type Epoch,
+  inputDone,
   type JobRecord,
   modelContext,
   nextItem,
@@ -57,7 +58,7 @@ function reopenPorts(ports: BoundPorts): BoundPorts {
     ...ports,
     turns: { ...ports.turns, start: refuse('turns.start'), retract: refuse('turns.retract') },
     helpers: { ...ports.helpers, message: refuse('helpers.message'), awaitAnswer: refuse('helpers.awaitAnswer') },
-    waits: { untilIdle: refuse('waits.untilIdle'), untilRunEnd: refuse('waits.untilRunEnd') },
+    waits: { untilIdle: refuse('waits.untilIdle'), untilDone: refuse('waits.untilDone') },
     memory: { remember: refuse('memory.remember') }
   }
 }
@@ -140,7 +141,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       },
       waits: {
         untilIdle: (id) => enter(scope, () => waitFor(scope.epoch, id, () => !thread(id).active)),
-        untilRunEnd: (id) => enter(scope, () => waitFor(scope.epoch, id, () => !thread(id).active))
+        untilDone: (id, key) => enter(scope, () => waitFor(scope.epoch, id, () => inputDone(thread(id), key)))
       },
       memory: { remember: (name, produce) => enter(scope, () => remember(scope, name, produce)) },
       clock: { now: () => 0 }

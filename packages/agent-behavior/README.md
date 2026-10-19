@@ -57,7 +57,7 @@ are named as a verb and an object and carry no harness noun (hook, commit, sessi
 | H2  | `Turns`         | `start`, `retract`, `stop`         | Give the agent a turn under a request key, take back one that has not started, stop the current one.      |
 | H3  | `Helpers`       | `message`, `awaitAnswer`, `stop`   | Message a child, wait for the answer of one of its runs, stop that run if it is still the child's active run. |
 | H4  | `Jobs`          | `register`                         | Finish what a call started after it returns, across restarts.                                             |
-| H5  | `Waits`         | `untilIdle`, `untilRunEnd`         | Wait until a conversation has no run, or until its current run ends; waiting keeps no state.              |
+| H5  | `Waits`         | `untilIdle`, `untilDone`           | Wait until a conversation has no run, or until an input submitted under a key has run to its end; waiting keeps no state. |
 | H6  | `Memory`        | `remember`                         | Remember an answer from a person or a model so a restart never asks again.                                |
 | H7  | `Clock`         | `now`                              | Read the time in whole milliseconds; nothing mints ids, they derive from keys.                            |
 | H8  | `Tools`         | `register`                         | Put the package's model-only tools on the harness.                                                        |
@@ -308,8 +308,10 @@ What the caller does with the result of each entry point:
   carry a `start-turn` effect: run it, and a `busy` answer (nothing was recorded) sends both back to the loop alike.
   Once `start-round` was taken, commit `admitRound(facts, inputs, { round, key })`: it admits the round, or withdraws it
   with a `retract-turn` effect, and when `Turns.retract` answers `already-started` the caller stops that run with
-  `Turns.stop(thread, 'goal-withdraw')`. `done` wrote the driver's `idle-driver-exit` record in the same transaction:
-  end the job.
+  `Turns.stop(thread, 'goal-withdraw')`. Taken either way (`started` or `queued`), both then await
+  `Waits.untilDone(thread, key)` before deciding again: an input queued behind a failed run's leftovers runs later, and
+  deciding before it ran would see the same facts. `done` wrote the driver's `idle-driver-exit` record in the same
+  transaction: end the job.
 - `update_goal` with `complete` takes two decisions. The first returns a `VerifyDraft` (`{ verify }`) and writes
   nothing; judge it with `Verifier.verify` behind `Memory.remember(keys.verdictMemo(call), ...)`, then decide again with
   `CallInputs.verdict`. When the verifier fails, write nothing and answer an error result with `unverifiedText(reason)`.

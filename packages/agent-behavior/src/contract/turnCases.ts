@@ -34,7 +34,7 @@ export const turnCases: readonly ContractCase[] = [
   // Premise: Durable's default `followUpMode: 'one-at-a-time'`; with 'all', `c9-q` would start with the leftover.
   {
     name: 'start queues behind inbox items a failed run left, and retract withdraws it',
-    covers: ['turns.start', 'turns.retract', 'waits.untilRunEnd', 'waits.untilIdle', 'tools.register'],
+    covers: ['turns.start', 'turns.retract', 'waits.untilIdle', 'tools.register'],
     needs: [],
     async run(open) {
       const hold = holds()
@@ -60,7 +60,7 @@ export const turnCases: readonly ContractCase[] = [
       await h.sendUser(t, 'go')
       await hold.started('c9-b')
       await h.sendUser(t, 'follow')
-      const ended = h.withCall(t, (p) => p.waits.untilRunEnd(t))
+      const ended = h.withCall(t, (p) => p.waits.untilIdle(t))
       hold.release('c9-b')
       await ended
       const failed = await read(h, t)
@@ -69,7 +69,6 @@ export const turnCases: readonly ContractCase[] = [
         !failed.live.idle && failed.live.leftoverInputs === 1,
         'a failed run must leave its queued input in the inbox, reported as a leftover'
       )
-      await h.withCall(t, (p) => p.waits.untilIdle(t))
       check(
         (await start('c9-q')) === 'queued',
         'input to an idle conversation holding inbox items must queue behind them'
@@ -110,52 +109,132 @@ export const turnCases: readonly ContractCase[] = [
   // Catches waits that resolve at a turn boundary inside the run (Durable's generation handover after a tool round), letting the driver decide on a running run (H5).
   {
     name: 'waits resolve only when the run ends',
-    covers: ['waits.untilIdle', 'waits.untilRunEnd', 'tools.register'],
+    covers: ['waits.untilIdle', 'waits.untilDone', 'turns.start', 'tools.register'],
     needs: [],
     async run(open) {
       const hold = holds()
       const h = await open((p) => p.tools.register(hold.tool))
       const t = await h.createThread()
       h.script(t, [callTool('hold', { id: 'c15-a' }), callTool('hold', { id: 'c15-b' }), reply('done')])
-      await h.sendUser(t, 'go')
+      await h.withCall(t, (p) => p.turns.start(t, status('go'), key('c15')))
       await hold.started('c15-a')
-      const ended = { idle: false, runEnd: false }
+      const ended = { idle: false, done: false }
       const idle = h
         .withCall(t, (p) => p.waits.untilIdle(t))
         .then(() => {
           ended.idle = true
         })
-      const runEnd = h
-        .withCall(t, (p) => p.waits.untilRunEnd(t))
+      const done = h
+        .withCall(t, (p) => p.waits.untilDone(t, key('c15')))
         .then(() => {
-          ended.runEnd = true
+          ended.done = true
         })
       await read(h, t)
       await read(h, t)
-      same(ended, { idle: false, runEnd: false }, 'waits must not resolve while a tool call runs')
+      same(ended, { idle: false, done: false }, 'waits must not resolve while a tool call runs')
       hold.release('c15-a')
       await hold.started('c15-b')
       await read(h, t)
       await read(h, t)
-      same(ended, { idle: false, runEnd: false }, 'waits must not resolve at the turn boundary after a tool round')
+      same(ended, { idle: false, done: false }, 'waits must not resolve at the turn boundary after a tool round')
       hold.release('c15-b')
-      await Promise.all([idle, runEnd])
+      await Promise.all([idle, done])
       check((await read(h, t)).live.idle, 'the conversation must be idle once both waits resolved')
     }
   },
-  // Catches a wait that pends on a conversation with no run, which hangs every caller that waits on an idle thread.
+  // Catches a wait that pends on a conversation with no run, or on an input that already ran or was never submitted,
+  // which hangs every caller that waits on an idle thread.
   {
     name: 'both waits resolve immediately when the conversation is idle',
-    covers: ['waits.untilIdle', 'waits.untilRunEnd'],
+    covers: ['waits.untilIdle', 'waits.untilDone', 'turns.start'],
     needs: [],
     async run(open) {
       const h = await open(() => {})
       const t = await h.createThread()
-      await h.withCall(t, (p) => Promise.all([p.waits.untilIdle(t), p.waits.untilRunEnd(t)]))
+      await h.withCall(t, (p) => Promise.all([p.waits.untilIdle(t), p.waits.untilDone(t, key('c16-none'))]))
       h.script(t, [reply('done')])
-      await h.sendUser(t, 'go')
+      await h.withCall(t, (p) => p.turns.start(t, status('go'), key('c16-go')))
       await h.settle()
-      await h.withCall(t, (p) => Promise.all([p.waits.untilIdle(t), p.waits.untilRunEnd(t)]))
+      await h.withCall(t, (p) => Promise.all([p.waits.untilIdle(t), p.waits.untilDone(t, key('c16-go'))]))
+    }
+  },
+  // Catches an untilDone that resolves while its input still waits behind a failed run's leftovers: the idle driver
+  // would decide again on the same facts and start the same spent key without end (G-C3).
+  {
+    name: 'untilDone waits for a queued input to run after the inputs before it',
+    covers: ['waits.untilDone', 'turns.start', 'tools.register'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      h.script(t, [
+        callTool('hold', { id: 'd-1' }),
+        { error: 'boom' },
+        { error: 'boom again' },
+        reply('queued done'),
+        reply('nudge done')
+      ])
+      await h.sendUser(t, 'go')
+      await hold.started('d-1')
+      await h.sendUser(t, 'follow')
+      hold.release('d-1')
+      await h.withCall(t, (p) => p.waits.untilIdle(t))
+      check((await read(h, t)).live.leftoverInputs === 1, 'the failed run must leave the follow-up queued')
+      const queued = await h.withCall(t, (p) => p.turns.start(t, status('queued input'), key('d-q')))
+      check(queued === 'queued', 'input behind a leftover must queue')
+      let resolved = false
+      const done = h
+        .withCall(t, (p) => p.waits.untilDone(t, key('d-q')))
+        .then(() => {
+          resolved = true
+        })
+      // The follow-up fails too: the input stays queued with no run going, the state an idle driver would spin in.
+      await h.withCall(t, (p) => p.waits.untilIdle(t))
+      await read(h, t)
+      await read(h, t)
+      check((await read(h, t)).live.leftoverInputs === 1, 'the second failure must leave the input queued')
+      check(!resolved, 'untilDone must not resolve while its input is still queued')
+      await h.sendUser(t, 'nudge')
+      await done
+      check(
+        assistantTexts(await read(h, t)).includes('queued done'),
+        'untilDone must resolve only once the run that took the input has ended'
+      )
+    }
+  },
+  // Catches an untilDone that waits for an input that will never run: a withdrawn one, or one refused as busy.
+  {
+    name: 'untilDone resolves at once for an input that was withdrawn or refused',
+    covers: ['waits.untilDone', 'turns.start', 'turns.retract', 'tools.register'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      h.script(t, [callTool('hold', { id: 'e-1' }), { error: 'boom' }, callTool('hold', { id: 'e-2' }), reply('done')])
+      await h.sendUser(t, 'go')
+      await hold.started('e-1')
+      await h.sendUser(t, 'follow')
+      hold.release('e-1')
+      await h.withCall(t, (p) => p.waits.untilIdle(t))
+      check(
+        (await h.withCall(t, (p) => p.turns.start(t, status('withdrawn'), key('e-w')))) === 'queued',
+        'input behind a leftover must queue'
+      )
+      await hold.started('e-2')
+      check(
+        (await h.withCall(t, (p) => p.turns.retract(t, key('e-w')))) === 'withdrawn',
+        'a queued input is withdrawable'
+      )
+      await h.withCall(t, (p) => p.waits.untilDone(t, key('e-w')))
+      check(
+        (await h.withCall(t, (p) => p.turns.start(t, status('refused'), key('e-b')))) === 'busy',
+        'a start while a run is active must be refused'
+      )
+      await h.withCall(t, (p) => p.waits.untilDone(t, key('e-b')))
+      hold.release('e-2')
+      await h.settle()
     }
   }
 ]
