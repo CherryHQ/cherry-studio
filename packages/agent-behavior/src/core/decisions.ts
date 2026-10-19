@@ -20,8 +20,10 @@ export type ChildSpec = {
   /**
    * Fork from `from`'s history up to and including `at` (a fork subagent, or design §8.3 S-j). A fork always creates a
    * new conversation with a new id on every harness: run numbers and end-record keys are per conversation, so re-owning
-   * `from` in place would collide with its earlier runs. The child's copy then answers each call of the `at` entry
-   * with a result whose text is `FORK_PLACEHOLDER_RESULT` and `isError: false`: those calls run on in `from`.
+   * `from` in place would collide with its earlier runs. When `from` is the transacting thread (a fork subagent), the
+   * child's copy then answers each call of the `at` entry with a result whose text is `FORK_PLACEHOLDER_RESULT` and
+   * `isError: false`: those calls run on in `from`. A fork of another conversation (S-j) copies that conversation's
+   * open calls as they are; they ended with it, and H3 answers them as interrupted before the fork's first run.
    */
   readonly fork?: { readonly from: ThreadId; readonly at: ItemId }
   readonly origin: SubagentOrigin
