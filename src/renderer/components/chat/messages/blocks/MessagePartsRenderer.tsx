@@ -680,7 +680,6 @@ const ErrorPartView = React.memo(function ErrorPartView({
   // Dismissed errors stay persisted as evidence but render nothing.
   if (meta?.dismissed === true) return null
   return <ErrorBlock partId={partId} error={error} message={message} synthetic={meta?.synthetic === true} />
-
 })
 
 const TranslationPartView = React.memo(function TranslationPartView({
