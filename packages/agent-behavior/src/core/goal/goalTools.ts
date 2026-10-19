@@ -49,24 +49,22 @@ export const viewText = (facts: Facts, goal: GoalSnapshot | undefined): string =
 export function requireMainAgent(facts: Facts): void {
   if (facts.lineage.kind === 'subagent')
     throw new GoalError(
-      'in_subagent',
       'Goals belong to the main agent; a subagent cannot read or change them. Finish the task you were given and report back.'
     )
 }
 export function requireGoal(facts: Facts): GoalSnapshot {
   const goal = currentGoal(facts.history)
-  if (!goal) throw new GoalError('no_goal', 'No goal is set.')
+  if (!goal) throw new GoalError('No goal is set.')
   return goal
 }
 function requireRevision(facts: Facts, goalId: string | undefined, revision: number | undefined): GoalSnapshot {
   const goal = requireGoal(facts)
   if (goal.id !== goalId || goal.revision !== revision)
-    throw new GoalError('stale_revision', `Stale goal reference; current view: ${viewText(facts, goal)}`)
+    throw new GoalError(`Stale goal reference; current view: ${viewText(facts, goal)}`)
   return goal
 }
 function requireHumanTurn(facts: Facts, what: string): void {
-  if (turnStarter(facts.history) !== 'human')
-    throw new GoalError('not_human_turn', `${what} needs a direct human request in this turn.`)
+  if (turnStarter(facts.history) !== 'human') throw new GoalError(`${what} needs a direct human request in this turn.`)
 }
 
 const step = (result: ToolResultFact, ops: readonly TxOp[] = []): Step<ToolResultFact> => ({ ops, effects: [], result })
@@ -97,7 +95,7 @@ export const decideCreateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
     requireHumanTurn(facts, 'create_goal')
     const existing = currentGoal(facts.history)
     if (existing && existing.phase !== 'complete')
-      throw new GoalError('goal_exists', 'A goal is already set; edit, pause or clear it first.')
+      throw new GoalError('A goal is already set; edit, pause or clear it first.')
     const args = fieldsOf(inputs.args)
     const max = numberField(args, 'max_goal_rounds')
     const goal = createGoal(
@@ -125,17 +123,16 @@ export const decideUpdateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
     const goal = requireRevision(facts, stringField(args, 'goal_id'), numberField(args, 'revision'))
     const action = stringField(args, 'action') as Action | undefined
     if (!action || !ACTIONS.includes(action))
-      throw new GoalError('invalid_action', 'action must be one of edit, pause, resume, complete, blocked')
+      throw new GoalError('action must be one of edit, pause, resume, complete, blocked')
     const objective = stringField(args, 'objective')
     const max = numberField(args, 'max_goal_rounds')
     const budget = budgetFrom(inputs.args)
     const extras = hasText(objective) || hasNumber(max) || budget !== undefined
-    if (action !== 'edit' && extras)
-      throw new GoalError('invalid_action', 'objective and limits are valid only with action edit')
+    if (action !== 'edit' && extras) throw new GoalError('objective and limits are valid only with action edit')
     if (action !== 'blocked' && hasText(stringField(args, 'blocked_reason')))
-      throw new GoalError('invalid_action', 'blocked_reason is valid only with action blocked')
+      throw new GoalError('blocked_reason is valid only with action blocked')
     if ((action === 'complete' || action === 'blocked') && goal.phase === 'complete')
-      throw new GoalError('invalid_action', GOAL_COMPLETE_MESSAGE)
+      throw new GoalError(GOAL_COMPLETE_MESSAGE)
     const write = (next: GoalSnapshot, text?: string, more: readonly TxOp[] = []) =>
       step({ text: text ?? viewText(facts, next), isError: false }, [
         goalRecord(facts, next, keys.goalCall(call)),
@@ -145,8 +142,7 @@ export const decideUpdateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
     switch (action) {
       case 'edit': {
         requireHumanTurn(facts, 'edit')
-        if (!extras)
-          throw new GoalError('invalid_action', 'edit needs an objective, max_goal_rounds, budget_tokens or budget_usd')
+        if (!extras) throw new GoalError('edit needs an objective, max_goal_rounds, budget_tokens or budget_usd')
         const patch = {
           ...(hasText(objective) ? { objective } : {}),
           ...(hasNumber(max) ? { maxGoalRounds: max } : {}),
@@ -156,7 +152,7 @@ export const decideUpdateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
       }
       case 'pause':
         requireHumanTurn(facts, 'pause')
-        if (goal.phase === 'complete') throw new GoalError('invalid_action', GOAL_COMPLETE_MESSAGE)
+        if (goal.phase === 'complete') throw new GoalError(GOAL_COMPLETE_MESSAGE)
         if (goal.phase === 'paused') return step({ text: viewText(facts, goal), isError: false })
         return write(stopGoal(goal, { code: 'paused_by_user' }, inputs.now))
       case 'resume': {
@@ -179,7 +175,7 @@ export const decideUpdateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
 
 type Write = (next: GoalSnapshot, text?: string) => Step<ToolResultFact>
 function completeGoal(facts: Facts, goal: GoalSnapshot, verdict: VerifierVerdict, now: number, write: Write) {
-  if (verdict.verdict === 'not_met') throw new GoalError('invalid_action', `Not complete yet: ${verdict.reason}`)
+  if (verdict.verdict === 'not_met') throw new GoalError(`Not complete yet: ${verdict.reason}`)
   if (verdict.verdict === 'impossible')
     return write(stopGoal(goal, { code: 'model_blocked', message: verdict.reason }, now))
   const next = stopGoal(goal, { code: 'complete' }, now)
@@ -188,8 +184,7 @@ function completeGoal(facts: Facts, goal: GoalSnapshot, verdict: VerifierVerdict
 
 /** Without a person in the turn, the same condition must be reported in `blockedAfter` consecutive goal rounds (X15). */
 function blockGoal(facts: Facts, inputs: CallInputs, goal: GoalSnapshot, reason: string | undefined, write: Write) {
-  if (!hasText(reason))
-    throw new GoalError('invalid_action', 'blocked needs blocked_reason: the concrete condition that persisted.')
+  if (!hasText(reason)) throw new GoalError('blocked needs blocked_reason: the concrete condition that persisted.')
   if (goal.phase === 'blocked') return step({ text: viewText(facts, goal), isError: false })
   if (turnStarter(facts.history) !== 'human') {
     const round = goal.roundsStarted

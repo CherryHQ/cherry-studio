@@ -85,7 +85,7 @@ export function decideGoalCommand(
               }
             : { ops: [], effects: [] }
         if (keyword === 'pause') {
-          if (current.phase === 'complete') throw new GoalError('invalid_action', GOAL_COMPLETE_MESSAGE)
+          if (current.phase === 'complete') throw new GoalError(GOAL_COMPLETE_MESSAGE)
           if (current.phase === 'paused') return notice('Goal is already paused.')
           const stop = stopTurn('goal-pause')
           return notice(
@@ -139,7 +139,7 @@ export function decideGoalCommand(
         return notice('Budget updated.', 'info', [write(next)])
       }
       if (goal && goal.phase !== 'complete')
-        throw new GoalError('goal_exists', 'A goal is already set; use /goal edit, /goal pause or /goal clear first.')
+        throw new GoalError('A goal is already set; use /goal edit, /goal pause or /goal clear first.')
       const created = createGoal(keys.goalFromCommand(requestKey), input, goalDefaults, {}, inputs.now)
       return notice('Goal created.', 'info', [write(created), ensureDriver(facts)])
     },
