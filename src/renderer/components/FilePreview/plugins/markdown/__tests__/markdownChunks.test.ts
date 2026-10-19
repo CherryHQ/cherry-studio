@@ -605,6 +605,30 @@ describe('splitMarkdownChunks', () => {
     }
   })
 
+  it('keeps an angle-bracket destination whose closing delimiter is escaped', () => {
+    // A `\>` inside an angle-bracketed destination is an escaped delimiter, not the close: the
+    // destination runs to the unescaped `>` that follows. Reading the escaped one as the close
+    // left `b>` standing where a title belongs, so the definition was refused, never carried, and
+    // the reference across the chunk boundary rendered as literal brackets.
+    const content = [
+      '[x]: <https://example.com/a\\>b>',
+      '',
+      'filler paragraph that spends the budget',
+      '',
+      'see [x]'
+    ].join('\n')
+
+    const chunks = chunksOf(content, 1)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    // The unsplit document resolves the reference, so the chunked one has to as well.
+    expect(referenceTarget(content, 'x')).toBe('https://example.com/a>b')
+    expect(referenceTarget(joined(chunks), 'x')).toBe('https://example.com/a>b')
+    const referencing = chunks.filter((chunk) => chunk.text.includes('see [x]'))
+    expect(referencing).toHaveLength(1)
+    expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['https://example.com/a>b'])
+  })
+
   it('does not carry the quoted text that follows a block-quoted definition', () => {
     // Only the definition travels; `visible tail` is a paragraph of the quote and would be repeated.
     const content = ['> [label]: https://example.com', '> "the title"', '> visible tail', '', 'see [label]'].join('\n')

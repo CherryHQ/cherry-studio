@@ -332,11 +332,30 @@ const LINK_DEFINITION_LABEL = /^\[(?!\^)((?:\\.|[^\]\\[])+)\]:([ \t]*)([\s\S]*)$
 const MAX_LABEL_SOURCE_CHARS = 999
 
 /**
- * A link destination: an angle-bracketed run or a whitespace-free one, behind any indentation. A
- * bare destination may not start with `<` — that form belongs to the angle brackets — and its
- * parentheses have to balance, which `balancedParens` checks where the destination is accepted.
+ * A bare link destination — whitespace-free, and not starting with `<`, which belongs to the angle
+ * brackets. Its parentheses have to balance, which `balancedParens` checks where it is accepted.
  */
-const LINK_DESTINATION = /^[ \t]*(?:<[^<>]*>|(?!<)\S+)/
+const LINK_BARE_DESTINATION = /^[ \t]*(?!<)\S+/
+
+/**
+ * The length of an angle-bracketed destination opening at `open`, or 0 when none does.
+ *
+ * A backslash escapes the character after it, so a `\>` is an escaped delimiter rather than the
+ * close and the run continues past it — `<https://example.com/a\>b>` is one destination, and
+ * reading the escaped `>` as the close leaves `b>` behind where a title belongs, which refuses the
+ * whole definition.
+ */
+function angleDestinationLength(text: string, open: number): number {
+  for (let index = open + 1; index < text.length; index += 1) {
+    const character = text[index]
+    if (character === '\\') {
+      index += 1
+    } else if (character === '>') {
+      return index + 1 - open
+    }
+  }
+  return 0
+}
 
 /** A link title, which may sit on the line below the destination; its delimiter may be escaped. */
 const LINK_TITLE = /^[ \t]*(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|\((?:\\.|[^)\\\n])*\))[ \t]*$/
@@ -393,10 +412,17 @@ function balancedParens(text: string): boolean {
  * definition's destination at all.
  */
 function pastDestination(line: string): string | null {
-  const match = LINK_DESTINATION.exec(line)
+  // An angle-bracketed destination is scanned by hand, because its closing delimiter may be escaped
+  // and a character class cannot count the escapes that come before it.
+  const open = /^[ \t]*</.exec(line)
+  if (open) {
+    const length = angleDestinationLength(line, open[0].length - 1)
+    return length === 0 ? null : line.slice(open[0].length - 1 + length)
+  }
+  const match = LINK_BARE_DESTINATION.exec(line)
   if (!match) return null
   const destination = match[0].trimStart()
-  if (!destination.startsWith('<') && !balancedParens(destination)) return null
+  if (!balancedParens(destination)) return null
   return line.slice(match[0].length)
 }
 
