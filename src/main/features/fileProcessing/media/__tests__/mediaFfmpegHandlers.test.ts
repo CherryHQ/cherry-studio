@@ -11,7 +11,8 @@ import type { UtilityProcessHandlerContext } from '@main/core/utilityProcess/run
 
 const spawnControl = vi.hoisted(() => ({
   calls: 0,
-  replacement: null as null | ((...args: unknown[]) => unknown)
+  replacement: null as null | ((...args: unknown[]) => unknown),
+  recordedArgs: null as null | unknown[][]
 }))
 
 vi.mock('node:child_process', async () => {
@@ -19,6 +20,7 @@ vi.mock('node:child_process', async () => {
   return {
     ...actual,
     spawn: (...args: Parameters<typeof actual.spawn>) => {
+      if (spawnControl.recordedArgs && Array.isArray(args[1])) spawnControl.recordedArgs.push(args[1])
       if (spawnControl.replacement) {
         spawnControl.calls += 1
         return spawnControl.replacement(...args) as ReturnType<typeof actual.spawn>
@@ -208,6 +210,119 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     }
     expect(readSamples(3).every((sample) => sample === 0)).toBe(true)
     expect(readSamples(6.2).some((sample) => sample !== 0)).toBe(true)
+  it('maps default stereo ahead of a non-default 5.1 track and keeps that stream offset', async () => {
+    const outputDir = join(root, 'dual-default-stereo')
+    mkdirSync(outputDir)
+    const sourcePath = join(outputDir, 'dual.m4a')
+    expect(
+      runFfmpeg([
+        '-itsoffset',
+        '0.25',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=1:sample_rate=48000,pan=stereo|c0=c0|c1=c0',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=880:duration=1:sample_rate=48000,pan=5.1|FL=c0|FR=c0|FC=c0|LFE=c0|BL=c0|BR=c0',
+        '-map',
+        '0:a',
+        '-map',
+        '1:a',
+        '-disposition:a:0',
+        'default',
+        '-disposition:a:1',
+        '0',
+        '-c:a',
+        'aac',
+        '-f',
+        'mp4',
+        sourcePath
+      ])
+    ).toBe(0)
+
+    const probed = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=start_time:stream=index,codec_type,channels,start_time:stream_disposition=default',
+          '-of',
+          'json',
+          sourcePath
+        ],
+        { encoding: 'utf8' }
+      ).stdout
+    ) as {
+      format?: { start_time?: string }
+      streams?: Array<{
+        index?: number
+        codec_type?: string
+        channels?: number
+        start_time?: string
+        disposition?: { default?: number }
+      }>
+    }
+    const audio = (probed.streams ?? []).filter((stream) => stream.codec_type === 'audio')
+    const stereo = audio.find((stream) => stream.channels === 2 && stream.disposition?.default === 1)
+    const surround = audio.find((stream) => stream.channels === 6 && stream.disposition?.default === 0)
+    expect(stereo?.index).toBe(0)
+    expect(surround?.index).toBe(1)
+    const formatStart = Number(probed.format?.start_time ?? 0)
+    const stereoOffsetMs = Math.round((Number(stereo?.start_time) - formatStart) * 1000)
+    const surroundOffsetMs = Math.round((Number(surround?.start_time) - formatStart) * 1000)
+    expect(stereoOffsetMs).toBeGreaterThan(surroundOffsetMs)
+    expect(surroundOffsetMs).toBe(0)
+
+    const probe = await mediaFfmpegHandlers.probe({ filePath: sourcePath, fallbackExt: 'm4a' }, context())
+    expect(probe.audioStartMs).toBe(stereoOffsetMs)
+
+    const autoPath = join(outputDir, 'auto.wav')
+    const surroundPath = join(outputDir, 'surround.wav')
+    expect(
+      runFfmpeg(['-i', sourcePath, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-f', 'wav', autoPath])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-i',
+        sourcePath,
+        '-map',
+        '0:1',
+        '-vn',
+        '-ac',
+        '1',
+        '-ar',
+        '16000',
+        '-c:a',
+        'pcm_s16le',
+        '-f',
+        'wav',
+        surroundPath
+      ])
+    ).toBe(0)
+
+    spawnControl.recordedArgs = []
+    try {
+      const result = await mediaFfmpegHandlers.extractAudio(
+        { filePath: sourcePath, outputDir, maxChunkBytes: 100_000 },
+        context()
+      )
+      const mapped = spawnControl.recordedArgs.find(
+        (args) => Array.isArray(args) && args.includes('-map') && args.includes(sourcePath)
+      )
+      const mapAt = Array.isArray(mapped) ? mapped.indexOf('-map') : -1
+      expect(Array.isArray(mapped) ? mapped[mapAt + 1] : undefined).toBe(`0:${stereo?.index}`)
+      expect(result.chunks).toEqual([expect.objectContaining({ startMs: 0 })])
+      expect(result).toMatchObject({ sampleRateHz: 16000, channels: 1 })
+      const extractedHz = wavToneHz(result.chunks[0]?.path ?? '')
+      expect(Math.abs(extractedHz - wavToneHz(autoPath))).toBeLessThan(20)
+      expect(Math.abs(extractedHz - wavToneHz(surroundPath))).toBeGreaterThan(200)
+    } finally {
+      spawnControl.recordedArgs = null
+    }
   })
 
   it('distinguishes audio-only WebM and extracts bounded portrait video frames', async () => {
@@ -1424,6 +1539,23 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
 
   function runFfmpeg(args: string[]): number | null {
     return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
+  }
+
+  function wavToneHz(filePath: string): number {
+    const bytes = readFileSync(filePath)
+    const data = bytes.indexOf(Buffer.from('data'))
+    if (data < 12) throw new Error(`WAV data chunk missing in ${filePath}`)
+    const size = bytes.readUInt32LE(data + 4)
+    const pcm = bytes.subarray(data + 8, data + 8 + size)
+    const samples = Math.floor(pcm.length / 2)
+    let crossings = 0
+    let previous = 0
+    for (let index = 0; index < samples; index += 1) {
+      const sample = pcm.readInt16LE(index * 2)
+      if ((previous >= 0 && sample < 0) || (previous < 0 && sample >= 0)) crossings += 1
+      previous = sample
+    }
+    return crossings / 2 / (samples / 16000)
   }
 
   function readStarts(filePath: string): { formatStart: number; audioStart: number; videoStart: number } {
