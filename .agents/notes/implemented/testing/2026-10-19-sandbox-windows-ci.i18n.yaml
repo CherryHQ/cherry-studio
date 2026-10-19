@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/testing/2026-10-19-sandbox-windows-ci.md
-2026-10-19-sandbox-windows-ci.md: 42eef1799536756921861a754ac199229aa20031
-2026-10-19-sandbox-windows-ci.zh.md: fbfe8dbf29f409eefa321c5695896a63df9063b5
+2026-10-19-sandbox-windows-ci.md: c0ebf62f2eb86564e10214b2d86e72d9362a2cbf
+2026-10-19-sandbox-windows-ci.zh.md: b5d6bb2b2d43d00c269a53848feadf7b00cbf5ee

@@ -146,7 +146,7 @@ sequenceDiagram
 | macOS 原生命令、授权目录直接读写、网络 deny | 已接通 MXC Seatbelt |
 | CLI 与程序 API 共用实现 | 已完成；CLI 黑盒测试覆盖允许读、原文件即时写入、禁止目录外读取 |
 | Node / Python 双向回调 | 已有示例及回归测试；另覆盖授权拒绝、超时、断线与合并帧读取 |
-| Windows 原生命令与 RPC | 已接通 ProcessContainer；实测允许读写、越界拒绝、只读保护、loopback 拒绝、ACL 回收和一个 detached 子进程停止场景 |
+| Windows 原生命令与 RPC | 已接通 ProcessContainer；实测允许读写、越界拒绝、只读保护、loopback 拒绝、ACL 回收；早期本机 detached 子进程停止结果不能代表托管 BaseContainer，后者的子进程启动与后代回收尚未验收，不纳入当前 demo 必需门槛 |
 | Linux | 当前 adapter 明确拒绝 |
 | 内存/进程数配额、挂载映射、专用通道、其他网络模式 | 当前拒绝请求，不声称已强制执行 |
 | Electron 集成 | Electron 44.7.0 / Node 24.21.0；主进程服务与开发者诊断入口已接通，Windows 原生库在 ASAR 外加载；签名分发另行验证 |

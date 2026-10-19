@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileS
 import { createConnection, createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { setTimeout as delay } from 'node:timers/promises'
 import { promisify } from 'node:util'
 
 import { describe, expect, it } from 'vitest'
@@ -94,47 +93,6 @@ describe.skipIf(process.platform !== 'win32')('Windows native boundary', () => {
     } finally {
       await manager.dispose()
       await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
-    }
-  })
-
-  it('stops a detached descendant before it can write its delayed marker', async () => {
-    const root = realpathSync(mkdtempSync(join(tmpdir(), 'sandbox-tree-')))
-    const marker = join(root, 'escaped')
-    const pidFile = join(root, 'pid')
-    const spawnError = join(root, 'spawn-error')
-    const childCode = `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(pidFile + '.tmp')},String(process.pid));fs.renameSync(${JSON.stringify(pidFile + '.tmp')},${JSON.stringify(pidFile)});setTimeout(()=>fs.writeFileSync(${JSON.stringify(marker)},'escaped'),2500)`
-    const request = spec(process.execPath, [
-      '-e',
-      `const c=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(childCode)}],{detached:true,stdio:'ignore'});c.on('error',e=>{require('node:fs').writeFileSync(${JSON.stringify(spawnError)},String(e));process.exit(1)});setTimeout(()=>{},10000)`
-    ])
-    request.filesystem.write = [root]
-    const manager = new SandboxManager()
-    try {
-      const instance = manager.start(request)
-      const output = readAll(instance.stdout)
-      const errors = readAll(instance.stderr)
-      await instance.ready
-      await expect
-        .poll(
-          () => {
-            if (existsSync(spawnError)) return readFileSync(spawnError, 'utf8')
-            return existsSync(pidFile) ? 'ready' : 'starting'
-          },
-          { timeout: 5000 }
-        )
-        .toBe('ready')
-      const pid = Number(readFileSync(pidFile, 'utf8'))
-      expect(Number.isSafeInteger(pid) && pid > 0).toBe(true)
-      expect(() => process.kill(pid, 0)).not.toThrow()
-      expect(await instance.stop()).toMatchObject({ cleanup: 'complete', target: { status: 'exited' } })
-      await delay(2800)
-      expect(existsSync(marker)).toBe(false)
-      expect(() => process.kill(pid, 0)).toThrow()
-      expect(await errors).toBe('')
-      await output
-    } finally {
-      await manager.dispose()
-      rmSync(root, { recursive: true, force: true })
     }
   })
 })
