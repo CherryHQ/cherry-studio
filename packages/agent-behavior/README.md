@@ -87,6 +87,10 @@ its own `onOpen` has run. On Durable a submit or a wait would enable scheduling 
 (`Harness.abortTask`, `abortSubmission`); reading the clock enables nothing. Until resume the stopped run and its
 foreground children may still appear active in the facts, so `onOpen` must not decide on facts read after its own stop.
 
+`Lifecycle.onCompacted` may be called while a run is active, because coding-agent's automatic compaction fires inside
+a run, and `LiveFacts.hostCallInFlight` may still be true when it starts. The handler must not `append-quiet` there; it
+ensures the idle driver, which writes the compaction status once the conversation is idle.
+
 ### Host ports (P1 to P8)
 
 The host (Cherry) implements these, and `createScriptedHost` does for tests. The four calls that wait for a person or
