@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 
-import { SessionManager } from '@earendil-works/pi-coding-agent'
+import type { TSchema } from '@earendil-works/pi-ai'
+import { type ExtensionAPI, SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -9,6 +10,7 @@ import {
   encodeEntry,
   type Key,
   type MessageResult,
+  type ToolDefinition,
   type TurnInput
 } from '@cherrystudio/agent-behavior'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
@@ -42,6 +44,16 @@ const spec: ChildSpec = {
   }
 }
 const noLifecycle = { onOpen: async () => {}, onCompacted: async () => {}, onClose: async () => {} }
+const tool = (name: string): ToolDefinition => ({
+  name,
+  description: name,
+  schema: { type: 'object' },
+  replay: 'safe',
+  executionMode: 'sequential',
+  availability: 'all',
+  modelOnly: true,
+  run: async () => ({ text: name, isError: false })
+})
 async function spawn(pi: PiHarness, parent: ThreadId, fork?: ChildSpec['fork']): Promise<ThreadId> {
   const { spawned } = await pi.harness.withCall(parent, (ports) =>
     ports.ledger.transact(parent, () => ({
@@ -256,6 +268,22 @@ describe('coding-agent behavior adapter', () => {
     expect(stops).toBe(1)
   })
 
+  // Catches a run another extension starts in an adapter session going unnoticed: it has no input or run of the
+  // adapter's, yet the conversation reads idle and settled() may resolve while it runs.
+  it('reports a run the adapter did not start', async () => {
+    let foreign: ExtensionAPI | undefined
+    const pi = await openPiHarness(() => {}, [
+      (api) => {
+        foreign = api
+      }
+    ])
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'foreign' }])
+    foreign!.sendMessage({ customType: 'foreign', content: 'go', display: false }, { triggerTurn: true })
+    await pi.harness.settle()
+    expect(pi.errors).toEqual([expect.objectContaining({ message: expect.stringContaining('did not start') })])
+  })
+
   // Catches a message to a child whose session is still being built recording its key before it fails, so the same
   // key sent again answers 'started' while the child never runs.
   it('keeps the key of a message sent while the child launches', async () => {
@@ -358,6 +386,101 @@ describe('coding-agent behavior adapter', () => {
     await expect(pi.harness.close()).rejects.toThrow('dispose failed')
     expect(new Set(closed)).toEqual(new Set([a, b]))
     await expect(pi.harness.createThread()).rejects.toThrow('closed')
+  })
+
+  // Catches rule-handler errors Pi swallows never reaching onError: a failing omit sends the request unfiltered, a
+  // failing before is just an error result, a failing after leaves the result unreplaced, a failing onClose is lost.
+  it('reports what the rule handlers throw', async () => {
+    const failures = {
+      omit: new Error('omit failed'),
+      before: new Error('before failed'),
+      after: new Error('after failed'),
+      close: new Error('onClose failed')
+    }
+    const pi = await openPiHarness((ports) => {
+      ports.tools.register(tool('refused'))
+      ports.tools.register(tool('replaced'))
+      ports.contextFilter.register({
+        omit: () => {
+          throw failures.omit
+        }
+      })
+      ports.toolGate.register({
+        before: async (call) => {
+          if (call.tool === 'refused') throw failures.before
+          return {}
+        },
+        after: async (call) => {
+          if (call.tool === 'replaced') throw failures.after
+          return undefined
+        }
+      })
+      ports.lifecycle.register({
+        ...noLifecycle,
+        onClose: async () => {
+          throw failures.close
+        }
+      })
+    })
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [
+      {
+        text: '',
+        toolCalls: [
+          { name: 'refused', args: {} },
+          { name: 'replaced', args: {} }
+        ]
+      },
+      { text: 'done' }
+    ])
+    await pi.harness.sendUser(t, 'go')
+    await pi.harness.settle()
+    await pi.harness.close()
+    for (const failure of Object.values(failures)) expect(pi.errors).toContain(failure)
+  })
+
+  // Catches a gate's replacement leaving the tool's original structured output for a caller that runs the tool through
+  // ctx.executeTool (codemode), which then reads what the gate replaced.
+  it('drops the structured content of a result the gate replaced', async () => {
+    let seen: unknown = 'not called'
+    const parameters = { type: 'object', properties: {} } as unknown as TSchema
+    const pi = await openPiHarness(
+      (ports) =>
+        ports.toolGate.register({
+          before: async () => ({}),
+          after: async (call) => (call.tool === 'structured' ? { text: 'replaced', isError: false } : undefined)
+        }),
+      [
+        (api) => {
+          api.registerTool({
+            name: 'structured',
+            label: 'structured',
+            description: 'structured',
+            parameters,
+            execute: async () => ({
+              content: [{ type: 'text', text: 'raw' }],
+              details: {},
+              structuredContent: { raw: true }
+            })
+          })
+          api.registerTool({
+            name: 'caller',
+            label: 'caller',
+            description: 'caller',
+            parameters,
+            async execute(_id, _params, _signal, _onUpdate, ctx) {
+              seen = (await ctx.executeTool('structured', {})).result.structuredContent
+              return { content: [{ type: 'text', text: 'called' }], details: {} }
+            }
+          })
+        }
+      ]
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: '', toolCalls: [{ name: 'caller', args: {} }] }, { text: 'done' }])
+    await pi.harness.sendUser(t, 'go')
+    await pi.harness.settle()
+    expect(seen).toBeUndefined()
   })
 
   // Catches a quiet input whose write fails once the commit returned (the disk, a session subscriber) ending as an
