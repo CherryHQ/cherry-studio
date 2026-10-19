@@ -17,7 +17,11 @@ export type StopCause = 'goal-withdraw' | 'goal-pause' | 'goal-clear' | 'user'
 /** The child's parent is the thread `Ledger.transact` was called on. */
 export type ChildSpec = {
   readonly boundary: 'foreground' | 'background'
-  /** Fork from `from`'s history up to and including `at` (a fork subagent, or design §8.3 S-j). */
+  /**
+   * Fork from `from`'s history up to and including `at` (a fork subagent, or design §8.3 S-j). An adapter that can
+   * re-own `from` in the background in place may return `from`'s own id as the child (coding-agent may; Durable cannot
+   * and must fork); orchestration treats the returned id as the new child's either way.
+   */
   readonly fork?: { readonly from: ThreadId; readonly at: ItemId }
   readonly origin: SubagentOrigin
   /** [plan choice] The parent's run record; the harness writes it with `sessionId` = the new child, in the same commit. */

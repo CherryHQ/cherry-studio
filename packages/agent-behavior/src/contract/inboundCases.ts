@@ -1,7 +1,7 @@
 import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { turnInput } from '../core/decisions'
-import type { GateFacts } from '../core/facts'
+import type { CallKey, GateFacts } from '../core/facts'
 import type { GateHandlers, LifecycleHandlers, ToolDefinition } from '../ports/harness'
 import { check, same } from './assert'
 import {
@@ -11,9 +11,11 @@ import {
   echoTool,
   holds,
   key,
+  message,
   noticeTexts,
   read,
   reply,
+  spawnBackground,
   step,
   toolBase,
   toolResults
@@ -29,7 +31,8 @@ const lifecycle = (partial: Partial<LifecycleHandlers>): LifecycleHandlers => ({
 })
 
 export const inboundCases: readonly ContractCase[] = [
-  // Catches a gate whose block or rewrite is ignored, or a call key that differs between gate and tool (H9).
+  // Catches a gate whose block or rewrite is ignored, a call key that differs between gate and tool, or an after() that
+  // cannot tell a nested call, so a nested call's result is offloaded (H9, D31).
   {
     name: 'tools run under a stable call key; the gate blocks, rewrites and replaces',
     covers: ['tools.register', 'toolGate.register'],
@@ -37,6 +40,7 @@ export const inboundCases: readonly ContractCase[] = [
     async run(open) {
       const seen: string[] = []
       const echoArgs: JsonValue[] = []
+      const nestedAfter: JsonValue[] = []
       let dangerRuns = 0
       const echo: ToolDefinition = {
         ...toolBase('echo'),
@@ -61,6 +65,7 @@ export const inboundCases: readonly ContractCase[] = [
         },
         async after(call, result) {
           seen.push(`after:${call.key}`)
+          nestedAfter.push(call.nested)
           return call.tool === 'echo' ? { ...result, text: `replaced ${result.text}` } : undefined
         }
       }
@@ -98,6 +103,37 @@ export const inboundCases: readonly ContractCase[] = [
         seen.filter((s) => s.endsWith(`:${echoKey}`)),
         [`before:${echoKey}`, `tool:${echoKey}`, `after:${echoKey}`],
         'the gate and the tool must see one call key'
+      )
+      same(nestedAfter, [false], "after() must get the call's nested flag, false for a call the model made")
+    }
+  },
+  // Catches an adapter whose history keys and gate keys disagree, so approvals can never be matched to calls (B-G2).
+  {
+    name: "a tool call and its result read back under the gate's call key",
+    covers: ['ledger.read', 'toolGate.register'],
+    needs: [],
+    async run(open) {
+      const gated: CallKey[] = []
+      const h = await open((p) => {
+        p.tools.register(echoTool())
+        p.toolGate.register(
+          passGate(async (call) => {
+            gated.push(call.key)
+            return {}
+          })
+        )
+      })
+      const t = await h.createThread()
+      h.script(t, [callTool('echo', { text: 'x' }), reply('done')])
+      await h.sendUser(t, 'go')
+      await h.settle()
+      const facts = await read(h, t)
+      const calls = facts.history.flatMap((e) => (e.kind === 'assistant' ? e.toolCalls : []))
+      const results = toolResults(facts)
+      same(
+        [...calls.map((c) => c.callKey), ...results.map((r) => r.callKey)],
+        [gated[0], gated[0]],
+        'the call and its result must carry the call key the gate saw'
       )
     }
   },
@@ -304,18 +340,19 @@ export const inboundCases: readonly ContractCase[] = [
       same(consulted, [t, t], 'the filter must be consulted before each of the two model requests')
     }
   },
-  // Catches a meter that sees the wrong count or whose refusal does not end the run (D24, harness-limited row 8).
+  // Catches a meter that sees the wrong count or lineage (a child's cap applied to the root conversation), or whose
+  // refusal does not end the run (D24, harness-limited row 8).
   {
     name: 'the request meter can refuse a request and end the run',
     covers: ['requestMeter.register'],
     needs: [],
     async run(open) {
-      const asked: [ThreadId, number][] = []
+      const asked: [ThreadId, number, 'root' | 'child'][] = []
       const h = await open((p) => {
         p.tools.register(echoTool())
         p.requestMeter.register({
-          allow: (thread, requestsInRun) => {
-            asked.push([thread, requestsInRun])
+          allow: (thread, requestsInRun, lineage) => {
+            asked.push([thread, requestsInRun, lineage])
             return requestsInRun < 1 ? { ok: true } : { ok: false, text: 'request cap reached' }
           }
         })
@@ -327,10 +364,10 @@ export const inboundCases: readonly ContractCase[] = [
       same(
         asked,
         [
-          [t, 0],
-          [t, 1]
+          [t, 0, 'root'],
+          [t, 1, 'root']
         ],
-        'the meter must see each request with the count before it'
+        'the meter must see each request with the count before it and the root lineage'
       )
       const facts = await read(h, t)
       const last = facts.history.at(-1)
@@ -342,6 +379,11 @@ export const inboundCases: readonly ContractCase[] = [
         !assistantTexts(facts).includes('never') && facts.live.runEnd?.outcome === 'error',
         'a refused request must fail the run'
       )
+      const child = await spawnBackground(h, t, 'c31')
+      h.script(child, [reply('child done')])
+      await h.withCall(t, (p) => p.helpers.message(child, message('go'), key('c31-msg')))
+      await h.withCall(t, (p) => p.helpers.awaitAnswer(child, 1, key('c31-msg')))
+      same(asked.slice(2), [[child, 0, 'child']], "a spawned conversation's requests must be metered as a child's")
     }
   }
 ]

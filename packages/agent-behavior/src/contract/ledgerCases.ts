@@ -181,7 +181,8 @@ export const ledgerCases: readonly ContractCase[] = [
       await h.settle()
     }
   },
-  // Catches history that drops entries folded by compaction, breaking recall and goal accounting (design §4.3).
+  // Catches history that drops entries folded by compaction, breaking recall and goal accounting (design §4.3), or user
+  // entries projected without their text, which recall cannot search (B-G1).
   {
     name: 'history keeps full lineage across compaction',
     covers: ['ledger.read', 'lifecycle.register'],
@@ -202,8 +203,14 @@ export const ledgerCases: readonly ContractCase[] = [
       await h.compact(t)
       await h.sendUser(t, 'after')
       await h.settle()
-      const kinds = (await read(h, t)).history.map((e) => e.kind)
+      const history = (await read(h, t)).history
+      const kinds = history.map((e) => e.kind)
       check(kinds.filter((k) => k === 'user').length === 2, 'entries before the compaction must stay readable')
+      same(
+        history.flatMap((e) => (e.kind === 'user' ? [e.text] : [])),
+        ['before', 'after'],
+        'a user entry must read back with the text that was sent'
+      )
       check(
         kinds.indexOf('user') < kinds.indexOf('compaction') && kinds.indexOf('compaction') < kinds.lastIndexOf('user'),
         'history must keep the compaction in order'
@@ -211,7 +218,8 @@ export const ledgerCases: readonly ContractCase[] = [
       same(compacted, [t], 'onCompacted must run once for the compacted thread')
     }
   },
-  // Catches child usage taken from tool results or a stale running flag, which double-bills or mis-counts slots (R3, S-e).
+  // Catches child usage taken from tool results or a stale running flag, which double-bills or mis-counts slots (R3, S-e),
+  // or a stale or wrong lastItem, which would fork a continuation from the wrong point (S-j).
   {
     name: 'children report running and per-run usage from their own entries',
     covers: ['ledger.read', 'helpers.message', 'helpers.awaitAnswer'],
@@ -233,6 +241,10 @@ export const ledgerCases: readonly ContractCase[] = [
         facts?.runUsage,
         [{ input: 30, output: 12, cacheRead: 3, cacheWrite: 1, totalTokens: 46, costUsd: 0.75 }],
         "run usage must sum the child's own entries"
+      )
+      check(
+        facts?.lastItem === (await read(h, child)).history.at(-1)?.id,
+        "lastItem must be the id of the child's last history entry once its run ended"
       )
     }
   }
