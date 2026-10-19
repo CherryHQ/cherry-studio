@@ -228,8 +228,11 @@ export interface Tools {
 export type GateVerdict = { readonly block?: string; readonly args?: JsonValue }
 export type GatePorts = Pick<HarnessPorts, 'memory' | 'clock'>
 export interface GateHandlers {
-  /** Block the call (the reason becomes its error result) or rewrite its arguments. */
-  before(call: GateCall, facts: GateFacts, ports: GatePorts): Promise<GateVerdict>
+  /**
+   * Block the call (the reason becomes its error result) or rewrite its arguments. `call.signal` aborts when the call's
+   * turn stops, and whatever `before` waits for (a person's approval) is withdrawn then.
+   */
+  before(call: GateCall & { readonly signal: AbortSignal }, facts: GateFacts, ports: GatePorts): Promise<GateVerdict>
   /**
    * Replace the result, or keep it by returning `undefined`. `call` is the call `before` saw, `nested` included, with
    * the arguments it ran with.
@@ -240,14 +243,18 @@ export interface GateHandlers {
  * H9. Before a call runs, ask the rules whether to allow it or change its arguments; after it ran, whether to replace
  * its result.
  *
- * @harness coding-agent The `tool_call` and `tool_result` events; window and plan state come from the branch.
+ * @harness coding-agent The `tool_call` and `tool_result` events; window and plan state come from the branch; the
+ * signal is the event's abort signal.
  * @harness durable `beforeTool` and `afterTool`; plan from mirrored documents; the call window from the
- * late-bound `Conversation.entries()`, or an in-process window that resets on restart (harness-limited row 5).
- * @harness fake Called by the run loop with facts computed from its log; the window is kept in memory.
+ * late-bound `Conversation.entries()`, or an in-process window that resets on restart (harness-limited row 5); the
+ * signal is the one `beforeTool` gets, aborted with the tool task.
+ * @harness fake Called by the run loop with facts computed from its log; the window is kept in memory; the signal is
+ * the run's abort signal.
  * @keys The call key is `callKeyOf` applied to Durable's tool task id or to coding-agent's `<sessionId>:<toolCallId>`;
  * history carries the same key as `callKey` on the call and on its result; approvals are memoized under
  * `cherry.approval:<callKey>`.
- * @waits `before` may wait for a person through the host's `Approvals`; on Durable a crash while waiting asks again.
+ * @waits `before` may wait for a person through the host's `Approvals` until `call.signal` aborts; on Durable a crash
+ * while waiting asks again.
  */
 export interface ToolGate {
   /** Called during install. */

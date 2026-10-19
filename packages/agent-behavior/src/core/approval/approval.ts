@@ -20,6 +20,8 @@ const globalInstallReason = (summary: string): string =>
   `Blocked to avoid cross-agent dependency pollution: ${summary}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\`); for one-off tools use \`bun x <tool>\` / \`uvx <tool>\`.`
 /** An `unavailable` answer: the host could reach nobody to decide. */
 export const NOBODY_TO_APPROVE = 'Nobody can approve this tool call now.'
+/** The turn stopped while a person was asked; the call never ran. */
+export const ASK_WITHDRAWN = 'The approval request was withdrawn because the turn was stopped.'
 export const REPEATED_CALL =
   'The same call has already been executed in this round and its result will not change; change approach or report the concrete blocker.'
 export const PLAN_BLOCK =
