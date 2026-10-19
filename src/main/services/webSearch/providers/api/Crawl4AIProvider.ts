@@ -1,63 +1,16 @@
-import { net } from 'electron'
-import * as z from 'zod'
-
-import { defaultAppHeaders } from '@main/utils/http'
+import { crawl4ai } from '@cherrystudio/web-search/providers/crawl4ai'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 
-import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
+import type { ApiKeyRotationState } from '../../utils/provider'
+import { RemoteWebSearchProvider } from '../base/RemoteWebSearchProvider'
 
-const Crawl4AIMarkdownResponseSchema = z.object({
-  url: z.string(),
-  markdown: z.string(),
-  success: z.boolean()
-})
+export class Crawl4AIProvider extends RemoteWebSearchProvider {
+  constructor(provider: WebSearchProvider, state: ApiKeyRotationState) {
+    super(provider, state, crawl4ai)
+  }
 
-export class Crawl4AIProvider extends BaseWebSearchProvider {
-  async fetchUrls(
-    query: string,
-    _config: WebSearchExecutionConfig,
-    httpOptions?: RequestInit
-  ): Promise<WebSearchResponse> {
-    const url = query.trim()
-    const requestUrl = this.resolveApiUrl('fetchUrls', '/md')
-    const apiKey = this.resolveApiKey(false)
-    const headers: Record<string, string> = {
-      ...defaultAppHeaders(),
-      'Content-Type': 'application/json'
-    }
-    if (apiKey) {
-      headers.Authorization = `Bearer ${apiKey}`
-    }
-
-    const response = await net.fetch(requestUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ url, f: 'fit' }),
-      signal: httpOptions?.signal ?? undefined
-    })
-
-    if (!response.ok) {
-      await this.throwHttpError('Crawl4AI fetch failed', response)
-    }
-
-    const payload = await this.parseJsonResponse(response, Crawl4AIMarkdownResponseSchema, {
-      operation: 'fetch',
-      requestUrl
-    })
-    if (!payload.success) {
-      throw new Error(`Crawl4AI fetch failed for ${url}`)
-    }
-    const content = payload.markdown.trim()
-    if (!content) {
-      throw new Error(`Crawl4AI fetch returned empty content for ${url}`)
-    }
-
-    return {
-      query: url,
-      providerId: this.provider.id,
-      capability: 'fetchUrls',
-      inputs: [url],
-      results: [{ title: payload.url || url, content, url: payload.url || url, sourceInput: url }]
-    }
+  fetchUrls(input: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+    return this.executeRemote('fetchUrls', input, config, httpOptions)
   }
 }
