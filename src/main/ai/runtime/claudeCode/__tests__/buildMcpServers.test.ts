@@ -7,6 +7,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
+import type * as FileUtils from '@main/utils/file'
 import { AGENT_TYPES, type AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -67,11 +68,25 @@ vi.mock('@application', async () => {
   }
 })
 
-vi.mock('@main/utils/file', () => ({
-  getPathStatus: mockGetPathStatus
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileUtils>()),
+  getPathStatus: mockGetPathStatus,
+  canonicalizePathForContainment: async (targetPath: string, { allowMissing }: { allowMissing: boolean }) => {
+    try {
+      return await mockRealpath(targetPath)
+    } catch (error) {
+      if (allowMissing && (error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+      throw error
+    }
+  },
+  isSameFile: vi.fn(async (a: string, b: string) => path.resolve(a) === path.resolve(b)),
+  lstat: vi.fn(async () => {
+    throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+  })
 }))
 
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
+  assertAgentStoragePath: vi.fn(async () => undefined),
   ensureAgentDataDirectory: vi.fn(),
   ensureAgentStorageDirectory: mockEnsureManagedDirectory
 }))
@@ -433,7 +448,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     mockEnsureManagedDirectory.mockImplementation(async (root: string, target: string) => {
       const [resolvedRoot, resolvedTarget] = await Promise.all([mockRealpath(root), mockRealpath(target)])
       const relative = path.relative(resolvedRoot, resolvedTarget)
-      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new Error('managed path escape')
       }
       await mockMkdir(target, { recursive: true })
@@ -466,7 +481,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     )
 
     expect(mockGetPathStatus).not.toHaveBeenCalled()
-    expect(mockMkdir).not.toHaveBeenCalled()
+    expect(mockMkdir).toHaveBeenCalledExactlyOnceWith(managedRoot, { recursive: true })
   })
 
   it('rejects system workspace symlinks that resolve outside the managed root', async () => {
@@ -482,7 +497,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     )
 
     expect(mockGetPathStatus).not.toHaveBeenCalled()
-    expect(mockMkdir).not.toHaveBeenCalled()
+    expect(mockMkdir).toHaveBeenCalledExactlyOnceWith(managedRoot, { recursive: true })
   })
 
   it('keeps assertClaudeCodeWorkspaceDirectory as pure validation', async () => {
