@@ -211,7 +211,6 @@ export function buildFacts(state: FakeState, id: ThreadId): ConversationFacts {
   for (const child of state.threads.values())
     if (child.lineage.kind === 'subagent' && child.lineage.parent === id)
       children.set(child.id, {
-        thread: child.id,
         running: child.active !== undefined,
         runUsage: runUsage(child),
         // Never empty: a child's origin record is written with it.
