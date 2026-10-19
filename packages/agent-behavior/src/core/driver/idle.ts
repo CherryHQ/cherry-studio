@@ -104,12 +104,14 @@ export function quietDelivery(facts: Facts, items: readonly PendingResult[]): Tx
  * D38, the idle driver's one decision per wake. Order: the goal's background children past its budget stop; the run
  * that just ended is judged; queued user input and host calls wait; a compaction leaves its status; pending results
  * are delivered quietly while a user stop suppresses waking (or when none wakes), otherwise as one notification turn
- * ahead of any round; then the goal waits, stops or starts a round; with nothing left the driver exits.
+ * ahead of any round; then the goal waits, stops or starts a round; with nothing left the driver exits. A child
+ * exits at once: it starts no subagents, so any run record in its history is one a fork inherited from its parent.
  */
 export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecision> {
+  if (facts.lineage.kind === 'subagent') return done(facts, 'in-subagent')
   const { history, live } = facts
   const runActive = !live.idle && live.leftoverInputs === 0
-  const goal = facts.lineage.kind === 'root' ? currentGoal(history) : undefined
+  const goal = currentGoal(history)
   const counts = goal ? goalCounts(facts, goal.id) : undefined
   if (goal && counts && budgetExceeded(goal, counts.usage)) {
     const stops = budgetStops(facts, goalSubagents(history, goal.id))
@@ -172,7 +174,6 @@ export function decideAtIdle(facts: Facts, inputs: CallInputs): Step<IdleDecisio
     if (live.idle) return { ops: [quietDelivery(facts, pending)], effects: [], result: { kind: 'quiet' } }
   }
 
-  if (facts.lineage.kind === 'subagent') return done(facts, 'in-subagent')
   if (!goal || !counts) return done(facts, 'no-goal')
   if (goal.phase !== 'active') return done(facts, 'not-active', goal)
   if (!goal.armed) return done(facts, 'not-armed', goal)
