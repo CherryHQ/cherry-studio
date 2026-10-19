@@ -23,16 +23,15 @@ import {
   type ActiveRun,
   append,
   appendInput,
-  buildFacts,
   type Epoch,
   type FakeState,
   gateFacts,
   type Loop,
-  modelEntries,
   nextItem,
   type Owner,
   type RunEnding,
   type ThreadState,
+  visibleEntries,
   ZERO_USAGE
 } from './fakeState'
 import { replyAt } from './scriptedModel'
@@ -236,8 +235,7 @@ async function turn(
     const lineage = thread.lineage.kind === 'subagent' ? 'child' : 'root'
     const allowance: RequestAllowance = epoch.meter?.allow(thread.id, active.requests, lineage) ?? { ok: true }
     if (!allowance.ok) return fail(state, thread, 'limit_reached', allowance.text)
-    const omitted = new Set(epoch.filter?.omit(thread.id, buildFacts(state, thread.id)))
-    thread.requests.push(modelEntries(thread).flatMap(({ entry }) => (omitted.has(entry.id) ? [] : [entry.id])))
+    thread.requests.push(visibleEntries(state, epoch, thread).map(({ entry }) => entry.id))
     // The cursor moves in the same step that records the reply, so a replay never skips or repeats one.
     const reply = replyAt(thread.script, thread.cursor)
     thread.cursor += 1
