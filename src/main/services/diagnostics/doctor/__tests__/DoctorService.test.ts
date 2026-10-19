@@ -12,7 +12,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { BaseService } from '@main/core/lifecycle'
 import type { DoctorScopeKey } from '@shared/types/doctor'
-import { doctorStateCacheKey } from '@shared/utils/doctor'
+import { doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
 import type { DoctorContext } from '../types'
 
@@ -28,47 +28,67 @@ const registryMocks = vi.hoisted(() => ({
   modelListRun: vi.fn(),
   modelConversationRun: vi.fn(),
   modelConversationConfirm: vi.fn(),
-  providerApiKeyRun: vi.fn()
+  providerApiKeyRun: vi.fn(),
+  providerModelRun: vi.fn(),
+  networkProviderEndpointRun: vi.fn(),
+  sharedSubjects: [] as Array<DoctorContext['subject']>
 }))
 
 vi.mock('../registry', async () => {
   const { sharedProbe } = registryMocks
   // Two network checks in different prerequisite layers that both read one shared probe.
   const sharing = async (ctx: DoctorContext) => {
+    registryMocks.sharedSubjects.push(ctx.subject)
     await ctx.share('network:diagnoses', sharedProbe)
     return { status: 'pass' }
   }
+  const pass = async () => ({ status: 'pass' as const })
   return {
-    doctorCheckRegistry: {
-      'config-boot-config-valid': {
-        id: 'config-boot-config-valid',
-        run: registryMocks.bootConfigRun,
-        fixes: { repair: registryMocks.bootConfigRepair }
+    doctorCheckRegistry: new Proxy(
+      {
+        'config-boot-config-valid': {
+          id: 'config-boot-config-valid',
+          run: registryMocks.bootConfigRun,
+          fixes: { repair: registryMocks.bootConfigRepair }
+        },
+        'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} },
+        'config-hardware-acceleration': {
+          id: 'config-hardware-acceleration',
+          run: registryMocks.hardwareAccelerationRun,
+          fixes: {}
+        },
+        'mcp-servers-connected': {
+          id: 'mcp-servers-connected',
+          run: registryMocks.mcpConnectedRun,
+          fixes: { restart: registryMocks.mcpRestart }
+        },
+        'provider-model': { id: 'provider-model', run: registryMocks.providerModelRun, fixes: {} },
+        'provider-api-key-present': { id: 'provider-api-key-present', run: registryMocks.providerApiKeyRun, fixes: {} },
+        'network-online': { id: 'network-online', run: sharing, fixes: {} },
+        'network-dns-resolution': { id: 'network-dns-resolution', run: sharing, fixes: {} },
+        'network-model-endpoint': { id: 'network-model-endpoint', run: registryMocks.modelEndpointRun, fixes: {} },
+        'provider-model-list': { id: 'provider-model-list', run: registryMocks.modelListRun, fixes: {} },
+        'provider-model-conversation': {
+          id: 'provider-model-conversation',
+          run: registryMocks.modelConversationRun,
+          getConfirmation: registryMocks.modelConversationConfirm,
+          fixes: {}
+        },
+        'network-provider-endpoint': {
+          id: 'network-provider-endpoint',
+          run: registryMocks.networkProviderEndpointRun,
+          fixes: {}
+        }
       },
-      'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} },
-      'config-hardware-acceleration': {
-        id: 'config-hardware-acceleration',
-        run: registryMocks.hardwareAccelerationRun,
-        fixes: {}
-      },
-      'mcp-servers-connected': {
-        id: 'mcp-servers-connected',
-        run: registryMocks.mcpConnectedRun,
-        fixes: { restart: registryMocks.mcpRestart }
-      },
-      'provider-model': { id: 'provider-model', run: async () => ({ status: 'pass' }), fixes: {} },
-      'provider-api-key-present': { id: 'provider-api-key-present', run: registryMocks.providerApiKeyRun, fixes: {} },
-      'network-online': { id: 'network-online', run: sharing, fixes: {} },
-      'network-dns-resolution': { id: 'network-dns-resolution', run: sharing, fixes: {} },
-      'network-model-endpoint': { id: 'network-model-endpoint', run: registryMocks.modelEndpointRun, fixes: {} },
-      'provider-model-list': { id: 'provider-model-list', run: registryMocks.modelListRun, fixes: {} },
-      'provider-model-conversation': {
-        id: 'provider-model-conversation',
-        run: registryMocks.modelConversationRun,
-        getConfirmation: registryMocks.modelConversationConfirm,
-        fixes: {}
+      {
+        get(target, prop, receiver) {
+          if (typeof prop === 'string' && !Object.hasOwn(target, prop)) {
+            return { id: prop, run: pass, fixes: {} }
+          }
+          return Reflect.get(target, prop, receiver)
+        }
       }
-    }
+    )
   }
 })
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
@@ -110,6 +130,9 @@ beforeEach(() => {
   registryMocks.modelListRun.mockResolvedValue({ status: 'pass' })
   registryMocks.modelConversationRun.mockResolvedValue({ status: 'pass' })
   registryMocks.providerApiKeyRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.providerModelRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.networkProviderEndpointRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.sharedSubjects.length = 0
   registryMocks.modelConversationConfirm.mockResolvedValue({
     confirmation: {
       messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
@@ -390,6 +413,108 @@ describe('DoctorService scopes', () => {
     expect(registryMocks.modelConversationRun).not.toHaveBeenCalled()
     expect(registryMocks.modelConversationConfirm).not.toHaveBeenCalled()
     expect(registryMocks.modelEndpointRun).toHaveBeenCalled()
+  })
+
+  it('includes system checks for a provider-only operation and skips model probes', async () => {
+    const started = await createReadyService().runContextualDiagnosis({
+      kind: 'operation',
+      operationId: 'paint-missing-model',
+      providerId: 'openai'
+    })
+    if (started.status !== 'completed') throw new Error('expected report')
+    const ids = started.report.results.map((entry) => entry.id)
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'install-architecture-match',
+        'permission-screen-capture',
+        'storage-userdata-location',
+        'config-boot-config-valid',
+        'logs-recent-findings',
+        'network-online'
+      ])
+    )
+    for (const id of [
+      'provider-model',
+      'provider-api-key-present',
+      'network-provider-endpoint',
+      'network-model-endpoint',
+      'provider-model-conversation'
+    ]) {
+      expect(ids).not.toContain(id)
+    }
+    expect(registryMocks.bootConfigRun).toHaveBeenCalledWith(expect.objectContaining({ subject: null }))
+    expect(registryMocks.userDataRun).toHaveBeenCalledWith(expect.objectContaining({ subject: null }))
+    expect(registryMocks.providerModelRun).not.toHaveBeenCalled()
+    expect(registryMocks.providerApiKeyRun).not.toHaveBeenCalled()
+    expect(registryMocks.networkProviderEndpointRun).not.toHaveBeenCalled()
+    expect(registryMocks.modelEndpointRun).not.toHaveBeenCalled()
+    expect(registryMocks.modelConversationRun).not.toHaveBeenCalled()
+  })
+
+  it('runs a provider-only provider check on that provider and system checks on no subject', async () => {
+    const started = await createReadyService().run({
+      tier: 'live',
+      subject: { kind: 'operation', operationId: 'paint-provider', providerId: 'openai' },
+      checkIds: [
+        'config-boot-config-valid',
+        'network-dns-resolution',
+        'provider-api-key-present',
+        'provider-model',
+        'network-provider-endpoint',
+        'provider-model-conversation'
+      ]
+    })
+    if (started.status !== 'completed') throw new Error('expected report')
+    const ids = started.report.results.map((entry) => entry.id)
+    expect(ids).toEqual(
+      expect.arrayContaining(['config-boot-config-valid', 'network-online', 'network-dns-resolution'])
+    )
+    expect(ids).not.toContain('provider-api-key-present')
+    expect(ids).not.toContain('provider-model')
+    expect(ids).not.toContain('network-provider-endpoint')
+    expect(ids).not.toContain('provider-model-conversation')
+    expect(registryMocks.bootConfigRun).toHaveBeenCalledWith(expect.objectContaining({ subject: null }))
+    expect(registryMocks.sharedSubjects).toEqual([null, { providerId: 'openai' }])
+    expect(ids.filter((id) => id === 'network-online')).toEqual(['network-online'])
+    expect(registryMocks.providerApiKeyRun).not.toHaveBeenCalled()
+    expect(registryMocks.networkProviderEndpointRun).not.toHaveBeenCalled()
+    expect(registryMocks.modelConversationRun).not.toHaveBeenCalled()
+  })
+
+  it('keeps a chat diagnosis on its model and off the system sweep', async () => {
+    const started = await createReadyService().runContextualDiagnosis(chat)
+    if (started.status !== 'completed') throw new Error('expected report')
+    const ids = [
+      ...started.report.results.map((entry) => entry.id),
+      ...(started.report.pendingChecks ?? []).map((pending) => pending.checkId)
+    ]
+    expect(ids).toContain('network-model-endpoint')
+    expect(ids).toContain('provider-model')
+    expect(ids).not.toContain('config-boot-config-valid')
+    expect(ids).not.toContain('logs-recent-findings')
+    expect(registryMocks.bootConfigRun).not.toHaveBeenCalled()
+  })
+
+  it('refuses a system check for an agent subject', async () => {
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'a-scope',
+        name: 'Scoped',
+        instructions: '',
+        type: 'claude-code',
+        model: null,
+        orderKey: 'a0'
+      })
+      .run()
+    await expect(
+      createReadyService().run({
+        tier: 'quick',
+        subject: { kind: 'agent', agentId: 'a-scope' },
+        checkIds: ['config-boot-config-valid']
+      })
+    ).rejects.toThrow('does not apply')
+    expect(registryMocks.bootConfigRun).not.toHaveBeenCalled()
   })
 
   it('diagnoses the real Agent model and MCP membership, and refuses a removed association', async () => {
@@ -800,5 +925,100 @@ describe('DoctorService.fix', () => {
       fixId: 'repair'
     })
     expect(fixed).toMatchObject({ status: 'failed', message: 'disk is read-only', result: { status: 'pass' } })
+  })
+
+  it('repairs a provider-only boot-config failure on a null subject and keeps the operation report', async () => {
+    const operation = { kind: 'operation', operationId: 'paint-provider', providerId: 'openai' } as const
+    const scope = doctorScopeKey(operation)
+    const probeResult = (phase: 'initial' | 'before' | 'after') => async (ctx: DoctorContext) => {
+      const evidence = [
+        { key: 'probe', value: phase, dataClass: 'public' as const },
+        { key: 'subject', value: ctx.subject === null ? 'global' : 'scoped', dataClass: 'public' as const }
+      ]
+      return phase === 'after' ? { status: 'pass' as const, evidence } : { ...warnWithRepair, evidence }
+    }
+    registryMocks.bootConfigRun
+      .mockImplementationOnce(probeResult('initial'))
+      .mockImplementationOnce(probeResult('before'))
+      .mockImplementationOnce(probeResult('after'))
+    let duringRepair: ReturnType<typeof stateOf> | undefined
+    registryMocks.bootConfigRepair.mockImplementation(async (ctx: DoctorContext) => {
+      duringRepair = stateOf(scope)
+      if (ctx.subject !== null) return { status: 'failed', message: 'repair subject was not null' }
+      return { status: 'fixed' }
+    })
+
+    const service = createReadyService()
+    const run = await service.run({ subject: operation, tier: 'quick', checkIds: ['config-boot-config-valid'] })
+    if (run.status !== 'completed') throw new Error('expected report')
+    expect(run.report.scope).toBe(scope)
+    expect(run.report.results).toEqual([
+      expect.objectContaining({
+        id: 'config-boot-config-valid',
+        status: 'warn',
+        actions: [{ kind: 'fix', fixId: 'repair' }],
+        evidence: [
+          { key: 'probe', value: 'initial', dataClass: 'public' },
+          { key: 'subject', value: 'global', dataClass: 'public' }
+        ]
+      })
+    ])
+    expect(stateOf(scope)).toEqual({ status: 'completed', report: run.report })
+    expect(state()).toBeUndefined()
+
+    const fixed = await service.fix({
+      scope,
+      runId: run.report.runId,
+      checkId: 'config-boot-config-valid',
+      fixId: 'repair'
+    })
+
+    expect(duringRepair).toMatchObject({
+      status: 'completed',
+      report: {
+        scope,
+        results: [
+          expect.objectContaining({
+            id: 'config-boot-config-valid',
+            status: 'warn',
+            actions: [{ kind: 'fix', fixId: 'repair' }],
+            evidence: [
+              { key: 'probe', value: 'before', dataClass: 'public' },
+              { key: 'subject', value: 'global', dataClass: 'public' }
+            ]
+          })
+        ]
+      }
+    })
+    expect(fixed).toMatchObject({
+      status: 'fixed',
+      result: {
+        id: 'config-boot-config-valid',
+        status: 'pass',
+        evidence: [
+          { key: 'probe', value: 'after', dataClass: 'public' },
+          { key: 'subject', value: 'global', dataClass: 'public' }
+        ]
+      }
+    })
+    expect(stateOf(scope)).toMatchObject({
+      status: 'completed',
+      report: {
+        scope,
+        runId: run.report.runId,
+        summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 },
+        results: [
+          expect.objectContaining({
+            id: 'config-boot-config-valid',
+            status: 'pass',
+            evidence: [
+              { key: 'probe', value: 'after', dataClass: 'public' },
+              { key: 'subject', value: 'global', dataClass: 'public' }
+            ]
+          })
+        ]
+      }
+    })
+    expect(state()).toBeUndefined()
   })
 })

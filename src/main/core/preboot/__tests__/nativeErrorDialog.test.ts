@@ -2,27 +2,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 
-const { getLocale, isReady, openExternal, saveBundle, showMessageBox, showSaveDialog, whenReady, writeText } =
-  vi.hoisted(() => ({
-    getLocale: vi.fn(() => 'en-US'),
-    isReady: vi.fn(() => true),
-    openExternal: vi.fn(),
-    saveBundle: vi.fn(),
-    showMessageBox: vi.fn(),
-    showSaveDialog: vi.fn(),
-    whenReady: vi.fn(() => Promise.resolve()),
-    writeText: vi.fn()
-  }))
+const { getLocale, isReady, openExternal, showMessageBox, whenReady, writeText } = vi.hoisted(() => ({
+  getLocale: vi.fn(() => 'en-US'),
+  isReady: vi.fn(() => true),
+  openExternal: vi.fn(),
+  showMessageBox: vi.fn(),
+  whenReady: vi.fn(() => Promise.resolve()),
+  writeText: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   app: { getLocale, isReady, whenReady },
   clipboard: { writeText },
-  dialog: { showMessageBox, showSaveDialog },
+  dialog: { showMessageBox },
   shell: { openExternal }
-}))
-
-vi.mock('@data/migration/v2', () => ({
-  saveMigrationDiagnosticBundle: (...args: unknown[]) => saveBundle(...args)
 }))
 
 import { showSupportedMessageBox } from '../nativeErrorDialog'
@@ -40,10 +33,8 @@ const box = {
 describe('showSupportedMessageBox', () => {
   beforeEach(() => {
     showMessageBox.mockReset()
-    showSaveDialog.mockReset()
     writeText.mockReset()
     openExternal.mockReset().mockResolvedValue(undefined)
-    saveBundle.mockReset().mockResolvedValue(true)
     isReady.mockReset().mockReturnValue(true)
     whenReady.mockReset().mockResolvedValue(undefined)
     getLocale.mockReset().mockReturnValue('en-US')
@@ -89,23 +80,67 @@ describe('showSupportedMessageBox', () => {
     expect(showMessageBox).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps a failed migration export on the same dialog and still honors quit', async () => {
-    showSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/diagnostics.zip' })
-    saveBundle.mockResolvedValue(false)
+  it('runs one caller action, then returns to the original dialog', async () => {
+    const run = vi.fn(async () => undefined)
+    showMessageBox.mockResolvedValueOnce({ response: 5 }).mockResolvedValueOnce({ response: 0 })
+
+    const response = await showSupportedMessageBox({
+      box,
+      action: { label: 'Export diagnostics', run }
+    })
+
+    expect(response).toBe(0)
+    expect(run).toHaveBeenCalledOnce()
+    expect(showMessageBox.mock.calls[0][0].buttons).toEqual([
+      'Retry',
+      'Quit',
+      'Copy error',
+      'Send feedback',
+      'Open releases',
+      'Export diagnostics'
+    ])
+    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('That action failed')
+  })
+
+  it('keeps a failed caller action on the same dialog and still honors quit', async () => {
+    const run = vi.fn(async () => {
+      throw new Error('Could not write the diagnostic archive')
+    })
     showMessageBox.mockResolvedValueOnce({ response: 5 }).mockResolvedValueOnce({ response: 1 })
 
     const response = await showSupportedMessageBox({
       box,
-      migrationExport: { stage: 'error', logDate: '2026-10-14' }
+      action: { label: 'Export diagnostics', run }
     })
 
     expect(response).toBe(1)
-    expect(saveBundle).toHaveBeenCalledWith({
-      destination: '/tmp/diagnostics.zip',
-      stage: 'error',
-      logDate: '2026-10-14'
-    })
+    expect(run).toHaveBeenCalledOnce()
     expect(showMessageBox.mock.calls[1][0].detail).toContain('Could not write the diagnostic archive')
+    expect(showMessageBox).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the supplied app language for support chrome when the OS locale is en-US', async () => {
+    getLocale.mockReturnValue('en-US')
+    showMessageBox.mockResolvedValue({ response: 0 })
+
+    await showSupportedMessageBox({
+      language: 'zh-CN',
+      box: {
+        type: 'error',
+        title: '错误',
+        message: 'Cherry Studio 无法在主窗口中显示此错误。',
+        buttons: ['关闭']
+      }
+    })
+
+    expect(getLocale).not.toHaveBeenCalled()
+    expect(application.get).not.toHaveBeenCalled()
+    expect(showMessageBox.mock.calls[0][0]).toMatchObject({
+      title: '错误',
+      message: 'Cherry Studio 无法在主窗口中显示此错误。',
+      detail: '自动分析不可用。你可以复制错误、发送反馈或打开官方发布页。',
+      buttons: ['关闭', '复制错误', '发送反馈', '打开发布页']
+    })
   })
 
   it('waits until Electron is ready and says analysis is unavailable', async () => {

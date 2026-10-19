@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { WindowType } from '@main/core/window/types'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
 import { deliverToReadyMain, setMainSurfaceReceiver } from '@main/services/mainWindowNavigation'
@@ -74,13 +74,15 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     }
   },
   'app.error.degraded': async (context) => {
+    const language = getAppLanguage()
     const technicalDetail = [context.name, context.message, context.stack].filter(Boolean).join('\n')
     await showSupportedMessageBox({
+      language,
       box: {
         type: 'error',
-        title: t('dialog.support.degraded_title'),
-        message: t('dialog.support.degraded_message'),
-        buttons: [t('dialog.support.close')],
+        title: t('dialog.support.degraded_title', undefined, language),
+        message: t('dialog.support.degraded_message', undefined, language),
+        buttons: [t('dialog.support.close', undefined, language)],
         defaultId: 0,
         cancelId: 0
       },

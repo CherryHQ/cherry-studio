@@ -40,6 +40,8 @@ const unregisterMigrationIpcHandlersMock = vi.fn()
 const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
+const showSaveDialogMock = vi.fn()
+const saveBundleMock = vi.fn()
 const appQuitMock = vi.fn()
 const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
@@ -105,7 +107,8 @@ function stubMigrationV2() {
       getBlockMessage: getBlockMessageMock,
       describeErrorChain,
       isMigrationStorageError,
-      isSchemaOutOfSyncError
+      isSchemaOutOfSyncError,
+      saveMigrationDiagnosticBundle: (...args: unknown[]) => saveBundleMock(...args)
     }
   })
 }
@@ -122,7 +125,8 @@ function stubElectron() {
     },
     dialog: {
       showErrorBox: showErrorBoxMock,
-      showMessageBox: showMessageBoxMock
+      showMessageBox: showMessageBoxMock,
+      showSaveDialog: showSaveDialogMock
     }
   }))
 }
@@ -173,6 +177,8 @@ beforeEach(() => {
   showErrorBoxMock.mockReset()
   showMessageBoxMock.mockReset()
   showMessageBoxMock.mockResolvedValue({ response: 0 })
+  showSaveDialogMock.mockReset()
+  saveBundleMock.mockReset()
   appQuitMock.mockReset()
   appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
@@ -870,6 +876,76 @@ describe('runV2MigrationGate', () => {
       await runV2MigrationGate()
 
       expect(setDataLocationNoticeMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('migration diagnostic export', () => {
+    function failPin() {
+      resolveMigrationPathsMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+    }
+
+    it('writes the migration bundle from the export button and returns to the dialog', async () => {
+      failPin()
+      showMessageBoxMock.mockResolvedValueOnce({ response: 4 }).mockResolvedValueOnce({ response: 0 })
+      showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/tmp/diagnostics.zip' })
+      saveBundleMock.mockResolvedValue('included')
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showSaveDialogMock).toHaveBeenCalledWith({
+        title: 'Export diagnostics',
+        defaultPath: 'cherry-studio-migration-diagnostics.zip'
+      })
+      expect(saveBundleMock).toHaveBeenCalledWith({
+        destination: '/tmp/diagnostics.zip',
+        stage: 'error',
+        logDate: new Date().toISOString().slice(0, 10)
+      })
+      expect(showMessageBoxMock.mock.calls[0][0].buttons.at(-1)).toBe('Export diagnostics')
+      expect(showMessageBoxMock.mock.calls[1][0].detail).not.toContain('That action failed')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns to the dialog when the export save is canceled', async () => {
+      failPin()
+      showMessageBoxMock.mockResolvedValueOnce({ response: 4 }).mockResolvedValueOnce({ response: 0 })
+      showSaveDialogMock.mockResolvedValue({ canceled: true, filePath: '' })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+
+      expect(saveBundleMock).not.toHaveBeenCalled()
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(2)
+      expect(showMessageBoxMock.mock.calls[1][0].detail).not.toContain('Could not write the diagnostic archive')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps a failed archive write on the dialog and still quits from the original button', async () => {
+      failPin()
+      showMessageBoxMock.mockResolvedValueOnce({ response: 4 }).mockResolvedValueOnce({ response: 0 })
+      showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/tmp/diagnostics.zip' })
+      saveBundleMock.mockResolvedValue(false)
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(saveBundleMock).toHaveBeenCalledOnce()
+      expect(showMessageBoxMock.mock.calls[1][0].detail).toContain('Could not write the diagnostic archive')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
   })
 })

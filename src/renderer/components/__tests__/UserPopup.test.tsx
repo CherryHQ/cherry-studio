@@ -7,9 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
+import type { IpcRoute } from '@shared/ipc/schemas/ipcSchemas'
+import type { InputFor, OutputFor } from '@shared/ipc/types'
+
+type IpcRequestMock = (route: IpcRoute, input?: InputFor<IpcRoute>) => Promise<OutputFor<IpcRoute> | undefined>
 
 const mocks = vi.hoisted(() => ({
-  ipcRequest: vi.fn(async () => undefined)
+  ipcRequest: vi.fn<IpcRequestMock>(async () => undefined)
 }))
 
 type PopoverContextValue = {

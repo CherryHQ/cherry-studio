@@ -88,6 +88,8 @@ beforeEach(() => {
     if (name === 'WindowManager') return windowManager
     throw new Error(`Unexpected application.get(${name})`)
   })
+  preferenceService.get.mockReset()
+  preferenceService.get.mockReturnValue(undefined)
 })
 
 const ctx = { senderId: 'w1' }
@@ -131,6 +133,27 @@ describe('appHandlers', () => {
     expect(input.technicalDetail).toContain('overlay failed')
     expect(input.technicalDetail).toContain('/Users/private')
     expect(JSON.stringify(input.box)).not.toContain('/Users/private')
+  })
+
+  it('uses one app language for the degraded dialog when it differs from the OS locale', async () => {
+    preferenceService.get.mockImplementation((key: string) => (key === 'app.language' ? 'zh-CN' : undefined))
+    showSupportedMessageBoxMock.mockResolvedValue(0)
+
+    await appHandlers['app.error.degraded'](fault, ctx)
+
+    expect(app.getLocale()).toBe('en-US')
+    expect(preferenceService.get).toHaveBeenCalledTimes(1)
+    expect(preferenceService.get).toHaveBeenCalledWith('app.language')
+    const input = showSupportedMessageBoxMock.mock.calls[0][0] as {
+      language: string
+      box: { title: string; message: string; buttons: string[] }
+    }
+    expect(input.language).toBe('zh-CN')
+    expect(input.box).toMatchObject({
+      title: '错误',
+      message: 'Cherry Studio 无法在主窗口中显示此错误。',
+      buttons: ['关闭']
+    })
   })
 
   it('records the main surface receiver and ignores another window', async () => {

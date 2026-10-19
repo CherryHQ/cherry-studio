@@ -11,7 +11,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { WindowType } from '@main/core/window/types'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { deliverToReadyMain } from '@main/services/mainWindowNavigation'
 import { MediaKind } from '@main/services/mediaProtocol'
 import { cropPng } from '@main/utils/image'
@@ -931,13 +931,15 @@ export class ScreenshotOverlayService extends BaseService {
     }
 
     const technicalDetail = [context.name, context.message, context.stack].filter(Boolean).join('\n')
+    const language = getAppLanguage()
     try {
       await showSupportedMessageBox({
+        language,
         box: {
           type: 'error',
-          title: t('dialog.screenshot_failed.title'),
-          message: t('dialog.screenshot_failed.message'),
-          buttons: [t('dialog.screenshot_failed.ok')],
+          title: t('dialog.screenshot_failed.title', undefined, language),
+          message: t('dialog.screenshot_failed.message', undefined, language),
+          buttons: [t('dialog.screenshot_failed.ok', undefined, language)],
           defaultId: 0
         },
         ...(technicalDetail ? { technicalDetail } : {})

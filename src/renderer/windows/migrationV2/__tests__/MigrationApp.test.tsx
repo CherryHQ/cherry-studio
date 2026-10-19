@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -857,6 +857,38 @@ describe('MigrationApp', () => {
     expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(formatted)
 
     unmount()
+  })
+
+  it('asks main to open feedback and releases and keeps the banner retryable when that open fails', async () => {
+    const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      invoke.mockResolvedValue(false)
+      render(<MigrationApp />)
+      act(() => {
+        expect(degradedFaultHostService.presentDegradedFault(new Error('disk full'))).toBe(true)
+      })
+      const alert = screen.getByRole('alert')
+
+      fireEvent.click(within(alert).getByRole('button', { name: 'migration.runtime.feedback' }))
+      expect(await within(alert).findByText('migration.runtime.open_failed')).toBeInTheDocument()
+      expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.OpenSupportLink, 'feedback')
+      expect(openWindow).not.toHaveBeenCalled()
+      expect(within(alert).getByRole('button', { name: 'migration.runtime.feedback' })).toBeEnabled()
+
+      invoke.mockResolvedValue(true)
+      fireEvent.click(within(alert).getByRole('button', { name: 'migration.runtime.releases' }))
+      await waitFor(() => {
+        expect(within(alert).queryByText('migration.runtime.open_failed')).not.toBeInTheDocument()
+      })
+
+      expect(invoke).toHaveBeenLastCalledWith(MigrationIpcChannels.OpenSupportLink, 'releases')
+      expect(openWindow).not.toHaveBeenCalled()
+      expect(enUS['migration.runtime.open_failed']).toBe('Could not open the link. Try again.')
+      expect(zhCN['migration.runtime.open_failed']).toBe('无法打开链接，请重试。')
+    } finally {
+      openWindow.mockRestore()
+      invoke.mockReset()
+    }
   })
 
   describe('v1 download dialog', () => {

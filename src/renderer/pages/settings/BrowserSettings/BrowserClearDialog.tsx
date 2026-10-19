@@ -99,7 +99,12 @@ function BrowserClearContent({
           <p role="alert" className="text-error text-sm">
             {t('settings.browser.clearError')}
           </p>
-          <ErrorDetailAction error={error} source="settings.browser" operation="browser.clear" />
+          <ErrorDetailAction
+            error={error}
+            message={t('settings.browser.clearError')}
+            source="settings.browser"
+            operation="browser.clear"
+          />
         </div>
       ) : null}
       <DialogFooter>

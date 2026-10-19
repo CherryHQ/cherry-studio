@@ -74,16 +74,73 @@ function applies(scope: DoctorCheckScope, subject: DoctorSubject | null): boolea
 
 const CONVERSATION_PROBE: DoctorCheckId = 'provider-model-conversation'
 
-/**
- * An operation may only run checks its facts satisfy. A null subject would otherwise
- * admit every check, including ones that substitute the default chat model.
- */
+/** Provider id with no model: system checks stay global, and model probes stay out. */
+function providerOnly(facts: DoctorSubject | null): facts is DoctorSubject & { providerId: string } {
+  return !!facts?.providerId && !facts.modelId
+}
+
+/** The subject `selectChecks` admits for this check. Execution must use the same one. */
+function checkSubject(id: DoctorCheckId, facts: DoctorSubject | null): DoctorSubject | null {
+  if (!providerOnly(facts)) return facts
+  const scope = DOCTOR_CHECK_CATALOG[id].scope
+  if (scope === 'global' || scope === 'any') return null
+  const provider = { providerId: facts.providerId }
+  return applies(scope, provider) ? provider : facts
+}
+
+function subjectKey(subject: DoctorSubject | null): string {
+  if (!subject) return ''
+  return [subject.providerId, subject.modelId, subject.agentId, subject.mcpServerIds?.join(',')].join('\0')
+}
+
+function groupChecks(
+  ids: readonly DoctorCheckId[],
+  facts: DoctorSubject | null
+): Array<{ subject: DoctorSubject | null; ids: DoctorCheckId[] }> {
+  const systemIds: DoctorCheckId[] = []
+  const scopedIds: DoctorCheckId[] = []
+  for (const id of ids) {
+    if (checkSubject(id, facts) === null) systemIds.push(id)
+    else scopedIds.push(id)
+  }
+  const groups: Array<{ subject: DoctorSubject | null; ids: DoctorCheckId[] }> = []
+  if (systemIds.length > 0) groups.push({ subject: null, ids: systemIds })
+  if (scopedIds.length > 0) groups.push({ subject: checkSubject(scopedIds[0], facts), ids: scopedIds })
+  return groups
+}
+
+function mergeCheckResults(
+  base: readonly DoctorCheckResult[],
+  extra: readonly DoctorCheckResult[]
+): DoctorCheckResult[] {
+  return [...new Map([...base, ...extra].map((result) => [result.id, result])).values()]
+}
+
+/** The engine rejects a check whose prerequisite is absent from its own id list. */
+function completedDependencyIds(ids: readonly DoctorCheckId[], completed: ReadonlySet<DoctorCheckId>): DoctorCheckId[] {
+  const carried: DoctorCheckId[] = []
+  const seen = new Set(ids)
+  const visit = (id: DoctorCheckId): void => {
+    for (const dependency of DOCTOR_CHECK_CATALOG[id].requires) {
+      if (!completed.has(dependency) || seen.has(dependency)) continue
+      seen.add(dependency)
+      carried.push(dependency)
+      visit(dependency)
+    }
+  }
+  for (const id of ids) visit(id)
+  return carried
+}
+
+/** Without a model, system checks use a null subject and provider checks use providerId. Model probes stay out. */
 function operationFactsAllow(id: DoctorCheckId, facts: DoctorSubject | null, imageOnly: boolean): boolean {
   if (imageOnly && id === CONVERSATION_PROBE) return false
   const meta = DOCTOR_CHECK_CATALOG[id]
-  const modelLess = !facts?.providerId && !facts?.modelId
-  if (modelLess) {
-    if (meta.scope !== 'global' && meta.scope !== 'any') return false
+  if (!facts?.modelId) {
+    const provider = facts?.providerId ? { providerId: facts.providerId } : null
+    const allowed =
+      meta.scope === 'global' || meta.scope === 'any' || (provider !== null && applies(meta.scope, provider))
+    if (!allowed) return false
   } else if (!applies(meta.scope, facts)) {
     return false
   }
@@ -276,7 +333,7 @@ export class DoctorService extends BaseService {
       if (!meta || !TIERS_FOR_RUN[tier].includes(meta.tier))
         throw new Error(`Check ${id} is unavailable in tier ${tier}`)
       // A prerequisite outside the subject would run with facts its `scope` promised but the run lacks.
-      if (!applies(meta.scope, subject)) {
+      if (!applies(meta.scope, checkSubject(id, subject))) {
         throw new Error(
           requiredBy
             ? `Check ${requiredBy} requires ${id}, which does not apply to this subject`
@@ -350,8 +407,11 @@ export class DoctorService extends BaseService {
         activeCheckIds: []
       }
       this.publish(scope, running)
-      const { results, pendingChecks } = await record.execution.execute(controller.signal, (results, activeCheckIds) =>
-        this.publish(scope, { ...running, results, activeCheckIds })
+      const { results, pendingChecks } = await this.executeRecord(
+        record,
+        ids,
+        controller.signal,
+        (results, activeCheckIds) => this.publish(scope, { ...running, results, activeCheckIds })
       )
       if (controller.signal.aborted) {
         this.subjects.delete(scope)
@@ -450,7 +510,7 @@ export class DoctorService extends BaseService {
       controller.signal.throwIfAborted()
       let outcome: DoctorFixOutcome
       try {
-        const context = runContext(controller.signal, new Map(), subject)
+        const context = runContext(controller.signal, new Map(), checkSubject(request.checkId, subject))
         const definition = doctorCheckRegistry[request.checkId] as unknown as DoctorEngineDefinition
         const handler = definition.fixes[request.fixId]
         if (!handler) throw new Error(`Missing fix ${request.fixId} for ${request.checkId}`)
@@ -511,12 +571,51 @@ export class DoctorService extends BaseService {
     application.get('CacheService').setShared(doctorStateCacheKey(scope), state)
   }
 
+  private async executeGroups(
+    groups: ReadonlyArray<{ subject: DoctorSubject | null; ids: readonly DoctorCheckId[] }>,
+    signal: AbortSignal,
+    isCurrent: () => boolean,
+    onProgress?: (results: readonly DoctorCheckResult[], activeCheckIds: readonly DoctorCheckId[]) => void
+  ): Promise<DoctorExecutionSnapshot> {
+    let results: readonly DoctorCheckResult[] = []
+    const pendingChecks: DoctorPendingCheck[] = []
+    for (const group of groups) {
+      const completed = new Set(results.map((result) => result.id))
+      const ids = [...completedDependencyIds(group.ids, completed), ...group.ids]
+      const execution = new DoctorExecution(ids, group.subject, isCurrent)
+      if (results.length > 0) execution.updateResults(results)
+      const snapshot = await execution.execute(signal, (groupResults, activeCheckIds) => {
+        onProgress?.(mergeCheckResults(results, groupResults), activeCheckIds)
+      })
+      results = mergeCheckResults(results, snapshot.results)
+      pendingChecks.push(...snapshot.pendingChecks)
+    }
+    return { results, pendingChecks }
+  }
+
+  private async executeRecord(
+    record: { facts: DoctorSubject | null; execution: DoctorExecution },
+    ids: readonly DoctorCheckId[],
+    signal: AbortSignal,
+    onProgress?: (results: readonly DoctorCheckResult[], activeCheckIds: readonly DoctorCheckId[]) => void
+  ): Promise<DoctorExecutionSnapshot> {
+    const groups = groupChecks(ids, record.facts)
+    const single = groups.length === 1 ? groups[0] : undefined
+    if (single && subjectKey(single.subject) === subjectKey(record.facts)) {
+      return record.execution.execute(signal, onProgress)
+    }
+    // System checks were admitted against a null subject, so they cannot run on the provider facts.
+    const snapshot = await this.executeGroups(groups, signal, () => record.execution.isCurrent(), onProgress)
+    record.execution.updateResults(snapshot.results)
+    return snapshot
+  }
+
   private async execute(
     ids: readonly DoctorCheckId[],
     subject: DoctorSubject | null,
     signal: AbortSignal
   ): Promise<readonly DoctorCheckResult[]> {
-    const snapshot = await new DoctorExecution(ids, subject, () => false).execute(signal)
+    const snapshot = await this.executeGroups(groupChecks(ids, subject), signal, () => false)
     if (snapshot.pendingChecks.length) throw new Error('Check requires explicit confirmation')
     return snapshot.results
   }

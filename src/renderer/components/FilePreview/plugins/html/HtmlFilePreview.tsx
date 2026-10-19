@@ -44,17 +44,18 @@ function HtmlPreviewLoading() {
 
 function HtmlPreviewError({ error }: { error: Error }) {
   const { t } = useTranslation()
+  const description = t('file_preview.load_error.description')
 
   return (
     <div role="alert" className="flex h-full flex-col">
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.html.read_error.title')}
-        description={t('file_preview.load_error.description')}
+        description={description}
         className="min-h-0 flex-1"
       />
       <div className="flex justify-center pb-4">
-        <ErrorDetailAction error={error} message={error.message} source="file.preview" operation="file.preview.read" />
+        <ErrorDetailAction error={error} message={description} source="file.preview" operation="file.preview.read" />
       </div>
     </div>
   )

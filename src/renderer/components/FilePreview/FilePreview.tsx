@@ -63,6 +63,7 @@ function FilePreviewState({ kind, filePath, error }: FilePreviewStateProps) {
           ? FileX2
           : FileWarning
   const keys = FILE_PREVIEW_STATE_KEYS[kind]
+  const description = t(keys.description)
   // Only the "unsupported" state can fall back to an external open: the path is
   // already validated (unlike invalid_path) and points at a real file we simply
   // cannot render inline. `safeOpen` enforces the unsafe-extension policy.
@@ -78,7 +79,7 @@ function FilePreviewState({ kind, filePath, error }: FilePreviewStateProps) {
         <EmptyState
           icon={Icon}
           title={t(keys.title)}
-          description={t(keys.description)}
+          description={description}
           className="h-full"
           actionLabel={openablePath ? t('file_preview.unsupported.action') : undefined}
           onAction={openablePath ? handleOpenWithDefaultApp : undefined}
@@ -87,7 +88,7 @@ function FilePreviewState({ kind, filePath, error }: FilePreviewStateProps) {
           <div className="flex justify-center pb-4">
             <ErrorDetailAction
               error={error}
-              message={error instanceof Error ? error.message : t(keys.description)}
+              message={description}
               source="file.preview"
               operation={kind === 'load_error' ? 'file.preview.render' : 'file.preview.load'}
             />

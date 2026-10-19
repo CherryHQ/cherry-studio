@@ -1,7 +1,9 @@
 import { CircleCheck, Loader2, XCircle } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { UserDataRelocationIpcChannels, type UserDataRelocationSupportLink } from '@shared/types/userDataRelocation'
 
 import { useRelocationProgress } from './hooks/useRelocationProgress'
 
@@ -101,6 +103,18 @@ const Failure = ({
   onRestart: () => void
 }) => {
   const { t } = useTranslation()
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [copyError, setCopyError] = useState<string | null>(null)
+  const openSupportLink = (purpose: UserDataRelocationSupportLink) => {
+    void window.electron.ipcRenderer.invoke(UserDataRelocationIpcChannels.OpenSupportLink, purpose).then(
+      (opened: unknown) => {
+        setLinkError(opened === true ? null : t('relocation.support.open_failed'))
+      },
+      () => {
+        setLinkError(t('relocation.support.open_failed'))
+      }
+    )
+  }
   return (
     <div className="flex w-full flex-col items-center gap-3 text-center">
       <XCircle className="text-destructive" size={40} />
@@ -112,26 +126,25 @@ const Failure = ({
         </pre>
       )}
       <p className="text-xs text-muted-foreground">{t('relocation.support.analysis_unavailable')}</p>
+      {linkError ? <p className="text-xs text-destructive">{linkError}</p> : null}
+      {copyError ? <p className="text-xs text-destructive">{copyError}</p> : null}
       <div className="flex w-full flex-wrap justify-center gap-2">
         <Button
           variant="outline"
           size="sm"
           onClick={() => {
             if (!error) return
-            void navigator.clipboard.writeText(error)
+            void navigator.clipboard.writeText(error).then(
+              () => setCopyError(null),
+              () => setCopyError(t('relocation.support.copy_failed'))
+            )
           }}>
           {t('relocation.support.copy')}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open('mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback', '_blank')}>
+        <Button variant="outline" size="sm" onClick={() => openSupportLink('feedback')}>
           {t('relocation.support.feedback')}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open('https://github.com/CherryHQ/cherry-studio/releases', '_blank')}>
+        <Button variant="outline" size="sm" onClick={() => openSupportLink('releases')}>
           {t('relocation.support.releases')}
         </Button>
       </div>

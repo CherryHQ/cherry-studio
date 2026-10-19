@@ -50,22 +50,26 @@ export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'h
     }
   }, [mode])
 
+  // Migration's simplest preload exposes `window.electron` only. `useIpcOn` reads
+  // `window.api.ipcApi` with no guard, so this receiver stays unmounted off main.
+  return mode === 'main' ? <MainErrorReceiver /> : null
+}
+
+function MainErrorReceiver() {
   useIpcOn('app.error.open', (context) => {
-    if (mode !== 'main') return
     void import('@renderer/services/AppErrorDetailService')
       .then(({ presentHandedOffError }) => presentHandedOffError(context))
       .catch((loadError) => logger.error('Failed to present a handed-off error', loadError as Error))
   })
 
   useEffect(() => {
-    if (mode !== 'main') return
     void ipcApi.request('app.surface.receiver', { kind: 'error', ready: true }).catch((error) => {
       logger.error('Failed to register the main error receiver', error as Error)
     })
     return () => {
       void ipcApi.request('app.surface.receiver', { kind: 'error', ready: false }).catch(() => undefined)
     }
-  }, [mode])
+  }, [])
 
   return null
 }

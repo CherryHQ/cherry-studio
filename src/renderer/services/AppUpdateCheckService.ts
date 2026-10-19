@@ -161,11 +161,13 @@ class AppUpdateCheckService {
     return this.phase
   }
 
-  private armMissingEventTimer(update: (patch: UpdatePatch) => void): void {
+  private armMissingEventTimer(update: (patch: UpdatePatch) => void, owner: number, epoch: number): void {
     this.noteUpdateCheckEvent()
     this.checkInFlight = true
     this.missingEventTimer = setTimeout(() => {
       this.missingEventTimer = undefined
+      // A newer owner, channel generation, or terminal event owns the slot now.
+      if (!this.ownsCheck(owner) || this.session !== epoch || this.phase !== 'checking') return
       this.manualCheckActive = false
       this.checkInFlight = false
       this.phase = 'idle'
@@ -275,9 +277,11 @@ class AppUpdateCheckService {
       this.phase = 'checking'
       this.setUpdateNotice(null)
       update({ checking: true, manualCheck: true })
-      this.armMissingEventTimer(update)
       try {
         await ipcApi.request('app.updater.check_for_update')
+        // The check IPC can outlive the watchdog. Arm only after it settles with no updater event.
+        if (this.session !== epoch || !this.ownsCheck(owner) || this.phase !== 'checking') return
+        this.armMissingEventTimer(update, owner, epoch)
       } catch {
         if (this.session !== epoch || !this.ownsCheck(owner)) return
         this.endManualUpdateCheck()

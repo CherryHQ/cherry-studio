@@ -36,7 +36,10 @@ const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
 const localModel = vi.hoisted(() => ({ isDefaultModelReady: vi.fn(() => true) }))
-vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+vi.mock('@main/i18n', () => ({
+  getAppLanguage: () => 'zh-CN',
+  t: (key: string, _params?: unknown, language?: string) => (language ? `${language}:${key}` : key)
+}))
 
 const handoff = vi.hoisted(() => ({
   deliverToReadyMain: vi.fn<typeof deliverToReadyMain>(() => false),
@@ -66,7 +69,14 @@ const electron = vi.hoisted(() => ({
   displays: [] as unknown[],
   cursorDisplay: undefined as unknown,
   primaryDisplay: undefined as unknown,
-  app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
+  app: {
+    getName: vi.fn(() => 'Product'),
+    getLocale: () => 'en-US',
+    focus: vi.fn(),
+    hide: vi.fn(),
+    on: vi.fn(),
+    removeListener: vi.fn()
+  },
   browserWindows: [] as unknown[],
   clipboard: { write: vi.fn<(items: { data: Record<string, Blob> }[]) => Promise<void>>(async () => {}) },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -1930,12 +1940,14 @@ describe('ScreenshotOverlayService', () => {
           stack: failureStack
         })
         expect(handoff.showSupportedMessageBox).toHaveBeenCalledTimes(1)
+        expect(electron.app.getLocale()).toBe('en-US')
         expect(handoff.showSupportedMessageBox).toHaveBeenCalledWith({
+          language: 'zh-CN',
           box: {
             type: 'error',
-            title: 'dialog.screenshot_failed.title',
-            message: 'dialog.screenshot_failed.message',
-            buttons: ['dialog.screenshot_failed.ok'],
+            title: 'zh-CN:dialog.screenshot_failed.title',
+            message: 'zh-CN:dialog.screenshot_failed.message',
+            buttons: ['zh-CN:dialog.screenshot_failed.ok'],
             defaultId: 0
           },
           technicalDetail: `OverlayOpenError\noverlay open failed\n${failureStack}`
@@ -1976,11 +1988,12 @@ describe('ScreenshotOverlayService', () => {
       expect(deliveredContext().stack).toBeUndefined()
       expect(deliveredContext()).not.toHaveProperty('params')
       expect(handoff.showSupportedMessageBox).toHaveBeenCalledWith({
+        language: 'zh-CN',
         box: {
           type: 'error',
-          title: 'dialog.screenshot_failed.title',
-          message: 'dialog.screenshot_failed.message',
-          buttons: ['dialog.screenshot_failed.ok'],
+          title: 'zh-CN:dialog.screenshot_failed.title',
+          message: 'zh-CN:dialog.screenshot_failed.message',
+          buttons: ['zh-CN:dialog.screenshot_failed.ok'],
           defaultId: 0
         },
         technicalDetail: 'wayland: no portal'

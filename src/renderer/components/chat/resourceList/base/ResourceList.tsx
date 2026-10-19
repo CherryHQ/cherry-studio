@@ -762,7 +762,12 @@ function ErrorState({
       {message ?? children ?? t('error.boundary.default.message')}
       {error !== undefined ? (
         <div className="mt-2">
-          <ErrorDetailAction error={error} source={source} operation={operation} />
+          <ErrorDetailAction
+            error={error}
+            message={typeof message === 'string' ? message : undefined}
+            source={source}
+            operation={operation}
+          />
         </div>
       ) : null}
     </div>

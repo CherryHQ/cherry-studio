@@ -103,7 +103,12 @@ export function BrowserSettings() {
             <p role="alert" className="text-error text-sm">
               {t('settings.browser.error')}
             </p>
-            <ErrorDetailAction error={failure.error} source="settings.browser" operation={failure.operation} />
+            <ErrorDetailAction
+              error={failure.error}
+              message={t('settings.browser.error')}
+              source="settings.browser"
+              operation={failure.operation}
+            />
           </div>
         )}
       </SettingGroup>

@@ -4,16 +4,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
 import { updateCheckLabelKey, updateNoticeIsFailure, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import i18n from '@renderer/i18n/resolver'
 import { operationIncident, operationSubject } from '@renderer/services/AppErrorContextService'
+import { OFFICIAL_RELEASES_URL } from '@renderer/services/AppUpdateCheckService'
 import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkApiCallError,
@@ -58,6 +61,8 @@ import {
 } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+
+const logger = loggerService.withContext('ErrorDetailContent')
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -552,6 +557,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const { appUpdateState, noticeKey, checkForUpdate } = useAppUpdateCheck()
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [releasesOpenFailed, setReleasesOpenFailed] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const shownError = technicalError(error, errorContext)
@@ -631,6 +637,14 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     setDetailsOpen(true)
   }
 
+  const openOfficialReleases = () => {
+    setReleasesOpenFailed(false)
+    void openExternalWebsite(OFFICIAL_RELEASES_URL).catch((error: unknown) => {
+      logger.error('Failed to open official releases', error as Error)
+      setReleasesOpenFailed(true)
+    })
+  }
+
   const renderErrorDetails = (detail?: SerializedError) => {
     if (!detail) {
       return <div>{t('error.unknown')}</div>
@@ -697,6 +711,18 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             </p>
           ) : null}
         </div>
+        {noticeKey && updateNoticeIsFailure(noticeKey) ? (
+          <>
+            {releasesOpenFailed ? (
+              <p role="alert" className="max-w-48 text-right text-xs text-destructive">
+                {t('chat.artifacts.preview.openExternal.error.content')}
+              </p>
+            ) : null}
+            <Button variant="outline" onClick={openOfficialReleases}>
+              {t('settings.about.releases.button')}
+            </Button>
+          </>
+        ) : null}
         <Button
           variant="outline"
           disabled={appUpdateState.downloading}

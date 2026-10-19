@@ -351,4 +351,101 @@ describe('runAppUpdateCheck', () => {
     expect(update).toHaveBeenCalledWith({ checking: true, manualCheck: true })
     expect(appUpdateCheckService.isActiveUpdateSession()).toBe(true)
   })
+
+  it('keeps the manual check while check_for_update is still running past the missing-event wait', async () => {
+    vi.useFakeTimers()
+    let releaseCheck: () => void = () => undefined
+    request.mockImplementation((channel: string) => {
+      if (channel === 'app.get_info') return Promise.resolve({ isPortable: false })
+      if (channel === 'app.updater.check_for_update') {
+        return new Promise<void>((resolve) => {
+          releaseCheck = resolve
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const update = vi.fn()
+    const pending = appUpdateCheckService.runAppUpdateCheck(idle, update)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(appUpdateCheckService.isManualUpdateCheck()).toBe(true)
+    expect(callsTo('app.updater.check_for_update')).toHaveLength(1)
+
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_EVENT_WAIT_MS)
+
+    expect(appUpdateCheckService.isManualUpdateCheck()).toBe(true)
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update).toHaveBeenCalledWith({ checking: true, manualCheck: true })
+
+    const overlapped = appUpdateCheckService.runAppUpdateCheck(idle, update)
+    await overlapped
+    expect(callsTo('app.updater.check_for_update')).toHaveLength(1)
+
+    releaseCheck()
+    await pending
+    expect(appUpdateCheckService.isManualUpdateCheck()).toBe(true)
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_EVENT_WAIT_MS)
+    expect(appUpdateCheckService.isManualUpdateCheck()).toBe(false)
+    expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
+  })
+
+  it('does not replace a download that arrives during a slow check with the missing-event error', async () => {
+    vi.useFakeTimers()
+    const info = { version: '9.9.9', files: [], path: 'app.zip', sha512: 'x', releaseDate: '2026-01-01' }
+    let releaseCheck: () => void = () => undefined
+    request.mockImplementation((channel: string) => {
+      if (channel === 'app.get_info') return Promise.resolve({ isPortable: false })
+      if (channel === 'app.updater.check_for_update') {
+        return new Promise<void>((resolve) => {
+          releaseCheck = resolve
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const pending = appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_EVENT_WAIT_MS)
+
+    expect(appUpdateCheckService.isManualUpdateCheck()).toBe(true)
+    appUpdateCheckService.markUpdateDownloaded(info)
+    await appUpdateCheckService.presentDownloadedUpdate(info)
+    releaseCheck()
+    await pending
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_EVENT_WAIT_MS)
+
+    expect(updateDialogShow).toHaveBeenCalledTimes(1)
+    expect(updateDialogShow).toHaveBeenCalledWith({ releaseInfo: info })
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+    expect(callsTo('app.updater.quit_and_install')).toHaveLength(0)
+  })
+
+  it('does not arm the missing-event watchdog for a check invalidated before check_for_update settles', async () => {
+    vi.useFakeTimers()
+    let releaseCheck: () => void = () => undefined
+    request.mockImplementation((channel: string) => {
+      if (channel === 'app.get_info') return Promise.resolve({ isPortable: false })
+      if (channel === 'app.updater.check_for_update') {
+        return new Promise<void>((resolve) => {
+          releaseCheck = resolve
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    const pending = appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_EVENT_WAIT_MS)
+    const epoch = appUpdateCheckService.invalidateSharedUpdateCheck()
+
+    releaseCheck()
+    await pending
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_EVENT_WAIT_MS)
+
+    expect(appUpdateCheckService.isActiveUpdateSession()).toBe(false)
+    expect(appUpdateCheckService.isManualUpdateCheck()).toBe(false)
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
+    expect(epoch).toBeGreaterThan(0)
+  })
 })

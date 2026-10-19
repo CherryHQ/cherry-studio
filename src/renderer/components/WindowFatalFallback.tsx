@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 
 import { Alert, Button } from '@cherrystudio/ui'
-import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
+import { ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
@@ -70,7 +70,6 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
         </p>
       ) : null}
       <div className="flex max-w-xl flex-wrap items-center justify-center gap-2">
-        <ErrorFallbackCopyButton error={error} />
         <Button size="sm" onClick={copyError}>
           {i18n.t('error.boundary.copy')}
         </Button>

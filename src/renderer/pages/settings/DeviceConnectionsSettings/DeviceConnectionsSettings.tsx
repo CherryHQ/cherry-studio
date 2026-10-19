@@ -496,7 +496,12 @@ const DeviceConnectionsSettings: FC = () => {
                             onClick={() => void refetchDevices().catch(() => {})}>
                             {t('common.retry')}
                           </Button>
-                          <ErrorDetailAction error={devicesError} source="settings.devices" operation="device.list" />
+                          <ErrorDetailAction
+                            error={devicesError}
+                            message={t('deviceConnections.devices.loadError')}
+                            source="settings.devices"
+                            operation="device.list"
+                          />
                         </div>
                       }
                     />

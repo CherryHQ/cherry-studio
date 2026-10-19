@@ -93,7 +93,7 @@ export default function ElectronFilePreview({
           <div className="pointer-events-auto">
             <ErrorDetailAction
               error={previewError}
-              message={previewError.message}
+              message={t('file_preview.load_error.description')}
               source="file.preview"
               operation={`file.preview.${previewError.code}`}
             />

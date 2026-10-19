@@ -53,6 +53,7 @@ import { isMac } from '@renderer/utils/platform'
 import {
   MigrationIpcChannels,
   type MigrationStage,
+  type MigrationSupportLink,
   type PreparedMigrationExportPaths
 } from '@shared/data/migration/v2/types'
 
@@ -404,6 +405,17 @@ const MigrationApp: React.FC = () => {
     })
     return () => degradedFaultHostService.setDegradedFaultHandler(null)
   }, [])
+
+  const openSupportLink = (purpose: MigrationSupportLink) => {
+    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenSupportLink, purpose).then(
+      (opened: unknown) => {
+        setRuntimeActionError(opened === true ? null : t('migration.runtime.open_failed'))
+      },
+      () => {
+        setRuntimeActionError(t('migration.runtime.open_failed'))
+      }
+    )
+  }
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
   const toggleTheme = () => {
@@ -994,20 +1006,10 @@ const MigrationApp: React.FC = () => {
                 }}>
                 {t('migration.runtime.copy')}
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  window.open('mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback', '_blank')
-                }}>
+              <Button size="sm" variant="outline" onClick={() => openSupportLink('feedback')}>
                 {t('migration.runtime.feedback')}
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  window.open('https://github.com/CherryHQ/cherry-studio/releases', '_blank')
-                }}>
+              <Button size="sm" variant="outline" onClick={() => openSupportLink('releases')}>
                 {t('migration.runtime.releases')}
               </Button>
               <Button size="sm" variant="outline" onClick={() => setDiagnosticExportOpen(true)}>

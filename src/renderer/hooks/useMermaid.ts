@@ -60,7 +60,7 @@ export const useMermaid = () => {
         setCause(null)
       } catch (caught) {
         setCause(caught)
-        setError(caught instanceof Error ? caught.message : i18n.t('preview.mermaid.init_failed'))
+        setError(i18n.t('preview.mermaid.init_failed'))
       } finally {
         if (mounted) {
           setIsLoading(false)

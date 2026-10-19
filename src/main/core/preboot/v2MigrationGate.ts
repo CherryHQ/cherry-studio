@@ -11,7 +11,7 @@
 
 import { promises as fs } from 'node:fs'
 
-import { app } from 'electron'
+import { app, dialog } from 'electron'
 
 import { application } from '@application'
 import {
@@ -27,6 +27,7 @@ import {
   pinUserDataPath,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
+  saveMigrationDiagnosticBundle,
   setDataLocationNotice,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
@@ -95,8 +96,20 @@ export type V2MigrationGateResult = 'handled' | 'skipped'
  * depends on that write, so continuing would relaunch into the old directory
  * and loop (or make migrated data appear lost). Stop loudly instead.
  */
-function migrationExportInput(stage: MigrationStage = 'error') {
-  return { stage, logDate: new Date().toISOString().slice(0, 10) }
+function migrationSupportAction(language: PrebootLanguage, stage: MigrationStage = 'error') {
+  const logDate = new Date().toISOString().slice(0, 10)
+  return {
+    label: t('dialog.support.migration_export', undefined, language),
+    run: async () => {
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: t('dialog.support.migration_export', undefined, language),
+        defaultPath: 'cherry-studio-migration-diagnostics.zip'
+      })
+      if (canceled || !filePath) return
+      const saved = await saveMigrationDiagnosticBundle({ destination: filePath, stage, logDate })
+      if (saved === false) throw new Error(t('dialog.support.archive_write_failed', undefined, language))
+    }
+  }
 }
 
 async function showMigrationFailure(title: string, message: string, technicalDetail?: string): Promise<void> {
@@ -111,7 +124,7 @@ async function showMigrationFailure(title: string, message: string, technicalDet
       cancelId: 0
     },
     technicalDetail,
-    migrationExport: migrationExportInput()
+    action: migrationSupportAction(language)
   })
 }
 
@@ -162,7 +175,7 @@ async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: 
           cancelId: 1
         },
         technicalDetail: reason,
-        migrationExport: migrationExportInput()
+        action: migrationSupportAction(language)
       })
       if (response === 0) continue
 
@@ -231,7 +244,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
         defaultId: 0,
         cancelId: 2
       },
-      migrationExport: migrationExportInput()
+      action: migrationSupportAction(language)
     })
     if (response === 0) {
       application.relaunch()

@@ -19,19 +19,22 @@ export function ResourceRefreshErrorBanner({
   retrying?: boolean
 }) {
   const { t } = useTranslation()
+  const message = t('common.refresh_failed')
 
   return (
     <Alert
       type="warning"
       showIcon
       className="mb-2 shrink-0 rounded-md px-3 py-2 text-xs shadow-none"
-      message={t('common.refresh_failed')}
+      message={message}
       action={
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={onRetry} disabled={retrying}>
             {t('common.retry')}
           </Button>
-          {error ? <ErrorDetailAction error={error} source="resource.list" operation="resource.refresh" /> : null}
+          {error ? (
+            <ErrorDetailAction error={error} message={message} source="resource.list" operation="resource.refresh" />
+          ) : null}
         </div>
       }
     />
