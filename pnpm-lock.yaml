@@ -1672,6 +1672,9 @@ importers:
 
   packages/agent-runtime-pi:
     dependencies:
+      '@cherrystudio/agent-behavior':
+        specifier: workspace:*
+        version: link:../agent-behavior
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
