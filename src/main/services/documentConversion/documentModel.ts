@@ -61,7 +61,7 @@ export type DocumentBlock =
       cells?: DocumentCell[][]
       widths?: number[]
     } & DocumentListContext)
-  | { type: 'columns'; columns: DocumentBlock[][]; widths: number[] }
+  | { type: 'columns'; columns: DocumentBlock[][]; widths: number[]; listDepth?: number }
 
 export interface DocumentModel {
   blocks: DocumentBlock[]

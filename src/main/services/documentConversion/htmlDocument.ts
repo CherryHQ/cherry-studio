@@ -180,14 +180,20 @@ export function extractHtmlDocument(): DocumentModel {
       const inner = contained(element, listDepth)
       if (!listDepth) return inner
       let opened = false
-      const visit = (block: DocumentBlock): DocumentBlock => {
-        if (block.type === 'columns') return { ...block, columns: block.columns.map((column) => column.map(visit)) }
-        if ((block.listDepth ?? 0) > listDepth || (block.bullet ?? 0) > listDepth) return block
+      const openParent = (): DocumentBlock[] => {
+        if (opened) return []
+        opened = true
+        return [{ type: 'text', text: '', bullet: listDepth, listDepth }]
+      }
+      const visit = (block: DocumentBlock): DocumentBlock[] => {
+        if (block.type === 'columns')
+          return [{ ...block, columns: block.columns.map((column) => column.flatMap(visit)) }]
+        if ((block.listDepth ?? 0) > listDepth || (block.bullet ?? 0) > listDepth) return [...openParent(), block]
         const itemStart = !opened
         opened = true
-        return place(block, listDepth, itemStart)
+        return [place(block, listDepth, itemStart)]
       }
-      return inner.map(visit)
+      return inner.flatMap(visit)
     }
     if (['absolute', 'fixed', 'sticky'].includes(css.position) || css.transform !== 'none' || css.filter !== 'none')
       warnings.add('complex_layout')
@@ -202,14 +208,17 @@ export function extractHtmlDocument(): DocumentModel {
         children.length >= 2 &&
         children.length <= 3 &&
         boxes.every((box) => Math.abs(box.top - boxes[0].top) < 5)
-      if (isRow)
+      if (isRow) {
+        if (listDepth) warnings.add('complex_layout')
         return [
           {
             type: 'columns',
             columns: children.map((child) => walk(child, listDepth)),
-            widths: boxes.map((box) => box.width)
+            widths: boxes.map((box) => box.width),
+            ...(listDepth ? { listDepth } : {})
           }
         ]
+      }
       warnings.add('complex_layout')
     } else if (/^H[1-6]$/.test(tag) && (css.display === 'flex' || css.display === 'grid'))
       warnings.add('complex_layout')

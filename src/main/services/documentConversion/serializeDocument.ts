@@ -284,10 +284,13 @@ export function documentToHtml(
     return loose + itemsHtml(roots)
   }
   const render = (items: DocumentBlock[]): string => {
+    const linear = items.flatMap((block) =>
+      block.type === 'columns' && block.listDepth ? flattenDocumentBlocks([block]) : [block]
+    )
     const parts: string[] = []
     let index = 0
-    while (index < items.length) {
-      const block = items[index]
+    while (index < linear.length) {
+      const block = linear[index]
       if (block.type === 'columns') {
         parts.push(
           `<div style="display:flex;gap:16px">${block.columns.map((column, columnIndex) => `<div style="flex:${block.widths[columnIndex] || 1};min-width:0">${render(column)}</div>`).join('')}</div>`
@@ -297,8 +300,8 @@ export function documentToHtml(
       }
       if (listDepthOf(block)) {
         const listBlocks: DocumentBlock[] = []
-        while (index < items.length && items[index].type !== 'columns' && listDepthOf(items[index])) {
-          listBlocks.push(items[index])
+        while (index < linear.length && linear[index].type !== 'columns' && listDepthOf(linear[index])) {
+          listBlocks.push(linear[index])
           index++
         }
         parts.push(renderList(listBlocks))

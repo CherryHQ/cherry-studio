@@ -9,7 +9,7 @@ import { readWorkbook } from '@cherrystudio/spreadsheet'
 import { convertDocx } from '../docx'
 import { extractHtmlDocument } from '../htmlDocument'
 import { parseMarkdown } from '../parseMarkdown'
-import { documentToMarkdown, flattenDocumentBlocks } from '../serializeDocument'
+import { documentToHtml, documentToMarkdown, flattenDocumentBlocks } from '../serializeDocument'
 import { convertXlsx } from '../xlsx'
 
 afterEach(() => {
@@ -310,6 +310,148 @@ describe('HTML layout text extraction', () => {
       { type: 'text', text: 'Next', bullet: 1, orderedNumber: 5, listDepth: 1 }
     ])
     await expectOrderedStarts(blocks, [5])
+  })
+
+  it('emits an empty parent item before a leading nested list and continues later text', async () => {
+    document.body.innerHTML = '<ul><li><ul><li>Child</li></ul><p>More</p></li><li>Next</li></ul>'
+    const blocks = extractHtmlDocument().blocks
+    expect(parseMarkdown(documentToMarkdown(blocks, (source) => source)).map(blockShape)).toEqual([
+      { type: 'text', text: '', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Child', bullet: 2, orderedNumber: undefined, listDepth: 2 },
+      { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: undefined, listDepth: 1 }
+    ])
+    const xml = await JSZip.loadAsync(await convertDocx(blocks, new Map(), 'List')).then((zip) =>
+      zip.file('word/document.xml')!.async('string')
+    )
+    const listed = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].flatMap((match) => {
+      const paragraph = match[0]
+      const level = paragraph.match(/<w:ilvl w:val="(\d+)"/)?.[1]
+      if (level === undefined) return []
+      return [
+        {
+          level: Number(level),
+          text: [...paragraph.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((text) => text[1]).join('')
+        }
+      ]
+    })
+    expect(listed).toEqual([
+      { level: 0, text: '' },
+      { level: 1, text: 'Child' },
+      { level: 0, text: 'Next' }
+    ])
+    const more = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].find((match) => match[0].includes('More'))
+    expect(more?.[0]).toBeTruthy()
+    expect(more?.[0]).not.toContain('<w:numPr')
+  })
+
+  it('lets the first column parent own the marker when a later column is a nested list', async () => {
+    document.body.innerHTML =
+      '<ul><li><div style="display:flex"><section><p>Parent</p></section><section><ul><li>Child</li></ul></section></div><p>More</p></li><li>Next</li></ul>'
+    const { blocks, warnings } = extractHtmlDocument()
+    expect(warnings).toContain('complex_layout')
+    const leaves = [
+      { type: 'text', text: 'Parent', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Child', bullet: 2, orderedNumber: undefined, listDepth: 2 },
+      { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: undefined, listDepth: 1 }
+    ]
+    expect(listLeaves(blocks).map(blockShape)).toEqual(leaves)
+    expect(parseMarkdown(documentToMarkdown(blocks, (source) => source)).map(blockShape)).toEqual(leaves)
+    const html = documentToHtml(blocks, (source) => source, 'List')
+    expect(html).toContain('Parent')
+    expect(html.indexOf('Parent')).toBeLessThan(html.indexOf('Child'))
+    expect(html.slice(html.indexOf('Parent'), html.indexOf('Next'))).toContain('More')
+    const xml = await JSZip.loadAsync(await convertDocx(blocks, new Map(), 'List')).then((zip) =>
+      zip.file('word/document.xml')!.async('string')
+    )
+    const paragraphs = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].map((match) => match[0])
+    const listed = paragraphs.flatMap((paragraph) => {
+      const level = paragraph.match(/<w:ilvl w:val="(\d+)"/)?.[1]
+      if (level === undefined) return []
+      return [
+        {
+          level: Number(level),
+          text: [...paragraph.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((text) => text[1]).join('')
+        }
+      ]
+    })
+    expect(listed).toEqual([
+      { level: 0, text: 'Parent' },
+      { level: 1, text: 'Child' },
+      { level: 0, text: 'Next' }
+    ])
+    const more = paragraphs.find((paragraph) => paragraph.includes('More'))
+    expect(more).toBeTruthy()
+    expect(more).not.toContain('<w:numPr')
+  })
+
+  it('keeps column lists after a finished list independent of that list', () => {
+    document.body.innerHTML =
+      '<ul><li>Before</li></ul><div style="display:flex"><section><ul><li>Left</li></ul></section><section><ul><li>Right</li></ul></section></div>'
+    const blocks = extractHtmlDocument().blocks
+    const leaves = [
+      { type: 'text', text: 'Before', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Left', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Right', bullet: 1, orderedNumber: undefined, listDepth: 1 }
+    ]
+    expect(listLeaves(blocks).map(blockShape)).toEqual(leaves)
+    expect(blocks[1]?.type).toBe('columns')
+    expect(blocks[1]?.type === 'columns' && blocks[1].listDepth).toBeUndefined()
+    expect(parseMarkdown(documentToMarkdown(blocks, (source) => source)).map(blockShape)).toEqual(leaves)
+    const html = documentToHtml(blocks, (source) => source, 'List')
+    const before = html.indexOf('Before')
+    const left = html.indexOf('Left')
+    expect(html.slice(before, left)).toContain('</ul>')
+  })
+
+  it('keeps an ordered parent that starts in columns as that ordered list', async () => {
+    document.body.innerHTML =
+      '<ol start="3"><li><div style="display:flex"><section><p>Parent</p></section><section><ul><li>Child</li></ul></section></div><p>More</p></li><li>Next</li></ol>'
+    const { blocks, warnings } = extractHtmlDocument()
+    expect(warnings).toContain('complex_layout')
+    expect(listLeaves(blocks).map(blockShape)).toEqual([
+      { type: 'text', text: 'Parent', bullet: 1, orderedNumber: 3, listDepth: 1 },
+      { type: 'text', text: 'Child', bullet: 2, orderedNumber: undefined, listDepth: 2 },
+      { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 4, listDepth: 1 }
+    ])
+    const html = documentToHtml(blocks, (source) => source, 'List')
+    expect(html.indexOf('<ol')).toBeLessThan(html.indexOf('Parent'))
+    expect(html.slice(0, html.indexOf('Parent'))).not.toContain('<ul')
+    expect(html).toContain('start="3"')
+  })
+
+  it('continues parent text after a nested child when later columns belong to the parent', () => {
+    document.body.innerHTML =
+      '<ul><li><p>Parent</p><ul><li>Child</li></ul><div style="display:flex"><section><p>More</p></section><section><p>Tail</p></section></div></li><li>Next</li></ul>'
+    const { blocks, warnings } = extractHtmlDocument()
+    expect(warnings).toContain('complex_layout')
+    expect(listLeaves(blocks).map(blockShape)).toEqual([
+      { type: 'text', text: 'Parent', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Child', bullet: 2, orderedNumber: undefined, listDepth: 2 },
+      { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Tail', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: undefined, listDepth: 1 }
+    ])
+    const html = documentToHtml(blocks, (source) => source, 'List')
+    expect(html.slice(html.indexOf('Child'), html.indexOf('More'))).toContain('</li>')
+  })
+
+  it('keeps a later column parent as a sibling of the previous item', () => {
+    document.body.innerHTML =
+      '<ul><li>Before</li><li><div style="display:flex"><section><p>Parent</p></section><section><ul><li>Child</li></ul></section></div><p>More</p></li><li>Next</li></ul>'
+    const { blocks, warnings } = extractHtmlDocument()
+    expect(warnings).toContain('complex_layout')
+    expect(listLeaves(blocks).map(blockShape)).toEqual([
+      { type: 'text', text: 'Before', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Parent', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Child', bullet: 2, orderedNumber: undefined, listDepth: 2 },
+      { type: 'text', text: 'More', bullet: undefined, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: undefined, listDepth: 1 }
+    ])
+    const html = documentToHtml(blocks, (source) => source, 'List')
+    expect(html.slice(html.indexOf('Before'), html.indexOf('Parent'))).toContain('</li>')
   })
 
   it('resets numbering from an explicit item value', async () => {
