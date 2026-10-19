@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-19-pi-work-local-image-input.md
+2026-10-19-pi-work-local-image-input.md: 959f30780fdc91421e6c26426451047af7ea59b6
+2026-10-19-pi-work-local-image-input.zh.md: a0b1f85c0ebda4b23074e859b55577371f97f3d0
