@@ -6,6 +6,7 @@ import {
   callKeyOf,
   decodeEntry,
   type HistoryEntry,
+  type PlanState,
   type ToolCallFact,
   type UsageFact
 } from '@cherrystudio/agent-behavior'
@@ -128,9 +129,19 @@ export function keysOf(history: readonly HistoryEntry[]): Set<string> {
   return keys
 }
 
+/** The latest `plan` record (`GateFacts.plan`). */
+export function latestPlan(history: readonly HistoryEntry[]): PlanState | undefined {
+  let plan: PlanState | undefined
+  for (const entry of history) if (entry.kind === 'record' && entry.record.type === 'plan') plan = entry.record.value
+  return plan
+}
+
 const markerId = (kind: string, key: string): string => `${kind}\u0000${key}`
 
-/** The markers `ids` names, as kind and key: Pi's request messages carry no entry ids (H10). */
+/**
+ * The markers `ids` names, as kind and key: Pi's request messages carry no entry ids (H10). A marker without a key
+ * cannot be told apart in a request, so it cannot be omitted.
+ */
 export function omittedMarkers(entries: readonly SessionEntry[], ids: readonly ItemId[]): Set<string> {
   const wanted = new Set<string>(ids)
   const omitted = new Set<string>()
