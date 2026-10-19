@@ -30,6 +30,8 @@ import type { LanguageModelMiddleware } from 'ai'
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { isGeminiModel } from '@shared/utils/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -232,7 +234,11 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
   if (!tools) return params
 
   const isGeminiEndpoint =
-    scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && scope.sdkConfig.providerId !== 'google-vertex-maas'
+    scope.sdkConfig.providerId !== 'google-vertex-maas' &&
+    (scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ||
+      (scope.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+        isGeminiModel(scope.model) &&
+        isNewApiProvider(scope.provider)))
 
   let changed = false
   const droppedTools: string[] = []
