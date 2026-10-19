@@ -43,6 +43,24 @@ describe('normalized observation delivery', () => {
     expect(() => feed.observe(() => {})).toThrow('closed')
   })
 
+  it('retains child relationships without requiring a context and updates reused children by identity', async () => {
+    const feed = new ThreadFeed(snapshot(), () => {})
+    const subagent = { id: runtimeId<'subagent'>('child-work'), parent: ref }
+    feed.publish({ type: 'subagent.upsert', subagent })
+    expect(feed.snapshot.subagents).toEqual([subagent])
+    const child = { ...ref, id: runtimeId<'thread'>('child-context') }
+    feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, child } })
+    feed.publish({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+    feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, child } })
+    const events: ObservationPayload[] = []
+    feed.observe((event) => {
+      events.push(event)
+    })
+    await tick()
+    expect(events[0]).toMatchObject({ subagents: [{ ...subagent, child }] })
+    expect(feed.snapshot.subagents).toHaveLength(1)
+  })
+
   it('isolates a stalled sink and recovers overflow with a current snapshot', async () => {
     const feed = new ThreadFeed(snapshot(), () => {})
     let unblock!: () => void
