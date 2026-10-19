@@ -36,6 +36,7 @@ import {
 type Logger = { warn: (message: string) => void }
 
 const MAX_STDIO_CHARS = 8_000
+const MAX_PROBE_STDOUT_CHARS = 256_000
 const COMMAND_TIMEOUT_MS = 120_000
 const WAV_HEADER_BUDGET_BYTES = 4_096
 const LOCAL_PROTOCOL_WHITELIST = 'file,pipe,crypto'
@@ -71,12 +72,10 @@ function killProcessTree(child: ChildProcess, logger?: Logger): void {
   }
 }
 
-function appendBounded(current: string, chunk: string): { value: string; truncated: boolean } {
-  if (current.length >= MAX_STDIO_CHARS) return { value: current, truncated: true }
+function appendBounded(current: string, chunk: string, limit = MAX_STDIO_CHARS): { value: string; truncated: boolean } {
+  if (current.length >= limit) return { value: current, truncated: true }
   const next = current + chunk
-  return next.length <= MAX_STDIO_CHARS
-    ? { value: next, truncated: false }
-    : { value: next.slice(0, MAX_STDIO_CHARS), truncated: true }
+  return next.length <= limit ? { value: next, truncated: false } : { value: next.slice(0, limit), truncated: true }
 }
 
 const MAX_PTS_LINE_CHARS = 64
@@ -151,6 +150,7 @@ async function runCommand(
     pidRegistryPath?: string
     onStderrLine?: (line: string) => void
     maxPacketPts?: boolean
+    maxStdoutChars?: number
   } = {}
 ): Promise<{ stdout: string; truncated: boolean; maxPacketPtsSeconds?: number }> {
   signal.throwIfAborted()
@@ -215,7 +215,7 @@ async function runCommand(
         packetPts.push(chunk)
         return
       }
-      const appended = appendBounded(stdout, chunk)
+      const appended = appendBounded(stdout, chunk, options.maxStdoutChars)
       stdout = appended.value
       truncated ||= appended.truncated
     })
@@ -286,7 +286,10 @@ async function probeJson(
   ]
   const readProbe = async (countPackets: boolean): Promise<FfprobeResult> => {
     const commandArgs = countPackets ? ['-count_packets', ...args] : args
-    const result = await runCommand(ffprobePath, commandArgs, signal, logger, { pidRegistryPath })
+    const result = await runCommand(ffprobePath, commandArgs, signal, logger, {
+      pidRegistryPath,
+      maxStdoutChars: MAX_PROBE_STDOUT_CHARS
+    })
     if (result.truncated) throw new Error('Media probe output exceeded buffer; refusing truncated JSON')
     return JSON.parse(result.stdout) as FfprobeResult
   }
