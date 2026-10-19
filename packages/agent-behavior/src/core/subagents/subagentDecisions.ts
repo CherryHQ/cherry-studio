@@ -247,11 +247,10 @@ const stopRecord = (facts: Facts, record: SubagentRunRecord, by: SubagentStopper
   },
   key: keys.subagentStop(record.sessionId, record.run, by)
 })
-const stopEffect = (record: SubagentRunRecord, by: SubagentStopper): Effect => ({
+const stopEffect = (record: SubagentRunRecord): Effect => ({
   type: 'stop-child',
   child: record.sessionId,
-  run: record.run,
-  by
+  run: record.run
 })
 
 export type StopDecision =
@@ -280,7 +279,7 @@ export function decideStop(facts: Facts, inputs: CallInputs): Step<StopDecision>
   }
   return {
     ops: [stopRecord(facts, latest, 'model')],
-    effects: [stopEffect(latest, 'model')],
+    effects: [stopEffect(latest)],
     result: { kind: 'stopping', child, run: latest.run, key: keys.subagentMessage(child, latest.run) }
   }
 }
@@ -294,7 +293,7 @@ export const stoppedResult = (child: ThreadId, run: number, answer: RunEndFacts)
 export function decideUserStopSubagent(facts: Facts, child: ThreadId): Step<boolean> {
   const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
   if (!ledger?.latest.background || !isLive(facts, ledger.latest)) return refuse(false)
-  return { ops: [stopRecord(facts, ledger.latest, 'user')], effects: [stopEffect(ledger.latest, 'user')], result: true }
+  return { ops: [stopRecord(facts, ledger.latest, 'user')], effects: [stopEffect(ledger.latest)], result: true }
 }
 
 /** D10, §11.4: once the goal's budget is used up, its background children that are still running stop. */
@@ -304,7 +303,7 @@ export function budgetStops(facts: Facts, children: readonly ThreadId[]): Step<n
   )
   return {
     ops: live.map(({ latest }) => stopRecord(facts, latest, 'budget')),
-    effects: live.map(({ latest }) => stopEffect(latest, 'budget')),
+    effects: live.map(({ latest }) => stopEffect(latest)),
     result: live.length
   }
 }
