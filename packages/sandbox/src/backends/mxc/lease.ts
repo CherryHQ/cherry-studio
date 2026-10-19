@@ -1,3 +1,5 @@
+import { finished } from 'node:stream/promises'
+
 import type { MxcProcess } from '@microsoft/mxc-sdk/v1'
 
 import { ByteQueue } from '../../host/ByteQueue.js'
@@ -17,13 +19,19 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
   let spawnFailed = false
   let inputBytes = 0
   let outputBytes = 0
+  let outputTruncated = false
+  const outputEnded: Promise<void>[] = []
   const fail = (error: SandboxError) => {
     failure.resolve(error)
     started.reject(error)
   }
   const overflow = () => fail(new SandboxError('LIMIT_EXCEEDED', 'Sandbox I/O budget exceeded'))
-  const stdout = new ByteQueue(spec.limits.ioBufferBytes, overflow)
-  const stderr = new ByteQueue(spec.limits.ioBufferBytes, overflow)
+  const outputOverflow = () => {
+    outputTruncated = true
+    overflow()
+  }
+  const stdout = new ByteQueue(spec.limits.ioBufferBytes, outputOverflow)
+  const stderr = new ByteQueue(spec.limits.ioBufferBytes, outputOverflow)
   const startupTimer = setTimeout(
     () => fail(new SandboxError('START_TIMEOUT', 'MXC launch deadline exceeded')),
     spec.limits.startupTimeoutMs
@@ -41,10 +49,18 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
         if (!stream) throw new Error('MXC did not expose standard output pipes')
         stream.on('data', (chunk: Buffer) => {
           outputBytes += chunk.length
-          if (outputBytes > (spec.limits.outputBytes ?? 1048576)) overflow()
+          if (outputBytes > (spec.limits.outputBytes ?? 1048576)) outputOverflow()
           else queue.push(chunk)
         })
-        stream.on('end', () => queue.close())
+        outputEnded.push(
+          finished(stream, { readable: true, writable: false, cleanup: true }).then(
+            () => queue.close(),
+            () => {
+              outputTruncated = true
+              queue.close()
+            }
+          )
+        )
         stream.on('error', () => fail(new SandboxError('START_FAILED', 'MXC output stream failed')))
       }
       if (!child.standardInput) throw new Error('MXC did not expose stdin')
@@ -52,8 +68,6 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
         (result) => {
           exited = true
           targetExit.resolve({ status: 'exited', exitCode: result.exitCode })
-          stdout.close()
-          stderr.close()
         },
         (error) => {
           fail(new SandboxError('START_FAILED', String(error)))
@@ -63,8 +77,10 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
       if (stopped) child.kill()
       else started.resolve({ effectivePolicy: policy.effectivePolicy })
     } catch (error) {
-      if (child) child.kill()
-      else {
+      if (child) {
+        outputTruncated = true
+        child.kill()
+      } else {
         spawnFailed = true
         targetExit.resolve({ status: 'not-started' })
       }
@@ -120,9 +136,10 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
       const exit = await within(targetExit.promise, timeoutMs, { status: 'unknown' as const })
       return exit.status === 'exited' ? 'unverified' : 'unknown'
     },
-    async cleanup() {
+    async cleanup({ timeoutMs }) {
       if (!exited && !spawnFailed) {
         // Output consumers must finish even while we retain the process for cleanup retries.
+        outputTruncated = true
         stdout.close()
         stderr.close()
         return {
@@ -130,12 +147,19 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
           issues: [{ code: 'OUTPUT_TRUNCATED', message: 'Output collection ended before target exit was confirmed' }]
         }
       }
+      const drained = await within(
+        Promise.all([...outputEnded, stdout.drained, stderr.drained]).then(() => true),
+        Math.min(timeoutMs, spec.limits.ioDrainTimeoutMs),
+        false
+      )
+      const unread = [stdout.discard(), stderr.discard()].some(Boolean)
+      const truncated = outputTruncated || !drained || unread
       child?.dispose()
-      await within(Promise.all([stdout.drained, stderr.drained]), spec.limits.ioDrainTimeoutMs, undefined)
-      const truncated = [stdout.discard(), stderr.discard()].some(Boolean)
       return {
         status: 'complete',
-        issues: truncated ? [{ code: 'OUTPUT_TRUNCATED', message: 'Unread output discarded after drain deadline' }] : []
+        issues: truncated
+          ? [{ code: 'OUTPUT_TRUNCATED', message: 'Output collection ended before EOF or consumption' }]
+          : []
       }
     }
   }

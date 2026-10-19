@@ -220,6 +220,52 @@ describe('working tree changes', () => {
 
 // A docs-only plan must never start compilers, native rebuilds, lint fixes, or tests.
 describe('validation execution', () => {
+  it.each(['win32', 'darwin'])('routes sandbox platform coverage on %s without Tier 3 setup', (platform) => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-validation-sandbox-'))
+    directories.push(cwd)
+    const log = join(cwd, 'commands.jsonl')
+    const pnpm = join(cwd, 'pnpm.cjs')
+    writeFileSync(
+      pnpm,
+      `require('node:fs').appendFileSync(process.env.COMMAND_LOG, JSON.stringify(process.argv.slice(2)) + '\\n')`
+    )
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `Object.defineProperty(process, 'platform', { value: '${platform}' }); await import('./scripts/validation/run.mjs')`,
+        '--',
+        '--group',
+        'platform'
+      ],
+      {
+        env: {
+          ...process.env,
+          npm_execpath: pnpm,
+          COMMAND_LOG: log,
+          VALIDATION_PLAN: JSON.stringify(createPlan(['packages/sandbox/src/host/SandboxManager.ts']))
+        },
+        encoding: 'utf8'
+      }
+    )
+    expect(result.status, result.stderr).toBe(0)
+    const commands: string[][] = readFileSync(log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const test = commands.find((command) => command[0] === 'exec' && command[1] === 'vitest')!
+    expect(test).toContain('packages/system-speech/tests/SystemSpeechNativeClient.test.ts')
+    if (platform === 'win32') {
+      for (const name of ['instance', 'lease', 'manager', 'peer', 'windowsHost'])
+        expect(test).toContain(`packages/sandbox/tests/contracts/${name}.test.ts`)
+      expect(test.some((file) => /^packages\/sandbox\/tests\/(cli|rpc|windows)\.test\.ts$/.test(file))).toBe(false)
+    } else {
+      expect(test).toContain('packages/sandbox/tests/cli.test.ts')
+      expect(test).toContain('packages/sandbox/tests/rpc.test.ts')
+    }
+  })
+
   it.each(['types', 'packages', 'platform'])(
     'builds workspace exports before system speech validation in the %s group',
     (group) => {

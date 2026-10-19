@@ -42,8 +42,10 @@ avoiding broad grants to the checkout and pnpm store. Windows Node guests use
 needs metadata access to ancestors outside the grants. This is an example runtime
 configuration, not an implicit change to commands passed to the API or CLI.
 
-For Windows AppContainer/DACL, run the following **in an administrator PowerShell**
-after installing dependencies:
+Tier 3 AppContainer/DACL host preparation is a legacy experimental path. Cherry
+does not maintain it or run it in CI; native acceptance targets Windows 11 with
+BaseContainer. The retained setup command below documents the earlier 23H2
+experiment and is not a prerequisite for the supported CI path:
 
 ```powershell
 pnpm --filter @cherrystudio/sandbox setup:windows
@@ -125,7 +127,11 @@ from the repository root to observe exact codes without pnpm's error wrapper.
 `runtimeProfileId: mxc-command-v1`, and `network: { mode: deny }`.
 The manager owns instances, cancellation, startup/lifetime deadlines and bounded
 I/O. Start returns an instance with `ready`, `completion`, `stop` and `snapshot`.
-`dispose()` stops all owned instances.
+`dispose()` stops all owned instances. After target exit, stdout/stderr collection
+continues through EOF and queue consumption, bounded by the smaller of
+`ioDrainTimeoutMs` and `cleanupTimeoutMs`; SDK streams are disposed afterward.
+Early closure, output-budget drops, or drain deadline expiry produce
+`OUTPUT_TRUNCATED`, even when no output remains buffered.
 
 - `channel: none`: raw stdin/stdout/stderr; no RPC binding permitted.
 - `channel: stdio`: requires a synchronous `configure(peer)` and asynchronous
@@ -198,7 +204,11 @@ reads, writes visible to an existing host descriptor, and denied outside reads
 with a positive control, denied writes, and refusal of unsupported Windows deny
 overrides. Windows tests also cover loopback refusal against a reachable listener,
 detached descendant termination, ACL entry restoration and special-path rejection.
-macOS requires Xcode command-line tools; Windows requires the host preparation above.
+macOS requires Xcode command-line tools. Windows CI uses GitHub's hosted
+`windows-11-arm` runner and checks the actual BaseContainer tier before running
+CLI, Node/Python RPC and boundary tests. Windows Server CI runs only the sandbox
+contract tests and performs no host preparation. A failed native job blocks the
+required CI gate; ARM64 results do not establish x64 acceptance.
 Unavailable backends fail acceptance explicitly, never pass by skipping execution.
 
 The self-written Seatbelt backend, supervisor, build script and their dedicated

@@ -87,7 +87,7 @@ MXC 还提供运行所需的系统资源基线。`effectivePolicy.runtimeAccess`
 
 Windows 根据 SDK 探测选择隔离层；本机使用 AppContainer/DACL，授权期间会修改目标路径 ACL，停止后回收。Node/Python 初始化需要 Win32k，因此请求 `ui.disable: false`，剪贴板和输入注入仍请求禁止；UI 隔离未专项验收，23H2 缺少新的 Job 输入注入限制。Windows SDK 1.0.0 实测未执行可写父目录内的 deny 覆盖；适配器对所有显式 denyRead/denyWrite 返回 POLICY_UNSUPPORTED，要求使用分开的授权目录。
 
-Windows 初始化由管理员运行包内 setup:windows 脚本，调用 MXC 官方 host-prep；Null 设备初始化每次重启后需重新执行。probe 缺少初始化时返回 setup-required。23H2 低于 MXC 官方 24H2 支持下限，探测报告实验性限制；本次 x64 实测不替代受支持版本或 ARM64 验收。
+Tier 3 AppContainer/DACL 的 setup:windows 脚本保留为早期实验工具，不再维护或用于 CI。其 Null 设备初始化每次重启后需重新执行；probe 缺少初始化时仍返回 setup-required。原生验收改用 GitHub 托管的 windows-11-arm，要求 Windows 11 24H2+、实际 BaseContainer 隔离层及 public probe 就绪；Windows Server 只运行普通契约测试。该原生任务纳入必需 CI gate，环境不支持时失败，不回落到 Tier 3。23H2 x64 历史结果与新的 ARM64 验收不能互相替代。
 
 ## 4. 原始标准流与双向 RPC
 
@@ -128,6 +128,8 @@ sequenceDiagram
 
 准备或启动失败时，`target: not-started` 不触发正常退出处理，`ready` 保留启动错误，完成原因是 `startup-error`。清理未完成时，后端仍关闭输出队列并报告 `OUTPUT_TRUNCATED`：已缓冲的输出可继续读取，后续输出不再收集，避免调用方一直等待流结束。此时进程和清理责任仍由 manager 持有。处理依据见[失败后的资源归属决策](../../.agents/notes/implemented/bug-fix/2026-10-18-sandbox-pending-resources.md)。
 
+正常退出也不等于输出 EOF。后端继续收集 stdout/stderr，直到管道 EOF 且队列被消费，等待上限取 `ioDrainTimeoutMs` 与 `cleanupTimeoutMs` 的较小值，再释放 SDK 流。提前关闭、输出预算丢弃或超时未排空均报告 `OUTPUT_TRUNCATED`。
+
 | 完成字段 | 含义 |
 | --- | --- |
 | target | 根目标是否启动、是否退出及其退出码 |
@@ -135,7 +137,7 @@ sequenceDiagram
 | cleanup | 当前适配器和 SDK 资源是否完成处理，独立于整棵进程树的保证 |
 | issues | 启动失败、预算超限、未消费输出被丢弃等诊断 |
 
-`tree: unverified` 与 `cleanup: complete` 可以正常完成当前实例。已执行的预算包括启动期限、运行时长、停止等待、I/O 队列、累计输出和输出排空期限。`stopGraceMs` 与 `cleanupTimeoutMs` 虽在公共类型中保留，当前 MXC adapter 没有分别实现优雅退出阶段和独立清理计时；不能从字段存在推断这些能力已落实。
+`tree: unverified` 与 `cleanup: complete` 可以正常完成当前实例。已执行的预算包括启动期限、运行时长、停止等待、I/O 队列、累计输出和输出排空期限。`stopGraceMs` 尚未对应独立的优雅退出阶段；`cleanupTimeoutMs` 限制输出排空等待，但不能中断同步的 SDK `dispose()`。
 
 ## 6. 支持范围与验证入口
 

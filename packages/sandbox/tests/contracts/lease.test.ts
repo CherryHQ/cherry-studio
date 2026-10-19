@@ -1,5 +1,6 @@
 import { PassThrough } from 'node:stream'
 
+import type * as mxc from '@microsoft/mxc-sdk/v1'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { createLease } from '../../src/backends/mxc/lease.js'
@@ -114,11 +115,143 @@ it('preserves buffered output on incomplete stop and disposes the process only a
     await expect(readAll(instance.stdout)).resolves.toBe('partial stdout')
     await expect(readAll(instance.stderr)).resolves.toBe('partial stderr')
     exit.resolve({ exitCode: 0 })
-    expect(await instance.stop()).toMatchObject({ tree: 'unverified', cleanup: 'complete' })
+    const retried = instance.stop()
+    await vi.advanceTimersByTimeAsync(request.limits.ioDrainTimeoutMs)
+    expect(await retried).toMatchObject({ tree: 'unverified', cleanup: 'complete' })
     expect(disposed).toBe(true)
   } finally {
     exit.resolve({ exitCode: 0 })
     for (const stream of streams) stream.destroy()
     await instance.stop()
   }
+})
+
+async function sdkProcess(limits: Partial<ReturnType<typeof spec>['limits']> = {}) {
+  const { MxcProcess } = await vi.importActual<typeof mxc>('@microsoft/mxc-sdk/v1')
+  const input = new PassThrough()
+  const output = new PassThrough()
+  const errors = new PassThrough()
+  let running = true
+  const child = new MxcProcess({
+    id: 1,
+    standardInput: input,
+    standardOutput: output,
+    standardError: errors,
+    poll: () => ({ running, exitCode: 0, timedOut: false }),
+    wait: async () => ({ exitCode: 0, timedOut: false }),
+    warnings: () => [],
+    outputMetadata: () => undefined,
+    kill() {
+      running = false
+    },
+    killForTimeout() {
+      running = false
+    },
+    free: async () => undefined
+  })
+  spawn.mockResolvedValue(child)
+  const request = spec()
+  Object.assign(request.limits, limits)
+  const instance = createInstance(
+    'tail',
+    request,
+    createLease(request, async () => compilePolicy(request)),
+    'mxc'
+  )
+  await instance.ready
+  return {
+    instance,
+    request,
+    output,
+    errors,
+    async exit() {
+      const exited = child.wait()
+      running = false
+      await vi.advanceTimersByTimeAsync(100)
+      await exited
+    }
+  }
+}
+
+it('collects tail bytes after the real SDK reports process completion and before each pipe reaches EOF', async () => {
+  vi.useFakeTimers()
+  const process = await sdkProcess()
+  const stdout = readAll(process.instance.stdout)
+  const stderr = readAll(process.instance.stderr)
+  await process.exit()
+  process.output.end('valid stdout tail bytes')
+  await vi.advanceTimersByTimeAsync(10)
+  process.errors.end('valid stderr tail bytes')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(await stdout).toBe('valid stdout tail bytes')
+  expect(await stderr).toBe('valid stderr tail bytes')
+  expect(await process.instance.completion).toMatchObject({
+    target: { status: 'exited', exitCode: 0 },
+    cleanup: 'complete',
+    issues: []
+  })
+  expect(process.output.destroyed).toBe(true)
+  expect(process.errors.destroyed).toBe(true)
+})
+
+it('bounds collection when a pipe stays open after exit and reports truncation even with empty queues', async () => {
+  vi.useFakeTimers()
+  const process = await sdkProcess()
+  const stdout = readAll(process.instance.stdout)
+  const stderr = readAll(process.instance.stderr)
+  await process.exit()
+  process.output.end('collected before deadline')
+  await vi.advanceTimersByTimeAsync(process.request.limits.ioDrainTimeoutMs)
+  expect(await process.instance.completion).toMatchObject({
+    cleanup: 'complete',
+    issues: [{ code: 'OUTPUT_TRUNCATED' }]
+  })
+  expect(await stdout).toBe('collected before deadline')
+  expect(await stderr).toBe('')
+  expect(process.errors.destroyed).toBe(true)
+})
+
+it('reports a pipe closed without EOF as truncated', async () => {
+  vi.useFakeTimers()
+  const process = await sdkProcess()
+  const output = Promise.all([readAll(process.instance.stdout), readAll(process.instance.stderr)])
+  await process.exit()
+  process.output.destroy()
+  process.errors.end()
+  await vi.advanceTimersByTimeAsync(process.request.limits.ioDrainTimeoutMs)
+  expect(await process.instance.completion).toMatchObject({
+    cleanup: 'complete',
+    issues: [{ code: 'OUTPUT_TRUNCATED' }]
+  })
+  await output
+})
+
+it('uses the cleanup deadline when it is shorter than the output drain deadline', async () => {
+  vi.useFakeTimers()
+  const process = await sdkProcess({ ioDrainTimeoutMs: 500, cleanupTimeoutMs: 20 })
+  const output = Promise.all([readAll(process.instance.stdout), readAll(process.instance.stderr)])
+  await process.exit()
+  await vi.advanceTimersByTimeAsync(19)
+  expect(process.instance.snapshot().state).toBe('stopping')
+  expect(process.errors.destroyed).toBe(false)
+  await vi.advanceTimersByTimeAsync(1)
+  expect(await process.instance.completion).toMatchObject({
+    cleanup: 'complete',
+    issues: [{ code: 'OUTPUT_TRUNCATED' }]
+  })
+  await expect(output).resolves.toEqual(['', ''])
+})
+
+it('reports unread buffered bytes discarded at the drain deadline even after EOF', async () => {
+  vi.useFakeTimers()
+  const process = await sdkProcess()
+  process.output.end('unconsumed output')
+  process.errors.end()
+  await process.exit()
+  await vi.advanceTimersByTimeAsync(process.request.limits.ioDrainTimeoutMs)
+  expect(await process.instance.completion).toMatchObject({
+    cleanup: 'complete',
+    issues: [{ code: 'OUTPUT_TRUNCATED' }]
+  })
+  expect(await readAll(process.instance.stdout)).toBe('')
 })

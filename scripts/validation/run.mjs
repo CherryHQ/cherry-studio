@@ -108,12 +108,13 @@ if (projects.length) {
           }
         )
           .split('\0')
-          .filter(
-            (file) =>
-              !file.startsWith('packages/sandbox/tests/acceptance/') &&
-              /\.(test|spec)\.tsx?$/.test(file) &&
-              readFileSync(join(root, file), 'utf8').includes('process.platform')
-          )
+          .filter((file) => {
+            if (!/\.(test|spec)\.tsx?$/.test(file) || file.startsWith('packages/sandbox/tests/acceptance/'))
+              return false
+            if (process.platform === 'win32' && file.startsWith('packages/sandbox/tests/'))
+              return file.startsWith('packages/sandbox/tests/contracts/')
+            return readFileSync(join(root, file), 'utf8').includes('process.platform')
+          })
       : []
   if (values.group === 'platform' && !files.length) throw new Error('No platform-gated tests found')
   run([
