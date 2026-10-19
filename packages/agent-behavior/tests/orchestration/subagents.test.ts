@@ -6,7 +6,7 @@ import { callTool, holds, latch, markersWith, reply, toolResults } from '../../s
 import { offloadName } from '../../src/core/context/offload'
 import { type CallKey, callKeyOf } from '../../src/core/facts'
 import { keys } from '../../src/core/keys'
-import { capText, startedText } from '../../src/core/subagents/subagentText'
+import { capText, notDeliveredText, startedText } from '../../src/core/subagents/subagentText'
 import type { ToolDefinition } from '../../src/ports/harness'
 import { markers, records, runRecords, world, wrapJob, wrapTool } from './world'
 
@@ -203,6 +203,55 @@ describe('subagent tools', () => {
     const steers = child.history.filter((entry) => entry.kind === 'marker' && entry.key?.startsWith('subagent-steer:'))
     expect(steers).toEqual([])
     expect(markers(child, 'subagent-message').at(-1)?.text).toContain('one more thing')
+  })
+
+  // Catches a person's stop that waits on a steer (H3): the steer's call holds the parent's run until the child's next
+  // boundary, and a steer the stop withdrew, decided again, would message the child after the turn stopped.
+  it('a user stop withdraws a waiting steer at once and message_subagent reports it undelivered', async () => {
+    const hold = holds()
+    const steerSent = latch()
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      wrap: wrapTool('message_subagent', (run) => (call, ports) => {
+        const message: typeof ports.helpers.message = (child, input, key, steered) => {
+          const answer = ports.helpers.message(child, input, key, steered)
+          if (steered !== undefined) steerSent.release()
+          return answer
+        }
+        return run(call, { ...ports, helpers: { ...ports.helpers, message } })
+      }),
+      scripts: (_t, lineage) =>
+        lineage.kind === 'subagent' ? [callTool('hold', { id: 'child' }), reply('child done')] : []
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', BACKGROUND),
+      callTool('hold', { id: 'parent' }),
+      callTool('message_subagent', { id: CHILD, message: 'also this' }),
+      reply('never')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await Promise.all([hold.started('parent'), hold.started('child')])
+    hold.release('parent')
+    await steerSent.promise
+    let stopped = false
+    const stop = w
+      .enter(t, (entries, ports) => entries.userStop(ports, t, 'stop-1'))
+      .then(() => {
+        stopped = true
+      })
+    // The fake answers in microtasks: a stop that does not wait on the child has returned one macrotask later.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(stopped).toBe(true)
+    await stop
+    expect(toolResults(await w.read(t)).find(({ tool }) => tool === 'message_subagent')).toMatchObject({
+      text: notDeliveredText(CHILD),
+      isError: true
+    })
+    hold.release('child')
+    await w.fake.settle()
+    expect((await w.read(t)).children.get(CHILD)?.runUsage).toHaveLength(1)
+    expect(await childInputs(w, CHILD)).toBe(1)
   })
 
   // Catches a decision again after a withdrawn steer reusing that steer's key on a later run (G-C5): the harness keeps

@@ -38,6 +38,8 @@ export const continuedText = (from: string, child: string) =>
     ? `Subagent ${child} resumed in the background with your message; you will be notified when it finishes.`
     : `Subagent ${from} continues as ${child} in the background with your message; use id ${child} from now on. You will be notified when it finishes.`
 export const queuedText = (child: string) => `Message queued for subagent ${child}; it reads it after its current step.`
+export const notDeliveredText = (child: string) =>
+  `Message not delivered to subagent ${child}: the turn was stopped before the subagent read it.`
 export const capText = (running: number) =>
   `${running} background subagents are already running; wait for one to finish before starting another.`
 
