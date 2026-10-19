@@ -1536,7 +1536,7 @@ export class MessageService {
       }
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
-      if (updates.data !== undefined) {
+      if (updates.data !== undefined && dto.data?.parts !== undefined) {
         replaceChatMessageFileRefsTx(tx, id, updates.data)
       }
       if (activityTransitionAt !== null) {
