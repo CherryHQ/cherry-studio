@@ -430,7 +430,7 @@ runs on it, and adds controls for the tests that build on it. Options, all optio
 Beyond `ContractHarness` it offers:
 
 - `awaitPoints`: await points passed since creation. Every outbound port call, every model request and every tool call
-  of a run is one; `clock.now` is not.
+  of a run is one, and so is the end of every job; `clock.now` is not.
 - `crashAt(n)` and `whenCrashed()`: crash at the n-th await point from now (1-based). That point and all later work of
   the current epoch never settle. `whenCrashed()` resolves when the armed crash fires, and is already resolved if it
   has.
