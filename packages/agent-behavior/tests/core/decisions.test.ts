@@ -6,6 +6,7 @@ import { type BehaviorEvent, type Effect, type Step, type TxOp, turnInput } from
 import { decodeEntry } from '../../src/core/entryCodec'
 import type { MarkerFact, PolicyRecord } from '../../src/core/facts'
 import { keys } from '../../src/core/keys'
+import { apply, PARENT } from './history'
 import { withoutEnvironment } from './purity'
 
 describe('decisions', () => {
@@ -36,5 +37,20 @@ describe('decisions', () => {
       marker,
       text: 'Round 1'
     })
+  })
+
+  // Catches the core tests' history builder applying a second op under a key its step already used: the orchestration
+  // drops it, so a rule that writes one key twice would pass here yet fold differently in a real harness.
+  it('applies only the first op under each key of a step', () => {
+    const notice = (text: string): TxOp => ({
+      type: 'append-record',
+      thread: PARENT,
+      record: { type: 'goal-notice', value: { text, level: 'info' } },
+      key: keys.goalNotice('req')
+    })
+    const history = apply([], { ops: [notice('first'), notice('second')], effects: [], result: null })
+    expect(history.map((entry) => (entry.kind === 'record' ? entry.record : entry.kind))).toEqual([
+      { type: 'goal-notice', value: { text: 'first', level: 'info' } }
+    ])
   })
 })
