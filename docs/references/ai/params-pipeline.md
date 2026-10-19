@@ -131,8 +131,16 @@ buildAgentParams(input)
                                 + reasoning-adjusted output limit
                                 + sampling filtering across all parameter surfaces
                                 + optional body-passthrough fetch wrapper
+                                + chat function-tool reasoning compatibility fetch wrapper
                                 + headers + stopWhen + repair + telemetry
 ```
+
+On the outgoing request, SDK serialization runs first, followed by the custom-body
+merge, chat function-tool reasoning compatibility normalization, and the existing
+provider fetch (including HTTP tracing). For the exact relay wire IDs declared in
+`openaiChatCompatibility.ts`, chat-completions bodies containing a function tool
+and a nonempty, non-`none` effort keep their tools and send `reasoning_effort: 'none'`.
+Tool-less turns, native-only tools, Responses, and stored reasoning selections are unchanged.
 
 ## customParameters split
 

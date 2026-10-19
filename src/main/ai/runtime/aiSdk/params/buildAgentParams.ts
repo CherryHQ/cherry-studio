@@ -41,6 +41,7 @@ import { collectRetainedContext, type RetainedContext } from '../../../messages/
 import { applyHttpTrace } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { createChatFunctionToolReasoningFetch } from '../../../provider/openaiChatCompatibility'
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -745,6 +746,13 @@ function buildAgentOptions(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )
+  if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
+    sdkConfig.providerSettings.fetch = createChatFunctionToolReasoningFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      endpointType,
+      sdkConfig.modelId
+    )
+  }
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
