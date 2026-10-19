@@ -57,7 +57,9 @@ export type RetractResult = 'withdrawn' | 'already-started' | 'settled' | 'not-f
  * @keys The key is the request id: the same key returns the original admission and never adds a second input; a
  * 'busy' answer records nothing, so the key stays usable; a withdrawn key is spent.
  * @waits `stop` resolves once the conversation is idle. Before resume (H12) it ends the run a restart interrupted as
- * aborted before any resumed work and may resolve as soon as that mark is durable.
+ * aborted before any resumed work and may resolve as soon as that mark is durable; until resume the stopped run and its
+ * foreground children may still appear active in the facts, so `onOpen` must not decide on facts read after its own
+ * stop.
  */
 export interface Turns {
   /** 'started' when idle; 'queued' behind inbox items a failed run left; 'busy', recording nothing, while a run is active. */
@@ -114,12 +116,12 @@ export type JobHandler = (ports: BoundPorts, job: JobSpec) => Promise<void>
  * @harness fake An in-memory job table; on restart 'abandon' jobs are dropped before any `onOpen` and 'resume' jobs
  * rerun from the start after it.
  * @keys Only the `ensure-job` operation creates a job; its key stays in `keysSeen` while the job lives and leaves when
- * it finishes, fails or is abandoned, which a restart does from the reopen on, before `onOpen`. A key whose job ended
- * creates a new job. The idle driver's key is `keys.idleDriver(thread, n)`, where `n` counts the thread's
- * `idle-driver-exit` records (`idleDriverGeneration`): the driver's final decide, the one that decides it stops, writes
- * its exit record under `keys.idleDriverExit(thread, n)` in that same transaction. An ensure committed before that
- * transaction is seen by the decide, so the driver goes on; one committed after it computes `n + 1` and creates a new
- * job, so no wakeup is lost.
+ * it finishes, fails or is abandoned. A restart abandons an `'abandon'` job from the reopen on, before `onOpen`, and
+ * resumes a `'resume'` job. A key whose job ended creates a new job. The idle driver's key is
+ * `keys.idleDriver(thread, n)`, where `n` counts the thread's `idle-driver-exit` records (`idleDriverGeneration`): the
+ * driver's final decide, the one that decides it stops, writes its exit record under `keys.idleDriverExit(thread, n)`
+ * in that same transaction. An ensure committed before that transaction is seen by the decide, so the driver goes on;
+ * one committed after it computes `n + 1` and creates a new job, so no wakeup is lost.
  */
 export interface Jobs {
   /** Called during install. */
@@ -271,16 +273,18 @@ export interface LifecycleHandlers {
  * rules stay in the package. `onOpen` calls only `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now`: no submits,
  * no waits.
  * Stop before resume: a run a restart interrupted, stopped from `onOpen`, ends as aborted before any resumed work (no
- * open call reruns, no further model request), and the stop may resolve as soon as that mark is durable. No
- * conversation's interrupted run resumes before its own `onOpen` has run.
+ * open call reruns, no further model request), and the stop may resolve as soon as that mark is durable. Until resume
+ * the stopped run and its foreground children may still appear active in the facts, so `onOpen` must not decide on
+ * facts read after its own stop. No conversation's interrupted run resumes before its own `onOpen` has run.
  *
  * @harness coding-agent `session_start`, `session_compact` and `session_shutdown`; runs do not resume, so there is no
  * stop before resume.
  * @harness durable The host calls `onOpen` for every conversation after `Harness.open` and `inspect()` and before
  * `resume()`. Stops there only mark (`abortTask`, `abortSubmission`), because `abort()`, `submit` and the waits enable
  * scheduling; compaction completion is observed through a watch; `close()` writes nothing.
- * @harness fake `onOpen` at creation and, on every restart, for every conversation before any resumed run or job; a stop
- * there ends the restored run at once; `onClose` on close.
+ * @harness fake `onOpen` at creation and, on every restart, for every conversation before any resumed run or job,
+ * with ports that reject every method outside the list above; a stop there only marks the restored run, which resume
+ * ends as aborted, and a job ensured there starts after the last `onOpen`; `onClose` on close.
  */
 export interface Lifecycle {
   /** Called during install. */
