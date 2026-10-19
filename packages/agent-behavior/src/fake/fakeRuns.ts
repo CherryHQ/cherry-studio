@@ -1,15 +1,9 @@
-import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
+import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { ScriptedReply } from '../contract/harness'
 import type { TurnInput } from '../core/decisions'
-import {
-  callKeyOf,
-  ENTRY_KINDS,
-  type GateCall,
-  type HistoryEntry,
-  type ToolCallFact,
-  type ToolResultFact
-} from '../core/facts'
+import { callKeyOf, ENTRY_KINDS, type GateCall, type ToolCallFact, type ToolResultFact } from '../core/facts'
+import { INTERRUPTED_CALL_RESULT } from '../core/subagents/subagentText'
 import type {
   BoundPorts,
   GateVerdict,
@@ -29,8 +23,10 @@ import {
   type Loop,
   nextItem,
   type Owner,
+  resultEntry,
   type RunEnding,
   type ThreadState,
+  unansweredCalls,
   visibleEntries,
   ZERO_USAGE
 } from './fakeState'
@@ -97,7 +93,10 @@ export function message(
     : { run: thread.runs + 1, status: 'started' }
   thread.submissions.set(key, { input, admission, state: 'queued' })
   if (active) thread.steer.push(key)
-  else startRun(host, thread, key)
+  else {
+    answerOpenCalls(host.state, thread)
+    startRun(host, thread, key)
+  }
   return admission
 }
 
@@ -332,12 +331,16 @@ async function execute(
 /** The calls of the active run's last reply that have no result yet. */
 function openCalls(thread: ThreadState): readonly ToolCallFact[] {
   const at = thread.entries.findLastIndex(({ entry, run }) => entry.kind === 'assistant' && run === thread.active?.run)
+  return unansweredCalls(thread.entries, at)
+}
+
+/** H3: before a message starts a run, the open calls of the child's last reply get the interrupted result. */
+function answerOpenCalls(state: FakeState, thread: ThreadState): void {
+  const at = thread.entries.findLastIndex(({ entry }) => entry.kind === 'assistant')
   const reply = thread.entries[at]?.entry
-  if (reply?.kind !== 'assistant') return []
-  const answered = new Set(
-    thread.entries.slice(at).flatMap(({ entry }) => (entry.kind === 'tool-result' ? [entry.callId] : []))
-  )
-  return reply.toolCalls.filter((call) => !answered.has(call.callId))
+  if (reply?.kind !== 'assistant' || reply.stop === 'error' || reply.stop === 'aborted') return
+  for (const call of unansweredCalls(thread.entries, at))
+    append(thread, resultEntry(nextItem(state), call, { text: INTERRUPTED_CALL_RESULT, isError: true }))
 }
 
 function appendReply(
@@ -363,15 +366,6 @@ function placeSteer(state: FakeState, epoch: Epoch, thread: ThreadState): boolea
   if (keys.length > 0) wake(epoch, thread.id)
   return keys.length > 0
 }
-
-const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResultFact): HistoryEntry => ({
-  kind: 'tool-result',
-  id,
-  callId: call.callId,
-  callKey: call.callKey,
-  tool: call.name,
-  ...result
-})
 
 function fail(state: FakeState, thread: ThreadState, outcome: 'failed' | 'limit_reached', error: string): RunEnding {
   append(thread, {
