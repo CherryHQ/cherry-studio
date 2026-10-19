@@ -1,110 +1,310 @@
 {
-  "generated_at": "2026-10-18T18:00:00.000000+00:00",
-  "snapshot_date": "2026-10-18",
-  "total_open_issues": 1201,
-  "health_breakdown": {
-    "active": {
-      "count": 720,
-      "pct": 59.9,
-      "definition": "updated in last 7 days (since 2026-10-11)",
-      "note": "All 200 sampled issues were active — likely due to a recent bulk triage/update sweep; extrapolated to full backlog"
-    },
-    "aging": {
-      "count": 240,
-      "pct": 20.0,
-      "definition": "updated 7–30 days ago (2026-09-18 to 2026-10-11)"
-    },
-    "stale": {
-      "count": 120,
-      "pct": 10.0,
-      "definition": "updated 30–90 days ago (2026-07-20 to 2026-09-18)"
-    },
-    "zombie": {
-      "count": 121,
-      "pct": 10.1,
-      "definition": "not updated in 90+ days (before 2026-07-20)"
-    }
+  "generated_at": "2026-10-19T17:46:04.606163+00:00",
+  "date": "2026-10-19",
+  "total_open_issues": 1221,
+  "p1_summary": {
+    "total": 50,
+    "Active": 6,
+    "Aging": 5,
+    "Stale": 39,
+    "Zombie": 0
   },
-  "priority_breakdown": {
-    "p1": { "count": 35, "pct": 2.9, "note": "extrapolated from 200-issue sample" },
-    "p2": { "count": 480, "pct": 40.0 },
-    "p3": { "count": 282, "pct": 23.5 },
-    "unlabeled_no_priority": { "count": 404, "pct": 33.6 }
+  "p1_by_health": {
+    "Active": [
+      {
+        "number": 21905,
+        "title": "[Bug]: Work-mode Agent turns abort with \"Autocompact is thrashing\" and cannot recover on 2",
+        "days_open": 2
+      },
+      {
+        "number": 21898,
+        "title": "[Bug]: Agent turns fail with \"Claude Code process failed to start\" when the bundled Claude",
+        "days_open": 2
+      },
+      {
+        "number": 21865,
+        "title": "[QA] e2e regression harness: CDP port is hardcoded (9222/9229) — make it configurable (env",
+        "days_open": 2
+      },
+      {
+        "number": 21864,
+        "title": "[QA] e2e regression harness: three defects that block local PR verification (native file p",
+        "days_open": 3
+      },
+      {
+        "number": 21862,
+        "title": "[QA] Provide a switchable mock provider base URL for the e2e regression workflow",
+        "days_open": 3
+      },
+      {
+        "number": 21805,
+        "title": "[Bug]: SQLITE_CORRUPT blocks startup after reboot and persists after reinstall",
+        "days_open": 3
+      }
+    ],
+    "Aging": [
+      {
+        "number": 21418,
+        "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local St",
+        "days_open": 10
+      },
+      {
+        "number": 21085,
+        "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow conte",
+        "days_open": 22
+      },
+      {
+        "number": 20941,
+        "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+        "days_open": 27
+      },
+      {
+        "number": 20940,
+        "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+        "days_open": 27
+      },
+      {
+        "number": 20937,
+        "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
+        "days_open": 27
+      }
+    ],
+    "Stale": [
+      {
+        "number": 20695,
+        "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updat",
+        "days_open": 31
+      },
+      {
+        "number": 20692,
+        "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
+        "days_open": 32
+      },
+      {
+        "number": 20532,
+        "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
+        "days_open": 35
+      },
+      {
+        "number": 20476,
+        "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
+        "days_open": 36
+      },
+      {
+        "number": 20460,
+        "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
+        "days_open": 37
+      },
+      {
+        "number": 20458,
+        "title": "[Bug]: Hybrid Chat Completions response schema fails strict validation",
+        "days_open": 37
+      },
+      {
+        "number": 20374,
+        "title": "Unable to read Word and PDF documents",
+        "days_open": 38
+      },
+      {
+        "number": 20369,
+        "title": "[Bug]: Claude Code Agent exits on Linux when zypak cannot access the session bus",
+        "days_open": 38
+      },
+      {
+        "number": 20365,
+        "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens for a one-line r",
+        "days_open": 39
+      },
+      {
+        "number": 20361,
+        "title": "[Bug]: All conversation tools report No tools are available on one Windows PC",
+        "days_open": 39
+      },
+      {
+        "number": 20344,
+        "title": "Windows Agent startup crashes when PATH contains a null byte",
+        "days_open": 39
+      },
+      {
+        "number": 20343,
+        "title": "Configured OCR fallback fails for image input on non-vision models",
+        "days_open": 39
+      },
+      {
+        "number": 20338,
+        "title": "[Bug]: Mac OS系统下，编程搭档启动失败",
+        "days_open": 39
+      },
+      {
+        "number": 20314,
+        "title": "[Bug]: Agent task model selection overwrites another task",
+        "days_open": 39
+      },
+      {
+        "number": 20300,
+        "title": "GPT Image 2 reference-image requests fail with ERR_SSL_PROTOCOL_ERROR",
+        "days_open": 39
+      },
+      {
+        "number": 20285,
+        "title": "[Bug]: Built-in Hermes Agent model is unavailable through the API Gateway",
+        "days_open": 40
+      },
+      {
+        "number": 20265,
+        "title": "[Bug] Agent session white screen crash: TypeError: text.includes is not a function (bash t",
+        "days_open": 40
+      },
+      {
+        "number": 20258,
+        "title": "[Bug]: In the latest updated version, my uploaded images are severely compressed, and the ",
+        "days_open": 40
+      },
+      {
+        "number": 20232,
+        "title": "[Bug]: Code Mate Claude Code process crashes in embedded Bun 1.4.0 on Windows",
+        "days_open": 41
+      },
+      {
+        "number": 20231,
+        "title": "[Feature]: Pin managed tool versions to Cherry Studio releases and support rollback",
+        "days_open": 41
+      },
+      {
+        "number": 20217,
+        "title": "[Bug]: Selection Assistant reports insufficient balance while using a built-in free model",
+        "days_open": 41
+      },
+      {
+        "number": 20216,
+        "title": "[Bug]: Nano Banana image generation builds an invalid /v1beta1/images/generations URL",
+        "days_open": 41
+      },
+      {
+        "number": 20097,
+        "title": "[Bug]: Windows cannot stop the managed DeepSeek Harness process tree cleanly",
+        "days_open": 43
+      },
+      {
+        "number": 20027,
+        "title": "Explain and recover when all generated images are filtered as invalid",
+        "days_open": 44
+      },
+      {
+        "number": 20021,
+        "title": "Local OCR and embedding fail when onnxruntime_binding.node cannot initialize on Windows",
+        "days_open": 44
+      },
+      {
+        "number": 20007,
+        "title": "[Bug]: Model switching issue",
+        "days_open": 44
+      },
+      {
+        "number": 19999,
+        "title": "[Bug]: beta-cn macOS updater retries missing manifest with HTTP 503",
+        "days_open": 45
+      },
+      {
+        "number": 19991,
+        "title": "[Bug]: GPT Image 2 edit returns HTTP 200 but response parsing fails and retries may still ",
+        "days_open": 45
+      },
+      {
+        "number": 19989,
+        "title": "[Bug]: Agent execution fails when API Gateway port 23333 is already in use",
+        "days_open": 45
+      },
+      {
+        "number": 19948,
+        "title": "Windows Agent cannot locate the bundled Claude Code executable",
+        "days_open": 46
+      },
+      {
+        "number": 19929,
+        "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM",
+        "days_open": 46
+      },
+      {
+        "number": 19917,
+        "title": "Cross-Agent delivery can execute a stale failed task instead of the accepted request",
+        "days_open": 46
+      },
+      {
+        "number": 19865,
+        "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+        "days_open": 47
+      },
+      {
+        "number": 19864,
+        "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
+        "days_open": 47
+      },
+      {
+        "number": 19862,
+        "title": "Using the filesystem root as Agent workspace freezes macOS startup indexing",
+        "days_open": 47
+      },
+      {
+        "number": 19847,
+        "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on a mid-response server error without ",
+        "days_open": 48
+      },
+      {
+        "number": 19843,
+        "title": "Switching models mid-Agent conversation drops prior context",
+        "days_open": 48
+      },
+      {
+        "number": 19805,
+        "title": "[Bug]: Android model checks fail because the default React Native fetch cannot stream",
+        "days_open": 49
+      },
+      {
+        "number": 19803,
+        "title": "[Bug]: Agent shows a PDF attachment but Claude Opus receives no file content",
+        "days_open": 49
+      }
+    ],
+    "Zombie": []
   },
-  "new_p1_today": [
+  "overall_health_estimates": {
+    "note": "Estimated from 200-issue random sample",
+    "Active_0_7d_pct": 35,
+    "Aging_8_30d_pct": 25,
+    "Stale_31_90d_pct": 25,
+    "Zombie_90d_plus_pct": 15
+  },
+  "action_items": [
     {
-      "number": 21905,
-      "title": "[Bug]: Work-mode Agent turns abort with 'Autocompact is thrashing' and cannot recover on 2.0.14-2.1.6",
-      "assigned_to": "cherry-internal-feedback",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21905"
+      "priority": "CRITICAL",
+      "issue": 21905,
+      "title": "Work-mode Agent turns abort with Autocompact is thrashing",
+      "days_open": 2
     },
     {
-      "number": 21898,
-      "title": "[Bug]: Agent turns fail with 'Claude Code process failed to start' when bundled executable missing on Windows",
-      "assigned_to": null,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/21898"
+      "priority": "CRITICAL",
+      "issue": 21898,
+      "title": "Agent turns fail — Claude Code process failed to start on Windows",
+      "days_open": 2
+    },
+    {
+      "priority": "CRITICAL",
+      "issue": 21805,
+      "title": "SQLITE_CORRUPT blocks startup after reboot",
+      "days_open": 3
+    },
+    {
+      "priority": "HIGH",
+      "issue": 21418,
+      "title": "Restore triggers app auto-restart — data cannot be restored",
+      "days_open": 10
+    },
+    {
+      "priority": "HIGH",
+      "issue": 21085,
+      "title": "File/KB scopes overflow context with inline tool schemas",
+      "days_open": 23
     }
-  ],
-  "top_stale_p1": [
-    { "number": 12397, "title": "[Bug]: Expected 'function.name' to be a string (MCP)", "days_open": 282 },
-    { "number": 15383, "title": "[Feature]: Real-Time Meeting Transcription", "days_open": 143 },
-    { "number": 15690, "title": "[Feature]: Market Page — Skills, Assistant Library, and MCP", "days_open": 136 },
-    { "number": 15711, "title": "[Bug]: Claude Opus Extended Thinking multi-turn fails (AWS Bedrock)", "days_open": 135 },
-    { "number": 17587, "title": "[Bug]: Claude Agent sessions persist zero-output results as successful turns", "days_open": 81 },
-    { "number": 18150, "title": "[Bug]: DeepSeek V4 Flash 0731 triggers return error", "days_open": 72 },
-    { "number": 18643, "title": "[Bug]: Agent + local Ollama all tool calls return 500", "days_open": 64 },
-    { "number": 18741, "title": "[Bug]: DeepSeek V4 'No tool output found'", "days_open": 62 },
-    { "number": 18765, "title": "[Bug]: Agent sends Anthropic max_tokens to OpenAI gateways", "days_open": 64 },
-    { "number": 19271, "title": "[Bug]: MiniMax-M3 intermittent disconnection", "days_open": 55 }
-  ],
-  "cluster_analysis": {
-    "agent_runtime": {
-      "description": "Agent execution, runtime startup, DSH/Pi/Claude Code failures",
-      "open_count": 182,
-      "p1_count": 16
-    },
-    "model_compatibility": {
-      "description": "Model-specific API errors, stream parsing, tool call formatting",
-      "open_count": 152,
-      "p1_count": 10
-    },
-    "windows_specific": {
-      "description": "Windows-only bugs including EPERM, path issues, NTSTATUS",
-      "open_count": 91,
-      "p1_count": 8
-    },
-    "ui_ux": {
-      "description": "UI/UX improvements and layout issues",
-      "open_count": 132,
-      "p1_count": 1
-    },
-    "data_storage": {
-      "description": "SQLite, backup/restore, migration issues",
-      "open_count": 46,
-      "p1_count": 3
-    },
-    "needs_info_triage": {
-      "description": "Issues awaiting more information or triage",
-      "open_count": 131,
-      "p1_count": 0
-    }
-  },
-  "closing_velocity_30d": {
-    "bugs_closed": 57,
-    "features_closed": 12,
-    "total_closed_sampled": 100,
-    "p1_resolved": 14,
-    "prs_merged_sampled": 100
-  },
-  "delta_vs_yesterday": {
-    "open_issues_delta": "+11 (from 1190 to 1201)",
-    "new_p1_count": 2,
-    "prs_merged_today": 12
-  },
-  "recommendations": [
-    "Agent runtime crashes on Windows are the highest-frequency P1 cluster — autocompact thrashing and Claude Code process missing are brand-new P1s today",
-    "33.6% of issues lack any priority label; automated triage or label-bot would significantly improve triageability",
-    "Backup/restore integrity (issues #21418, #21805, #21820) affects user trust; needs blocking fix before next release",
-    "e2e harness issues (#21864, #21865, #21862) block local PR verification — three P1s in QA infra that block the whole CI quality loop"
   ]
 }

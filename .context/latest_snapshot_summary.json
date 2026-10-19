@@ -1,104 +1,722 @@
 {
-  "generated_at": "2026-10-18T18:00:00.000000+00:00",
-  "snapshot_date": "2026-10-18",
-  "repository": "CherryHQ/cherry-studio",
-  "open_issues": {
-    "total": 1201,
-    "sample_size": 200,
-    "by_priority": {
-      "p1": 35,
-      "p2": 80,
-      "p3": 47,
-      "no_priority": 38
+  "generated_at": "2026-10-19T17:45:39.647493+00:00",
+  "date": "2026-10-19",
+  "open_issues_total": 1221,
+  "open_prs_total": 100,
+  "open_prs_to_main": 78,
+  "open_prs_to_feature_branches": 22,
+  "v2_open_prs": 0,
+  "v2_merged_prs_note": "v2 branch has no open PRs; merged PRs not fetched in this run",
+  "p1_issues_count": 50,
+  "p1_issues": [
+    {
+      "number": 21905,
+      "title": "[Bug]: Work-mode Agent turns abort with \"Autocompact is thrashing\" and cannot recover on 2.0.14-2.1.",
+      "labels": [
+        "p1"
+      ],
+      "created_at": "2026-10-17",
+      "updated_at": "2026-10-17",
+      "health": "Active"
     },
-    "uncategorized_pct": 28.0,
-    "note": "Priority counts extrapolated from 200-issue sample; uncategorized includes fully unlabeled + labeled-but-no-priority issues"
-  },
-  "open_prs": {
-    "total_sampled": 100,
-    "by_base": {
-      "main": 77,
-      "v2": 0,
-      "stacked_feature_branches": 23
+    {
+      "number": 21898,
+      "title": "[Bug]: Agent turns fail with \"Claude Code process failed to start\" when the bundled Claude Code exec",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "claude-code"
+      ],
+      "created_at": "2026-10-17",
+      "updated_at": "2026-10-18",
+      "health": "Active"
     },
-    "draft_count": 8,
-    "note": "list_pull_requests returned page cap of 100; actual total may be higher"
-  },
-  "closed_issues_30d": {
-    "total_sampled": 100,
-    "by_type": {
-      "bug": 57,
-      "feature": 12,
-      "other": 31
+    {
+      "number": 21865,
+      "title": "[QA] e2e regression harness: CDP port is hardcoded (9222/9229) — make it configurable (env or CLI)",
+      "labels": [
+        "p1",
+        "feature",
+        "needs-review",
+        "internal-team"
+      ],
+      "created_at": "2026-10-16",
+      "updated_at": "2026-10-16",
+      "health": "Active"
     },
-    "by_priority": {
-      "p1": 14,
-      "p2": 27,
-      "p3": 5,
-      "unlabeled": 54
+    {
+      "number": 21864,
+      "title": "[QA] e2e regression harness: three defects that block local PR verification (native file panel, loca",
+      "labels": [
+        "bug",
+        "p1",
+        "macos",
+        "internal-team"
+      ],
+      "created_at": "2026-10-16",
+      "updated_at": "2026-10-17",
+      "health": "Active"
+    },
+    {
+      "number": 21862,
+      "title": "[QA] Provide a switchable mock provider base URL for the e2e regression workflow",
+      "labels": [
+        "p1",
+        "feature",
+        "needs-review",
+        "internal-team"
+      ],
+      "created_at": "2026-10-16",
+      "updated_at": "2026-10-16",
+      "health": "Active"
+    },
+    {
+      "number": 21805,
+      "title": "[Bug]: SQLITE_CORRUPT blocks startup after reboot and persists after reinstall",
+      "labels": [
+        "bug",
+        "p1",
+        "data",
+        "needs-info"
+      ],
+      "created_at": "2026-10-16",
+      "updated_at": "2026-10-16",
+      "health": "Active"
+    },
+    {
+      "number": 21418,
+      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename \"Local Storage\"); b",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data",
+        "v2"
+      ],
+      "created_at": "2026-10-09",
+      "updated_at": "2026-10-15",
+      "health": "Aging"
+    },
+    {
+      "number": 21085,
+      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
+      "labels": [
+        "bug",
+        "p1",
+        "rag",
+        "assistant",
+        "performance",
+        "v2",
+        "chat"
+      ],
+      "created_at": "2026-09-26",
+      "updated_at": "2026-09-27",
+      "health": "Aging"
+    },
+    {
+      "number": 20941,
+      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
+      "labels": [
+        "bug",
+        "p1",
+        "v2",
+        "agent",
+        "chat"
+      ],
+      "created_at": "2026-09-22",
+      "updated_at": "2026-10-16",
+      "health": "Aging"
+    },
+    {
+      "number": 20940,
+      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "v2",
+        "chat"
+      ],
+      "created_at": "2026-09-22",
+      "updated_at": "2026-10-18",
+      "health": "Aging"
+    },
+    {
+      "number": 20937,
+      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ],
+      "created_at": "2026-09-22",
+      "updated_at": "2026-09-22",
+      "health": "Aging"
+    },
+    {
+      "number": 20695,
+      "title": "[Bug]: Parallel `edit` calls to the same file via built-in filesystem MCP cause lost updates and dup",
+      "labels": [
+        "bug",
+        "p1"
+      ],
+      "created_at": "2026-09-18",
+      "updated_at": "2026-09-24",
+      "health": "Stale"
+    },
+    {
+      "number": 20692,
+      "title": "[Bug]: Agent compaction summary leaks into the visible chat transcript as a normal message",
+      "labels": [
+        "bug",
+        "p1",
+        "agent"
+      ],
+      "created_at": "2026-09-17",
+      "updated_at": "2026-10-15",
+      "health": "Stale"
+    },
+    {
+      "number": 20532,
+      "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
+      "labels": [
+        "bug",
+        "p1",
+        "windows"
+      ],
+      "created_at": "2026-09-14",
+      "updated_at": "2026-09-19",
+      "health": "Stale"
+    },
+    {
+      "number": 20476,
+      "title": "DeepSeek chat content can be serialized with an incomplete hex escape",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "chat"
+      ],
+      "created_at": "2026-09-12",
+      "updated_at": "2026-09-12",
+      "health": "Stale"
+    },
+    {
+      "number": 20460,
+      "title": "[Bug]: Volcano responses with reasoning_content break tool_calls parsing",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "created_at": "2026-09-12",
+      "updated_at": "2026-09-12",
+      "health": "Stale"
+    },
+    {
+      "number": 20458,
+      "title": "[Bug]: Hybrid Chat Completions response schema fails strict validation",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "chat"
+      ],
+      "created_at": "2026-09-12",
+      "updated_at": "2026-09-18",
+      "health": "Stale"
+    },
+    {
+      "number": 20374,
+      "title": "Unable to read Word and PDF documents",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-repro",
+        "data",
+        "v2"
+      ],
+      "created_at": "2026-09-11",
+      "updated_at": "2026-09-11",
+      "health": "Stale"
+    },
+    {
+      "number": 20369,
+      "title": "[Bug]: Claude Code Agent exits on Linux when zypak cannot access the session bus",
+      "labels": [
+        "bug",
+        "p1",
+        "linux",
+        "agent"
+      ],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-09-20",
+      "health": "Stale"
+    },
+    {
+      "number": 20365,
+      "title": "[Bug]: Clearing chat context still reports about 90K cached prompt tokens for a one-line request",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "performance",
+        "chat"
+      ],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-10-17",
+      "health": "Stale"
+    },
+    {
+      "number": 20361,
+      "title": "[Bug]: All conversation tools report No tools are available on one Windows PC",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent"
+      ],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-10-19",
+      "health": "Stale"
+    },
+    {
+      "number": 20344,
+      "title": "Windows Agent startup crashes when PATH contains a null byte",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent"
+      ],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-10-15",
+      "health": "Stale"
+    },
+    {
+      "number": 20343,
+      "title": "Configured OCR fallback fails for image input on non-vision models",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "chat"
+      ],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-10-17",
+      "health": "Stale"
+    },
+    {
+      "number": 20338,
+      "title": "[Bug]: Mac OS系统下，编程搭档启动失败",
+      "labels": [
+        "bug",
+        "p1",
+        "macos",
+        "code-mate"
+      ],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-09-10",
+      "health": "Stale"
+    },
+    {
+      "number": 20314,
+      "title": "[Bug]: Agent task model selection overwrites another task",
+      "labels": [
+        "bug",
+        "p1",
+        "ui-ux",
+        "models",
+        "agent"
+      ],
+      "created_at": "2026-09-10",
+      "updated_at": "2026-09-20",
+      "health": "Stale"
+    },
+    {
+      "number": 20300,
+      "title": "GPT Image 2 reference-image requests fail with ERR_SSL_PROTOCOL_ERROR",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models",
+        "needs-info",
+        "network"
+      ],
+      "created_at": "2026-09-09",
+      "updated_at": "2026-09-20",
+      "health": "Stale"
+    },
+    {
+      "number": 20285,
+      "title": "[Bug]: Built-in Hermes Agent model is unavailable through the API Gateway",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "created_at": "2026-09-09",
+      "updated_at": "2026-09-20",
+      "health": "Stale"
+    },
+    {
+      "number": 20265,
+      "title": "[Bug] Agent session white screen crash: TypeError: text.includes is not a function (bash tool output",
+      "labels": [
+        "bug",
+        "p1",
+        "linux",
+        "data",
+        "ui-ux",
+        "agent"
+      ],
+      "created_at": "2026-09-09",
+      "updated_at": "2026-09-09",
+      "health": "Stale"
+    },
+    {
+      "number": 20258,
+      "title": "[Bug]: In the latest updated version, my uploaded images are severely compressed, and the model cann",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-more-info",
+        "windows",
+        "models",
+        "chat"
+      ],
+      "created_at": "2026-09-09",
+      "updated_at": "2026-09-16",
+      "health": "Stale"
+    },
+    {
+      "number": 20232,
+      "title": "[Bug]: Code Mate Claude Code process crashes in embedded Bun 1.4.0 on Windows",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "needs-triage",
+        "agent",
+        "code-mate"
+      ],
+      "created_at": "2026-09-08",
+      "updated_at": "2026-09-20",
+      "health": "Stale"
+    },
+    {
+      "number": 20231,
+      "title": "[Feature]: Pin managed tool versions to Cherry Studio releases and support rollback",
+      "labels": [
+        "p1",
+        "feature",
+        "needs-triage",
+        "agent",
+        "code-mate"
+      ],
+      "created_at": "2026-09-08",
+      "updated_at": "2026-09-10",
+      "health": "Stale"
+    },
+    {
+      "number": 20217,
+      "title": "[Bug]: Selection Assistant reports insufficient balance while using a built-in free model",
+      "labels": [
+        "bug",
+        "p1",
+        "assistant",
+        "selection-assistant"
+      ],
+      "created_at": "2026-09-08",
+      "updated_at": "2026-09-08",
+      "health": "Stale"
+    },
+    {
+      "number": 20216,
+      "title": "[Bug]: Nano Banana image generation builds an invalid /v1beta1/images/generations URL",
+      "labels": [
+        "bug",
+        "p1",
+        "models"
+      ],
+      "created_at": "2026-09-08",
+      "updated_at": "2026-09-08",
+      "health": "Stale"
+    },
+    {
+      "number": 20097,
+      "title": "[Bug]: Windows cannot stop the managed DeepSeek Harness process tree cleanly",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent"
+      ],
+      "created_at": "2026-09-06",
+      "updated_at": "2026-09-11",
+      "health": "Stale"
+    },
+    {
+      "number": 20027,
+      "title": "Explain and recover when all generated images are filtered as invalid",
+      "labels": [
+        "bug",
+        "p1",
+        "ui-ux",
+        "models",
+        "v2"
+      ],
+      "created_at": "2026-09-05",
+      "updated_at": "2026-09-05",
+      "health": "Stale"
+    },
+    {
+      "number": 20021,
+      "title": "Local OCR and embedding fail when onnxruntime_binding.node cannot initialize on Windows",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "rag",
+        "v2",
+        "ocr"
+      ],
+      "created_at": "2026-09-05",
+      "updated_at": "2026-09-14",
+      "health": "Stale"
+    },
+    {
+      "number": 20007,
+      "title": "[Bug]: Model switching issue",
+      "labels": [
+        "bug",
+        "p1"
+      ],
+      "created_at": "2026-09-05",
+      "updated_at": "2026-09-05",
+      "health": "Stale"
+    },
+    {
+      "number": 19999,
+      "title": "[Bug]: beta-cn macOS updater retries missing manifest with HTTP 503",
+      "labels": [
+        "bug",
+        "p1",
+        "macos",
+        "needs-triage"
+      ],
+      "created_at": "2026-09-04",
+      "updated_at": "2026-09-04",
+      "health": "Stale"
+    },
+    {
+      "number": 19991,
+      "title": "[Bug]: GPT Image 2 edit returns HTTP 200 but response parsing fails and retries may still be billed",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "models"
+      ],
+      "created_at": "2026-09-04",
+      "updated_at": "2026-09-20",
+      "health": "Stale"
+    },
+    {
+      "number": 19989,
+      "title": "[Bug]: Agent execution fails when API Gateway port 23333 is already in use",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "connectivity",
+        "agent"
+      ],
+      "created_at": "2026-09-04",
+      "updated_at": "2026-10-16",
+      "health": "Stale"
+    },
+    {
+      "number": 19948,
+      "title": "Windows Agent cannot locate the bundled Claude Code executable",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent",
+        "claude-code"
+      ],
+      "created_at": "2026-09-03",
+      "updated_at": "2026-09-08",
+      "health": "Stale"
+    },
+    {
+      "number": 19929,
+      "title": "[Bug]: Windows Agent sessions fail to start with spawn EPERM",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ],
+      "created_at": "2026-09-03",
+      "updated_at": "2026-10-15",
+      "health": "Stale"
+    },
+    {
+      "number": 19917,
+      "title": "Cross-Agent delivery can execute a stale failed task instead of the accepted request",
+      "labels": [
+        "bug",
+        "p1",
+        "agent"
+      ],
+      "created_at": "2026-09-03",
+      "updated_at": "2026-10-15",
+      "health": "Stale"
+    },
+    {
+      "number": 19865,
+      "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "performance",
+        "agent"
+      ],
+      "created_at": "2026-09-02",
+      "updated_at": "2026-10-15",
+      "health": "Stale"
+    },
+    {
+      "number": 19864,
+      "title": "Large local Ollama context allocation ends in an opaque 500 and OOM",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "created_at": "2026-09-02",
+      "updated_at": "2026-10-15",
+      "health": "Stale"
+    },
+    {
+      "number": 19862,
+      "title": "Using the filesystem root as Agent workspace freezes macOS startup indexing",
+      "labels": [
+        "bug",
+        "p1",
+        "macos",
+        "needs-triage",
+        "performance",
+        "agent"
+      ],
+      "created_at": "2026-09-02",
+      "updated_at": "2026-09-06",
+      "health": "Stale"
+    },
+    {
+      "number": 19847,
+      "title": "[Bug]: Agent with DashScope Qwen3.8-Max terminates on a mid-response server error without recovery",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "models",
+        "agent"
+      ],
+      "created_at": "2026-09-01",
+      "updated_at": "2026-10-15",
+      "health": "Stale"
+    },
+    {
+      "number": 19843,
+      "title": "Switching models mid-Agent conversation drops prior context",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "models",
+        "agent",
+        "chat"
+      ],
+      "created_at": "2026-09-01",
+      "updated_at": "2026-09-06",
+      "health": "Stale"
+    },
+    {
+      "number": 19805,
+      "title": "[Bug]: Android model checks fail because the default React Native fetch cannot stream",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "models"
+      ],
+      "created_at": "2026-08-31",
+      "updated_at": "2026-08-31",
+      "health": "Stale"
+    },
+    {
+      "number": 19803,
+      "title": "[Bug]: Agent shows a PDF attachment but Claude Opus receives no file content",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-more-info",
+        "agent",
+        "chat"
+      ],
+      "created_at": "2026-08-31",
+      "updated_at": "2026-08-31",
+      "health": "Stale"
     }
-  },
-  "v2_branch": {
-    "open_prs": 0,
-    "note": "No open PRs target v2 base. V2 development is either on main or feature branches."
-  },
-  "p1_urgent_issues": [
-    {"number": 21905, "title": "Work-mode Agent turns abort with 'Autocompact is thrashing' and cannot recover on 2.0.14-2.1.6", "labels": ["p1"], "updated_at": "2026-10-17", "new_today": true},
-    {"number": 21898, "title": "Agent turns fail with 'Claude Code process failed to start' on packaged Windows install", "labels": ["bug","p1","windows","claude-code"], "updated_at": "2026-10-18", "new_today": true},
-    {"number": 20941, "title": "Work and Agent conversations terminate with an empty no-response error", "labels": ["bug","p1","v2","agent","chat"], "updated_at": "2026-10-16"},
-    {"number": 20940, "title": "Responses API stream events fail client TypeValidation and abort the turn", "labels": ["bug","p1","models","v2","chat"], "updated_at": "2026-10-18"},
-    {"number": 21418, "title": "Restore triggers app auto-restart; backup archive corrupted, data cannot be restored", "labels": ["bug","p1","windows","data","v2"], "updated_at": "2026-10-15"},
-    {"number": 21805, "title": "SQLITE_CORRUPT blocks startup after reboot and persists after reinstall", "labels": ["bug","p1","data","needs-info"], "updated_at": "2026-10-16"},
-    {"number": 20365, "title": "Clearing chat context still reports ~90K cached prompt tokens", "labels": ["bug","p1","windows","models","performance","chat"], "updated_at": "2026-10-17"},
-    {"number": 20361, "title": "All conversation tools report No tools are available on one Windows PC", "labels": ["bug","p1","windows","agent"], "updated_at": "2026-10-17"},
-    {"number": 20343, "title": "Configured OCR fallback fails for image input on non-vision models", "labels": ["bug","p1","windows","models","chat"], "updated_at": "2026-10-17"},
-    {"number": 19989, "title": "Agent execution fails when API Gateway port 23333 is already in use", "labels": ["bug","p1","windows","connectivity","agent"], "updated_at": "2026-10-16"},
-    {"number": 20344, "title": "Windows Agent startup crashes when PATH contains a null byte", "labels": ["bug","p1","windows","agent"], "updated_at": "2026-10-15"},
-    {"number": 19929, "title": "Windows Agent sessions fail to start with spawn EPERM", "labels": ["bug","p1","windows","v2","agent"], "updated_at": "2026-10-15"},
-    {"number": 19865, "title": "Claude Code Agent can exhaust Windows virtual memory and freeze the system", "labels": ["bug","p1","windows","performance","agent"], "updated_at": "2026-10-15"},
-    {"number": 19864, "title": "Large local Ollama context allocation ends in an opaque 500 and OOM", "labels": ["bug","p1","models","agent"], "updated_at": "2026-10-15"},
-    {"number": 19847, "title": "Agent with DashScope Qwen3.8-Max terminates on mid-response server error without recovery", "labels": ["bug","p1","needs-triage","models","agent"], "updated_at": "2026-10-15"},
-    {"number": 19793, "title": "Chat fails when a response stream ends without a finish reason", "labels": ["bug","p1","models","chat"], "updated_at": "2026-10-16"},
-    {"number": 19788, "title": "Gemini built-in tools with function calling fail unless server-side invocations enabled", "labels": ["bug","p1","needs-triage","models"], "updated_at": "2026-10-16"},
-    {"number": 19272, "title": "Bug when used with augment claude type agent", "labels": ["bug","p1","needs-more-info","agent"], "updated_at": "2026-10-15"},
-    {"number": 19271, "title": "MiniMax-M3 agent intermittent disconnection: reasoning part not found", "labels": ["bug","p1","models","agent"], "updated_at": "2026-10-15"},
-    {"number": 19124, "title": "ClaudeCodeResultError API Error 400 — System message must be at the beginning", "labels": ["bug","p1","models","agent"], "updated_at": "2026-10-16"},
-    {"number": 18957, "title": "Direct Intermediate Installer and Resume for Required Upgrade Paths", "labels": ["p1","feature","needs-triage","data","internal-team"], "updated_at": "2026-10-16"},
-    {"number": 18765, "title": "Agent mode sends Anthropic max_tokens to OpenAI-compatible gateways — GPT-5.x 400", "labels": ["bug","p1","models","agent"], "updated_at": "2026-10-15"},
-    {"number": 18741, "title": "DeepSeek V4 shows 'No tool output found for tool call'; session permanently broken with HTTP 400", "labels": ["bug","p1","agent","chat"], "updated_at": "2026-10-15"},
-    {"number": 18643, "title": "Agent runtime + local Ollama model: all tool calls return 500", "labels": ["bug","p1","needs-triage","models","agent"], "updated_at": "2026-10-15"},
-    {"number": 18150, "title": "使用DeepSeek V4 Flash 0731触发回传要求错误", "labels": ["bug","p1","models"], "updated_at": "2026-10-15"},
-    {"number": 17587, "title": "Claude Agent sessions intermittently persist zero-output results as successful turns", "labels": ["bug","p1","assistant","agent"], "updated_at": "2026-10-15"},
-    {"number": 15711, "title": "Claude Opus Extended Thinking multi-turn conversation fails — missing thinking.signature field (AWS Bedrock)", "labels": ["bug","p1","needs-triage","models"], "updated_at": "2026-10-15"},
-    {"number": 15690, "title": "Market Page — Skills, Assistant Library, and MCP", "labels": ["p1","ui-ux","internal-team"], "updated_at": "2026-10-15"},
-    {"number": 15383, "title": "Real-Time Meeting Transcription and Smart Meeting Notes", "labels": ["p1","feature"], "updated_at": "2026-10-15"},
-    {"number": 20692, "title": "Agent compaction summary leaks into the visible chat transcript as a normal message", "labels": ["bug","p1","agent"], "updated_at": "2026-10-15"},
-    {"number": 21864, "title": "[QA] e2e regression harness: three defects that block local PR verification", "labels": ["bug","p1","macos","internal-team"], "updated_at": "2026-10-17"},
-    {"number": 21865, "title": "[QA] e2e regression harness: CDP port hardcoded (9222/9229) — make it configurable", "labels": ["p1","feature","needs-review","internal-team"], "updated_at": "2026-10-16"},
-    {"number": 21862, "title": "[QA] Provide a switchable mock provider base URL for the e2e regression workflow", "labels": ["p1","feature","needs-review","internal-team"], "updated_at": "2026-10-16"},
-    {"number": 19917, "title": "Cross-Agent delivery can execute a stale failed task instead of the accepted request", "labels": ["bug","p1","agent"], "updated_at": "2026-10-15"},
-    {"number": 12397, "title": "Expected 'function.name' to be a string (MCP)", "labels": ["bug","p1","mcp","assistant"], "updated_at": "2026-10-16"}
   ],
-  "recent_closed_issues_sample": [
-    {"number": 13462, "title": "Migrate third-party OpenAI Responses providers to @ai-sdk/open-responses", "closed_at": "2026-10-18"},
-    {"number": 21916, "title": "AiHubMix model list fails when any model has null pricing field", "closed_at": "2026-10-17"},
-    {"number": 21914, "title": "Rename 'Settings → Tools → Prompts' to 'Quick Prompts'", "closed_at": "2026-10-17"},
-    {"number": 21855, "title": "Editing another queued message discards first unsent draft", "closed_at": "2026-10-17"},
-    {"number": 21896, "title": "Integrate DeepSeek Search / Fetch API as web search", "closed_at": "2026-10-17"},
-    {"number": 21852, "title": "agent.parts.list pages can exceed 64 KiB record budget and abort remote connection", "closed_at": "2026-10-17"},
-    {"number": 21897, "title": "Agent generated image is not delivered visibly in v2.1.6", "closed_at": "2026-10-17"},
-    {"number": 21870, "title": "Add a pricing mode option (per-request vs. token-based)", "closed_at": "2026-10-17"},
-    {"number": 21761, "title": "Windows local ASR rejects canonical 16 kHz WAV input", "closed_at": "2026-10-17"},
-    {"number": 20328, "title": "Make Pi the Default Agent Runtime and Rename Runtime UI", "closed_at": "2026-10-17"}
-  ],
-  "active_prs_sample": [
-    {"number": 21924, "title": "fix(skill-marketplace): keep distinct same-named install sources", "base": "main", "author": "acedatacloud-dev"},
-    {"number": 21952, "title": "fix(file-snapshot): preserve lossless filesystem identities", "base": "main", "author": "acedatacloud-dev"},
-    {"number": 21939, "title": "fix(model-parameters): omit sampling params for all Claude models that reject them", "base": "main", "author": "pcbeingused333"},
-    {"number": 21357, "title": "feat(provider-registry): add Ace Data Cloud provider", "base": "main", "author": "acedatacloud-dev"},
-    {"number": 21322, "title": "fix(agent-mcp): use the configured server name for sdk tool names", "base": "main", "author": "ggbdpq"},
-    {"number": 21934, "title": "fix(subagent-resume): flow view shows the resumed agent's whole timeline", "base": "fix/subagent-resume-rendering-b", "author": "tommyzhang100504"},
-    {"number": 21932, "title": "fix(subagent-resume): route continued subagent content in main process", "base": "main", "author": "tommyzhang100504"},
-    {"number": 21950, "title": "fix(image-preview): avoid Windows caption controls", "base": "main", "author": "chronicle12345"}
+  "issue_health_p1": {
+    "Active": 6,
+    "Aging": 5,
+    "Stale": 39,
+    "Zombie": 0
+  },
+  "label_estimates_from_200_sample": {
+    "p1_pct": 4.0,
+    "p2_pct": 27.5,
+    "p3_pct": 20.0,
+    "unlabeled_pct": 24.5,
+    "note": "Estimates from 200-issue sample; exact counts from search for p1"
+  },
+  "top_pr_authors": [
+    {
+      "login": "cherry-coding[bot]",
+      "prs": 14
+    },
+    {
+      "login": "SiinXu",
+      "prs": 13
+    },
+    {
+      "login": "angri450",
+      "prs": 11
+    },
+    {
+      "login": "WhiteZeek",
+      "prs": 11
+    },
+    {
+      "login": "DeJeune",
+      "prs": 10
+    }
   ]
 }

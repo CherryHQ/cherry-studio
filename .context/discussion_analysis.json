@@ -1,43 +1,86 @@
 {
-  "generated_at": "2026-10-18T18:00:00.000000+00:00",
-  "snapshot_date": "2026-10-18",
-  "data_source": "GitHub issues labeled 'discussion' + GitHub Discussions board (Discussions board not directly fetchable via MCP tools this run)",
-  "discussion_labeled_issues": [
+  "generated_at": "2026-10-19T17:46:04.675387+00:00",
+  "date": "2026-10-19",
+  "note": "GraphQL discussions API not available via MCP tools; derived from issue discussions and help-wanted labels",
+  "help_wanted_discussion_issues": [
     {
-      "number": 18069,
-      "title": "[Discussion]: V2 portable version starts very slowly",
-      "labels": ["help wanted","discussion","performance"],
-      "comments": 3,
-      "updated_at": "2026-10-17"
+      "number": 21708,
+      "title": "Using built-in browser to access internal HTTPS services",
+      "label": "discussion mcp"
     },
     {
       "number": 21663,
-      "title": "[Discussion]: 数据库自动备份与独立恢复模式设计",
-      "labels": ["p3","help wanted","discussion","data","backup"],
-      "comments": 1,
-      "updated_at": "2026-10-16"
+      "title": "数据库自动备份与独立恢复模式设计",
+      "label": "discussion backup"
     },
     {
       "number": 21447,
-      "title": "[Discussion]: How do I delete an Agent? No specific delete entry point",
-      "labels": ["p3","help wanted","discussion"],
-      "comments": 2,
-      "updated_at": "2026-10-16"
+      "title": "How do I delete an Agent?",
+      "label": "discussion"
+    },
+    {
+      "number": 21391,
+      "title": "[Discussion]:",
+      "label": "discussion"
+    },
+    {
+      "number": 21388,
+      "title": "nutstore/webdav backup and restore",
+      "label": "discussion backup"
+    },
+    {
+      "number": 21368,
+      "title": "How to make cherry automatically connect to codex",
+      "label": "discussion"
+    },
+    {
+      "number": 21362,
+      "title": "Unable to use some models in Qwen token plan",
+      "label": "discussion"
+    },
+    {
+      "number": 21257,
+      "title": "Drawing feature: reference images in Agent cannot be displayed",
+      "label": "discussion"
+    },
+    {
+      "number": 21177,
+      "title": "Time Machine data loss — cannot start after replacement",
+      "label": "discussion"
+    },
+    {
+      "number": 21590,
+      "title": "MCP Tool Results Cannot Be Returned to Model",
+      "label": "discussion"
     }
   ],
   "trending_topics": [
-    "Agent runtime stability (Autocompact thrashing, DSH bridge disconnection) — 2 new P1s today",
-    "Claude Code CLI integration on Windows — missing executable in packaged builds",
-    "Model compatibility (DeepSeek V4, DashScope, AiHubMix null pricing)",
-    "Data backup and restore reliability — WebDAV 413, SQLITE_CORRUPT, v6→v7 migration",
-    "Web search provider expansion — DeepSeek Search/Fetch merged today",
-    "OAuth persistence across duplicated tabs (Claude/Google)"
+    "agent",
+    "backup/restore",
+    "mcp",
+    "provider connectivity",
+    "data corruption"
   ],
-  "high_engagement_issues": [
-    {"number": 20282, "title": "Chat and Agent streams fail to parse successful HTTP 200 responses", "comments": 52},
-    {"number": 20692, "title": "Agent compaction summary leaks into chat transcript", "comments": 19},
-    {"number": 19824, "title": "Chat displays '400 null' instead of actionable provider error", "comments": 39},
-    {"number": 19793, "title": "Chat fails when response stream ends without finish reason", "comments": 30},
-    {"number": 21418, "title": "Restore triggers auto-restart; backup archive corrupted", "comments": 22}
+  "top_feature_requests": [
+    {
+      "number": 21926,
+      "title": "Multi-agent orchestration (Grok Bot style)",
+      "comments": 0
+    },
+    {
+      "number": 21913,
+      "title": "Rename Settings→Tools→Prompts to Quick Prompts",
+      "comments": 2
+    },
+    {
+      "number": 21659,
+      "title": "Use desktop Assistants from Mobile over remote access",
+      "comments": 4
+    },
+    {
+      "number": 21202,
+      "title": "Skills: symlink/reference registration support",
+      "comments": 5
+    }
   ]
 }

@@ -1,123 +1,95 @@
 {
-  "generated_at": "2026-10-18T18:00:00.000000+00:00",
-  "snapshot_date": "2026-10-18",
+  "generated_at": "2026-10-19T17:46:18.935957+00:00",
+  "date": "2026-10-19",
   "v2_branch_status": {
     "open_prs": 0,
-    "note": "No open PRs targeting v2 branch; active development on main with v2-labeled issues tracking regressions"
+    "note": "No open PRs targeting the v2 branch as of this run"
   },
-  "recent_releases": [
-    { "tag": "v2.1.7", "type": "release", "date": "2026-10-16", "hotfixes": ["#21824 computer-use", "#21825 translate dictation", "#21794 settings scrollbars", "#21798 agent onboarding decline"] },
-    { "tag": "v2.1.6", "type": "release", "date": "~2026-10-13" }
-  ],
-  "v2_labeled_open_issues": [
-    {"number": 20940, "title": "Responses API stream events fail client TypeValidation and abort the turn", "labels": ["bug","p1","models","v2","chat"], "priority": "p1"},
-    {"number": 20941, "title": "Work and Agent conversations terminate with an empty no-response error", "labels": ["bug","p1","v2","agent","chat"], "priority": "p1"},
-    {"number": 21418, "title": "Restore triggers app auto-restart; backup archive corrupted (v6→v7 incompatible)", "labels": ["bug","p1","windows","data","v2"], "priority": "p1"},
-    {"number": 20942, "title": "Chat streams fail with net::ERR_HTTP2_PROTOCOL_ERROR and are not retried", "labels": ["bug","p2","connectivity","v2","chat"], "priority": "p2"},
-    {"number": 21667, "title": "Agent requests remain blocked when pi-ai image history exceeds 20 MiB", "labels": ["bug","p2","windows","v2","agent","needs-info"], "priority": "p2"},
-    {"number": 19929, "title": "Windows Agent sessions fail to start with spawn EPERM", "labels": ["bug","p1","windows","v2","agent"], "priority": "p1"},
-    {"number": 20024, "title": "Allow pasting clipboard images into the Translation input", "labels": ["p3","feature","ui-ux","v2","translate"], "priority": "p3"}
-  ],
-  "v2_critical_blockers": [
+  "v2_tagged_open_issues": [
     {
-      "number": 20940,
-      "title": "Responses API TypeValidation failures aborting turns",
-      "impact": "Any conversation using Responses API (Anthropic, Claude models) aborts mid-turn"
-    },
-    {
-      "number": 20941,
-      "title": "Work/Agent conversations terminate with empty no-response error",
-      "impact": "Work mode and Agent mode completely broken for affected users"
+      "number": 21667,
+      "title": "Agent requests remain blocked when pi-ai image history exceeds 20 MiB",
+      "labels": [
+        "bug",
+        "p2",
+        "windows",
+        "v2",
+        "agent"
+      ]
     },
     {
       "number": 21418,
-      "title": "Backup restore data loss — v6→v7 incompatibility + EPERM on rename",
-      "impact": "Users cannot restore backups; perceived as data loss after upgrade"
+      "title": "Restore triggers app auto-restart — data cannot be restored (v6→v7 incompatible)",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data",
+        "v2"
+      ]
+    },
+    {
+      "number": 21085,
+      "title": "File/KB scopes inline large tool schemas and can overflow context",
+      "labels": [
+        "bug",
+        "p1",
+        "rag",
+        "assistant",
+        "performance",
+        "v2",
+        "chat"
+      ]
+    },
+    {
+      "number": 20941,
+      "title": "Work and Agent conversations terminate with an empty no-response",
+      "labels": [
+        "bug",
+        "p1",
+        "v2",
+        "agent",
+        "chat"
+      ]
+    },
+    {
+      "number": 20940,
+      "title": "Responses API stream events fail TypeValidation and abort chat",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "v2",
+        "chat"
+      ]
+    },
+    {
+      "number": 20937,
+      "title": "DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC)",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "v2",
+        "agent"
+      ]
     }
   ],
-  "v2_feature_tracks": [
-    {
-      "track": "Agent Runtime",
-      "status": "active — new P1s today",
-      "new_p1_today": [
-        {"number": 21905, "title": "Autocompact is thrashing — cannot recover on 2.0.14–2.1.6"},
-        {"number": 21898, "title": "Claude Code process missing on packaged Windows install"}
-      ],
-      "other_open_p2": [
-        {"number": 21901, "title": "DSH bridge closes mid-turn with JSON-RPC input closed"},
-        {"number": 21912, "title": "DSH runtime startup times out after 10s"},
-        {"number": 21911, "title": "Windows NTSTATUS 3221225785 — Claude Code CLI cannot initialize"}
-      ]
-    },
-    {
-      "track": "Web Search",
-      "status": "active",
-      "merged_today": [
-        {"number": 21896, "title": "feat(web-search): DeepSeek Search / Fetch API integration — closed as done"},
-        {"number": 21807, "title": "refactor(web-search): extract shared protocols into @cherrystudio/web-search"}
-      ]
-    },
-    {
-      "track": "Media / Voice",
-      "status": "active",
-      "merged_recently": [
-        {"number": 21695, "title": "feat(voice): configurable dictation shortcuts"},
-        {"number": 21762, "title": "fix(windows-asr): accept canonical 16 kHz WAV input"}
-      ]
-    },
-    {
-      "track": "e2e Test Harness",
-      "status": "blocked — 3 open P1s",
-      "blockers": [
-        {"number": 21864, "title": "Three defects block local PR verification (native file panel, locale locator, restart timing)", "priority": "p1"},
-        {"number": 21865, "title": "CDP port hardcoded 9222/9229 — make configurable", "priority": "p1"},
-        {"number": 21862, "title": "Switchable mock provider base URL needed for regression workflow", "priority": "p1"}
-      ]
-    },
-    {
-      "track": "Model Compatibility",
-      "status": "active",
-      "key_issues": [
-        {"number": 21906, "title": "DashScope thinking_budget exceeds Bailian model range — HTTP 400", "priority": "p2"},
-        {"number": 21692, "title": "claude-haiku-5.5 via Cloudflare 400 — thinking.type.enabled not supported", "priority": "p2"},
-        {"number": 21953, "title": "OAuth fails for Claude/Google and session cookies do not persist", "priority": "p2"}
-      ]
-    },
-    {
-      "track": "Data / Backup",
-      "status": "needs-attention",
-      "key_issues": [
-        {"number": 21418, "title": "Restore triggers EPERM on Local Storage rename", "priority": "p1"},
-        {"number": 21805, "title": "SQLITE_CORRUPT blocks startup", "priority": "p1"},
-        {"number": 21820, "title": "V2 migration fails with EPERM renaming to user-center", "priority": "p2"},
-        {"number": 21813, "title": "Windows backup restore fails in two client versions", "priority": "p2"},
-        {"number": 21930, "title": "WebDAV backup to Nutstore fails with HTTP 413", "priority": "p2"}
-      ]
-    },
-    {
-      "track": "Doc Governance / Spec",
-      "status": "just-merged",
-      "note": "#18920 feat(doc-governance): integrate spec-driven development workflow merged in last 5 days"
-    }
+  "active_feature_branches_in_prs": [
+    "feature/agent-behavior",
+    "feature/agent-runtime-background-subagent",
+    "feature/agent-behavior-design",
+    "feature/agent-runtime-pi-upgrade",
+    "feat/unified-notification-center",
+    "feat/skill-marketplace",
+    "feature/agent-runtime-goal",
+    "feature/agent-runtime-subagent",
+    "feature/agent-runtime-todo-ask-user",
+    "orca/video-stack-20261016 (media/agent/chat/settings)",
+    "orca/media-frame-analysis",
+    "codex/task-dashboard-runtime",
+    "codex/generated-attachments",
+    "codex/voice-renderer-foundation"
   ],
-  "stacked_pr_chains": [
-    {
-      "chain": "fix/subagent-resume",
-      "prs": [21932, 21933, 21934],
-      "description": "Three-PR stack fixing subagent resume routing and timeline rendering"
-    }
-  ],
-  "v2_tracking_issue": {
-    "number": 14021,
-    "title": "v2 aiCore Provider 层历史 Issue 总跟踪 (226 issues, 29 categories, 5 unified resolution pivots)",
-    "assignee": "DeJeune",
-    "updated_at": "2026-10-17"
-  },
-  "merged_today_main": [
-    "fix(openai-responses): accept url_citation without start/end index (#21944)",
-    "fix(provider): accept null AiHubMix model pricing (#21923)",
-    "fix(rtk): stop caching a timed-out probe as unavailable (#21606)",
-    "feat(voice): add configurable dictation shortcuts (#21695)",
-    "feat(doc-governance): integrate spec-driven development workflow (#18920)"
-  ]
+  "summary": "v2 branch shows no open PRs. P1 v2-tagged bugs are active blockers for the v2 release line. Feature work is progressing across agent-runtime, video/media, skill-marketplace, and notification branches."
 }
