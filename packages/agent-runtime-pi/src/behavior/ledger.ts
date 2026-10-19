@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto'
+
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
-import { buildSessionContext, convertToLlm } from '@earendil-works/pi-coding-agent'
+import { buildSessionContext, convertToLlm, SessionManager } from '@earendil-works/pi-coding-agent'
 
 import {
   type ChildFacts,
@@ -13,7 +15,15 @@ import {
 import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import { historyOf, keysOf, omittedMarkers, withoutMarkers } from './history'
-import { type Adapter, type Conversation, isIdle, type JobRecord, markerMessage } from './state'
+import {
+  type Adapter,
+  type Conversation,
+  isIdle,
+  type JobRecord,
+  markerMessage,
+  newConversation,
+  type Owner
+} from './state'
 
 type Applied = {
   readonly spawned: { readonly key: Key; readonly child: ThreadId }[]
@@ -69,16 +79,17 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
 export function commit<R extends JsonValue>(
   adapter: Adapter,
   thread: ThreadId,
-  decide: (facts: ConversationFacts) => Step<R>
+  decide: (facts: ConversationFacts) => Step<R>,
+  owner: Owner | undefined
 ): { readonly step: Step<R>; readonly applied: Applied } {
   const step = decide(readFacts(adapter, thread))
-  const writes = step.ops.map((op) => prepare(adapter, thread, op))
+  const writes = step.ops.map((op) => prepare(adapter, thread, op, owner))
   const applied: Applied = { spawned: [], children: [], jobs: [] }
   for (const write of writes) write(applied)
   return { step, applied }
 }
 
-function prepare(adapter: Adapter, thread: ThreadId, op: TxOp): (applied: Applied) => void {
+function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | undefined): (applied: Applied) => void {
   switch (op.type) {
     case 'append-record': {
       const target = adapter.conversation(op.thread)
@@ -102,7 +113,29 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp): (applied: Applie
         void target.native!.session.sendCustomMessage(message, { triggerTurn: false })
       }
     }
-    case 'spawn-child':
+    case 'spawn-child': {
+      const { spec, key } = op
+      if (spec.boundary === 'foreground' && !owner)
+        throw new Error('A foreground child can only be spawned from a tool call')
+      const parent = adapter.conversation(thread)
+      const fork = spec.fork && { source: adapter.conversation(spec.fork.from).manager, at: spec.fork.at }
+      if (spec.fork && !fork?.source.getEntry(spec.fork.at))
+        throw new Error(`Fork point ${spec.fork.at} is not in ${spec.fork.from}`)
+      // Before any write: forkFrom/create touch the disk and can throw, which must reject the whole commit.
+      const child = runtimeId<'thread'>(randomUUID())
+      const manager = childManager(parent.manager, child, fork)
+      return (applied) => {
+        const origin = encodeEntry({ type: 'subagent-origin', value: spec.origin }, key)
+        manager.appendCustomEntry(origin.kind, origin.data)
+        const record = encodeEntry({ type: 'subagent-run', value: { ...spec.record, sessionId: child } }, key)
+        parent.manager.appendCustomEntry(record.kind, record.data)
+        const lineage = { kind: 'subagent' as const, parent: thread, origin: spec.origin }
+        const conv = newConversation(child, manager, lineage, spec.boundary === 'foreground' ? owner : undefined, false)
+        adapter.conversations.set(child, conv)
+        applied.spawned.push({ key, child })
+        applied.children.push(conv)
+      }
+    }
     case 'ensure-job':
       throw new Error(`${op.type} is not implemented yet`)
   }
@@ -117,4 +150,20 @@ export function modelContext(adapter: Adapter, thread: ThreadId): JsonValue[] {
   const omit = adapter.installation.filter?.omit(thread, readFacts(adapter, thread)) ?? []
   const visible = withoutMarkers(messages, omittedMarkers(conv.manager.getBranch(), omit))
   return JSON.parse(JSON.stringify(transformMessages(convertToLlm(visible), model))) as JsonValue[]
+}
+
+/** A child's native storage in its parent's persistence mode, starting from `fork.source` up to `fork.at` when forked. */
+function childManager(
+  parent: SessionManager,
+  id: ThreadId,
+  fork: { readonly source: SessionManager; readonly at: string } | undefined
+): SessionManager {
+  const options = { id, parentSession: parent.getSessionFile() }
+  const manager = !parent.isPersisted()
+    ? SessionManager.inMemory(parent.getCwd(), options, fork ? fork.source.getBranch(fork.at) : [])
+    : fork
+      ? SessionManager.forkFrom(fork.source.getSessionFile()!, parent.getCwd(), parent.getSessionDir(), options)
+      : SessionManager.create(parent.getCwd(), parent.getSessionDir(), options)
+  if (fork) manager.branch(fork.at)
+  return manager
 }
