@@ -336,18 +336,15 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async close() {
       if (closed) return
       const all = [...conversations.values()]
-      const failures: unknown[] = []
-      try {
-        // Every run first: a parent's tool call may be waiting on a foreground child.
-        await Promise.all(all.flatMap((conv) => conv.native?.session.abort() ?? []))
-      } finally {
-        // A session that fails to dispose does not keep the others open.
-        for (const conv of all)
-          await conv.native?.dispose().catch((error: unknown) => {
-            failures.push(error)
-          })
-        closed = true
-      }
+      // Every run first: a parent's tool call may be waiting on a foreground child.
+      const aborts = await Promise.allSettled(all.flatMap((conv) => conv.native?.session.abort() ?? []))
+      const failures = aborts.flatMap((abort) => (abort.status === 'rejected' ? [abort.reason as unknown] : []))
+      // A session that fails to abort or dispose does not keep the others open.
+      for (const conv of all)
+        await conv.native?.dispose().catch((error: unknown) => {
+          failures.push(error)
+        })
+      closed = true
       if (failures.length > 0) throw failures.length === 1 ? failures[0] : new AggregateError(failures)
     }
   }
