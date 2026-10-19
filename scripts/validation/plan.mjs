@@ -54,7 +54,7 @@ const consumers = {
   renderer: ['renderer'],
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
-  'agent-behavior': ['agent-behavior'],
+  'agent-behavior': ['agent-behavior', 'agent-runtime-pi', 'main'],
   'agent-runtime': ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main'],
   'agent-runtime-pi': ['agent-runtime-pi', 'main'],
   'agent-runtime-pi-durable': ['agent-runtime-pi-durable'],
