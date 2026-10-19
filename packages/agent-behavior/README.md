@@ -64,7 +64,7 @@ are named as a verb and an object and carry no harness noun (hook, commit, sessi
 | H9  | `ToolGate`      | `register`                         | Before a call runs, allow it, block it or change its arguments; after it ran, replace its result.         |
 | H10 | `ContextFilter` | `register`                         | Leave unadmitted round entries out of the next model request.                                             |
 | H11 | `RequestMeter`  | `register`                         | Meter every model request with its conversation's lineage; refuse a child's next one once its run reached the cap. |
-| H12 | `Lifecycle`     | `register`                         | Let the package settle a conversation when it opens, after it is compacted and when it closes.            |
+| H12 | `Lifecycle`     | `register`                         | Let the package settle a conversation when it opens, before and after it is compacted and when it closes. |
 
 The outbound ports (`ledger`, `turns`, `helpers`, `waits`, `memory`, `clock`) are bound per call. A tool call, a job
 run and a lifecycle callback each receive their own `BoundPorts`, and once that call returns its asynchronous methods
@@ -393,7 +393,7 @@ needs (tools, jobs, tool gate, context filter, request meter, lifecycle). The ha
 | `withCall(thread, use)`   | Run `use` with outbound ports bound to a fresh job-like call on `thread`; they expire when `use` settles.                                                                                                               |
 | `script(thread, replies)` | Append the replies the model gives `thread`'s runs, in order; a request past the end fails its run. A reply is text with optional tool calls and `usage`, or `{ error }`, a failed request.                              |
 | `sendUser(thread, text)`  | Deliver a person's text as user input; if the conversation is busy it stays in the inbox and is handled with leftover semantics.                                                                                        |
-| `compact(thread)`         | Compact `thread` now (a compaction entry appears), then call `onCompacted`.                                                                                                                                             |
+| `compact(thread)`         | Compact `thread` now, a manual compaction: ask `onCompacting`, and with a summary add a compaction entry and call `onCompacted`; a decline leaves the history as it was.                                                |
 | `settle()`                | Resolve once no run is active and no job is live; inbox items a failed run left do not count.                                                                                                                           |
 | `restart()`               | Lose everything in memory and reopen from storage: install runs again, `abandon` jobs are dropped, `onOpen(thread, { reopened: true }, ports)` runs for every conversation, then runs and `resume` jobs continue.     |
 | `close()`                 | Call `onClose` for every conversation, then shut down.                                                                                                                                                                  |

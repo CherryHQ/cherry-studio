@@ -32,6 +32,7 @@ const pendingAfter = <T>(promise: Promise<T>) =>
   ])
 const onReopen = (open: (thread: ThreadId, ports: BoundPorts) => Promise<void>): LifecycleHandlers => ({
   onOpen: (thread, { reopened }, ports) => (reopened ? open(thread, ports) : Promise.resolve()),
+  onCompacting: async () => ({ summary: 'summary' }),
   onCompacted: async () => {},
   onClose: async () => {}
 })
@@ -282,5 +283,27 @@ describe('fake harness', () => {
       expect.stringMatching(/^waits\.untilIdle .*onOpen/)
     ])
     expect((await read(fake, t)).history).toEqual([])
+  })
+
+  // Catches compaction requests escaping a child's request cap (PR-2a ruling G5): a compaction during a run is one of
+  // its model requests, so the meter sees it and counts it.
+  it('meters a compaction during a run as one of its requests', async () => {
+    const hold = holds()
+    const seen: number[] = []
+    const fake = createFakeHarness({
+      install: (p) => {
+        p.tools.register(hold.tool)
+        p.requestMeter.register({ allow: (_thread, requests) => (seen.push(requests), { ok: true }) })
+        p.lifecycle.register(onReopen(async () => {}))
+      }
+    })
+    const t = await fake.createThread()
+    fake.script(t, [callTool('hold', { id: 'h' }), reply('done')])
+    await fake.sendUser(t, 'go')
+    await hold.started('h')
+    await fake.compact(t)
+    hold.release('h')
+    await fake.settle()
+    expect(seen).toEqual([0, 1, 2])
   })
 })

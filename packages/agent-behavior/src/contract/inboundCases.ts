@@ -2,7 +2,13 @@ import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { turnInput } from '../core/decisions'
 import type { CallKey, GateFacts } from '../core/facts'
-import type { GateHandlers, LifecycleHandlers, ToolDefinition } from '../ports/harness'
+import type {
+  CompactionRequest,
+  CompactionVerdict,
+  GateHandlers,
+  LifecycleHandlers,
+  ToolDefinition
+} from '../ports/harness'
 import { check, same } from './assert'
 import {
   aborted,
@@ -27,6 +33,7 @@ import type { ContractCase } from './harness'
 const passGate = (before: GateHandlers['before']): GateHandlers => ({ before, after: async () => undefined })
 const lifecycle = (partial: Partial<LifecycleHandlers>): LifecycleHandlers => ({
   onOpen: async () => {},
+  onCompacting: async () => ({ summary: 'summary' }),
   onCompacted: async () => {},
   onClose: async () => {},
   ...partial
@@ -321,6 +328,50 @@ export const inboundCases: readonly ContractCase[] = [
         (await read(h, other)).live.runEnd?.outcome === 'completed',
         'a run its onOpen left alone must resume and complete'
       )
+    }
+  },
+  // Catches an adapter that compacts without asking the package, compacts after a decline (D33), or keys two
+  // compactions alike, so the second would reuse the first's memoized summary (H12, I-d).
+  {
+    name: 'a compaction asks onCompacting first and compacts nothing on a decline',
+    covers: ['lifecycle.register'],
+    needs: [],
+    async run(open) {
+      const asked: CompactionRequest[] = []
+      const compacted: ThreadId[] = []
+      let verdict: CompactionVerdict = { decline: true }
+      const h = await open((p) =>
+        p.lifecycle.register(
+          lifecycle({
+            async onCompacting(_thread, request) {
+              asked.push(request)
+              return verdict
+            },
+            async onCompacted(thread) {
+              compacted.push(thread)
+            }
+          })
+        )
+      )
+      const t = await h.createThread()
+      h.script(t, [reply('first'), reply('second')])
+      await h.sendUser(t, 'before')
+      await h.settle()
+      await h.compact(t)
+      const compactions = async () => (await read(h, t)).history.filter((e) => e.kind === 'compaction').length
+      check((await compactions()) === 0 && compacted.length === 0, 'a declined compaction must change nothing')
+      verdict = { summary: 'what happened so far' }
+      await h.compact(t)
+      check((await compactions()) === 1, 'a compaction with a summary must add one compaction entry')
+      same(compacted, [t], 'onCompacted must run once, after the compaction that happened')
+      await h.sendUser(t, 'after')
+      await h.settle()
+      await h.compact(t)
+      check(
+        asked.length === 3 && asked.every((r) => r.key !== '' && r.reason === 'manual' && r.messages.length > 0),
+        'onCompacting must get a key, the reason and the messages to summarize'
+      )
+      check(asked[2].key !== asked[1].key, 'compactions of different histories must have different keys')
     }
   },
   // Catches a close that skips a conversation, so its shutdown record is never written (S-f).

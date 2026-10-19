@@ -22,7 +22,10 @@ export interface ContractHarness {
    * leftover semantics.
    */
   sendUser(thread: ThreadId, text: string): Promise<void>
-  /** Compacts `thread` now (a compaction entry appears), then calls `onCompacted`. */
+  /**
+   * Compacts `thread` now, a manual compaction: asks `onCompacting`, and with a summary adds a compaction entry and calls
+   * `onCompacted`; a decline leaves the history as it was.
+   */
   compact(thread: ThreadId): Promise<void>
   /** Resolves once no run is active and no job is live; inbox items a failed run left do not count. */
   settle(): Promise<void>
