@@ -171,8 +171,8 @@ export function registerAgentMethods(
       agentSessionService.notifyReadModelChange([admission.receipt.sessionId], 'membership')
     return admission.receipt
   })
-  on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit }) =>
-    listMessages(sessionId, historyRevision, cursor, limit)
+  on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit, partsMode }) =>
+    listMessages(sessionId, historyRevision, cursor, limit, partsMode)
   )
   on('agent.parts.list', ({ sessionId, messageId, messageRevision, cursor, limit }) =>
     listParts(sessionId, messageId, messageRevision, cursor, limit)
