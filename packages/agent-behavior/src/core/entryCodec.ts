@@ -1,5 +1,6 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
+import { type Fields, isFields } from './args'
 import {
   type DeliveredRun,
   ENTRY_KINDS,
@@ -27,7 +28,6 @@ export type RawEntry = {
   readonly text?: string
 }
 
-type Fields = { readonly [field: string]: JsonValue }
 type TurnStop = Extract<PolicyRecord, { readonly type: 'turn-stop' }>['value']
 
 /** Every member of a union as a key, so a member added to the union fails to compile until the decoder accepts it. */
@@ -52,8 +52,6 @@ const isMember = (value: JsonValue, members: object): boolean =>
   typeof value === 'string' && Object.hasOwn(members, value)
 const isOptionalMember = (value: JsonValue | undefined, members: object): boolean =>
   value === undefined || isMember(value, members)
-const isFields = (value: JsonValue): value is Fields =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 const withKey = (fields: Fields, key: string | undefined): Fields => (key === undefined ? fields : { ...fields, key })
 
 /** Lays a record or marker out as agent-runtime-pi stores it today; a given `key` travels as one extra `key` field. */
