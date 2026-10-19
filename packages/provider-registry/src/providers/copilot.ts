@@ -9,14 +9,6 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'github-copilot-openai-compatible',
       baseUrl: 'https://api.githubcopilot.com/'
-    },
-    'openai-responses': {
-      adapterFamily: 'github-copilot-openai-compatible',
-      baseUrl: 'https://api.githubcopilot.com/'
-    },
-    'anthropic-messages': {
-      adapterFamily: 'anthropic',
-      baseUrl: 'https://api.githubcopilot.com/v1'
     }
   },
   metadata: {
