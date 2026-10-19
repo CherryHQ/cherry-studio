@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { callTool, holds, reply } from '../../src/contract/fixtures'
+import { callTool, holds, reply, toolBase } from '../../src/contract/fixtures'
 import { currentGoal } from '../../src/core/goal/goalHistory'
-import { markers, world } from './world'
+import { MAX_SUBAGENT_REQUESTS } from '../../src/core/subagents/subagentText'
+import { markers, runRecords, world } from './world'
 
 const compactions = async (w: ReturnType<typeof world>, thread: Parameters<ReturnType<typeof world>['read']>[0]) =>
   (await w.read(thread)).history.filter((entry) => entry.kind === 'compaction')
@@ -54,6 +55,32 @@ describe('lifecycle handlers', () => {
     await w.fake.compact(t)
     expect(await compactions(w, t)).toHaveLength(1)
     expect(w.host.asked.summaries).toBe(2)
+  })
+
+  // Catches a compaction that goes through while the run is over its request cap: one more model request the cap
+  // never stopped (D24, H11).
+  it('a request-meter refusal cancels an in-run compaction', async () => {
+    const hold = holds()
+    const echo = callTool('echo', {})
+    const w = world({
+      extra: (p) => {
+        p.tools.register(hold.tool)
+        p.tools.register({ ...toolBase('echo'), run: async () => ({ text: 'ran', isError: false }) })
+      },
+      scripts: (_t, lineage) =>
+        lineage.kind === 'subagent'
+          ? [...Array.from({ length: MAX_SUBAGENT_REQUESTS - 1 }, () => echo), callTool('hold', { id: 'child' })]
+          : []
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('subagent', { description: 'scan', prompt: 'scan', background: true }), reply('wait')])
+    await w.fake.sendUser(t, 'go')
+    await hold.started('child')
+    const [{ sessionId: child }] = runRecords(await w.read(t))
+    w.host.giveSummary('summary')
+    await w.fake.compact(child)
+    expect(await compactions(w, child)).toHaveLength(0)
+    expect(w.host.asked.summaries).toBe(0)
   })
 
   // Catches onCompacted writing nothing or writing while a run is active: the model would lose track of the
