@@ -3788,6 +3788,8 @@
   "settings.data.app_logs.label": "Registros de la aplicación",
   "settings.data.backup.skip_file_data_help": "Omitir la copia de seguridad de archivos de datos como imágenes y bases de conocimiento durante la copia de seguridad, respaldando únicamente historial de chat y configuraciones. Reduce el uso de espacio y acelera el proceso de copia de seguridad",
   "settings.data.backup.skip_file_data_title": "Copia de seguridad reducida",
+  "settings.data.backup.syncStart.help": "La primera copia se inicia a esta hora del día; las siguientes se realizan según el intervalo de copias. Déjalo vacío para usar solo el intervalo.",
+  "settings.data.backup.syncStart.label": "Hora de la primera copia",
   "settings.data.clear_cache.approximately": "Aprox. {{size}}",
   "settings.data.clear_cache.button": "Limpiar caché",
   "settings.data.clear_cache.calculating": "Calculando…",

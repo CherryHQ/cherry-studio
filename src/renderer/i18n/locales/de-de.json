@@ -3788,6 +3788,8 @@
   "settings.data.app_logs.label": "Anwendungsprotokolle",
   "settings.data.backup.skip_file_data_help": "Bilder und Wissensdatenbank-Dateien beim Backup überspringen, nur Chat-Verlauf und Einstellungen sichern. Spart Speicher und beschleunigt Backup",
   "settings.data.backup.skip_file_data_title": "Kompaktes Backup",
+  "settings.data.backup.syncStart.help": "Die erste Sicherung startet zu dieser Uhrzeit, weitere folgen im Sicherungsintervall. Leer lassen, um nur das Intervall zu verwenden.",
+  "settings.data.backup.syncStart.label": "Uhrzeit der ersten Sicherung",
   "settings.data.clear_cache.approximately": "Ca. {{size}}",
   "settings.data.clear_cache.button": "Cache löschen",
   "settings.data.clear_cache.calculating": "Wird berechnet…",

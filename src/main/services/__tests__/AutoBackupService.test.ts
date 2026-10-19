@@ -105,6 +105,159 @@ const enabledPreferences: Record<string, unknown> = {
 }
 
 describe('AutoBackupService', () => {
+  const setPreference = (key: string, value: unknown) => {
+    const oldValue = preferences[key]
+    preferences[key] = value
+    preferenceListener?.(key, value, oldValue)
+  }
+
+  const recreateService = async () => {
+    await service._doStop()
+    await scheduler._doStop()
+    BaseService.resetInstances()
+
+    scheduler = new SchedulerService()
+    service = new AutoBackupService()
+    await scheduler._doInit()
+    await service._doInit()
+    await service._doAllReady()
+  }
+
+  describe('sync_start anchor', () => {
+    const wallClock = (hours: number, minutes = 0) => new Date(2026, 9, 20, hours, minutes).getTime()
+    const clock = () => new Date(Date.now()).toTimeString().slice(0, 5)
+
+    /** Leaves only webdav enabled and pins "now" to a real wall-clock time. */
+    const isolateWebdavAt = async (hours: number, minutes = 0) => {
+      setPreference('data.backup.s3.auto_sync', false)
+      setPreference('data.backup.local.auto_sync', false)
+      setPreference('data.backup.nutstore.auto_sync', false)
+      vi.setSystemTime(wallClock(hours, minutes))
+    }
+
+    beforeEach(() => {
+      setPreference('data.backup.webdav.sync_interval', 360)
+    })
+
+    it('fires at the anchor instead of one interval after the last run', async () => {
+      setPreference('data.backup.webdav.sync_start', 18 * 60)
+      await isolateWebdavAt(7, 0)
+      await recreateService()
+
+      // A plain interval would wait 6h from startup (13:00); the anchor is 12:00.
+      await vi.advanceTimersByTimeAsync(5 * 3600_000 - 1_000)
+      expect(mocks.backupToWebdav).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock()).toBe('12:00')
+    })
+
+    it('keeps later backups on the anchor grid', async () => {
+      setPreference('data.backup.webdav.sync_start', 18 * 60)
+      await isolateWebdavAt(11, 59)
+      await recreateService()
+
+      await vi.advanceTimersByTimeAsync(6 * 3600_000)
+      expect(clock()).toBe('17:59')
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(mocks.backupToWebdav).toHaveBeenCalledTimes(2)
+      expect(clock()).toBe('18:00')
+
+      await vi.advanceTimersByTimeAsync(6 * 3600_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledTimes(3)
+      expect(clock()).toBe('00:00')
+
+      await vi.advanceTimersByTimeAsync(6 * 3600_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledTimes(4)
+      expect(clock()).toBe('06:00')
+    })
+
+    it('holds the same clock time every day when the interval is 24 hours', async () => {
+      setPreference('data.backup.webdav.sync_start', 3 * 60)
+      setPreference('data.backup.webdav.sync_interval', 1440)
+      await isolateWebdavAt(9, 0)
+      await recreateService()
+
+      await vi.advanceTimersByTimeAsync(18 * 3600_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock()).toBe('03:00')
+
+      await vi.advanceTimersByTimeAsync(24 * 3600_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledTimes(2)
+      expect(clock()).toBe('03:00')
+    })
+
+    it('does not skip a grid slot when the interval does not divide 24 hours', async () => {
+      setPreference('data.backup.webdav.sync_start', 7 * 60)
+      setPreference('data.backup.webdav.sync_interval', 300)
+      await isolateWebdavAt(23, 0)
+      await recreateService()
+
+      await vi.advanceTimersByTimeAsync(3 * 3600_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock()).toBe('02:00')
+
+      await vi.advanceTimersByTimeAsync(5 * 3600_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledTimes(2)
+      expect(clock()).toBe('07:00')
+    })
+
+    it('returns to the grid after a missed slot instead of drifting with the gap', async () => {
+      setPreference('data.backup.webdav.sync_start', 18 * 60)
+      await isolateWebdavAt(17, 59)
+      await recreateService()
+
+      // Skip the 18:00 slot entirely (a shutdown spanning the anchor).
+      vi.setSystemTime(wallClock(23, 0))
+      await recreateService()
+      await vi.advanceTimersByTimeAsync(3600_000)
+
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock()).toBe('00:00')
+    })
+
+    it('does not fire before the anchor even when the startup grace period is shorter', async () => {
+      setPreference('data.backup.webdav.sync_start', 18 * 60)
+      await isolateWebdavAt(17, 58)
+      await recreateService()
+
+      // The 60s startup grace has elapsed but the 18:00 anchor has not been reached.
+      await vi.advanceTimersByTimeAsync(61_000)
+      expect(mocks.backupToWebdav).not.toHaveBeenCalled()
+      expect(clock()).toBe('17:59')
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock()).toBe('18:00')
+    })
+
+    it('re-schedules from the grid when the anchor changes', async () => {
+      setPreference('data.backup.webdav.sync_start', 18 * 60)
+      await isolateWebdavAt(7, 0)
+      await recreateService()
+
+      setPreference('data.backup.webdav.sync_start', 8 * 60)
+      await vi.advanceTimersByTimeAsync(3600_000)
+
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock()).toBe('08:00')
+    })
+
+    it('ignores an unset anchor and keeps the plain interval', async () => {
+      await isolateWebdavAt(7, 0)
+      await recreateService()
+
+      // Without an anchor the first backup is one full interval after startup: 13:00.
+      await vi.advanceTimersByTimeAsync(6 * 3600_000 - 1_000)
+      expect(mocks.backupToWebdav).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+      expect(clock()).toBe('13:00')
+    })
+  })
   let service: AutoBackupService
   let scheduler: SchedulerService
   let preferences: Record<string, unknown>
@@ -146,24 +299,6 @@ describe('AutoBackupService', () => {
     vi.useRealTimers()
     BaseService.resetInstances()
   })
-
-  const setPreference = (key: string, value: unknown) => {
-    const oldValue = preferences[key]
-    preferences[key] = value
-    preferenceListener?.(key, value, oldValue)
-  }
-
-  const recreateService = async () => {
-    await service._doStop()
-    await scheduler._doStop()
-    BaseService.resetInstances()
-
-    scheduler = new SchedulerService()
-    service = new AutoBackupService()
-    await scheduler._doInit()
-    await service._doInit()
-    await service._doAllReady()
-  }
 
   it('waits one full interval before the first automatic backup after application startup', async () => {
     await vi.advanceTimersByTimeAsync(59_000)

@@ -3788,6 +3788,8 @@
   "settings.data.app_logs.label": "Uygulama Günlükleri",
   "settings.data.backup.skip_file_data_help": "Yedekleme sırasında resimler ve bilgi tabanları gibi veri dosyalarını atlayıp yalnızca sohbet kayıtlarını ve ayarları yedekler. Kullanılan alanı azaltır ve yedeklemeyi hızlandırır.",
   "settings.data.backup.skip_file_data_title": "Kompakt Yedekleme",
+  "settings.data.backup.syncStart.help": "İlk yedekleme günün bu saatinde başlar; sonrakiler yedekleme aralığına göre yapılır. Yalnızca aralığı kullanmak için boş bırakın.",
+  "settings.data.backup.syncStart.label": "İlk yedekleme saati",
   "settings.data.clear_cache.approximately": "Yaklaşık {{size}}",
   "settings.data.clear_cache.button": "Önbelleği Temizle",
   "settings.data.clear_cache.calculating": "Hesaplanıyor…",
