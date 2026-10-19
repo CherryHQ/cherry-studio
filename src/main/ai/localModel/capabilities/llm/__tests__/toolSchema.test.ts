@@ -372,6 +372,26 @@ describe('toGbnfJsonSchema', () => {
     })
   })
 
+  it('keeps the item constraints of every allOf part that declares the same array', () => {
+    const rows = (item: unknown) => ({
+      type: 'object',
+      properties: { rows: { type: 'array', minItems: 1, items: item } },
+      required: ['rows']
+    })
+    const schema = {
+      allOf: [
+        rows({ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }),
+        rows({ type: 'object', properties: { limit: { type: 'integer' } }, required: ['limit'] })
+      ]
+    }
+
+    expect(generates(schema, { rows: [{ id: 'row-1', limit: 1 }] })).toBe(true)
+    expect(generates(schema, { rows: [{ limit: 1 }] })).toBe(false)
+    expect(toToolArguments(schema, { rows: [{ id: 'row-1', limit: 1 }] })).toEqual({
+      rows: [{ id: 'row-1', limit: 1 }]
+    })
+  })
+
   it('requires an alternative of every union an allOf combines', () => {
     const schema = {
       type: 'object',

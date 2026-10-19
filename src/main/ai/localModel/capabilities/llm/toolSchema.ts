@@ -315,9 +315,12 @@ function mergeObjectSchemas(target: Schema, source: Schema): Schema {
     // Both parts constrain this property, so its value must meet both.
     properties[key] = Object.hasOwn(properties, key) ? { allOf: [properties[key], value] } : value
   }
+  // Both parts constrain the array items, so each item must meet both.
+  const bothHaveItems = isRecord(target.items) && isRecord(part.items)
   return {
     ...target,
     ...part,
+    ...(bothHaveItems && { items: { allOf: [target.items, part.items] } }),
     ...(hasProperties && { properties }),
     ...(hasRequired && {
       required: [...((target.required as string[]) ?? []), ...((part.required as string[]) ?? [])]
