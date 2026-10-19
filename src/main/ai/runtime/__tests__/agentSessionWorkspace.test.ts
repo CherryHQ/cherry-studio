@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import type * as FsPromises from 'node:fs/promises'
 import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -17,17 +18,22 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '../agentSessionWorkspace'
 
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const original = await importOriginal<typeof FsPromises>()
+  return { ...original, stat: vi.fn(original.stat) }
+})
+
 vi.mock('@main/utils/file', async (importOriginal) => {
   const original = await importOriginal<typeof file>()
   return {
     ...original,
     canonicalizePathForContainment: vi.fn(original.canonicalizePathForContainment),
-    isSameFile: vi.fn(original.isSameFile),
     getPathStatus: vi.fn(original.getPathStatus)
   }
 })
 
 const actualFile = await vi.importActual<typeof file>('@main/utils/file')
+const actualFs = await vi.importActual<typeof FsPromises>('node:fs/promises')
 
 let profile: string
 let root: string
@@ -40,10 +46,10 @@ const outsideMessage = (cwd: string) =>
 
 beforeEach(async () => {
   vi.clearAllMocks()
+  vi.mocked(stat).mockReset().mockImplementation(actualFs.stat)
   vi.mocked(file.canonicalizePathForContainment)
     .mockReset()
     .mockImplementation(actualFile.canonicalizePathForContainment)
-  vi.mocked(file.isSameFile).mockReset().mockImplementation(actualFile.isSameFile)
   vi.mocked(file.getPathStatus).mockReset().mockImplementation(actualFile.getPathStatus)
   MockMainPreferenceServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
@@ -82,6 +88,47 @@ it('R5 accepts a strict descendant whose name starts with two dots', async () =>
   const cwd = path.join(root, '..archive')
   await prepare(cwd)
   expect((await stat(cwd)).isDirectory()).toBe(true)
+})
+
+it('R6 rejects a root-below symlink even when it re-reaches the root', async () => {
+  await symlink(path.join(profile, 'P'), path.join(root, 'back'), 'junction')
+  const cwd = path.join(root, 'back', 'Data', 'Agents', 'system', '2026-10-19', sessionId)
+  const preparation = prepare(cwd)
+  await expect(preparation).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
+  await expect(preparation).rejects.toMatchObject({
+    message: expect.stringContaining(`Workspace check failed for session ${sessionId}: `)
+  })
+  expect(existsSync(path.dirname(cwd))).toBe(false)
+  expect(existsSync(cwd)).toBe(false)
+})
+
+it.each([
+  {
+    code: 'EIO',
+    retryable: true,
+    title: 'classifies a transient stat failure during identity verification as retryable'
+  },
+  { code: 'EACCES', retryable: false, title: 'rejects an unconfirmed identity after an EACCES stat failure' }
+])('$title', async ({ code, retryable }) => {
+  const cwd = path.join(root, '2026-10-19', sessionId)
+  vi.mocked(stat).mockImplementation((async (candidate, options) => {
+    if (candidate === cwd && options?.bigint && existsSync(cwd)) {
+      throw Object.assign(new Error(code), { code })
+    }
+    return actualFs.stat(candidate, options)
+  }) as typeof stat)
+  const preparation = prepare(cwd)
+  await expect(preparation).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
+  await expect(preparation).rejects.toMatchObject({
+    retryable,
+    message: retryable
+      ? t('agent.session.workspace_status.check_failed', {
+          sessionId,
+          detail: t('agent.session.workspace_status.inaccessible', { path: cwd })
+        })
+      : outsideMessage(cwd)
+  })
+  expect(existsSync(cwd)).toBe(true)
 })
 
 it.each(['', '..' + path.sep + 'outside', path.join('2026-10-19', '..', '..', 'outside')])(
@@ -174,7 +221,9 @@ it('fails closed when the managed root cannot be canonicalized', async () => {
 
 it('does not report success when directory identity cannot be confirmed after creation', async () => {
   const cwd = path.join(root, sessionId)
-  vi.mocked(file.isSameFile).mockResolvedValueOnce(false)
+  let targetIdentityChecks = 0
+  vi.mocked(stat).mockImplementation((async (candidate, options) =>
+    actualFs.stat(candidate === cwd && targetIdentityChecks++ === 0 ? profile : candidate, options)) as typeof stat)
   await expect(prepare(cwd)).rejects.toMatchObject({ message: outsideMessage(cwd), retryable: false })
 })
 
@@ -186,12 +235,11 @@ it.each(['canonical', 'identity'])('R2 accepts ancestor spellings proven by %s',
   vi.mocked(file.canonicalizePathForContainment).mockImplementation(async (candidate, options) =>
     candidate === alias ? (proof === 'canonical' ? canonicalRoot : alias) : originalCanonicalize(candidate, options)
   )
-  vi.mocked(file.isSameFile).mockImplementation(
-    async (a, b) =>
-      (a === alias && b === root) ||
-      (a === root && b === alias) ||
-      (a === path.join(canonicalRoot!, 'date', sessionId) && b === cwd)
-  )
+  vi.mocked(stat).mockImplementation((async (candidate, options) =>
+    actualFs.stat(
+      candidate === alias ? root : candidate === cwd ? path.join(root, 'date', sessionId) : candidate,
+      options
+    )) as typeof stat)
   const storage = await import('@main/ai/agents/agentDataDirectory')
   vi.spyOn(storage, 'assertAgentStoragePath').mockResolvedValue(undefined)
   vi.mocked(file.getPathStatus).mockResolvedValueOnce({ ok: true, kind: 'directory' })

@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto'
 import type * as NodeFs from 'node:fs'
+import type * as FsPromises from 'node:fs/promises'
 import path from 'node:path'
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
@@ -47,6 +49,17 @@ vi.mock('node:fs', async (importOriginal) => {
       mkdir: mockMkdir,
       realpath: mockRealpath
     }
+  }
+})
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const original = await importOriginal<typeof FsPromises>()
+  return {
+    ...original,
+    stat: vi.fn(async (target: string) => {
+      // Match mockRealpath's path identity so ancestor directories remain distinct.
+      return { dev: 1n, ino: BigInt(createHash('sha1').update(path.resolve(target)).digest().readUInt32BE(0)) }
+    })
   }
 })
 

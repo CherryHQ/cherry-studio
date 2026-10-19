@@ -1,17 +1,11 @@
+import { stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { assertAgentStoragePath, ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { t } from '@main/i18n'
-import {
-  canonicalizePathForContainment,
-  getPathStatus,
-  isOutsidePath,
-  isSameFile,
-  lstat,
-  type PathStatus
-} from '@main/utils/file'
+import { canonicalizePathForContainment, getPathStatus, isOutsidePath, lstat, type PathStatus } from '@main/utils/file'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -75,19 +69,15 @@ async function ensureSystemWorkspaceDirectory(sessionId: string, cwd: string): P
     stage = 'find-source-root'
     for (let candidate = path.dirname(target); ; candidate = path.dirname(candidate)) {
       const canonicalCandidate = await canonicalizePathForContainment(candidate, { allowMissing: false })
-      if (
-        canonicalCandidate === canonicalRoot ||
-        (await isSameFile(AbsoluteFilePathSchema.parse(candidate), AbsoluteFilePathSchema.parse(root)))
-      ) {
+      if (canonicalCandidate === canonicalRoot || (await hasSameDirectoryIdentity(candidate, root))) {
         sourceRoot = candidate
-        break
-      }
-      if (canonicalCandidate === undefined) {
+      } else if (canonicalCandidate === undefined) {
         try {
           await lstat(AbsoluteFilePathSchema.parse(candidate))
           throw unconfirmed()
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          const code = (error as NodeJS.ErrnoException).code
+          if (code !== 'ENOENT' && code !== 'ENOTDIR') throw error
         }
       }
       if (path.dirname(candidate) === candidate) break
@@ -104,8 +94,8 @@ async function ensureSystemWorkspaceDirectory(sessionId: string, cwd: string): P
     await assertAgentStoragePath(sourceRoot, target)
     await assertAgentStoragePath(root, root)
     if (
-      !(await isSameFile(AbsoluteFilePathSchema.parse(root), AbsoluteFilePathSchema.parse(sourceRoot))) ||
-      !(await isSameFile(AbsoluteFilePathSchema.parse(storageTarget), AbsoluteFilePathSchema.parse(target)))
+      !(await hasSameDirectoryIdentity(root, sourceRoot)) ||
+      !(await hasSameDirectoryIdentity(storageTarget, target))
     ) {
       throw unconfirmed()
     }
@@ -122,10 +112,27 @@ async function ensureSystemWorkspaceDirectory(sessionId: string, cwd: string): P
       error
     })
     if (isAgentSessionWorkspaceError(error)) throw error
+    const code = (error as NodeJS.ErrnoException)?.code
+    const retryable = isRetryableWorkspaceErrorCode(code)
+    if ((stage === 'find-source-root' || stage === 'verify-identity') && !retryable) throw unconfirmed()
     throw new AgentSessionWorkspaceError(
-      workspaceCheckErrorMessage(sessionId, workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' })),
-      isRetryableWorkspaceErrorCode((error as NodeJS.ErrnoException)?.code)
+      workspaceCheckErrorMessage(
+        sessionId,
+        workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible', code })
+      ),
+      retryable
     )
+  }
+}
+
+async function hasSameDirectoryIdentity(a: string, b: string): Promise<boolean> {
+  try {
+    const [aStat, bStat] = await Promise.all([stat(a, { bigint: true }), stat(b, { bigint: true })])
+    return aStat.dev === bStat.dev && aStat.ino === bStat.ino
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return false
+    throw error
   }
 }
 
