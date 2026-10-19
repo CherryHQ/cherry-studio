@@ -11,6 +11,9 @@ import {
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
+import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
+import type { TranscriptRevision, SpeechPcmChunk } from '@shared/ai/voice'
+import type { SpeechStreamEvent, SpeechStreamIdentity } from '@shared/ai/voice'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { voiceRequestSchemas, VoiceSessionEvent, VoiceSessionState } from '@shared/ipc/schemas/voice'
@@ -28,7 +31,10 @@ interface VoiceIpc {
     route: R,
     ...args: InputFor<R> extends void ? [] : [input: InputFor<R>]
   ): Promise<OutputFor<R>>
-  on(event: 'ai.voice.session_event', callback: (payload: EventPayload<'ai.voice.session_event'>) => void): () => void
+  on<E extends 'ai.voice.session_event' | 'ai.voice.stream_event' | 'ai.voice.transcript_event'>(
+    event: E,
+    callback: (payload: EventPayload<E>) => void
+  ): () => void
 }
 
 interface VoiceServiceOptions {
@@ -90,7 +96,14 @@ export type InstallTranscriptionAssetInput = Omit<
   requestId?: string
 }
 
+export interface StreamingTranscription extends VoiceOperation<{ text: string }> {
+  readonly ready: Promise<void>
+  write(chunk: SpeechPcmChunk): Promise<void>
+  finish(frames: number): Promise<void>
+}
+
 export interface ResolvedTranscriptionPreferences {
+  readonly streaming?: boolean
   readonly modelId?: LocalTranscriptionModelId
   readonly language?: InputFor<'ai.transcription.generate'>['language']
 }
@@ -132,6 +145,8 @@ export class VoiceService {
   private readonly createId: () => string
   private readonly readTranscriptionPreferences: NonNullable<VoiceServiceOptions['readTranscriptionPreferences']>
   private readonly readSpeechPreferences: NonNullable<VoiceServiceOptions['readSpeechPreferences']>
+  private readonly streamListeners = new Set<(event: SpeechStreamEvent) => void>()
+  private unsubscribeStream?: () => void
   private readonly stateListeners = new Set<() => void>()
   private readonly commandListeners = new Set<(event: VoiceCommandEvent) => void>()
   private readonly interruptionListeners = new Set<() => void>()
@@ -179,7 +194,14 @@ export class VoiceService {
       language: input.language
     })
     if (resolved.status.status !== 'ready') throw new VoiceDomainError(resolved.status.reason ?? 'model_required')
-    return { modelId: resolved.modelId, language: resolved.language }
+    return {
+      modelId: resolved.modelId,
+      language: resolved.language,
+      streaming: resolved.capabilities?.transcription?.some(
+        (operation) =>
+          operation.input === TranscriptionInputKind.PcmStream && operation.output === TranscriptionOutputKind.Revisions
+      )
+    }
   }
 
   async readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences> {
@@ -250,6 +272,9 @@ export class VoiceService {
 
     try {
       this.subscriptionGeneration = generation
+      this.unsubscribeStream = this.ipc.on('ai.voice.stream_event', (event) => {
+        if (generation === this.lifecycleGeneration) this.streamListeners.forEach((listener) => listener(event))
+      })
       this.unsubscribeEvent = this.ipc.on('ai.voice.session_event', (event) => this.handleEvent(generation, event))
       this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
     } catch (error) {
@@ -459,6 +484,42 @@ export class VoiceService {
     )
   }
 
+  startStreamingTranscription(
+    input: Omit<InputFor<'ai.voice.transcription.start'>, 'requestId'>,
+    onRevision: (update: TranscriptRevision) => void
+  ): StreamingTranscription {
+    const identity = { sessionId: input.sessionId, requestId: this.createId() }
+    let resolveReady!: () => void
+    let rejectReady!: (error: unknown) => void
+    const ready = new Promise<void>((resolve, reject) => {
+      resolveReady = resolve
+      rejectReady = reject
+    })
+    const unsubscribe = this.ipc.on('ai.voice.transcript_event', (event) => {
+      if (event.sessionId !== identity.sessionId || event.requestId !== identity.requestId) return
+      if (event.type === 'ready') resolveReady()
+      else onRevision(event.update)
+    })
+    const result = this.invoke(() => this.ipc.request('ai.voice.transcription.start', { ...input, ...identity }))
+      .catch((error: unknown) => {
+        rejectReady(error)
+        throw error
+      })
+      .finally(unsubscribe)
+    void result.catch(() => undefined)
+    void ready.catch(() => undefined)
+    return {
+      ...identity,
+      ready,
+      result,
+      write: (chunk) =>
+        this.invoke(() =>
+          this.ipc.request('ai.voice.input.write', { ...identity, ...chunk, samples: new Float32Array(chunk.samples) })
+        ),
+      finish: (frames) => this.invoke(() => this.ipc.request('ai.voice.input.finish', { ...identity, frames }))
+    }
+  }
+
   transcribe(input: TranscriptionInput): VoiceOperation<OutputFor<'ai.transcription.generate'>> {
     const { requestId = this.createId(), ...payload } = input
     return {
@@ -511,6 +572,27 @@ export class VoiceService {
         }
       )
     }
+  }
+
+  writeSpeechText(input: InputFor<'ai.voice.text.write'>): Promise<void> {
+    return this.invoke(() => this.ipc.request('ai.voice.text.write', input))
+  }
+
+  finishSpeechText(input: InputFor<'ai.voice.text.finish'>): Promise<void> {
+    return this.invoke(() => this.ipc.request('ai.voice.text.finish', input))
+  }
+
+  subscribeStream = (listener: (event: SpeechStreamEvent) => void): (() => void) => {
+    this.streamListeners.add(listener)
+    return () => this.streamListeners.delete(listener)
+  }
+
+  attachStream(identity: SpeechStreamIdentity): Promise<void> {
+    return this.invoke(() => this.ipc.request('ai.voice.stream.attach', identity))
+  }
+
+  acknowledgeStream(identity: SpeechStreamIdentity, frames: number): Promise<void> {
+    return this.invoke(() => this.ipc.request('ai.voice.stream.acknowledge', { ...identity, frames }))
   }
 
   abortSpeech(operation: Pick<VoiceOperation<unknown>, 'sessionId' | 'requestId'>): Promise<void> {
@@ -638,6 +720,8 @@ export class VoiceService {
 
   private detach(generation?: number): void {
     if (generation !== undefined && this.subscriptionGeneration !== generation) return
+    this.unsubscribeStream?.()
+    this.unsubscribeStream = undefined
     this.unsubscribeEvent?.()
     this.unsubscribeEvent = undefined
     this.subscriptionGeneration = undefined
@@ -728,6 +812,7 @@ export class VoiceService {
     this.detach()
     this.lifecycleGeneration += 1
     this.initialization = undefined
+    this.streamListeners.clear()
     this.stateListeners.clear()
     this.commandListeners.clear()
     this.interruptionListeners.clear()
@@ -769,7 +854,7 @@ export class VoiceService {
         sequence.reservationToken !== reservation.token ||
         sequence.activeSpeechToken ||
         sequence.activeReleaseToken ||
-        sequence.outputId ||
+        (sequence.outputId && input.retryAttemptId === undefined) ||
         input.chunkIndex === undefined ||
         input.chunkCount === undefined ||
         input.chunkCount !== sequence.chunkCount ||

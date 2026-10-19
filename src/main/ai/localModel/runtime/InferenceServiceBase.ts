@@ -7,7 +7,10 @@ import type {
   UtilityProcessClient,
   UtilityProcessContract,
   UtilityProcessDefinition,
-  UtilityProcessRequestOptions
+  UtilityProcessRequestOptions,
+  UtilityProcessStreamOptions,
+  UtilityProcessStreams,
+  UtilityProcessStream
 } from '@main/core/utilityProcess/types'
 import { UtilityProcessError, isUtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import type { LocalModelBundleId, LocalModelCapability } from '@shared/data/presets/localModel'
@@ -57,6 +60,39 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     prepareInput: () => Contract['methods'][M]['input'],
     options: UtilityProcessRequestOptions<Contract['methods'][M]['event']> = {}
   ): Promise<Contract['methods'][M]['output']> {
+    return this.enqueue(modelId, options.signal, async () => this.request(method, prepareInput(), options))
+  }
+
+  protected openStream<M extends keyof UtilityProcessStreams<Contract> & string>(
+    modelId: LocalModelBundleId,
+    method: M,
+    prepareInput: () => UtilityProcessStreams<Contract>[M]['request'],
+    options: UtilityProcessStreamOptions
+  ): Promise<
+    UtilityProcessStream<
+      UtilityProcessStreams<Contract>[M]['input'],
+      UtilityProcessStreams<Contract>[M]['output'],
+      UtilityProcessStreams<Contract>[M]['result']
+    >
+  > {
+    return new Promise((resolve, reject) => {
+      const aborted = () => reject(options.signal?.reason)
+      options.signal?.addEventListener('abort', aborted, { once: true })
+      void this.enqueue(modelId, options.signal, async () => {
+        const stream = await this.client.openStream(method, prepareInput(), options)
+        resolve(stream)
+        await stream.closed
+      })
+        .catch(reject)
+        .finally(() => options.signal?.removeEventListener('abort', aborted))
+    })
+  }
+
+  private async enqueue<T>(
+    modelId: LocalModelBundleId,
+    signal: AbortSignal | undefined,
+    operation: () => Promise<T>
+  ): Promise<T> {
     const unsupportedArtifact = getModelBundle(modelId).requires.find(
       (id) => !localModelStorageService.isArtifactSupported(id)
     )
@@ -67,24 +103,21 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     }
     this.assertModelAvailable(modelId)
     const generation = this.modelGenerations.get(modelId) ?? 0
-    if (options.signal?.aborted) throw options.signal.reason
-    // The cast is p-queue's `T | void`: it resolves to void only when an AbortSignal is
-    // passed to `add`, which this never does. Treating undefined as a failure would reject
-    // every method whose output is void, `load` included.
-    return await this.queue.add(async () => {
-      options.signal?.throwIfAborted()
+    signal?.throwIfAborted()
+    // PQueue adds void only for its own signal cancellation; this queue handles cancellation inside the task.
+    return (await this.queue.add(async () => {
+      signal?.throwIfAborted()
       this.assertModelAvailable(modelId, generation)
       if (this.residentModelId !== null && this.residentModelId !== modelId) {
         await this.client.stop()
         this.residentModelId = null
       }
       await this.restartIfRuntimeChanged()
-      options.signal?.throwIfAborted()
+      signal?.throwIfAborted()
       this.assertModelAvailable(modelId, generation)
-      const input = prepareInput()
       this.residentModelId = modelId
-      return this.request(method, input, options)
-    })
+      return operation()
+    })) as T
   }
 
   private async request<M extends keyof Contract['methods'] & string>(
