@@ -209,7 +209,6 @@ export interface LiveFacts {
   readonly hostCallInFlight: boolean
   /** The most recently finished run; absent until a run ends. */
   readonly runEnd?: { readonly outcome: 'completed' | 'error' | 'aborted' }
-  readonly reopened: boolean
   /** coding-agent's slot reservations; always 0 on Durable and the fake. */
   readonly pendingLaunches: number
 }
