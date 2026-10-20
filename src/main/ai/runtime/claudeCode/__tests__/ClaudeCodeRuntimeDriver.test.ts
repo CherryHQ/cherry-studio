@@ -9,6 +9,8 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
@@ -467,22 +469,47 @@ function createAsyncQueue<T>() {
   }
 }
 
-/** Minimal stand-in for the shared, session-keyed tool-policy snapshot `canUseTool` resolves. */
+/** The agent shape the production snapshot's `update()` reads — its policy fields, nothing more. */
+type SnapshotUpdateAgent = Parameters<ClaudeAgentToolPolicySnapshot['update']>[0]
+
+/**
+ * Minimal stand-in for the shared, session-keyed tool-policy snapshot `canUseTool` resolves.
+ * `satisfies` pins the production contract, so a driver that starts calling a snapshot method this
+ * stand-in lacks fails to compile instead of throwing mid-test.
+ */
 function createToolPolicySnapshot() {
   let disallowed = new Set<string>()
-  let permissionMode: string | undefined
+  let permissionMode: AgentPermissionMode | undefined
+  let pinnedPermissionMode: AgentPermissionMode | undefined
+  let hasPinnedPermissionMode = false
   return {
-    update(agent: any) {
+    async update(agent: SnapshotUpdateAgent) {
       disallowed = new Set(agent?.disabledTools ?? [])
       permissionMode = agent?.configuration?.permission_mode
+      if (hasPinnedPermissionMode) permissionMode = pinnedPermissionMode
     },
     isDisabled(runtimeName: string) {
       return disallowed.has(runtimeName)
     },
     getPermissionMode() {
       return permissionMode
+    },
+    setPermissionMode(next: AgentPermissionMode | undefined) {
+      permissionMode = next
+    },
+    pinPermissionMode(next: AgentPermissionMode | undefined) {
+      pinnedPermissionMode = next
+      hasPinnedPermissionMode = true
+      permissionMode = next
+    },
+    clearPermissionModePin() {
+      hasPinnedPermissionMode = false
+      pinnedPermissionMode = undefined
+    },
+    resolve() {
+      return undefined
     }
-  }
+  } satisfies ClaudeAgentToolPolicySnapshot
 }
 
 function createDeferred<T>() {
@@ -3249,17 +3276,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   describe('reconcile — permission-mode applier discipline', () => {
-    function makeSnapshot(initialMode: string | undefined) {
-      let mode = initialMode
+    function makeSnapshot(initialMode: AgentPermissionMode | undefined) {
+      let mode: AgentPermissionMode | undefined = initialMode
+      let pinnedMode: AgentPermissionMode | undefined
+      let pinned = false
       return {
-        update: vi.fn(async (agent: any) => {
+        update: vi.fn(async (agent: SnapshotUpdateAgent) => {
           mode = agent.configuration?.permission_mode
+          // Mirrors the production snapshot: a turn admitted under a mode keeps it across the
+          // rebuilds `update()` performs, so a mid-turn save cannot widen the running turn's gate.
+          if (pinned) mode = pinnedMode
         }),
         getPermissionMode: vi.fn(() => mode),
-        setPermissionMode: vi.fn((next: string | undefined) => {
+        setPermissionMode: vi.fn((next: AgentPermissionMode | undefined) => {
           mode = next
-        })
-      }
+        }),
+        pinPermissionMode: vi.fn((next: AgentPermissionMode | undefined) => {
+          pinnedMode = next
+          pinned = true
+          mode = next
+        }),
+        clearPermissionModePin: vi.fn(() => {
+          pinned = false
+          pinnedMode = undefined
+        }),
+        isDisabled: vi.fn(() => false),
+        resolve: vi.fn(() => undefined)
+      } satisfies ClaudeAgentToolPolicySnapshot
     }
 
     async function connectWith(snapshot: ReturnType<typeof makeSnapshot>, setPermissionMode: any) {
@@ -3806,7 +3849,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // The builder now settles and publishes the agent it captured BEFORE the disable — the
     // reconcile's tightening is gone the moment the replay's tool calls resolve against it.
-    snapshot.update(capturedAgent)
+    void snapshot.update(capturedAgent)
     expect(snapshot.isDisabled('Bash')).toBe(false)
     fallbackBuild.resolve({
       connectionConfig: {
@@ -3848,7 +3891,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // The turn was admitted under `default` with Bash disabled: the shared snapshot `canUseTool`
     // resolves at fire-time must keep enforcing exactly that for the replay.
     const snapshot = createToolPolicySnapshot()
-    snapshot.update({ disabledTools: ['Bash'], configuration: { permission_mode: 'default' } })
+    void snapshot.update({ disabledTools: ['Bash'], configuration: { permission_mode: 'default' } })
     const primaryQueue = createAsyncQueue<any>()
     const fallbackQueue = createAsyncQueue<any>()
     const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -5447,8 +5490,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const toolPolicySnapshot = {
         update: vi.fn().mockResolvedValue(undefined),
         getPermissionMode: vi.fn(() => undefined),
-        setPermissionMode: vi.fn()
-      }
+        setPermissionMode: vi.fn(),
+        pinPermissionMode: vi.fn(),
+        clearPermissionModePin: vi.fn(),
+        isDisabled: vi.fn(() => false),
+        resolve: vi.fn(() => undefined)
+      } satisfies ClaudeAgentToolPolicySnapshot
       mocks.createClaudeQuery.mockReturnValue(query)
       mocks.buildRequest.mockResolvedValue({
         connectionConfig: makeConfig({}).config,
