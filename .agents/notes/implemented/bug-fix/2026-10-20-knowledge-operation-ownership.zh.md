@@ -26,8 +26,8 @@ Status: implemented
 
 ## 验证
 
-- `ownedSubtreeJobHandlers.integration.test.ts`：失败的 A 获取等待 B，较新的 A 重建完成后旧失败才结算；通过真实 SQLite 查询边界验证 A 仍已完成且可见。
-- `reindexSubtreeJobHandler.test.ts`：已有删除、重置、中断和调度回归测试通过。
+- Regression — `ownedSubtreeJobHandlers.integration.test.ts`：失败的 A 获取等待 B，较新的 A 重建完成后旧失败才结算；通过真实 SQLite 查询边界验证 A 仍已完成且可见。
+- Regression — `reindexSubtreeJobHandler.test.ts`：已有删除、重置、中断和调度回归测试通过。
 
-- `ExternalKnowledgeSyncService.test.ts`：版本或哈希未变，以及取得锁前发生失败时，都会重建本地所有者。
-- `subtreeDeletion.integration.test.ts`：33,001 个根条目通过真实 JobManager 的载荷验证与真实 SQLite 状态更新；注入失败会回滚所有任务和状态变更。
+- Regression — `ExternalKnowledgeSyncService.test.ts`：版本或哈希未变，以及取得锁前发生失败时，都会重建本地所有者。
+- Regression — `subtreeDeletion.integration.test.ts`：33,001 个根条目通过真实 JobManager 的载荷验证与真实 SQLite 状态更新；注入失败会回滚所有任务和状态变更。
