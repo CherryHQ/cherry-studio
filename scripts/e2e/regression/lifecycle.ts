@@ -40,6 +40,7 @@ export interface AppRecord {
   logPath: string
   startedAt: string
   restartCount: number
+  locale?: string
 }
 
 type LaunchRecord = Omit<AppRecord, 'electronPid' | 'targetUrl'> & Partial<Pick<AppRecord, 'electronPid' | 'targetUrl'>>
@@ -58,8 +59,12 @@ export async function readCdpTargets(): Promise<Array<{ title: string; type: str
   return (await response.json()) as Array<{ title: string; type: string; url: string }>
 }
 
-async function waitForCdp(runnerPid: number, platform: Platform): Promise<{ electronPid: number; targetUrl: string }> {
-  const deadline = Date.now() + 180_000
+async function waitForCdp(
+  runnerPid: number,
+  platform: Platform,
+  timeout = 180_000
+): Promise<{ electronPid: number; targetUrl: string }> {
+  const deadline = Date.now() + timeout
   let lastError = 'CDP did not respond'
   while (Date.now() < deadline) {
     if (!isAlive(runnerPid)) throw new Error(`Application runner ${runnerPid} exited before CDP became ready`)
@@ -88,7 +93,8 @@ function getLaunchSpec(
   mode: RunMode,
   targetRoot: string,
   profile: TestProfile,
-  runKey: string
+  runKey: string,
+  locale?: string
 ): Pick<AppRecord, 'args' | 'command' | 'cwd' | 'executablePath' | 'logPath'> & { environment: NodeJS.ProcessEnv } {
   const logPath = join(paths.logs, `electron-${profile}.log`)
   if (mode === 'branch') {
@@ -103,6 +109,7 @@ function getLaunchSpec(
       '--remote-debugging-port=9222',
       '--disable-backgrounding-occluded-windows'
     ]
+    if (locale) args.push(`--lang=${locale}`)
     return {
       command: process.execPath,
       args,
@@ -123,7 +130,8 @@ function getLaunchSpec(
       `--inspect=${MAIN_INSPECTOR_PORT}`,
       `--remote-debugging-port=${CDP_PORT}`,
       '--disable-backgrounding-occluded-windows',
-      `--user-data-dir=${join(paths.profiles, profile)}`
+      `--user-data-dir=${join(paths.profiles, profile)}`,
+      ...(locale ? [`--lang=${locale}`] : [])
     ],
     cwd: dirname(installation.executablePath),
     environment: { ...process.env },
@@ -141,12 +149,14 @@ export async function launchApp(
     targetRoot: string
     runKey: string
     restartCount?: number
+    readyTimeoutMs?: number
+    locale?: string
   }
 ): Promise<AppRecord> {
   if (existsSync(paths.appRecord)) await stopOwnedApp(paths)
   if (findCdpPid(options.platform)) throw new Error(`CDP port ${CDP_PORT} is already owned by another process`)
   const targetRoot = resolve(options.targetRoot)
-  const spec = getLaunchSpec(paths, options.mode, targetRoot, options.profile, options.runKey)
+  const spec = getLaunchSpec(paths, options.mode, targetRoot, options.profile, options.runKey, options.locale)
   const logFd = openSync(spec.logPath, 'a', 0o600)
   appendFileSync(spec.logPath, `\n[${new Date().toISOString()}] Launching ${spec.command} ${spec.args.join(' ')}\n`)
   const child = spawn(spec.command, spec.args, {
@@ -177,11 +187,15 @@ export async function launchApp(
     cdpPort: CDP_PORT,
     logPath: spec.logPath,
     startedAt: new Date().toISOString(),
-    restartCount: options.restartCount ?? 0
+    restartCount: options.restartCount ?? 0,
+    ...(options.locale ? { locale: options.locale } : {})
   }
   try {
     writeJson(paths.appRecord, launchRecord)
-    const record: AppRecord = { ...launchRecord, ...(await waitForCdp(child.pid, options.platform)) }
+    const record: AppRecord = {
+      ...launchRecord,
+      ...(await waitForCdp(child.pid, options.platform, options.readyTimeoutMs))
+    }
     writeJson(paths.appRecord, record)
     return record
   } catch (error) {
@@ -281,7 +295,8 @@ export async function restartApp(paths: RunPaths, profile?: TestProfile): Promis
     profile: profile ?? current.profile,
     targetRoot: current.targetRoot,
     runKey: current.runKey,
-    restartCount: current.restartCount + 1
+    restartCount: current.restartCount + 1,
+    locale: current.locale
   })
 }
 
