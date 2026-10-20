@@ -30,6 +30,37 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     toolApprovalRegistry.clear('test-reset')
   })
 
+  describe.each(['stream', 'message'] as const)('%s approval state notifications', (presentation) => {
+    it.each(['dispatch', 'signal', 'session', 'clear'] as const)(
+      'updates observers when requests are registered and settled by %s',
+      (settle) => {
+        const controller = new AbortController()
+        const first = makeEntry({ presentation })
+        const second = makeEntry({ presentation, signal: controller.signal })
+        const changes: boolean[] = []
+        const subscription = toolApprovalRegistry.onChanged((sessionId) => {
+          if (sessionId === 's1') changes.push(toolApprovalRegistry.hasSession(sessionId))
+        })
+        try {
+          toolApprovalRegistry.register(first.entry)
+          toolApprovalRegistry.register(second.entry)
+          toolApprovalRegistry.dispatch(first.approvalId, { approved: true })
+          expect(changes).toEqual([true, true, true])
+
+          if (settle === 'dispatch') toolApprovalRegistry.dispatch(second.approvalId, { approved: true })
+          else if (settle === 'signal') controller.abort()
+          else if (settle === 'session') toolApprovalRegistry.abort('s1')
+          else toolApprovalRegistry.clear()
+
+          expect(changes).toEqual([true, true, true, false])
+          expect(toolApprovalRegistry.hasSession('s1')).toBe(false)
+        } finally {
+          subscription.dispose()
+        }
+      }
+    )
+  })
+
   it('resolves a dispatch with the exact decision, unmodified', async () => {
     const { entry, result, approvalId } = makeEntry()
     expect(toolApprovalRegistry.register(entry)).toBe(true)

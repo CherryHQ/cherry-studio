@@ -22,6 +22,7 @@ export type StartAgentSessionRunResult =
 
 export async function startAgentSessionRun(input: {
   sessionId: string
+  sourceJobId?: string
   userParts: CherryMessagePart[]
   listeners: StreamListener[]
   headless?: boolean
@@ -86,7 +87,7 @@ export async function startAgentSessionRun(input: {
           userMessageParts: input.userParts,
           headless: input.headless === true
         },
-        { trustedNotifyChannels: input.trustedNotifyChannels },
+        { trustedNotifyChannels: input.trustedNotifyChannels, sourceJobId: input.sourceJobId },
         {
           hasLiveStream: false,
           requireIdle: input.requireIdle !== undefined,
