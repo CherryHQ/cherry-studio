@@ -67,6 +67,12 @@ import {
   SKILL_INTENT_GUARD_TTL_MS,
   type SkillComposerLaunch
 } from './skillComposerLaunch'
+import {
+  createTaskComposerLaunch,
+  getTaskIntentGuardCacheKey,
+  TASK_INTENT_GUARD_TTL_MS,
+  type TaskComposerLaunch
+} from './taskComposerLaunch'
 import type { CreateAgentSessionDefaults } from './types'
 import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
@@ -107,7 +113,8 @@ const AgentPage = () => {
   const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const isSkillIntent = routeSearch.intent === 'skill'
-  const isPreparedIntent = isFeedbackIntent || isSkillIntent
+  const isTaskIntent = routeSearch.intent === 'task'
+  const isPreparedIntent = isFeedbackIntent || isSkillIntent || isTaskIntent
   const currentTabId = useCurrentTabId()
   const currentTab = useCurrentTab()
   const agentPinPending = currentTab?.metadata?.agentPinPending === true
@@ -209,6 +216,14 @@ const AgentPage = () => {
     routeFeedbackComposerLaunch
   )
   const [skillComposerLaunch, setSkillComposerLaunch] = useState<SkillComposerLaunch | null>(null)
+  const routeTaskComposerLaunch = useMemo<TaskComposerLaunch | null>(
+    () =>
+      isTaskIntent && routeSessionId
+        ? createTaskComposerLaunch(routeSessionId, t('settings.scheduledTasks.chatDraft'))
+        : null,
+    [isTaskIntent, routeSessionId, t]
+  )
+  const [taskComposerLaunch, setTaskComposerLaunch] = useState<TaskComposerLaunch | null>(routeTaskComposerLaunch)
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
@@ -819,24 +834,60 @@ const AgentPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest Skill orchestration without resubscribing.
   }, [currentTabId, isSkillIntent, routeSessionId, routeSkillId])
 
+  const runTaskIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
+    closeSurface()
+    clearLocate()
+    setMissingAgentSelection(false)
+    try {
+      if (routeSessionId) {
+        await invalidateCache(['/agents', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
+          logger.warn('Failed to refresh Agent cache for prepared task session', err as Error, {
+            sessionId: routeSessionId
+          })
+        })
+      }
+      setTaskComposerLaunch(routeTaskComposerLaunch)
+      await navigate({
+        to: '/app/agents',
+        search: routeSessionId ? { sessionId: routeSessionId } : {},
+        replace: true
+      })
+    } finally {
+      cacheService.deleteCasual(intentGuardCacheKey)
+    }
+  })
+
+  useEffect(() => {
+    if (!isTaskIntent || !currentTabId) return
+    const intentGuardCacheKey = getTaskIntentGuardCacheKey(currentTabId)
+    if (cacheService.hasCasual(intentGuardCacheKey)) return
+    cacheService.setCasual(intentGuardCacheKey, true, TASK_INTENT_GUARD_TTL_MS)
+    void runTaskIntent(intentGuardCacheKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest task orchestration without resubscribing.
+  }, [currentTabId, isTaskIntent, routeSessionId])
+
   const visibleSessionId = visibleSession?.id
   const feedbackLaunch = feedbackComposerLaunch ?? routeFeedbackComposerLaunch
   const visibleFeedbackComposerLaunch = feedbackLaunch?.sessionId === visibleSessionId ? feedbackLaunch : null
   const visibleSkillComposerLaunch = skillComposerLaunch?.sessionId === visibleSessionId ? skillComposerLaunch : null
+  const taskLaunch = taskComposerLaunch ?? routeTaskComposerLaunch
+  const visibleTaskComposerLaunch = taskLaunch?.sessionId === visibleSessionId ? taskLaunch : null
   const composerLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(() => {
-    const launch = visibleSkillComposerLaunch ?? visibleFeedbackComposerLaunch
+    const launch = visibleSkillComposerLaunch ?? visibleFeedbackComposerLaunch ?? visibleTaskComposerLaunch
     if (!launch) return undefined
     return {
       initialDraft: launch.initialDraft,
       onSent: () => {
         if (visibleSkillComposerLaunch) {
           setSkillComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
-        } else {
+        } else if (visibleFeedbackComposerLaunch) {
           setFeedbackComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
+        } else {
+          setTaskComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
         }
       }
     }
-  }, [visibleFeedbackComposerLaunch, visibleSkillComposerLaunch])
+  }, [visibleFeedbackComposerLaunch, visibleSkillComposerLaunch, visibleTaskComposerLaunch])
 
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
