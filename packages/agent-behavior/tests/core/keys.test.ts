@@ -164,6 +164,7 @@ describe('keys', () => {
       keys.goalCounts('g', 1, 1),
       keys.subagentSteer(call, 1),
       keys.subagentSteer(call, 2),
+      keys.subagentSteerWithdrawn(call, 1),
       keys.subagentContinue(call),
       keys.subagentStop(child, 1, 'model'),
       keys.subagentStop(child, 1, 'user'),
