@@ -14,14 +14,7 @@ export const WriteToolSchema = z.object({
 
 // Tool definition with detailed description
 export const writeToolDefinition = {
-  description: `Writes a file to the local filesystem.
-
-- This tool will overwrite the existing file if one exists at the path
-- You MUST use the read tool first to understand what you're overwriting
-- ALWAYS prefer using the 'edit' tool for existing files
-- NEVER proactively create documentation files unless explicitly requested
-- Parent directories will be created automatically if they don't exist
-- The file_path must resolve within the configured workspace root`,
+  description: `Write a workspace file, overwriting it. Read the existing file first and prefer edit for small changes.`,
   inputSchema: WriteToolSchema
 }
 
