@@ -30,6 +30,13 @@ export const REGRESSION_CASES = [
     title: 'Preserve a partial chat response after disconnect and restart',
     task: 'chat-stream-failure'
   },
+  {
+    id: 'SET-05',
+    capabilities: [],
+    phase: '03-models-and-assistants',
+    title: 'About page shows the running version',
+    task: 'about'
+  },
   { id: 'T-01', capabilities: [], phase: '04-translation', title: 'Translate text', task: 'translation' },
   {
     id: 'T-02',
