@@ -2146,6 +2146,56 @@ describe('AiStreamManager', () => {
       expect(continuationListener.pausedResults).toHaveLength(0)
     })
 
+    it('keeps an earlier Stop’s identity through a later fresh Stop', async () => {
+      vi.useRealTimers()
+      const firstController = new AbortController()
+      const secondController = new AbortController()
+      const thirdController = new AbortController()
+      const firstListener = new FakeListener('persistence:first', 'persistence')
+      const secondListener = new FakeListener('persistence:second', 'persistence')
+      const thirdListener = new FakeListener('persistence:third', 'persistence')
+      // Each graceful stop resumes the queued successor under a new live turn.
+      const liveTurnIds = ['turn-a', 'turn-b', 'turn-c']
+      let liveTurnCalls = 0
+      mockGetLiveTurnId.mockImplementation(() => liveTurnIds[Math.min(liveTurnCalls, liveTurnIds.length - 1)])
+      let successorCount = 0
+      mockHandleUserStop.mockImplementation(async () => {
+        successorCount++
+        liveTurnCalls++
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [successorCount === 1 ? secondListener : thirdListener],
+          abortController: successorCount === 1 ? secondController : thirdController
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [firstListener],
+        abortController: firstController
+      })
+      // S1 stops turn A and resumes B; S2 (a genuinely new Stop) stops B and resumes C.
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(secondController.signal.aborted).toBe(true)
+      expect(thirdController.signal.aborted).toBe(false)
+
+      // S1's own transport duplicate arrives only now. Forgetting it when S2 started a new
+      // generation lets it drain again and abort the successor no Stop ever targeted.
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      ).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(thirdController.signal.aborted).toBe(false)
+      expect(thirdListener.pausedResults).toHaveLength(0)
+    })
+
     it('stops a fresh user Stop aimed at the successor the previous Stop resumed', async () => {
       vi.useRealTimers()
       const firstController = new AbortController()

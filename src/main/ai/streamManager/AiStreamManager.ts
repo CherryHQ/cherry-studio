@@ -76,6 +76,8 @@ import type {
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
+/** How many recent Stop identities a topic remembers, so a delayed twin of any of them is deduped. */
+const MAX_RETAINED_STOP_IDS = 16
 type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
@@ -376,8 +378,9 @@ export class AiStreamManager extends BaseService {
    * Stop ids each topic already drained, so the duplicate requests of that same Stop — the explicit
    * abort and `sdkStop`'s transport signal — return early. Keyed by the Stop's identity, not by a
    * turn id: the graceful interrupt resumes a queued successor under the live turn, so a turn-id
-   * key would swallow a genuinely new Stop for that successor. A late Stop that joins another
-   * Stop's drain adds its id here too; a fresh Stop replaces the set with its own generation.
+   * key would swallow a genuinely new Stop for that successor. Identities accumulate across later
+   * Stops (a twin can arrive after another Stop started and resolved) and are bounded by
+   * `MAX_RETAINED_STOP_IDS`.
    */
   private readonly stoppedStopsByTopic = new Map<string, Set<string>>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
@@ -1270,9 +1273,10 @@ export class AiStreamManager extends BaseService {
       return inFlight
     }
     if (stopIdOfUserStop !== undefined) {
+      // Earlier Stops stay recorded: their twins can arrive after a later Stop drained and
+      // resolved, and forgetting them would let such a twin cancel the later Stop's successor.
       if (this.stoppedStopsByTopic.get(topicId)?.has(stopIdOfUserStop)) return
-      // A fresh Stop starts a new generation, replacing the previous drain's identities.
-      this.stoppedStopsByTopic.set(topicId, new Set([stopIdOfUserStop]))
+      this.recordStoppedStop(topicId, stopIdOfUserStop)
     }
     const draining = this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
@@ -1324,12 +1328,20 @@ export class AiStreamManager extends BaseService {
     return draining
   }
 
-  /** Retain a Stop identity on the topic's current drain generation, so its delayed twin returns early. */
+  /** Retain a Stop identity for the topic, so its delayed twin returns early; keeps the newest ones. */
   private recordStoppedStop(topicId: string, stopId: string | undefined): void {
     if (stopId === undefined) return
-    const stopped = this.stoppedStopsByTopic.get(topicId)
-    if (stopped) stopped.add(stopId)
-    else this.stoppedStopsByTopic.set(topicId, new Set([stopId]))
+    let stopped = this.stoppedStopsByTopic.get(topicId)
+    if (!stopped) {
+      stopped = new Set()
+      this.stoppedStopsByTopic.set(topicId, stopped)
+    }
+    stopped.add(stopId)
+    while (stopped.size > MAX_RETAINED_STOP_IDS) {
+      const oldest = stopped.values().next().value
+      if (oldest === undefined) break
+      stopped.delete(oldest)
+    }
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
