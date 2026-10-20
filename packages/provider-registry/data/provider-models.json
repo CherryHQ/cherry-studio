@@ -15042,6 +15042,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "minimax/minimax-m3.1-flash",
+      "modelId": "minimax-m3-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "mistral/ministral-14b",
       "modelId": "ministral-14b",
       "pricing": {
@@ -18563,9 +18582,9 @@
       "providerId": "minimax"
     },
     {
-      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "apiModelId": "MiniMax-M3.1-Flash",
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
-      "modelId": "minimax-m3-1-flash-preview",
+      "modelId": "minimax-m3-1-flash",
       "providerId": "minimax",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -18766,9 +18785,9 @@
       "providerId": "minimax-global"
     },
     {
-      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "apiModelId": "MiniMax-M3.1-Flash",
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
-      "modelId": "minimax-m3-1-flash-preview",
+      "modelId": "minimax-m3-1-flash",
       "providerId": "minimax-global",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -22560,6 +22579,40 @@
                 }
               ]
             }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "minimax-m3.1-flash-free",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "minimax-m3-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "max"
           }
         }
       }
@@ -31031,6 +31084,36 @@
       }
     },
     {
+      "apiModelId": "minimax/minimax-m3.1-flash:free",
+      "modelId": "minimax-m3-1-flash",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "max",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "mistralai/ministral-14b-2512",
       "modelId": "ministral-14b",
       "pricing": {
@@ -38226,6 +38309,25 @@
       "providerId": "silicon"
     },
     {
+      "apiModelId": "MiniMaxAI/MiniMax-M3",
+      "modelId": "minimax-m3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "silicon"
+    },
+    {
       "apiModelId": "Qwen/Qwen2.5-72B-Instruct",
       "modelId": "qwen2-5-72b-instruct",
       "pricing": {
@@ -41311,5 +41413,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "24243e9504b54823"
+  "version": "40f7a97c43483a3a"
 }
