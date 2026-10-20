@@ -217,6 +217,67 @@ describe('WebSearchButton', () => {
     })
   })
 
+  it('offers ready providers per capability and restores the active assistant choices', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', { tavily: { apiKeys: ['key'] } })
+    mocks.assistant.settings.searchKeywordsProviderId = 'tavily'
+    const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    const choices = () =>
+      vi
+        .mocked(launcherApi.registerLaunchers)
+        .mock.calls.at(-1)![0]
+        .find((item) => item.id === 'web-search-providers')!.submenu!
+    expect(choices().find((item) => item.id === 'web-provider-searchKeywords-tavily')?.active).toBe(true)
+    expect(choices().some((item) => item.id === 'web-provider-fetchUrls-tavily')).toBe(false)
+    const choice = choices().find((item) => item.id === 'web-provider-fetchUrls-jina')!
+    choice.action!({} as any)
+    expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { fetchUrlsProviderId: 'jina' } })
+    mocks.assistant = { ...mocks.assistant, id: 'assistant-2', settings: { enableWebSearch: false } }
+    view.rerender(<WebSearchButton assistantId="assistant-2" launcher={launcherApi} />)
+    expect(choices().find((item) => item.id === 'web-provider-searchKeywords-default')?.active).toBe(true)
+    expect(choices().find((item) => item.id === 'web-provider-searchKeywords-tavily')?.active).toBe(false)
+    choices().find((item) => item.id === 'web-provider-fetchUrls-default')!.action!({} as any)
+    expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { fetchUrlsProviderId: null } })
+  })
+
+  it.each(['gemini', 'anthropic'])('can enable and re-enable fetch-only web tools with %s', async (providerId) => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', true)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
+    })
+    mocks.assistant.settings.fetchUrlsProviderId = 'jina'
+    mocks.model = {
+      ...mocks.model!,
+      providerId,
+      apiModelId: providerId === 'gemini' ? 'gemini-2.5-pro' : 'claude-3-5-sonnet',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+    mocks.provider = {
+      id: providerId,
+      type: providerId,
+      serverTools: providerId === 'gemini' ? [{ id: 'web-search', modelScope: 'model-dependent' }] : []
+    }
+
+    let view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    await user.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+    expect(mocks.updateAssistant).toHaveBeenLastCalledWith({ settings: { enableWebSearch: true } })
+    expect(popup.confirm).not.toHaveBeenCalled()
+
+    mocks.assistant.settings.enableWebSearch = true
+    view.unmount()
+    view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    await user.click(screen.getByRole('button', { name: 'common.close' }))
+    expect(mocks.updateAssistant).toHaveBeenLastCalledWith({ settings: { enableWebSearch: false } })
+
+    mocks.assistant.settings.enableWebSearch = false
+    view.unmount()
+    view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    await user.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+    expect(mocks.updateAssistant).toHaveBeenLastCalledWith({ settings: { enableWebSearch: true } })
+    expect(popup.confirm).not.toHaveBeenCalled()
+  })
+
   it('reads only the current model provider', () => {
     const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 

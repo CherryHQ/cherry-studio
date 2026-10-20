@@ -20,7 +20,11 @@ import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
-import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
+import {
+  getWebSearchFallbackProviderIds,
+  isWebSearchProviderReady,
+  resolveReadyWebSearchProvider
+} from '@shared/utils/webSearch'
 
 interface Props {
   assistantId: string
@@ -66,12 +70,60 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
   const { provider: modelProvider } = useProviderById(model?.providerId)
   const {
-    defaultFetchUrlsProvider,
-    defaultSearchKeywordsProvider,
+    defaultFetchUrlsProvider: globalFetchProvider,
+    defaultSearchKeywordsProvider: globalSearchProvider,
     isLoading: isLoadingWebSearchProviders,
     providers
   } = useWebSearchProviders()
   const [modelToolsPreferred] = usePreference('chat.web_search.model_tools_preferred')
+
+  const defaultSearchKeywordsProvider = assistant?.settings.searchKeywordsProviderId
+    ? providers.find((provider) => provider.id === assistant.settings.searchKeywordsProviderId)
+    : globalSearchProvider
+  const defaultFetchUrlsProvider = assistant?.settings.fetchUrlsProviderId
+    ? providers.find((provider) => provider.id === assistant.settings.fetchUrlsProviderId)
+    : globalFetchProvider
+  const providerChoices = useMemo(
+    () =>
+      (['searchKeywords', 'fetchUrls'] as const).flatMap((capability) => {
+        const field = capability === 'searchKeywords' ? 'searchKeywordsProviderId' : 'fetchUrlsProviderId'
+        const label = t(
+          capability === 'searchKeywords'
+            ? 'settings.tool.websearch.search_provider'
+            : 'settings.tool.websearch.fetch_urls_provider'
+        )
+        return [
+          {
+            id: `web-provider-${capability}-default`,
+            kind: 'command' as const,
+            label: `${label} · ${t('common.default')}`,
+            icon: <Globe size={TOOLBAR_ICON_SIZE} />,
+            active: !assistant?.settings[field],
+            action: () => {
+              void updateAssistant({ settings: { [field]: null } })
+            }
+          },
+          ...providers
+            .filter((provider) => isWebSearchProviderReady(provider, capability))
+            .map((provider) => ({
+              id: `web-provider-${capability}-${provider.id}`,
+              kind: 'command' as const,
+              label: `${label} · ${provider.name}`,
+              icon: (
+                <WebSearchProviderIcon
+                  iconRef={getWebSearchProviderIconRef(provider.id)}
+                  providerName={provider.name}
+                />
+              ),
+              active: assistant?.settings[field] === provider.id,
+              action: () => {
+                void updateAssistant({ settings: { [field]: provider.id } })
+              }
+            }))
+        ]
+      }),
+    [assistant?.settings, providers, t, updateAssistant]
+  )
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
   const effectiveSearchProvider = resolveReadyWebSearchProvider(
@@ -90,19 +142,27 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const clientFetchAvailable = Boolean(effectiveFetchProvider)
   // Same resolver as the main process; MCP mode stands in for the request's
   // eventual function tools, which only exist at build time.
-  const { webSearch: webSearchRoute, reasons } =
-    model && assistant
-      ? resolveWebToolRoutes(model, modelProvider, {
-          webSearchEnabled: true,
-          clientSearchAvailable,
-          clientFetchAvailable,
-          modelToolsPreferred,
-          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
-          hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
-          reasoningEffort: assistant.settings.reasoning_effort
-        })
-      : { webSearch: 'none' as const, reasons: undefined }
-  const searchUnavailableReason = webSearchRoute === 'none' ? (reasons?.webSearch ?? 'no-backend') : undefined
+  const {
+    webSearch: webSearchRoute,
+    webFetch: webFetchRoute,
+    reasons
+  } = model && assistant
+    ? resolveWebToolRoutes(model, modelProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable,
+        clientFetchAvailable,
+        modelToolsPreferred,
+        clientSearchPreferred: Boolean(assistant.settings.searchKeywordsProviderId),
+        clientFetchPreferred: Boolean(assistant.settings.fetchUrlsProviderId),
+        endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
+        hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
+        reasoningEffort: assistant.settings.reasoning_effort
+      })
+    : { webSearch: 'none' as const, webFetch: 'none' as const, reasons: undefined }
+  const unavailableReason =
+    webSearchRoute === 'none' && webFetchRoute === 'none'
+      ? (reasons?.webSearch ?? reasons?.webFetch ?? 'no-backend')
+      : undefined
   const activeProviderId = effectiveSearchProvider?.id
   const activeProviderName = effectiveSearchProvider?.name
 
@@ -110,7 +170,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     enableWebSearch && webSearchRoute === 'client' && activeProviderId
       ? getWebSearchProviderIconRef(activeProviderId)
       : undefined
-  const reasonMessageKey = searchUnavailableReason ? REASON_MESSAGE_KEYS[searchUnavailableReason] : undefined
+  const reasonMessageKey = unavailableReason ? REASON_MESSAGE_KEYS[unavailableReason] : undefined
   const disabledReason = !enableWebSearch && reasonMessageKey ? t(reasonMessageKey) : undefined
   const isDisabled = isLoadingWebSearchProviders || Boolean(disabledReason)
 
@@ -125,7 +185,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         return
       }
 
-      if (searchUnavailableReason === 'no-backend') {
+      if (unavailableReason === 'no-backend') {
         let navigatedAway = false
 
         const confirmed = await popup.confirm({
@@ -156,7 +216,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
       void updateAssistant({ settings: { enableWebSearch: true } })
     },
-    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, searchUnavailableReason]
+    [assistant, disabledReason, enableWebSearch, navigate, t, updateAssistant, model, unavailableReason]
   )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
@@ -201,9 +261,30 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         disabled: isDisabled,
         disabledReason,
         action: ({ inputAdapter }) => onClick(inputAdapter?.focus)
+      },
+      {
+        id: 'web-search-providers',
+        kind: 'command',
+        sources: ['popover'],
+        label: t('settings.tool.websearch.search_provider'),
+        icon: <Globe size={TOOLBAR_ICON_SIZE} />,
+        disabled: isLoadingWebSearchProviders || !assistant,
+        submenu: providerChoices
       }
     ])
-  }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t, tooltipTitle])
+  }, [
+    assistant,
+    disabledReason,
+    enableWebSearch,
+    icon,
+    isDisabled,
+    isLoadingWebSearchProviders,
+    launcher,
+    onClick,
+    providerChoices,
+    t,
+    tooltipTitle
+  ])
 
   return { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle }
 }
