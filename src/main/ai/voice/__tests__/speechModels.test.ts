@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 
+import { NoSuchModelError } from '@ai-sdk/provider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
@@ -12,7 +13,7 @@ import { ENDPOINT_TYPE, MODEL_CAPABILITY, type EndpointType } from '@shared/data
 
 import { startSpeech } from '../execution'
 import type { SpeechRequest } from '../executionTypes'
-import { listSpeechModels, listSpeechVoices, resolveSpeechConfiguration } from '../speechModels'
+import { listSpeechModels, listSpeechVoices, resolveSpeechConfiguration, resolveSpeechRequest } from '../speechModels'
 
 async function generateModelSpeech(
   modelId: SpeechRequest['modelId'],
@@ -99,6 +100,38 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('configured cloud speech', () => {
+  it.each(['https://aiplatform.googleapis.com', 'https://vertex.example/api'])(
+    'rejects Vertex IAM speech consistently before transport at %s',
+    async (baseUrl) => {
+      addModel('speech-vertex', 'gemini-2.5-flash-tts', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          presetProviderId: 'vertexai',
+          authConfig: { type: 'iam-gcp', project: 'test-project', location: 'us-central1' },
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl, adapterFamily: 'google-vertex' }
+          }
+        })
+        .where(eq(userProviderTable.providerId, 'speech-vertex'))
+        .run()
+      const fetch = vi.spyOn(net, 'fetch')
+      const modelId = 'speech-vertex::gemini-2.5-flash-tts'
+
+      expect(listSpeechModels().map(({ id }) => id)).not.toContain(modelId)
+      expect(await resolveSpeechConfiguration({ modelId })).toMatchObject({
+        modelId,
+        status: { status: 'unsupported' }
+      })
+      await expect(listSpeechVoices(modelId)).rejects.toThrow(NoSuchModelError)
+      expect(() => resolveSpeechRequest({ modelId, voice: 'Kore' })).toThrow(NoSuchModelError)
+      await expect(
+        generateModelSpeech(modelId, 'Hello', { voice: 'Kore' }, new AbortController().signal)
+      ).rejects.toThrow(NoSuchModelError)
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('lists only finite speech models and keeps unavailable explicit selections', async () => {
     addModel('live-google', 'gemini-live-audio', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     dbh.db

@@ -125,6 +125,10 @@ input and audio-only output models use `generateContent` through the custom
 `SpeechModelV3` adapter. Model metadata determines eligibility; a configured provider
 address alone does not make every model a speech model.
 
+This path supports API-key authentication only. IAM and OAuth providers, including
+Vertex AI, are excluded from speech model lists and resolve as unsupported before
+generation, even when their models use a compatible endpoint protocol.
+
 Speech requests inherit compatible connection roots through the same endpoint
 resolver. New API's registry rules recognize known speech models advertised through
 its Chat endpoint and select their dedicated speech transport. The configured gateway
