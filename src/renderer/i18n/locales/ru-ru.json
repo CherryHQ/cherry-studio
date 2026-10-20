@@ -5705,7 +5705,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Предпочитать встроенные в модель веб-поиск и получение данных по URL, автоматически переключаясь на указанные выше сервисы, если они недоступны.",
   "settings.tool.websearch.model_tools_preferred.label": "Предпочитать встроенные веб-инструменты модели",
   "settings.tool.websearch.provider_description.bocha": "Китайский API поиска с ИИ, обеспечивающий веб-результаты в реальном времени и структурированные данные.",
-  "settings.tool.websearch.provider_description.crawl4ai": "Браузерный краулер Crawl4AI на собственном сервере для получения страниц в Markdown.",
+  "settings.tool.websearch.provider_description.crawl4ai": "Используйте Crawl4AI Cloud с ключом API или укажите адрес Crawl4AI на собственном сервере с необязательным токеном.",
   "settings.tool.websearch.provider_description.deepseek": "Официальные API поиска и загрузки страниц DeepSeek: ранжированные результаты и содержимое страниц в Markdown.",
   "settings.tool.websearch.provider_description.duckduckgo": "Бесплатный поиск по ключевым словам через HTML-точку DuckDuckGo. API-ключ не требуется.",
   "settings.tool.websearch.provider_description.exa": "API нейропоиска для ИИ-приложений, оптимизированный для семантического поиска в вебе.",
