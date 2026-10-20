@@ -257,6 +257,52 @@ describe('ResourceList', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('error.boundary.default.message')
   })
 
+  it('searches Chinese names by initials and restores sorted rows after clearing the query', async () => {
+    const user = userEvent.setup()
+    const items: TestItem[] = [
+      { ...ITEMS[0], name: '知识库 Alpha' },
+      { ...ITEMS[1], name: 'English' },
+      { ...ITEMS[2], name: '知识库 Beta' }
+    ]
+    const Provider = ResourceList.Provider<TestItem>
+    render(
+      <Provider
+        items={items}
+        defaultSortId="updated"
+        sortOptions={[{ id: 'updated', label: 'Updated', comparator: (a, b) => b.updatedAt - a.updatedAt }]}>
+        <ResourceList.Frame>
+          <ResourceList.Search placeholder="Search resources" />
+          <Inspector />
+          <ResourceList.VirtualItems
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+    const search = screen.getByPlaceholderText('Search resources')
+    await user.type(search, 'ZSK')
+    expect(screen.getByText('知识库 Alpha')).toBeInTheDocument()
+    expect(screen.queryByText('English')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}').names).toEqual([
+      '知识库 Beta',
+      '知识库 Alpha'
+    ])
+    await user.clear(search)
+    await user.type(search, 'zk')
+    expect(screen.queryByText('知识库 Alpha')).not.toBeInTheDocument()
+    await user.clear(search)
+    expect(screen.getByText('English')).toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}').names).toEqual([
+      'English',
+      '知识库 Beta',
+      '知识库 Alpha'
+    ])
+  })
+
   it('derives search, filter, sort, and group state without mutating items', () => {
     const originalOrder = ITEMS.map((item) => item.id).join(',')
     const Provider = ResourceList.Provider<TestItem>

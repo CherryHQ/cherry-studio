@@ -11,6 +11,7 @@ export const languageEnglishNameMap: Record<LanguageVarious, string> = {
   'pt-PT': 'Portuguese',
   'ro-RO': 'Romanian',
   'ru-RU': 'Russian',
+  'th-TH': 'Thai',
   'zh-CN': 'Chinese (Simplified)',
   'vi-VN': 'Vietnamese',
   'zh-TW': 'Chinese (Traditional)',
@@ -30,6 +31,7 @@ export const languageNativeNameMap: Record<LanguageVarious, string> = {
   'fr-FR': 'Français',
   'pt-PT': 'Português',
   'ro-RO': 'Română',
+  'th-TH': 'ภาษาไทย',
   'vi-VN': 'Tiếng Việt',
   'tr-TR': 'Türkçe',
   'it-IT': 'Italiano'

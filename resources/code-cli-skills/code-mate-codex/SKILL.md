@@ -1,6 +1,6 @@
 ---
 name: code-mate-codex
-description: Runs Codex CLI non-interactively for code analysis and implementation tasks. Use when the user asks to delegate repository work to Codex or obtain a second coding-agent result.
+description: Run Codex CLI non-interactively for coding tasks. Use when the user asks to delegate work to Codex.
 ---
 
 # Codex CLI

@@ -170,6 +170,7 @@ vi.mock('@cherrystudio/ui', async () => {
   // Real implementation: its filtering/normalization contract is what callers
   // are tested against, and a stub would drift from it.
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
+  const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -184,6 +185,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
   return {
+    BarVisualizer,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
     Markdown: ({ children }) => React.createElement('div', null, children),
@@ -668,7 +670,7 @@ vi.mock('@cherrystudio/ui', async () => {
       }
       return React.createElement('div', triggerProps, children)
     },
-    PopoverContent: ({ children, align, side, sideOffset, ...props }) => {
+    PopoverContent: ({ children, align, onEscapeKeyDown: _onEscapeKeyDown, side, sideOffset, ...props }) => {
       const context = React.useContext(PopoverContext)
       return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
     },
@@ -1037,8 +1039,18 @@ vi.mock('@cherrystudio/ui', async () => {
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
-    PopoverContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    PopoverContent: ({ align, children, onEscapeKeyDown: _onEscapeKeyDown, side, sideOffset, ...props }) =>
+      React.createElement(
+        'div',
+        {
+          ...props,
+          'data-align': align,
+          'data-side': side,
+          'data-side-offset': sideOffset,
+          'data-testid': 'popover-content'
+        },
+        children
+      ),
     HoverCard: ({ children, openDelay: _openDelay, closeDelay: _closeDelay, ...props }) =>
       React.createElement('div', props, children),
     HoverCardTrigger: ({ children, asChild, ...props }) => {
@@ -1054,7 +1066,7 @@ vi.mock('@cherrystudio/ui', async () => {
       sideOffset: _sideOffset,
       collisionPadding: _collisionPadding,
       ...props
-    }) => React.createElement('div', props, children),
+    }) => React.createElement('div', { ...props, 'data-slot': 'hover-card-content' }, children),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},

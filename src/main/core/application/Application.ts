@@ -29,6 +29,8 @@ interface QuitPreventionHold extends Disposable {
   readonly id: string
 }
 
+type QuitGuard = () => boolean | Promise<boolean>
+
 /**
  * Application
  * Main application class that orchestrates the entire application lifecycle
@@ -41,6 +43,9 @@ export class Application {
   private isBootstrapped = false
   private isShuttingDown = false
   private _isQuitting = false
+  private quitGuardsPending = false
+  private quitGuardsPassed = false
+  private readonly quitGuards = new Set<QuitGuard>()
   private quitPreventionHolds = new Map<string, string>()
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
@@ -482,10 +487,37 @@ export class Application {
       if (!this.canQuit()) {
         event.preventDefault()
         this._isQuitting = false // Reset — quit was blocked, not actually quitting
+        this.quitGuardsPassed = false
         const reasons = [...this.quitPreventionHolds.values()].join(', ')
         logger.info(`Quit prevented: ${reasons}`)
         return
       }
+      if (!this._isQuitting && !this.quitGuardsPassed) {
+        if (this.quitGuardsPending) {
+          event.preventDefault()
+          return
+        }
+        this.quitGuardsPending = true
+        try {
+          const allowed = this.checkQuitGuards()
+          if (typeof allowed !== 'boolean') {
+            event.preventDefault()
+            void this.finishQuitGuards(allowed)
+            return
+          }
+          this.quitGuardsPending = false
+          if (!allowed) {
+            event.preventDefault()
+            return
+          }
+        } catch (error) {
+          this.quitGuardsPending = false
+          event.preventDefault()
+          logger.error('Failed to evaluate quit guards', error as Error)
+          return
+        }
+      }
+      this.quitGuardsPassed = false
       this._isQuitting = true
     })
 
@@ -508,6 +540,39 @@ export class Application {
           app.exit(0)
         })
     })
+  }
+
+  private checkQuitGuards(guards = this.quitGuards.values()): boolean | Promise<boolean> {
+    for (const guard of guards) {
+      const allowed = guard()
+      if (typeof allowed !== 'boolean') {
+        return allowed.then(
+          (approved) =>
+            approved &&
+            this.quitGuards.has(guard) &&
+            !this._isQuitting &&
+            !this.isShuttingDown &&
+            this.checkQuitGuards(guards)
+        )
+      }
+      if (!allowed) return false
+    }
+    return true
+  }
+
+  private async finishQuitGuards(decision: Promise<boolean>): Promise<void> {
+    let allowed = false
+    try {
+      allowed = await decision
+    } catch (error) {
+      logger.error('Failed to evaluate quit guards', error as Error)
+    } finally {
+      this.quitGuardsPending = false
+    }
+    if (allowed && !this._isQuitting && !this.isShuttingDown) {
+      this.quitGuardsPassed = true
+      this.quit()
+    }
   }
 
   /**
@@ -618,15 +683,27 @@ export class Application {
     }
   }
 
+  /**
+   * Register a user-quit guard. All guards must approve, in registration order.
+   * Async decisions share one pending quit attempt; errors cancel it. Hard holds take precedence.
+   * @returns A disposable that unregisters the guard and invalidates its pending approval.
+   */
+  public registerQuitGuard(guard: QuitGuard): Disposable {
+    const registeredGuard = () => guard()
+    this.quitGuards.add(registeredGuard)
+    return { dispose: () => this.quitGuards.delete(registeredGuard) }
+  }
+
   private canQuit(): boolean {
     return this.quitPreventionHolds.size === 0
   }
 
   /**
-   * Graceful quit: set flag then trigger the Electron quit event chain.
+   * Graceful quit through the Electron quit event chain.
    * before-quit checks preventQuit holds, then will-quit runs shutdown().
    */
-  public quit(): void {
+  public quit(reason: 'user' | 'system-shutdown' = 'user'): void {
+    if (reason === 'system-shutdown') this.quitGuardsPassed = true
     if (this._isQuitting) {
       // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
       // handler preventDefault'd and broke the chain), this gives the user a
@@ -636,7 +713,6 @@ export class Application {
       return
     }
     logger.info('Quitting application...')
-    this._isQuitting = true
     app.quit()
   }
 

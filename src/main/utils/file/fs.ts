@@ -226,7 +226,7 @@ async function fsyncDirectoryOf(target: string): Promise<void> {
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
     if (shouldSilenceFsyncDirError(code)) return
-    logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { target, code, err })
+    logger.warn('fsync(dir) failed after atomic rename; durability not confirmed', { code })
   }
 }
 
@@ -265,17 +265,14 @@ export class PathStaleVersionError extends Error {
  * Caller still rethrows the *original* error — this helper only exists for
  * observability and never replaces or wraps the failure cause.
  */
-async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
+async function bestEffortUnlinkTmp(tmp: string): Promise<void> {
   try {
     await unlink(tmp)
   } catch (unlinkErr) {
     const code = (unlinkErr as NodeJS.ErrnoException).code
     if (code !== 'ENOENT') {
       logger.warn('atomicWriteFile: tmp cleanup failed; tmp file may remain on disk', {
-        tmp,
-        target,
-        code,
-        err: unlinkErr
+        code
       })
     }
   }
@@ -330,8 +327,8 @@ export interface AtomicWriteStream extends Writable {
 }
 
 export interface ReadableFileSnapshot {
-  readonly dev: number
-  readonly ino: number
+  readonly dev: bigint
+  readonly ino: bigint
   readonly modifiedAt: number
   readonly size: number
   createReadStream(bytes?: number): Readable
@@ -344,20 +341,22 @@ export interface ReadableFileSnapshot {
  * replacement.
  */
 export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promise<ReadableFileSnapshot> {
-  const pathStat = await fsLstat(target)
+  const pathStat = await fsLstat(target, { bigint: true })
   if (!pathStat.isFile()) throw new Error('Snapshot source is not a regular file')
 
   const handle: FileHandle = await fsOpen(target, 'r')
   try {
-    const handleStat = await handle.stat()
+    const handleStat = await handle.stat({ bigint: true })
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Snapshot source changed before it could be opened')
     }
-    const size = handleStat.size
+    const size = Number(handleStat.size)
+    if (!Number.isSafeInteger(size)) throw new RangeError('Snapshot source is too large to read safely')
+    const { mtimeMs } = await handle.stat()
     return {
       dev: handleStat.dev,
       ino: handleStat.ino,
-      modifiedAt: Math.floor(handleStat.mtimeMs),
+      modifiedAt: Math.floor(mtimeMs),
       size,
       createReadStream: (bytes = size) => {
         if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > size) {
@@ -449,7 +448,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
       }
       await rename(this.tmp, this.target)
     } catch (err) {
-      await bestEffortUnlinkTmp(this.tmp, this.target)
+      await bestEffortUnlinkTmp(this.tmp)
       this.currentState = 'aborted'
       throw err
     }
@@ -462,7 +461,7 @@ class PreparedAtomicWriteImpl implements PreparedAtomicWrite {
 
   private async abortOnce(): Promise<undefined> {
     this.currentState = 'aborted'
-    await bestEffortUnlinkTmp(this.tmp, this.target)
+    await bestEffortUnlinkTmp(this.tmp)
     return undefined
   }
 }
@@ -481,12 +480,12 @@ export async function prepareAtomicWrite(
       await tmpHandle.writeFile(bytes)
     } catch (err) {
       await tmpHandle.close().catch(() => undefined)
-      await bestEffortUnlinkTmp(tmp, target)
+      await bestEffortUnlinkTmp(tmp)
       throw err
     }
     await tmpHandle.close()
   } catch (err) {
-    await bestEffortUnlinkTmp(tmp, target)
+    await bestEffortUnlinkTmp(tmp)
     throw err
   }
   return new PreparedAtomicWriteImpl(target, tmp, bytes.byteLength, createContentHasherDigest(bytes))
@@ -565,7 +564,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
         // observable. A bare `.catch(() => undefined)` here would silently
         // leak the tmp blob under EACCES/EBUSY/EPERM until orphanSweep
         // collects it >5min later (or never, if persistent).
-        await bestEffortUnlinkTmp(this.tmp, this.target)
+        await bestEffortUnlinkTmp(this.tmp)
         callback(err as Error)
       }
     })
@@ -580,7 +579,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
       // Same rationale as _final: surface non-ENOENT cleanup failures so
       // operators can find the leaked tmp blob; never block destroy on
       // cleanup outcome.
-      void bestEffortUnlinkTmp(this.tmp, this.target).finally(() => callback(err))
+      void bestEffortUnlinkTmp(this.tmp).finally(() => callback(err))
     }
     if (this.underlying.destroyed) {
       cleanup()
@@ -850,6 +849,12 @@ export async function mkdir(target: AbsoluteFilePath): Promise<void> {
 
 /** Ensure a directory exists, creating any missing ancestors. Idempotent. */
 export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
+  const resolved = path.resolve(target)
+  if (resolved === path.parse(resolved).root) {
+    // Windows rejects recursive mkdir on volume roots, even when they exist.
+    await fsStat(resolved)
+    return
+  }
   await fsMkdirPromise(target, { recursive: true })
 }
 

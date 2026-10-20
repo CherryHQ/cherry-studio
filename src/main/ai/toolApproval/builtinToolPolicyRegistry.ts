@@ -2,7 +2,7 @@
  * Runtime-neutral approval policy for Cherry-owned MCP tools.
  *
  * This is a registry of tool entries, not parallel allow/approval name lists. Each tool declares
- * its canonical MCP identity and approval behavior once; Claude, Pi, and DSH only translate that
+ * its canonical MCP identity and approval behavior once; Claude and Pi only translate that
  * identity into their runtime-specific wire names. Arrays or sets produced by consumers are
  * derived boundary formats for the SDK/bridge and are never policy sources.
  *
@@ -12,6 +12,7 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -40,27 +41,28 @@ import {
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
-export type BuiltinToolApproval = 'auto' | 'required' | 'runtime'
+export type BuiltinToolApproval = 'auto' | 'required' | 'delegation'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 
 /** The Cherry-owned MCP servers. Which of them a session mounts is the runtime's call. */
 export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   BROWSER: 'browser',
+  COMPUTER: 'computer',
+  AUTOMATION: 'automation',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
   MCP_MANAGER: 'mcp-manager',
   ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files'
+  ASSISTANT_FILES: 'assistant-files',
+  DOCTOR: 'doctor'
 } as const
 
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string
   readonly toolName: string
-  /**
-   * `auto`: Cherry pre-approves the tool; `required`: every interactive call asks unless bypassed;
-   * `runtime`: the runtime's ordinary permission-mode semantics decide.
-   */
+  /** `auto`: pre-approved; `required`: asks unless bypassed.
+   * `delegation`: interactive-only, with approval following the session permission mode. */
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
@@ -80,6 +82,8 @@ function tool(
  * omitting it is fail-closed for auto-approval because every consumer selects explicit entries.
  */
 const BUILTIN_TOOL_POLICIES = {
+  automationJs: tool(CHERRY_MCP_SERVER.AUTOMATION, 'js', 'auto'),
+  automationReset: tool(CHERRY_MCP_SERVER.AUTOMATION, 'reset', 'auto'),
   cherryWebSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_SEARCH_TOOL_NAME, 'auto'),
   cherryWebFetch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, WEB_FETCH_TOOL_NAME, 'auto'),
   cherryKnowledgeSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_SEARCH_TOOL_NAME, 'auto'),
@@ -95,8 +99,8 @@ const BUILTIN_TOOL_POLICIES = {
   cherrySessionRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_READ_TOOL_NAME, 'auto'),
   cherryAgentList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'agent_list', 'auto'),
   cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
-  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'required', 'enforce'),
-  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'required', 'enforce'),
+  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'delegation'),
+  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'delegation'),
   cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),
   cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
   cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
@@ -105,7 +109,8 @@ const BUILTIN_TOOL_POLICIES = {
 
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
-  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'runtime'),
+  // Installs third-party skill code: only bypassPermissions may skip the prompt, Pi's auto mode included.
+  installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'required'),
   // A stdio install launches an arbitrary local command with the caller's env, so this asks per call
   // like cli_install rather than deferring to the runtime's permission mode.
   installMcpServer: tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'),
@@ -118,10 +123,23 @@ const BUILTIN_TOOL_POLICIES = {
   assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
   assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
-  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required')
+  assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required'),
+
+  // The doctor turn is headless; writes are gated by DoctorAgentService proposals, not by approval.
+  doctorSession: tool(CHERRY_MCP_SERVER.DOCTOR, 'session', 'auto'),
+  doctorReadFile: tool(CHERRY_MCP_SERVER.DOCTOR, 'read_file', 'auto'),
+  doctorReport: tool(CHERRY_MCP_SERVER.DOCTOR, 'report', 'auto'),
+  doctorDataApi: tool(CHERRY_MCP_SERVER.DOCTOR, 'data_api', 'auto'),
+  doctorPreference: tool(CHERRY_MCP_SERVER.DOCTOR, 'preference', 'auto'),
+  doctorProbeEndpoint: tool(CHERRY_MCP_SERVER.DOCTOR, 'probe_endpoint', 'auto'),
+  doctorFix: tool(CHERRY_MCP_SERVER.DOCTOR, 'doctor_fix', 'auto')
 } as const satisfies Record<string, BuiltinToolPolicyEntry>
 
 export const BUILTIN_TOOL_POLICY_ENTRIES: readonly BuiltinToolPolicyEntry[] = Object.values(BUILTIN_TOOL_POLICIES)
 export const MOUNTED_TOOL_POLICY_PROVIDERS: ReadonlyMap<string, () => BuiltinToolPolicyEntry[]> = new Map([
-  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies]
+  [CHERRY_MCP_SERVER.BROWSER, listBrowserToolPolicies],
+  [
+    CHERRY_MCP_SERVER.COMPUTER,
+    () => computerUseToolDefinitions.map(({ name }) => tool(CHERRY_MCP_SERVER.COMPUTER, name, 'auto'))
+  ]
 ])
