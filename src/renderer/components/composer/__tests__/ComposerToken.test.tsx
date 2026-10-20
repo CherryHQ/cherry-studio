@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { Folder } from 'lucide-react'
 import postcss from 'postcss'
 import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -440,6 +441,50 @@ describe('ComposerToken', () => {
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toBeInTheDocument()
   })
 
+  it('keeps screenshot previews usable across token removal and undo without leaking URLs', async () => {
+    const user = userEvent.setup()
+    const createUrl = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValueOnce('blob:first')
+      .mockReturnValueOnce('blob:undo')
+    const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const blob = new Blob(['image'], { type: 'image/png' })
+    const token = {
+      id: 'file:shot',
+      kind: 'file' as const,
+      label: 'shot.png',
+      payload: {
+        fileTokenSourceId: 'shot',
+        name: 'shot.png',
+        origin_name: 'shot.png',
+        type: FILE_TYPE.IMAGE,
+        ext: '.png',
+        size: blob.size,
+        blob
+      }
+    }
+
+    try {
+      const first = render(<FileComposerToken token={token} imageIconPreview />)
+      expect(first.container.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'blob:first')
+      await openFileTokenPopover(first.container)
+      expect(screen.getByAltText('shot.png')).toHaveAttribute('src', 'blob:first')
+      first.unmount()
+      expect(revokeUrl).toHaveBeenCalledWith('blob:first')
+
+      const restored = render(<FileComposerToken token={token} imageIconPreview />)
+      expect(restored.container.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'blob:undo')
+      expect(createUrl).toHaveBeenLastCalledWith(blob)
+      await user.click(getFileTokenTrigger(restored.container))
+      expect(imagePreviewShowMock).toHaveBeenCalledWith(blob)
+      restored.unmount()
+      expect(revokeUrl).toHaveBeenCalledWith('blob:undo')
+    } finally {
+      createUrl.mockRestore()
+      revokeUrl.mockRestore()
+    }
+  })
+
   it('renders input raster images as chips with a thumbnail in the icon slot', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
@@ -466,8 +511,8 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
-    expect(token).toHaveClass('h-6', 'align-middle', 'border-primary', 'ring-1', 'ring-primary/40')
-    expect(token).not.toHaveClass('align-baseline')
+    expect(token).toHaveClass('items-baseline', 'rounded-xs', 'ring-border-selected')
+    expect(token).not.toHaveClass('h-6', 'align-middle', 'text-xs')
     expect(token).toHaveTextContent('avatar-preview.png')
 
     const iconSlot = token.querySelector('[data-file-token-icon="image"]')
@@ -581,9 +626,13 @@ describe('ComposerToken', () => {
       expect(getComputedStyle(sentThumbnail)[property]).toBe(getComputedStyle(draftThumbnail)[property])
     }
 
-    // The compact token owns its line box instead of inheriting the surrounding Markdown paragraph.
-    expect(container.querySelectorAll('[data-composer-token-kind="file"]')[0]).toHaveClass('leading-[1.4]')
-    expect(container.querySelectorAll('[data-composer-token-kind="file"]')[1]).toHaveClass('leading-[1.4]')
+    // The chip tracks the surrounding font size (em-based, no fixed line box) instead of owning a
+    // hard-coded one, so the composer draft and the sent message agree in both contexts.
+    const [draftToken, sentToken] = container.querySelectorAll('[data-composer-token-kind="file"]')
+    for (const token of [draftToken, sentToken]) {
+      expect(token).toHaveClass('items-baseline', 'rounded-xs')
+      expect(token).not.toHaveClass('h-6', 'leading-[1.4]', 'text-xs')
+    }
     markdownStyles.remove()
   })
 
@@ -609,7 +658,7 @@ describe('ComposerToken', () => {
     expect(getRenderedFileToken(container)).toHaveTextContent('icon.svg')
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
     const iconSlot = container.querySelector('[data-file-token-icon="image"]')
-    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
+    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:svg')
   })
 
   it('falls back to the default image icon when the icon thumbnail fails to load', () => {
@@ -634,8 +683,15 @@ describe('ComposerToken', () => {
     fireEvent.error(container.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement)
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
     const iconSlot = container.querySelector('[data-file-token-icon="image"]')
-    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
+    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:image')
     expect(getRenderedFileToken(container)).toHaveTextContent('avatar-preview.png')
+  })
+
+  it('renders the type glyph from the app-wide file icon mapping', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:ts', kind: 'file', label: 'agents.ts' }} />)
+
+    const iconSlot = container.querySelector('[data-file-token-icon="code"]')
+    expect(iconSlot?.querySelector('[data-icon]')).toHaveAttribute('data-icon', 'material-icon-theme:typescript')
   })
 
   it('renders pdf file tokens with pdf variant metadata', () => {
@@ -900,7 +956,7 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
-    expect(token).toHaveClass('group-focus-visible:border-primary')
+    expect(token).toHaveClass('group-focus-visible:ring-1', 'group-focus-visible:ring-inset')
     expect(token).not.toHaveClass('group-data-[state=open]:border-primary')
     const trigger = getFileTokenTrigger(container)
     expect(trigger).toHaveAttribute('role', 'button')
@@ -1231,11 +1287,56 @@ describe('ComposerToken', () => {
     }
   })
 
-  it('keeps selected file tokens highlighted with primary border and ring', () => {
+  it('keeps selected file tokens highlighted with the selected role', () => {
     const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-primary/40')
+    // An inset ring draws without adding layout pixels, so selecting a token cannot shift the line.
+    expect(token).toHaveClass('ring-1', 'ring-inset', 'ring-border-selected')
+    expect(token).not.toHaveClass('border-border-selected', 'ring-primary/40', 'border')
+  })
+
+  it('leaves the chip box to the paragraph line box so descenders are not clipped', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'agent.ts' }} />)
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    const label = token?.lastElementChild
+
+    // `truncate` clips at the label's content box: a `line-height` below the font's own height cuts
+    // the descender off (`g`, `y`, `p`), so the label inherits the paragraph line-height instead.
+    expect(label).toHaveClass('leading-[inherit]', 'truncate')
+    expect(label).not.toHaveClass('leading-none')
+    expect(token).not.toHaveClass('border', 'border-transparent', 'py-px')
+  })
+
+  it('pins a token-provided icon glyph to the chip icon slot', () => {
+    // Agent file and folder mentions pass their own 16px glyph, which used to overflow the 0.9em slot.
+    const { container } = render(
+      <ComposerToken token={{ id: 'folder:1', kind: 'folder', label: 'docs', icon: <Folder size={16} /> }} />
+    )
+
+    const iconSlot = container.querySelector('[data-folder-token-icon]')
+    const wrapper = iconSlot?.querySelector('span')
+    expect(wrapper).toHaveClass('[&>svg]:size-full')
+    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('gives every wrapper in the icon chain a size', () => {
+    // A glyph that fills "100% of its parent" resolves against an auto-sized box when any wrapper in
+    // the chain is unsized, and then falls back to the glyph's own intrinsic size (lucide draws at
+    // 24px), which is what made the folder token look oversized. Every wrapper must carry `size-full`.
+    const { container } = render(
+      <ComposerToken token={{ id: 'folder:2', kind: 'folder', label: 'docs' }} onRemove={vi.fn()} />
+    )
+
+    const iconBox = container.querySelector('[data-folder-token-icon]')
+    const slot = iconBox?.firstElementChild
+    const iconWrapper = slot?.firstElementChild
+
+    expect(iconBox).toHaveClass('size-[0.9em]')
+    expect(slot).toHaveClass('size-full')
+    expect(iconWrapper).toHaveClass('size-full')
+    expect(iconWrapper?.querySelector('svg')).toHaveClass('size-full')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {
@@ -1352,7 +1453,7 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('renders pasted links with the default icon, identifiable label, and removable open action', () => {
+  it('renders pasted links with the site icon, identifiable label, and removable open action', () => {
     const url = 'https://www.example.com/docs'
     const onRemove = vi.fn()
     const { container } = render(
@@ -1372,9 +1473,9 @@ describe('ComposerToken', () => {
     expect(link).toHaveTextContent('example.com/docs')
     expect(link).toHaveClass('focus-visible:bg-accent', 'focus-visible:outline-none')
     expect(link).not.toHaveClass('focus-visible:ring-[3px]', 'focus-visible:ring-ring/50')
-    expect(link.querySelector('svg')).toBeInTheDocument()
-    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
-    expect(container.querySelector('[data-composer-link-favicon]')).not.toBeInTheDocument()
+    // 编辑态也加载站点图标（与只读态一致），而不是通用的链接字形
+    expect(container.querySelector('[data-composer-link-favicon]')).toBeInTheDocument()
+    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.example.com')
     fireEvent.click(link)
     expect(ipcRequestMock).toHaveBeenCalledWith('system.shell.open_website', url)
 
@@ -1908,40 +2009,4 @@ describe('ComposerToken', () => {
       expect(editor!.state.selection.empty).toBe(true)
     }
   )
-})
-
-it('keeps image ownership separate from preview URLs across token removal and undo', () => {
-  const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValueOnce('blob:first').mockReturnValueOnce('blob:undo')
-  const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
-  const blob = new Blob(['image'], { type: 'image/png' })
-  const token = {
-    id: 'file:shot',
-    kind: 'file' as const,
-    label: 'shot.png',
-    payload: {
-      fileTokenSourceId: 'shot',
-      name: 'shot.png',
-      origin_name: 'shot.png',
-      type: FILE_TYPE.IMAGE,
-      ext: '.png',
-      size: blob.size,
-      blob
-    }
-  }
-  try {
-    const first = render(<FileComposerToken token={token} imageIconPreview />)
-    expect(first.container.querySelector('img')).toHaveAttribute('src', 'blob:first')
-    first.unmount()
-    expect(revokeUrl).toHaveBeenCalledWith('blob:first')
-    const restored = render(<FileComposerToken token={token} imageIconPreview />)
-    expect(restored.container.querySelector('img')).toHaveAttribute('src', 'blob:undo')
-    expect(createUrl).toHaveBeenLastCalledWith(blob)
-    fireEvent.click(getFileTokenTrigger(restored.container))
-    expect(imagePreviewShowMock).toHaveBeenCalledWith(blob)
-    restored.unmount()
-    expect(revokeUrl).toHaveBeenCalledWith('blob:undo')
-  } finally {
-    createUrl.mockRestore()
-    revokeUrl.mockRestore()
-  }
 })

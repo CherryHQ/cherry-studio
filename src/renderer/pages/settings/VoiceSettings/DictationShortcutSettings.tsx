@@ -2,7 +2,7 @@ import { CircleAlert, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDescription,
@@ -170,8 +170,31 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
 }
 
 export function DictationShortcutSettings() {
+  const { t } = useTranslation()
+  const [mouseHold, setMouseHold] = usePreference('feature.voice.dictation.mouse_hold_enabled')
+  const [saveFailed, setSaveFailed] = useState(false)
   return (
     <>
+      <SettingRow id="setting-voice-dictation-mouse-hold" className="scroll-mt-6 flex-wrap gap-3">
+        <div>
+          <SettingRowTitle>{t('settings.voice.mouse_hold.label')}</SettingRowTitle>
+          <SettingDescription>{t('settings.voice.mouse_hold.description')}</SettingDescription>
+          {saveFailed && (
+            <span role="alert" className="text-error">
+              {t('settings.voice.shortcuts.save_failed')}
+            </span>
+          )}
+        </div>
+        <Switch
+          aria-label={t('settings.voice.mouse_hold.label')}
+          checked={mouseHold}
+          onCheckedChange={(value) => {
+            setSaveFailed(false)
+            void setMouseHold(value).catch(() => setSaveFailed(true))
+          }}
+        />
+      </SettingRow>
+      <SettingDivider />
       <ShortcutRow mode="hold" />
       <SettingDivider />
       <ShortcutRow mode="toggle" />

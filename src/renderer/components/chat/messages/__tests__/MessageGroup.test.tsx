@@ -2,6 +2,7 @@ import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-l
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUi from '@cherrystudio/ui'
 import { TabIdContext } from '@renderer/hooks/tab'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -11,6 +12,17 @@ import type MessageHeaderComponent from '../frame/MessageHeader'
 import type MessageMenuBarComponent from '../frame/MessageMenuBar'
 import type * as ScrollOwnershipContextModule from '../list/ScrollOwnershipContext'
 import type { MessageGroupRuntime, MessageListItem } from '../types'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUi>()
+  return {
+    ...actual,
+    PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  }
+})
+vi.mock('@renderer/components/SelectionContextMenu', () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
 
 const mocks = vi.hoisted(() => ({
   editMessage: vi.fn(),
