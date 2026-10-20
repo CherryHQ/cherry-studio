@@ -36,6 +36,8 @@ import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
+/** The SDK's two names for the tool that launches a native subagent. */
+const SUBAGENT_LAUNCH_TOOL_NAMES: ReadonlySet<string> = new Set(['Task', 'Agent'])
 
 // Tools whose successful completion mutates the workspace and therefore breaks a no-progress run:
 // the native edit tools, plus the assistant-files MCP tools (referenced by runtime name).
@@ -93,6 +95,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (!toolName) return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
+    // The spawn call is the only record of WHO is launching a child: `SubagentStart` carries just
+    // the child's `agent_id`. `input.agent_id` is the spawning child; absent means the main thread.
+    if (SUBAGENT_LAUNCH_TOOL_NAMES.has(toolName) && toolUseId) {
+      sessionState().recordNativeSpawnAttempt(sessionId, toolUseId, input.agent_id)
+    }
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
@@ -142,6 +149,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       return {}
     }
     if (decision.effect === 'deny') {
+      // A denied spawn never starts a child, so its attribution must not mislabel a later one.
+      if (toolUseId) sessionState().clearNativeSpawnAttempt(sessionId, toolUseId)
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }
     return {
@@ -236,14 +245,37 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
-
   // Bind each native child to the turn that spawned it, before it can call a tool. `agent_id` is
   // per-session-set, so the binding is what stops a still-running child from inheriting whichever
   // turn is live when it finally calls (a headless child must stay headless under a desktop
   // follow-up). The binding lives until the connection resets — SubagentStop is NOT authoritative.
   const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStart') return {}
-    application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id)
+    const spawn = sessionState().takeNativeSpawnAttempt(sessionId)
+    application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id, spawn?.parentAgentId)
+    return {}
+  }
+
+  // A `Task`/`Agent` call that never started a child (denied, errored) leaves no `SubagentStart`
+  // behind to consume its attribution — drop it so it cannot label the NEXT spawn with the wrong
+  // parent.
+  const spawnAttemptCleanupHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (
+      !input ||
+      (input.hook_event_name !== 'PostToolUse' &&
+        input.hook_event_name !== 'PostToolUseFailure' &&
+        input.hook_event_name !== 'PermissionDenied')
+    ) {
+      return {}
+    }
+    const event = input as unknown as Record<string, unknown>
+    if (
+      typeof event.tool_name === 'string' &&
+      SUBAGENT_LAUNCH_TOOL_NAMES.has(event.tool_name) &&
+      typeof event.tool_use_id === 'string'
+    ) {
+      sessionState().clearNativeSpawnAttempt(sessionId, event.tool_use_id)
+    }
     return {}
   }
 
@@ -336,8 +368,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   return {
     ...createClaudeCodeIdentityHooks(agentDataPath),
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook, spawnAttemptCleanupHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, spawnAttemptCleanupHook] }],
+    PermissionDenied: [{ hooks: [spawnAttemptCleanupHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
     SubagentStart: [{ hooks: [subagentStartHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]

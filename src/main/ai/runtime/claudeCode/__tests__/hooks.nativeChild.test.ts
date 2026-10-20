@@ -1,4 +1,5 @@
 import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -18,32 +19,46 @@ import type { UniqueModelId } from '@shared/data/types/model'
  * Driven against the real AgentSessionRuntimeService so the binding, the binding's timing and the
  * guard lookup are all the production ones — a stubbed resolver would pass whatever it was told.
  */
-const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, analyticsService } = vi.hoisted(() => ({
-  state: {
+const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, analyticsService } = vi.hoisted(() => {
+  // Real queue semantics: the spawn-call attribution is what tells `SubagentStart` who launched a
+  // child, so the fake has to carry it between the two hooks like the real service does.
+  const state = {
+    spawnAttempts: [] as { toolUseId: string; parentAgentId?: string }[],
     getToolPolicySnapshot: vi.fn(),
     getBashNoProgressRun: vi.fn(),
     getSteerHolder: vi.fn(),
-    disposeBashScope: vi.fn()
-  },
-  aiStreamManager: {
-    startRuntimeTurn: vi.fn(),
-    getInteractionWindow: vi.fn(),
-    abort: vi.fn(),
-    suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
-    pauseRuntimeTurn: vi.fn(),
-    broadcastTopicError: vi.fn(),
-    resolveToolApproval: vi.fn(),
-    terminateHeldTopicStream: vi.fn(),
-    finalizeHeldTopicStream: vi.fn(async () => undefined),
-    clearPendingChannelListeners: vi.fn()
-  },
-  // Explicit return type: `vi.fn(() => undefined)` would pin the mock to `undefined` and leave no
-  // way to stand in for a live window. Callers only test the handle for existence.
-  windowManager: { getWindow: vi.fn((): object | undefined => undefined) },
-  cacheService: { setShared: vi.fn(), getShared: vi.fn(), deleteShared: vi.fn() },
-  warmQueryManager: { closeAll: vi.fn().mockResolvedValue(undefined), closeAgentSessionWarm: vi.fn() },
-  analyticsService: { trackTokenUsage: vi.fn() }
-}))
+    disposeBashScope: vi.fn(),
+    recordNativeSpawnAttempt: vi.fn((_sessionId: string, toolUseId: string, parentAgentId?: string) => {
+      state.spawnAttempts.push({ toolUseId, ...(parentAgentId ? { parentAgentId } : {}) })
+    }),
+    takeNativeSpawnAttempt: vi.fn(() => state.spawnAttempts.shift()),
+    clearNativeSpawnAttempt: vi.fn((_sessionId: string, toolUseId: string) => {
+      const index = state.spawnAttempts.findIndex((attempt) => attempt.toolUseId === toolUseId)
+      if (index >= 0) state.spawnAttempts.splice(index, 1)
+    })
+  }
+  return {
+    state,
+    aiStreamManager: {
+      startRuntimeTurn: vi.fn(),
+      getInteractionWindow: vi.fn(),
+      abort: vi.fn(),
+      suspendUnadmittedRuntimeTurn: vi.fn().mockResolvedValue(undefined),
+      pauseRuntimeTurn: vi.fn(),
+      broadcastTopicError: vi.fn(),
+      resolveToolApproval: vi.fn(),
+      terminateHeldTopicStream: vi.fn(),
+      finalizeHeldTopicStream: vi.fn(async () => undefined),
+      clearPendingChannelListeners: vi.fn()
+    },
+    // Explicit return type: `vi.fn(() => undefined)` would pin the mock to `undefined` and leave no
+    // way to stand in for a live window. Callers only test the handle for existence.
+    windowManager: { getWindow: vi.fn((): object | undefined => undefined) },
+    cacheService: { setShared: vi.fn(), getShared: vi.fn(), deleteShared: vi.fn() },
+    warmQueryManager: { closeAll: vi.fn().mockResolvedValue(undefined), closeAgentSessionWarm: vi.fn() },
+    analyticsService: { trackTokenUsage: vi.fn() }
+  }
+})
 
 vi.mock('@application', () => ({
   application: {
@@ -61,6 +76,9 @@ vi.mock('@application', () => ({
           return warmQueryManager
         case 'AnalyticsService':
           return analyticsService
+        // The runtime service syncs its activity hold on every turn boundary (upstream).
+        case 'RuntimeActivityService':
+          return defaultServiceInstances.RuntimeActivityService
         case 'AgentSessionRuntimeService':
           return serviceInstance.service
         default:
@@ -190,6 +208,7 @@ beforeEach(async () => {
   state.getBashNoProgressRun.mockReturnValue(undefined)
   state.getSteerHolder.mockReturnValue({ pending: [] })
   cacheService.getShared.mockReturnValue(undefined)
+  state.spawnAttempts.length = 0
   // The binding under test lives on the service's entry, so each test gets a fresh real instance
   // (the lifecycle guard forbids more than one at a time).
   BaseService.resetInstances()
@@ -240,6 +259,62 @@ describe('native Claude child authority across a desktop follow-up', () => {
   it('fails closed for a child whose spawn was never announced', async () => {
     beginTurn(false)
     expect(decisionOf(await fireGuard({ agent_id: 'unannounced-child' })).permissionDecision).toBe('deny')
+  })
+
+  // Live membership is not parentage: the spawn call names the parent (`agent_id` of the caller,
+  // absent on the main thread). A desktop follow-up's own child must not inherit an unrelated
+  // headless child's denial just because both are running on the shared connection.
+  it('binds a child to the execution whose spawn call launched it', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    // The desktop follow-up owns the entry while A is still live; the MAIN THREAD spawns B.
+    beginTurn(false)
+    await fireGuard({
+      tool_name: 'Task',
+      tool_input: { description: 'B', prompt: 'go', subagent_type: 'general-purpose' }
+    })
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'child-of-desktop', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'child-of-desktop' })).permissionDecision).toBeUndefined()
+    // The unrelated headless child keeps its own denial.
+    expect(decisionOf(await fireGuard({ agent_id: NATIVE_CHILD })).permissionDecision).toBe('deny')
+  })
+
+  // The other direction of the same provenance: a grandchild launched from INSIDE the headless
+  // child stays unattended even though the desktop follow-up owns the session when it starts.
+  it('keeps a grandchild of the headless child unattended', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    beginTurn(false)
+    // The headless child issues the spawn call — its `agent_id` is the parent.
+    await fireGuard({
+      tool_name: 'Task',
+      agent_id: NATIVE_CHILD,
+      tool_input: { description: 'C', prompt: 'go', subagent_type: 'general-purpose' }
+    })
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'grandchild', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'grandchild' })).permissionDecision).toBe('deny')
   })
 
   // The cross-Session tools are the other class an unattended child must not reach. These are also

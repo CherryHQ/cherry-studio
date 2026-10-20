@@ -325,7 +325,8 @@ type AgentSessionRuntimeEntry = {
   /**
    * Provenance of NATIVE Claude subagents, keyed by the SDK's per-session-set `agent_id`. Unlike the
    * bridge children above these have no parent linkage (a native child never forwards a caller id),
-   * so each binds to the turn that was current when the SDK announced it. `SubagentStop` does NOT
+   * so each binds to the execution whose spawn call was in flight when the SDK announced it.
+   * `SubagentStop` does NOT
    * remove entries — the SDK lets that hook continue the same child via additionalContext — so a
    * binding lives until the connection resets, the only authoritative termination for its child.
    */
@@ -498,12 +499,13 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
   /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
-  /**
-   * Every background task id this session's live connection has published. Membership is a REPLACE
-   * snapshot, so it is the only place a drained-away task id survives — which is what a retaining
-   * caller needs when its terminal lands after the drain.
-   */
+  /** Background task ids this session's live connection currently lists (last REPLACE snapshot). */
   private readonly outboundBackgroundTaskIds = new Map<string, Set<string>>()
+  /** Ids that left the live set under the CURRENT turn — what a retaining caller still owes. */
+  private readonly drainedBackgroundTaskIds = new Map<
+    string,
+    { turn: AgentSessionTurn | undefined; ids: Set<string> }
+  >()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -2382,31 +2384,46 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
-    this.rememberBackgroundTaskIds(entry.sessionId, tasks)
+    this.rememberBackgroundTaskIds(entry, tasks)
   }
 
   /**
-   * Union each published membership into the session's outbound-task ledger. Membership is a REPLACE
-   * snapshot: it holds exactly the tasks the driver still has, so a snapshot that has already drained
-   * says nothing about what this connection produced. Retaining a chat against background work
-   * needs the second fact, and the terminal edge it reads at can arrive after the drain.
+   * Mirror the published membership into the session's outbound-task ledger and accrue what it no
+   * longer lists. Membership is a REPLACE snapshot, so an id that was listed and is now absent has
+   * settled during the current turn — the terminal edge a retaining caller reads can arrive after
+   * that drain, and only an id that settled under this turn still owes its fire a delivery.
    */
-  private rememberBackgroundTaskIds(sessionId: string, tasks: AgentSessionBackgroundTasks): void {
-    let ids = this.outboundBackgroundTaskIds.get(sessionId)
-    if (!ids) {
-      ids = new Set<string>()
-      this.outboundBackgroundTaskIds.set(sessionId, ids)
-    }
-    for (const task of tasks) ids.add(task.id)
+  private rememberBackgroundTaskIds(entry: AgentSessionRuntimeEntry, tasks: AgentSessionBackgroundTasks): void {
+    const live = new Set(tasks.map((task) => task.id))
+    const previous = this.outboundBackgroundTaskIds.get(entry.sessionId) ?? new Set<string>()
+    const drained = this.drainedTaskIdsFor(entry)
+    for (const id of previous) if (!live.has(id)) drained.add(id)
+    this.outboundBackgroundTaskIds.set(entry.sessionId, live)
+  }
+
+  /** Ids drained during the CURRENT turn; a new turn never inherits a previous turn's history. */
+  private drainedTaskIdsFor(entry: AgentSessionRuntimeEntry): Set<string> {
+    const turn = this.currentTurn(entry)
+    const accrued = this.drainedBackgroundTaskIds.get(entry.sessionId)
+    if (accrued && accrued.turn === turn) return accrued.ids
+    const ids = new Set<string>()
+    this.drainedBackgroundTaskIds.set(entry.sessionId, { turn, ids })
+    return ids
   }
 
   /**
-   * Task ids this session's live connection has published. Callers deciding whether detached work
-   * still owes them a delivery read this instead of the membership snapshot, which the driver may
-   * have drained to empty by the time their terminal edge runs.
+   * Task ids detached work owes THIS turn a delivery: the ones still live, plus the ones that
+   * settled under it. Callers deciding whether to retain a chat read this instead of the membership
+   * snapshot, which the driver may have drained to empty by the time their terminal edge runs.
+   * Earlier turns' completed ids are deliberately absent — they discharge nothing, so including
+   * them would let an unrelated wake claim those recipients.
    */
   listPublishedBackgroundTaskIds(sessionId: string): ReadonlySet<string> {
-    return new Set(this.outboundBackgroundTaskIds.get(sessionId) ?? [])
+    const ids = new Set(this.outboundBackgroundTaskIds.get(sessionId) ?? [])
+    const entry = this.entries.get(sessionId)
+    const accrued = this.drainedBackgroundTaskIds.get(sessionId)
+    if (entry && accrued && accrued.turn === this.currentTurn(entry)) for (const id of accrued.ids) ids.add(id)
+    return ids
   }
 
   /**
@@ -2900,6 +2917,7 @@ export class AgentSessionRuntimeService extends BaseService {
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
     // The ledger is per connection exactly like the level it mirrors.
     this.outboundBackgroundTaskIds.delete(entry.sessionId)
+    this.drainedBackgroundTaskIds.delete(entry.sessionId)
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -3728,30 +3746,30 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Record which turn spawned one native Claude child. Bound at `SubagentStart`, where the SDK first
-   * names the child by `agent_id` and the spawning turn is still the one that owns it.
+   * Record which execution spawned one native Claude child. Bound at `SubagentStart`, where the SDK
+   * first names the child by `agent_id`.
    *
-   * `SubagentStart` carries no parent reference, so a grandchild spawned from inside a child cannot
-   * be attributed to that parent from the hook alone — `currentTurn` is then whatever the
-   * concurrent foreground turn happens to be. The spawning execution's own authority therefore
-   * propagates through descendants: while a live child of a headless turn is running, a newly bound
-   * child is headless too, because the only way a child can appear is from work the session already
-   * has running, and a headless parent's descendants stay unattended.
+   * `SubagentStart` carries no parent reference, so the caller supplies the execution whose
+   * `Task`/`Agent` call is in flight (`spawnParentAgentId`: absent for the main thread, otherwise
+   * that child's `agent_id`). Concurrent live membership is NOT evidence of parentage: an unrelated
+   * headless background child must not make a desktop follow-up's own child unattended. Without the
+   * spawning call (older producers, resumed sessions) the current turn is the only authority known.
    */
-  bindNativeChildOrigin(sessionId: string, nativeSubagentId: string): void {
+  bindNativeChildOrigin(sessionId: string, nativeSubagentId: string, spawnParentAgentId?: string): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
     ;(entry.liveNativeChildren ??= new Set<string>()).add(nativeSubagentId)
     const origins = (entry.nativeChildOrigins ??= new Map<string, boolean>())
     // First binding wins: a later turn waking or resuming the same child must not upgrade it.
     if (origins.has(nativeSubagentId)) return
-    const spawnedByLiveHeadlessChild =
-      nativeSubagentId !== undefined &&
-      [...(entry.liveNativeChildren ?? [])].some(
-        (live) => live !== nativeSubagentId && (origins.get(live) ?? true) === true
-      )
     const turn = this.currentTurn(entry)
-    origins.set(nativeSubagentId, spawnedByLiveHeadlessChild || turn === undefined || turn.headless === true)
+    // A child of an unbound parent fails closed inside `headlessNativeChild`.
+    origins.set(
+      nativeSubagentId,
+      spawnParentAgentId === undefined
+        ? turn === undefined || turn.headless === true
+        : this.headlessNativeChild(entry, spawnParentAgentId)
+    )
   }
 
   /**
@@ -3915,6 +3933,7 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
     this.outboundBackgroundTaskIds.delete(entry.sessionId)
+    this.drainedBackgroundTaskIds.delete(entry.sessionId)
 
     const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
     const connection = this.closeConnection(entry, false)

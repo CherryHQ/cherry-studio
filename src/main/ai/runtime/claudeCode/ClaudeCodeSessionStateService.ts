@@ -44,6 +44,12 @@ interface McpSessionCatalogState {
   subscription?: { dispose(): void }
 }
 
+/** One in-flight `Task`/`Agent` call: the spawning execution is `parentAgentId` (absent = main thread). */
+export interface NativeSpawnAttempt {
+  toolUseId: string
+  parentAgentId?: string
+}
+
 @Injectable('ClaudeCodeSessionStateService')
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeSessionStateService extends BaseService {
@@ -53,6 +59,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
   private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
+  private readonly nativeSpawnAttempts = new Map<string, NativeSpawnAttempt[]>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -185,6 +192,34 @@ export class ClaudeCodeSessionStateService extends BaseService {
     return original
   }
 
+  /**
+   * `SubagentStart` names only the child, so the spawning execution is captured here from the
+   * `Task`/`Agent` call that is about to run — its `agent_id` when a child launched the spawn,
+   * absent when the main thread did. FIFO: `SubagentStart` follows its own spawn call in order.
+   */
+  recordNativeSpawnAttempt(sessionId: string, toolUseId: string, parentAgentId?: string): void {
+    const attempts = this.nativeSpawnAttempts.get(sessionId) ?? []
+    attempts.push({ toolUseId, ...(parentAgentId ? { parentAgentId } : {}) })
+    this.nativeSpawnAttempts.set(sessionId, attempts)
+  }
+
+  takeNativeSpawnAttempt(sessionId: string): NativeSpawnAttempt | undefined {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    const attempt = attempts?.shift()
+    if (!attempts || !attempt) return undefined
+    if (attempts.length === 0) this.nativeSpawnAttempts.delete(sessionId)
+    return attempt
+  }
+
+  /** A spawn call that finished without starting a child (denied, errored) must not claim the next one. */
+  clearNativeSpawnAttempt(sessionId: string, toolUseId: string): void {
+    const attempts = this.nativeSpawnAttempts.get(sessionId)
+    if (!attempts) return
+    const remaining = attempts.filter((attempt) => attempt.toolUseId !== toolUseId)
+    if (remaining.length === 0) this.nativeSpawnAttempts.delete(sessionId)
+    else this.nativeSpawnAttempts.set(sessionId, remaining)
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
@@ -192,6 +227,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
       if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
     }
     this.bashRewriteOrigins.delete(sessionId)
+    this.nativeSpawnAttempts.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }
@@ -269,6 +305,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.toolPolicySnapshots.clear()
     this.bashOutcomes.clear()
     this.bashRewriteOrigins.clear()
+    this.nativeSpawnAttempts.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }

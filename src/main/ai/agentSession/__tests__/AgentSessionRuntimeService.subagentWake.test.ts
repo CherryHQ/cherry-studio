@@ -276,6 +276,32 @@ describe('subagent settlement wake (incident replay)', () => {
     await service.closeSession('session-1')
   })
 
+  // A connection-wide ledger of every id the session ever published made an EARLIER fire's
+  // completed task count as debt for a later one. That task's absence then "discharged" the new
+  // stash, so an unrelated desktop task's wake claimed the external chat and posted its output
+  // there. Debt is only what the CURRENT turn still owes.
+  it('does not carry an earlier turn’s completed task into the next fire’s debt', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const emit = (event: unknown) => (service as any).handleRuntimeEvent(entry, event)
+
+    emit({ type: 'background-tasks', tasks: [{ id: 'task-a', type: 'task', description: 'A' }] })
+    // A settles under this turn — the retaining caller's terminal can land after the drain.
+    emit({ type: 'background-tasks', tasks: [] })
+    expect(service.listPublishedBackgroundTaskIds('session-1')).toEqual(new Set(['task-a']))
+
+    service.markTurnTerminal('session-1', 'success')
+    // The retaining caller's terminal can land after the runtime advanced past the turn.
+    expect(service.listPublishedBackgroundTaskIds('session-1')).toEqual(new Set(['task-a']))
+    // A later fire on the same warm connection starts its own work.
+    service.beginTurn(baseTurnInput)
+    emit({ type: 'background-tasks', tasks: [{ id: 'task-b', type: 'task', description: 'B' }] })
+
+    expect(service.listPublishedBackgroundTaskIds('session-1')).toEqual(new Set(['task-b']))
+    void service.closeSession('session-1')
+  })
+
   it('delivers wake-turn chunks into the receive-only stream under background occupancy', async () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)

@@ -3492,12 +3492,13 @@ describe('AgentSessionRuntimeService', () => {
       service.bindNativeChildOrigin('session-1', 'agent-a')
       service.markTurnTerminal('session-1', 'success')
 
-      // The desktop follow-up owns the turn while A is still running; A now spawns a grandchild.
+      // The desktop follow-up owns the turn while A is still running; A's spawn call now starts a
+      // grandchild (the hook passes the spawning child's id).
       mocks.getInteractionWindow.mockReturnValue('window-1')
       mocks.getWindow.mockReturnValue({})
       const turn = service.beginTurn(baseTurnInput)
       service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
-      service.bindNativeChildOrigin('session-1', 'agent-grandchild')
+      service.bindNativeChildOrigin('session-1', 'agent-grandchild', 'agent-a')
       ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
 
       expect(service.getToolGuardInteractionState('session-1', 'agent-grandchild')).toMatchObject({
@@ -3507,6 +3508,37 @@ describe('AgentSessionRuntimeService', () => {
       // The foreground turn keeps its own interactive authority — the restriction is scoped to the
       // descendant, not applied to the session.
       expect(service.getToolGuardInteractionState('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      void service.closeSession('session-1')
+    })
+
+    // The inverse of the test above: live membership says nothing about parentage. A desktop
+    // follow-up spawning its OWN child while an unrelated headless child is still running binds it
+    // against the spawning main thread, not against the concurrent headless child.
+    it('keeps a desktop follow-up’s own child interactive while an unrelated headless child is live', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      getEntry(service).connection = warmConnection()
+      service.bindNativeChildOrigin('session-1', 'agent-headless')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      // No `agent_id` on the spawn call: the main thread (the desktop follow-up) launched it.
+      service.bindNativeChildOrigin('session-1', 'agent-desktop-child')
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
+
+      expect(service.getToolGuardInteractionState('session-1', 'agent-desktop-child')).toMatchObject({
+        currentTurn: 'interactive',
+        userResponse: 'stream'
+      })
+      // The unrelated headless child keeps its own denial.
+      expect(service.getToolGuardInteractionState('session-1', 'agent-headless')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
       void service.closeSession('session-1')
     })
 
