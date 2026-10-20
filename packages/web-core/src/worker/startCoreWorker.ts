@@ -1,18 +1,18 @@
-import { ApiServer } from '@data/api/core/ApiServer'
-import { assistantHandlers } from '@data/api/handlers/assistants'
-import { messageHandlers } from '@data/api/handlers/messages'
-import { modelHandlers } from '@data/api/handlers/models'
-import { providerHandlers } from '@data/api/handlers/providers'
-import { topicHandlers } from '@data/api/handlers/topics'
+import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/streamManager'
-import type { ApiImplementation } from '@shared/data/api/types'
+import { CacheService } from '@main/data/CacheService'
+import { DataApiService } from '@main/data/DataApiService'
+import { PreferenceService } from '@main/data/PreferenceService'
+import { IpcApiService } from '@main/ipc/IpcApiService'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
 import { application } from '../runtime/application'
+import { connectPage, ipcMain } from '../runtime/electron'
 import { installNodeGlobals } from '../runtime/nodeGlobals'
-import { WebCacheService } from '../services/WebCacheService'
-import { WebPreferenceService } from '../services/WebPreferenceService'
+import { WebWindowManager } from '../services/WebWindowManager'
 import type { CommandMessage, CoreCommands, SerializedError, WorkerMessage } from './protocol'
 
 export interface CommandContext {
@@ -25,23 +25,33 @@ export type CommandHandler = (payload: any, context: CommandContext) => unknown
 /** The part of a dedicated Worker's global scope the host uses. */
 export type WorkerScope = Pick<Worker, 'postMessage' | 'addEventListener'>
 
-/** DataApi routes served from the Worker; only the ones whose services run in the browser. */
-const webHandlers = {
-  ...topicHandlers,
-  ...messageHandlers,
-  ...providerHandlers,
-  ...modelHandlers,
-  ...assistantHandlers
-} as unknown as ApiImplementation
+/** Services that need no database; their IPC handlers answer from the Worker's start. */
+async function startPageServices() {
+  application.register('WindowManager', new WebWindowManager())
+  // The desktop keeps renderer logs in its log file; the page has already written them to its console.
+  ipcMain.handle(IpcChannel.App_LogToMain, () => undefined)
+  for (const [name, service] of [
+    ['CacheService', new CacheService()],
+    ['DataApiService', new DataApiService()],
+    ['IpcApiService', new IpcApiService()]
+  ] as const) {
+    await service._doInit()
+    application.register(name, service)
+  }
+}
 
 /**
- * The chat services, minus their desktop start-up work: AiService's `onInit` installs built-in
- * tools, skills and Electron hooks, none of which the Web edition has. AiStreamManager's
- * `onInit` only settles replies a closed tab left pending, so it runs.
+ * Services that read the account's database at start-up. AiService's `onInit` is skipped: it
+ * installs built-in tools, skills and Electron hooks, none of which the Web edition has.
+ * AiStreamManager's `onInit` only settles replies a closed tab left pending, so it runs.
  */
-async function startAiServices(opened: OpenedDatabase) {
-  application.register('PreferenceService', new WebPreferenceService(opened.service))
-  application.register('CacheService', new WebCacheService())
+async function startAccountServices(opened: OpenedDatabase) {
+  application.register('DbService', opened.service)
+  // PreferenceService only updates existing rows; the desktop seeds them on first start.
+  new SeedRunner(opened.service.getDb()).runAll([new PreferenceSeeder()])
+  const preferences = new PreferenceService()
+  await preferences._doInit()
+  application.register('PreferenceService', preferences)
   const streamManager = new AiStreamManager()
   await streamManager._doInit()
   application.register('AiStreamManager', streamManager)
@@ -62,19 +72,17 @@ function serializeError(error: unknown): SerializedError {
 }
 
 /**
- * Turns the current dedicated Worker into a Core Worker: it owns the account's
- * database and serves DataApi requests over `postMessage`. `extraCommands` lets
- * a host add its own commands next to `open` / `request` / `close`.
+ * Turns the current dedicated Worker into a Core Worker: it owns the account's database and runs
+ * the main-process services for the page, which reaches them through `ipc-invoke` / `ipc-send`
+ * (the page's `ipcRenderer`) or the `request` shortcut for DataApi. `extraCommands` lets a host
+ * add its own commands next to the core ones.
  */
 export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string, CommandHandler> = {}) {
   installNodeGlobals()
-  const server = ApiServer.initialize(webHandlers)
   let opened: OpenedDatabase | undefined
   const post = (message: WorkerMessage) => scope.postMessage(message)
-
-  application.register('WindowManager', {
-    broadcast: (channel, payload) => post({ kind: 'broadcast', channel, payload })
-  })
+  const ipc = connectPage((channel, args) => post({ kind: 'broadcast', channel, args }))
+  const started = startPageServices()
 
   const context: CommandContext = {
     database() {
@@ -86,16 +94,20 @@ export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string
   const coreCommands: { [K in keyof CoreCommands]: (payload: CoreCommands[K]['payload']) => unknown } = {
     async open({ account, handoverTimeoutMs }) {
       if (opened) throw new Error(`The database is already open at ${opened.path}`)
+      await started
       opened = await openDatabase(account, { handoverTimeoutMs })
-      application.register('DbService', opened.service)
-      await startAiServices(opened)
+      await startAccountServices(opened)
       return { path: opened.path, openMs: opened.openMs, migrateMs: opened.migrateMs }
     },
-    request: (request) => server.handleRequest(request),
+    request: (request) => application.get('DataApiService').getApiServer().handleRequest(request),
+    'ipc-invoke': ({ channel, args }) => ipc.invoke(channel, args),
+    'ipc-send': ({ channel, args }) => ipc.send(channel, args),
     async close() {
+      if (!opened) return
       // Let live replies persist their partial text before the database goes away.
-      if (opened) await application.get('AiStreamManager')._doStop()
-      opened?.close()
+      await application.get('AiStreamManager')._doStop()
+      await application.get('PreferenceService')._doStop()
+      opened.close()
       opened = undefined
     }
   }

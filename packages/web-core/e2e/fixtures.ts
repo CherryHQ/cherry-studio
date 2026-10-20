@@ -8,7 +8,7 @@ import type { CoreClient } from '../src/client/CoreClient'
 
 export interface Harness {
   client: CoreClient
-  broadcasts: { channel: string; payload: unknown }[]
+  broadcasts: { channel: string; args: unknown[] }[]
   CoreClient: typeof CoreClient
 }
 
