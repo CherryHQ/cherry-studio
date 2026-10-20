@@ -365,14 +365,18 @@ sessions and passes the package's contract (`tests/behaviorContract.test.ts`). I
 or stop comes from the handlers `install` registers and the steps they decide. The extensions above do not use it yet.
 
 - `install(ports)` runs once, before any conversation opens. `onError` receives what no caller awaits: a job that
-  threw, a run that failed to start, the `onCompacted` of an automatic compaction, what a handler Pi calls threw
-  (`omit`, `before`, `after`, `onClose`), a quiet input that failed to write, and a run the adapter did not start.
+  threw, a run that failed to start, the `onCompacting` or `onCompacted` of an automatic compaction, what a handler Pi
+  calls threw (`omit`, `before`, `after`, `onClose`), a quiet input that failed to write, and a run the adapter did not
+  start.
 - `openConversation(sessionManager)` opens a conversation and runs `onOpen` before it resolves; `reopened` is whether
   the manager already held entries (a stored session), so open a new conversation on an empty manager.
-- `openSession({ sessionManager, extension, child? })` is the host's, called for every session the adapter opens: build
-  the session with `createAgentRuntimeSession` on `sessionManager`, install `extension`, keep Pi's retry off, and for a
-  child (`child: { parent, origin }`) give it the model `child.origin.modelKey` names and keep Pi's cache warming off
-  (`cacheWarming: 'off'`): warming requests bypass `agent.streamFunction`, so the request meter would not count them.
+- `openSession({ sessionManager, extension, summarize, child? })` is the host's, called for every session the adapter
+  opens: build the session with `createAgentRuntimeSession` on `sessionManager`, install `extension`, pass `summarize`
+  as `compaction.summarize` (every compaction, manual or automatic, then asks `onCompacting`, and a decline's reason
+  becomes the `compaction-end` error; never the host's own summarizer, which the package calls through `onCompacting`),
+  keep Pi's retry off, and for a child (`child: { parent, origin }`) give it the model `child.origin.modelKey` names and
+  keep Pi's cache warming off (`cacheWarming: 'off'`): warming requests bypass `agent.streamFunction`, so the request
+  meter would not count them.
   The adapter registers the package's tools itself, in a child minus the `'parent-only'` ones; host-owned tools follow
   the host's own child configuration.
 - `withCall(thread, use)` binds the outbound ports to one host call; they expire when `use` settles. `submitUser` (a
@@ -384,22 +388,22 @@ or stop comes from the handlers `install` registers and the steps they decide. T
   to `onError`; one that begins while an adapter run is about to start is taken for that run, unnoticed.
 - `compact(thread)` first aborts a run in progress (Pi's `compact()` begins with `abort()` and waits for the run to
   settle), but not the foreground children that run owns: stop the run with `turns.stop` first when it may be waiting
-  on one.
+  on one. It resolves once `onCompacted` has run, or, compacting nothing, once `onCompacting` declined.
 
 | Port | On coding-agent |
 | --- | --- |
-| H1 `Ledger` | `read` projects the whole branch with `decodeEntry` (compactions kept, other Pi entries left out): records are `custom` entries, markers `custom_message` entries whose `details` hold the data; a user entry carries its text, and every tool call and result its `callKey`. `keysSeen` holds the keys of the branch's records and markers and of the thread's live jobs; a child's `lastItem` is its last projected entry. `transact` reads, calls `decide` and writes with no await in between; a quiet input is a custom message sent without a turn trigger, refused unless the conversation is idle; a spawn creates the child's storage before any write, writes both records in the commit and builds the child session right after; a job starts from the next microtask. `modelContext` is Pi's context after compaction, without the markers the context filter omits. |
+| H1 `Ledger` | `read` projects the whole branch with `decodeEntry` (compactions kept, other Pi entries left out): records are `custom` entries, markers `custom_message` entries whose `details` hold the data; a user entry carries its text, and every tool call and result its `callKey`. `keysSeen` holds the keys of the branch's records and markers and of the thread's live jobs; a child's `lastItem` is its last projected entry. `transact` reads, calls `decide` and writes with no await in between; a quiet input is a custom message sent without a turn trigger, refused unless the conversation is idle; a spawn creates the child's storage before any write, writes both records in the commit and builds the child session right after; a fork copies its source's branch up to the fork point, and a fork of the transacting conversation (a fork subagent) answers each call of the fork point with `FORK_PLACEHOLDER_RESULT`, while a fork of another conversation (S-j) leaves them to the interrupted result (H3); a job starts from the next microtask. `modelContext` is Pi's context after compaction, without the markers the context filter omits. |
 | H2 `Turns` | Admission is the adapter's: one run per run-starting input, from the input to Pi's `agent_settled`. A known key returns its first answer; a key only the branch still holds answers `'started'`. A `start` while a run is active is `'busy'`; once `agent_settled` has ended the run, a `start` begins a new run and never continues the settled one. Queued input waits in the adapter, not in Pi's follow-up queue, and starts when a run completes; after a failed or aborted run it stays queued until the next submission or compaction. `stop` withdraws queued input and aborts the session and the foreground children the run owns; a stop made while Pi still prepares the run is repeated at `agent_start`, because Pi drops it. |
-| H3 `Helpers` | A message to an idle child starts a run with it; one to a running child goes to Pi's steering queue while Pi streams, otherwise at the run's next turn. One that misses the run's last boundary starts the next run, and `awaitAnswer` answers with that run's end. A steer Pi already holds cannot be taken back alone: `retract` answers `'already-started'`. `stop(child, run)` acts only while `run` is the child's active run; a child of an earlier process has none (D5). |
+| H3 `Helpers` | A message to an idle child first answers each call of the child's last reply that has no result with `INTERRUPTED_CALL_RESULT` (an error result; not when that reply failed or was aborted), then starts a run with it. One to a running child is a steer: the adapter keeps it and hands it to Pi at the run's next turn end, right before Pi polls its steering queue, one steer per turn, and `message` answers `'queued'` once Pi placed it. A steer is withdrawn, never carried into the next run and never starting one: at once when `run` is not the child's active run, when the run ends before a turn end took it (a failed or aborted turn takes none), or when the tool call whose ports sent it aborts first; `message` then answers `'withdrawn'` and `awaitAnswer` with the end of run `run`. `stop(child, run)` acts only while `run` is the child's active run; a child of an earlier process has none (D5). |
 | H4 `Jobs` | An in-process promise per job, deduplicated by key: a live job keeps its key, an ended one frees it. A job ensured in `onOpen` starts once `onOpen` has run. |
-| H5 `Waits` | Both resolve at `agent_settled`, when the adapter's run ends. `untilIdle` also waits while a host call is in flight (`hostCallInFlight`: a person's prompt not yet started as a run, a host `compact()` not yet returned, or a compaction in progress); inputs a failed run left do not hold it. |
+| H5 `Waits` | Both follow the adapter's runs, which end at `agent_settled`. `untilIdle` resolves once no run is active and no host call is in flight (`hostCallInFlight`: a person's prompt not yet started as a run, a host `compact()` not yet returned, or a compaction in progress); inputs a failed run left do not hold it. `untilDone(thread, key)` resolves once the run that took the input submitted under `key` has ended, after the inputs queued before it, and at once for a withdrawn input or a key nothing was submitted under in this process (a `'busy'` start records nothing). |
 | H6 `Memory` | One map per harness, shared by every conversation. |
 | H7 `Clock` | `Date.now()`, never decreasing. |
 | H8 `Tools` | `pi.registerTool`, `model-only`, in every session the adapter opens; a child session gets only the tools whose `availability` is `'all'`. |
-| H9 `ToolGate` | `tool_call` and `tool_result`. `after` gets the call `before` saw, `nested` included, with the arguments the call ran with. The call key is `<sessionId>:<toolCallId>`. `GateFacts.plan` is the latest `plan` record on the branch; `goalRound` and `callWindow` come from the run's starting input and its calls so far (nested calls left out), kept in memory per run. A blocked call's result reads `Tool call blocked: <reason>`, as on Durable, and projects back as `blocked`. |
+| H9 `ToolGate` | `tool_call` and `tool_result`. `before` gets the call with the run's abort signal (the handler context's `signal`), which aborts when the call's turn stops; `after` gets the call `before` saw, `nested` included, with the arguments the call ran with. The call key is `<sessionId>:<toolCallId>`. `GateFacts.plan` is the latest `plan` record on the branch; `goalRound` and `callWindow` come from the run's starting input and its calls so far (nested calls left out), kept in memory per run. A blocked call's result reads `Tool call blocked: <reason>`, as on Durable, and projects back as an error result with that text. |
 | H10 `ContextFilter` | The `context` event, before every model request; see the note on omitted markers. |
-| H11 `RequestMeter` | Wraps `agent.streamFunction` and counts the requests of the adapter's run, with lineage `'child'` for a spawned session and `'root'` otherwise; a refused request fails the run with the refusal text, and the run's answer is `limit_reached`. A host summarizer's requests are not counted yet (D4). |
-| H12 `Lifecycle` | `onOpen` once the session is built (after Pi's `session_start`), for the conversations the host opens and not for spawned children; `onCompacted` once Pi has finished a compaction that produced a summary (`compaction_end`); `onClose` at `session_shutdown`. |
+| H11 `RequestMeter` | Wraps `agent.streamFunction` and counts the requests of the adapter's run, with lineage `'child'` for a spawned session and `'root'` otherwise; a refused request fails the run with the refusal text, and the run's answer is `limit_reached`. A compaction during a run (Pi's automatic one) is one of its requests: the adapter's summarizer asks the meter first and counts it, and a refusal cancels the compaction, with the refusal text as its `compaction-end` error, without asking `onCompacting`. |
+| H12 `Lifecycle` | `onOpen` once the session is built (after Pi's `session_start`), for the conversations the host opens and not for spawned children. `onCompacting` before every compaction, through the summarizer the session got as `compaction.summarize` (Pi's `session_before_compact`), under the key `<sessionId>:<id of the entry the compaction follows>`: a summary becomes the compaction's, and a decline cancels it, its reason becoming the `compaction-end` error. `onCompacted` once Pi has finished a compaction that produced a summary (`compaction_end`), also in the middle of a run; `onClose` at `session_shutdown`. |
 
 ### Declared differences
 
@@ -408,15 +412,17 @@ or stop comes from the handlers `install` registers and the steps they decide. T
 | D1 | Runs, jobs, waits and memo do not survive a restart; the contract's five `restart` cases are skipped. | coding-agent resumes nothing after the process ends (H4, H6, H12 `@harness coding-agent`; see "Native session storage"). |
 | D2 | `onOpen(reopened: true)` finds no run to stop: `turns.stop` there, and `helpers.stop` of a child of an earlier process (D5), do nothing and resolve at once; `live.runEnd` stays absent until a run ends in this process. | D1; H12 `@harness coding-agent`: no stop before resume. |
 | D3 | A child session that fails to build after its commit leaves both spawn records and is not in `children`; `transact` rejects with the build error. | H1 `@harness coding-agent`: the session is built right after the commit. |
-| D4 | Temporary: a host summarizer's requests (`compaction.summarize`) bypass the request meter and are not counted. Pi's own summarizer's requests are metered, and inside a run (an automatic compaction) they count toward the run's requests. | The meter wraps `agent.streamFunction`, which Pi's summarizer streams through and a host summarizer does not; its requests are counted once Stage C's inbound compaction method hands the summaries to the package. |
 | D5 | Temporary: children of an earlier process are not in `children`, and their finished runs cannot be continued yet. | The adapter does not load them; PR-2b loads them with `SessionManager.findById` and `open`. |
 | D6 | Temporary: `ChildFacts.runUsage` sums the usage of a child run's replies only, without the usage Pi puts on tool results (calls made through `ctx.executeTool`) or on compaction summaries. | The adapter adds up each reply's usage at `message_end`; PR-2b completes it with the usage reporting. |
 
 Implementation notes (not differences):
 
-- Both waits resolve at `agent_settled`, and the run that settled is never continued: input that reaches a conversation
-  while its run settles (`submitUser`, a steer that missed the last boundary) starts the next run, and a `turns.start`
-  is `'busy'` until `agent_settled` has ended the run (H2, H5 `@harness coding-agent`).
+- Runs end at `agent_settled`, and the run that settled is never continued: a person's text that arrives while the run
+  settles starts the next run, a steer that arrives then is withdrawn, and a `turns.start` is `'busy'` until
+  `agent_settled` has ended the run (H2, H5 `@harness coding-agent`).
+- Pi can only clear its whole steering queue, so the adapter keeps steers itself and hands Pi one at each turn end,
+  right before Pi polls the queue; a steer Pi was handed is being placed and is no longer withdrawn (`retract` answers
+  `'already-started'`). Steers therefore join a run one per turn, as Pi's default `steeringMode: 'one-at-a-time'` does.
 - A person's text that arrives while the conversation is busy waits in the adapter's inbox, one run per input, never in
   Pi's follow-up queue (`ContractHarness.sendUser`).
 - `ContextFilter.omit` returns entry ids, but Pi's request messages carry none, so the adapter maps each id to its
@@ -425,12 +431,13 @@ Implementation notes (not differences):
 - `GateCall.nested` is true for a call made through `ctx.executeTool` (`parentToolCallId`), for `before` and `after`
   alike.
 - An automatic compaction calls `onCompacted` in the middle of a run: its handler cannot add a quiet input there (the
-  conversation is not idle), and `hostCallInFlight` may still be true when it starts. A host `compact()` rethrows what
-  `onCompacted` throws; an automatic compaction's error goes to `onError`.
+  conversation is not idle), and `hostCallInFlight` may still be true when it starts. A host `compact()` rejects when
+  `onCompacting` or `onCompacted` throws; an automatic compaction's error goes to `onError`.
 - Pi puts what `omit` (`context`), `after` (`tool_result`) and `onClose` (`session_shutdown`) throw on its extension
   error channel and carries on, and makes what `before` (`tool_call`) throws the call's error result; the adapter also
   hands each to `onError`. A failing `omit` still sends the request unfiltered, a failing `before`'s result does not
-  read as `blocked`, a failing `after` leaves the result unreplaced, and a failing `onClose` does not reject `close()`.
+  read `Tool call blocked: …`, a failing `after` leaves the result unreplaced, and a failing `onClose` does not reject
+  `close()`.
 - A replacement from `after()` without `details` keeps the call's original `details`: Pi keeps them when a `tool_result`
   handler returns none (or `null`). Pi drops the replaced result's structured content, which only calls made through
   `ctx.executeTool` receive.
