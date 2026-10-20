@@ -96,6 +96,21 @@ describe('MarkdownChunkPreview', () => {
     expect(ids.map((id) => id?.split('--')[1])).toEqual(['foo1', 'foo1-1'])
   })
 
+  it('keys a heading on the code span the renderer prints, padding removed', async () => {
+    // CommonMark drops one space from each end of a code span that carries both, so `# foo` bar `baz`
+    // renders `foobarbaz`. Keeping the padding keyed the heading on `foo-bar-baz` and left the later
+    // `# foobarbaz` without the `-1` its link names.
+    const filler = 'filler\n\n'.repeat(3072)
+    const content = `# foo\` bar \`baz\n\n${filler}# foobarbaz\n\n[jump](#foobarbaz-1)\n`
+    const chunks = splitMarkdownChunks(content, 1).chunks
+    mocks.range = chunks.map((_, index) => index)
+    const { container } = render(<MarkdownChunkPreview chunks={chunks} id="code-span-padding" />)
+
+    const ids = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids.map((id) => id?.split('--')[1])).toEqual(['foobarbaz', 'foobarbaz-1'])
+  })
+
   it('resolves a footnote backlink inside the chunk that was clicked', async () => {
     // Each mounted chunk numbers its footnotes from the same reference, so every chunk emits the
     // same reference id and a preview-wide search always finds the first chunk's — a later chunk's

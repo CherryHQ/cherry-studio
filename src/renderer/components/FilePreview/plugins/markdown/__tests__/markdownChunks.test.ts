@@ -3044,3 +3044,25 @@ describe('nested HTML of one element name', () => {
     expect(chunks.every((chunk) => chunk.text.length <= MARKDOWN_MAX_BLOCK_CHARS)).toBe(true)
   })
 })
+
+describe('a raw HTML block full of unmatched heading tags', () => {
+  it('indexes the closing tags once instead of rescanning the block per opening', () => {
+    // Pairing open and close in one regex made every `<h1` with no partner scan the rest of the
+    // block: 32,000 of them took seconds, and the splitter runs before the long-line fallback.
+    const content = `<div>\n${'<h1 '.repeat(32_000)}\n</div>\n`
+    const started = performance.now()
+
+    splitMarkdownChunks(content)
+
+    expect(performance.now() - started).toBeLessThan(1_500)
+  })
+
+  it('still numbers the headings whose tags do pair', () => {
+    const chunks = chunksOf('<div>\n<h1>One</h1>\n<h1>Two</h1>\n</div>\n')
+
+    expect(chunks.flatMap((chunk) => (chunk.headingSlugs ? Array.from(chunk.headingSlugs.keys()) : []))).toEqual([
+      'one',
+      'two'
+    ])
+  })
+})

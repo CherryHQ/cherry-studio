@@ -1193,9 +1193,12 @@ const MAX_HEADING_LABEL_CHARS = 64 * 1024
 
 /**
  * A heading tag a raw HTML block renders — an element the parser hands the document whole, which
- * the renderer numbers an id from the same way it numbers a Markdown heading's.
+ * the renderer numbers an id from the same way it numbers a Markdown heading's. The opening and
+ * closing tags are matched apart: pairing them in one regex made every unmatched `<h1` rescan the
+ * rest of the block, which is quadratic on a block of them.
  */
-const HTML_HEADING_TAG = /<h([1-6])(?:[ \t][^>]*)?>([\s\S]*?)<\/h\1\s*>/gi
+const HTML_HEADING_OPEN = /<h([1-6])(?:[ \t][^>]*)?>/gi
+const HTML_HEADING_CLOSE = /<\/h([1-6])\s*>/gi
 
 /**
  * The text an HTML heading renders — its content with its own tags stripped and entities read. A
@@ -1269,7 +1272,12 @@ function headingRenderedText(
         const run = /^`+/.exec(segment.slice(index))?.[0] ?? '`'
         const close = segment.indexOf(run, index + run.length)
         const closed = close >= 0 && segment[close + run.length] !== '`'
-        text += segment.slice(index + run.length, closed ? close : index + run.length)
+        // The renderer drops one space or line ending from each end of a closed code span that
+        // carries both, so `` ` bar ` `` renders `bar` — the slug has to read the same text.
+        let content = segment.slice(index + run.length, closed ? close : index + run.length)
+        if (closed && content.length > 2 && /^[ \n]/.test(content) && /[ \n]$/.test(content) && content.trim() !== '')
+          content = content.slice(1, -1)
+        text += content
         if (!closed) text += run
         index = closed ? close + run.length : index + run.length
       } else if (character === '&') {
@@ -1991,9 +1999,35 @@ export function splitMarkdownChunks(
   // single line may hold several of. The block is scanned whole, since its tag, text and closing
   // tag may sit on different lines.
   const recordHtmlHeadings = (line: number, content: string): void => {
-    // `htmlHeadingText` already reads the tag's content the way the renderer does, so this entry
-    // needs no inline scan of its own.
-    for (const match of content.matchAll(HTML_HEADING_TAG)) recordHeading(line, htmlHeadingText(match[2]), true)
+    // Closing tags are indexed once, so an opening tag with no partner behind it costs a lookup
+    // rather than a rescan of the block — a block of unmatched `<h1` tags is what makes that
+    // difference.
+    const closings = new Map<number, Array<{ start: number; end: number }>>()
+    for (const close of content.matchAll(HTML_HEADING_CLOSE)) {
+      const level = Number(close[1])
+      const held = closings.get(level)
+      if (held) held.push({ start: close.index, end: close.index + close[0].length })
+      else closings.set(level, [{ start: close.index, end: close.index + close[0].length }])
+    }
+    // Each level's closings are consumed in order, so one cursor per level walks them once.
+    const cursors = new Map<number, number>()
+    let resume = 0
+    for (const open of content.matchAll(HTML_HEADING_OPEN)) {
+      if (open.index < resume) continue
+      const start = open.index + open[0].length
+      const level = Number(open[1])
+      const held = closings.get(level)
+      if (!held) continue
+      let at = cursors.get(level) ?? 0
+      while (at < held.length && held[at].start < start) at += 1
+      cursors.set(level, at)
+      if (at >= held.length) continue
+      const partner = held[at]
+      // `htmlHeadingText` already reads the tag's content the way the renderer does, so this entry
+      // needs no inline scan of its own.
+      recordHeading(line, htmlHeadingText(content.slice(start, partner.start)), true)
+      resume = partner.end
+    }
   }
   // The raw text of the open HTML block, gathered line by line to scan once the block closes: a
   // heading counted line by line would miss one whose tag spans lines, and counting it on the line
