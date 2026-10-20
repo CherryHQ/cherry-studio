@@ -1,12 +1,13 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
-import type { ProviderType } from '@renderer/types/provider'
+import { ProviderTypeSchema } from '@renderer/types/provider'
 import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
@@ -31,13 +32,15 @@ function resolveDefaultEndpoint(type?: string): EndpointType {
   }
 }
 
-interface ImportedProviderSearchData {
-  id: string
-  apiKey: string
-  baseUrl: string
-  type?: ProviderType
-  name?: string
-}
+const ImportedProviderSearchDataSchema = z.object({
+  id: z.string().min(1),
+  apiKey: z.string().min(1),
+  baseUrl: z.string().min(1),
+  type: ProviderTypeSchema.optional(),
+  name: z.string().optional()
+})
+
+type ImportedProviderSearchData = z.infer<typeof ImportedProviderSearchDataSchema>
 
 /** Consumes one provider deep-link import payload from the URL into create/update + add-api-key calls. */
 export function useProviderDeepLinkImport(
@@ -64,7 +67,7 @@ export function useProviderDeepLinkImport(
     const importProvider = async (providerData: ImportedProviderSearchData) => {
       try {
         const popupResult = await UrlSchemaInfoPopup.show(providerData)
-        const { updatedProvider, isNew, displayName } = popupResult
+        const { updatedProvider, isNew, nameOnly, displayName } = popupResult
 
         if (!updatedProvider) {
           void navigate({ to: '/settings/provider' })
@@ -95,11 +98,12 @@ export function useProviderDeepLinkImport(
             endpointConfigs
           })
         } else {
-          await updateProviderById(providerId, {
-            name: updatedProvider.name,
-            defaultChatEndpoint,
-            endpointConfigs
-          })
+          await updateProviderById(
+            providerId,
+            nameOnly
+              ? { name: updatedProvider.name }
+              : { name: updatedProvider.name, defaultChatEndpoint, endpointConfigs }
+          )
         }
 
         if (updatedProvider.apiKey.trim()) {
@@ -120,15 +124,15 @@ export function useProviderDeepLinkImport(
     }
 
     try {
-      const parsed = JSON.parse(searchAddProviderData) as ImportedProviderSearchData
+      const parsed = ImportedProviderSearchDataSchema.safeParse(JSON.parse(searchAddProviderData))
 
-      if (!parsed.id || !parsed.apiKey || !parsed.baseUrl) {
+      if (!parsed.success) {
         toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         void navigate({ to: '/settings/provider' })
         return
       }
 
-      void importProvider(parsed)
+      void importProvider(parsed.data)
     } catch (error) {
       logger.error('Failed to parse provider deep link import data', error as Error)
       toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))

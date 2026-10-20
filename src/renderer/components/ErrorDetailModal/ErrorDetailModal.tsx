@@ -1,4 +1,4 @@
-import { ArrowLeft, Copy, FileUp } from 'lucide-react'
+import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
 import React, { memo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,6 +6,7 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { DoctorAgentDialog } from '@renderer/components/doctor'
 import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
@@ -38,6 +39,7 @@ import {
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
+import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { doctorScopeKey } from '@shared/utils/doctor'
 
@@ -56,6 +58,8 @@ interface ErrorDetailContentProps {
   diagnosisContext?: DiagnosisContext
   diagnosticReport?: DiagnosticReportConfig
   subject?: DoctorSubjectRef
+  /** The failed message this error belongs to; binds the AI consultation to it. */
+  incident?: DoctorAgentIncident
   onOpenDiagnosticReport?: (description: string) => void
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
@@ -143,7 +147,15 @@ const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTM
 // --- Sub-Components ---
 
 const BuiltinError = memo(({ error }: { error: SerializedError }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
+  // the raw `message` alone would only repeat the generic headline.
+  const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+  const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
+    | Record<string, string>
+    | undefined
+  const detailFullKey = typeof detailKey === 'string' ? `error.${detailKey}` : ''
+  const hasDetail = detailFullKey !== '' && i18n.exists(detailFullKey)
   return (
     <>
       {error.name && (
@@ -156,6 +168,12 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
           <ErrorDetailValue className="selectable">{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {hasDetail && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('common.detail')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{t(detailFullKey, detailValues)}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.stack && (
@@ -467,6 +485,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   localizedErrorMessage,
   diagnosisContext,
   subject,
+  incident,
   diagnosticReport,
   onOpenDiagnosticReport,
   onDoctorNavigate,
@@ -475,6 +494,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
 }) => {
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -542,6 +562,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             <ErrorDoctorDiagnostics
               key={doctorScopeKey(subject)}
               subject={subject}
+              incident={incident}
               onNavigate={onDoctorNavigate ?? ignoreDoctorNavigation}
               onReportProblem={onOpenDiagnosticReport}
               onCloseBlockedChange={onDoctorCloseBlockedChange}
@@ -561,13 +582,30 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      {diagnosticReport && onOpenDiagnosticReport ? (
-        <div className="flex justify-end">
-          <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
-            <FileUp size={14} />
-            {t('error.diagnostic_report.action')}
-          </Button>
+      {subject || (diagnosticReport && onOpenDiagnosticReport) ? (
+        <div className="flex justify-end gap-2">
+          {diagnosticReport && onOpenDiagnosticReport ? (
+            <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
+              <FileUp size={14} />
+              {t('error.diagnostic_report.action')}
+            </Button>
+          ) : null}
+          {subject ? (
+            <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
+              <Sparkles size={14} />
+              {t('settings.doctor.agent.title')}
+            </Button>
+          ) : null}
         </div>
+      ) : null}
+      {subject && agentOpen ? (
+        <DoctorAgentDialog
+          subject={subject}
+          incident={incident}
+          open
+          onOpenChange={setAgentOpen}
+          onReportProblem={diagnosticReport && onOpenDiagnosticReport ? openDiagnosticReport : undefined}
+        />
       ) : null}
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
