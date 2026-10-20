@@ -95,6 +95,7 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -1200,6 +1201,12 @@ const Sessions = ({
   )
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
+  // Pinned order lives in `pin.orderKey`, not on the session row, so a pinned move
+  // goes through `/pins` — and the server's two-section cursor means it also
+  // reshuffles `/agent-sessions` pages.
+  const { trigger: reorderPin } = useMutation('PATCH', '/pins/:id/order', {
+    refresh: ['/pins', '/agent-sessions']
+  })
   const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
 
   const createSessionFromSeed = useCallback(
@@ -1585,23 +1592,27 @@ const Sessions = ({
       displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
     [displayMode]
   )
-  const canDragSessionItem = useCallback(
-    ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned,
-    [itemDragReady]
-  )
+  // Pinned rows now drag: a pinned task's position is the one thing a user could
+  // not choose before. They stay inside the pinned set — crossing the pinned
+  // boundary would silently pin or unpin, which only the star button should do.
+  const canDragSessionItem = useCallback(() => itemDragReady, [itemDragReady])
 
   const canDropSessionItem = useCallback(
     ({
+      activeItem,
       overItem,
       sourceGroupId,
       targetGroupId
     }: {
+      activeItem: SessionListItem
       overItem?: SessionListItem
       sourceGroupId: string
       targetGroupId: string
     }) =>
       itemDragReady &&
-      !overItem?.pinned &&
+      // A drop onto a group header has no `overItem`; the same-group check below
+      // is what keeps that drop inside the item's own group.
+      (overItem ? activeItem.pinned === overItem.pinned : true) &&
       canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
     [displayMode, itemDragReady]
   )
@@ -1640,6 +1651,33 @@ const Sessions = ({
       return workdirDragReady && !!activeWorkspaceId && !!overWorkspaceId && activeWorkspaceId !== overWorkspaceId
     },
     [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
+  )
+
+  // Pinned order is stored on the pin row, and `applyScopedMoves` resolves both
+  // the moved row and the before/after anchor by `pin.id` — so both session ids
+  // have to be translated before the move is sent.
+  const reorderPinnedSession = useCallback(
+    async (payload: ResourceListItemReorderPayload) => {
+      const activePinId = pinIdBySessionId.get(payload.activeId)
+      if (!activePinId) return
+
+      const overPinId = pinIdBySessionId.get(payload.overId)
+      const anchor: OrderRequest =
+        payload.overType === 'item' && overPinId
+          ? payload.position === 'before'
+            ? { before: overPinId }
+            : { after: overPinId }
+          : { position: 'last' }
+
+      try {
+        await reorderPin({ params: { id: activePinId }, body: anchor })
+      } catch (err) {
+        setOptimisticMove(null)
+        logger.error('Failed to reorder pinned session', { activePinId, err })
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+      }
+    },
+    [pinIdBySessionId, reorderPin, t]
   )
 
   const handleSessionReorder = useCallback(
@@ -1744,12 +1782,17 @@ const Sessions = ({
       }
 
       const session = sessionItems.find((candidate) => candidate.id === payload.activeId)
-      if (!session || session.pinned) return
+      if (!session) return
 
       const normalizedPayload = normalizeSessionDropPayload(payload)
-      const anchor = buildSessionDropAnchor(normalizedPayload)
       setOptimisticMove(normalizedPayload)
 
+      if (session.pinned) {
+        await reorderPinnedSession(normalizedPayload)
+        return
+      }
+
+      const anchor = buildSessionDropAnchor(normalizedPayload)
       const reordered = await reorderSession(payload.activeId, anchor)
       if (!reordered) {
         setOptimisticMove(null)
@@ -1764,6 +1807,7 @@ const Sessions = ({
       refetchAgents,
       refetchWorkspaces,
       reorderAgent,
+      reorderPinnedSession,
       reorderSession,
       reorderWorkspace,
       sessionItems,

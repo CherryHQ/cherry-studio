@@ -16,13 +16,18 @@ import {
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED
 } from '@shared/ai/localVoice'
+import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 
+import type { SpeechOperation } from '../executionTypes'
 import type { TranscriptionModelDefinition, SpeechModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import { getVoiceEnvironment, type VoiceEnvironment } from '../voicePlatform'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
-import { checkAbort, decodeVoiceRecording, nativeClient, normalizeFailure, withScratch } from './nativeSupport'
+import { decodeVoiceRecording } from './recordingDecoder'
+import { withScratch } from './scratch'
+import { completeSpeechOperation, completeTranscriptionOperation } from './sdkOperations'
+import { nativeClient, normalizeFailure } from './systemSpeech'
 
 const logger = loggerService.withContext('AppleVoiceAdapter')
 
@@ -233,7 +238,69 @@ export const appleTranscriptionDefinition: TranscriptionModelDefinition = {
   status: (options, signal) => getAppleVoiceStatus(APPLE_ASR_MODEL_ID, options, signal),
   locales: listAppleAsrLocales,
   installLocale: installAppleAsrAsset,
-  createModel: createAppleTranscriptionModel
+  transcriptionOperations: [completeTranscriptionOperation(createAppleTranscriptionModel)]
+}
+
+const streamingSpeech: SpeechOperation = {
+  input: SpeechInputKind.Text,
+  output: SpeechOutputKind.PcmStream,
+  start(input, options, signal) {
+    const controller = new AbortController()
+    const lifetime = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+    const opened = Promise.resolve().then(async () => {
+      const speed = options.speed ?? DEFAULT_SPEECH_SPEED
+      if (!Number.isFinite(speed) || speed < MIN_SPEECH_SPEED || speed > MAX_SPEECH_SPEED)
+        throw new VoiceRuntimeError('invalid_request')
+      await requireReady(APPLE_TTS_MODEL_ID, options, lifetime)
+      return nativeClient().stream(
+        { operation: 'synthesize_stream', voiceId: options.voice, text: input.text, speed },
+        { signal: lifetime }
+      )
+    })
+    const closed = opened.then(
+      (stream) => stream.closed,
+      () => undefined
+    )
+    const output = opened
+      .then(async (stream) => {
+        const source = await stream.output
+        return {
+          kind: SpeechOutputKind.PcmStream,
+          format: source.format,
+          chunks: {
+            async *[Symbol.asyncIterator]() {
+              try {
+                yield* source.chunks
+              } catch (error) {
+                throw normalizeAppleFailure(error, lifetime)
+              }
+            }
+          }
+        }
+      })
+      .catch((error) => {
+        throw normalizeAppleFailure(error, lifetime)
+      })
+    const completed = opened
+      .then((stream) => stream.completed)
+      .catch((error) => {
+        throw normalizeAppleFailure(error, lifetime)
+      })
+    void output.catch(() => undefined)
+    void completed.catch(() => undefined)
+    return {
+      output,
+      completed,
+      closed,
+      cancel: async () => {
+        controller.abort()
+        await opened.then(
+          (stream) => stream.cancel(),
+          () => undefined
+        )
+      }
+    }
+  }
 }
 
 export const appleSpeechDefinition: SpeechModelDefinition = {
@@ -248,5 +315,5 @@ export const appleSpeechDefinition: SpeechModelDefinition = {
   status: (options, signal) => getAppleVoiceStatus(APPLE_TTS_MODEL_ID, options, signal),
   voices: listAppleVoices,
   getDefaultVoice: getDefaultAppleVoice,
-  createModel: createAppleSpeechModel
+  speechOperations: [completeSpeechOperation(createAppleSpeechModel), streamingSpeech]
 }

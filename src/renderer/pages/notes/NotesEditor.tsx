@@ -214,6 +214,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
         <div
           data-ui="notes.editor"
           data-note-id={activeNodeId}
+          data-voice-target-id={voiceTargetId}
           onFocusCapture={markVoiceTargetCurrent}
           onPointerDownCapture={markVoiceTargetCurrent}
           className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
@@ -258,14 +259,14 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           </ErrorBoundary>
         </div>
         <div
-          className="flex min-h-12 shrink-0 items-center border-border border-t px-4 py-2"
+          className="flex min-h-12 shrink-0 items-center border-t border-border px-4 py-2"
           onFocusCapture={markVoiceTargetCurrent}
           onPointerDownCapture={markVoiceTargetCurrent}>
           <SpaceBetweenRowFlex className="w-full flex-wrap items-center gap-2">
-            <div className="select-none text-muted-foreground text-xs leading-none">
+            <div className="text-muted-foreground text-xs leading-none select-none">
               {t('notes.characters')}: {tokenCount}
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-3 text-muted-foreground text-xs">
+            <div className="text-muted-foreground flex flex-wrap items-center justify-end gap-3 text-xs">
               {voiceNoteId && (
                 <DictationControls
                   targetId={voiceTargetId}
