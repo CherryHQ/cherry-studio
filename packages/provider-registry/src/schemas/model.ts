@@ -16,6 +16,7 @@ import {
 } from './common'
 import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
 import { looseArray } from './forwardCompat'
+import { MessageCompatibilitySchema } from './requestPolicy'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -367,14 +368,19 @@ export const ParameterSupportSchema = z.object({
   temperature: z
     .object({
       supported: z.boolean(),
-      range: NumericRangeSchema.optional()
+      range: NumericRangeSchema.optional(),
+      requiresExplicitReasoningOff: z.boolean().optional(),
+      whenReasoning: z.object({ supported: z.boolean().optional(), range: NumericRangeSchema.optional() }).optional()
     })
     .default({ supported: true }),
 
   topP: z
     .object({
+      exclusiveWithTemperature: z.boolean().optional(),
       supported: z.boolean(),
-      range: NumericRangeSchema.optional()
+      range: NumericRangeSchema.optional(),
+      requiresExplicitReasoningOff: z.boolean().optional(),
+      whenReasoning: z.object({ supported: z.boolean().optional(), range: NumericRangeSchema.optional() }).optional()
     })
     .default({ supported: true }),
 
@@ -383,7 +389,7 @@ export const ParameterSupportSchema = z.object({
       supported: z.boolean(),
       range: NumericRangeSchema.optional()
     })
-    .default({ supported: false }),
+    .optional(),
 
   frequencyPenalty: z.boolean().default(true),
   presencePenalty: z.boolean().default(true),
@@ -514,6 +520,7 @@ export const ModelConfigSchema = z.object({
 
   // Parameter support
   parameterSupport: ParameterSupportSchema.optional(),
+  messageCompatibility: MessageCompatibilitySchema.optional(),
 
   // Image-generation parameter support — drives the generic painting UI
   // (sizes, batch limits, supports.negativePrompt/seed/quality/…). Only

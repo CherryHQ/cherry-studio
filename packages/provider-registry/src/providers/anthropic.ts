@@ -12,6 +12,28 @@ const webToolModels = [
 ]
 
 export default defineProvider({
+  overrides: [
+    {
+      modelId: 'claude-3-haiku',
+      disabled: true,
+      reason: 'Retired on the official API; third-party hosting is independent.'
+    },
+    {
+      modelId: 'claude-opus-4',
+      disabled: true,
+      reason: 'Retired on the official API; third-party hosting is independent.'
+    },
+    {
+      modelId: 'claude-opus-4-1',
+      disabled: true,
+      reason: 'Retired on the official API; third-party hosting is independent.'
+    },
+    {
+      modelId: 'claude-sonnet-4',
+      disabled: true,
+      reason: 'Retired on the official API; third-party hosting is independent.'
+    }
+  ],
   id: 'anthropic',
   name: 'Anthropic',
   availableInEditions: ['global'],

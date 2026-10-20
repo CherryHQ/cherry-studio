@@ -79,13 +79,14 @@ const createSkipGeminiThoughtSignaturePlugin = () =>
     }
   })
 
-import { isGemini3Model } from '@shared/utils/model'
+import { requiresThoughtSignatures } from '@cherrystudio/provider-registry'
+import { getRawModelId } from '@shared/utils/model'
 
 import type { RequestFeature } from '../feature'
 
 /** Inject thought_signature on tool calls for Gemini 3 via OpenAI-compat API. */
 export const skipGeminiThoughtSignatureFeature: RequestFeature = {
   name: 'skip-gemini-thought-signature',
-  applies: (scope) => isGemini3Model(scope.model),
+  applies: (scope) => requiresThoughtSignatures(getRawModelId(scope.model), scope.model.providerId),
   contributeModelAdapters: () => [createSkipGeminiThoughtSignaturePlugin()]
 }

@@ -2,6 +2,7 @@ import { Eraser } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { isWebSearchEffortUnsupported } from '@cherrystudio/provider-registry'
 import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
@@ -53,11 +54,7 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import {
-  isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel,
-  resolveReasoningEffortForModel
-} from '@renderer/utils/model'
+import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -70,6 +67,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { getRawModelId } from '@shared/utils/model'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -885,10 +883,9 @@ const ChatComposerInner = ({
     (option: ReasoningEffortOption) => {
       if (!selectedAssistantId) return
       if (
-        option === 'minimal' &&
         effectiveSubmittedModel &&
         isOpenAIWebSearchModel(effectiveSubmittedModel) &&
-        isGPT5SeriesReasoningModel(effectiveSubmittedModel) &&
+        isWebSearchEffortUnsupported(getRawModelId(effectiveSubmittedModel), option) &&
         assistant?.settings.enableWebSearch
       ) {
         toast.warning(t('chat.web_search.warning.openai'))

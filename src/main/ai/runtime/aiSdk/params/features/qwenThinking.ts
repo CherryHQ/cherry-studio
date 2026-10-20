@@ -55,7 +55,8 @@ const createQwenThinkingPlugin = (enableThinking: boolean) =>
     }
   })
 
-import { isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@shared/utils/model'
+import { supportsThinkingPrompt } from '@cherrystudio/provider-registry'
+import { getRawModelId, isSupportedThinkingTokenModel } from '@shared/utils/model'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@shared/utils/provider'
 
 import type { RequestFeature } from '../feature'
@@ -67,8 +68,8 @@ export const qwenThinkingFeature: RequestFeature = {
   applies: (scope) =>
     (Boolean(scope.assistant) || scope.request.reasoningEffort !== undefined) &&
     !isOllamaProvider(scope.provider) &&
-    isSupportedThinkingTokenQwenModel(scope.model) &&
-    !isQwen35to39Model(scope.model) &&
+    isSupportedThinkingTokenModel(scope.model) &&
+    supportsThinkingPrompt(getRawModelId(scope.model)) &&
     !isSupportEnableThinkingProvider(scope.provider) &&
     scope.reasoning.kind !== 'omit',
   contributeModelAdapters: (scope) => [createQwenThinkingPlugin(scope.reasoning.kind !== 'off')]

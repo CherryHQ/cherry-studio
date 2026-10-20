@@ -119,7 +119,8 @@ export default defineCreator({
             }
           }
         }
-      }
+      },
+      messageCompatibility: { thoughtSignatures: true }
     },
     {
       id: 'imagen-4-0-ultra-generate-001',
@@ -555,7 +556,8 @@ export default defineCreator({
             }
           }
         }
-      }
+      },
+      messageCompatibility: { thoughtSignatures: true }
     },
     {
       id: 'gemini-3-1-flash-image-preview',
@@ -581,7 +583,8 @@ export default defineCreator({
             }
           }
         }
-      }
+      },
+      messageCompatibility: { thoughtSignatures: true }
     },
     {
       id: 'imagen-4-0-generate-preview-06-06',
@@ -668,7 +671,267 @@ export default defineCreator({
             }
           }
         }
-      }
+      },
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-1-flash-lite',
+      name: 'Gemini 3.1 Flash Lite',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-1-flash-lite-image',
+      name: 'Nano Banana 2 Lite',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'image-generation',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text', 'image'],
+      contextWindow: 65536,
+      maxOutputTokens: 4096,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-1-flash-lite-preview',
+      name: 'Gemini 3.1 Flash Lite Preview',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-1-flash-live-preview',
+      name: 'Gemini 3.1 Flash Live Preview',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'audio-generation',
+        'video-recognition',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text', 'audio'],
+      contextWindow: 131072,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-1-flash-tts-preview',
+      name: 'Gemini 3.1 Flash TTS Preview',
+      capabilities: ['reasoning', 'audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      contextWindow: 8192,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-1-pro-preview',
+      name: 'Gemini 3.1 Pro Preview',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-1-pro-preview-customtools',
+      name: 'Gemini 3.1 Pro Preview Custom Tools',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-5-flash',
+      name: 'Gemini 3.5 Flash',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-5-flash-lite',
+      name: 'Gemini 3.5 Flash Lite',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-5-live-translate-preview',
+      name: 'Gemini 3.5 Live Translate Preview',
+      capabilities: ['audio-recognition', 'audio-generation'],
+      inputModalities: ['audio'],
+      outputModalities: ['audio', 'text'],
+      contextWindow: 16384,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-5-transcribe',
+      name: 'Gemini 3.5 Transcribe',
+      capabilities: ['audio-recognition'],
+      inputModalities: ['audio'],
+      outputModalities: ['text'],
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-5-transcribe-live',
+      name: 'Gemini 3.5 Transcribe Live',
+      capabilities: ['audio-recognition'],
+      inputModalities: ['audio'],
+      outputModalities: ['text'],
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-6-flash',
+      name: 'Gemini 3.6 Flash',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-7-flash',
+      name: 'Gemini 3.7 Flash',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-8-flash',
+      name: 'Gemini 3.8 Flash',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-flash',
+      name: 'Gemini 3 Flash',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 65000,
+      messageCompatibility: { thoughtSignatures: true }
+    },
+    {
+      id: 'gemini-3-flash-preview',
+      name: 'Gemini 3 Flash Preview',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 65536,
+      messageCompatibility: { thoughtSignatures: true }
     }
   ]
 })

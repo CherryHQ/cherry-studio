@@ -66,6 +66,278 @@ export default defineCreator({
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
       }
+    },
+    {
+      id: 'claude-3-haiku',
+      name: 'Claude Haiku 3',
+      capabilities: ['function-call', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 200000,
+      maxOutputTokens: 4096,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-fable-5',
+      name: 'Claude Fable 5',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-fable-5-1',
+      name: 'Claude Fable 5.1',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-fable-latest',
+      name: 'Anthropic: Claude Fable Latest',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-haiku-latest',
+      name: 'Anthropic: Claude Haiku Latest',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 200000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-opus-5-fast',
+      name: 'Claude Opus 5 (Fast)',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-opus-latest',
+      name: 'Anthropic: Claude Opus Latest',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-sonnet-5',
+      name: 'Claude Sonnet 5',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-sonnet-latest',
+      name: 'Anthropic: Claude Sonnet Latest',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-haiku-4-5',
+      name: 'Claude Haiku 4.5 (latest)',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 200000,
+      maxOutputTokens: 64000,
+      messageCompatibility: { interleavedThinkingBeta: true, vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { exclusiveWithTemperature: true, supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-opus-4-5',
+      name: 'Claude Opus 4.5 (latest)',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 200000,
+      maxOutputTokens: 64000,
+      messageCompatibility: { interleavedThinkingBeta: true, vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { exclusiveWithTemperature: true, supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-sonnet-4-5',
+      name: 'Claude Sonnet 4.5 (latest)',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 64000,
+      messageCompatibility: { interleavedThinkingBeta: true, vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { exclusiveWithTemperature: true, supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-opus-4',
+      name: 'Claude Opus 4',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 200000,
+      maxOutputTokens: 32000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-opus-4-1',
+      name: 'Claude Opus 4.1 (US)',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 200000,
+      maxOutputTokens: 32000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-opus-4-6',
+      name: 'Claude Opus 4.6',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+
+    {
+      id: 'claude-opus-4-8-fast',
+      name: 'Claude Opus 4.8 (Fast)',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-sonnet-4',
+      name: 'Claude Sonnet 4',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 64000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-sonnet-4-6',
+      name: 'Claude Sonnet 4.6',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: {
+        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
+        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
+      }
+    },
+    {
+      id: 'claude-opus-4-7',
+      name: 'Claude Opus 4.7',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: { temperature: { supported: false }, topK: { supported: false }, topP: { supported: false } }
+    },
+    {
+      id: 'claude-opus-4-8',
+      name: 'Claude Opus 4.8',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      messageCompatibility: { vertexWebSearchBeta: true },
+      parameterSupport: { temperature: { supported: false }, topK: { supported: false }, topP: { supported: false } }
+    },
+    {
+      id: 'claude-opus-5',
+      name: 'Claude Opus 5',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: { temperature: { supported: false }, topK: { supported: false }, topP: { supported: false } }
     }
   ],
   reasoningFamilies: [

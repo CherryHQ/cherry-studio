@@ -10,17 +10,26 @@ describe('resolveNativeFileSupport', () => {
   it('native PDF on an OpenAI Responses LLM model', () => {
     const ns = resolveNativeFileSupport(
       makeProvider({ id: 'openai' }),
-      makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
+      makeModel({
+        id: 'openai::gpt-4o',
+        apiModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        capabilities: [MODEL_CAPABILITY.FILE_INPUT]
+      }),
       { aiSdkProviderId: 'openai', runtimeProviderId: 'openai' }
     )
     expect(ns.pdf).toBe(true)
-    expect(typeof ns.image).toBe('boolean')
   })
 
   it('native PDF on an Anthropic model', () => {
     const ns = resolveNativeFileSupport(
       makeProvider({ id: 'anthropic' }),
-      makeModel({ id: 'anthropic::claude', apiModelId: 'claude-3-5-sonnet-20241022', name: 'claude-3-5-sonnet' }),
+      makeModel({
+        id: 'anthropic::claude',
+        apiModelId: 'claude-3-5-sonnet-20241022',
+        name: 'claude-3-5-sonnet',
+        capabilities: [MODEL_CAPABILITY.FILE_INPUT]
+      }),
       { aiSdkProviderId: 'anthropic', runtimeProviderId: 'anthropic' }
     )
     expect(ns.pdf).toBe(true)
@@ -29,7 +38,12 @@ describe('resolveNativeFileSupport', () => {
   it('no native PDF on an openai-compatible aggregator', () => {
     const ns = resolveNativeFileSupport(
       makeProvider({ id: 'somehub' }),
-      makeModel({ id: 'somehub::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
+      makeModel({
+        id: 'somehub::gpt-4o',
+        apiModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        capabilities: [MODEL_CAPABILITY.FILE_INPUT]
+      }),
       { aiSdkProviderId: 'openai-compatible', runtimeProviderId: 'openai-compatible' }
     )
     expect(ns.pdf).toBe(false)
@@ -131,19 +145,14 @@ describe('resolveNativeFileSupport', () => {
   it('forces text for providers known to break on native files (qiniu)', () => {
     const ns = resolveNativeFileSupport(
       makeProvider({ id: 'qiniu' }),
-      makeModel({ id: 'qiniu::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
+      makeModel({
+        id: 'qiniu::gpt-4o',
+        apiModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        capabilities: [MODEL_CAPABILITY.FILE_INPUT]
+      }),
       { aiSdkProviderId: 'openai', runtimeProviderId: 'openai' }
     )
     expect(ns.pdf).toBe(false)
-  })
-
-  it('image rides on the vision model regardless of provider', () => {
-    // isVisionModel is the gate; assert it's a boolean independent of the provider set.
-    const ns = resolveNativeFileSupport(
-      makeProvider({ id: 'somehub' }),
-      makeModel({ id: 'somehub::gpt-4o', apiModelId: 'gpt-4o', name: 'gpt-4o' }),
-      { aiSdkProviderId: 'openai-compatible', runtimeProviderId: 'openai-compatible' }
-    )
-    expect(typeof ns.image).toBe('boolean')
   })
 })

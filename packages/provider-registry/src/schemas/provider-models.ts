@@ -20,6 +20,7 @@ import {
 } from './model'
 import { EndpointTypeSchema, ServiceTierOptionsSchema } from './provider'
 import { ReasoningWireProfileSchema } from './reasoningWire'
+import { MessageCompatibilitySchema } from './requestPolicy'
 
 export const CapabilityOverrideSchema = z.object({
   add: looseArray(ModelCapabilityTypeSchema).optional(), // Add capabilities
@@ -92,6 +93,7 @@ export const ProviderModelOverrideSchema = z.object({
     })
     .optional(),
   parameterSupport: ParameterSupportSchema.partial().optional(),
+  messageCompatibility: MessageCompatibilitySchema.optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)
   endpointTypes: looseArray(EndpointTypeSchema).optional(),

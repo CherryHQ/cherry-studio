@@ -18,10 +18,10 @@ import type {
 import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
+import { requiresThoughtSignatures } from '@cherrystudio/provider-registry'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isGemini3ModelId } from '@shared/utils/model'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
@@ -294,7 +294,13 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    */
   private buildToolCallProviderOptions(model: string | undefined, toolCallId: string): ProviderOptions | undefined {
     const options: ProviderOptions = {}
-    if (model && isGemini3ModelId(toApiModelId(model))) {
+    if (
+      model &&
+      requiresThoughtSignatures(
+        toApiModelId(model),
+        model.includes(':') ? model.slice(0, model.indexOf(':')) : undefined
+      )
+    ) {
       // Gemini 3 rejects a replayed functionCall whose signature is missing; the
       // Anthropic wire format has nowhere to carry it, so restore it from the cache.
       const thoughtSignature = this.googleReasoningCache?.get(`google-${toolCallId}`)

@@ -737,8 +737,8 @@ describe('buildAgentParams standard model parameters', () => {
       }
     )
 
-    it.each(['gemini::gemini-3-pro', 'anthropic::claude-opus-4-7-20260101'] as const)(
-      'preserves the sampling family policy for gateway requests to %s',
+    it.each(['anthropic::claude-opus-4-7-20260101', 'anthropic::claude-opus-5'] as const)(
+      'enforces catalog sampling restrictions for gateway requests to %s',
       async (id) => {
         const { options } = await buildAgentParams({
           request: {
@@ -1982,9 +1982,9 @@ describe('applyCallOverrides', () => {
     })
   })
 
-  it('drops topK overrides for Gemini 3.x', () => {
+  it('honors an explicit Gemini topK without inventing a restriction', () => {
     const result = applyCallOverrides(base(), { topK: 40 }, makeModel({ id: 'gemini::gemini-3-pro' }))
-    expect(result.standardParams).not.toHaveProperty('topK')
+    expect(result.standardParams.topK).toBe(40)
   })
 
   it('keeps topK for models that support it', () => {

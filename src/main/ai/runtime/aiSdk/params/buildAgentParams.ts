@@ -54,6 +54,7 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
+  resolveSamplingReasoning,
   stripRejectedSamplingParams
 } from '../../../utils/modelParameters'
 import {
@@ -588,16 +589,7 @@ function buildAgentOptions(
   let standardParams: Partial<Record<string, unknown>> = {}
   let bodyParams: Record<string, unknown> = {}
   if (assistant) {
-    const {
-      temperature = getTemperature(assistant.settings, model, reasoning),
-      topP = getTopP(assistant.settings, model, reasoning),
-      ...customRest
-    } = customParameters.standardParams
-    standardParams = {
-      ...customRest,
-      ...(temperature !== undefined && { temperature }),
-      ...(topP !== undefined && { topP })
-    }
+    standardParams = { ...customParameters.standardParams }
 
     if (Object.keys(customParameters.providerParams).length > 0) {
       bodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
@@ -638,6 +630,16 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
+  if (assistant) {
+    const samplingReasoning = resolveSamplingReasoning(
+      { providerOptions: effectiveProviderOptions, bodyParams },
+      { reasoning, providerOptionsKey: sdkConfig.providerOptionsKey }
+    )
+    const temperature = standardParams.temperature ?? getTemperature(assistant.settings, model, samplingReasoning)
+    const topP = standardParams.topP ?? getTopP(assistant.settings, model, samplingReasoning)
+    if (temperature !== undefined) standardParams.temperature = temperature
+    if (topP !== undefined) standardParams.topP = topP
+  }
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
@@ -655,7 +657,8 @@ function buildAgentOptions(
 
   const sanitized = stripRejectedSamplingParams(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
-    model
+    model,
+    { reasoning, endpointType, providerOptionsKey: sdkConfig.providerOptionsKey }
   )
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
   if (Object.keys(sanitized.bodyParams).length > 0) {

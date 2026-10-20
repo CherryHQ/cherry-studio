@@ -115,7 +115,7 @@ describe('getTemperature', () => {
     expect(getTemperature(a, model, OFF_REASONING)).toBe(0.8)
   })
 
-  it('clamps temperature to 1 for isMaxTemperatureOneModel', () => {
+  it('respects the resolved parameter range', () => {
     // `isMaxTemperatureOneModel` first reads `parameterSupport.temperature.max`;
     // its id-based fallback covers `claude/glm/kimi/moonshot` only — gpt-5
     // is classified by the registry, not the fallback, so the test has to
@@ -157,10 +157,10 @@ describe('getTemperature', () => {
     }
   )
 
-  it('disables temperature for Gemini 3.x models', () => {
+  it('honors an explicit Gemini temperature rather than treating a recommendation as unsupported', () => {
     const a = makeSampling({ temperature: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
-    expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
+    expect(getTemperature(a, model, OMIT_REASONING)).toBe(0.8)
   })
 
   it('disables temperature for Claude Opus 4.7 models', () => {
@@ -219,10 +219,10 @@ describe('getTopP', () => {
     expect(getTopP(a, model, EFFORT_REASONING)).toBe(0.95)
   })
 
-  it('disables topP for Gemini 3.x models', () => {
+  it('honors Gemini topP when supported', () => {
     const a = makeSampling({ enableTopP: true, topP: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
-    expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
+    expect(getTopP(a, model, OMIT_REASONING)).toBe(0.8)
   })
 
   it('disables topP for Claude Opus 4.7 models', () => {
@@ -233,9 +233,12 @@ describe('getTopP', () => {
 })
 
 describe('filterStandardParams', () => {
-  it('drops topK for Gemini 3.x models', () => {
+  it('does not invent a topK restriction for Gemini', () => {
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
-    expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
+    expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({
+      topK: 40,
+      frequencyPenalty: 0.1
+    })
   })
 
   it('drops topK for Claude Opus 4.7 models', () => {
@@ -274,8 +277,49 @@ describe('adjustMaxOutputTokensForReasoning', () => {
 describe('sampling settings that do not come from an assistant', () => {
   it("are gated by model capability just like an assistant's", () => {
     // Anthropic ids are the id-based `isMaxTemperatureOneModel` fallback.
-    const model = makeModel({ id: 'anthropic::claude-3-5-sonnet', providerId: 'anthropic' })
+    const model = makeModel({ id: 'anthropic::claude-sonnet-4-5', providerId: 'anthropic' })
 
     expect(getTemperature(makeSampling({ temperature: 1.5 }), model, OMIT_REASONING)).toBe(1)
+  })
+})
+
+describe('current sampling contracts', () => {
+  it.each(['claude-opus-4-8', 'claude-opus-5', 'claude-opus-5-5'])(
+    'omits rejected sampling for %s even through custom wire parameters',
+    (id) => {
+      const model = makeModel({ id: `anthropic::${id}`, providerId: 'anthropic' })
+      const values = { temperature: 0.7, topP: 0.8, top_p: 0.8, topK: 10, top_k: 10, user: 'kept' }
+      const result = stripRejectedSamplingParams(
+        {
+          standardParams: values,
+          providerOptions: { anthropic: values },
+          bodyParams: values
+        },
+        model
+      )
+      expect(result).toEqual({
+        standardParams: { user: 'kept' },
+        providerOptions: { anthropic: { user: 'kept' } },
+        bodyParams: { user: 'kept' }
+      })
+    }
+  )
+
+  it('uses the declared temperature ceiling rather than clamping every range to one', () => {
+    const model = makeModel({
+      parameterSupport: {
+        temperature: { supported: true, min: 0, max: 0.5 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    expect(getTemperature(makeSampling({ temperature: 0.8 }), model, OMIT_REASONING)).toBe(0.5)
+  })
+
+  it('omits GPT6 sampling in the default reasoning mode but allows an explicit off mode', () => {
+    const model = makeModel({ id: 'openai::gpt-6-sol', providerId: 'openai' })
+    expect(getTemperature(makeSampling({ temperature: 0.8 }), model, OMIT_REASONING)).toBeUndefined()
+    expect(getTemperature(makeSampling({ temperature: 0.8 }), model, OFF_REASONING)).toBe(0.8)
   })
 })
