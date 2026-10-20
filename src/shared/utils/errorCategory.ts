@@ -346,7 +346,12 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('failed to parse') ||
     msg.includes('json parse') ||
     msg.includes('invalid json') ||
-    msg.includes('malformed json')
+    msg.includes('malformed json') ||
+    msg.includes('invalid input: expected object, received undefined') ||
+    msg.includes('type validation failed:') ||
+    msg.includes("expected 'function.name' to be a string.") ||
+    msg.includes("expected 'id' to be a string.") ||
+    msg.includes('response stream ended without a finish reason.')
   ) {
     return 'parse'
   }

@@ -1938,7 +1938,10 @@ export class AgentSessionRuntimeService extends BaseService {
         this.handleCompactionComplete(entry, event.anchor)
         break
       case 'compaction-error':
-        this.handleCompactionError(entry, event.error)
+        this.settleCompactionError(
+          entry,
+          event.aborted || this.currentTurn(entry)?.abortController.signal.aborted ? undefined : event.error
+        )
         break
       case 'api-retry':
         this.handleApiRetry(entry, event.retry)
@@ -2108,10 +2111,6 @@ export class AgentSessionRuntimeService extends BaseService {
     this.refreshContextUsage(entry)
   }
 
-  private handleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
-    this.settleCompactionError(entry, error)
-  }
-
   private handleApiRetry(entry: AgentSessionRuntimeEntry, retry: AgentSessionApiRetryInfo): void {
     if (!this.isCurrentEntry(entry)) return
     application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), {
@@ -2128,14 +2127,15 @@ export class AgentSessionRuntimeService extends BaseService {
     cache.setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
   }
 
-  private settleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
+  private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
-    // The failure is surfaced to the user through the turn error (handleRuntimeError) and logged here;
-    // the compaction cache state only needs to leave the compacting status.
-    logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
-    application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-      status: 'idle'
-    })
+    if (error) logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
+    application
+      .get('CacheService')
+      .setShared(
+        AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId),
+        error ? { status: 'failed', error } : { status: 'idle' }
+      )
   }
 
   private refreshContextUsage(entry: AgentSessionRuntimeEntry, connection = this.currentConnection(entry)): void {
@@ -2626,8 +2626,15 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
     this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
-    if (isAgentSessionRuntimeCompacting(entry.runtimeState)) {
-      this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
+    const compaction = application.get('CacheService').getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
+    if (
+      isAgentSessionRuntimeCompacting(entry.runtimeState) ||
+      (this.liveTurn(entry) &&
+        compaction?.status === 'failed' &&
+        compaction.error === (error instanceof Error ? error.message : String(error)))
+    ) {
+      // The terminal error owns this failure's presentation; do not also leave a compaction warning.
+      this.settleCompactionError(entry)
     }
 
     const turn = this.currentTurn(entry)
@@ -2655,8 +2662,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
-    // A fresh request starts clean — drop any retry status left over from the previous turn.
+    // A fresh request starts clean — drop status left over from the previous turn.
     this.clearApiRetry(entry)
+    const cache = application.get('CacheService')
+    if (cache.getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))?.status === 'failed') {
+      cache.setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), { status: 'idle' })
+    }
     await this.refreshTurnTraceContext(entry, turn)
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
