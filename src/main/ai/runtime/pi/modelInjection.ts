@@ -38,7 +38,8 @@ import { getRawModelId } from '@shared/utils/model'
 import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../provider/endpoint'
+import { transformLmStudioRequestBody } from '../../provider/lmstudio'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
@@ -85,6 +86,7 @@ export class PiMissingApiKeyError extends Error {
 }
 
 interface PiProviderInjectionBase {
+  inlineLocalImages?: boolean
   /** pi provider name to register + target with `setRuntimeApiKey`. Cherry's provider id. */
   providerName: string
   /** Resolved Pi wire family; duplicated from providerConfig because that SDK field is optional in its public type. */
@@ -127,9 +129,20 @@ export async function materializePiProviderStream(injection: PiProviderInjection
     : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
       ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
       : injection.providerConfig
+  const baseStream = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+  const streamSimple: typeof baseStream = injection.inlineLocalImages
+    ? (model, context, options) =>
+        baseStream(model, context, {
+          ...options,
+          onPayload: async (payload, payloadModel) => {
+            const next = await options?.onPayload?.(payload, payloadModel)
+            return transformLmStudioRequestBody((next === undefined ? payload : next) as Record<string, any>)
+          }
+        })
+    : baseStream
   return {
-    providerConfig,
-    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+    providerConfig: injection.inlineLocalImages ? { ...providerConfig, streamSimple } : providerConfig,
+    streamSimple
   }
 }
 
@@ -190,6 +203,11 @@ export function buildPiProviderInjection(
 
   return {
     providerName: provider.id,
+    inlineLocalImages:
+      matchesPreset(provider, SystemProviderIds.lmstudio) &&
+      resolvedEndpoint.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+      resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType) === 'openai-compatible' &&
+      modelDeclaresImageInput(model),
     api,
     providerConfig,
     apiKey,
@@ -429,6 +447,13 @@ function buildThinkingLevelMap(model: Model): PiChatModelConfig['thinkingLevelMa
   return map
 }
 
+function modelDeclaresImageInput(model: Model): boolean {
+  return (
+    model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
+    (model.inputModalities?.includes(MODALITY.IMAGE) ?? false)
+  )
+}
+
 function buildPiModelConfig(
   provider: Provider,
   model: Model,
@@ -437,10 +462,7 @@ function buildPiModelConfig(
   endpointType: EndpointType | undefined
 ): PiChatModelConfig {
   const input: ('text' | 'image')[] = ['text']
-  const supportsImage =
-    model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
-    (model.inputModalities?.includes(MODALITY.IMAGE) ?? false)
-  if (supportsImage) {
+  if (modelDeclaresImageInput(model)) {
     input.push('image')
   }
   const thinkingLevelMap = buildThinkingLevelMap(model)

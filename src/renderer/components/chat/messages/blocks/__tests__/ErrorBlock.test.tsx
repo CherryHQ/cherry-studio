@@ -44,7 +44,8 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('react-i18next', () => ({
   Trans: ({ i18nKey }: { i18nKey: string }) => <>{i18nKey}</>,
   useTranslation: () => ({
-    t: (key: string) => mocks.translations.get(key) ?? key,
+    t: (key: string, values?: Record<string, string>) =>
+      (mocks.translations.get(key) ?? key).replace(/\{\{(\w+)\}\}/g, (match, name) => values?.[name] ?? match),
     i18n: {
       language: mocks.language,
       exists: (key: string) => mocks.i18nKeys.has(key)
@@ -81,6 +82,34 @@ describe('ErrorBlock', () => {
     mocks.translations.set('HTTP 413', 'Request body too large')
     vi.clearAllMocks()
   })
+
+  it.each(['read', 'empty', 'processing'])(
+    'shows the failed image filename and recovery action in the card body (%s)',
+    (reason) => {
+      const title = 'error.pi_image_preparation_failed'
+      const detail = `error.pi_image_${reason}_failed`
+      for (const key of [title, detail]) {
+        mocks.i18nKeys.add(key)
+        mocks.translations.set(key, enUS[key as keyof typeof enUS])
+      }
+      render(
+        <ErrorBlock
+          partId="image-error"
+          message={message}
+          error={{
+            name: 'PiImagePreparationError',
+            message: 'internal fallback',
+            stack: null,
+            i18nKey: 'pi_image_preparation_failed',
+            detailI18nKey: `pi_image_${reason}_failed`,
+            detailI18nValues: { filename: 'second-photo.jpg' }
+          }}
+        />
+      )
+      expect(screen.getByText(/second-photo\.jpg/)).toHaveTextContent(/select.*retry/i)
+      expect(screen.queryByText('internal fallback')).toBeNull()
+    }
+  )
 
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
