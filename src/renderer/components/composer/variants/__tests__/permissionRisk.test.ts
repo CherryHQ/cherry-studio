@@ -70,6 +70,7 @@ describe('getPermissionRiskEffects', () => {
 
   it('does not mistake arrow functions for shell redirection', () => {
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: "node -e 'list.map((x) => x)'" })).toEqual([])
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: "node -e 'print(a >= b)'" })).toEqual([])
   })
 
   it('flags remote transfers and remote execution as network operations', () => {
@@ -250,5 +251,50 @@ describe('getPermissionRiskEffects', () => {
     for (const command of ['Remove-Item ./dist -WhatIf', 'Remove-Item ./dist -WhatIf:$true']) {
       expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual([])
     }
+  })
+
+  it('flags git subcommands preceded by global options', () => {
+    for (const command of [
+      'git -C repo clean -df',
+      'git -C repo clean -xfd',
+      'git --git-dir=/x/.git clean -df',
+      'git -c core.pager=cat clean -df'
+    ]) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual(
+        expect.arrayContaining(['destructive', 'irreversible'])
+      )
+    }
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'git -C repo clean -n -f' })).toEqual([])
+  })
+
+  it('flags redirection attached to a quoted argument', () => {
+    for (const command of ['printf "new">config.txt', 'echo "a">f.txt', 'echo `x`>f.txt', "echo 'a'>f.txt"]) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual(
+        expect.arrayContaining(['destructive', 'irreversible'])
+      )
+    }
+  })
+
+  it('flags git commands that discard working-tree edits', () => {
+    for (const command of ['git restore .', 'git restore src', 'git checkout -- .', 'git checkout -- file.txt']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual(
+        expect.arrayContaining(['destructive', 'irreversible'])
+      )
+    }
+  })
+
+  it('leaves git branch switching and index-only restore unflagged', () => {
+    for (const command of [
+      'git checkout -b new',
+      'git checkout main',
+      'git switch feat',
+      'git restore --staged .',
+      'git restore --source=HEAD --staged file'
+    ]) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual([])
+    }
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'git restore --staged --worktree .' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
   })
 })

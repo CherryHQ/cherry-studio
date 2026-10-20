@@ -10,11 +10,16 @@ function getCommandText(args: unknown): string {
   return typeof command === 'string' ? command : ''
 }
 
+// Git global options (`-C <repo>`, `-c k=v`, …) precede the subcommand, so strip them to let the
+// per-subcommand checks below anchor on `git <sub>`.
+const GIT_GLOBAL_OPTIONS = /\bgit\s+(?:(?:-[Cc]\s+\S+|-\S+)\s*)+/g
+
 // Mirrors ToolHeader's getCommandActivity patterns; this assigns risk severity,
 // that assigns display labels. Check both when covering a new tool.
 export function getPermissionRiskEffects(toolName: string, args: unknown): PermissionRiskEffect[] {
   const effects = new Set<PermissionRiskEffect>()
   const text = getCommandText(args)
+  const gitText = text.replace(GIT_GLOBAL_OPTIONS, 'git ')
   const lowerText = text.toLowerCase()
 
   if (
@@ -42,9 +47,9 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
-  // `>` truncates the target file, excluding `=>`/`>=`, fd duplication (`2>&1`),
-  // and null-device discards (`>/dev/null`) which write no file.
-  if (/(^|[\s;&|\w])\d*>{1,2}(?!&[\d-])(?!\s*\/dev\/null\b)\s*\S/.test(text)) {
+  // `>` truncates the target file. Quotes are separators too, because a redirect adjoined to a
+  // quoted argument (`printf "new">f`) writes; `=>`/`>=`, fd duplication and /dev/null do not.
+  if (/(^|[\s;&|\w"'`])\d*>{1,2}(?!&[\d-])(?!\s*\/dev\/null\b)(?![=>])\s*\S/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
@@ -73,13 +78,15 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   if (/\bMove-Item\b(?![^;&|\n]*\s-WhatIf(?::\$true)?(?=[\s;&|]|$))/i.test(text)) {
     effects.add('destructive')
   }
-  // Git work-discarders, scoped to one simple command so flags past `&&`/`;`/`|`
-  // (or newline) can't leak. `f` anywhere in a short-option bundle (`-df`, `-xdf`) or `--force`
-  // counts, skipping `-n`/`--dry-run` previews; `-D` skips safe `-d`.
+  // Git work-discarders, scoped to one simple command so flags past `&&`/`;`/`|` (or newline)
+  // can't leak. `restore`/`checkout --` reset the working tree; `restore --staged` only unstages.
   if (
-    /\bgit\s+clean(?![^;&|\n]*--dry-run)(?![^;&|\n]*\s-[a-zA-Z]*n)[^;&|\n]*\s(?:-[a-zA-Z]*f|--force\b)/.test(text) ||
-    /\bgit\s+reset[^;&|\n]*--hard/.test(text) ||
-    /\bgit\s+branch[^;&|\n]*-D/.test(text)
+    /\bgit\s+clean(?![^;&|\n]*--dry-run)(?![^;&|\n]*\s-[a-zA-Z]*n)[^;&|\n]*\s(?:-[a-zA-Z]*f|--force\b)/.test(gitText) ||
+    /\bgit\s+reset[^;&|\n]*--hard/.test(gitText) ||
+    /\bgit\s+branch[^;&|\n]*-D/.test(gitText) ||
+    /\bgit\s+restore\b(?![^;&|\n]*--staged)/i.test(gitText) ||
+    /\bgit\s+restore\b[^;&|\n]*--worktree/i.test(gitText) ||
+    /\bgit\s+checkout[^;&|\n]*(?:^|\s)--(?:\s|$)/.test(gitText)
   ) {
     effects.add('destructive')
     effects.add('irreversible')
@@ -92,12 +99,12 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     /\b(?:curl|wget|scp|rsync|sftp|ssh(?!-)|nc|ncat|socat|aria2c|telnet|Invoke-WebRequest|Invoke-RestMethod)\b/i.test(
       text
     ) ||
-    /\bgit\s+(?:push|fetch|pull|clone)\b/i.test(text)
+    /\bgit\s+(?:push|fetch|pull|clone)\b/i.test(gitText)
   ) {
     effects.add('network')
   }
   // Dry runs contact the remote but change nothing, so they keep `network` above.
-  if (/\bgit\s+push\b(?![^;&|\n]*--dry-run)(?![^;&|\n]*\s-[a-zA-Z]*n)/i.test(text)) {
+  if (/\bgit\s+push\b(?![^;&|\n]*--dry-run)(?![^;&|\n]*\s-[a-zA-Z]*n)/i.test(gitText)) {
     effects.add('irreversible')
   }
 
