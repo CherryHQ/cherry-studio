@@ -81,7 +81,9 @@ vi.mock('@application', async () => {
         captured.prefHandler = cb
         return () => {}
       }),
-      get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
+      get: vi.fn((key: string) =>
+        key === 'app.language' ? 'en-US' : key.endsWith('api_key') ? 'existing-key' : false
+      ),
       getMultiple: vi.fn(() => ({
         enabled: captured.enabledPreference,
         host: captured.hostPreference,
@@ -162,6 +164,74 @@ async function startInternalGateway(service: ApiGatewayService) {
 const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
 describe('ApiGatewayService internal gateway', () => {
+  it('shares bounded permission retries across consumers and returns usable credentials after recovery', async () => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('denied'), { code: 'EACCES', syscall: 'listen' })
+    mockStart.mockRejectedValueOnce(original).mockRejectedValueOnce(original).mockResolvedValueOnce(undefined)
+    const config = service.getCurrentConfig()
+    const [internal, scoped] = await Promise.all([
+      service.ensureInternalGateway(),
+      service.createScopedCredential(CHAT_SCOPE)
+    ])
+
+    expect(mockStart).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(ApiGateway).mock.calls).toEqual(
+      Array.from({ length: 3 }, () => [{ host: '127.0.0.1', port: 0 }, 'internal'])
+    )
+    expect(scoped.baseUrl).toBe(internal.baseUrl)
+    expect(service.getInternalGatewayOrigin()).toBe(internal.baseUrl)
+    expect(service.isInternalRequest(new Headers({ 'x-api-key': internal.apiKey }))).toBe(true)
+    expect(service.getCredentialScope(new Headers({ 'x-api-key': scoped.apiKey }))).toEqual(CHAT_SCOPE)
+    expect(service.getCurrentConfig()).toEqual(config)
+    expect(service.isActivated).toBe(false)
+  })
+
+  it.each([
+    { code: 'EADDRINUSE', syscall: 'listen' },
+    { code: 'EACCES', syscall: 'open' },
+    { code: 'EAFNOSUPPORT', syscall: 'listen' }
+  ])('does not automatically retry unrelated failures: $code / $syscall', async (fields) => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('failed'), fields)
+    mockStart.mockRejectedValue(original)
+
+    await expect(service.ensureInternalGateway()).rejects.toBe(original)
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(service.getInternalGatewayOrigin()).toBeUndefined()
+  })
+
+  it('reports internal permission recovery to concurrent consumers and allows a later retry without public changes', async () => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('denied'), {
+      code: 'EACCES',
+      syscall: 'listen',
+      address: '::1',
+      port: 49152
+    })
+    mockStart.mockRejectedValueOnce(original).mockRejectedValueOnce(original).mockRejectedValueOnce(original)
+    const config = service.getCurrentConfig()
+    const results = await Promise.allSettled([
+      service.ensureInternalGateway(),
+      service.createScopedCredential(CHAT_SCOPE)
+    ])
+    for (const result of results) {
+      expect(result.status).toBe('rejected')
+      if (result.status === 'rejected') {
+        expect(result.reason.message).toContain('internal API Gateway')
+        expect(result.reason.message).toContain('::1, requested TCP port 49152')
+        expect(result.reason.message).toContain('Retry the request')
+        expect(result.reason.cause).toBe(original)
+      }
+    }
+    expect(mockStart).toHaveBeenCalledTimes(3)
+    expect(service.getInternalGatewayOrigin()).toBeUndefined()
+    expect(service.getCurrentConfig()).toEqual(config)
+    expect(mockSetShared).not.toHaveBeenCalled()
+    expect(mockPreferenceSet).not.toHaveBeenCalled()
+    await expect(startInternalGateway(service)).resolves.toMatchObject({ baseUrl: expect.any(String) })
+    expect(service.getInternalGatewayOrigin()).toBeDefined()
+  })
+
   it('serves internal consumers from one loopback listener without enabling the user-facing gateway', async () => {
     const service = new ApiGatewayService()
     await service._doInit()
@@ -234,6 +304,29 @@ describe('ApiGatewayService internal gateway', () => {
 })
 
 describe('ApiGatewayService reconcile', () => {
+  it('keeps a denied public start stopped without spinning and uses the edited port on explicit retry', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    const original = Object.assign(new Error('denied'), { code: 'EACCES', syscall: 'listen' })
+    mockStart.mockRejectedValueOnce(original)
+    await expect(service.start()).rejects.toMatchObject({
+      message: expect.stringContaining('different Port'),
+      cause: original
+    })
+    expect(service.isActivated).toBe(false)
+    expect(service.isRunning()).toBe(false)
+    expect(captured.enabledPreference).toBe(true)
+    expect(mockSetShared).toHaveBeenCalledWith('feature.api_gateway.running', false)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    captured.portPreference = 24444
+    mockStart.mockResolvedValueOnce(undefined)
+    await service.start()
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '127.0.0.1', port: 24444 })
+    expect(service.isActivated).toBe(true)
+    expect(service.isRunning()).toBe(true)
+  })
+
   // Regression for #18521: boot used to start the gateway whenever any agent existed, overriding a
   // user who had turned it off — and nothing else may override it either.
   it('stays stopped at boot when the preference is disabled', async () => {

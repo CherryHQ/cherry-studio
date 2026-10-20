@@ -31,6 +31,8 @@
   "apiGateway.docs.tags.cherry": "Các endpoint riêng của Cherry Studio: cơ sở tri thức, thông tin dịch vụ và kiểm tra tình trạng.",
   "apiGateway.docs.tags.gemini": "Các endpoint tương thích Gemini, phục vụ dưới `/v1beta` giống API gốc.",
   "apiGateway.docs.tags.openai": "Các endpoint tương thích OpenAI. Trỏ base URL của OpenAI SDK tới gateway này để sử dụng.",
+  "api_gateway.errors.internal_bind_permission_denied": "Hệ điều hành từ chối cho Máy chủ API nội bộ lắng nghe tại {{address}}, cổng TCP được yêu cầu {{port}} (EACCES). Thử lại yêu cầu. Nếu vẫn thất bại, hãy nhờ quản trị viên hệ thống kiểm tra các hạn chế đối với trình lắng nghe trên giao diện loopback.",
+  "api_gateway.errors.public_bind_permission_denied": "Hệ điều hành từ chối cho Máy chủ API lắng nghe tại {{address}}, cổng TCP {{port}} (EACCES). Trong Cài đặt → Máy chủ API, chọn giá trị Harbor khác, rời ô để lưu rồi nhấp Bắt đầu. Cập nhật địa chỉ kết nối trong các ứng dụng khách.",
   "appMenu.about": "Về",
   "appMenu.close": "Đóng cửa sổ",
   "appMenu.copy": "Sao chép",
