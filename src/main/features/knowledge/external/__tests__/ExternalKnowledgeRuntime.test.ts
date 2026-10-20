@@ -21,6 +21,7 @@ import {
   FEISHU_SPACE_DISCOVERY_USER_SCOPE,
   FeishuProviderError,
   getUserIdentity,
+  type FeishuUserAuthorization,
   type FeishuUserIdentity,
   type FeishuUserTokenSet
 } from '../feishuKnowledgeProvider'
@@ -170,7 +171,7 @@ function createProvider(overrides: Record<string, unknown> = {}) {
     beginDeviceAuthorization: vi.fn(),
     exchangeDeviceAuthorization: vi.fn(),
     refreshUserToken: vi.fn(),
-    getUserIdentity: vi.fn(async (accessToken: string) => {
+    getUserIdentity: vi.fn(async ({ accessToken }: FeishuUserAuthorization) => {
       const id = accessToken.replace(/^access-/, '')
       return {
         accountUserId: `user_${id}`,
@@ -351,7 +352,12 @@ describe('ExternalKnowledgeRuntime', () => {
       embeddingCostExact: false,
       warnings: []
     })
-    expect(provider.listWikiSpaces).toHaveBeenNthCalledWith(2, 'access-one', 'second', expect.any(AbortSignal))
+    expect(provider.listWikiSpaces).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ accessToken: 'access-one' }),
+      'second',
+      expect.any(AbortSignal)
+    )
     await runtime.stop()
   })
 
@@ -524,7 +530,7 @@ describe('ExternalKnowledgeRuntime', () => {
     const releaseRetryWait = deferred<void>()
     const requestedSpaces: string[] = []
     const provider = createProvider({
-      listWikiChildNodes: vi.fn(async (_accessToken: string, spaceId: string) => {
+      listWikiChildNodes: vi.fn(async (_authorization: FeishuUserAuthorization, spaceId: string) => {
         requestedSpaces.push(spaceId)
         if (requestedSpaces.length === 1) throw new FeishuProviderError('transient', false, 10)
         return { nodes: [] }
@@ -650,7 +656,7 @@ describe('ExternalKnowledgeRuntime', () => {
     const provider = createProvider({
       listWikiChildNodes: vi.fn(
         async (
-          _accessToken: string,
+          _authorization: FeishuUserAuthorization,
           _spaceId: string,
           _parentNodeToken?: string,
           _pageToken?: string,
@@ -686,13 +692,15 @@ describe('ExternalKnowledgeRuntime', () => {
     const body = deferred<string>()
     let observedSignal: AbortSignal | undefined
     const provider = createProvider({
-      getDocxMarkdown: vi.fn(async (_accessToken: string, _documentToken: string, signal?: AbortSignal) => {
-        observedSignal = signal
-        return await new Promise<string>((resolve, reject) => {
-          body.promise.then(resolve, reject)
-          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
-        })
-      })
+      getDocxMarkdown: vi.fn(
+        async (_authorization: FeishuUserAuthorization, _documentToken: string, signal?: AbortSignal) => {
+          observedSignal = signal
+          return await new Promise<string>((resolve, reject) => {
+            body.promise.then(resolve, reject)
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+        }
+      )
     })
     const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
     await runtime.start()
@@ -743,7 +751,7 @@ describe('ExternalKnowledgeRuntime', () => {
     let active = 0
     let maxActive = 0
     const provider = createProvider({
-      getDocxMarkdown: vi.fn(async (_accessToken: string, documentToken: string) => {
+      getDocxMarkdown: vi.fn(async (_authorization: FeishuUserAuthorization, documentToken: string) => {
         started.push(documentToken)
         active++
         maxActive = Math.max(maxActive, active)
