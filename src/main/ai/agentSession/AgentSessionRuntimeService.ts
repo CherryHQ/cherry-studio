@@ -11,6 +11,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
+import { ensureUserMemory } from '@main/ai/agents/userMemory'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
@@ -488,6 +489,7 @@ export class AgentSessionRuntimeService extends BaseService {
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
+    await ensureUserMemory().catch((error) => logger.warn('User memory initialization failed', { error }))
     registerRuntimeDrivers()
     await this.forks.recover()
 

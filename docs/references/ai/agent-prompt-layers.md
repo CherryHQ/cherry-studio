@@ -25,7 +25,7 @@ Agent conversations combine several independently stored prompt sources. They ar
 | 3 | Workspace Instructions | `<workspace>/system.md` plus runtime-native `CLAUDE.md` / scoped `AGENTS.md` context | Workspace-local guidance; an explicit `system.md` replaces the runtime's native base, including when the file is empty |
 | 4 | Agent Persona | `<agent-data>/SOUL.md` | Persistent name, personality, tone, and communication style across workspaces |
 
-Lower-priority guidance still applies when it does not conflict with a higher-priority source. `USER.md`, `memory/FACT.md`, journal entries, and retrieved knowledge are context rather than behavioral authority. This hierarchy is injected only when `agent.instructions` resolves to non-blank content. Agents without a configured System Prompt retain the legacy role-discovery and role-bearing `SOUL.md` fallback instead of receiving a hierarchy that points to a missing authority source.
+Lower-priority guidance still applies when it does not conflict with a higher-priority source. `USER.md`, `memory/FACT.md`, shared `USER_FACT.md`, journal entries, and retrieved knowledge are context rather than behavioral authority. This hierarchy is injected only when `agent.instructions` resolves to non-blank content. Agents without a configured System Prompt retain the legacy role-discovery and role-bearing `SOUL.md` fallback instead of receiving a hierarchy that points to a missing authority source.
 
 The hierarchy is an explicit instruction contract provided to the model, not a deterministic enforcement or security boundary; application and runtime hooks independently enforce hard runtime and tool-safety constraints. Prompt composition still preserves existing workspace and `SOUL.md` content verbatim. This change does not structurally remove legacy role text, so resolving conflicts remains model-mediated rather than guaranteed.
 
@@ -89,6 +89,13 @@ in `before_agent_start`; its native section diffing preserves unchanged context
 and replaces changed content. Neither path rebuilds a connection solely because
 an identity file changed. Changes made during an active turn are picked up at the
 next turn boundary; workspace prompt files retain their existing lifecycle.
+
+Desktop sessions additionally refresh `USER_FACT.md` in the same snapshot when
+`configuration.userMemoryEnabled` is not false. Shared and Agent facts use separate
+section headings and explicit conflict guidance; journal history is not injected.
+Disabling the setting or entering a channel-linked session empties the shared
+section and denies user-scope memory tool calls. `USER.md` stays Agent-local.
+See [Memory Feature Overview](../memory/overview.md) for storage and editing.
 
 ## Update and variable lifecycle
 

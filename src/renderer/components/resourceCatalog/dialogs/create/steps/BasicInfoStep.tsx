@@ -3,6 +3,7 @@ import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Switch,
   FormControl,
   FormField,
   FormItem,
@@ -239,6 +240,25 @@ export function BasicInfoStep({
         labelClassName="font-medium"
         placeholder={t('library.config.dialogs.create.description_placeholder')}
       />
+
+      {runtimeSelectable && (
+        <FormField
+          control={form.control}
+          name="userMemoryEnabled"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between">
+              <FormLabel>{t('settings.user_memory.enabled')}</FormLabel>
+              <FormControl>
+                <Switch
+                  checked={field.value !== false}
+                  onCheckedChange={field.onChange}
+                  aria-label={t('settings.user_memory.enabled')}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      )}
     </div>
   )
 }

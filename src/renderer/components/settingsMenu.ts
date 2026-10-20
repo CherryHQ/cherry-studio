@@ -3,6 +3,7 @@ import {
   Archive,
   AudioLines,
   Bell,
+  Brain,
   CalendarClock,
   Cloud,
   Command,
@@ -88,6 +89,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/prompts',
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/user-memory',
+    titleKey: 'settings.user_memory.title',
+    icon: createElement(Brain),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {

@@ -1,6 +1,9 @@
 ---
 description: Comparison of the three memory mechanisms in Cherry Studio — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature
 sources:
+  - src/main/ai/agents/userMemory.ts
+  - src/main/ai/agents/memoryFiles.ts
+  - src/renderer/pages/settings/UserMemorySettings.tsx
   - src/main/ai/agents/prompt.ts
   - src/main/ai/mcp/servers/agentMemory.ts
   - src/main/ai/mcp/servers/memory.ts
@@ -15,13 +18,13 @@ Cherry Studio provides three distinct memory mechanisms. They differ in who they
 
 | Memory Type | Applies To | Persistence | Storage Location | Cross-Session | Cross-Agent |
 |---|---|---|---|---|---|
-| Agent File Memory | Agent | File read/write (`SOUL.md` / `USER.md` / `FACT.md` / `JOURNAL.jsonl`) | Agent data directory (`{agentData}/memory/`) | Yes | No (per-agent) |
+| Agent File Memory | Agent | File read/write (`SOUL.md` / `USER.md` / `FACT.md` / `JOURNAL.jsonl`) | Agent data directory (`{agentData}/memory/`) | Yes | Agent-local files: no; user-level tier: yes |
 | Knowledge Base | Assistant + Agent | Indexed retrieval (ingestion + vector/query) | Knowledge base directory | Yes | Yes |
 | MCP Memory | Agent | MCP protocol (`@cherry/memory` built-in server) | MCP server (`memory.json` knowledge graph) | Yes | Depends on server impl |
 
 ## About "Global Memory"
 
-Cherry Studio v1.x had a fourth mechanism, **Global Memory**: a Settings toggle (`feature.memory.enabled`) that made the model auto-extract durable facts from assistant chats and recall them in later assistant sessions. It was **removed in v2** ([#14250](https://github.com/CherryHQ/cherry-studio/issues/14250)) because its setup was complex and its quality did not justify the overhead. There is deliberately no Global Memory toggle in v2 settings and no replacement yet.
+Cherry Studio v1.x had a fourth mechanism, **Global Memory**: a Settings toggle (`feature.memory.enabled`) that made the model auto-extract durable facts from assistant chats and recall them in later assistant sessions. It was **removed in v2** ([#14250](https://github.com/CherryHQ/cherry-studio/issues/14250)) because its setup was complex and its quality did not justify the overhead. That assistant-chat extraction pipeline remains removed. Desktop Agents now have a separate file-based user-level tier described below; it requires no embedding model or database memory table.
 
 If you relied on Global Memory in v1:
 
@@ -39,6 +42,16 @@ If you relied on Global Memory in v1:
   - `memory/JOURNAL.jsonl` — append-only event log
 - Loaded into the system prompt at session start; updated by the agent autonomously via `mcp__agent-memory__memory` (FACT/JOURNAL) and Read/Edit tools (SOUL/USER).
 - Scoped to a single agent. See `src/main/ai/agents/prompt.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
+
+### Shared user-level Agent memory (desktop only)
+
+- `application.getPath('user.memory')` resolves to `{userData}/Data/Memory`. `USER_FACT.md` stores current durable user facts; `USER_JOURNAL.jsonl` contains timestamped `{ ts, tags, text }` events. Initialization creates missing empty files without promoting or changing existing Agent files.
+- The same memory tool accepts `scope: 'agent' | 'user'`, defaulting to `agent`. `read` returns `{ content, revision }`. User-level `update` requires `expectedRevision`; a stale revision fails with `MEMORY_CONFLICT`. Re-read and reconcile before retrying. An empty content string clears user facts. Agent-scope calls retain their previous behavior.
+- Application writes share a main-process keyed mutex and atomic file replacement. Electron's profile-scoped single-instance lock keeps one application writer process. Arbitrary external editors do not participate in this protocol.
+- Both runtimes refresh separate `User-Level Facts` and `Agent Workspace Facts` sections at turn boundaries, including session recovery, compaction, and local heartbeats. Conflicting facts are retained with an instruction to identify both sources; neither tier is silently merged. Memory remains context rather than behavioral authority. Journals are only searched on demand.
+- `configuration.userMemoryEnabled` defaults to true. Turning it off withdraws shared recall on the next turn and rejects shared tool access. Channel-linked sessions cannot read or write this tier regardless of the switch. Existing Agent-local memory remains available.
+- Settings → Shared memory loads and displays Markdown and the journal only after the user clicks Load memory. The journal contains explicitly appended timestamped events, not full chat history or an automatic audit of fact edits. Saving uses the same revision check as the tool. Concurrent changes preserve the draft and require explicit reconciliation. Clearing facts leaves historical journal entries and past conversations intact.
+- Shared files are included in full data backups and data-directory moves. Database-only slim backups omit them, just as they omit Agent-local files. No schema migration is needed.
 
 ### Knowledge Base (Assistant + Agent)
 

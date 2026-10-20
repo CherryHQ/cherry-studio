@@ -35,6 +35,7 @@ application.getPath('invalid.key')
 | `sys.*` | OS-managed directories | `sys.home`, `sys.temp`, `sys.downloads` |
 | `app.*` | Electron app: install dir, userData, database, logs, temp root | `app.userdata`, `app.database.file` |
 | `feature.*` | Cherry-owned feature data (grouped by feature) | `feature.files.data`, `feature.mcp.oauth` |
+| `user.memory` | Shared desktop Agent facts and journal under `{userData}/Data/Memory` | `USER_FACT.md`, `USER_JOURNAL.jsonl` |
 | `v1.*` | Old-version paths retained only for cleanup | `v1.trace`, `v1.cli.install` |
 | `external.*` | Third-party paths (Cherry reads/writes, does NOT own) | `external.openclaw.config` |
 
