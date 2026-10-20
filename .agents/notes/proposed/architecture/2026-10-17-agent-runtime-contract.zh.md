@@ -76,9 +76,9 @@ Pi 托管 child 输入使用所有者的 `messageSubagent`：运行中的 child 
 
 提交回执报告证据：`accepted`、`queued`、`dispatch-started`、`locally-handled` 和 `placed` 是事实集合，不是线性状态机。排队、派发和放置均不证明模型已消费。确认接纳不证明执行完成或目标成功。通用操作返回 `confirmed`、`rejected`、`unsupported` 或 `unknown`；提交使用 `acknowledged` 表示已确认交接。预期失败通过结果表达；编程错误仍可抛出。v0 的错误码是字符串，不是穷尽的公共枚举。诊断消息不能携带密钥或原生对象；宿主把注入的错误回调接到 `loggerService`。
 
-只有明确未接纳时才能返回拒绝。未知结果必须保留未知；后续查询失败不能推翻已确认的接纳。宿主在提交前保存逻辑输入与传输尝试，窗口停止等待后继续持有 Promise，并记录迟到回执。`input.changed` 可以确认逻辑输入，而不证明哪一次结果未知的传输成功。Runtime 不提供持久的宿主投递日志。
+只有明确未接纳时才能返回拒绝。未知结果必须保留未知；后续查询失败不能推翻已确认的接纳。对于有消息记录的输入，宿主在提交前保存用户消息及路由/恢复所需的 Main 私有提交信息，窗口停止等待后继续持有 Promise，并记录迟到回执。`input.changed` 可以确认逻辑输入，而不证明哪一次结果未知的传输成功。P1 不要求独立输入表或逐次尝试历史。Runtime 不提供持久的宿主投递日志。
 
-同一 `InputId` 的文本和 busy 策略不可变。新内容属于新逻辑输入。Pi 没有持久的原生输入去重，未知结果不能触发自动重试。Durable 的原生去重键与查询允许采用不同的投递政策；宿主保存它们与 `InputId` 的关系，并重放原草稿。原生同类型去重不会校验 payload 相等。查询未找到不证明没有副作用。撤回区分 `withdrawn`、`already-placed` 和 `already-settled`；撤回单个输入不是中断会话。
+同一 `InputId` 的文本、目标和 busy 策略不可变，变更时创建新的逻辑输入。Pi 没有持久的原生输入去重，未知结果不能触发自动重试。Durable 的原生去重键与查询允许采用不同的投递政策；对于有消息记录的输入，Main 可显式将消息 ID 作为 key 传入，并在重开后查询已捕获目标。任何获准重试都需要实际提交的原草稿，不能从编辑后的展示内容重建。原生同类型去重不会校验 payload 相等。查询未找到不证明没有副作用。撤回区分 `withdrawn`、`already-placed` 和 `already-settled`；撤回单个输入不是中断会话。
 
 ### 只公开消费者需要引用的身份
 
@@ -92,7 +92,7 @@ Pi 托管 child 输入使用所有者的 `messageSubagent`：运行中的 child 
 
 ID 使用不同的 branded 字符串类型。消费者可以序列化它们，但不能互换、解析前缀或从格式推断生命周期。宿主提供 `InputId`；适配器返回原生、上下文和内容引用。恢复 branded ID 前应校验存储和传输数据。宿主配置稳定的 `backendId` 命名空间并保证唯一写入者；v0 不增加跨进程锁。
 
-`SourceRef`、epoch、revision 和 sequence 留在来源映射与排序内部。传输 `attemptId`、跨进程投影版本和订阅替换标记属于宿主。不提供把停止本地等待、中断原生工作和结束观察混成同一含义的通用调用上下文或取消信号。
+`SourceRef`、epoch、revision 和 sequence 留在来源映射与排序内部。需要时使用的传输尝试身份、跨进程投影版本和订阅替换标记属于宿主，这不要求新增持久化 attempt 表。不提供把停止本地等待、中断原生工作和结束观察混成同一含义的通用调用上下文或取消信号。
 
 适配器在共享来源处统一归一化内容。重新观察同一实时来源保持 Item 身份。当前 Pi 分配实时消息身份，并在重新绑定或压缩时重置映射；这些不是持久历史键。Durable 可以从原生 entry 派生已保存内容的身份，但预览使用临时 epoch。有确定映射时可发送 `replaces`；否则通过 `gap` 和替换快照明确断点。Runtime 重建后不能猜测丢失映射中的 ID 与新 ID 等价。
 
@@ -183,11 +183,11 @@ Pi 冷启动重开时，先恢复父会话保存的 subagent registry 与交付�
 
 #### 边界二：继续输入必须关联原生证据
 
-每条新的用户消息取得新的 `InputId` 和不可变 `InputDraft`，目标仍是原来的 child 或 root Thread。重试投递同一草稿时保留该身份。派发前保存草稿和尝试；即使窗口或调用方停止等待，Main 仍收集结果。接纳、放置、回答归属和终态是不同的证据。
+对于有消息记录的输入，Main 复用新用户消息 ID 作为 `InputId`，捕获一份目标为 child 或 root Thread 的不可变 `InputDraft`；公共契约不要求其他调用方必须拥有产品消息。派发前保存消息及实际消费者所需的私有提交信息；即使窗口或调用方停止等待，Main 仍收集结果。获准重试未变更草稿时保留身份，编辑或明确重新执行则使用新消息/输入身份。接纳、放置、回答归属和终态是不同的证据。
 
 | Cherry 需要的证据 | Pi 实现门槛 | Durable 实现门槛 |
 | --- | --- | --- |
-| 接纳 | 保留 preflight 与所有者控制器回执，包括本地处理的命令和迟到确认。 | 保存逻辑输入、去重键和原生 Submission 身份。 |
+| 接纳 | 保留 preflight 与所有者控制器回执，包括本地处理的命令和迟到确认。 | 按需将消息与已捕获目标、稳定去重键及已确认原生 Submission 身份关联。 |
 | 放置与输出归属 | 让输入关联贯穿钩子、原生队列、历史插入和 child 续接。不按文本或排队位置匹配。 | 对账原生 submission 放置和 run 的输入集合；多个输入可以共同产生一个回答。 |
 | 产品终态 | 把原生完成、错误、中止或截断关联到受影响的输入集合。仅会话 settled 或 assistant item complete 不足以证明。 | 映射原生 done/unanswered/abort 证据，不把接纳或前台空闲当作成功完成。 |
 | 不确定尝试的恢复 | 没有持久去重就不自动重试；丢失关联时保留未知。 | 在原生去重规则下查询并使用原始不可变草稿；查询失败不能撤销已知接纳。 |
@@ -230,31 +230,276 @@ Child 内容归其上下文，并拥有独立的产品消息身份。父工具�
 
 #### 边界四：保存产品关联，恢复原生状态
 
-Cherry SQLite 保存产品关联和投递事实；原生存储保存可续接的模型上下文、队列、task 和 reporter 状态。下列最小宿主记录是拟议数据形状，不是新增的公共 Runtime 类型。使用 `Context`、`Input` 命名，不再引入一个 `Ref` 实体。
+##### 存储决策与范围
+
+P1 使用 `DbService` 保存 Cherry 的上下文关联及消息上的必要提交信息，不新增 `agent_session_input` 或通用宿主输入日志。Pi 保留原生 session 文件；Pi Durable 使用独立文件中的原生 SQLite 存储。各 harness 拥有自己的序列化、提交和恢复语义，Cherry 负责位置、生命周期与产品关联。这些是拟议的宿主记录，不增加公共 `agent-runtime` 接口。
+
+当前[消息 schema](../../../../src/main/data/db/schemas/agentSessionMessage.ts)已经保存展示内容、搜索文本、运行时 resume token 和跨会话投递字段。[会话 schema](../../../../src/main/data/db/schemas/agentSession.ts)尚无显式原生上下文关联。[旧 Pi loader](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts)在 token 没有已落盘文件时可能初始化会话。P1 在保留既有历史的同时建立明确关联；已迁移上下文采用严格打开。
+
+| 数据 | 权威所有者 | 物理存储与消费者 |
+| --- | --- | --- |
+| 模型历史、分支、压缩、原生队列／task／reporter 状态 | Harness | Pi `SessionManager` 文件或一个原生 Durable store，由原生执行与恢复读取。 |
+| Backend 位置、产品／原生上下文关联及必要提交事实 | Cherry Main | `DbService` 中的 backend/context 记录，以及既有用户消息上的 Main 私有元数据。由运行协调与恢复读取。 |
+| 产品可见消息、搜索、用量与展示元数据 | Cherry 消息服务 | 原生接入期间保留 `agent_session_message`，另行迁移产品模型以复用既有 `topic`/`message` 树语义。由 Renderer 和产品查询读取。 |
+| 流式片段、观察 revision 与当前 Item 映射 | Main 投影所有者 | 保留在内存，将合并后的更新写回同一展示行；不作为原生事件归档。 |
+
+部分文本同时存在于原生历史与展示消息中，因为二者的保留规则和消费者不同。原生压缩或分支不能删除产品归档；产品编辑也不能静默改写模型的原生上下文。不再保存第三份完整 transcript，不把 Durable entry/submission/task/commit 镜像到 Cherry 表。保持已提交消息版本稳定，不强制向独立输入记录复制正文。未来若有重试消费者需要保留消息无法重现的变换后载荷，应为该路径单独论证私有载荷快照，不能据此要求每条输入都存一份。
+
+```mermaid
+flowchart LR
+    Host["Main runtime coordinator"]
+    Adapter["Pi / Durable adapter"]
+    Native[("Native session files / Durable SQLite")]
+    Projection["Main thread projection"]
+    subgraph CherryDB["Cherry SQLite / DbService"]
+        Records["Backend and native associations"]
+        Messages["Product messages + private submission facts"]
+    end
+    Host --> Records
+    Host --> Adapter
+    Adapter --> Native
+    Adapter --> Projection
+    Projection --> Records
+    Projection --> Messages
+```
+
+##### 复用产品消息树
+
+既有[消息树](../../../../docs/references/chat/message-tree.md)使用 `topic`、`message.parentId` 和 `topic.activeNodeId` 表达消息前序、编辑／重发和分支选择，普通聊天也沿选中路径构造模型历史。产品结构优先复用这套模型，不再建立第二棵 context 树。`agent_session_message` 当前仍是独立的平铺模型；两者收敛属于设计与迁移工作，不是本方案已实现的行为。
+
+| 关系 | 所有者与表达方式 |
+| --- | --- |
+| 消息续接与对话的备选分支 | 产品消息树及其既有分支选择。 |
+| 产品位置到原生执行位置 | 包含 backend、原生 session／Thread 身份及必要 checkpoint 的绑定。 |
+| 父 agent 到派生的 child | 独立的派生关系、原生所有权，以及访问允许时的输入目标；普通消息 `parentId` 不表达这些语义。 |
+
+产品分支不必对应独立的原生 session：Pi 的 `SessionManager.branch()` 可以在同一 session 内分支。`Context` 只表达原生关联，不再承担第二套消息容器或分支层级。P2 接入前优先评估会话或分支锚点上的绑定，有具体投影消费者证明必要后才增加逐消息 `contextId`。由选中的产品分支解析原生目标，不通过 `rootContextId` 再维护一套分支选择。绑定用于定位原生状态，不负责从产品消息重建原生状态。
+
+Child 内容可以复用消息存储和树形渲染，但界面上嵌套到父消息下，不代表它独立的历史、工具、生命周期或输入目标属于父 agent 的普通对话路径。继续输入前保留独立的 spawn 关系与原生所有者。P1 不要求 `agent_session_message.contextId` 或 `agent_session.rootContextId`；先明确绑定位置和迁移方案，再定稿这些字段。
+
+##### 当前产品模型与迁移边界
+
+以下盘点来自源码检查，不表示接入已完成：
+
+| 关注点 | 当前普通聊天 | 当前 Agent 路径 | 拟议边界 |
+| --- | --- | --- | --- |
+| 容器与导航 | `topic` 拥有 assistant 选择、名称、排序、活跃时间、回收站及 `activeNodeId`。 | `agent_session` 混合了会话元数据、agent/workspace 绑定、计划复用及 `conversation`/`background` 分类。 | Runtime 切换期间保留既有 ID 和导航所有者。显式用户会话成员关系由 [#20635](https://github.com/CherryHQ/cherry-studio/issues/20635) 拆分；能够访问 Runtime 不代表应进入侧栏。 |
+| 消息结构 | `message.parentId`、单个虚拟根、兄弟分组和选中路径查询。 | `agent_session_message` 按 `(createdAt, id)` 排序，没有父节点或选中节点。 | Agent 归档复用消息树契约，不以原生 context 代替消息节点。 |
+| 编辑与 fork | 产品树操作选择或创建替代路径。 | [编辑](../../../../src/main/data/services/AgentSessionMessageService.ts)在原生 fork 后删除旧尾部；[fork](../../../../src/main/ai/agentSession/fork/AgentSessionForkOperations.ts)发布另一个产品会话并复制前缀。 | 已确认的目标行为是保留旧分支并选中编辑后的分支，随相应 UI/action 改动一起交付。“fork 为新会话”仍是另一项操作。 |
+| 原生位置 | 普通聊天根据选中路径组装模型历史。 | Resume token 和私有 `runtimeAnchor`/`nativeSessionId` 位于消息行中。 | 持久化经过验证的原生绑定，保留历史 checkpoint；不能从选中的展示路径重建 harness。 |
+| 可信产品状态 | 共享消息内容、snapshot、用量及附件。 | 另有 Main 写入的 `delivery*` 状态和原生 checkpoint 证据。 | 保留 Main 独占写入和跨会话投递语义；共享消息编辑不能接受这些字段。 |
+| 依赖记录 | 聊天附件引用及 topic 导航/搜索。 | [Agent 附件引用](../../../../src/main/data/db/schemas/fileRelations.ts)、用量 `messageKind`、session 收藏、task/channel 绑定和保存的路由。 | 合表需要迁移所有消费者；内容列看起来相同不代表所有权可以互换。 |
+
+建议首先共用树语义和既有[消息 UI 契约](../../../../src/renderer/components/chat/messages/README.md)，保留两套物理归档表及其所属服务。Agent 读写仍经 Agent API，共享组件不调用 Home topic mutation。只提取两个服务都有实际消费者的树操作。这样每份归档保持唯一内容写入者，原生接入也不依赖导航/表重构。
+
+物理合并到 `topic`/`message` 是独立的迁移决策。给每个执行创建 topic，会混淆后台或 child 历史与用户会话成员关系。该决策必须明确隐藏归档、原生 checkpoint 和投递状态的所有者，以及 session 路由、收藏、附件外键的处理。#20635 初期指定一对一会话成员关系；本方案不将该 issue 隐式扩展为多对多会话模型。
+
+##### 已确认的编辑与分支行为
+
+用户已确认：编辑并重发时保留旧分支，并切换到新分支。这是目标产品行为，当前实现仍会删除旧尾部。
+
+```text
+root
+└── U1 → A1
+    ├── U2  → A2       (retained)
+    └── U2' → A2'      (selected)
+```
+
+编辑后的输入使用新的消息 ID 和逻辑输入 ID，与原输入拥有相同前序节点。产品树共享公共前缀，不改写既有消息、输入事实或原生绑定。原生 fork 从被编辑输入之前的已验证边界开始，不能从旧回答之后开始。新分支获得独立绑定。显式 fork 到另一个产品会话仍复制前缀，使用新的产品 ID 和原生 checkpoint 映射。
+
+编辑首条输入时前缀为空，使用该操作已验证的配置显式创建新原生上下文，不要求不存在的输入前 checkpoint。这是创建新分支的操作，不是对缺失上下文的降级重建。前缀非空而 checkpoint 缺失时仍拒绝执行，展示文本不能替代 checkpoint。
+
+原生结果验证通过且来源版本仍匹配后，才发布新分支与选中状态。发布前失败，保留旧选中状态和历史。发布后提交被拒绝或结果未知，新分支仍展示真实状态；不能删除该分支、恢复旧尾部或自动重发。在另行定义如何安全中断或 fork 之前，保留当前禁止编辑尚有未结束工作的来源这一限制。打开或选中保留的分支，不会重新提交其输入。
+
+##### 最小宿主模型与分支路由
+
+下图表示逻辑关系，不代表新增七张表。“归档”指既有产品所有的消息存储；Agent 初期保留 `agent_session_message`。
+
+```mermaid
+flowchart LR
+    Membership["User conversation membership"] --> Archive["Product message tree"]
+    View["Selected message / activeNodeId"] --> Archive
+    Archive --> Anchor["Root or branch anchor"]
+    Anchor --> Binding["Verified native binding + published head"]
+    Binding --> Thread["Thread: backendId + native id"]
+    Input["Message-owned submission facts"] --> Binding
+    Input --> Reply["Optional evidenced response message"]
+    Parent["Parent native context"] --> Relation["Subagent ownership relationship"]
+    Relation --> Child["Optional addressable child context"]
+    Child --> ChildArchive["Independent child archive"]
+```
+
+| 事实 | 拟议位置与约束 | 所需消费者 |
+| --- | --- | --- |
+| 产品所有者与选中路径 | 既有容器加产品 `activeNodeId`；Agent 按相同虚拟根及父节点规则支持树结构。选择状态不是执行游标。 | 历史、分支导航和输入框。 |
+| 消息祖先关系 | 产品 `parentId`，校验相同所有者、单根及无环。表示展示路径，不证明模型消费了所有祖先。 | 既有消息树视图和分支操作。 |
+| 原生存储身份 | 既有提案中的 `agent_runtime_backend` 和已验证原生 Thread 身份。 | 严格打开、所有权、备份与清理。 |
+| 分支到原生的绑定 | 既有提案中的 context 记录将产品根或分支锚点关联到原生 Thread。已确认绑定保持原生身份不变；另一个原生上下文使用另一个绑定。 | 解析新输入目标，无需查询全局“最新 token”。 |
+| 已发布执行位置 | Main 记录与已确认原生进度对应的产品末端，并在支持的边界保留 opaque checkpoint。它与用户选中节点分开。 | 判断继续原生末端还是 fork；隔离其他分支的迟到投影。 |
+| 逻辑输入 | 复用用户消息 ID 和保留的已提交内容。Main 私有元数据捕获目标/锚点，仅保存消费者所需的回执或可选响应关联，不另建消息容器。 | Busy 提交、迟到确认、恢复及多输入/单响应归属。 |
+| Child 关系 | 父作用域下的 subagent 身份、原生所有者、可选 child 上下文及归档。 | 独立观察和经过所有者校验的继续输入；浏览历史不授予控制权。 |
+
+Main 从操作开始时明确捕获的产品所有者和锚点解析输入，不在稍后重新读取 `activeNodeId` 决定目标。找到该路径上已发布的绑定，验证所有权及 checkpoint 兼容性，并对账待确认的原生事实。所选位置是绑定的可写末端时直接提交；位于历史位置时先准备原生 fork，再发布可写分支。Checkpoint 缺失或操作仍不确定时，历史保持可读并拒绝该执行操作，不能通过重放展示消息补齐。
+
+稀疏锚点绑定和已发布末端是 P1/P2 需要建立的事实，具体列归属由选定存储实现决定，无需给每条展示行添加 `contextId`。Checkpoint 是可恢复位置，不证明新 fork 上下文最初生成了所复制的前缀。保留明确的 fork 映射，不改写历史作者归属。
+
+初版可写分支优先经既有 checkpoint/发布所有者创建独立原生 fork。Pi 能在同一 session 中切换分支，但多个同时活跃的产品分支共享可变原生 leaf，需要当前适配器未暴露的额外协调。浏览分支绝不切换该原生 leaf。多个输入可能共用一个响应，因此输入到响应的关联与消息树的单父边分开。
+
+##### UI 操作到 Main 与 harness 的映射
+
+当前 Agent 发送/编辑接线位于 [useAgentChatRuntimeState](../../../../src/renderer/pages/agents/useAgentChatRuntimeState.ts)、[AgentChatContextProvider](../../../../src/main/ai/streamManager/context/AgentChatContextProvider.ts)和 [AI IPC handlers](../../../../src/main/ipc/handlers/ai.ts)。下表为目标映射：DataApi 负责已存产品数据的读写，生命周期/原生命令经 Main 协调；Renderer 提供产品 ID 与意图，不提供原始原生定位信息。
+
+| UI 操作 | 产品/Main 操作 | Harness 操作与边界 |
+| --- | --- | --- |
+| 创建空会话 | 创建/复用产品占位会话及 workspace 关联。 | 可到首次输入时才创建原生上下文，不为展示空会话预先创建文件。 |
+| 打开会话或窗口重连 | 读取归档、解析绑定，有条件时附加观察。 | 严格 `open` 后 `observe`；不隐式输入、fork 或 Durable `resume`。原生状态缺失不隐藏归档。 |
+| 选择其他分支或历史节点 | 更新产品选择并加载该路径。 | 不修改原生状态。窗口切换后，活跃来源仍写入已捕获的分支。 |
+| 在当前原生末端发送 | 持久化用户消息及必要私有提交信息；原生派发前捕获目标/锚点。 | 按支持的策略调用 `handle.input.submit`，回执与完成分开保存。 |
+| Busy 时发送 | 保持已捕获目标及所选、受支持的 `whenBusy` 策略。排队草稿不能跟随之后的分支切换。 | 原生接纳决定 reject/steer/follow-up；钩子和命令保留前文处理边界，不模拟原子 idle 接纳。 |
+| 编辑并重发，或从历史继续 | 验证来源版本/checkpoint，准备原生分支，然后发布新分支/绑定及输入。保留旧路径并选中新路径。 | 强类型原生 fork，或在空根显式 create，之后再提交；不支持的历史操作保持不可用，普通历史选择不能触发它。 |
+| Fork 为新会话 | 复用既有文件/checkpoint 协调发布及 workspace 政策，创建独立产品成员关系并复制前缀。 | 原生 fork，不能另行 `create` 后填入 UI 文本。来源继续拥有自己的执行。 |
+| 重新生成历史回答 | 视为从已验证边界创建显式分支，适用时创建新逻辑输入。 | 不承诺通用“重跑回答”；只有适配器和产品操作定义了准确重放边界时才开放。 |
+| 停止可见执行 | 解析已捕获执行目标，区分宿主待派发输入与原生已接纳工作，报告真实停止范围。 | 可选 `interrupt`，不等于 `release`、删除或保证取消全部 child。Durable interrupt 可能启用整个 Harness 调度。 |
+| 查看或向 child 发消息 | 读取独立归档，通过所有者解析关系并验证输入访问。 | 独立 child `open`/`observe`；仅 handle 暴露 input 时提交。Pi 续接经父 controller，观察不向父报告结果。 |
+| 关闭窗口或标签页 | 解除该视图的观察/访问；保留 Main 待写入数据、回执及其他所有者。 | `Observation.stop`/`release`，不隐式停止原生执行或删除历史。应用关闭由 Runtime 所有者处理。 |
+| 重命名、收藏、归档或删除 | 元数据留在产品所有者。归档/永久删除经生命周期协调；共享树删除不能绕过受保护绑定和未完成投递。 | 普通元数据不调用原生。产品删除不自动删除 store；原生清理需检查保留引用及活跃工作。 |
+
+共享 UI 操作继续由能力决定。当前公共 `InputDraft` 仅携带文本；既有富消息 parts、附件、工具审批、配置变更和原生命令仍需要生产适配器/宿主路径。不能通过将不支持的内容压平成文本，或把所有操作加入强制 Runtime 接口，宣称输入框完全等价。
+
+##### 用 Pi 和 Durable 校验目标映射
+
+所检查的关联 Pi 基线为 `8efd314fa3d3232ce197d8d7a6a5660530b9d83e` / 1.3.0。以下结论证明原生能力，不代表宿主接入通过验收。
+
+| 操作 | Pi | Pi Durable | 剩余接入工作 |
+| --- | --- | --- | --- |
+| 打开既有上下文 | 包内 `open` 校验 loader 返回的原生 session ID；宿主必须严格加载既有文件。 | 包内 `open` 查询 backend store 中已有 conversation。 | 恢复写入前验证位置/store 身份，绝不创建替代状态。 |
+| 从历史位置继续 | 原生 `SessionManager.branch()` 改变同一 session 的 leaf；当前 Cherry [piFork](../../../../src/main/ai/runtime/pi/piFork.ts)使用 `createBranchedSession` 并返回重映射 checkpoint。 | 原生 [`Conversation.fork(at, options, context)`](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/harness/harness.ts)从 entry 创建另一 conversation，单独指定所有权。 | 两个新 Runtime 适配器都尚未暴露 fork。通过原生能力扩展强类型适配器历史路径；不增加公共强制 fork，也不在 Main 操作适配器私有 session。 |
+| 继续向 child 输入 | 所有者 controller 执行加载/停止/报告政策。 | Child conversation 可以接收输入，直接输入不创建 reporter。 | 允许控制前恢复所有权，结果回交与投影分开。 |
+| 退出后重开 | 可重开已保存原生上下文；打开不能恢复未完成执行及内存队列。 | 被动打开/查询先于显式启用调度；提交或中断可能启用整个 Harness。 | 仍需真实进程崩溃测试及产品生命周期验证。 |
+
+##### Schema 实现前需要验证的四条流程
+
+1. **首次会话与输入：**创建产品占位会话，启用树后同时创建虚拟根；提交原生创建意图；在 DB 事务外经所选适配器创建；发布已验证绑定；保存用户消息及必要提交元数据，再派发。Pi 分配 session ID 可能早于文件落盘，因此重开能力在取得受支持证据前仍未确认。原生成功而 Cherry 写入失败时需要对账，不能据此再次创建或提交。
+2. **正常继续输入：**捕获选中锚点及绑定，验证原生末端，保存用户消息、必要私有元数据及投影占位行，提交并处理任意顺序到达的回执/事件。最终投影与有证据的输入结果共同提交。并发窗口可选择不同路径，但不改变已捕获输入目标。
+3. **编辑或分支续写：**读取一致来源/checkpoint，准备独立原生 fork，或在空根显式 create，重新校验来源版本，原子发布分支/绑定及选择，之后才提交新输入。未解决的操作不能发布成功分支或自动再次创建原生上下文。旧分支保留绑定；复制历史不产生新的用量、审批、投递所有权或 child 控制权限。
+4. **重启与选择分支：**先恢复产品历史和选中节点，验证 backend/原生身份并恢复所有者关系，严格打开并观察，对账保存的输入及有证据的投影映射，之后才允许执行。选择旧路径是只读操作；之后在该路径发送时，使用已确认末端或显式 fork 边界。未知 Pi 接纳仍保持未知；Durable 查询/去重使用原 key 和草稿。
+
+##### 原生 backend 身份与位置
+
+持久化一条精简的 `agent_runtime_backend` 记录，让共享原生命名空间的上下文不必分别拥有路径，或各自关闭／删除 store。其 `id` 提供 `backendId`，在进程或 Runtime 对象替换后保持不变。保存 harness 类型和带版本的 Main 私有定位信息；凭据、提供商配置与可变 Runtime 对象仍归既有所有者。`backendId` 不是进程 ID，也不新增公共 `Backend` 接口。
+
+Pi 使用已注册的 `feature.agents.pi.sessions` 位置，并验证每个加载出的 session header 与预期原生 ID 一致。可选的相对文件定位信息用于避免扫描，不能代替身份。关联迁移期间保持现有文件位置。Pi 分配出的 ID 和 `input-placed` 事件不证明延迟写入的 session 文件已持久化。尚无已验证文件的上下文仍不可重开，不能根据展示历史静默初始化。
+
+Durable 为每个已配置 backend 分配独立的原生 SQLite 文件。同一 store 中的所有 conversation 共享 Harness 所有者和调度作用域。优先使用 1.3.0 已有的 `openNodeSqliteStorage`；包测试已经使用它，但 Electron 可用性与打包后的加载仍需 P4 验证。可选的 table prefix 不代表它能安全共享 Cherry 的数据库事务：`DbService` 拥有同步 better-sqlite3 连接，Durable 拥有自己的连接、事务、schema 和故障生命周期。
+
+Durable 的数字 conversation ID 只标识 store 内记录，不能标识 store 本身。显式创建时，通过 Durable 已有的 `defineDoc` 机制，在 Cherry 拥有、session 作用域的原生文档中保存 backend ID；重开时先验证，再绑定 conversation 或允许 Harness 的恢复写入。已绑定 store 的标记缺失或不匹配意味着访问不可用，不能据此初始化或重新标记。创建标记走原生存储，不直接写 Durable 内部 SQL 表。该标记及其创建／重开测试属于 P1 待实现工作，不是现有适配器行为。
+
+路径只通过 `application.getPath` 解析。Durable 的新位置注册在 `feature.agents.*` 下；需要由所有者控制创建时机的路径查询使用路径注册表的 `NO_ENSURE` 机制。纯数据库操作和严格 `open` 不得生成缺失的原生文件。包括 `openNodeSqliteStorage` 在内、会创建缺失文件的原生 API，必须在生产使用前具备严格打开已有文件的路径；单独检查文件存在不能消除检查／打开之间的竞态。P1 先验证仅打开已有存储、并在 `Harness.open` 执行恢复写入前读取身份的能力。优先使用原生能力；固定版本 API 无法满足该边界时，先记录所需的上游改进，再实现 loader。
+
+##### 宿主记录与约束
+
+下表区分新增的 backend/原生关联记录与保存在既有消息上的信息。P1 沿用既有 Agent session 所有者；树结构阶段在路由实际使用时增加稀疏分支锚点，物理归档合表不是前置条件。Drizzle 类型与命名遵循仓库规范。数据服务拥有对应写入；运行协调仍由现有生命周期所有者负责。
 
 | 记录 | 最少保存的事实 | 约束 |
 | --- | --- | --- |
-| `AgentSessionContext` | 产品上下文 ID、产品会话 ID、`backendId`，以及确认后的原生 Thread 身份/经验证的存储定位信息。 | 一个产品会话可关联多个上下文；按产品会话和原生 Thread 地址对已确认关联去重。尚未绑定的创建意图不是可打开的 Thread。Root 选择与 child 所有权分开保存。 |
-| 已观察的子智能体关系 | 父上下文、原生关系 ID、可选 child 上下文，以及观察来源。 | 按父上下文与关系 ID 唯一标识；允许 child 不可访问。这是发现数据，不是控制授权或任务结果。 |
-| `AgentSessionInput` | `inputId`、目标上下文、不可变文本/政策、产品用户消息关联、已知接纳事实、可选原生输入身份，以及有证据的终态。 | 改变文本、政策或目标必须创建新的逻辑输入。没有 outcome 不等于成功。 |
-| 输入投递尝试 | 尝试身份、逻辑输入、派发意图、返回的回执/错误，以及结果是否仍未知。 | 每次原生调用都记录；超时或进程退出不证明拒绝。尝试信息留在宿主内部。 |
-| 产品消息关联 | 消息 ID、上下文 ID，以及有证据时才保存的输入/原生 Item 关联。 | Child 消息独立成行；不要求一个回答恰好只属于一个输入。适配器实时 Item ID 不是永久历史键。 |
+| `agent_runtime_backend` | 稳定 backend ID、harness 类型、带版本的私有定位信息、创建意图和已确认的原生绑定。 | 原生存储只有一个 Main 所有者；位置变更保留身份，打开不初始化缺失的已绑定 store。 |
+| `agent_session_context` | 产品上下文 ID、`sessionId`、backend ID、创建意图、可选的已确认原生 Thread ID 与私有定位信息。 | 已确认关联按 `(sessionId, backendId, nativeThreadId)` 唯一；未绑定的创建意图不可打开。它描述原生关联，不表达消息前序。 |
+| 既有用户消息及 Main 私有提交元数据 | 复用消息 ID 作为 `InputId`，保留已提交内容。仅在路由、UI 或恢复需要时保存已捕获目标/策略、原生身份或确认事实；稳定 Durable key 可由消息 ID 得出并显式传入。 | 改变目标、内容或策略时创建新消息/输入。多条消息可以关联同一有证据的响应，响应或 outcome 都可以缺失。消息 `success` 不证明原生接纳。 |
 
-通过 `src/main/data/db/schemas/` 下的 Drizzle schema 和 `src/main/data/services/` 下的聚焦数据服务实现这些新记录，由现有 Runtime 服务协调。复用 `agent_session_message` 保存展示记录，并显式关联上下文。在验证原生关联期间，保持旧 v2 行可读；无法匹配的行仍是历史数据，不能变成新建原生上下文的理由。不把原生 JSONL 或 Durable commit 复制进这些表，也不逐流式 delta 写 SQLite。
+使用 `Context` 表示原生关联，保留 `InputId` 作为逻辑 Runtime 身份，不另建 `Ref` 实体，也不要求输入表。Main 在构造适配器类型前验证带版本的原生定位/身份字段。提交元数据由 Main 私有管理，位于 Renderer 可编辑的消息 parts 之外，只增加有具体消费者的字段。不把文件位置、原生文档载荷或接纳记录暴露为可编辑消息数据。
 
-`backendId` 标识稳定配置的存储/执行命名空间，不标识进程或 Runtime 对象。Pi 在 Cherry 自有存储内解析原生 session ID，并验证加载出的 header；私有相对定位信息可以避免扫描，但不是身份。Durable 把 backend 绑定到一个持久 store，并在其中解析原生 Conversation ID。凭据留在既有所有者内，不进入这些记录。路径与适配器配置仅在 Main 内部使用。
+P1 不新增 `agent_session_input` 或 `agent_session_input_attempt`。[当前派发路径](../../../../src/main/ai/streamManager/context/AgentChatContextProvider.ts)已经在执行前保存 `status: 'success'` 的用户消息，因此仍需单独保留原生接纳证据。Durable 拥有持久 submission/队列状态，宿主只保存查询它所需的最少关联。增加一张表不能消除原生与 Cherry 提交之间的窗口，也不能保证恰好执行一次。不并发重试同一输入。缺少回执时仍保留不确定性，后续查询失败不能抹去已确认接纳。
 
-写入顺序分为三个独立边界：
+保留旧分支的编辑设计会创建新消息，不覆盖已提交消息。[当前消息更新 API](../../../../src/main/data/services/AgentSessionMessageService.ts)仍允许原地编辑，因此接入时必须保证已提交版本不可变，并禁止直接硬删除活跃或仍需恢复的提交证据。删除前保留这些证据，或明确结束其恢复责任。Durable 同 key 提交不比较载荷，只有原实际载荷、目标和策略保持不变时才允许重试；无法确定时保留未知，不能从编辑后的 parts 重建请求。
 
-1. 使用同步 `DbService.withWriteTx` 提交不可变输入、产品关联和派发意图。事务内绝不等待 harness 或文件操作。
-2. 在 SQLite 事务外调用原生 create/open/submit。Main 持有进行中的操作，不依赖 Renderer 生命周期。
-3. 提交已知原生身份/回执及后续观察事实。原生创建先记录意图，并在支持时使用可恢复的原生定位/关联。如果创建成功但关联提交失败，先对账已知上下文再重试。如果无法找回原生身份，则保留未解决意图，不自动创建副本。
+只有明确消费者证明需要时，才重新考虑独立输入表：没有消息行的持久宿主输入、展示消息删除后仍需追踪的提交，或一条产品消息派发为多个独立执行。这些需求需要各自的保留与生命周期设计，不是 P1 前置要求。既有跨会话投递仍由原所有者负责。
 
-DB 与原生存储不构成一个事务。恢复还需覆盖意图已提交但调用尚未开始、调用已发生但回执丢失两种情况；无法区分时保留未知。只有通过所属生命周期及明确的产品操作，才能退役或删除原生存储。备份/恢复在现有 write-quiesce 边界下保持数据库与关联原生存储一致；退役视图不删除文件。
+产品分支选择与已观察到的 child 所有权是不同关系。P3 在 child 投影使用该关系时，以 `(parentContextId, nativeSubagentId)` 保存原生关系、可选 child 上下文及来源。关系可以描述不可访问的 child，既不是任务结果，也不是提交权限。P1 需要支持一个产品会话具有多个原生关联，无需引入尚无消费者的 task 或通用 spawn 表。
 
-重启顺序为 **加载关联 → 验证原生存储与所有权 → 打开并观察 → 对账输入和投影 → 决定是否调度**。Pi 可以恢复上下文和所有者记录，不能恢复被中断的调用或未保存队列。Durable open/observe/lookup 保持被动；宿主只在对账后，按整个 Harness 的作用域允许会启用调度的 submit/interrupt/resume。不确定的 Pi 输入保持未解决，不静默重放。保留的 Durable 输入通过原生身份/去重键对账，不额外制造 reporter 或父通知。
+响应关联在投影确认后保存产品响应消息 ID，并在可用时保留原生证据。Pi 的强类型 `input-placed`／`input-settled` 事件提供 entry ID；Durable 的持久 submission ID 可再次查询以恢复回答证据。实时 `ItemRef` 字符串、epoch 和订阅 revision 不是永久键，宿主代码不得解析其编码。P2 负责多个原生内容项到一个产品消息的映射；P1 不强制一条输入对应一个回答，或一个 Item 对应一行。
 
-为已迁移上下文替换旧 crash-orphan 政策：不能在原生对账前清空全部 resume token，或把可恢复的 Durable 工作标为失败。原生存储缺失、为空、身份不匹配或不可读时，保留产品历史并报告访问不可用；`open` 从不创建替代品。现有编辑/fork 操作必须在其 checkpoint/文件事务流程中发布新的原生关联，不能只靠最新 assistant token 判断上下文身份。
+`AgentSessionDeliveryService` 的跨会话业务投递继续与原生输入接纳分开。既有 `delivery*` 字段仍服务于该流程。投递在派发时可以关联输入，但业务投递 `accepted`、原生确认接纳和输入获得回答是不同事实，不把这些字段改成通用 Runtime 日志。
+
+##### 写入、错误与部分成功
+
+[DbService.withWriteTx](../../../../src/main/data/db/DbService.ts)只执行同步数据库操作。数据服务组合 `*Tx` 写入；生命周期协调者在事务外执行 harness／文件操作，并在窗口停止等待后继续持有其 Promise。DataApi 端点不能把原生执行藏进数据库 mutation。
+
+1. 在同一事务中提交上下文创建意图，或用户消息及其消费者所需的私有提交信息，同时保存已捕获的产品/原生关联。提交失败则不调用 harness。复用消息身份及保留内容，不另存一份输入正文记录。
+2. 在事务外调用原生操作。派发前订阅来源，缓存那些早于回执提供原生身份的事实。只通过原生证据绑定，不按文本或到达顺序归属。按上下文串行处理宿主写入。
+3. 得知原生身份、回执和观察事实后提交记录。旧回执晚到时，保留已确认的接纳和终态证据。较晚的 `input.changed` 可以确认逻辑输入结果，无需重建各次调用的历史。
+4. P2 写入最终展示响应时，在同一事务中提交展示更新、响应关联及已知输入终态，再宣布产品投递完成。多个受影响输入可共享同一响应。流式更新合并写回既有行，不逐 token 插入。
+
+即使都使用 SQLite，原生提交与 Cherry 事务仍是两个独立故障边界。不实现分布式事务，也不承诺模型／工具恰好执行一次。
+
+| 故障位置 | 已持久化证据 | 所需恢复行为 |
+| --- | --- | --- |
+| 用户消息和提交信息已保存，没有回执 | 操作可能尚未开始，也可能已开始但未保存回执。 | 保留不确定性；消息 `success` 或调用前的派发标记都不能区分这个崩溃窗口。 |
+| 原生上下文已创建，关联写入失败 | 创建意图，以及原生支持时预先选定的身份／定位信息。 | 先找回并验证该上下文再绑定；身份无法恢复时保留未解决意图，不自动另建上下文。 |
+| 原生输入已接纳，回执写入失败 | 保留的用户消息及已捕获目标/key；原生 submission 或观察到的 entry 证据可能仍存在。 | 所有者仍存活时重试 Cherry 写入；重启后对账原生证据，不能仅因产品回执缺失就重发。 |
+| 确认接纳后查询失败 | 已确认的接纳仍有效。 | 单独记录读取失败，不降级为拒绝，也不覆盖已知终态。 |
+| 原生输出已提交，展示／终态写入失败 | 产品输入，以及可能存在的原生回答证据。 | 被动重开，仅在映射可证实时修复投影；归属缺失保持未解决，不能据此再生成一次。 |
+| 原生 store 缺失、为空、不可读或身份不符 | 产品历史及既有关联。 | 保留这些数据并报告原生访问不可用，`open` 不重建或创建替代上下文。 |
+
+Pi 没有持久输入去重，不自动重试不确定的 Pi 调用。用户明确选择再次执行时，创建新的消息/输入 ID，并说明重复执行风险。Durable 使用显式传入的稳定 key 或已知原生 submission ID 查询已捕获 conversation。只有明确重试政策且实际草稿未变时，才可使用该 key 再次提交；支持查询不代表增加宿主重试队列。旧 key 下的变更载荷必须被拒绝。查询失败或未找到都不证明此前未接纳。
+
+##### 迁移、恢复与保留
+
+追加新的生产 migration，不改写已发布 migration。SQL 迁移创建记录／可空关联，保留既有消息 ID、内容、搜索字段、状态、投递字段和 resume token；不执行文件或 harness 调用，也不补造接纳／终态事实。
+
+将三个迁移范围分开：
+
+| 范围 | 数据变更 | 切换条件 |
+| --- | --- | --- |
+| 原生关联与提交事实 — P1 | 增加 backend/context 记录，以及既有消息上必要的 Main 私有提交元数据。不新增输入表或复制输入正文。仅回填可验证原生绑定，不补造接纳事实。 | 既有归档和 API 仍可使用，原生恢复具有唯一选定执行写入者。无需等待会话成员关系或物理合表。 |
+| Agent 树与分支操作 — P2 产品切换前 | 为 Agent 消息增加 parent/root 语义，由产品所有者保存选择状态。一起替换平铺历史/删除尾部的读写路径，增加稀疏分支/原生绑定。 | 选中路径查询、保留分支的编辑、附件、投影路由及原生 fork 通过验收。在此之前保留当前平铺路径，不能把新树压平交给旧写入者。 |
+| 物理归档合并/显式成员关系 — 独立设计 | 确定归档所有权；选择合表时迁移表引用和消费者。显式用户成员关系与 #20635 协调，后台/child 归档不自动进入侧栏。 | 每个已迁移所有者只有一套归档写入/读取模型，保留 ID 或具备完整映射，导航/保留语义得到验证。不长期双写完整消息。 |
+
+树结构阶段将每个既有 session 回填为一个虚拟根，后面按当前 `(createdAt, id)` 展示顺序串成单链。保留所有既有消息 ID、内容和依赖引用，空 session 仅有根节点。选择状态初始化为最后一个展示节点，不能据此补造已完成执行末端。根仅表示结构，不进入公开内容、搜索或模型输入。该链只记录旧展示顺序，不证明排队或被拒绝的输入曾被消费。旧编辑逻辑已经删除的尾部无法从现有行中恢复，不能补造分支或按文本匹配导入原生历史。
+
+启用树结构需要服务与 UI 协同变更。增加父节点同所有者校验及无环约束，在发布事务中重新验证来源/版本。新编辑消息位于被编辑位置的兄弟分支。Agent 消息适配器查询选中路径，通过共享 UI 契约开放分支操作；写入 API 及 Main 专属投递/checkpoint 字段仍由 Agent 服务拥有。Pending 和 streaming 行在原生对账前保留已记录状态。观察者写入已捕获的绑定和消息身份，不能写入窗口此刻选中的分支。
+
+之后若选择物理合表，需要明确迁移以下依赖：
+
+| 依赖 | 保留规则 |
+| --- | --- |
+| 消息 ID、祖先关系及私有状态 | 无冲突时保留 ID；否则持久化完整旧新映射并原子重写引用。为 Main 专属 checkpoint 和 `delivery*` 状态保留明确所有者，不能暴露为可编辑消息 parts。 |
+| 附件 | 移除旧表前重建相关外键和引用行，考虑聊天与 Agent 附件关系支持的 role 差异。级联删除不能产生孤立文件或提前删除文件。 |
+| 用量与搜索 | 用量 `messageKind`/消息 ID 是请求发生时的归属，复制前缀不能再次计费；读取方必须能解析既有账本身份。根据权威归档重建搜索索引，排除结构根。 |
+| 导航与成员关系 | 协同迁移收藏、保存的路由/标签页、排序、活跃时间、回收站及占位会话复用。保留 agent/workspace、task-schedule 和 channel 绑定；`agentId` 不能当作 `assistantId`。通用 topic 导航纳入 Agent 归档前，必须明确成员关系。 |
+| 备份与清理 | 一起捕获映射、产品元数据和原生关联；移除旧所有者前，恢复/永久删除必须理解新所有者。共享原生 store 仍受全部保留绑定保护。 |
+
+Main 单独执行可重入的关联回填。对于既有 Pi 行，按当前 checkpoint／fork 规则检查 `runtimeResumeToken` 和编辑后的 `data.nativeSessionId`，验证原生 header 与位置后，再提交已确认的上下文关联。候选证据冲突时保持未解决，不盲选最新 assistant token，也不按每条旧消息新造原生上下文。展示内容和文本匹配都不是身份依据。将进展保存为已绑定／未解决记录，使回填重启后仍幂等。
+
+未迁移上下文保持既有执行路径。切换在原生派发前选定唯一写入者；发生错误或未知结果后，不能退回旧 driver 再调用一次。对于已迁移上下文，用原生对账替代现有 crash-orphan 扫描的一律报错／清 token 行为。无法验证原生上下文的既有 v2 历史仍可读取；这不是 v1 迁移兼容路径。
+
+切换前失败，只有尚未发生新的原生派发时，才可继续保留现有执行所有者。已迁移所有者一旦写入分支或原生输入，关闭新路径不能将其交回不兼容的旧版本/写入者。应停止接纳并向前修复，或恢复协调备份；不能通过压平分支、清空回执或重复原生工作“回滚”。
+
+重启顺序为 **加载 backend／context 记录 → 验证原生存储与所有权 → 打开并观察 → 对账输入和产品映射 → 决定是否调度**。Pi 重开恢复已保存的上下文，不恢复中断执行或未落盘队列。Durable 对账保持被动，只有之后明确的宿主决策才能对整个 Harness 启用 submit／interrupt／resume，其中包括其他 conversation。不额外制造 reporter 或父通知。
+
+编辑／fork 保留现有 checkpoint／文件事务所有者。得知原生结果后再发布产生的原生关联和产品分支选择；不改变旧输入的目标，也不覆盖旧上下文身份。历史展示行可以继续保留，但不能声称它们是在新 fork 的原生上下文中生成；复制前缀需要 fork 操作提供明确的原生映射。
+
+窗口关闭、访问释放和产品软删除都不删除原生存储。永久删除由存储所有者在检查活跃工作和全部保留关联后协调；删除某个 Durable conversation 的产品视图不能移除其他 conversation 共用的 store。消息保留政策包含其私有提交证据；单独论证后增加的载荷快照遵循相同政策。原生数据仍有独立但需协调的保留边界。
+
+备份／恢复必须协调捕获 backend／context 记录及关联原生数据。将既有 write-quiesce 边界扩展至原生写入者，排空产品投影写入，并使用受支持的原生快照或正常关闭的 store。不能只复制活跃 SQLite 主文件而忽略 WAL，也不能认为 `DbService.createSnapshot` 已包含原生文件。先恢复到暂存区，在发布前验证身份／关联；旧备份缺少原生数据时保留历史，不创建替代上下文。这是生产切换要求，不代表已经接入备份，也不代表所有 Pi 队列都能暂停后恢复。
+
+##### P1 实现与验证边界
+
+P1 沿用既有产品所有者，覆盖 backend/原生关联、消息上必要的提交元数据、聚焦数据库服务、原生 store 绑定/严格 loader，以及恢复 fixture。不增加输入表或 attempt 历史；物理合表、逐消息 `contextId` 及会话 `rootContextId` 也不是前置要求。不改变公共 Runtime 必需方法，也不切换桌面执行。P2 产品切换前先完成 Agent 树迁移、已提交消息保护及强类型原生历史路径，再由 P2 接入产品投影写入与生命周期。P3 增加独立持久化的 child 关系/输出，P4 在应用中验证 Durable 调度与崩溃恢复。对应 backend 在生产切换前必须完成文件所有权、备份捕获与删除覆盖。
+
+| 待验证场景 | 必须可观察的结果 | 所有者／验收 |
+| --- | --- | --- |
+| 迁移包含真实行的当前 v2 数据库 | 既有历史、投递状态和搜索仍可用，新关联可保持 null。 | 使用 `setupTestDatabase()` 和生产 migration 的数据库测试；AC8。 |
+| 回填空的及有数据的平铺 Agent 归档，包含待投递输入 | 保留既有 ID、附件、用量、私有状态和顺序；单根/选中路径有效，不补造接纳事实或已丢失分支。 | 树结构阶段的生产 migration/数据库 fixture；AC8。 |
+| 编辑首条或后续输入，再查看并分别继续两个分支 | 旧后续消息保留，新分支被选中；每次发送解析各自原生末端/checkpoint。空前缀显式创建，非空前缀缺少 checkpoint 则拒绝。重开或浏览不执行工作。 | Pi/Durable 原生 fork fixture 与产品操作测试；AC9、AC12。 |
+| 输入确认或投影迟到时切换窗口/分支 | 迟到写入保持原目标，不能改变另一分支的内容或选择；fork/版本冲突保持来源完整。 | 协调者/投影集成测试；AC6、AC9。 |
+| 重开缺失／身份不符的原生上下文，或被换成另一份文件的 Durable store | 访问不可用，不创建替代文件／上下文／身份标记。 | 严格 loader／原生存储测试；AC1、AC8。 |
+| 原生创建／接纳成功，随后 Cherry 提交失败 | 恢复只绑定一次有证据的上下文／输入，或明确保留不确定性。 | 真实 DB／原生 fixture 加边界故障注入的协调测试；AC8。 |
+| 重试相同输入，或在旧身份／键下修改草稿 | Durable 在支持时使用原生去重；变更草稿被拒绝，不确定的 Pi 工作不静默重发。 | 输入数据／接纳测试；AC2、AC8。 |
+| 编辑或删除已提交消息，或通过公开 API 修改其私有元数据 | 已提交内容/目标/策略和未解决的恢复证据保留；编辑创建新身份。展示 `success` 不被当成原生确认接纳。 | 消息服务/接纳集成测试；AC2、AC8。 |
+| 终态先于确认接纳到达；两个输入共享一个响应 | 晚到回执保留终态；已确认时，两条关联指向同一产品响应。 | 消息提交/投影集成测试；AC7、AC9。 |
+| 被动重开 Durable 并查询 | 不启动模型／工具工作；强制退出进程后的恢复另由 P4 验证。 | P1 真实 Harness fixture，P4 worker 进程崩溃测试；AC8、AC11。 |
+
+以上是计划中的验收检查。本次存储方案仅修改文档，不表示 schema、migration、存储标记、备份支持或恢复测试已实现。
 
 #### 实现阶段与验证门槛
 
@@ -263,15 +508,15 @@ DB 与原生存储不构成一个事务。恢复还需覆盖意图已提交但�
 | 阶段 | 交付物 | 进入下一步前的门槛 |
 | --- | --- | --- |
 | P0 — 原生证据 | Pi 输入关联/上游改进与强类型终态映射；说明多输入共同回答的归属。 | 相同文本、文本变换/已处理/失败命令、排队及未送达输入、中止、截断、迟到确认和 child 续接都保留正确身份与终态。AC2、AC7。 |
-| P1 — 关联与日志 | 上下文/输入/尝试持久化、稳定 backend 作用域、严格 loader，以及已有数据的数据库迁移。 | 读取旧产品历史、识别原生上下文缺失、对账部分创建/接纳，并拒绝重试时修改草稿。AC1、AC8。 |
-| P2 — Pi root 接入 | 生产模型 port、root Thread 投影、产品持久化和生命周期映射。 | 通过桌面 create/open/submit/observe/stop/reopen 路径，保留权限、配置、用量、命令、编辑/fork 和投递完成行为。AC3、AC4、AC6、AC9、AC12。 |
+| P1 — 关联与提交事实 | 原生关联、消息上必要的私有提交元数据、稳定 backend 作用域、严格 loader，以及已有数据迁移。 | 读取旧历史而不补造接纳事实、识别原生上下文缺失、对账部分创建/接纳，并拒绝旧身份/key 下的变更草稿。AC1、AC8。 |
+| P2 — Pi root 接入 | Agent 树迁移、保留分支的编辑操作、强类型原生历史访问、生产模型 port、root 投影及生命周期映射。 | 通过桌面 create/open/submit/observe/stop/reopen 及独立分支续写路径，保留权限、配置、用量、命令和投递完成行为。AC3、AC4、AC6、AC9、AC12。 |
 | P3 — Pi child 独立接入 | 所有者恢复、child 投影，以及没有活跃父消息时的 child 输入。 | 父结束/窗口关闭不丢 child 输出；冷启动重开保留所有权；续接仅由所有者报告一次结果。AC5、AC9、AC10。 |
-| P4 — Durable 宿主接入 | 复用宿主投影/日志，保留原生 task 调度、报告政策与恢复。 | 被动重开不执行模型/工具；强制进程退出后，新进程使用同一 store 对账未完成工作和输入回执。AC8、AC11、AC12。 |
+| P4 — Durable 宿主接入 | 复用宿主投影和消息提交关联，保留原生 submission、task 调度、报告政策与恢复。 | 被动重开不执行模型/工具；强制进程退出后，新进程使用同一 store 对账未完成工作和输入回执。AC8、AC11、AC12。 |
 | 后续 — 公共控制 | 在控制文档下推进可选 spawn/stop 与宿主跨 harness 委派。 | 两种适配器都证明创建/部分接纳、停止范围和继续输入语义后，才共享签名。不是 P0–P4 的门槛。 |
 
 P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替代实现。AI SDK port 必须经 Cherry provider 路径执行单次模型请求，不能重新进入 `AiService.streamText` 的 agent-session 分支，也不能增加第二套工具循环。明确唯一的用量记账方。保留审批与 MCP 行为、冻结/实时配置规则、身份 prompt、shell 装配、tracing、命令/压缩和原生编辑/fork checkpoint。在声称行为一致前，解决模型桥已记录的 thinking replay 元数据缺口，并说明如何表达不支持的内容/附件。
 
-扩展现有 [Pi Runtime 测试](../../../../packages/agent-runtime-pi/tests/runtime.test.ts)、[Durable Runtime 测试](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts)和[观察测试](../../../../packages/agent-runtime/tests/observation.test.ts)，走公共边界验证。宿主验证放在现有 Runtime、归档持久化、投递、消息 backend 与 `useAgentSessionParts` 测试旁；引入投影/日志组件时，再增加聚焦测试。SQLite 测试使用 `setupTestDatabase()` 和生产 migration。Durable 崩溃测试使用隔离 worker 进程与持久 store，在有证据的 checkpoint 后直接杀进程，不调用 `shutdown`，再用新进程验证恢复。不假定外部工具副作用恰好执行一次。
+扩展现有 [Pi Runtime 测试](../../../../packages/agent-runtime-pi/tests/runtime.test.ts)、[Durable Runtime 测试](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts)和[观察测试](../../../../packages/agent-runtime/tests/observation.test.ts)，走公共边界验证。宿主验证放在现有 Runtime、归档持久化、投递、消息 backend 与 `useAgentSessionParts` 测试旁；引入投影及私有提交元数据路径时，再增加聚焦测试。SQLite 测试使用 `setupTestDatabase()` 和生产 migration。Durable 崩溃测试使用隔离 worker 进程与持久 store，在有证据的 checkpoint 后直接杀进程，不调用 `shutdown`，再用新进程验证恢复。不假定外部工具副作用恰好执行一次。
 
 实现改动只运行显式指定的受影响测试文件，并检查 `docs:affected`；仅在代码路径改变后更新当前参考文档。包级测试和有序 close/reopen 不能满足 Electron 或崩溃恢复门槛。本次文档细化只运行文档、配对和限定文件的格式检查。
 
@@ -282,6 +527,10 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 - 把创建、工具、历史编辑、fork、resume 和委派控制放进强制接口：不采用，因为当前原生能力与所有权不同。在证明公共用途前保留强类型适配器扩展。
 - 公开内部 epoch、revision、attempt 或原始 SDK payload：不采用，因为来源映射属于适配器，投递和投影协调属于宿主；增加字段不会创造持久保证。
 - 重试未知输入、最后一个访问释放时 dispose，或用本地标记模拟原子 idle 接纳：不采用，因为这些做法会丢失证据，或与适配器不拥有的工作竞争。
+- 把 Durable 表接到 `DbService` 后面，或实现通用宿主 `Storage`：P1 不采用，因为原生异步提交／恢复与 Cherry 同步业务事务具有不同所有者；复用独立文件中的既有原生 backend。
+- 用展示消息充当原生历史，或只保留最新 resume token：不采用，因为这种投影无法恢复原生分支状态、队列、部分创建结果及准确原生载荷。
+- 为编辑／分支另建 context 树，或通过普通消息前序表达 spawn：不采用，因为现有产品消息树已经负责分支导航，而 child 执行具有独立所有权和输入路由。
+- P1 强制增加独立 input/attempt 表或逐消息 `contextId`：本阶段不采用。逻辑身份无需独立表；复用已提交消息及最少私有提交元数据，评估会话/分支锚点绑定。独立保留输入需要具体消费者证明必要性。
 
 ## Acceptance criteria
 
@@ -294,12 +543,16 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 - AC5 — Child 观察跨越父消息结束，托管 child 控制保留原生所有权，观察不会重复原生结果交付。 (verification: unit — 适配器 child 测试与宿主投影集成)
 - AC6 — 桌面调用方保留逻辑输入回执与归档，封闭被替换观察的写入，flush 未完成写入，并准确呈现原生中断和调度范围。 (verification: Electron — 产品会话 Runtime 集成)
 - AC7 — 相同或变换后的输入、批量 steering、本地命令失败、未送达输入、截断和迟到回执都保持有证据的归属，不按文本匹配，也不误报成功完成。 (verification: unit — 原生 Pi 关联探针与适配器/宿主输入测试)
-- AC8 — 已有数据的数据库迁移保留历史；上下文关联和不可变输入尝试能处理原生/DB 部分成功，恢复不替换缺失上下文，也不盲目重试不确定输入。 (verification: unit — 使用生产 migration 与原生存储 fixture 的上下文/输入数据测试)
-- AC9 — Child 内容独立于父 assistant 行持久化；快照替换和旧观察写入不能删除归档、重复恢复的历史或覆盖更新视图。 (verification: unit — 宿主 Thread 投影与归档持久化集成测试)
+- AC8 — 已有数据的数据库迁移保留历史、ID 及依赖记录；树回填保留旧展示顺序，不补造接纳事实。已提交消息身份/内容及私有提交证据经受编辑、受保护删除及原生/DB 部分成功后仍保留，恢复不替换缺失上下文，也不盲目重试不确定输入。 (verification: unit — 使用生产 migration 与原生存储 fixture 的上下文/消息提交数据测试)
+- AC9 — Child 内容独立于父 assistant 行持久化；快照替换和旧观察写入不能删除归档、重复恢复的历史或覆盖更新视图。分支切换不改变已捕获输入/投影目标。 (verification: unit — 宿主 Thread 投影与归档持久化集成测试)
 - AC10 — 新 Pi Runtime 在继续输入前恢复 child 的父所有者与关系，保留原生停止/报告政策，绝不把失去所有者的历史 child 升级为可写 root。 (verification: unit — 持久 Pi 父子会话重开测试)
 - AC11 — 强制进程退出后用新进程重开 Durable，保留输入身份与原生所有权；被动对账不执行模型/工具，允许的 resume 遵循 Harness 作用域，宿主不额外报告结果。 (verification: unit — Durable worker 进程崩溃集成测试)
-- AC12 — Root 与 child 桌面流程保留产品授权、模型/工具边界、单次用量记账、投递终态、编辑/fork 关联，以及约定的停止/恢复行为。 (verification: Electron — Pi 与 Durable 宿主接入场景)
+- AC12 — Root 与 child 桌面流程保留产品授权、模型/工具边界、单次用量记账、投递终态，以及约定的停止/恢复行为。编辑保留旧分支并选中新分支，浏览不调用原生执行，各分支续写解析正确 checkpoint/绑定。 (verification: Electron — Pi 与 Durable 宿主接入场景)
 
 ## Risks
 
-精确任务取消和宿主跨 harness 编排仍是方案。可选 child/input 字段让受限访问可以表达，但不代表已有每种 harness 的适配器，也不从恢复的历史授予控制权限。Pi child 续接需要所有者的 loader，并保留原生报告策略。上下文保留到 shutdown 会增加内存占用；无法取消的 preflight 可能无限推迟关闭。归一化视图省略原生数据，背压下还可能丢失中间事件。Durable 的逻辑输入映射不能替代宿主日志。把这些限制当作公共类型已经解决的问题，会让纸面抽象强于实际实现。
+精确任务取消和宿主跨 harness 编排仍是方案。可选 child/input 字段让受限访问可以表达，但不代表已有每种 harness 的适配器，也不从恢复的历史授予控制权限。Pi child 续接需要所有者的 loader，并保留原生报告策略。上下文保留到 shutdown 会增加内存占用；无法取消的 preflight 可能无限推迟关闭。归一化视图省略原生数据，背压下还可能丢失中间事件。Durable 的内存逻辑输入映射本身不能持久保存其与 Cherry 消息的关联。把这些限制当作公共类型已经解决的问题，会让纸面抽象强于实际实现。
+
+独立原生 store 会增加协调备份/删除的工作，也会保留部分重复展示文本。复用消息要求已提交版本不可变、提交元数据仅由 Main 管理；删除恢复证据或重试编辑后的内容会破坏关联。未来的载荷快照同样需要明确消费者及保留政策。严格打开已有 store、Durable store 身份标记、带真实数据的数据库迁移，以及所选原生 SQLite driver 在 Electron 中的支持仍是实现门槛。
+
+将平铺的 Agent 会话归档与 `topic`/`message` 收敛，需要明确迁移、分支选择、原生绑定和 child 历史规则。复用树结构不代表其删除、历史构造或路由行为已经适用于原生 agent 执行。
