@@ -629,6 +629,19 @@ describe('splitMarkdownChunks', () => {
     expect(resolvedReferenceUrls(referencing[0].text)).toEqual(['https://example.com/a>b'])
   })
 
+  it('refuses an angle-bracket destination holding an unescaped <', () => {
+    // remark reads `[x]: <a<b>` as a paragraph, not a definition: an angle destination may not
+    // hold a bare `<`. The scanner accepted it, so the line was hoisted into later chunks as a
+    // carried definition and its text printed once per chunk instead of once in the document.
+    const content = `${'[x]: <a<b>\n\n'}${'filler\n\n'.repeat(3_072)}see [x]\n`
+
+    const chunks = chunksOf(content)
+    const occurrences = joined(chunks).split('[x]:').length - 1
+
+    expect(referenceTarget(content, 'x')).toBeNull()
+    expect(occurrences).toBe(1)
+  })
+
   it('does not carry the quoted text that follows a block-quoted definition', () => {
     // Only the definition travels; `visible tail` is a paragraph of the quote and would be repeated.
     const content = ['> [label]: https://example.com', '> "the title"', '> visible tail', '', 'see [label]'].join('\n')
@@ -2677,6 +2690,20 @@ describe('a malformed tag that never closes', () => {
     expect(chunks.length).toBeGreaterThan(1)
     expect(joined(chunks)).toContain('para two')
   })
+
+  it('tracks a stack of open elements without rescanning it per tag', () => {
+    // Every ordinary opening tag asked whether the stack already held `svg` or `math`, so the
+    // question was answered against a stack the line was still growing: 64K openers on one line
+    // cost their count squared, and the splitter stalled before the fallback could guard it.
+    const content = `<div>\n${'<p>x\n'.repeat(64_000)}</p>\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
 })
 
 /**
@@ -2789,6 +2816,22 @@ describe('a heading whose source the parser cannot close', () => {
 
     expect(window.chunks).toHaveLength(1)
     expect(window.longLines).toBe(true)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
+  it('consumes a reference the document never defines instead of rewinding to its start', () => {
+    // `[a][b` closes the label but leaves the reference open, so `follow` is -1 and the walk was
+    // sent back to index -1 — the next step restarted the segment from 0 and every one of the 1,000
+    // headings paid the whole line again. The label budget never charged a run that was given up on,
+    // so neither fallback guard fired and the whole split stalled before the preview could render.
+    const headings = 1_000
+    const content = `${'# [a][b\n'.repeat(headings)}`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
     expect(elapsed).toBeLessThan(1_000)
   })
 })

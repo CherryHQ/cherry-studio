@@ -362,13 +362,17 @@ const LINK_BARE_DESTINATION = /^[ \t]*(?!<)\S+/
  * A backslash escapes the character after it, so a `\>` is an escaped delimiter rather than the
  * close and the run continues past it — `<https://example.com/a\>b>` is one destination, and
  * reading the escaped `>` as the close leaves `b>` behind where a title belongs, which refuses the
- * whole definition.
+ * whole definition. An unescaped `<` inside the run refuses it the same way: the parser reads
+ * `[x]: <a<b>` as a paragraph, so accepting it here would hoist visible text into later chunks as
+ * a carried definition.
  */
 function angleDestinationLength(text: string, open: number): number {
   for (let index = open + 1; index < text.length; index += 1) {
     const character = text[index]
     if (character === '\\') {
       index += 1
+    } else if (character === '<') {
+      return 0
     } else if (character === '>') {
       return index + 1 - open
     }
@@ -633,7 +637,50 @@ function* eachHtmlTag(line: string): Generator<HtmlTag> {
  * the tags an HTML block exposes are read here, which is where the renderer's elements are
  * written whole.
  */
-function trackHtmlElements(line: string, open: string[]): void {
+/**
+ * The open-element stack a document's HTML blocks accumulate, with the two lookups the splitter
+ * needs kept beside it. Both are maintained incrementally: the stack grows one push per opening
+ * tag and shrinks only by truncation, so a `lastIndexOf` per closing tag, an `includes` per
+ * opener, or a rebuild per line each made a block of ordinary tags cost its count squared.
+ */
+class HtmlElementStack {
+  readonly names: string[] = []
+  /** Name → its last position in {@link names}; a truncation past a position drops that entry. */
+  private readonly lastPosition = new Map<string, number>()
+  /** How many `svg`/`math` elements are open, which is what makes a nested tag foreign content. */
+  private foreignDepth = 0
+
+  isForeign(name: string): boolean {
+    return name === 'svg' || name === 'math' || this.foreignDepth > 0
+  }
+
+  openTag(name: string): void {
+    this.lastPosition.set(name, this.names.length)
+    this.names.push(name)
+    if (name === 'svg' || name === 'math') this.foreignDepth += 1
+  }
+
+  /** Close the innermost element with this name, and everything nested inside it. */
+  closeTag(name: string): void {
+    this.truncateTo(this.lastPosition.get(name) ?? this.names.length)
+  }
+
+  /** Drop every element above `depth`, for a block that ended with the container holding it. */
+  truncateTo(depth: number): void {
+    for (let position = this.names.length - 1; position >= depth; position -= 1) {
+      const name = this.names[position]
+      if (this.lastPosition.get(name) === position) this.lastPosition.delete(name)
+      if (name === 'svg' || name === 'math') this.foreignDepth -= 1
+    }
+    this.names.length = depth
+  }
+
+  get depth(): number {
+    return this.names.length
+  }
+}
+
+function trackHtmlElements(line: string, stack: HtmlElementStack): void {
   // Scanned by hand, not by a regex: the tag's attributes alternate between quoted runs and
   // `[^>]`, and a tag that never closes makes those alternatives overlap — the backtracking an
   // engine spends on it grows exponentially in the number of quotes, which stalls the splitter
@@ -641,15 +688,15 @@ function trackHtmlElements(line: string, open: string[]): void {
   // one plain character, so a whole line costs one pass over it.
   for (const tag of eachHtmlTag(line)) {
     if (tag.closing) {
-      const at = open.lastIndexOf(tag.name)
-      if (at >= 0) open.length = at
+      stack.closeTag(tag.name)
       continue
     }
-    const foreign = tag.name === 'svg' || tag.name === 'math' || open.includes('svg') || open.includes('math')
     // A raw name keeps the region contract its own tag shape sets: `<pre/>` is the type-7 tag the
     // parser reads plain, and holding an element open there would swallow the lines below it.
-    const opens = tag.selfClosing ? !foreign && !HTML_RAW_TAGS.has(tag.name) : !VOID_HTML_ELEMENTS.has(tag.name)
-    if (opens) open.push(tag.name)
+    const opens = tag.selfClosing
+      ? !stack.isForeign(tag.name) && !HTML_RAW_TAGS.has(tag.name)
+      : !VOID_HTML_ELEMENTS.has(tag.name)
+    if (opens) stack.openTag(tag.name)
   }
 }
 
@@ -1285,8 +1332,16 @@ function headingRenderedText(source: string, definesLabel: (label: string) => bo
         const unresolved =
           label.closed && segment[label.end] !== '(' && !definesLabel(normalizeReferenceLabel(referenceLabel))
         if (unresolved) {
-          text += segment.slice(index, follow)
-          index = follow
+          // An unresolved reference whose own `[` never closed has no forward endpoint: `follow`
+          // is -1, and assigning it would restart the segment from 0 on the next step, so every
+          // such heading re-read the whole line. Consume the run as text instead.
+          if (follow < label.end) {
+            text += segment.slice(index, label.end)
+            index = label.end
+          } else {
+            text += segment.slice(index, follow)
+            index = follow
+          }
         } else if (label.closed && !nested && follow >= label.end) {
           // A link renders its label; an image renders none once it has a destination, while one
           // without is the literal text the parser leaves standing. A label cannot hold a link, so
@@ -1784,7 +1839,7 @@ export function splitMarkdownChunks(
   // The elements the HTML blocks read so far have left open. A blank line ends the parser's block,
   // but not the element its opening tag began — the renderer holds everything below it inside that
   // element until the closing tag turns up — so a boundary may not fall while one is open.
-  const htmlOpenElements: string[] = []
+  const htmlOpenElements = new HtmlElementStack()
   // The stack's height when the open block began, so the elements it opened can be given back when
   // the container it was written behind ends with it.
   let htmlBlockElementBase = 0
@@ -1903,7 +1958,7 @@ export function splitMarkdownChunks(
       // The elements a block written behind a container opened die with the container — the line
       // that dropped the markers, or the blank that ends the quote or item, is what closes them in
       // the renderer. Only a block at the top level leaves them spanning the blank that ends it.
-      if (htmlBlockContainer !== null || stripped === null) htmlOpenElements.length = htmlBlockElementBase
+      if (htmlBlockContainer !== null || stripped === null) htmlOpenElements.truncateTo(htmlBlockElementBase)
     }
     if (mathRun) {
       mathRun = trackMathRun(mathRun, line)
@@ -2005,7 +2060,7 @@ export function splitMarkdownChunks(
       htmlComment.open = false
       const opening = withoutHtmlComments(uncontained, htmlComment)
       htmlBlockContent = [opening]
-      htmlBlockElementBase = htmlOpenElements.length
+      htmlBlockElementBase = htmlOpenElements.depth
       trackHtmlElements(opening, htmlOpenElements)
       inDefinition = false
       previousStatus = 'block'
@@ -2211,7 +2266,7 @@ export function splitMarkdownChunks(
     run = null
     // An element a blank line only spans holds the blocks below it: one that never closes keeps
     // every later boundary off, and the oversized fallback a chunk that size trips is the exit.
-    if (bufferChars >= budgetChars && htmlOpenElements.length === 0) {
+    if (bufferChars >= budgetChars && htmlOpenElements.depth === 0) {
       boundaries.push(i + 1)
       bufferChars = 0
     }
