@@ -69,6 +69,8 @@ export function startRun(adapter: Adapter, conv: Conversation, key: string): voi
   const { input } = submission
   const run: RunState = {
     run: conv.runs,
+    key,
+    after: conv.manager.getLeafId(),
     startedBy: typeof input === 'string' ? undefined : input.kind,
     pending: true,
     stopRequested: false,
@@ -78,6 +80,7 @@ export function startRun(adapter: Adapter, conv: Conversation, key: string): voi
     end
   }
   conv.active = run
+  conv.latest = run
   conv.runUsage.push(ZERO_USAGE)
   submission.state = 'running'
   submission.run = run.run
@@ -152,6 +155,21 @@ export async function stopRun(adapter: Adapter, conv: Conversation): Promise<voi
   await Promise.all(owned.map((child) => stopRun(adapter, child)))
   await aborting
   await run.done
+}
+
+/** H2: the entry the latest run in this process began with, its input; `undefined` until Pi has written it. */
+export function latestStart(conv: Conversation): string | undefined {
+  const run = conv.latest
+  if (!run) return undefined
+  const branch = conv.manager.getBranch()
+  const input = conv.submissions.get(run.key)!.input
+  return branch
+    .slice(branch.findIndex((entry) => entry.id === run.after) + 1)
+    .find((entry) =>
+      typeof input === 'string'
+        ? entry.type === 'message' && entry.message.role === 'user'
+        : entry.type === 'custom_message' && keyOf(entry.details) === run.key
+    )?.id
 }
 
 export function retract(conv: Conversation, key: string): RetractResult {

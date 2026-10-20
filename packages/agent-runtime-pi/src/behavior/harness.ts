@@ -7,7 +7,18 @@ import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
 import { compactionSummarizer, conversationExtension, meterRequests } from './extension'
 import { commit, modelContext, readFacts } from './ledger'
-import { awaitAnswer, drain, inputDone, messageChild, retract, startTurn, stopRun, submit, withdraw } from './runs'
+import {
+  awaitAnswer,
+  drain,
+  inputDone,
+  latestStart,
+  messageChild,
+  retract,
+  startTurn,
+  stopRun,
+  submit,
+  withdraw
+} from './runs'
 import {
   type Adapter,
   type CallScope,
@@ -140,7 +151,12 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       turns: {
         start: (thread, input, key) => enter(scope, () => startTurn(adapter, conversation(thread), input, key)),
         retract: (thread, key) => enter(scope, () => retract(conversation(thread), key)),
-        stop: (thread) => enter(scope, () => stopRun(adapter, conversation(thread)))
+        // H2: with `turn`, only while the latest run began with it, so a repeated stop never reaches a later run.
+        stop: (thread, _cause, turn) =>
+          enter(scope, () => {
+            const conv = conversation(thread)
+            return turn === undefined || latestStart(conv) === turn ? stopRun(adapter, conv) : undefined
+          })
       },
       helpers: {
         message: (child, input, key, run) =>
