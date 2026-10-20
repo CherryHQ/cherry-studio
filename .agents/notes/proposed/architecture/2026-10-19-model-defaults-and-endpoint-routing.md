@@ -30,9 +30,9 @@ Reuse LLM endpoint addresses as compatible connection roots and retain per-endpo
 
 ### Baseline and implementation prerequisites
 
-This documentation-only Spec is stacked directly on [PR #21724](https://github.com/CherryHQ/cherry-studio/pull/21724), targeting `DeJeune/openai-gemini-endpoints-implement` at `d5122ff4e47f6b76c53988263ff60e7cb858b016`. That parent is also the diagnostic baseline and provides connection inheritance and independent metadata controls. The parent PR targets `main`; this Spec contributes only its bilingual documentation triplet relative to that parent.
+This documentation-only Spec is stacked directly on [PR #21724](https://github.com/CherryHQ/cherry-studio/pull/21724), targeting `DeJeune/openai-gemini-endpoints-implement` at `c60f7c7ef2a35e831395847740fcf5c7a65b9007`. That parent includes the diagnostic baseline, connection inheritance, independent metadata controls, and ordinary cloud TTS. The parent PR targets `main`; this Spec contributes only its bilingual documentation triplet relative to that parent.
 
-The dependency order is `main` → prerequisite #21724 → this Spec → the implementation layers below. The prerequisite need not merge before implementation starts after current-head Spec Approval; its changes are inherited through the stack. If the parent changes, rebase upstack and recheck the affected APIs, tests, and Spec approval requirements. The local ordinary-TTS prototype remains unmerged; its speech adapter and tests must be delivered and verified in the transport layer below. This Spec adds no product implementation. Proposed file locations that come from the prerequisite or prototype are identified as such in the work breakdown.
+The dependency order is `main` → prerequisite #21724 → this Spec → the implementation layers below. The prerequisite need not merge before implementation starts after current-head Spec Approval; its changes are inherited through the stack. If the parent changes, rebase upstack and recheck the affected APIs, tests, and Spec approval requirements. The ordinary-TTS adapter and tests are now committed in the prerequisite; the transport layer below must integrate them with the proposed common selection rules and verify the remaining scenarios. This Spec adds no product implementation. Proposed file locations that come from the prerequisite are identified as such in the work breakdown.
 
 ### Default descriptions and explicit overrides
 
@@ -97,7 +97,7 @@ The edit drawer's per-model save queue serializes reset with pending edits. Earl
 ### Implementation sequence
 
 1. After current-head Spec Approval, stack model-default resolution and sparse creation semantics on this Spec, inheriting the prerequisite routing/form work. Cover AC1, the creation portion of AC2, and AC8.
-2. Stack request-target selection and ordinary cloud TTS on that layer. Cover AC3–AC7 and the routing portion of AC9. Verify the first two layers together so repaired capabilities do not mask incorrect routing.
+2. Stack request-target selection and integration of the inherited cloud TTS on that layer. Cover AC3–AC7 and the routing portion of AC9. Verify the first two layers together so repaired capabilities do not mask incorrect routing.
 3. Stack configuration explanations and selective reset on the transport layer. Complete AC2, AC9, and AC10 and the cumulative Electron scenarios. Keep reference documentation aligned; only the final layer with evidence for every AC moves this note to implemented.
 
 ### File-level work breakdown
@@ -111,7 +111,7 @@ The edit drawer's per-model save queue serializes reset with pending edits. Earl
 | `packages/provider-registry/src/registry-utils.ts` | Own pure endpoint compatibility and suggestion rules; share connection-source selection with runtime and configuration consumers | Data services and renderer do not import `main/ai`; no duplicate URL-selection policy |
 | `src/main/ai/provider/endpoint.ts` and `src/main/ai/AiService.ts` | Constrain endpoint selection using the actual image/edit/embedding request before SDK configuration | The SDK request uses the selected target and its explicit address |
 | `src/main/ai/provider/endpointConnection.ts` from #21724 | Retain URL/full-path normalization while consuming the shared connection-source decision | Existing inherited roots and full-URL overrides retain their meanings |
-| `src/main/ai/provider/speech.ts` and the custom Gemini speech adapter from the local prototype | Integrate ordinary TTS with the common routing rules and existing read-aloud flow | List eligibility and actual transport agree, including the explicit New API path |
+| `src/main/ai/provider/speech.ts` and the custom Gemini speech adapter from #21724 | Integrate ordinary TTS with the common routing rules and existing read-aloud flow | List eligibility and actual transport agree, including the explicit New API path |
 
 Share only the pure connection-source decision in the registry; transport-specific SDK/path construction stays in Main. Configuration explanations expose the source endpoint and configured base address, never credential material. Provider context used for suggestions must include its effective endpoint configuration, not just vendor identity or default LLM type. Resolve this context once per provider in a batch rather than adding per-model database reads.
 
@@ -119,7 +119,7 @@ Check the installed SDK adapters before changing target selection. Google `gener
 
 ### Verification plan
 
-These are planned checks, not completed implementation evidence. Existing test names below refer to the diagnostic worktree; `endpointConnection.test.ts` and `modelMetadataForms.test.tsx` come from #21724, while `speechModels.test.ts` comes from the local TTS prototype.
+These are planned checks, not completed implementation evidence. Existing test names below refer to the diagnostic worktree; `endpointConnection.test.ts` and `modelMetadataForms.test.tsx` and `speechModels.test.ts` come from #21724.
 
 | Verification owner | Explicit test locations | Observable evidence |
 | --- | --- | --- |
