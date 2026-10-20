@@ -31,6 +31,8 @@
   "apiGateway.docs.tags.cherry": "Endpoints propios de Cherry Studio: bases de conocimiento, información del servicio y comprobación de estado.",
   "apiGateway.docs.tags.gemini": "Endpoints compatibles con Gemini, servidos bajo `/v1beta` como en la API original.",
   "apiGateway.docs.tags.openai": "Endpoints compatibles con OpenAI. Apunta la URL base de un SDK de OpenAI a esta pasarela para usarlos.",
+  "api_gateway.errors.internal_bind_permission_denied": "El sistema operativo denegó al Servidor API interno escuchar en {{address}}, puerto TCP solicitado {{port}} (EACCES). Reintente la solicitud. Si vuelve a fallar, pida al administrador del sistema que revise las restricciones de escucha en la interfaz de bucle local.",
+  "api_gateway.errors.public_bind_permission_denied": "El sistema operativo denegó al Servidor API escuchar en {{address}}, puerto TCP {{port}} (EACCES). En Configuración → Servidor API, elija otro Puerto, salga del campo para guardar y pulse Iniciar. Actualice el destino en los clientes.",
   "appMenu.about": "Acerca de",
   "appMenu.close": "Cerrar ventana",
   "appMenu.copy": "Copiar",

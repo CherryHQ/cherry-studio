@@ -659,6 +659,7 @@
   "chat.compaction.compacted": "Context compactat, ~{{count}} tokeni economisiți",
   "chat.compaction.compacted_plain": "Context compactat",
   "chat.compaction.compacting": "Compactarea contextului…",
+  "chat.compaction.failed": "Comprimarea contextului a eșuat",
   "chat.conversation.new": "Chat nou",
   "chat.default.name": "Asistent Cherry",
   "chat.default.topic.name": "Subiect implicit",
