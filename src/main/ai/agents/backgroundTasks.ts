@@ -323,6 +323,11 @@ const probe = () => {
       keep.add(row.pid)
       continue
     }
+    // A pid this walk remembers is only a number, and one whose occupant now reads a stamp the
+    // walk never recorded is a process the OS handed the freed number to. It is not this task's
+    // work and may never be re-verified: re-admitting it would extend the task's ownership to
+    // whatever that stranger has since forked, which is what a stop would then take down.
+    if (known.has(row.pid)) continue
     // A row the shell left behind, or one whose parent an earlier poll verified, is work from
     // across a dead link. A child is always created after the parent it was created under, so a
     // live parent is what proves the row is that parent's own — and a row is refused when a live
@@ -330,7 +335,7 @@ const probe = () => {
     // than the row, which is therefore not the replacement's child but this task's orphan.
     if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
       const parent = byPid.get(row.ppid)
-      if (!parent || row.created > parent.created) keep.add(row.pid)
+      if (!parent || row.ppid === shellPid || known.get(row.ppid) === parent.created) keep.add(row.pid)
     }
   }
   let grew = true
@@ -339,7 +344,14 @@ const probe = () => {
     for (const row of rows) {
       if (keep.has(row.pid) || row.pid === process.pid) continue
       if (row.ppid === process.pid && row.pid !== shellPid) continue
-      if (keep.has(row.ppid)) {
+      // A remembered pid whose occupant now reads a different stamp is a stranger, so it may
+      // not be adopted here either — this loop extends ownership, it never re-establishes it.
+      if (known.has(row.pid)) continue
+      // A member is only extended through a parent that is still the process this walk
+      // verified: a pid whose occupant now reads a different stamp is a stranger, and its
+      // descendants belong to whatever the OS handed that pid to.
+      const parent = byPid.get(row.ppid)
+      if (keep.has(row.ppid) && (!parent || known.get(row.ppid) === parent.created)) {
         keep.add(row.pid)
         grew = true
       }

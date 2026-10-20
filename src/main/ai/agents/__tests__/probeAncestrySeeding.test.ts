@@ -13,6 +13,10 @@ const T_RUNNER = '20261017000000.000000+480'
 const T_SHELL = '20261017000001.000000+480'
 const T_MID = '20261017000002.000000+480'
 const T_WORKER = '20261017000003.000000+480'
+/** A pid taken over after its first occupant exited is stamped later than anything it forks. */
+const T_REUSED = '20261017000009.000000+480'
+/** The stranger's own child, forked after it took the pid over. */
+const T_REUSED_CHILD = '20261017000010.000000+480'
 
 /**
  * A fake-table probe standing in for `powershell.exe`, placed on the runner's PATH. The spawn-time
@@ -96,6 +100,10 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
       await writeFile(tableFile, render(phase.rows))
     }
 
+    // The runner writes its ancestry memory on its own 500ms cadence, so a read taken the
+    // instant the last phase lands races the poll that would have observed it. Two full
+    // cadences cover the poll that reads the final table plus the write it performs.
+    await new Promise((resolve) => setTimeout(resolve, 1_200))
     return { known: await readKnown(evidence), exitCode: await awaitExit(child, opts.waitMs) }
   }
 
@@ -148,5 +156,45 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
     expect(known).toContain(900_001)
     // The worker is still in the table, so the anchor may not have left.
     expect(exitCode).toBeNull()
+  })
+
+  it('refuses a child whose remembered parent pid an unrelated process has taken over', async () => {
+    // shell → worker → child, then the worker exits and Windows hands its pid to a stranger who
+    // forks a child of its own. A remembered pid is only a number, so admitting the stranger's
+    // child writes it into the evidence file — which is what the app's termination collector
+    // walks from, so Stop/Kill and the permanent purge would take the stranger's tree down.
+    const { known } = await runProbe(
+      [
+        {
+          afterMs: 0,
+          // The worker is the shell's child; the task's own grandchild hangs off it.
+          rows: [
+            [900_002, 'shell', T_MID],
+            [900_001, 900_002, T_WORKER]
+          ]
+        },
+        // The worker and its grandchild are gone: the pid is free again. This phase lasts long
+        // enough for a poll to run over it, so the walk has certainly forgotten the live worker
+        // before the stranger takes its number.
+        { afterMs: 1_200, rows: [[900_002, 'shell', T_MID]] },
+        // A stranger takes the freed pid, stamped later than the worker ever was, and forks a
+        // child of its own after it. The pid is remembered, so a walk that trusts the number
+        // alone reads the stranger's child as the task's own descendant.
+        {
+          afterMs: 900,
+          rows: [
+            [900_002, 'shell', T_MID],
+            [900_001, 900_002, T_REUSED],
+            [900_003, 900_001, T_REUSED_CHILD]
+          ]
+        }
+      ],
+      // The shell outlives every phase, so the final table is what a still-anchored task reads:
+      // the anchor may only leave once the walk can account for what the table still shows.
+      { shellLifetimeMs: 5_000, waitMs: 8_000 }
+    )
+
+    // The stranger's child is not this task's work: admitting it would extend a kill to it.
+    expect(known).not.toContain(900_003)
   })
 })
