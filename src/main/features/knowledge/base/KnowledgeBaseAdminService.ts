@@ -199,7 +199,11 @@ export class KnowledgeBaseAdminService {
           type: 'file',
           data: {
             source: item.data.source,
-            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
+            // A `preparing` file has not been copied into the source base yet, so copy its original.
+            path:
+              item.status === 'preparing'
+                ? item.data.source
+                : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
             // Carry the processed artifact across so the new base indexes from it
             // instead of re-running the (slow, paid) file processor.
             ...(item.data.indexedRelativePath

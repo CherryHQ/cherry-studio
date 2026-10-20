@@ -348,9 +348,15 @@ export class KnowledgeItemService {
     return updatedRows.length
   }
 
-  /** Create an item already in its active status (`preparing` for a directory container, `processing` for a leaf) and reconcile its parent container so an add into an already-completed directory pulls it back into an active status. */
-  createActive(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
-    const status: KnowledgeItemStatus = item.type === 'directory' ? 'preparing' : 'processing'
+  /**
+   * Create an item already in its active status (`preparing` for a directory container or a file
+   * whose bytes are still to be copied in, `processing` for any other leaf) and reconcile its parent
+   * container so an add into an already-completed directory pulls it back into an active status.
+   *
+   * @param options.awaitingCopy - The item's `raw/` bytes land later (`knowledge.copy-sources`).
+   */
+  createActive(baseId: string, item: CreateKnowledgeItemDto, options: { awaitingCopy?: boolean } = {}): KnowledgeItem {
+    const status: KnowledgeItemStatus = item.type === 'directory' || options.awaitingCopy ? 'preparing' : 'processing'
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
       this.validateGroupOwnerTx(tx, baseId, item.groupId)

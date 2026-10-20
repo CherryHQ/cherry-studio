@@ -120,10 +120,9 @@ For leaf items (`file`, `url`, `note`):
 caller
  -> preload IPC add-items(leaf item payloads)
     -> create leaf items
-    -> mark roots processing
-    -> file: enqueue knowledge.copy-sources
-         -> copy-sources copies the bytes off the lock, commits them, schedules the item
-    -> url / note: enqueue knowledge.index-documents
+    -> file: mark preparing, enqueue knowledge.copy-sources
+         -> copy-sources copies the bytes off the lock, commits them, marks processing, schedules the item
+    -> url / note: mark processing, enqueue knowledge.index-documents
 ```
 
 For container items (`directory`):
@@ -202,7 +201,7 @@ There is no separate persisted `phase` field. `preparing`, `reading`, and `embed
 
 Current status writes are:
 
-- `preparing` for active `directory` preparation.
+- `preparing` while an item's source is acquired into the base: active `directory` preparation, or a `file` added through the async copy whose bytes have not landed in `raw/` yet. While a file is `preparing`, preview and restore read its original (`data.source`).
 - `processing` for accepted leaf roots before indexing starts, and for containers that still have active children.
 - `reading` while a leaf item reads source documents.
 - `embedding` while a leaf item embeds chunks.

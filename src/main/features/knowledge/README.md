@@ -57,7 +57,8 @@ Indexing jobs and `knowledge.reindex-subtree` declare `recovery: 'abandon'` — 
 silently resumes them (that would auto-spend the paid embedding API); boot recovery parks
 interrupted items at `failed` instead. Only `knowledge.delete-subtree` uses `recovery: 'retry'`.
 
-Item status flow: `preparing` (directory) / `processing` → `completed` | `failed`; any status →
+Item status flow: `preparing` (directory, or a file whose bytes are still being copied in) /
+`processing` → `completed` | `failed`; any status →
 `deleting` → row removed. `reading`/`embedding` are transient sub-phases surfaced while the index
 job runs.
 

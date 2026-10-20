@@ -167,8 +167,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
               copiedFileItems.push(createInput)
             }
           }
-          const createdItem = knowledgeItemService.createActive(base.id, createInput)
-          acceptedItems.push({ item: createdItem, pendingCopies: options.copyInline ? [] : copies })
+          const pendingCopies = options.copyInline ? [] : copies
+          // Only files wait in `preparing`; a url only owes a copy when restored with a snapshot,
+          // which restore copies inline.
+          const createdItem = knowledgeItemService.createActive(base.id, createInput, {
+            awaitingCopy: createInput.type === 'file' && pendingCopies.length > 0
+          })
+          acceptedItems.push({ item: createdItem, pendingCopies })
         }
       } catch (error) {
         this.rollbackAcceptedItems(
