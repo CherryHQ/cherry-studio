@@ -295,6 +295,9 @@ const AgentChat = ({
       const latest = latestSessionKeyRef.current
       if (!isUniqueModelId(modelId) || sessionSnapshot?.id !== latest.id || sessionSnapshot?.agentId !== latest.agentId)
         return
+      // A stop from any window already cancelled this plan, so arming here would send the execution
+      // follow-up for a plan the user abandoned.
+      if (runtime.sessionStopped) return
       setPlanExecutionHandoff({
         sessionId: sessionSnapshot?.id ?? '',
         agentId: sessionSnapshot?.agentId ?? null,
@@ -309,6 +312,15 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
+  // Any window can stop this session, and the handoff is armed in whichever one approved the plan —
+  // so the stopping window's own state cannot be the invalidation. The session-wide flag is.
+  const sessionStopped = runtime.sessionStopped
+  useEffect(() => {
+    if (!sessionStopped) return
+    // Distinct from the teardown clear below: teardown retires a handoff the flow itself finished,
+    // this one retires a handoff the user cancelled — possibly from another window.
+    disarmPlanExecutionHandoff()
+  }, [sessionStopped, disarmPlanExecutionHandoff])
   // Complete the plan-approval model handoff. Main already resolved the plan as approved and
   // stopped the turn; switch the agent to the chosen model, wait for the stopped turn's stream to
   // settle, then send the execution follow-up — a fresh turn captures the new model.
@@ -326,6 +338,9 @@ const AgentChat = ({
     if (handoff.modelApplied) {
       if (runtime.isPending) return
       setPlanExecutionHandoff(undefined)
+      // Last check before the send: a stop that landed while the model switch was applying would
+      // otherwise restart the cancelled plan once the shared stream settled.
+      if (sessionStopped) return
       void runtime.sendPlanExecutionFollowUp()
       return
     }
@@ -361,6 +376,7 @@ const AgentChat = ({
     runtime.isPending,
     runtime.sendPlanExecutionFollowUp,
     sessionSnapshot?.id,
+    sessionStopped,
     updateModel
   ])
   const openDiagnosticReport = useCallback(

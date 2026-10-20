@@ -1,9 +1,12 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { AGENT_SESSION_STOPPED_CACHE_KEY } from '@shared/ai/agentSessionStopped'
 
 import AgentChat from '../AgentChat'
 
@@ -106,13 +109,30 @@ vi.mock('motion/react', async (importOriginal) => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
-  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+  const { MockUseCache, MockUseCacheUtils } = await import('@test-mocks/renderer/useCache')
+  const { useSyncExternalStore } = await import('react')
+  const subscribeShared = (key: string, callback: () => void) =>
+    MockUseCacheUtils.addSharedSubscriber(key as never, callback)
+  const readShared = (key: string) => MockUseCacheUtils.getSharedCacheValue(key as never)
 
   return {
     ...MockUseCache,
     useCache: () => [false],
-    useSharedCache: () => [undefined, vi.fn()],
-    useSharedCacheValue: () => undefined,
+    // The session-wide stop flag is cross-window state: it has to be observable by every hook
+    // instance, so a write from another window reaches the one holding the armed handoff.
+    useSharedCache: (key: string, initValue?: unknown) => [
+      useSyncExternalStore(
+        (callback: () => void) => subscribeShared(key, callback),
+        () => readShared(key),
+        () => initValue
+      ),
+      (next: unknown) => MockUseCacheUtils.setSharedCacheValue(key as never, next as never)
+    ],
+    useSharedCacheValue: (key: string) =>
+      useSyncExternalStore(
+        (callback: () => void) => subscribeShared(key, callback),
+        () => readShared(key)
+      ),
     usePersistCache: () => [undefined, vi.fn()]
   }
 })
@@ -162,16 +182,21 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: [{ id: 'cherryai', name: 'Cherry AI' }] })
 }))
 
+// Held pending per test so the handoff can be stopped while the model switch is still applying —
+// the window the finding describes.
+const updateModelMock = vi.hoisted(() => vi.fn<() => Promise<{ id: string } | undefined>>())
+const agentModelMock = vi.hoisted(() => ({ model: 'cherryai::claude-sonnet-5' as string }))
+
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
-    agent: { id: 'agent-1', model: 'cherryai::claude-opus-5' },
+    agent: { id: 'agent-1', model: agentModelMock.model },
     isLoading: false
   }),
   useAgents: () => ({
-    agents: [{ id: 'agent-1', model: 'cherryai::claude-opus-5' }],
+    agents: [{ id: 'agent-1', model: agentModelMock.model }],
     isLoading: false
   }),
-  useUpdateAgent: () => ({ updateModel: vi.fn(async () => ({ id: 'agent-1' })) })
+  useUpdateAgent: () => ({ updateModel: updateModelMock })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
@@ -273,13 +298,17 @@ function planApprovalMessage() {
   }
 }
 
+// The agent starts on another model so the handoff has a real switch to perform: the renderer then
+// issues `updateModel` and only sends the follow-up once it resolves.
+const INITIAL_AGENT_MODEL_ID = 'cherryai::claude-sonnet-5'
+
 function renderAgentChat() {
   const bootstrap: ComponentProps<typeof AgentChat>['conversationBootstrap'] = {
     session: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
     sessionLoading: false,
     sessionSource: 'query',
     resources: {
-      agent: { id: 'agent-1', model: PLAN_EXECUTION_MODEL_ID } as any,
+      agent: { id: 'agent-1', model: INITIAL_AGENT_MODEL_ID } as any,
       agentLoading: false,
       model: { id: PLAN_EXECUTION_MODEL_ID, name: 'Claude Opus 5' } as any,
       modelLoading: false
@@ -305,8 +334,17 @@ describe('AgentChat plan-execution handoff gates', () => {
       isEnabled: true,
       capabilities: []
     }
-    ipcMocks.request.mockReset().mockResolvedValue({ ok: true, data: { ok: true } })
+    ipcMocks.request.mockReset().mockImplementation(async (route: string) => {
+      // Production shape: an accepted plan-exit approval reports the handoff Main performed, which
+      // is what arms the renderer's handoff at all.
+      if (route === 'ai.tool.respond_approval')
+        return { ok: true, data: { ok: true, handoff: 'started', executionModelId: PLAN_EXECUTION_MODEL_ID } }
+      return { ok: true, data: { ok: true, mode: 'started' } }
+    })
     ipcMocks.on.mockClear()
+    MockUseCacheUtils.resetMocks()
+    updateModelMock.mockReset().mockResolvedValue({ id: 'agent-1' })
+    agentModelMock.model = 'cherryai::claude-sonnet-5'
     chatHistoryMocks.result = {
       activeExecutions: [],
       sendMessage: vi.fn(),
@@ -421,5 +459,42 @@ describe('AgentChat plan-execution handoff gates', () => {
       )
     )
     expect(respondApprovalPayload()?.executionModelId).toBe(PLAN_EXECUTION_MODEL_ID)
+  })
+
+  // Two windows on one session: the plan is approved here, and the user presses Stop in the other
+  // one before this window's teardown finishes. Stop invalidates only its own window, so without a
+  // session-wide flag this window still sends the execution follow-up and restarts the cancelled plan.
+  it('does not send the execution follow-up when another window stops the session', async () => {
+    // Hold the model switch open so the handoff is still in teardown when the other window stops.
+    let applyModel: () => void = () => {}
+    updateModelMock.mockReturnValue(
+      new Promise((resolve) => {
+        applyModel = () => resolve({ id: 'agent-1' })
+      })
+    )
+    renderAgentChat()
+
+    const notice = await screen.findByTestId('plan-execution-model')
+    expect(notice).toHaveTextContent('agent.toolPermission.executionModel.notice')
+
+    fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+
+    // The other window stops the session: the shared flag is what carries that across windows.
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY('session-1'), true)
+    // This window's teardown now completes, which is what would send the execution follow-up.
+    await act(async () => {
+      applyModel()
+    })
+
+    // The approved plan must stay cancelled: no execution follow-up may go out on a fresh turn.
+    expect(
+      ipcMocks.request.mock.calls.filter(
+        ([route, input]) =>
+          route === 'ai.stream.open' &&
+          (input as { userMessageParts?: Array<{ text?: string }> })?.userMessageParts?.[0]?.text ===
+            'agent.toolPermission.executionModel.followUp'
+      )
+    ).toHaveLength(0)
   })
 })
