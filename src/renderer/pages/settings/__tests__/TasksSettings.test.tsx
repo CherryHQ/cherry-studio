@@ -1577,6 +1577,41 @@ describe('TasksSettings detail behavior', () => {
     expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
   })
 
+  it('finds a task run by the date and 24-hour time displayed in the log', async () => {
+    taskLogsMock.logs = [
+      { ...taskLogsMock.defaultTaskLog, startedAt: '2026-06-25T15:45:00.000Z' },
+      { ...taskLogsMock.defaultTaskLog, id: 'log-2', startedAt: '2026-06-26T09:30:00.000Z', result: 'other run' }
+    ]
+    const user = userEvent.setup()
+    render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByRole('cell', { name: '6/25, 15:45' })).toBeInTheDocument()
+    const search = screen.getByPlaceholderText('agent.tasks.logs.search')
+    await user.type(search, '15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+    expect(screen.queryByText('other run')).not.toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, '6/25, 15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+  })
+
+  it('updates log dates and date searches when the UI language changes', async () => {
+    taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, startedAt: '2026-06-25T15:45:00.000Z' }]
+    const user = userEvent.setup()
+    const { rerender } = render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    expect(screen.getByRole('cell', { name: '6/25, 15:45' })).toBeInTheDocument()
+    translationMock.i18n.language = 'de-DE'
+    rerender(<TasksSettings />)
+    expect(screen.getByRole('cell', { name: '25.6., 15:45' })).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('agent.tasks.logs.search'), '25.6., 15:45')
+    expect(screen.getByText('done')).toBeInTheDocument()
+  })
+
   it('renders a dash for a run without a duration', async () => {
     taskLogsMock.logs = [
       {

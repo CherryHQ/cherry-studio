@@ -83,6 +83,12 @@ const ArchiveItemRow: FC<ArchiveItemRowProps> = ({
         </ItemTitle>
         <ItemDescription className="line-clamp-none flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
           {item.categoryLabel && <span>{item.categoryLabel} · </span>}
+          {item.parentName && (
+            <span className="truncate" title={item.parentName}>
+              {t('settings.data.trash.owned_by', { name: item.parentName })}
+              {' · '}
+            </span>
+          )}
           <span title={deletedAtLabel} aria-label={deletedAtLabel}>
             {deletedTime}
           </span>

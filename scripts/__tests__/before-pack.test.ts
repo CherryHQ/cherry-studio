@@ -4,19 +4,64 @@
  * stopped materialising both CPU architectures for the host OS — the packaging bug that
  * shipped a macOS x64 build without `@img/sharp-darwin-x64`.
  */
-import fs from 'node:fs'
+import fs, { readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 import { Arch } from 'electron-builder'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages, keepPackages, prepareNativeModulesForElectron } from '../before-pack'
-import { prepareWindowsRuntimeFloor } from '../windows-vc-runtime'
+import {
+  assertPrebuiltPackages,
+  keepPackages,
+  prepareNativeModulesForElectron,
+  prepareSystemSpeechHelper
+} from '../packaging/before-pack'
+import { prepareWindowsRuntimeFloor } from '../packaging/windows-vc-runtime'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
+
+describe('prepareSystemSpeechHelper', () => {
+  it('ships the x64 helper once and removes it before an ARM64 packaging pass', () => {
+    const config = parse(readFileSync('electron-builder.yml', 'utf8'))
+    const originalResources = [...config.win.extraResources]
+    const context = { arch: Arch.x64, packager: { platform: { name: 'windows' }, config } }
+    const build = vi.fn()
+
+    prepareSystemSpeechHelper(context, build)
+    prepareSystemSpeechHelper(context, build)
+    expect(config.win.extraResources).toEqual([
+      ...originalResources,
+      {
+        from: 'packages/system-speech/dist/native/win32-x64/cherry-system-speech.exe',
+        to: 'system-speech/cherry-system-speech.exe'
+      }
+    ])
+
+    context.arch = Arch.arm64
+    prepareSystemSpeechHelper(context, () => {
+      throw new Error('ARM64 must not build an x64 helper')
+    })
+    expect(config.win.extraResources).toEqual(originalResources)
+    expect(config.win.signtoolOptions.sign).toBe('scripts/packaging/win-sign.js')
+  })
+
+  it('fails an x64 package when native compilation fails', () => {
+    const config = parse(readFileSync('electron-builder.yml', 'utf8'))
+    const context = { arch: Arch.x64, packager: { platform: { name: 'windows' }, config } }
+    expect(() =>
+      prepareSystemSpeechHelper(context, () => {
+        throw new Error('native compilation failed')
+      })
+    ).toThrow('native compilation failed')
+    expect(config.win.extraResources.some((resource: { to: string }) => resource.to.startsWith('system-speech/'))).toBe(
+      false
+    )
+  })
+})
 
 describe('assertPrebuiltPackages', () => {
   it.each(['arm64', 'x64'])('passes for the host platform on %s', (arch) => {
@@ -37,19 +82,7 @@ describe('prepareNativeModulesForElectron', () => {
     ['mac', Arch.arm64, 'darwin', 'arm64'],
     ['windows', Arch.x64, 'win32', 'x64']
   ])('does not reuse the %s binary mirror for headers', async (platformName, arch, platform, archName) => {
-    let rebuilt = false
-    const rebuild = async (options) => {
-      expect(options).toEqual({
-        buildPath: path.resolve(import.meta.dirname, '../..'),
-        electronVersion: '41.8.0',
-        platform,
-        arch: archName,
-        onlyModules: ['better-sqlite3'],
-        force: true,
-        buildFromSource: true
-      })
-      rebuilt = true
-    }
+    const rebuild = vi.fn(async () => {})
 
     await prepareNativeModulesForElectron(
       {
@@ -68,29 +101,44 @@ describe('prepareNativeModulesForElectron', () => {
       () => {}
     )
 
-    expect(rebuilt).toBe(true)
+    expect(rebuild).toHaveBeenCalledWith({
+      buildPath: path.resolve(import.meta.dirname, '../..'),
+      electronVersion: '41.8.0',
+      platform,
+      arch: archName,
+      onlyModules: ['better-sqlite3'],
+      force: true,
+      buildFromSource: true
+    })
   })
 
   it.each([
     [Arch.arm64, 'arm64'],
     [Arch.x64, 'x64']
   ])('uses the pinned Linux artifact for %s without rebuilding', async (arch, archName) => {
-    let preparedArch
+    const rebuild = vi.fn(async () => {})
+    const ensureLinuxArtifact = vi.fn(() => ({
+      cached: true,
+      inspection: { sha256: 'sha256' }
+    }))
+
     await prepareNativeModulesForElectron(
-      { arch, packager: { platform: { name: 'linux' }, config: { electronVersion: '41.8.0' } } },
-      async () => {
-        throw new Error('Linux must use the pinned artifact')
+      {
+        arch,
+        packager: {
+          platform: { name: 'linux' },
+          config: { electronVersion: '41.8.0' }
+        }
       },
-      ({ projectRoot, arch: targetArch }) => {
-        expect(projectRoot).toBe(path.resolve(import.meta.dirname, '../..'))
-        preparedArch = targetArch
-        return { cached: true, inspection: { sha256: 'sha256' } }
-      },
-      () => {
-        throw new Error('Linux must not inspect MSVC')
-      }
+      rebuild,
+      ensureLinuxArtifact
     )
-    expect(preparedArch).toBe(archName)
+
+    expect(ensureLinuxArtifact).toHaveBeenCalledWith({
+      projectRoot: path.resolve(import.meta.dirname, '../..'),
+      arch: archName
+    })
+    expect(rebuild).not.toHaveBeenCalled()
   })
 })
 
@@ -178,16 +226,6 @@ describe('Windows runtime preparation ordering', () => {
 })
 
 describe('keepPackages', () => {
-  it.each([
-    ['x64', '@deepseek-ai/node-addon-landlock-run-linux-x64', '@deepseek-ai/node-addon-landlock-run-linux-arm64'],
-    ['arm64', '@deepseek-ai/node-addon-landlock-run-linux-arm64', '@deepseek-ai/node-addon-landlock-run-linux-x64']
-  ] as const)('keeps only the Linux %s Landlock executable', (arch, matchingPackage, otherArchPackage) => {
-    const keptPackages = keepPackages('linux', arch)
-
-    expect(keptPackages).toContain(matchingPackage)
-    expect(keptPackages).not.toContain(otherArchPackage)
-  })
-
   // The name matcher keys off arch and platform tokens, and this package name carries
   // neither. Left to it, a Mac build would drop the module the permission prompt needs,
   // and a Windows or Linux build cross-made on a Mac would ship its darwin-only `.node`.

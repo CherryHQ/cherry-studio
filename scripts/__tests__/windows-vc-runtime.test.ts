@@ -10,7 +10,7 @@ import {
   deriveRuntimeFloor,
   prepareWindowsRuntimeFloor,
   renderRuntimeFloor
-} from '../windows-vc-runtime'
+} from '../packaging/windows-vc-runtime'
 
 const fixture = (build = 35211) => ({
   toolsets: [{ path: 'VS/VC/Tools/MSVC/14.44.35207', version: '14.44.35207' }],

@@ -1,7 +1,7 @@
 /**
  * Normalizes function-tool JSON Schemas into what providers actually accept.
  *
- * Two passes, both always on — the keywords involved are advisory hints no
+ * Keyword passes are always on — the keywords involved are advisory hints no
  * provider enforces, so dropping them everywhere costs nothing and beats
  * per-provider gating:
  *   - every function tool loses `$schema` (dialect metadata Gemini's parser
@@ -11,6 +11,10 @@
  *     the strict subset — Anthropic and OpenAI compile that schema into a
  *     sampling grammar and 400 the whole request otherwise (issue #18037).
  *     Zod emits them freely (`.int()` alone adds safe-integer bounds).
+ *   - a root-only pass adds missing `properties: {}` to explicit object schemas
+ *     for compatibility (issue #21957); this is validation-neutral because absent
+ *     `properties` and `{}` declare the same empty property set while
+ *     `additionalProperties` keeps its meaning.
  *   - a Gemini-only pass replaces non-string `enum`/`const` values with their
  *     bare type (Gemini's Schema proto types `enum` as string lists only) and
  *     drops a function tool when an array has no typed `items` schema; there
@@ -142,6 +146,24 @@ function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<stri
   return mapSchemas(schema, (node) => dropKeywords(node, keywords))
 }
 
+/**
+ * Some OpenAI-compatible validators reject the whole request when a function's
+ * `parameters` is an object schema without a `properties` member — a
+ * parameterless MCP tool from a Go-SDK server serializes as
+ * `{ "type": "object", "additionalProperties": false }` (issue #21957).
+ * Adding the empty map is validation-neutral: a missing `properties` and `{}`
+ * declare the same empty property set, `additionalProperties` keeps its
+ * meaning, and the original schema still validates tool calls locally.
+ * A root `$ref` is left alone because providers (the pinned Google adapter)
+ * merge root siblings over the referenced definition, so an empty `properties`
+ * map would erase the referenced parameters.
+ */
+function addMissingProperties(node: JSONSchema7Definition): JSONSchema7Definition {
+  if (typeof node !== 'object' || Array.isArray(node)) return node
+  if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
+  return { ...node, properties: {} }
+}
+
 /** The single simple type shared by every value, if one exists. */
 function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | undefined {
   if (values.length === 0) return undefined
@@ -167,6 +189,30 @@ function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
   delete replacement.const
   if (replacement.type === undefined) replacement.type = kind
   return replacement
+}
+
+/**
+ * Gemini's Schema proto requires a concrete `type` — a draft-07 type array
+ * (third-party MCP servers advertise nullable scalars as
+ * `type: ["number", "null"]`) reaches `convertJSONSchemaToOpenAPISchema`, which
+ * maps the array into an `anyOf` without ever setting a top-level `type`, and
+ * the request 400s with "didn't specify the schema type field" (issue #21394).
+ * Rewrites the array into explicit `anyOf` branches — one per listed type,
+ * each carrying the node's other keywords — which the converter already folds
+ * into `nullable` + a typed schema. Nullability survives as its own branch;
+ * the original zod schema still validates locally.
+ */
+function expandTypeArrays(node: JSONSchema7): JSONSchema7 {
+  const type = node.type
+  if (!Array.isArray(type) || type.length === 0 || type.some((entry) => typeof entry !== 'string')) return node
+  if (node.anyOf !== undefined) return node
+
+  const rest: JSONSchema7 = { ...node }
+  delete rest.type
+  if (type.length === 1) return { ...rest, type: type[0] }
+
+  const branches = type.map((entry) => (entry === 'null' ? { type: entry } : { ...rest, type: entry }))
+  return { ...rest, anyOf: branches }
 }
 
 function isGeminiArraySchema(schema: JSONSchema7): boolean {
@@ -225,7 +271,9 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
     let inputSchema = stripKeywords(tool.inputSchema, keywords)
+    inputSchema = addMissingProperties(inputSchema)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
+    if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
     if (inputSchema === tool.inputSchema) transformedTools.push(tool)
     else {
