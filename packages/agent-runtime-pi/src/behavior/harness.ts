@@ -3,8 +3,9 @@ import type { ExtensionFactory, SessionManager } from '@earendil-works/pi-coding
 import type { BoundPorts, HarnessPorts, Key, LifecycleHandlers, SubagentOrigin } from '@cherrystudio/agent-behavior'
 import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
+import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
-import { conversationExtension, meterRequests } from './extension'
+import { compactionSummarizer, conversationExtension, meterRequests } from './extension'
 import { commit, modelContext, readFacts } from './ledger'
 import { awaitAnswer, drain, inputDone, messageChild, retract, startTurn, stopRun, submit, withdraw } from './runs'
 import {
@@ -24,6 +25,11 @@ export type BehaviorSessionRequest = {
   /** The adapter's extension; the session must install it. */
   readonly extension: ExtensionFactory
   /**
+   * The session's compaction summarizer: pass it as `compaction.summarize`, so every compaction asks `onCompacting`
+   * (H12) and a decline's reason becomes the `compaction-end` error.
+   */
+  readonly summarize: CompactionSummarizer
+  /**
    * For a child: give it the model `origin.modelKey` names. The adapter's extension already leaves out the package's
    * `'parent-only'` tools; host-owned tools follow the host's own child configuration.
    */
@@ -36,8 +42,8 @@ export interface PiBehaviorOptions {
   /** Builds the native session of a conversation the adapter opens (`createAgentRuntimeSession`, Pi's retry off). */
   readonly openSession: (request: BehaviorSessionRequest) => Promise<AgentRuntimeSession>
   /**
-   * Errors no caller awaits: a job that threw, a run that failed to start, an automatic compaction's `onCompacted`,
-   * what a handler Pi calls threw, a quiet input that failed to write, a run the adapter did not start.
+   * Errors no caller awaits: a job that threw, a run that failed to start, an automatic compaction's `onCompacting` or
+   * `onCompacted`, what a handler Pi calls threw, a quiet input that failed to write, a run the adapter did not start.
    */
   readonly onError?: (error: unknown) => void
 }
@@ -50,7 +56,7 @@ export interface PiBehavior {
   withCall<T>(thread: ThreadId, use: (ports: BoundPorts) => Promise<T>): Promise<T>
   /** A person's text: starts a run when the conversation is idle, otherwise waits in the inbox for a run of its own. */
   submitUser(thread: ThreadId, text: string): Promise<void>
-  /** Compacts now; resolves once `onCompacted` has run. */
+  /** Compacts now; resolves once `onCompacted` has run, or once `onCompacting` declined and nothing was compacted. */
   compact(thread: ThreadId): Promise<void>
   /** Resolves once no run is active and no job is live; inputs a failed run left do not count. */
   settled(): Promise<void>
@@ -220,6 +226,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),
+      summarize: compactionSummarizer(adapter, conv),
       ...(child && { child })
     })
     conv.native = native
@@ -336,8 +343,12 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       const conv = conversation(thread)
       if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
       conv.hostCompacts += 1
+      conv.declined = false
       try {
         await conv.native.compact()
+      } catch (error) {
+        // A decline compacts nothing and is no failure of the call; its reason is the `compaction-end` error.
+        if (!conv.declined) throw error
       } finally {
         conv.hostCompacts -= 1
         wake(conv)

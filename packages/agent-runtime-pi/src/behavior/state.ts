@@ -83,6 +83,8 @@ export type Conversation = {
   hostCompacts: number
   /** `onCompacted` of the latest compaction and the drain after it. */
   compacted: Promise<void>
+  /** The adapter's summarizer declined the latest compaction: `onCompacting` declined or the meter refused it. */
+  declined: boolean
 }
 export type JobRecord = {
   readonly key: Key
@@ -136,7 +138,8 @@ export function newConversation(
     runUsage: [],
     waiters: [],
     hostCompacts: 0,
-    compacted: Promise.resolve()
+    compacted: Promise.resolve(),
+    declined: false
   }
 }
 
