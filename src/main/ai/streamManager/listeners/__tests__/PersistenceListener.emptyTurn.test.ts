@@ -323,6 +323,7 @@ describe('PersistenceListener — successful turn with no content (P2)', () => {
 
   /**
    * A user-stopped turn is `paused`, never `success` — it must not be reclassified.
+   */
   it('does not classify a paused turn as an empty success', async () => {
     const ctxPaused = capturingBackend()
     const pausedListener = makeListener(ctxPaused.backend)
