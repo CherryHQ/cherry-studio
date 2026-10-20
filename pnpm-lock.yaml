@@ -163,6 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@aiany/sqlite-vec-linux-x64': npm:sqlite-vec-linux-x64@0.1.9
   '@earendil-works/pi-ai@1.0.0>@google/genai': 2.23.0
   picomatch: 4.0.4
   concurrently>shell-quote: 1.8.4
@@ -384,8 +385,8 @@ importers:
         specifier: 1.16.1
         version: 1.16.1
       selection-hook:
-        specifier: 2.1.1
-        version: 2.1.1
+        specifier: 2.1.2
+        version: 2.1.2
       sharp:
         specifier: 0.35.3
         version: 0.35.3(@types/node@24.10.4)
@@ -575,10 +576,10 @@ importers:
         version: 3.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@44.4.4(supports-color@8.1.1))
+        version: 3.0.2(electron@44.9.3(supports-color@8.1.1))
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@44.4.4(supports-color@8.1.1))
+        version: 3.0.0(electron@44.9.3(supports-color@8.1.1))
       '@electron/asar':
         specifier: 3.4.1
         version: 3.4.1
@@ -1042,8 +1043,8 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0
       electron:
-        specifier: 44.4.4
-        version: 44.4.4(supports-color@8.1.1)
+        specifier: 44.9.3
+        version: 44.9.3(supports-color@8.1.1)
       electron-builder:
         specifier: 26.15.6
         version: 26.15.6(electron-builder-squirrel-windows@26.15.6)(supports-color@8.1.1)
@@ -1469,8 +1470,8 @@ importers:
         specifier: 0.1.10-alpha.4.aiany.2
         version: 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-linux-x64':
-        specifier: 0.1.10-alpha.4.aiany.2
-        version: 0.1.10-alpha.4.aiany.2
+        specifier: npm:sqlite-vec-linux-x64@0.1.9
+        version: sqlite-vec-linux-x64@0.1.9
       '@aiany/sqlite-vec-windows-arm64':
         specifier: 0.1.10-alpha.4.aiany.2
         version: 0.1.10-alpha.4.aiany.2
@@ -2367,11 +2368,6 @@ packages:
   '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2':
     resolution: {integrity: sha512-pT0hJnscNnjVWHdTWMv3npjkzteORzmb1HwM6gmN4pGpwdgKy/sqxb4rRszmSvAtEjd1NoZnkjw6AfAoGD6Jug==}
     cpu: [arm64]
-    os: [linux]
-
-  '@aiany/sqlite-vec-linux-x64@0.1.10-alpha.4.aiany.2':
-    resolution: {integrity: sha512-6nZtJNrA0F8Df4eM+6vRQzKVqjTnqvhqFPAMEJv5viw/Dwc9kqOSIDCighclkS4T4je+zRZjofBSqL6cR3TL7w==}
-    cpu: [x64]
     os: [linux]
 
   '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2':
@@ -10254,8 +10250,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.4.4:
-    resolution: {integrity: sha512-UNi4cRJf9VEDHp8nRIQ+xsPz4AKnluMmxB5D3r7z/2XoG08IrtwGFEhqCub19RCFjM+dKTkMeI93ZqXdvw+JSQ==}
+  electron@44.9.3:
+    resolution: {integrity: sha512-Cv9/yMnZxNWsMlIe8T4v//NKHdUvbeyoTJoXE3BIcRxus2meeFaO9h/P3zB5d4cBXum51IgAYrT2QjpIDWKpJA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -14170,8 +14166,8 @@ packages:
   selderee@0.11.0:
     resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
 
-  selection-hook@2.1.1:
-    resolution: {integrity: sha512-8ZqU2ModYR7Ji2s/T4GUgxBeZw2oeOJZeYMyMT6kxZUPkJUD193kGLIF1mxqlV6pYSmo0CBGi9mW8468PsMuYA==}
+  selection-hook@2.1.2:
+    resolution: {integrity: sha512-eNPQzL+OFf4WUXApxpXiplTUicL5MAtxm3yXi6dIRY8VUZ+2vuXHnlFBSQ/LXAe8hXewMM91SWK+YjU06ZbZVg==}
     engines: {node: '>=18.0.0'}
 
   semver-compare@1.0.0:
@@ -14404,6 +14400,11 @@ packages:
 
   sprintf-js@1.1.3:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
+
+  sqlite-vec-linux-x64@0.1.9:
+    resolution: {integrity: sha512-w3tCH8xK2finW8fQJ/m8uqKodXUZ9KAuAar2UIhz4BHILfpE0WM/MTGCRfa7RjYbrYim5Luk3guvMOGI7T7JQA==}
+    cpu: [x64]
+    os: [linux]
 
   srvx@0.11.16:
     resolution: {integrity: sha512-bp07zRuycfTY43IjAvvTFnmnJi8ikW0VFiHwOhhYcVW/L4xQ1XY4PAd4Nuum1rsA17C39zL7x+CDhrn5AL32Rw==}
@@ -15924,9 +15925,6 @@ snapshots:
   '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2':
     optional: true
 
-  '@aiany/sqlite-vec-linux-x64@0.1.10-alpha.4.aiany.2':
-    optional: true
-
   '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2':
     optional: true
 
@@ -15938,7 +15936,7 @@ snapshots:
       '@aiany/sqlite-vec-darwin-arm64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-darwin-x64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-linux-arm64': 0.1.10-alpha.4.aiany.2
-      '@aiany/sqlite-vec-linux-x64': 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-linux-x64': sqlite-vec-linux-x64@0.1.9
       '@aiany/sqlite-vec-windows-arm64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-windows-x64': 0.1.10-alpha.4.aiany.2
 
@@ -17446,13 +17444,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@44.4.4(supports-color@8.1.1))':
+  '@electron-toolkit/preload@3.0.2(electron@44.9.3(supports-color@8.1.1))':
     dependencies:
-      electron: 44.4.4(supports-color@8.1.1)
+      electron: 44.9.3(supports-color@8.1.1)
 
-  '@electron-toolkit/utils@3.0.0(electron@44.4.4(supports-color@8.1.1))':
+  '@electron-toolkit/utils@3.0.0(electron@44.9.3(supports-color@8.1.1))':
     dependencies:
-      electron: 44.4.4(supports-color@8.1.1)
+      electron: 44.9.3(supports-color@8.1.1)
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -24742,7 +24740,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@44.4.4(supports-color@8.1.1):
+  electron@44.9.3(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.3
       '@electron/get': 5.0.0(supports-color@8.1.1)
@@ -29533,7 +29531,7 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  selection-hook@2.1.1:
+  selection-hook@2.1.2:
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4
@@ -29793,6 +29791,9 @@ snapshots:
   sprintf-js@1.0.3: {}
 
   sprintf-js@1.1.3:
+    optional: true
+
+  sqlite-vec-linux-x64@0.1.9:
     optional: true
 
   srvx@0.11.16: {}

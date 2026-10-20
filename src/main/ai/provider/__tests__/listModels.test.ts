@@ -482,11 +482,53 @@ describe('listModels — Ollama capabilities', () => {
       capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     expect(models[0].reasoning).toBeUndefined()
-    expect(models[1]).toMatchObject({ capabilities: [] })
+    expect(models[1]).toMatchObject({
+      apiModelId: 'qwen3-embedding:4b',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
     expect(models[1].reasoning).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it.each([
+    {
+      label: 'embedding support for a non-catalog name',
+      nativeModel: { name: 'acme-retriever:latest', capabilities: ['embedding'] },
+      expected: [MODEL_CAPABILITY.EMBEDDING]
+    },
+    {
+      label: 'chat-only support without embedding',
+      nativeModel: { name: 'llama3', capabilities: ['completion'] },
+      expected: []
+    },
+    {
+      label: 'omitted capabilities without inventing flags',
+      nativeModel: { name: 'unclassified:latest' },
+      expected: []
+    },
+    {
+      label: 'unknown flags without inventing capabilities',
+      nativeModel: { name: 'future:latest', capabilities: ['future-capability'] },
+      expected: []
+    },
+    {
+      label: 'additive capabilities in deterministic order',
+      nativeModel: {
+        name: 'multitask:latest',
+        capabilities: ['embedding', 'tools', 'thinking', 'completion', 'future-capability']
+      },
+      expected: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.EMBEDDING]
+    }
+  ])('lists a model with $label', async ({ nativeModel, expected }) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [nativeModel] } })
+
+    const { models } = await listModels(makeOllamaProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe(nativeModel.name)
+    expect(models[0].capabilities).toEqual(expected)
   })
 
   it('maps the tools flag to the function-call capability without thinking', async () => {
