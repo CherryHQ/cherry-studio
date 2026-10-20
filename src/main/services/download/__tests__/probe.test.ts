@@ -37,6 +37,19 @@ beforeAll(async () => {
       return
     }
 
+    if (mode === 'lying') {
+      // Advertises range support but always answers with the full body.
+      const body = request.method === 'HEAD' ? undefined : CONTENT
+      response.writeHead(200, {
+        'content-type': 'application/octet-stream',
+        'content-length': String(CONTENT.length),
+        'accept-ranges': 'bytes',
+        etag: '"v1"'
+      })
+      response.end(body)
+      return
+    }
+
     // Default: a well-behaved range server.
     if (request.method === 'HEAD') {
       response.writeHead(200, {
@@ -91,5 +104,13 @@ describe('probeDownload', () => {
 
     expect(probe.supportsRanges).toBe(false)
     expect(probe.totalBytes).toBe(CONTENT.length)
+  })
+
+  it('does not trust Accept-Ranges without a 206 answer', async () => {
+    const probe = await probeDownload(`${baseUrl}/lying`, fetch)
+
+    expect(probe.supportsRanges).toBe(false)
+    expect(probe.totalBytes).toBe(CONTENT.length)
+    expect(probe.etag).toBe('"v1"')
   })
 })

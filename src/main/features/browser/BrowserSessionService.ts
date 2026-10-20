@@ -9,6 +9,7 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { DownloadManagerService } from '@main/services/download/DownloadManagerService'
+import { isReplayableDownload, RequestMethods } from '@main/services/download/requestMethods'
 import { markBrowserDownload } from '@main/services/download/takeover'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -65,6 +66,7 @@ export class BrowserSessionService extends BaseService {
   private readonly agentServers = new Set<BrowserServer | BrowserControlSession>()
   private readonly servers = new Set<BrowserServer | BrowserControlSession>()
   private readonly sessions = new Map<number, SessionEntry>()
+  private readonly requestMethods = new RequestMethods()
 
   protected onInit(): void {
     const guests = new Map<Electron.WebContents, () => void>()
@@ -142,16 +144,32 @@ export class BrowserSessionService extends BaseService {
    * Hands browser-initiated downloads to the download manager. `blob:`/`data:`
    * URLs stay on Electron's own path: they have no range-addressable resource to
    * re-request, so cancelling them here would lose the download entirely.
+   *
+   * The manager re-issues every transfer as GET, so a POST-triggered attachment
+   * must stay with Electron: cancelling it would discard a response that cannot
+   * be reproduced. Electron does not expose the request method on `DownloadItem`,
+   * hence the `webRequest` recorder.
    */
   private takeOverBrowserDownloads(partitions: readonly string[]): void {
     const listeners = partitions.map((partition) => {
       const target = session.fromPartition(partition)
+      // Electron keeps a single `onBeforeRequest` listener per session; these
+      // partitions have no other owner, and the recorder is removed with it.
+      target.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
+        this.requestMethods.record(details.url, details.method)
+        callback({})
+      })
       const onWillDownload = (event: Electron.Event, item: Electron.DownloadItem) => {
         const url = item.getURL()
         if (!url.startsWith('http:') && !url.startsWith('https:')) return
         const manager = this.downloadManager()
         // No manager in this build: leave the item on Electron's own path.
         if (!manager) return
+        const method = this.requestMethods.methodFor(url)
+        if (!isReplayableDownload(method)) {
+          logger.info('Leaving non-replayable download with Electron', { url, method })
+          return
+        }
         event.preventDefault()
         markBrowserDownload(item)
         void manager
@@ -165,7 +183,10 @@ export class BrowserSessionService extends BaseService {
           .catch((error) => logger.warn('Failed to enqueue browser download', { error }))
       }
       target.on('will-download', onWillDownload)
-      return () => target.removeListener('will-download', onWillDownload)
+      return () => {
+        target.removeListener('will-download', onWillDownload)
+        target.webRequest.onBeforeRequest(null)
+      }
     })
     this.registerDisposable(() => {
       for (const remove of listeners) remove()
