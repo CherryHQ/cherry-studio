@@ -320,6 +320,30 @@ function extractImageEntries(raw: unknown): ExtractedImage[] {
   return images
 }
 
+/**
+ * Mirror the locked `@ai-sdk/openai` image model: `usage.input_tokens_details` is
+ * spread across the per-image metadata, with the remainder on the last image.
+ */
+function distributeTokenDetails(
+  details: unknown,
+  index: number,
+  total: number
+): { imageTokens?: number; textTokens?: number } {
+  if (!details || typeof details !== 'object') return {}
+  const record = details as Record<string, unknown>
+  const result: { imageTokens?: number; textTokens?: number } = {}
+  const spread = (key: 'imageTokens' | 'textTokens', source: 'image_tokens' | 'text_tokens') => {
+    const value = record[source]
+    if (typeof value !== 'number') return
+    const base = Math.floor(value / total)
+    const remainder = value - base * (total - 1)
+    result[key] = index === total - 1 ? remainder : base
+  }
+  spread('imageTokens', 'image_tokens')
+  spread('textTokens', 'text_tokens')
+  return result
+}
+
 /** Per-image OpenAI metadata for leniently recovered images, mirroring the strict SDK shape. */
 function recoveredImageMetadata(raw: unknown, entries: ExtractedImage[]): JSONObject[] {
   const record = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
@@ -333,12 +357,17 @@ function recoveredImageMetadata(raw: unknown, entries: ExtractedImage[]): JSONOb
   ] as const) {
     if (typeof value === 'string' || typeof value === 'number') shared[key] = value
   }
-  return entries.map(({ item }) => {
+  const usage =
+    record.usage && typeof record.usage === 'object' && !Array.isArray(record.usage)
+      ? (record.usage as Record<string, unknown>)
+      : {}
+  return entries.map(({ item }, index) => {
     const itemRecord = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
     const revisedPrompt = itemRecord.revised_prompt ?? itemRecord.revisedPrompt
     return {
       ...(typeof revisedPrompt === 'string' && revisedPrompt ? { revisedPrompt } : {}),
-      ...shared
+      ...shared,
+      ...distributeTokenDetails(usage.input_tokens_details, index, entries.length)
     }
   })
 }
@@ -500,10 +529,17 @@ function withTolerantOpenAIImageResponse(
         cause: unknown
       ): APICallError =>
         new APICallError({
-          message: `CherryIN image response (HTTP ${captureStatus}) contained no recognizable image data ${JSON.stringify(shape)}. The upstream generation may have been billed; retrying starts a new billable generation.`,
+          // Plain text without JSON containers: getSafeProviderErrorMessage discards
+          // any message matching a brace/bracket container pattern, which would
+          // erase the billing warning before it reaches the renderer.
+          message: `CherryIN image response (HTTP ${captureStatus}) contained no recognizable image data. The upstream generation may have been billed; retrying starts a new billable generation.`,
           statusCode: captureStatus,
           url: captureUrl,
           responseHeaders: captureHeaders,
+          // Sanitized shape diagnostics (keys/lengths, or capture metadata) travel in
+          // `data`, separately from the user-facing message; the capped upstream body
+          // stays in responseBody.
+          data: shape,
           ...(rawText && rawText.length <= 2000 ? { responseBody: rawText } : {}),
           requestBodyValues: {},
           isRetryable: false,

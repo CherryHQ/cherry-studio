@@ -157,6 +157,57 @@ describe('CherryIN OpenAI image responses', () => {
     expect(result.usage).toMatchObject({ inputTokens: 7, totalTokens: 9 })
   })
 
+  it('mirrors per-image token details from usage.input_tokens_details across recovered images', async () => {
+    const payload = `${toB64('metered-details-bytes-')}${'a'.repeat(200)}`
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(
+      fetchReturning(() =>
+        jsonResponse({
+          created: 1700000000,
+          data: [
+            { base64_json: payload },
+            { base64_json: payload },
+            { base64_json: payload },
+            { base64_json: payload }
+          ],
+          usage: {
+            input_tokens: 23,
+            output_tokens: 4,
+            total_tokens: 27,
+            input_tokens_details: { image_tokens: 10, text_tokens: 9 }
+          }
+        })
+      )
+    )
+
+    const result = await imageModel(fetchMock).doGenerate({ ...generateOptions('four cats'), n: 4 })
+
+    expect(result.images).toHaveLength(4)
+    expect(result.usage).toMatchObject({ inputTokens: 23, outputTokens: 4, totalTokens: 27 })
+    const images = result.providerMetadata?.openai?.images as Array<Record<string, number>>
+    expect(images.map((item) => item.imageTokens)).toEqual([2, 2, 2, 4])
+    expect(images.map((item) => item.textTokens)).toEqual([2, 2, 2, 3])
+  })
+
+  it('ignores non-numeric token details instead of polluting recovered metadata', async () => {
+    const payload = `${toB64('blank-details-bytes-')}${'a'.repeat(200)}`
+    const fetchMock = vi.fn<FetchFunction>().mockImplementation(
+      fetchReturning(() =>
+        jsonResponse({
+          data: [{ base64_json: payload }],
+          usage: { input_tokens: 3, input_tokens_details: { image_tokens: 'many' } }
+        })
+      )
+    )
+
+    const result = await imageModel(fetchMock).doGenerate(generateOptions('a cat'))
+
+    expect(result.images).toEqual([payload])
+    const images = result.providerMetadata?.openai?.images as Array<Record<string, unknown>>
+    expect(images).toHaveLength(1)
+    expect('imageTokens' in images[0]).toBe(false)
+    expect('textTokens' in images[0]).toBe(false)
+  })
+
   it('rejects a non-image data URI instead of returning it as pixels', async () => {
     const fetchMock = vi
       .fn<FetchFunction>()
@@ -185,6 +236,8 @@ describe('CherryIN OpenAI image responses', () => {
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).message).toMatch('no recognizable image data')
     expect((error as Error).message).toMatch('may have been billed')
+    // The sanitizer discards messages that contain a brace/bracket container.
+    expect((error as Error).message).not.toMatch(/[{[]/)
     expect((error as { isRetryable?: boolean }).isRetryable).toBe(false)
   })
 
@@ -201,6 +254,7 @@ describe('CherryIN OpenAI image responses', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect((error as Error).message).toMatch('may have been billed')
+    expect((error as { data?: Record<string, unknown> }).data).toMatchObject({ capture: 'skipped-over-cap' })
     expect((error as { isRetryable?: boolean }).isRetryable).toBe(false)
   })
 
@@ -229,7 +283,7 @@ describe('CherryIN OpenAI image responses', () => {
     )
 
     expect((error as Error).message).toMatch('may have been billed')
-    expect((error as Error).message).toMatch('skipped-over-cap')
+    expect((error as { data?: Record<string, unknown> }).data).toMatchObject({ capture: 'skipped-over-cap' })
   })
 
   it('throws the terminal no-image error once instead of re-parsing it as a strict-parser failure', async () => {
@@ -328,7 +382,7 @@ describe('CherryIN OpenAI image responses', () => {
     )
 
     expect((error as Error).message).toMatch('may have been billed')
-    expect((error as Error).message).toMatch('unparsable')
+    expect((error as { data?: Record<string, unknown> }).data).toMatchObject({ capture: 'unparsable' })
     expect((error as { isRetryable?: boolean }).isRetryable).toBe(false)
   })
 
