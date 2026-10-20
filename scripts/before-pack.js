@@ -6,6 +6,7 @@ const path = require('path')
 const { parse } = require('yaml')
 
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+const { prepareWindowsRuntimeFloor } = require('./windows-vc-runtime')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -109,7 +110,8 @@ const platformToArch = {
 async function prepareNativeModulesForElectron(
   context,
   rebuildFn = rebuild,
-  ensureLinuxArtifact = ensureLinuxNativeArtifact
+  ensureLinuxArtifact = ensureLinuxNativeArtifact,
+  prepareWindowsRuntime = prepareWindowsRuntimeFloor
 ) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
@@ -131,6 +133,13 @@ async function prepareNativeModulesForElectron(
         `linux-${arch} (${artifact.inspection.sha256})\n`
     )
     return
+  }
+
+  if (platform === 'win32') {
+    if (context.arch !== Arch.arm64 && context.arch !== Arch.x64) {
+      throw new Error(`Unsupported Windows packaging architecture: ${context.arch}`)
+    }
+    prepareWindowsRuntime({ buildResourcesDir: context.packager.info.buildResourcesDir })
   }
 
   // electron-builder's automatic pnpm rebuild can retain the host Node prebuild.
