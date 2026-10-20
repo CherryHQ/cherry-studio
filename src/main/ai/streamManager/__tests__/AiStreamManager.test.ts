@@ -2054,6 +2054,57 @@ describe('AiStreamManager', () => {
       expect(continuationListener.pausedResults).toHaveLength(0)
     })
 
+    it('retains the identity of a user Stop that joins another Stop’s live drain', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let releaseDrain!: () => void
+      let successorAdmitted!: () => void
+      const successorStarted = new Promise<void>((resolve) => {
+        successorAdmitted = resolve
+      })
+      mockHandleUserStop.mockImplementationOnce(async () => {
+        // The graceful stop resumes a queued successor while still holding the dispatch lock, then
+        // parks so a second window's Stop can join this drain before it resolves.
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+        successorAdmitted()
+        await new Promise<void>((resolve) => {
+          releaseDrain = resolve
+        })
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      await successorStarted
+      // A second window stops the same turn: its request joins the live drain, while its own
+      // transport duplicate is only delivered later.
+      const joining = mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+      releaseDrain()
+
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(joining).resolves.toBeUndefined()
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+
+      // The joining Stop's delayed twin lands after the drain resolved and the successor is live.
+      // Without its retained identity it starts a fresh drain and cancels that successor.
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+      ).resolves.toBeUndefined()
+
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
     it('rejects a duplicate user Stop against the Stop identity, not the successor live turn id', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')

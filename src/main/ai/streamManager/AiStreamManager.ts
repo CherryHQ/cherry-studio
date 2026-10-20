@@ -376,7 +376,8 @@ export class AiStreamManager extends BaseService {
    * Stop ids each topic already drained, so the duplicate requests of that same Stop — the explicit
    * abort and `sdkStop`'s transport signal — return early. Keyed by the Stop's identity, not by a
    * turn id: the graceful interrupt resumes a queued successor under the live turn, so a turn-id
-   * key would swallow a genuinely new Stop for that successor.
+   * key would swallow a genuinely new Stop for that successor. A late Stop that joins another
+   * Stop's drain adds its id here too; a fresh Stop replaces the set with its own generation.
    */
   private readonly stoppedStopsByTopic = new Map<string, Set<string>>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
@@ -1256,8 +1257,23 @@ export class AiStreamManager extends BaseService {
     // the queued successor the first stop just resumed. Only hookless callers join: a `beforeAbort`
     // (remote cancellation validating `expectedExecutionId`) owns its guard and its cancellation.
     const drainKey = `${topicId}\u0000${reason}`
+    // A UI Stop is the only reason whose twin can arrive after its drain resolved. The twin is
+    // recognised by the Stop's own identity, which both of its requests carry: recording the turn
+    // id instead would also swallow a separate Stop for the successor the graceful interrupt
+    // resumed under the live turn.
+    const stopIdOfUserStop = reason === USER_STOP_ABORT_REASON && isAgentSessionTopic(topicId) ? stopId : undefined
     const inFlight = beforeAbort ? undefined : this.drainingTopics.get(drainKey)
-    if (inFlight) return inFlight
+    if (inFlight) {
+      // A Stop that joins this drain must still leave its identity behind: its delayed transport
+      // twin can land after the drain resolves and the successor resumes, and would drain it.
+      this.recordStoppedStop(topicId, stopIdOfUserStop)
+      return inFlight
+    }
+    if (stopIdOfUserStop !== undefined) {
+      if (this.stoppedStopsByTopic.get(topicId)?.has(stopIdOfUserStop)) return
+      // A fresh Stop starts a new generation, replacing the previous drain's identities.
+      this.stoppedStopsByTopic.set(topicId, new Set([stopIdOfUserStop]))
+    }
     const draining = this.withDispatchLock(topicId, async () => {
       beforeAbort?.()
       const stream = this.activeStreams.get(topicId)
@@ -1269,17 +1285,6 @@ export class AiStreamManager extends BaseService {
       // Bind the stop to the turn being drained: terminal handling can admit a queued successor
       // while this lock is held, and the driver cancel is identity-free.
       const stoppedTurnId = agentSession ? agentSession.runtime.getLiveTurnId(agentSession.sessionId) : undefined
-      // A UI Stop is the only reason whose twin can arrive after this drain resolved. The twin is
-      // recognised by the Stop's own identity, which both of its requests carry: recording the turn
-      // id instead would also swallow a separate Stop for the successor the graceful interrupt
-      // resumed under the live turn.
-      const userStop = reason === USER_STOP_ABORT_REASON && agentSession !== undefined
-      if (userStop && stopId !== undefined) {
-        if (this.stoppedStopsByTopic.get(topicId)?.has(stopId)) return
-        // Replaces the previous Stop's record, so the set never grows past one Stop per topic.
-        this.stoppedStopsByTopic.set(topicId, new Set([stopId]))
-      }
-
       this.abort(topicId, reason)
       await Promise.allSettled(loopPromises)
 
@@ -1317,6 +1322,14 @@ export class AiStreamManager extends BaseService {
     })
     this.drainingTopics.set(drainKey, draining)
     return draining
+  }
+
+  /** Retain a Stop identity on the topic's current drain generation, so its delayed twin returns early. */
+  private recordStoppedStop(topicId: string, stopId: string | undefined): void {
+    if (stopId === undefined) return
+    const stopped = this.stoppedStopsByTopic.get(topicId)
+    if (stopped) stopped.add(stopId)
+    else this.stoppedStopsByTopic.set(topicId, new Set([stopId]))
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
