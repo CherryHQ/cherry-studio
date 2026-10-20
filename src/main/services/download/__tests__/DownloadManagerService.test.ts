@@ -16,6 +16,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { DownloadManagerService } from '../DownloadManagerService'
 import type { DownloadConflictPolicy } from '../downloadPath'
 import { DownloadStore } from '../downloadStore'
+import type { FetchLike } from '../probe'
 import { planSegments } from '../segmentedDownload'
 
 const CONTENT = Buffer.alloc(64 * 1024, 7)
@@ -24,6 +25,11 @@ const CONTENT = Buffer.alloc(64 * 1024, 7)
 function internals(service: DownloadManagerService) {
   return service as unknown as {
     reservePath(dir: string, fileName: string, policy: DownloadConflictPolicy): Promise<string>
+    fetchFor(partition: string): FetchLike
+    enqueue(taskId: string): void
+    pump(): void
+    queue: string[]
+    running: Map<string, AbortController>
   }
 }
 
@@ -116,5 +122,48 @@ describe('DownloadManagerService recovery', () => {
 
     const picked = await internals(service).reservePath(dir, 'orphan.bin', 'uniquify')
     expect(picked).toBe(join(dir, 'orphan (1).bin'))
+  })
+
+  it('drops a paused queued task from the pending queue', async () => {
+    const { task } = createTask()
+    store.setState(task.id, 'queued')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const view = internals(service)
+    view.enqueue(task.id)
+    expect(view.queue).toContain(task.id)
+
+    service.pause(task.id)
+
+    expect(view.queue).not.toContain(task.id)
+    expect(store.get(task.id)?.task.state).toBe('paused')
+    view.pump()
+    await Promise.resolve()
+    expect(store.get(task.id)?.task.state).toBe('paused')
+  })
+
+  it('keeps a cancelled task cancelled when the runner settles', async () => {
+    const { task } = createTask()
+    store.setState(task.id, 'queued')
+
+    const service = new DownloadManagerService()
+    await service._doInit()
+    const hang: FetchLike = (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+          once: true
+        })
+      })
+    const view = internals(service)
+    vi.spyOn(view, 'fetchFor').mockReturnValue(hang)
+
+    service.resume(task.id)
+    await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('downloading'))
+
+    service.cancel(task.id)
+    await vi.waitFor(() => expect(view.running.has(task.id)).toBe(false))
+
+    expect(store.get(task.id)?.task.state).toBe('cancelled')
   })
 })
