@@ -577,7 +577,9 @@ describe('cherry-tools autonomy tools', () => {
 
     it('carries the executing turn owner into delivery admission after a reassignment', async () => {
       // Delivery admission re-reads the sender row, which the switch already moved off this turn's
-      // agent — so the context has to hand it the ownership it was validated against.
+      // agent — so the context has to hand it the ownership it was validated against. This context
+      // was mounted on a connection PRIMED while the Session was idle, so its baked flag is false:
+      // the owner has to be resolved at invocation time.
       mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
       mockGetAcceptedTurnAgentId.mockReturnValue('agent_test')
       mockAcceptSessionDelivery.mockReturnValue({
@@ -587,7 +589,7 @@ describe('cherry-tools autonomy tools', () => {
       })
 
       const result = await callTool(
-        createServer('agent_test', WORKSPACE_PATH, 'ch1', true),
+        createServer('agent_test'),
         { target_session_id: 'session_b', message: 'Continue' },
         'session_send'
       )
@@ -596,6 +598,39 @@ describe('cherry-tools autonomy tools', () => {
       expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(
         expect.objectContaining({ senderExecutionOwnerId: 'agent_test' })
       )
+    })
+
+    it('carries the executing turn owner into a Session created by a primed connection', async () => {
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent_test')
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session_new', agentId: 'agent_test' },
+        message: { id: 'request-1', delivery: { status: 'accepted' } }
+      })
+
+      const result = await callTool(createServer('agent_test'), { message: 'Start here' }, 'session_create')
+
+      expect(result.isError).toBeFalsy()
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ senderExecutionOwnerId: 'agent_test' })
+      )
+    })
+
+    it('drops a retained-owner claim the runtime no longer validates', async () => {
+      // The context was mounted while this agent owned the turn, but the runtime now serves another
+      // agent — the stale claim must not reach delivery admission.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent-c')
+
+      const result = await callTool(
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', true),
+        { target_session_id: 'session_b', message: 'Continue' },
+        'session_send'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ ok: false, error: { code: 'SENDER_FORBIDDEN' } })
+      expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
     })
 
     it('leaves delivery admission on the row when the context is not a retained owner', async () => {

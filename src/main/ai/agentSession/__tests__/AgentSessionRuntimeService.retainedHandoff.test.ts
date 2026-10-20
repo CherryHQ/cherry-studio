@@ -8,6 +8,7 @@
  * deferred behind that reply and must resume only once A's reply has actually persisted.
  */
 
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -250,6 +251,8 @@ describe('retained-reply interruption hands B back only after A persists', () =>
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'ClaudeCodeWarmQueryManager') return { closeAll: mocks.closeWarmQueries }
+      // The runtime service syncs its activity hold on every turn boundary (upstream).
+      if (name === 'RuntimeActivityService') return defaultServiceInstances.RuntimeActivityService
       throw new Error(`Unexpected application.get(${name})`)
     })
   })

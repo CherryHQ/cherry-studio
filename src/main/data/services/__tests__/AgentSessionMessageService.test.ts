@@ -718,9 +718,39 @@ describe('AgentSessionMessageService', () => {
 
       expect(accepted.delivery).toMatchObject({
         sender: { agentId: 'agent-a', sessionId: 'sender' },
+        // The snapshot names the agent that executed, not the replacement the row now points at.
+        senderSnapshot: { agentName: 'Agent A', sessionName: 'Sender' },
         status: 'accepted'
       })
       expect(agentSessionMessageService.listSessionDeliveries('target')).toHaveLength(1)
+    })
+
+    it('snapshots the executing owner when creating a Session from a reassigned sender', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-b', name: 'Sender', orderKey: 'b0' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'retained-workspace',
+        name: 'Retained',
+        path: '/tmp/retained-workspace',
+        type: 'user',
+        orderKey: 'workspace-retained'
+      })
+
+      const created = agentSessionMessageService.createSessionWithDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        sessionName: 'Retained work',
+        workspace: { type: 'user', workspaceId: 'retained-workspace' },
+        content: 'Start here',
+        senderExecutionOwnerId: 'agent-a'
+      })
+
+      expect(created.message.delivery).toMatchObject({
+        sender: { agentId: 'agent-a', sessionId: 'sender' },
+        senderSnapshot: { agentName: 'Agent A', sessionName: 'Sender' },
+        status: 'accepted'
+      })
     })
 
     it('returns stable errors for missing, orphaned, and deleted targets', async () => {

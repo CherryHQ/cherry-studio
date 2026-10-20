@@ -1334,10 +1334,18 @@ export class AgentSessionMessageService {
     }
   ): AgentSessionMessageEntity {
     const [sender] = tx
-      .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
+      .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
       .from(sessionTable)
-      .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
       .where(and(eq(sessionTable.id, input.senderSessionId), isNull(sessionTable.deletedAt)))
+      .limit(1)
+      .all()
+    // The sender's NAME comes from the agent the admission validated, never from the row's current
+    // agent: after a switch the row names the replacement, and joining through it would attribute
+    // agent A's message to agent B.
+    const [senderAgent] = tx
+      .select({ name: agentTable.name })
+      .from(agentTable)
+      .where(and(eq(agentTable.id, input.senderAgentId), isNull(agentTable.deletedAt)))
       .limit(1)
       .all()
     // The row is authoritative once its turn is gone. While an accepted turn still runs on the
@@ -1347,7 +1355,7 @@ export class AgentSessionMessageService {
     const senderOwnsSession = sender?.agentId === input.senderAgentId
     const executionOwnsSession =
       input.senderExecutionOwnerId !== undefined && input.senderExecutionOwnerId === input.senderAgentId
-    if (!sender || (!senderOwnsSession && !executionOwnsSession) || sender.agentName === null) {
+    if (!sender || !senderAgent?.name || (!senderOwnsSession && !executionOwnsSession)) {
       throw new AgentSessionDeliveryRoutingError(
         AGENT_SESSION_DELIVERY_ERROR_CODES.SENDER_FORBIDDEN,
         'The active runtime no longer owns the sender Session'
@@ -1399,7 +1407,7 @@ export class AgentSessionMessageService {
         sessionId: input.receiverSessionId
       },
       senderSnapshot: {
-        agentName: sender.agentName,
+        agentName: senderAgent.name,
         sessionName: sender.sessionName
       },
       receiverSnapshot: {

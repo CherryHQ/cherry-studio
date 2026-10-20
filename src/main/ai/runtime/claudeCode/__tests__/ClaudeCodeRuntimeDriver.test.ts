@@ -713,7 +713,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'default',
       false,
       undefined,
-      'agent-1'
+      'agent-1',
+      false
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
