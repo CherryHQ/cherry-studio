@@ -36,6 +36,7 @@ import {
   revokeUserToken,
   type FeishuApplicationCredentials,
   type FeishuDeviceAuthorization,
+  type FeishuUserAuthorization,
   type FeishuUserIdentity,
   type FeishuUserTokenSet,
   type FeishuWikiNode,
@@ -95,21 +96,21 @@ type Provider = {
     refreshToken: string,
     signal?: AbortSignal
   ): Promise<FeishuUserTokenSet>
-  getUserIdentity(accessToken: string, signal?: AbortSignal): Promise<FeishuUserIdentity>
+  getUserIdentity(authorization: FeishuUserAuthorization, signal?: AbortSignal): Promise<FeishuUserIdentity>
   revokeUserToken(credentials: FeishuApplicationCredentials, refreshToken: string, signal?: AbortSignal): Promise<void>
   getWikiNode(
-    accessToken: string,
+    authorization: FeishuUserAuthorization,
     input: { token: string; objType: 'wiki' | 'docx' },
     signal?: AbortSignal
   ): Promise<FeishuWikiNode>
   listWikiChildNodes(
-    accessToken: string,
+    authorization: FeishuUserAuthorization,
     spaceId: string,
     parentNodeToken: string,
     pageToken?: string,
     signal?: AbortSignal
   ): Promise<FeishuWikiNodePage>
-  getDocxMarkdown(accessToken: string, documentToken: string, signal?: AbortSignal): Promise<string>
+  getDocxMarkdown(authorization: FeishuUserAuthorization, documentToken: string, signal?: AbortSignal): Promise<string>
 }
 
 type Registration = {
@@ -175,7 +176,7 @@ type CredentialRuntimeState = {
 type EndpointBudget = { key: string; minimumIntervalMs: number }
 
 type AuthorizedReadContext = {
-  accessToken: string
+  authorization: FeishuUserAuthorization
   connection: ExternalKnowledgeConnection
   signal: AbortSignal
   request<T>(budget: EndpointBudget, operation: () => Promise<T>): Promise<T>
@@ -582,8 +583,9 @@ export class ExternalKnowledgeRuntime {
             signal
           )
           assertCurrent()
+          const credential = await this.readCredential(connection, { state, generation })
           return await operation({
-            accessToken,
+            authorization: { appId: credential.appId, appSecret: credential.appSecret, accessToken },
             connection: validatedConnection,
             signal,
             request: (budget, request) => this.runCredentialRequest(state, generation, signal, request, budget)
@@ -617,12 +619,12 @@ export class ExternalKnowledgeRuntime {
     return {
       getNode: (token, objType, signal) =>
         context.request(FEISHU_READ_ENDPOINT_BUDGETS.getWikiNode, () =>
-          this.provider.getWikiNode(context.accessToken, { token, objType }, signal ?? context.signal)
+          this.provider.getWikiNode(context.authorization, { token, objType }, signal ?? context.signal)
         ),
       listChildNodes: (spaceId, parentNodeToken, pageToken, signal) =>
         context.request(FEISHU_READ_ENDPOINT_BUDGETS.listWikiNodes, () =>
           this.provider.listWikiChildNodes(
-            context.accessToken,
+            context.authorization,
             spaceId,
             parentNodeToken,
             pageToken,
@@ -631,7 +633,7 @@ export class ExternalKnowledgeRuntime {
         ),
       getDocumentMarkdown: (documentToken, signal) =>
         context.request(FEISHU_READ_ENDPOINT_BUDGETS.getDocxMarkdown, () =>
-          this.provider.getDocxMarkdown(context.accessToken, documentToken, signal ?? context.signal)
+          this.provider.getDocxMarkdown(context.authorization, documentToken, signal ?? context.signal)
         )
     }
   }
@@ -840,7 +842,7 @@ export class ExternalKnowledgeRuntime {
           generation: session.generation
         })
         const identity = await this.runCredentialRequest(state, session.generation, signal, () =>
-          this.provider.getUserIdentity(token.accessToken, signal)
+          this.provider.getUserIdentity({ ...session.credentials, accessToken: token.accessToken }, signal)
         )
         this.assertCredentialGeneration(state, session.generation)
         const connection = this.requireConnection(session.connectionId)
@@ -1055,8 +1057,9 @@ export class ExternalKnowledgeRuntime {
     generation: number,
     signal: AbortSignal
   ): Promise<ExternalKnowledgeConnection> {
+    const credential = await this.readCredential(connection, { state, generation })
     const identity = await this.runCredentialRequest(state, generation, signal, () =>
-      this.provider.getUserIdentity(accessToken, signal)
+      this.provider.getUserIdentity({ appId: credential.appId, appSecret: credential.appSecret, accessToken }, signal)
     )
     this.assertCredentialGeneration(state, generation)
     if (connection.accountUserId !== null && this.identityChanged(connection, identity)) {
