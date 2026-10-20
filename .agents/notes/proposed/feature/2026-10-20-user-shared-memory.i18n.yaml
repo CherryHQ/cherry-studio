@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-20-user-shared-memory.md
-2026-10-20-user-shared-memory.md: 1aa45fc6a91d5d97141a98035ae171b8f1921a91
-2026-10-20-user-shared-memory.zh.md: 75512a9e1b4ad79e877bb2564b084d4b25b77d90
