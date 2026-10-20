@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
@@ -9,6 +9,12 @@ import type { ExternalKnowledgeSourceListItem } from '@shared/data/api/schemas/e
 import type { ExternalKnowledgeConnectionListItem } from '@shared/data/api/schemas/externalKnowledgeConnections'
 
 import ExternalSourcesSection from '../ExternalSourcesSection'
+
+afterEach(async () => {
+  cleanup()
+  // Radix restores focus in a deferred task that needs this test's DOM realm.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
 
 const mockQuery = vi.fn()
 const mockDocuments = vi.fn()
