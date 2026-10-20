@@ -107,20 +107,20 @@ describe('decideOnOpen', () => {
 })
 
 describe('decideUserStop (R5)', () => {
-  // Catches a stop that is not recorded before the turn stops, so suppression would not survive a restart.
-  it('records the stop, then stops the turn', () => {
-    expect(decideUserStop(facts([]), inputs(), 'req')).toEqual({
-      ops: [
-        {
-          type: 'append-record',
-          thread: 'parent',
-          record: { type: 'turn-stop', value: { cause: 'user', at: 1000 } },
-          key: 'turn-stop:req'
-        }
-      ],
-      effects: [{ type: 'stop-turn', thread: 'parent', cause: 'user' }],
-      result: null
-    })
+  // Catches a repeated stop request that stops whatever turn runs now: the stop must name the turn begun before its
+  // record, also when it is decided again after a later turn began.
+  it('names the turn begun before its record, also when decided again', () => {
+    const first = user('first')
+    const stop = decideUserStop(facts([first, assistant('x')]), inputs(), 'req')
+    expect(stop.ops).toMatchObject([{ record: { type: 'turn-stop', value: { cause: 'user' } }, key: 'turn-stop:req' }])
+    expect(stop.effects).toEqual([{ type: 'stop-turn', thread: 'parent', cause: 'user', turn: first.id }])
+    const later = [...apply([first, assistant('x')], stop), user('second')]
+    expect(decideUserStop(facts(later), inputs(), 'req').effects).toEqual(stop.effects)
+  })
+
+  // Catches a stop with no turn to name stopping whatever runs, which a repeated request would do to a later turn.
+  it('stops nothing when no turn has begun', () => {
+    expect(decideUserStop(facts([]), inputs(), 'req').effects).toEqual([])
   })
 })
 
