@@ -57,7 +57,7 @@ export function useConversationTurnController<TInput, TConversation>({
   }, [scopeKey])
 
   const send = useCallback(
-    async (input: TInput, options: { throwOnError?: boolean } = {}): Promise<boolean> => {
+    async (input: TInput, options: { throwOnError?: boolean; notifyBlocked?: boolean } = {}): Promise<boolean> => {
       const callbacks = callbacksRef.current
       const scopeEpoch = scopeEpochRef.current
       const isCurrentScope = () => scopeEpochRef.current === scopeEpoch
@@ -85,7 +85,7 @@ export function useConversationTurnController<TInput, TConversation>({
           setPhase('ready')
           const message = getStreamBlockedMessage(ack)
           if (options.throwOnError) return Promise.reject(new Error(message))
-          toast.error(message)
+          if (options.notifyBlocked !== false) toast.error(message)
           return false
         }
 

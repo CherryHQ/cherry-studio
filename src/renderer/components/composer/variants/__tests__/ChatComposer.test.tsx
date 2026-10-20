@@ -5496,6 +5496,10 @@ describe('ChatComposer', () => {
         await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('chat.input.followup_queue.auto_send_stopped'))
         expect(toast.warning).toHaveBeenCalledTimes(1)
         expect(toast.errorFromException).not.toHaveBeenCalled()
+        if (outcome === 'false') {
+          expect(send).toHaveBeenCalledWith(a.payload.text, expect.objectContaining({ notifyBlocked: false }))
+          expect(toast.error).not.toHaveBeenCalled()
+        }
         expect(dock().items).toEqual([a, b])
         expect(dock().paused).toBe(true)
         expect(mocks.surfaceProps?.text).toBe('unsent D')

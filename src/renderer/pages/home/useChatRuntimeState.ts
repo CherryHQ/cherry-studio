@@ -49,6 +49,7 @@ const logger = loggerService.withContext('useChatRuntimeState')
 export interface ChatTurnInput {
   text: string
   options?: {
+    notifyBlocked?: boolean
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
@@ -512,7 +513,7 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        const sent = await send({ text, options })
+        const sent = await send({ text, options }, { notifyBlocked: options?.notifyBlocked })
         if (sent) scrollToBottom()
         return sent
       } catch (err) {

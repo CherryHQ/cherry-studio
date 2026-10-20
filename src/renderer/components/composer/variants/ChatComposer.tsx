@@ -166,6 +166,7 @@ export interface ChatComposerProps {
   onSend: (
     text: string,
     options?: {
+      notifyBlocked?: boolean
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
@@ -1510,13 +1511,14 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, showErrorToast = true) => {
+    async (payload: ComposerQueuedMessagePayload, queueOwnsFailureNotice = false) => {
       setIsSending(true)
 
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
         const sent = await onSend(payload.text, {
+          notifyBlocked: !queueOwnsFailureNotice,
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
@@ -1529,7 +1531,7 @@ const ChatComposerInner = ({
         return true
       } catch (error) {
         logger.warn('send failed', { error })
-        if (showErrorToast) toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
+        if (!queueOwnsFailureNotice) toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
         return false
       } finally {
         setIsSending(false)
@@ -1571,7 +1573,7 @@ const ChatComposerInner = ({
     turnId,
     autoSendEnabled: true,
     markSeen,
-    onDrain: (payload) => sendQueuedPayload(payload, false),
+    onDrain: (payload) => sendQueuedPayload(payload, true),
     onDrainFailed: () => toast.warning(t('chat.input.followup_queue.auto_send_stopped'))
   })
   releaseFollowupEditRef.current = releaseEdit

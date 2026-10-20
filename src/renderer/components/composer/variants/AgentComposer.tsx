@@ -309,7 +309,7 @@ export interface AgentComposerSendBody {
   fastMode?: boolean
 }
 
-export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody; notifyBlocked?: boolean }
 
 export interface AgentComposerLaunchOptions {
   initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
@@ -1500,7 +1500,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, showErrorToast = true) => {
+    async (payload: ComposerQueuedMessagePayload, queueOwnsFailureNotice = false) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1518,6 +1518,7 @@ const AgentComposerInner = ({
         const sent = await chatSendMessage(
           { text: payload.text },
           {
+            notifyBlocked: !queueOwnsFailureNotice,
             body: {
               agentId,
               sessionId,
@@ -1535,7 +1536,7 @@ const AgentComposerInner = ({
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
-        if (showErrorToast) toast.errorFromException(error)
+        if (!queueOwnsFailureNotice) toast.errorFromException(error)
         return false
       }
     },
@@ -1606,7 +1607,7 @@ const AgentComposerInner = ({
     turnId,
     autoSendEnabled: !sendDisabled && !launchOptions?.editing,
     markSeen: markSessionSeen,
-    onDrain: (payload) => sendQueuedPayload(payload, false),
+    onDrain: (payload) => sendQueuedPayload(payload, true),
     onDrainFailed: () => toast.warning(t('chat.input.followup_queue.auto_send_stopped'))
   })
   releaseFollowupEditRef.current = releaseEdit

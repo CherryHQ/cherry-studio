@@ -138,6 +138,22 @@ describe('useConversationTurnController', () => {
     }
   )
 
+  it('a blocked automatic send must not toast when the caller owns the notice', async () => {
+    mocks.streamOpen.mockResolvedValueOnce({
+      mode: 'blocked',
+      reason: 'agent-session-workspace',
+      message: 'Workspace access is required'
+    })
+    const { result } = renderController()
+
+    await act(async () => {
+      expect(await result.current.send('queued message', { notifyBlocked: false })).toBe(false)
+    })
+
+    expect(result.current.phase).toBe('ready')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('returns to draft when stream open fails', async () => {
     mocks.streamOpen.mockRejectedValueOnce(new Error('stream open failed'))
     const { result, historyAdapter } = renderController()

@@ -1183,6 +1183,7 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'Use Fast' },
       {
+        notifyBlocked: true,
         body: expect.objectContaining({
           agentId: 'agent-1',
           sessionId: 'session-1',
@@ -1263,7 +1264,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'match the UI' },
-      { body: expect.objectContaining({ reasoningEffort: 'default' }) }
+      { notifyBlocked: true, body: expect.objectContaining({ reasoningEffort: 'default' }) }
     )
   })
 
@@ -1483,7 +1484,7 @@ describe('AgentComposer', () => {
     )
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'use flex' },
-      { body: expect.objectContaining({ serviceTier: 'flex' }) }
+      { notifyBlocked: true, body: expect.objectContaining({ serviceTier: 'flex' }) }
     )
   })
 
@@ -4316,6 +4317,7 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'Use the pdf skill.' },
       {
+        notifyBlocked: true,
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
@@ -4391,6 +4393,7 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
+        notifyBlocked: true,
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
@@ -4534,6 +4537,7 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
+        notifyBlocked: true,
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
@@ -4628,6 +4632,7 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'hello' },
       {
+        notifyBlocked: true,
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
@@ -5642,6 +5647,7 @@ describe('AgentComposer', () => {
         expect(send).toHaveBeenCalledWith(
           { text: a.payload.text },
           {
+            notifyBlocked: false,
             body: expect.objectContaining({
               agentId: 'agent-1',
               sessionId: 'session-1',
@@ -5676,6 +5682,10 @@ describe('AgentComposer', () => {
         await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('chat.input.followup_queue.auto_send_stopped'))
         expect(toast.warning).toHaveBeenCalledTimes(1)
         expect(toast.errorFromException).not.toHaveBeenCalled()
+        if (outcome === 'false') {
+          expect(send).toHaveBeenCalledWith({ text: a.payload.text }, expect.objectContaining({ notifyBlocked: false }))
+          expect(toast.error).not.toHaveBeenCalled()
+        }
         expect(dock().items).toEqual([a, b])
         expect(dock().paused).toBe(true)
         expect(mocks.surfaceProps?.text).toBe('unsent D')
