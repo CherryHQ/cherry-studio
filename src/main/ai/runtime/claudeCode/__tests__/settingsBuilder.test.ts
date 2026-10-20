@@ -845,9 +845,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       { mcpServerSnapshots: new Map([['mcp-1', materializedServer as never]]) },
       agent as never
     )
-    // Bridges are built per connection, so connect once to materialize it. The record key is the
-    // configured (snapshot) name per issue #21321, while the bridge stays bound to the id.
-    const { instance } = settings.mcpServers!['Old server'] as McpSdkServerConfigWithInstance
+    // Bridges are built per connection, so connect once to materialize it. The record key is
+    // the configured (snapshot) name per issue #21321, folded into the protected SDK form
+    // (`Old server` → `Old_server`), while the bridge stays bound to the id.
+    const { instance } = settings.mcpServers!.Old_server as McpSdkServerConfigWithInstance
     await (await connectMcpTestClient(instance)).close()
 
     expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer, {
@@ -888,8 +889,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.mcpServers?.automation).toBeDefined()
       expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
       // The remote bridge is registered under its configured server name (issue #21321) — its
-      // snapshot row is named `@cherry/browser`, not the raw agent.mcps entry.
-      expect(settings.mcpServers?.['@cherry/browser']).toBeDefined()
+      // snapshot row is named `@cherry/browser`, not the raw agent.mcps entry. The allocation
+      // key folds that name into the SDK namespace first, so the protected key is
+      // `_cherry_browser` (`@`/`/` underscore).
+      expect(settings.mcpServers?.['_cherry_browser']).toBeDefined()
       // The in-memory browser bridge no longer mounts as a claudeCode MCP server upstream, so
       // its tools are not in allowedTools anymore — automation remains the mounted built-in.
       expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__automation__js', 'mcp__automation__reset']))

@@ -561,6 +561,25 @@ describe('migrateDisabledToolsForServerRename', () => {
 describe('migrateAgentDisabledToolsForServerRename', () => {
   const RESERVED = ['skills', 'assistant', 'agent-memory']
 
+  it('keeps a Pi display-name alias whose string becomes another server key after the rename', () => {
+    // A (`other`) mounts first; B (`docs`) is displaced onto its id when A renames to `docs`.
+    // The saved `mcp__docs__getTime` is B's Pi display-name alias — B's configured name did not
+    // change, so Pi still resolves B's denial through it — while the rewritten id forms copy
+    // the camelized tool fragment and can never regenerate it. The alias must survive.
+    const migrated = migrateAgentDisabledToolsForServerRename(['mcp__docs__getTime'], {
+      mountedServers: [
+        { mcpId: 'srv-a', name: 'other' },
+        { mcpId: 'srv-b', name: 'docs' }
+      ],
+      renamedServerId: 'srv-a',
+      toName: 'docs',
+      reservedKeys: RESERVED
+    })
+    expect(migrated).toContain('mcp__docs__getTime')
+    expect(migrated).toContain('mcp__srv-b__getTime')
+    expect(migrated).toContain('mcp__srv-b__gettime')
+  })
+
   it('leaves rules alone when the agent does not mount the renamed server', () => {
     // Two servers named `docs` exist and the agent mounts neither `srv-b`: renaming `srv-b`
     // must not steal `mcp__docs__run`, which belongs to the mounted server or to nothing.
@@ -627,9 +646,11 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     // simultaneously be another server's exact denial). The runtime's stripped-base lookup
     // resolves the copy onto the renamed pair. Plain entries also carry the camelized
     // configured-name form Pi resolves denials through (`New server` → `newServer`) and the
-    // SDK-normalized segment form the SDK invokes (`New server` → `New_Server`).
+    // SDK-normalized key form the SDK invokes (`New server` → `New_server`). A rule saved under
+    // the raw spaced name (`mcp__Old server__other`) is a legacy form no allocator can produce
+    // anymore — it passes through, and can only ever over-block.
     expect(
-      migrateAgentDisabledToolsForServerRename(['mcp__oldServer__run_4f7413c24ae4', 'mcp__Old server__other'], {
+      migrateAgentDisabledToolsForServerRename(['mcp__oldServer__run_4f7413c24ae4', 'mcp__Old_server__other'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'Old server' }],
         renamedServerId: 'srv-1',
         toName: 'New server',
@@ -638,9 +659,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
     ).toEqual([
       'mcp__oldServer__run_4f7413c24ae4',
       'mcp__newServer__run_4f7413c24ae4',
-      'mcp__New server__other',
-      'mcp__newServer__other',
-      'mcp__New_server__other'
+      'mcp__New_server__run_4f7413c24ae4',
+      'mcp__New_server__other',
+      'mcp__newServer__other'
     ])
   })
 
@@ -656,7 +677,11 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'New server',
         reservedKeys: RESERVED
       })
-    ).toEqual([entry, `mcp__newServer__${longTool.slice(0, 34)}_4f7413c24ae4`])
+    ).toEqual([
+      entry,
+      `mcp__newServer__${longTool.slice(0, 34)}_4f7413c24ae4`,
+      `mcp__New_server__${longTool.slice(0, 33)}_4f7413c24ae4`
+    ])
   })
 
   it('returns undefined when nothing changed', () => {
@@ -673,7 +698,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
   it('follows a sibling whose allocated key the rename displaces', () => {
     // A (`docs`) mounts before B (`github`); disabling B saved `mcp__github__run`. Renaming A
     // to `github` moves the key to A and bumps B onto its id — B's denial must follow B, or
-    // B's tool executes under the identity A now owns.
+    // B's tool executes under the identity A now owns. The original string also stays: B's
+    // configured name is still `github`, so the string remains B's Pi display-name alias
+    // (over-blocking A's identically-named tool is the fail-closed side).
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__github__run', 'mcp__other__run'], {
         mountedServers: [
@@ -684,7 +711,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__srv-b__run', 'mcp__other__run'])
+    ).toEqual(['mcp__github__run', 'mcp__srv-b__run', 'mcp__other__run'])
   })
 
   it('migrates the renamed server and a displaced sibling in one pass', () => {
@@ -698,7 +725,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'github',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__github__x', 'mcp__srv-b__run'])
+    ).toEqual(['mcp__github__x', 'mcp__github__run', 'mcp__srv-b__run'])
   })
 
   it('rewrites a hashed plain-key entry onto the 50-char stripped base of the new allocation', () => {
@@ -882,9 +909,9 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
   })
 
   it('emits the SDK-normalized destination identity when the new key needs underscoring', () => {
-    // Renaming to `Docs MCP` emits the raw key form and the camelized alias, but the SDK
-    // invokes `mcp__Docs_MCP__run` (spaces underscored) — neither surviving copy blocks the
-    // previously disabled tool without that identity in the list.
+    // Renaming to `Docs MCP` allocates the protected key `Docs_MCP` (the space underscores and
+    // the SDK invokes `mcp__Docs_MCP__run`); the copy list carries that identity plus the
+    // camelized configured-name alias Pi resolves denials through.
     expect(
       migrateAgentDisabledToolsForServerRename(['mcp__docs__run'], {
         mountedServers: [{ mcpId: 'srv-1', name: 'docs' }],
@@ -892,7 +919,7 @@ describe('migrateAgentDisabledToolsForServerRename', () => {
         toName: 'Docs MCP',
         reservedKeys: RESERVED
       })
-    ).toEqual(['mcp__Docs MCP__run', 'mcp__docsMcp__run', 'mcp__Docs_MCP__run'])
+    ).toEqual(['mcp__Docs_MCP__run', 'mcp__docsMcp__run'])
   })
 
   it('recognizes a saved SDK-normalized key form as the renamed server on a subsequent rename', () => {
@@ -985,10 +1012,25 @@ describe('migrateAgentDisabledToolsForAllocationChange', () => {
 })
 
 describe('allocateMountedServerKeys', () => {
+  it('derives the key from the final SDK-normalized namespace', () => {
+    // `docs  search` normalizes to the SDK segment `docs__search`, whose `__` would fuse onto
+    // the `docs` + `search__all` callable — delimiter protection must apply to the FINAL
+    // normalized form, so the key folds to `docs_search`.
+    const keys = allocateMountedServerKeys(
+      [
+        { mcpId: 'id-a', name: 'docs' },
+        { mcpId: 'id-b', name: 'docs  search' }
+      ],
+      []
+    )
+    expect(keys.get('id-a')).toBe('docs')
+    expect(keys.get('id-b')).toBe('docs_search')
+  })
+
   it('falls back to the id when another claim collapses into the same SDK namespace', () => {
-    // `Docs MCP` and `Docs_MCP` are distinct keys, but the SDK underscores the space: both
-    // would register `mcp__Docs_MCP__*` callables and one server's tools would be unreachable.
-    // The later claim must fall back to its id.
+    // `Docs MCP` and `Docs_MCP` fold onto the same protected key `Docs_MCP`: the SDK
+    // underscores the space and the protection cannot split what normalization joined, so one
+    // server's tools would be unreachable — the later claim must fall back to its id.
     const keys = allocateMountedServerKeys(
       [
         { mcpId: 'id-a', name: 'Docs MCP' },
@@ -996,7 +1038,7 @@ describe('allocateMountedServerKeys', () => {
       ],
       ['skills', 'assistant', 'agent-memory']
     )
-    expect(keys.get('id-a')).toBe('Docs MCP')
+    expect(keys.get('id-a')).toBe('Docs_MCP')
     expect(keys.get('id-b')).toBe('id-b')
   })
 

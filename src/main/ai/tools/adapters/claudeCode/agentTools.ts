@@ -243,12 +243,16 @@ export async function createClaudeAgentToolPolicySnapshot(
     // user opt-out + dependency cascade). Legacy id-keyed rules are rewritten first so a denial
     // saved under the pre-#21322 namespace still blocks its name-keyed tool.
     // A preserved update merges into the retained set (see `retainedDenied`); a same-connection
-    // catalog refresh keeps it untouched; an update with neither option is the replacement
-    // connection's connect refresh, whose surface no longer includes the old identities —
-    // release them.
+    // catalog refresh keeps it untouched AND carries the previously-effective denials forward —
+    // the refresh can land before the driver's reconciliation submits its preservation baseline,
+    // and the active connection still serves every identity the previous set blocked until its
+    // replacement rebuilds; an update with neither option is the replacement connection's
+    // connect refresh, whose surface no longer includes the old identities — release them.
     if (preserveDenied) {
       retainedDenied = new Set([...retainedDenied, ...preserveDenied])
-    } else if (!keepRetainedDenied) {
+    } else if (keepRetainedDenied) {
+      retainedDenied = new Set([...retainedDenied, ...disallowed])
+    } else {
       retainedDenied = new Set()
     }
     disallowed = new Set([

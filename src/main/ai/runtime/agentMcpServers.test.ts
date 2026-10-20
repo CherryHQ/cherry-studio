@@ -151,9 +151,12 @@ describe('buildAgentMcpServers key allocation', () => {
       [idB, { id: idB, name: 'Docs_MCP', isActive: true }]
     ])
 
-    expect(servers['Docs MCP']).toMatchObject({ id: idA })
+    // The allocation key folds the name into the SDK namespace BEFORE the delimiter
+    // protection, so `Docs MCP` claims the protected key `Docs_MCP` — which is exactly the
+    // form `Docs_MCP` folds onto, and the later claim falls back to its id.
+    expect(servers['Docs_MCP']).toMatchObject({ id: idA })
     expect(servers[idB]).toMatchObject({ id: idB })
-    expect(servers['Docs_MCP']).toBeUndefined()
+    expect(servers['Docs MCP']).toBeUndefined()
     // Policy translation reads the same allocation, so its key map must agree with registration.
     const keys = resolveAgentMcpServerKeys(
       agentWithMcps([idA, idB]),
@@ -162,7 +165,7 @@ describe('buildAgentMcpServers key allocation', () => {
         [idB, { id: idB, name: 'Docs_MCP', isActive: true }]
       ])
     )
-    expect(keys.get(idA)).toBe('Docs MCP')
+    expect(keys.get(idA)).toBe('Docs_MCP')
     expect(keys.get(idB)).toBe(idB)
   })
 

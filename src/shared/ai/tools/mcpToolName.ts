@@ -321,6 +321,18 @@ export function sanitizeAgentServerKey(name: string): string {
 }
 
 /**
+ * The configured name folded into the SDK's callable namespace FIRST, then stripped of `__`
+ * runs and trailing `_`. Applying the delimiter protection to the final normalized form is
+ * what makes it airtight: `docs  search` normalizes to the segment `docs__search`, whose `__`
+ * would fuse onto the `docs` + `search__all` callable — a protection applied before
+ * normalization never sees that `__`. Allocation and every rename migration derive their keys
+ * through this, so the persisted rules, the record keys and the SDK namespaces stay one form.
+ */
+export function sdkSafeServerKey(name: string): string {
+  return sanitizeAgentServerKey(toSdkMcpServerSegment(name))
+}
+
+/**
  * Rewrite saved DSH denial rules (`mcp__<key>__<tool>`) after their server was renamed: the
  * saved string encodes the key of the moment, and a rename reallocates the key (`docs` →
  * `github` orphans `mcp__docs__run`), letting the previously disabled tool execute under
@@ -336,8 +348,8 @@ export function migrateDisabledToolsForServerRename(
   oldName: string,
   newName: string
 ): string[] | undefined {
-  const fromKey = sanitizeAgentServerKey(oldName)
-  const toKey = sanitizeAgentServerKey(newName)
+  const fromKey = sdkSafeServerKey(oldName)
+  const toKey = sdkSafeServerKey(newName)
   if (!fromKey || fromKey === toKey) return undefined
 
   let changed = false
@@ -399,11 +411,11 @@ export function allocateMountedServerKeys(
   const takenSdkSegments = new Set<string>(reservedKeys.map(toSdkMcpServerSegment))
   const keys = new Map<string, string>()
   for (const { mcpId, name } of servers) {
-    const candidate = name ? sanitizeAgentServerKey(name) : ''
+    const candidate = name ? sdkSafeServerKey(name) : ''
     const nameFree =
       candidate.length > 0 && !taken.has(candidate) && !takenSdkSegments.has(toSdkMcpServerSegment(candidate))
     const serverName = name && nameFree ? name : mcpId
-    const key = sanitizeAgentServerKey(serverName) || sanitizeAgentServerKey(mcpId)
+    const key = sdkSafeServerKey(serverName) || sdkSafeServerKey(mcpId)
     taken.add(key)
     takenSdkSegments.add(toSdkMcpServerSegment(key))
     keys.set(mcpId, key)
@@ -495,7 +507,7 @@ export function migrateAgentDisabledToolsForServerRename(
     // matches through its raw-identity check.
     const camelToKey =
       mcpId === input.renamedServerId &&
-      newKey === sanitizeAgentServerKey(input.toName) &&
+      newKey === sdkSafeServerKey(input.toName) &&
       toCamelCase(input.toName) !== newKey
         ? toCamelCase(input.toName)
         : undefined
@@ -506,7 +518,14 @@ export function migrateAgentDisabledToolsForServerRename(
       fromIsId: oldKey === sanitizeAgentServerKey(mcpId)
     })
   }
-  return applyAgentKeyRewrites(disabledTools, rewrites, collectMountedIdSegments(input.mountedServers))
+  return applyAgentKeyRewrites(
+    disabledTools,
+    rewrites,
+    collectMountedIdSegments(input.mountedServers),
+    collectDisplayNameSegments(
+      input.mountedServers.map((server) => (server.mcpId === input.renamedServerId ? input.toName : server.name))
+    )
+  )
 }
 
 export interface AgentAllocationChangeInput {
@@ -551,7 +570,7 @@ export function migrateAgentDisabledToolsForAllocationChange(
     // camelizes differently) — the same condition the rename migration applies.
     const next = input.newMountedServers.find((server) => server.mcpId === mcpId)
     const camelToKey =
-      next?.name && newKey === sanitizeAgentServerKey(next.name) && toCamelCase(next.name) !== newKey
+      next?.name && newKey === sdkSafeServerKey(next.name) && toCamelCase(next.name) !== newKey
         ? toCamelCase(next.name)
         : undefined
     rewrites.push({
@@ -562,7 +581,12 @@ export function migrateAgentDisabledToolsForAllocationChange(
     })
   }
   if (rewrites.length === 0) return undefined
-  return applyAgentKeyRewrites(disabledTools, rewrites, collectMountedIdSegments(input.oldMountedServers))
+  return applyAgentKeyRewrites(
+    disabledTools,
+    rewrites,
+    collectMountedIdSegments(input.oldMountedServers),
+    collectDisplayNameSegments(input.newMountedServers.map((server) => server.name))
+  )
 }
 
 /**
@@ -583,6 +607,19 @@ function collectMountedIdSegments(servers: ReadonlyArray<MountedServerRef>): Set
   for (const { mcpId } of servers) {
     segments.add(sanitizeAgentServerKey(mcpId))
     segments.add(mcpId.replace(/[^A-Za-z0-9_]/g, '_'))
+  }
+  return segments
+}
+
+/**
+ * The camelized forms of the CURRENT configured names — Pi derives its display-name alias
+ * (`buildFunctionCallToolName(server.name, tool)`) from them. An entry keyed by such a segment
+ * still resolves the alias of the server that keeps the name, so a rewrite must not strip it.
+ */
+function collectDisplayNameSegments(names: ReadonlyArray<string | undefined>): Set<string> {
+  const segments = new Set<string>()
+  for (const name of names) {
+    if (name) segments.add(toCamelCase(name))
   }
   return segments
 }
@@ -615,7 +652,8 @@ function collectMountedIdSegments(servers: ReadonlyArray<MountedServerRef>): Set
 function applyAgentKeyRewrites(
   disabledTools: readonly string[],
   rewrites: ReadonlyArray<AgentKeyRewrite>,
-  idSegments: ReadonlySet<string> = new Set()
+  idSegments: ReadonlySet<string> = new Set(),
+  displaySegments: ReadonlySet<string> = new Set()
 ): string[] | undefined {
   const rewriteHashed = (toolPart: string, targetKey: string): string[] => {
     const targets = new Set<string>([toCamelCase(targetKey)])
@@ -667,7 +705,12 @@ function applyAgentKeyRewrites(
           // entry whose segment merely SPELLS another server's old configured-name key — it is
           // still that other server's native id form, and an id is never reassigned to a
           // different server, so the kept original cannot over-block.
-          keepOriginal = matched.fromIsId === true || idSegments.has(serverPart)
+          // A segment spelling a CURRENT configured name (camelized) is a Pi display-name
+          // alias of that server — a displaced server keeps its configured name through the
+          // rename that displaced it, so the alias still resolves its denial ("docs" stays
+          // `docs` while its key moves to the id) and must survive too: the rewritten copies
+          // carry only the camelized tool fragment, which cannot regenerate the alias.
+          keepOriginal = matched.fromIsId === true || idSegments.has(serverPart) || displaySegments.has(serverPart)
         } else if (lossyMatched && /_[0-9a-f]{12}$/.test(toolPart)) {
           replacements = rewriteHashed(toolPart, lossyMatched.toKey)
           keepOriginal = true
