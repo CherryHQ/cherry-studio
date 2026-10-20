@@ -173,6 +173,45 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('replays the turn under its admission-time permission mode, not a mid-backoff save', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+
+    // The user saves bypassPermissions while the live reconcile is still awaiting discovery, so
+    // the applied policy already reads bypassPermissions when the fallback drains that save.
+    let releaseSave!: () => void
+    primary.reconcile.mockImplementationOnce(async () => {
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'bypassPermissions', disabledTools: [] })
+      await new Promise<void>((resolve) => {
+        releaseSave = resolve
+      })
+      return 'patched'
+    })
+    const save = wrapper.reconcile({ modelId: 'primary::model' })
+    await vi.waitFor(() => expect(releaseSave).toBeTypeOf('function'))
+
+    primary.events.push({ type: 'error', error: new Error('HTTP 503 service overloaded') })
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    releaseSave()
+    await save
+
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+    // The replayed turn keeps the approval requirement it was admitted under; the later save
+    // reaches the next fresh turn instead of widening this one into approval-free Bash.
+    expect(driver.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionPolicy: { permissionMode: 'default', disabledTools: [] } })
+    )
+    await wrapper.close()
+  })
+
   it('carries a policy save from the replacement startup window into the replayed turn', async () => {
     const primary = fakeConnection()
     primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })

@@ -10,6 +10,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimePermissionPolicy,
   AgentRuntimePromptPolicy,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
@@ -184,6 +185,8 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private replacementReconcileChain: Promise<unknown> = Promise.resolve()
   /** The prompt the live turn was admitted with; a replay re-materializes it, never a later save. */
   private turnPrompt?: AgentRuntimePromptPolicy
+  /** The mode the live turn was admitted under: a later save must not re-admit its replay. */
+  private turnPermissionMode?: AgentRuntimePermissionPolicy['permissionMode']
 
   constructor(
     private readonly driver: AgentSessionRuntimeDriver,
@@ -205,6 +208,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     this.lastInput = input
     // Captured at admission: a later save must reach the NEXT fresh turn, not this turn's replay.
     this.turnPrompt = this.current.getPromptPolicy?.()
+    this.turnPermissionMode = this.current.getPermissionPolicy?.()?.permissionMode
     this.hasActivity = false
     this.attempted = false
     try {
@@ -385,16 +389,21 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       if (this.closed) return false
       // Now inside the window: fold what those saves left applied into the carried union.
       if (pendingSaves.length > 0) this.rememberAppliedRestrictions()
-      // The replay must keep the turn's live policy: a save during the backoff (e.g. switching to
-      // bypassPermissions) would otherwise re-admit the replayed turn under a mode that mid-turn
-      // reconciliation itself defers. A policy that cannot be read cannot be preserved — decline.
-      const turnPolicy = this.current.getPermissionPolicy?.()
-      if (!turnPolicy) {
+      // The replay keeps the mode the turn was admitted under: a save during the backoff (e.g.
+      // switching to bypassPermissions) would otherwise re-admit it under what mid-turn
+      // reconciliation defers. Disabled tools still come from the live policy, which carries
+      // every restriction applied so far. An unreadable policy cannot be preserved — decline.
+      const livePolicy = this.current.getPermissionPolicy?.()
+      if (!livePolicy) {
         logger.warn('Declining the fallback replay: the live turn policy cannot be read', {
           sessionId: this.input.sessionId,
           fallbackModelId
         })
         return false
+      }
+      const turnPolicy = {
+        ...livePolicy,
+        permissionMode: this.turnPermissionMode ?? livePolicy.permissionMode
       }
       await this.current.close()
       if (this.closed) return false
