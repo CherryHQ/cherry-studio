@@ -33,9 +33,12 @@ it('keeps unrelated workflow diagnostics blocking the CI gate', () => {
   const lint = ci.jobs['basic-checks'].steps.find(
     (step: { name?: string }) => step.name === 'Lint GitHub Actions workflows'
   )
-  const filters = [...lint.with.args.matchAll(/-ignore '([^']+)'/g)]
+  expect(lint.with?.args ?? '').not.toContain('-ignore')
+  const config = parse(readFileSync(resolve(__dirname, '../../../../.github/actionlint.yaml'), 'utf8'))
+  expect(Object.keys(config.paths)).toEqual(['.github/workflows/qa-ondemand.yml'])
+  const filters = config.paths['.github/workflows/qa-ondemand.yml'].ignore
   expect(filters).toHaveLength(1)
-  const ignored = new RegExp(filters[0][1])
+  const ignored = new RegExp(filters[0])
   expect('unexpected key "queue" for "concurrency" section. expected one of "cancel-in-progress", "group"').toMatch(
     ignored
   )

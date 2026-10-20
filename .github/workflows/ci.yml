@@ -78,10 +78,7 @@ jobs:
         env:
           SHELLCHECK_OPTS: --severity=error
         with:
-          # actionlint lacks concurrency.queue support: https://github.com/rhysd/actionlint/issues/657
-          args: >-
-            -color
-            -ignore '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'
+          args: -color
       - name: Prepare base reference
         if: needs.changes.outputs.repository == 'true' && github.event_name == 'pull_request'
         env:
