@@ -112,6 +112,7 @@ import {
 } from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -1532,6 +1533,16 @@ const TasksSettings: FC = () => {
   const hasActiveFilters =
     searchQuery.trim().length > 0 || agentFilter !== ALL_TASKS_FILTER || statusFilter !== ALL_TASKS_FILTER
 
+  const createTaskWithAgent = useCallback(async () => {
+    try {
+      const { sessionId } = await ipcApi.request('ai.agent.assistant_session.create')
+      openRoute('/app/agents', { intent: 'task', sessionId })
+    } catch (error) {
+      logger.error('Failed to create scheduled task chat session', error as Error)
+      toast.error(t('settings.scheduledTasks.agentCreateFailed'))
+    }
+  }, [t])
+
   const clearFilters = useCallback(() => {
     setSearchQuery('')
     setAgentFilter(ALL_TASKS_FILTER)
@@ -1759,7 +1770,7 @@ const TasksSettings: FC = () => {
                     <PencilLine />
                     {t('settings.scheduledTasks.manualCreate')}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                  <DropdownMenuItem onSelect={() => void createTaskWithAgent()}>
                     <Bot />
                     {t('settings.scheduledTasks.agentCreate')}
                   </DropdownMenuItem>
