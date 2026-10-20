@@ -4,11 +4,15 @@ import { join } from 'node:path'
 
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
+import { asc } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { KnowledgeBaseOrderSeeder } from '@data/db/seeding/seeders/knowledgeBaseOrderSeeder'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType } from '@data/db/types'
 
 /**
@@ -68,6 +72,39 @@ describe('applyMigrations over a populated database', () => {
   afterEach(() => {
     sqlite.close()
     rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('initializes knowledge ordering without losing populated rows or changing timestamps', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0027_knowledge_base_order'))
+    const values = [
+      { id: '11111111-1111-4111-8111-111111111111', name: 'Older', createdAt: 1000, updatedAt: 1100 },
+      { id: '22222222-2222-4222-8222-222222222222', name: 'Newer', createdAt: 2000, updatedAt: 2100 }
+    ]
+    const groupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    sqlite
+      .prepare(`INSERT INTO "group" (id, entity_type, name, order_key, created_at, updated_at)
+      VALUES (?, 'knowledge', 'Existing group', 'a0', 100, 100)`)
+      .run(groupId)
+    const insertBase = sqlite.prepare(`INSERT INTO knowledge_base
+      (id, name, group_id, status, chunk_size, chunk_overlap, created_at, updated_at)
+      VALUES (?, ?, ?, 'completed', 1024, 200, ?, ?)`)
+    for (const row of values) insertBase.run(row.id, row.name, groupId, row.createdAt, row.updatedAt)
+    const content = { source: 'Original note', content: 'Existing user content' }
+    db.insert(knowledgeItemTable)
+      .values({ baseId: values[0].id, type: 'note', data: content, status: 'completed' })
+      .run()
+
+    applyMigrations(db, resolveMigrationsPath())
+    new SeedRunner(db).runAll([new KnowledgeBaseOrderSeeder()])
+
+    const rows = db.select().from(knowledgeBaseTable).orderBy(asc(knowledgeBaseTable.orderKey)).all()
+    expect(rows.map((row) => row.name)).toEqual(['Newer', 'Older'])
+    for (const original of values) {
+      expect(rows.find((row) => row.id === original.id)).toMatchObject({ ...original, groupId })
+    }
+    expect(db.select().from(knowledgeItemTable).all()[0].data).toEqual(content)
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
 
   it('adds diagnostic history to a populated database and retains it after reopening', () => {
