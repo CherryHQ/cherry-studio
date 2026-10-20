@@ -206,14 +206,7 @@ export function MarkdownCore({
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [
-    hasSvgElement,
-    id,
-    headingSlugs,
-    stableExtraRehypePlugins,
-    preserveFileLinkHrefs,
-    preserveRelativeImageSrcs
-  ])
+  }, [hasSvgElement, id, headingSlugs, stableExtraRehypePlugins, preserveFileLinkHrefs, preserveRelativeImageSrcs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
