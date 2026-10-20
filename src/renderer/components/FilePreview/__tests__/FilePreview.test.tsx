@@ -1,12 +1,21 @@
 import '@testing-library/jest-dom/vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { ComponentPropsWithoutRef, ComponentType } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ComponentPropsWithoutRef, ComponentType } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  ipcApiRequest: vi.fn(),
+  textPreview: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcApiRequest }
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   EmptyState: ({
@@ -44,44 +53,139 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: vi.fn() }
 }))
 
+vi.mock('../plugins/text/textFilePreviewPlugin', () => ({
+  textFilePreviewPlugin: {
+    id: 'text',
+    extensions: [],
+    load: async () => ({
+      default: ({ onSelectionReference }: { onSelectionReference?: (reference: unknown) => void }) => {
+        mocks.textPreview()
+        return (
+          <div data-testid="text-file-preview">
+            <button type="button" onClick={() => onSelectionReference?.(SELECTION_REFERENCE_FIXTURE)}>
+              report-selection
+            </button>
+          </div>
+        )
+      }
+    })
+  }
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 import { FilePreview } from '../FilePreview'
 
+const SELECTION_REFERENCE_FIXTURE = {
+  path: '/tmp/notes.txt',
+  anchor: { format: 'docx', paragraph: 0 },
+  excerpt: 'hello',
+  fileStamp: { size: 1, mtimeMs: 1 }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
 
-describe('FilePreview', () => {
-  it('shows unsupported state without reading the file when the registry is empty', () => {
-    render(<FilePreview filePath={'/tmp/report.zip' as FilePath} />)
+beforeEach(() => {
+  mocks.ipcApiRequest.mockResolvedValue({
+    kind: 'file',
+    type: 'other',
+    size: 1,
+    createdAt: 1,
+    modifiedAt: 1,
+    mime: 'application/octet-stream'
+  })
+})
 
-    expect(screen.getByText('file_preview.unsupported.title')).toBeInTheDocument()
+describe('FilePreview', () => {
+  it('shows unsupported state for an existing binary file without a preview plugin', async () => {
+    render(<FilePreview filePath={'/tmp/report.zip' as AbsoluteFilePath} />)
+
+    expect(await screen.findByText('file_preview.unsupported.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.unsupported.description')).toBeInTheDocument()
+    expect(screen.getByText('file_preview.unsupported.title').closest('[data-ui~="file-preview.view"]')).not.toBeNull()
   })
 
   it('contains invalid paths in an inline state', () => {
-    render(<FilePreview filePath={'relative/report.pdf' as FilePath} />)
+    render(<FilePreview filePath={'relative/report.pdf' as AbsoluteFilePath} />)
 
     expect(screen.getByText('file_preview.invalid_path.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.invalid_path.description')).toBeInTheDocument()
   })
 
-  it('opens unsupported files with the default app through safeOpen', () => {
+  it('opens unsupported files with the default app through safeOpen', async () => {
     const path = '/tmp/report.zip'
-    render(<FilePreview filePath={path as FilePath} />)
+    render(<FilePreview filePath={path as AbsoluteFilePath} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'file_preview.unsupported.action' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'file_preview.unsupported.action' }))
 
     expect(safeOpen).toHaveBeenCalledWith(createFilePathHandle(normalizeFilePreviewPath(path)))
   })
 
   it('does not offer an external open for invalid paths', () => {
-    render(<FilePreview filePath={'relative/report.pdf' as FilePath} />)
+    render(<FilePreview filePath={'relative/report.pdf' as AbsoluteFilePath} />)
 
     expect(screen.queryByRole('button', { name: 'file_preview.unsupported.action' })).not.toBeInTheDocument()
+  })
+
+  it('keeps directories out of file preview plugins', async () => {
+    mocks.ipcApiRequest.mockResolvedValueOnce({
+      kind: 'directory',
+      size: 0,
+      createdAt: 1,
+      modifiedAt: 1
+    })
+
+    render(<FilePreview filePath={'/tmp/artifacts.md' as AbsoluteFilePath} />)
+
+    expect(await screen.findByText('file_preview.directory.title')).toBeInTheDocument()
+    expect(mocks.ipcApiRequest).toHaveBeenCalledOnce()
+  })
+
+  it('shows an unavailable state when metadata cannot be read', async () => {
+    mocks.ipcApiRequest.mockRejectedValueOnce(new Error('ENOENT'))
+
+    render(<FilePreview filePath={'/tmp/missing.txt' as AbsoluteFilePath} />)
+
+    expect(await screen.findByText('file_preview.unavailable.title')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'file_preview.unsupported.action' })).not.toBeInTheDocument()
+  })
+
+  it('falls back to text preview for text content with an unknown extension', async () => {
+    mocks.ipcApiRequest.mockResolvedValueOnce({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
+
+    render(<FilePreview filePath={'/tmp/Dockerfile.generated' as AbsoluteFilePath} />)
+
+    expect(await screen.findByTestId('text-file-preview')).toBeInTheDocument()
+    expect(mocks.textPreview).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards plugin selection references to the host callback verbatim', async () => {
+    mocks.ipcApiRequest.mockResolvedValueOnce({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
+    const onSelectionReference = vi.fn()
+
+    render(<FilePreview filePath={'/tmp/notes.txt' as AbsoluteFilePath} onSelectionReference={onSelectionReference} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'report-selection' }))
+
+    expect(onSelectionReference).toHaveBeenCalledWith(SELECTION_REFERENCE_FIXTURE)
   })
 })

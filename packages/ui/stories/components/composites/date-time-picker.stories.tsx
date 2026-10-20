@@ -1,7 +1,8 @@
-import type { DateTimeGranularity } from '@cherrystudio/ui'
-import { DateTimePicker } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import type { DateTimeGranularity } from '@cherrystudio/ui'
+import { DateTimePicker } from '@cherrystudio/ui'
 
 const meta: Meta<typeof DateTimePicker> = {
   title: 'Components/Composites/date-time-picker',

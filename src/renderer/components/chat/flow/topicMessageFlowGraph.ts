@@ -8,7 +8,6 @@ type GraphInputNode = Omit<TreeNode, 'parentId'> & {
   parentId: string | null
   siblingsGroupId?: number
   isSiblingBranch: boolean
-  isInputDraft?: boolean
 }
 
 export function buildTopicMessageFlowGraph(tree: TreeResponse): TopicMessageFlowGraph {
@@ -17,12 +16,11 @@ export function buildTopicMessageFlowGraph(tree: TreeResponse): TopicMessageFlow
   const activePath = collectActivePath(tree.activeNodeId, parentById)
   const hasActivePath = activePath.size > 0
   const branchCount = countBranchPaths(graphInputNodes)
-  const hasAssistantDescendantById = collectAssistantDescendantState(graphInputNodes)
 
   const nodes = graphInputNodes.map((node) => ({
     id: node.id,
     parentId: node.parentId,
-    data: toNodeData(node, tree.activeNodeId, activePath, hasActivePath, hasAssistantDescendantById)
+    data: toNodeData(node, tree.activeNodeId, activePath, hasActivePath)
   }))
 
   const edges = graphInputNodes.flatMap((node) => {
@@ -136,40 +134,6 @@ function isAssistantBranchNode(node: GraphInputNode, assistantBranchGroupKeys: S
   return key ? assistantBranchGroupKeys.has(key) : false
 }
 
-function collectAssistantDescendantState(nodes: GraphInputNode[]): Map<string, boolean> {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]))
-  const childrenById = new Map<string, string[]>()
-
-  for (const node of nodes) {
-    if (!node.parentId) continue
-    childrenById.set(node.parentId, [...(childrenById.get(node.parentId) ?? []), node.id])
-  }
-
-  const hasAssistantDescendantById = new Map<string, boolean>()
-  const visiting = new Set<string>()
-
-  const hasAssistantDescendant = (nodeId: string): boolean => {
-    const cached = hasAssistantDescendantById.get(nodeId)
-    if (cached !== undefined) return cached
-    if (visiting.has(nodeId)) return false
-
-    visiting.add(nodeId)
-    const result = (childrenById.get(nodeId) ?? []).some((childId) => {
-      const child = nodeById.get(childId)
-      return child?.role === 'assistant' || hasAssistantDescendant(childId)
-    })
-    visiting.delete(nodeId)
-    hasAssistantDescendantById.set(nodeId, result)
-    return result
-  }
-
-  for (const node of nodes) {
-    hasAssistantDescendant(node.id)
-  }
-
-  return hasAssistantDescendantById
-}
-
 function collectActivePath(activeNodeId: string | null, parentById: Map<string, string | null>): Set<string> {
   const activePath = new Set<string>()
 
@@ -191,12 +155,12 @@ function toNodeData(
   node: GraphInputNode,
   activeNodeId: string | null,
   activePath: Set<string>,
-  hasActivePath: boolean,
-  hasAssistantDescendantById: Map<string, boolean>
+  hasActivePath: boolean
 ): TopicMessageFlowNodeData {
   const data: TopicMessageFlowNodeData = {
     messageId: node.id,
     role: node.role,
+    isContextBoundary: node.isContextBoundary,
     status: node.status,
     preview: node.preview,
     modelId: node.modelId,
@@ -204,8 +168,7 @@ function toNodeData(
     isActive: node.id === activeNodeId,
     isOnActivePath: activePath.has(node.id),
     isInactiveBranch: hasActivePath && !activePath.has(node.id),
-    hasAssistantDescendant: hasAssistantDescendantById.get(node.id) ?? false,
-    ...(node.isInputDraft ? { isInputDraft: true } : {})
+    ...(node.isAwaitingInput ? { isAwaitingInput: true } : {})
   }
 
   if (node.siblingsGroupId !== undefined) {

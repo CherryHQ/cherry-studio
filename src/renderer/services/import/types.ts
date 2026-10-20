@@ -1,15 +1,26 @@
-import type { Assistant } from '@renderer/types/assistant'
-import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
-import type { Topic } from '@renderer/types/topic'
+import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { Assistant } from '@shared/data/types/assistant'
+import type { ModelSnapshot } from '@shared/data/types/message'
+
+export interface ImportMessageNode {
+  sourceId: string
+  parentSourceId?: string
+  role: CreateMessageDto['role']
+  parts: NonNullable<CreateMessageDto['data']['parts']>
+  model?: ModelSnapshot
+}
+
+export interface ImportConversation {
+  name: string
+  messages: ImportMessageNode[]
+  activeSourceId?: string
+}
 
 /**
  * Import result containing parsed data
  */
 export interface ImportResult {
-  topics: Topic[]
-  messages: Message[]
-  blocks: MainTextMessageBlock[]
-  metadata?: Record<string, unknown>
+  conversations: ImportConversation[]
 }
 
 /**
@@ -46,8 +57,7 @@ export interface ConversationImporter {
   /**
    * Parse file content and convert to unified format
    * @param fileContent - Raw file content (usually JSON string)
-   * @param assistantId - ID of the assistant to associate with
-   * @returns Parsed topics, messages, and blocks
+   * @returns Parsed conversations containing v2 AI SDK message parts
    */
-  parse(fileContent: string, assistantId: string): Promise<ImportResult>
+  parse(fileContent: string): Promise<ImportResult>
 }

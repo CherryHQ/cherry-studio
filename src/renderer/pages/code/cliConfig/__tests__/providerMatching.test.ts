@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { describe, expect, it } from 'vitest'
 
 import { cliConfigConnectionMatchesProvider } from '../providerMatching'
 
@@ -75,6 +76,25 @@ describe('cliConfigConnectionMatchesProvider', () => {
         )
       ).toBe(true)
     }
+  })
+
+  it('matches MiniMax Code against the formatted OpenAI or Anthropic endpoint', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.MINIMAX_CODE,
+        { baseUrl: 'https://express-ent-admin.cherryin.ai/v1', apiKey: 'sk-secret' },
+        openAIChatProvider,
+        apiKeys
+      )
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.MINIMAX_CODE,
+        { baseUrl: 'https://api.anthropic.com', apiKey: 'sk-secret' },
+        anthropicProvider,
+        apiKeys
+      )
+    ).toBe(true)
   })
 
   it('matches Codex and OpenCode against formatted /v1 endpoints', () => {

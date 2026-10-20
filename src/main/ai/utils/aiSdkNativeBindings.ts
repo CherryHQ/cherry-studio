@@ -1,6 +1,6 @@
 /**
  * Canonical param key → its structured request field (+ optional wire
- * normalization). After the `ai.generate_image` payload collapse, the renderer
+ * normalization). After the `ai.image.generate` payload collapse, the renderer
  * sends one canonical `paramValues` bag; `splitParamValues` (in `imageOptions.ts`)
  * uses this table to partition it into the structured fields the AI SDK
  * `imageParams` consume vs the leftover vendor bag the WireProfile engine
@@ -31,7 +31,7 @@ interface NativeBinding {
 export function normalizeAspectRatio(value: string | undefined): string | undefined {
   if (!value) return undefined
   const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return /^\d+:\d+$/.test(stripped) ? stripped : undefined
+  return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(stripped) ? stripped : undefined
 }
 
 // The genuine AI SDK `ImageModelV3CallOptions` image params (`@ai-sdk/provider`):

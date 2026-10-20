@@ -1,13 +1,119 @@
-import type { SerializedError } from '@renderer/types/error'
 import { describe, expect, it } from 'vitest'
 
+import type { SerializedError } from '@renderer/types/error'
+
 import { classifyError } from '../errorClassifier'
+import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
+/** Shaped like `serializeError(RetryError)`: nested attempts keep no `message`/`stack`. */
+function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedError {
+  return makeError({
+    name: 'AI_RetryError',
+    message: 'Failed after 2 attempts. Last error:',
+    cause: null,
+    reason: 'maxRetriesExceeded',
+    ...overrides
+  })
+}
+
+/** Serialized API call attempt. Status may be numeric or a numeric string, matching `classifyError`. */
+function makeApiCallAttempt(overrides: Partial<SerializedError> = {}): SerializedError {
+  return {
+    name: 'AI_APICallError',
+    message: null,
+    stack: null,
+    cause: null,
+    url: '',
+    requestBodyValues: null,
+    statusCode: null,
+    responseHeaders: null,
+    responseBody: null,
+    isRetryable: true,
+    data: null,
+    ...overrides
+  }
+}
+
+/** ai-retry copies the terminal phrase onto a status-less RetryError and keeps lastError plus errors. */
+function makeCopiedRetry(
+  phrase: string,
+  attempts: SerializedError[],
+  wrapper: Partial<SerializedError> = {}
+): SerializedError {
+  return makeRetryError({
+    message: `Failed after ${attempts.length} attempts. Last error: ${phrase}`,
+    lastError: attempts[attempts.length - 1],
+    errors: attempts,
+    ...wrapper
+  })
+}
+
 describe('classifyError', () => {
+  it('uses the parse diagnosis for a serialized unresolved tool call', () => {
+    expect(
+      classifyError(
+        makeError({
+          name: 'AI_InvalidResponseDataError',
+          message: "Expected 'function.name' to be a string."
+        }),
+        'custom'
+      )
+    ).toMatchObject({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+  })
+
+  it.each([
+    [new Error('OpenAI API key is missing. Pass it using the apiKey parameter.'), 'auth'],
+    [
+      Object.assign(new Error('Forbidden'), {
+        statusCode: 403,
+        responseBody: '{"error":{"message":"insufficient_user_quota"}}'
+      }),
+      'quota'
+    ],
+    [Object.assign(new Error('Too many requests'), { status: 429 }), 'rate_limit'],
+    [{ name: 'Error', message: 'Process exited', stack: null, claudeCodeExitCategory: 'proxy' }, 'proxy'],
+    ['net::ERR_INTERNET_DISCONNECTED', 'network'],
+    ['Unexplained failure', 'unknown']
+  ] as const)('preserves the diagnosis when a thrown value enters a toast (%s)', (error, category) => {
+    expect(classifyError(serializeToastError(error)).category).toBe(category)
+  })
+  it.each([
+    ['auth', '/settings/provider?id=anthropic'],
+    ['model', '/settings/provider?id=anthropic'],
+    ['rate_limit', '/settings/provider?id=anthropic'],
+    ['network', '/settings/general'],
+    ['mcp', '/settings/mcp/servers'],
+    ['unknown', null]
+  ] as const)('uses an explicit Claude Code %s exit category', (category, navTarget) => {
+    expect(
+      classifyError(
+        {
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: category
+        },
+        'anthropic'
+      )
+    ).toMatchObject({ category, navTarget })
+  })
+
+  it('falls back to the message when the exit category is not one the app knows', () => {
+    const result = classifyError(
+      makeError({ message: 'HTTP 429 too many requests', claudeCodeExitCategory: 'sandbox_denied' }),
+      'anthropic'
+    )
+    expect(result.category).toBe('rate_limit')
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
@@ -17,6 +123,212 @@ describe('classifyError', () => {
   it('returns unknown for empty error', () => {
     const result = classifyError(makeError({ message: '' }))
     expect(result.category).toBe('unknown')
+  })
+
+  // Wrapped errors — RetryError itself carries no status; the terminal lastError does.
+  it.each([
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [503, 'server']
+  ])('classifies a retry error wrapping %i as %s', (statusCode, category) => {
+    const wrapped = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode },
+        errors: [{ name: 'AI_APICallError', statusCode }]
+      })
+    )
+    expect(wrapped.category).toBe(category)
+  })
+
+  it('diagnoses an earlier attempt when the last one says nothing', () => {
+    const result = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError' },
+        errors: [{ name: 'AI_APICallError', statusCode: 401 }, { name: 'AI_APICallError' }]
+      })
+    )
+    expect(result.category).toBe('auth')
+  })
+
+  it('prefers an earlier specific diagnosis over the last attempt generic recovery', () => {
+    const result = classifyError(
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [
+          { name: 'AI_APICallError', statusCode: 401 },
+          { name: 'AI_APICallError', statusCode: 400 }
+        ]
+      }),
+      'openai'
+    )
+
+    expect(result.category).toBe('auth')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('keeps the outer classification when the wrapper itself is diagnosable', () => {
+    const result = classifyError(
+      makeRetryError({
+        message: 'rate limit exceeded',
+        lastError: { name: 'AI_APICallError', statusCode: 401 },
+        errors: [{ name: 'AI_APICallError', statusCode: 401 }]
+      })
+    )
+    expect(result.category).toBe('rate_limit')
+  })
+
+  // Copied terminal phrase must not hide a structured HTTP 5xx on lastError.
+  it.each(['unauthorized', 'insufficient_balance', 'too many requests', 'model_not_found', 'fetch failed'])(
+    'classifies a retry wrapper that copied "%s" as server when the terminal attempt is HTTP 503',
+    (phrase) => {
+      const error = makeCopiedRetry(phrase, [
+        makeApiCallAttempt({ statusCode: 401, providerErrorCategory: 'auth', message: 'unauthorized' }),
+        makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' }),
+        makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: phrase })
+      ])
+
+      expect(classifyError(error, 'openai')).toMatchObject({
+        category: 'server',
+        i18nKey: 'error.diagnosis.server',
+        navTarget: null
+      })
+    }
+  )
+
+  it('reads a string terminal status the same way as a numeric 503', () => {
+    const byStatusCode = makeCopiedRetry('unauthorized', [
+      makeApiCallAttempt({ statusCode: '503', message: 'unauthorized' })
+    ])
+    const byStatus = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ status: '503', message: 'unauthorized' })])
+
+    expect(classifyError(byStatusCode).category).toBe('server')
+    expect(classifyError(byStatus).category).toBe('server')
+  })
+
+  it.each([
+    [500, 'server'],
+    [599, 'server'],
+    [499, 'auth'],
+    [600, 'auth']
+  ] as const)('treats terminal HTTP %i as %s when the wrapper only copied "unauthorized"', (statusCode, category) => {
+    const error = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ statusCode, message: 'unauthorized' })])
+
+    expect(classifyError(error).category).toBe(category)
+  })
+
+  it('does not let an earlier HTTP 503 override a terminal 401 or 429', () => {
+    const terminalUnauthorized = makeCopiedRetry('rate limit exceeded', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'Service Unavailable' }),
+      makeApiCallAttempt({ statusCode: 401, providerErrorCategory: 'auth', message: 'unauthorized' })
+    ])
+    const terminalRateLimit = makeCopiedRetry('too many requests', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'Service Unavailable' }),
+      makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' })
+    ])
+
+    expect(classifyError(terminalUnauthorized).category).toBe('rate_limit')
+    expect(classifyError(terminalRateLimit).category).toBe('rate_limit')
+  })
+
+  it('keeps outer status, provider category, Claude category, and finishReason ahead of a terminal 503', () => {
+    const terminalServer = [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'unauthorized' })
+    ]
+
+    expect(
+      classifyError(makeCopiedRetry('too many requests', terminalServer, { statusCode: 401 }), 'openai')
+    ).toMatchObject({
+      category: 'auth',
+      navTarget: '/settings/provider?id=openai'
+    })
+    expect(classifyError(makeCopiedRetry('too many requests', terminalServer, { status: '403' })).category).toBe(
+      'permission'
+    )
+    expect(
+      classifyError(makeCopiedRetry('unauthorized', terminalServer, { providerErrorCategory: 'quota' })).category
+    ).toBe('quota')
+    expect(
+      classifyError(makeCopiedRetry('unauthorized', terminalServer, { claudeCodeExitCategory: 'mcp' })).category
+    ).toBe('mcp')
+    expect(
+      classifyError(makeCopiedRetry('blocked by safety', terminalServer, { finishReason: 'SAFETY' })).category
+    ).toBe('content')
+  })
+
+  it('keeps an outer HTTP 503 ahead of a terminal 401 and a copied unauthorized phrase', () => {
+    const error = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ statusCode: 401, message: 'unauthorized' })], {
+      statusCode: 503
+    })
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
+  it('lets a terminal HTTP 503 outrank message-only safety text', () => {
+    const error = makeCopiedRetry('blocked by safety', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'blocked by safety' })
+    ])
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
+  it('keeps message-only MCP, OCR, and transport categories without a terminal HTTP 5xx', () => {
+    expect(
+      classifyError(
+        makeCopiedRetry('MCP error: service unavailable', [
+          makeApiCallAttempt({ message: 'MCP error: service unavailable' })
+        ])
+      ).category
+    ).toBe('mcp')
+    expect(
+      classifyError(
+        makeCopiedRetry('OCR service unavailable', [makeApiCallAttempt({ message: 'OCR service unavailable' })])
+      ).category
+    ).toBe('ocr')
+    expect(
+      classifyError(makeCopiedRetry('fetch failed', [makeApiCallAttempt({ message: 'fetch failed' })])).category
+    ).toBe('network')
+    expect(
+      classifyError(
+        makeCopiedRetry('net::ERR_PROXY_CONNECTION_FAILED', [
+          makeApiCallAttempt({ message: 'net::ERR_PROXY_CONNECTION_FAILED' })
+        ])
+      ).category
+    ).toBe('proxy')
+  })
+
+  it('lets a terminal HTTP 503 outrank a copied MCP phrase', () => {
+    const error = makeCopiedRetry('MCP error: service unavailable', [
+      makeApiCallAttempt({
+        statusCode: 503,
+        providerErrorCategory: 'server',
+        message: 'MCP error: service unavailable'
+      })
+    ])
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
+  it.each([
+    ['direct', makeError({ statusCode: 400 })],
+    [
+      'retry-wrapped',
+      makeRetryError({
+        lastError: { name: 'AI_APICallError', statusCode: 400 },
+        errors: [{ name: 'AI_APICallError', statusCode: 400 }]
+      })
+    ]
+  ])('identifies a %s HTTP 400 as a failed request with provider settings recovery', (_kind, error) => {
+    const result = classifyError(error, 'openai')
+
+    expect(result.category).toBe('bad_request')
+    expect(result.i18nKey).toBe('error.diagnosis.bad_request')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('encodes the provider id in the generic HTTP 400 recovery target', () => {
+    const result = classifyError(makeError({ statusCode: 400 }), 'gateway&fallback#beta')
+
+    expect(result.navTarget).toBe('/settings/provider?id=gateway%26fallback%23beta')
   })
 
   // Auth
@@ -32,9 +344,39 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
-  it('classifies 403 as auth', () => {
-    const result = classifyError(makeError({ statusCode: 403 }))
-    expect(result.category).toBe('auth')
+  // Permission — 403 means the key was accepted, so it must not read as "invalid API key".
+  it('classifies 403 as permission, not auth', () => {
+    const result = classifyError(makeError({ statusCode: 403 }), 'openai')
+    expect(result.category).toBe('permission')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('classifies a 403 with billing signals as quota, not permission', () => {
+    const result = classifyError(makeError({ statusCode: 403, responseBody: '{"detail":"insufficient balance"}' }))
+    expect(result.category).toBe('quota')
+  })
+
+  it('classifies a 403 unsupported-country response as region', () => {
+    const result = classifyError(
+      makeError({
+        statusCode: 403,
+        message: 'Country, region, or territory not supported (unsupported_country_region_territory)'
+      })
+    )
+    expect(result.category).toBe('region')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies a service unavailable in the user region as region', () => {
+    const result = classifyError(makeError({ message: 'This service is not available in your region' }))
+    expect(result.category).toBe('region')
+  })
+
+  it('does not classify an unavailable account plan as region', () => {
+    const result = classifyError(
+      makeError({ message: 'This model is not available in your account, please upgrade your plan' })
+    )
+    expect(result.category).not.toBe('region')
   })
 
   it('classifies invalid_api_key message as auth', () => {
@@ -42,9 +384,31 @@ describe('classifyError', () => {
     expect(result.category).toBe('auth')
   })
 
-  it('classifies forbidden message as auth', () => {
-    const result = classifyError(makeError({ message: 'Forbidden: access denied' }))
+  it('classifies a plain invalid API key message as auth', () => {
+    const result = classifyError(makeError({ message: 'Invalid API key' }))
     expect(result.category).toBe('auth')
+  })
+
+  it('classifies forbidden message as permission', () => {
+    const result = classifyError(makeError({ message: 'Forbidden: access denied' }))
+    expect(result.category).toBe('permission')
+  })
+
+  // An OCR-fallback failure must not be re-owned by the chat provider: even when the
+  // failing OCR processor's diagnostic carries auth-flavored tokens, the error text is
+  // the generic non-vision headline, so recovery never points at provider settings (#20343).
+  it('keeps an app-owned non-vision OCR error out of the provider auth routing', () => {
+    const result = classifyError(
+      makeError({
+        name: 'NonVisionImageOcrError',
+        i18nKey: 'image_unreadable_for_non_vision_model',
+        message:
+          "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+      }),
+      'anthropic'
+    )
+    expect(result.category).not.toBe('auth')
+    expect(result.navTarget).toBeNull()
   })
 
   // Model
@@ -65,27 +429,76 @@ describe('classifyError', () => {
     expect(result.i18nKey).toBe('error.diagnosis.model')
   })
 
-  // Quota
-  it('classifies 429 as quota', () => {
+  // Rate limit
+  it('classifies 429 as rate_limit', () => {
     const result = classifyError(makeError({ statusCode: 429 }))
-    expect(result.category).toBe('quota')
+    expect(result.category).toBe('rate_limit')
   })
 
-  it('classifies rate_limit message as quota', () => {
+  it('classifies rate_limit message as rate_limit', () => {
     const result = classifyError(makeError({ message: 'rate limit exceeded' }))
-    expect(result.category).toBe('quota')
+    expect(result.category).toBe('rate_limit')
   })
 
+  it('classifies too many requests as rate_limit', () => {
+    const result = classifyError(makeError({ message: 'Too many requests' }))
+    expect(result.category).toBe('rate_limit')
+  })
+
+  // Quota
   it('classifies insufficient_quota message as quota', () => {
     const result = classifyError(makeError({ message: 'insufficient_quota' }))
     expect(result.category).toBe('quota')
+  })
+
+  it('classifies insufficient_balance message as quota', () => {
+    const result = classifyError(makeError({ message: 'insufficient_balance' }))
+    expect(result.category).toBe('quota')
+  })
+
+  it('does not classify insufficient permissions as quota', () => {
+    const result = classifyError(makeError({ message: 'insufficient permissions' }))
+    expect(result.category).not.toBe('quota')
+  })
+
+  it('prefers quota over rate_limit when both signals appear', () => {
+    const result = classifyError(makeError({ statusCode: 429, message: 'rate limit: insufficient_balance' }))
+    expect(result.category).toBe('quota')
+  })
+
+  it('reads quota signals from responseBody before classifying a 429', () => {
+    const result = classifyError(
+      makeError({
+        statusCode: 429,
+        message: 'Rate limit exceeded',
+        responseBody: '{"error":{"type":"insufficient_quota","code":"billing_hard_limit_reached"}}'
+      })
+    )
+    expect(result.category).toBe('quota')
+  })
+
+  it('reads quota signals from structured data', () => {
+    const result = classifyError(
+      makeError({
+        statusCode: 429,
+        message: 'Rate limit exceeded',
+        data: { error: { code: 'billing_hard_limit_reached' } }
+      })
+    )
+    expect(result.category).toBe('quota')
+  })
+
+  it('classifies HTTP 402 as quota', () => {
+    const result = classifyError(makeError({ statusCode: 402, message: 'Payment Required' }))
+    expect(result.category).toBe('quota')
+    expect(result.navTarget).toBe('/settings/provider')
   })
 
   // Network
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/system')
+    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies timeout as network', () => {
@@ -93,9 +506,72 @@ describe('classifyError', () => {
     expect(result.category).toBe('network')
   })
 
+  it('classifies a timed-out request as network', () => {
+    const result = classifyError(makeError({ message: 'Request timed out' }))
+    expect(result.category).toBe('network')
+  })
+
   it('classifies fetch failed as network', () => {
     const result = classifyError(makeError({ message: 'fetch failed' }))
     expect(result.category).toBe('network')
+  })
+
+  it('classifies MCP timeout as mcp instead of network', () => {
+    const result = classifyError(makeError({ message: 'MCP server timeout after 30000ms' }))
+    expect(result.category).toBe('mcp')
+  })
+
+  it('classifies OCR timeout as ocr instead of network', () => {
+    const result = classifyError(makeError({ message: 'OCR engine timeout' }))
+    expect(result.category).toBe('ocr')
+  })
+
+  // Narrow and provider-specific variants
+  it('classifies an Anthropic long prompt as context_length', () => {
+    const result = classifyError(makeError({ message: 'prompt is too long: 200000 tokens > 199999' }))
+    expect(result.category).toBe('context_length')
+  })
+
+  it('classifies a context window error as context_length', () => {
+    const result = classifyError(makeError({ message: 'request exceeds the context window of this model' }))
+    expect(result.category).toBe('context_length')
+  })
+
+  it('classifies ECONNRESET as stream', () => {
+    const result = classifyError(makeError({ message: 'socket hang up: ECONNRESET' }))
+    expect(result.category).toBe('stream')
+  })
+
+  it('does not classify a bare stream mention as stream', () => {
+    const result = classifyError(makeError({ message: 'stream not supported by this model' }))
+    expect(result.category).not.toBe('stream')
+  })
+
+  it('classifies an unexpected token response as parse', () => {
+    const result = classifyError(makeError({ message: "Unexpected token '<' in JSON at position 0" }))
+    expect(result.category).toBe('parse')
+  })
+
+  it('does not classify a bare JSON mention as parse', () => {
+    const result = classifyError(makeError({ message: 'max_tokens must be a valid JSON number' }))
+    expect(result.category).not.toBe('parse')
+  })
+
+  it('classifies a deprecated model as deprecated', () => {
+    const result = classifyError(makeError({ message: 'This model has been deprecated, please upgrade' }))
+    expect(result.category).toBe('deprecated')
+  })
+
+  it('does not classify a deprecated parameter as a deprecated model', () => {
+    const result = classifyError(
+      makeError({ message: 'Warning: parameter max_tokens is deprecated, use max_completion_tokens' })
+    )
+    expect(result.category).not.toBe('deprecated')
+  })
+
+  it('classifies an overloaded provider as server', () => {
+    const result = classifyError(makeError({ statusCode: 529, message: 'Overloaded' }))
+    expect(result.category).toBe('server')
   })
 
   // Content filter
@@ -105,9 +581,19 @@ describe('classifyError', () => {
     expect(result.navTarget).toBeNull()
   })
 
-  it('does not classify content_filter without 400 status', () => {
+  it('classifies content_filter without a status', () => {
     const result = classifyError(makeError({ message: 'content_filter triggered' }))
-    expect(result.category).not.toBe('content')
+    expect(result.category).toBe('content')
+  })
+
+  it('classifies a structured SAFETY finish reason as content', () => {
+    const result = classifyError(makeError({ message: 'no object generated', finishReason: 'SAFETY' }))
+    expect(result.category).toBe('content')
+  })
+
+  it('classifies a structured RECITATION finish reason as content', () => {
+    const result = classifyError(makeError({ message: 'no object generated', finishReason: 'RECITATION' }))
+    expect(result.category).toBe('content')
   })
 
   // Server
@@ -121,11 +607,21 @@ describe('classifyError', () => {
     expect(result.category).toBe('server')
   })
 
+  it('classifies a 503 with a transport-looking message as server', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'fetch failed' }))
+    expect(result.category).toBe('server')
+  })
+
+  it('keeps a provider 503 server classification ahead of feature text', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'MCP error: service unavailable' }))
+    expect(result.category).toBe('server')
+  })
+
   // Knowledge
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))
     expect(result.category).toBe('knowledge')
-    expect(result.navTarget).toBe('/knowledge')
+    expect(result.navTarget).toBe('/app/knowledge')
   })
 
   it('classifies knowledge base error as knowledge', () => {
@@ -162,9 +658,85 @@ describe('classifyError', () => {
     expect(result.category).not.toBe('mcp')
   })
 
+  // Proxy — live Chromium net.fetch / undici / https-proxy-agent strings, not guessed English.
+  it('classifies Chromium ERR_PROXY_CONNECTION_FAILED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies Chromium ERR_PROXY_AUTH_REQUESTED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_PROXY_AUTH_REQUESTED' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  // Electron net.fetch surfaces mandatory PAC failure as this Chromium code, not ERR_PROXY_*.
+  it('classifies Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies a Chromium socket-to-proxies failure as proxy', () => {
+    const result = classifyError(
+      makeError({ message: 'Failed to establish a socket connection to proxies: PROXY 127.0.0.1:7890' })
+    )
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies an undici ProxyAgent CONNECT failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'Proxy response (407) !== 200 when HTTP Tunneling' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies an https-proxy-agent CONNECT close as proxy', () => {
+    const result = classifyError(makeError({ message: 'Proxy connection ended before receiving CONNECT response' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('still classifies a SOCKS failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'Socks5 proxy rejected connection' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('still classifies a certificate failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'unable to verify the first certificate' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies Chromium ERR_SSL_CLIENT_AUTH_CERT_NEEDED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('does not match plain "proxy" without qualifier', () => {
+    const result = classifyError(makeError({ message: 'something proxy related' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not classify reverse-proxy configuration as a proxy transport failure', () => {
+    const result = classifyError(makeError({ message: 'reverse proxies are configured' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not classify proxying prose as a proxy transport failure', () => {
+    const result = classifyError(makeError({ message: 'proxying requests through a local gateway' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not treat an unrelated ERR_ token near proxy configuration prose as a proxy failure', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_INVALID_ARGUMENT in proxy configuration' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
   // Status as string
   it('handles status as string', () => {
     const result = classifyError(makeError({ status: '401' }))
     expect(result.category).toBe('auth')
+  })
+
+  it('prioritizes finishReason over status code', () => {
+    const result = classifyError(makeError({ finishReason: 'content-filter', statusCode: 500 }))
+    expect(result.category).toBe('content')
   })
 })

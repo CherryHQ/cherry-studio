@@ -5,30 +5,37 @@ const MistralLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
-      <g clipPath={`url(#${iconId}-mistrallight__a)`}>
-        <path fill="#FA500F" d="M89.6379 65.8985H77.7793V77.7222H89.6379V65.8985Z" />
-        <path fill="#E10500" d="M101.501 77.718H65.9297V89.5421H101.501V77.718Z" />
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+      <mask
+        id={`${iconId}-mistrallight__a`}
+        width={65}
+        height={65}
+        x={27}
+        y={28}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M92 28H27V93H92V28Z" />
+      </mask>
+      <g mask={`url(#${iconId}-mistrallight__a)`}>
+        <path fill="#FA500F" d="M82.7104 65.1193H73.4236V74.3788H82.7104V65.1193Z" />
+        <path fill="#E10500" d="M92.0008 74.3755H64.1438V83.6354H92.0008V74.3755Z" />
         <path
           fill="#FA500F"
-          d="M65.9289 65.8985H54.0703V77.7222H65.9289V65.8985ZM42.2101 65.8985H30.3516V77.7222H42.2101V65.8985Z"
+          d="M64.1431 65.1193H54.8562V74.3788H64.1431V65.1193ZM45.5683 65.1193H36.2815V74.3788H45.5683V65.1193Z"
         />
-        <path fill="#E10500" d="M54.0679 77.718H18.5V89.5421H54.0679V77.718Z" />
+        <path fill="#E10500" d="M54.8544 74.3755H27V83.6354H54.8544V74.3755Z" />
         <path
           fill="#FFAF00"
-          d="M89.6428 42.2556H65.9297V54.0792H89.6428V42.2556ZM54.0648 42.2556H30.3516V54.0792H54.0648V42.2556Z"
+          d="M82.7143 46.6038H64.1438V55.8632H82.7143V46.6038ZM54.8521 46.6038H36.2815V55.8632H54.8521V46.6038Z"
         />
-        <path fill="#FF8205" d="M89.6328 54.0739H30.3516V65.8976H89.6328V54.0739Z" />
+        <path fill="#FF8205" d="M82.7065 55.8591H36.2815V65.1186H82.7065V55.8591Z" />
         <path
           fill="#FFD800"
-          d="M89.6379 30.4312H77.7793V42.2549H89.6379V30.4312ZM42.2101 30.4312H30.3516V42.2549H42.2101V30.4312Z"
+          d="M82.7104 37.3437H73.4236V46.6032H82.7104V37.3437ZM45.5683 37.3437H36.2815V46.6032H45.5683V37.3437Z"
         />
       </g>
-      <defs>
-        <clipPath id={`${iconId}-mistrallight__a`}>
-          <path fill="#fff" d="M0 0H83V83H0z" transform="translate(18.5 18.5)" />
-        </clipPath>
-      </defs>
     </svg>
   )
 }

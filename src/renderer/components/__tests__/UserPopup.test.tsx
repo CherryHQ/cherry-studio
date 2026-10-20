@@ -1,10 +1,11 @@
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import type * as ImageUtils from '@renderer/utils/image'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(async () => undefined)
@@ -196,24 +197,31 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
-  it('only customizes avatar picker popover width and padding', async () => {
+  it('opens the legacy avatar and name dialog and preserves spaces in the edited name', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Yinsen')
     showUserPopup()
 
-    fireEvent.click(await screen.findByTestId('popover-trigger'))
+    expect(await screen.findByTestId('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.avatar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.settings' })).not.toBeInTheDocument()
 
-    const popoverContent = screen.getByTestId('popover-content')
+    const name = screen.getByPlaceholderText('settings.general.user_name.placeholder')
+    expect(name).toHaveValue('Yinsen')
+    fireEvent.change(name, { target: { value: 'Sora Tan' } })
 
-    expect(popoverContent).toHaveClass('w-auto', 'p-2')
-    expect(popoverContent).not.toHaveClass(
-      'border',
-      'border-border',
-      'bg-popover',
-      'text-popover-foreground',
-      'shadow-lg'
-    )
+    await waitFor(() => expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('Sora Tan'))
   })
 
-  it('uploads an avatar as raw bytes via profile.set_avatar', async () => {
+  it('resets the avatar from the dialog picker', async () => {
+    showUserPopup()
+    fireEvent.click(await screen.findByTestId('popover-trigger'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
+
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', { kind: 'default' }))
+  })
+
+  it('accepts and uploads a WebP avatar as raw bytes via profile.set_avatar', async () => {
     showUserPopup()
 
     // Open the avatar popover to reveal the upload control + hidden file input.
@@ -221,10 +229,11 @@ describe('UserPopup', () => {
     fireEvent.click(trigger)
 
     // jsdom's File lacks arrayBuffer(); add it so the handler can read the bytes.
-    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
+    const file = Object.assign(new File(['webp'], 'a.webp', { type: 'image/webp' }), {
       arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
     })
     const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
+    expect(input.accept.split(/,\s*/)).toContain('image/webp')
     fireEvent.change(input, { target: { files: [file] } })
 
     await waitFor(() => {

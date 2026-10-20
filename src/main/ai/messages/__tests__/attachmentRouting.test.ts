@@ -1,7 +1,8 @@
-import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -20,7 +21,7 @@ vi.mock('@application', () => ({
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
 
-const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string>>() }))
+const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
 vi.mock('../attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
   noExtractableTextNote: (name: string) => `No text in ${name}`
@@ -32,16 +33,42 @@ const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video:
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
 
 function userMessage(parts: CherryMessagePart[]): CherryUIMessage {
-  return { id: 'm1', role: 'user', parts } as CherryUIMessage
+  return { id: 'm1', role: 'user', parts }
 }
-const fileWithEntry = (id: string, filename: string, mediaType: string): CherryMessagePart =>
-  ({
-    type: 'file',
-    url: `file:///x/${filename}`,
-    mediaType,
-    filename,
-    providerMetadata: { cherry: { fileEntryId: id } }
-  }) as CherryMessagePart
+const fileWithEntry = (
+  id: string,
+  filename: string,
+  mediaType: string,
+  fileTokenSourceId?: string
+): CherryMessagePart => ({
+  type: 'file',
+  url: `file:///x/${filename}`,
+  mediaType,
+  filename,
+  providerMetadata: { cherry: { fileEntryId: id, ...(fileTokenSourceId ? { fileTokenSourceId } : {}) } }
+})
+
+const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMessagePart => ({
+  type: 'text',
+  text,
+  providerMetadata: {
+    cherry: {
+      composer: {
+        version: 1,
+        tokens: fileTokenSourceIds.map((sourceId, index) => ({
+          id: `file:${sourceId}`,
+          kind: 'file',
+          label: `${sourceId}.png`,
+          index,
+          textOffset: 0
+        }))
+      }
+    }
+  }
+})
+
+/** One token per character, so a test's `cap` reads directly as a character cap. */
+const charTokenizer = { id: 'chars', count: (text: string) => text.length }
 
 const run = (
   parts: CherryMessagePart[],
@@ -53,7 +80,7 @@ const run = (
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    cap: opts.cap
+    budget: opts.cap === undefined ? undefined : { tokens: opts.cap, tokenizer: charTokenizer }
   })
 }
 
@@ -73,7 +100,21 @@ describe('prepareChatMessages — routing', () => {
     expect(extractMock).not.toHaveBeenCalled()
   })
 
-  it('OCRs a non-vision image into inline text', async () => {
+  it.each([
+    ['audio', 'mp3', 'audio/mpeg'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)('keeps a supported managed %s part inline', async (_kind, ext, mediaType) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+    resolveMock.mockImplementation(async (part) => part)
+
+    const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], ALL)
+
+    expect(out.parts).toEqual([expect.objectContaining({ type: 'file', filename: `media.${ext}`, mediaType })])
+    expect(resolveMock).toHaveBeenCalledOnce()
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('OCRs a legacy non-vision image without composer source metadata', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockResolvedValueOnce('ocr body')
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
@@ -81,11 +122,104 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
   })
 
+  it('OCRs a modern non-vision image whose composer token matches its source id', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('ocr body')
+
+    const [out] = await run(
+      [composerText('attached', 'source-1'), fileWithEntry('e1', 'a.png', 'image/png', 'source-1')],
+      NONE
+    )
+
+    expect(textOf(out.parts)).toEqual(['attached', 'Attached file "a.png":\nocr body'])
+    expect(ocrMock).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a modern managed image whose composer token no longer references its source id', async () => {
+    const [out] = await run(
+      [composerText('text only', 'different-source'), fileWithEntry('e1', 'stale.png', 'image/png', 'stale-source')],
+      NONE
+    )
+
+    expect(out.parts).toEqual([composerText('text only', 'different-source')])
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('does not OCR a stale retained attachment when the effective messages are text-only', async () => {
+    const message = userMessage([{ type: 'text', text: 'text only' }])
+
+    const out = await prepareChatMessages([message] as UIMessage[], {
+      attachments: [{ fileEntryId: 'stale-entry', handle: 'stale.png', displayName: 'stale.png' }],
+      nativeSupport: NONE,
+      isToolCapable: true
+    })
+
+    expect(out).toEqual([message])
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects before native materialization when OCR finds no text', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('   ')
+
+    // The detail key tells an empty OCR result apart from a failing OCR path (#20343).
+    // The reason rides the i18n fields, never `message`: provider-flavored wording in
+    // the message would hand the error to the chat provider's auth classifier.
+    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_empty',
+      message: expect.not.stringContaining('OCR')
+    })
+
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects before native materialization when OCR is unconfigured or fails', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+
+    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_failed',
+      detailI18nValues: { reason: 'Default file processor for image_to_text is not configured' }
+    })
+
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
   it('inlines extracted text for office docs', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     extractMock.mockResolvedValueOnce('word body')
     const [out] = await run([fileWithEntry('e1', 'a.docx', 'application/octet-stream')], ALL)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.docx":\nword body')
+  })
+
+  it('inlines XML text with an unrecognized extension', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'lrmx' })
+    const text = '<XingMing>张三</XingMing>'
+    extractMock.mockResolvedValueOnce(text)
+    const [out] = await run([fileWithEntry('e1', 'a.lrmx', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)).toEqual([`Attached file "a.lrmx":\n${text}`])
+  })
+
+  it('inlines extracted text for an extensionless text file', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce('license body')
+    const [out] = await run([fileWithEntry('e1', 'LICENSE', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)[0]).toBe('Attached file "LICENSE":\nlicense body')
+  })
+
+  it('keeps an extensionless binary file unsupported', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce(null)
+    const [out] = await run([fileWithEntry('e1', 'payload', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)[0]).toBe(
+      'Attached file "payload":\nCannot read the attached file "payload" as text (unsupported file type).'
+    )
   })
 
   it('keeps a native PDF inline, extracts text for a non-native one', async () => {
@@ -100,18 +234,42 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(textOut.parts)[0]).toBe('Attached file "a.pdf":\npdf body')
   })
 
-  it('notes audio it cannot read', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'mp3' })
-    const [out] = await run([fileWithEntry('e1', 'a.mp3', 'audio/mpeg')], NONE)
-    expect(textOf(out.parts)[0]).toContain("can't process the attached audio file")
+  it.each([
+    ['audio', 'mp3', 'audio/mpeg'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)('notes a managed %s part the endpoint cannot process', async (kind, ext, mediaType) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+
+    const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], NONE)
+
+    expect(textOf(out.parts)[0]).toContain(`can't process the attached ${kind} file`)
+    expect(resolveMock).not.toHaveBeenCalled()
   })
 
   it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
+    extractMock.mockResolvedValueOnce(null)
     const [out] = await run([fileWithEntry('e1', 'a.zip', 'application/zip')], NONE)
     expect(textOf(out.parts)[0]).toBe(
       'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
     )
+    expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
+  })
+
+  // An AVIF/HEIC image is accepted wildcard-style on the agent surface, yet no ext list
+  // classifies it — the note above would drop the only usable reference to the file.
+  it('keeps an unlisted-extension attachment as a file part for a path-forwarding caller', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'avif' })
+    const part = fileWithEntry('e1', 'photo.avif', 'image/avif')
+
+    const [out] = await prepareChatMessages([userMessage([part])] as UIMessage[], {
+      attachments: [{ fileEntryId: 'e1', handle: 'photo.avif', displayName: 'photo.avif' }],
+      nativeSupport: ALL,
+      isToolCapable: true,
+      keepUnroutableFileParts: true
+    })
+
+    expect(out.parts).toEqual([part])
     expect(extractMock).not.toHaveBeenCalled()
   })
 
@@ -148,12 +306,43 @@ describe('prepareChatMessages — routing', () => {
     expect(text).not.toContain('read_file')
   })
 
-  it('degrades a failed attachment to a note instead of rejecting the whole request', async () => {
-    // Default-config trigger: non-vision image + OCR not configured → ocr throws.
-    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
-    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
-    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
+  // The cap used to be per file, so two attachments cost twice the cap and
+  // nothing bounded a turn's total.
+  it('splits one pool across the attachments of a turn instead of giving each the full cap', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce('a'.repeat(100)).mockResolvedValueOnce('b'.repeat(100))
+    const [out] = await run(
+      [fileWithEntry('e1', 'a.txt', 'text/plain'), fileWithEntry('e2', 'b.txt', 'text/plain')],
+      NONE,
+      { cap: 60 }
+    )
+
+    expect(textOf(out.parts)).toEqual([
+      expect.stringContaining('[Truncated 30/100 chars'),
+      expect.stringContaining('[Truncated 30/100 chars')
+    ])
+  })
+
+  // The pool is drawn across every message, and each cap has to land back in the
+  // message it came from — the routing pass runs them concurrently.
+  it('shares the pool across messages and writes each cap back to its own message', async () => {
+    getByIdMock.mockResolvedValue({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce('a'.repeat(100)).mockResolvedValueOnce('b'.repeat(20))
+    const messages = [
+      userMessage([fileWithEntry('e1', 'a.txt', 'text/plain')]),
+      userMessage([fileWithEntry('e2', 'b.txt', 'text/plain')])
+    ] as UIMessage[]
+
+    const out = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: 60, tokenizer: charTokenizer }
+    })
+
+    // b.txt fits whole, so a.txt takes the 40 it leaves behind rather than half.
+    expect(textOf(out[0].parts)[0]).toContain('[Truncated 40/100 chars')
+    expect(textOf(out[1].parts)[0]).toBe(`Attached file "b.txt":\n${'b'.repeat(20)}`)
   })
 
   it('rethrows on abort instead of degrading', async () => {
@@ -180,6 +369,53 @@ describe('prepareChatMessages — routing', () => {
     })
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(out.parts).toEqual([{ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' }])
+  })
+
+  it.each([
+    ['audio', 'wav', 'audio/wav'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)(
+    'omits a normalized legacy %s part when the endpoint does not accept it',
+    async (kind, ext, mediaType) => {
+      resolveMock.mockResolvedValueOnce({ type: 'file', url: `data:${mediaType};base64,AA`, mediaType })
+      const legacy = {
+        type: 'file',
+        url: `file:///x/legacy.${ext}`,
+        mediaType: 'application/octet-stream'
+      } as CherryMessagePart
+      const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+        attachments: [],
+        nativeSupport: NONE,
+        isToolCapable: true
+      })
+
+      expect(getByIdMock).not.toHaveBeenCalled()
+      expect(out.parts).toEqual([
+        { type: 'text', text: `[${kind} attachment omitted: this model does not accept ${kind} input]` }
+      ])
+    }
+  )
+
+  it.each([
+    ['audio', 'wav', 'audio/wav'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)('keeps a normalized legacy %s part when the endpoint accepts it', async (_kind, ext, mediaType) => {
+    const materialized = { type: 'file', url: `data:${mediaType};base64,AA`, mediaType }
+    resolveMock.mockResolvedValueOnce(materialized)
+    const legacy = {
+      type: 'file',
+      url: `file:///x/legacy.${ext}`,
+      mediaType: 'application/octet-stream'
+    } as CherryMessagePart
+
+    const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+      attachments: [],
+      nativeSupport: ALL,
+      isToolCapable: true
+    })
+
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(out.parts).toEqual([materialized])
   })
 })
 
@@ -209,5 +445,21 @@ describe('collectFileAttachments', () => {
   it('ignores file parts without a fileEntryId', () => {
     const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
     expect(collectFileAttachments([userMessage([legacy])] as UIMessage[])).toEqual([])
+  })
+
+  it('ignores orphaned modern file parts but keeps matching and legacy attachments', () => {
+    const messages = [
+      userMessage([
+        composerText('attached', 'live-source'),
+        fileWithEntry('live', 'live.png', 'image/png', 'live-source'),
+        fileWithEntry('stale', 'stale.png', 'image/png', 'stale-source'),
+        fileWithEntry('legacy', 'legacy.png', 'image/png')
+      ])
+    ] as UIMessage[]
+
+    expect(collectFileAttachments(messages)).toEqual([
+      { fileEntryId: 'live', handle: 'live.png', displayName: 'live.png' },
+      { fileEntryId: 'legacy', handle: 'legacy.png', displayName: 'legacy.png' }
+    ])
   })
 })

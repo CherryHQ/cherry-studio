@@ -1,3 +1,5 @@
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
+
 import {
   getTaskActiveText,
   getTaskId,
@@ -5,17 +7,24 @@ import {
   isTaskRecord,
   normalizeTaskStatus
 } from '@renderer/components/chat/messages/tools/agent'
-import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import {
+  type AgentToolOutput,
+  AgentToolsType,
+  isBackgroundAgentOutput
+} from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
+  hasPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
-export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
+export type AgentRightPaneTab = 'browser' | 'files' | 'status' | `flow:${string}`
 
 export interface AgentToolFlowOpenInput {
   toolCallId: string
@@ -24,6 +33,7 @@ export interface AgentToolFlowOpenInput {
 }
 
 export interface AgentToolFlowNode {
+  title?: string
   toolCallId: string
   toolName: string
   parentToolCallId?: string
@@ -40,6 +50,11 @@ export interface AgentToolFlowProjection {
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
+/**
+ * An item on the main agent's own plan — written incrementally through the task ledger
+ * (`TaskCreate` / `TaskUpdate` / `TaskList`) or as a full-list `TodoWrite` snapshot.
+ * Completion is meaningful here, so this is the only list with a done/total ratio.
+ */
 export interface AgentStatusTask {
   id: string
   title: string
@@ -47,11 +62,25 @@ export interface AgentStatusTask {
   activeText?: string
 }
 
-/** A sub-agent spawned via the `Agent`/`Task` tool, derived from the message stream. */
-export interface AgentSubagent {
-  toolCallId: string
-  name: string
-  status: 'running' | 'done' | 'error'
+/**
+ * A process the run spawned — a subagent, shell or workflow — reported through the SDK's task
+ * lifecycle events. It either runs or it settles; a done/total ratio over these would be
+ * meaningless, which is why they are kept apart from the plan above.
+ */
+export interface AgentRunTask {
+  id: string
+  toolUseId?: string
+  title: string
+  status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
+  activeText?: string
+  /** SDK task type, e.g. 'subagent' | 'shell' | 'local_workflow'. */
+  taskType?: string
+  subagentType?: string
+  workflowName?: string
+  summary?: string
+  lastToolName?: string
+  outputFile?: string
+  usage?: AgentTaskEventPartData['usage']
 }
 
 /** A final deliverable file the agent declared via the `report_artifacts` tool. */
@@ -62,11 +91,22 @@ export interface AgentArtifactFile {
   description?: string
 }
 
+/**
+ * Ground truth for "is this run task actually still running". A row's own events cannot answer it:
+ * an interrupted turn, a crash or an app restart leaves the last event at `in_progress` forever.
+ */
+export interface AgentRunLiveness {
+  /** Assistant message ids whose own turn is still pending. */
+  activeMessageIds: ReadonlySet<string>
+  /** Task ids currently present in the runtime's background-task membership snapshot. */
+  liveBackgroundTaskIds: ReadonlySet<string>
+}
+
 export interface AgentRightPaneStatus {
   tasks: AgentStatusTask[]
   completedTaskCount: number
   totalTaskCount: number
-  subagents: AgentSubagent[]
+  runTasks: AgentRunTask[]
   artifacts: AgentArtifactFile[]
 }
 
@@ -145,9 +185,13 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   return textFromContent(input.prompt) ?? textFromContent(input.description)
 }
 
-function getToolOutputText(part: CherryMessagePart | undefined): string | undefined {
-  if (!part) return undefined
-  return textFromContent(getToolPartOutput(part))
+const LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX = 'Async agent launched successfully.'
+
+function isBackgroundAgentLaunchReceipt(output: unknown, text: string | undefined): boolean {
+  return (
+    isBackgroundAgentOutput(output as AgentToolOutput | undefined) ||
+    (text?.startsWith(LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX) ?? false)
+  )
 }
 
 function createFlowTextMessage(
@@ -165,12 +209,16 @@ function createFlowTextMessage(
       createdAt,
       status: role === 'assistant' ? 'success' : undefined
     }
-  } as CherryUIMessage
+  }
+}
+
+function getStableMessageCreatedAt(message: CherryUIMessage | undefined): string | null {
+  const createdAt = (message as unknown as { createdAt?: unknown } | undefined)?.createdAt
+  return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : null)
 }
 
 function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
-  const createdAt = (message as unknown as { createdAt?: unknown } | undefined)?.createdAt
-  return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : new Date(0).toISOString())
+  return getStableMessageCreatedAt(message) ?? new Date(0).toISOString()
 }
 
 function getOrderedMessageParts(
@@ -194,12 +242,167 @@ function getOrderedMessageParts(
           status: 'pending',
           createdAt: new Date(0).toISOString()
         }
-      } as CherryUIMessage,
+      },
       parts
     })
   }
 
   return entries
+}
+
+const PREVIEW_URL_TOOL_NAMES = new Set<string>([
+  AgentToolsType.Bash,
+  AgentToolsType.BashOutput,
+  AgentToolsType.TaskOutput
+])
+const ANSI_ESCAPE_CHARACTER = String.fromCodePoint(27)
+const LOCAL_PREVIEW_URL_PATTERN =
+  /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi
+const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?]+$/
+
+export interface AgentPreviewUrlSource {
+  createdAt: string | null
+  messageId: string
+  partIndex: number
+}
+
+export interface AgentPreviewUrlFrontier {
+  createdAt: string | null
+  messageId: string
+  partsLength: number
+}
+
+export type AgentPreviewUrlCandidate = AgentPreviewUrlSource &
+  ({ key: string; type: 'url'; url: string } | { key: string; type: 'deferred'; ref: DeferredToolResultRef })
+
+function extractLatestLocalPreviewUrl(text: string): string | null {
+  const matches = text.match(LOCAL_PREVIEW_URL_PATTERN)
+  if (!matches?.length) return null
+
+  for (let index = matches.length - 1; index >= 0; index -= 1) {
+    const candidate = matches[index].split(ANSI_ESCAPE_CHARACTER, 1)[0].replace(TRAILING_URL_PUNCTUATION_PATTERN, '')
+    try {
+      const url = new URL(candidate)
+      if (url.hostname === '0.0.0.0') url.hostname = 'localhost'
+      return url.toString()
+    } catch {
+      // Keep looking in case an earlier match in the same output is valid.
+    }
+  }
+  return null
+}
+
+/** Extracts the last usable loopback URL from one resolved tool output. */
+export function findAgentPreviewUrlInOutput(output: unknown): string | null {
+  const text = textFromContent(output)
+  return text ? extractLatestLocalPreviewUrl(text) : null
+}
+
+/** Builds newest-first candidates, stopping once an inline or excerpt URL makes older output irrelevant. */
+export function findAgentPreviewUrlCandidates(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): AgentPreviewUrlCandidate[] {
+  const candidates: AgentPreviewUrlCandidate[] = []
+  const entries = getOrderedMessageParts(messages, partsByMessageId)
+
+  for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex -= 1) {
+    const { message, parts } = entries[entryIndex]
+    const createdAt = getStableMessageCreatedAt(message)
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex]
+      if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
+
+      const output = getToolPartOutput(part)
+      if (isDeferredToolOutput(output)) {
+        const excerpt = output.excerpt
+        const excerptUrl = excerpt ? findAgentPreviewUrlInOutput(`${excerpt.head}\n${excerpt.tail}`) : null
+        if (excerptUrl) {
+          candidates.push({
+            createdAt,
+            key: `url:${message.id}\0${partIndex}\0${excerptUrl}`,
+            messageId: message.id,
+            partIndex,
+            type: 'url',
+            url: excerptUrl
+          })
+          return candidates
+        }
+        const ref = output.$deferredToolResult
+        candidates.push({
+          createdAt,
+          key: `deferred:${message.id}\0${partIndex}\0${ref.topicId}\0${ref.messageId}\0${ref.toolCallId}`,
+          messageId: message.id,
+          partIndex,
+          type: 'deferred',
+          ref
+        })
+        continue
+      }
+
+      const url = findAgentPreviewUrlInOutput(output)
+      if (!url) continue
+      candidates.push({
+        createdAt,
+        key: `url:${message.id}\0${partIndex}\0${url}`,
+        messageId: message.id,
+        partIndex,
+        type: 'url',
+        url
+      })
+      return candidates
+    }
+  }
+
+  return candidates
+}
+
+/** Captures the current time frontier without materializing deferred outputs. */
+export function getAgentPreviewUrlFrontier(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): AgentPreviewUrlFrontier | null {
+  const entry = getOrderedMessageParts(messages, partsByMessageId).at(-1)
+  return entry
+    ? {
+        createdAt: getStableMessageCreatedAt(entry.message),
+        messageId: entry.message.id,
+        partsLength: entry.parts.length
+      }
+    : null
+}
+
+/** Returns whether a source was appended after a previously captured time frontier. */
+export function isAgentPreviewUrlSourceAfterFrontier(
+  source: AgentPreviewUrlSource,
+  frontier: AgentPreviewUrlFrontier | null,
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): boolean {
+  if (!frontier) return true
+  const entries = getOrderedMessageParts(messages, partsByMessageId)
+  const frontierIndex = entries.findIndex(({ message }) => message.id === frontier.messageId)
+  const sourceIndex = entries.findIndex(({ message }) => message.id === source.messageId)
+  if (sourceIndex < 0) return false
+  if (frontierIndex < 0) {
+    if (!source.createdAt || !frontier.createdAt) return false
+    const sourceTimestamp = Date.parse(source.createdAt)
+    const frontierTimestamp = Date.parse(frontier.createdAt)
+    if (!Number.isFinite(sourceTimestamp) || !Number.isFinite(frontierTimestamp)) return false
+    if (sourceTimestamp !== frontierTimestamp) return sourceTimestamp > frontierTimestamp
+    return source.messageId.localeCompare(frontier.messageId) > 0
+  }
+  if (sourceIndex !== frontierIndex) return sourceIndex > frontierIndex
+  return source.partIndex >= frontier.partsLength
+}
+
+/** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */
+export function findLatestAgentPreviewUrl(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): string | null {
+  const candidate = findAgentPreviewUrlCandidates(messages, partsByMessageId)[0]
+  return candidate?.type === 'url' ? candidate.url : null
 }
 
 function isTerminalToolState(state: string | undefined): boolean {
@@ -209,7 +412,8 @@ function isTerminalToolState(state: string | undefined): boolean {
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  selectedToolCallId?: string
+  selectedToolCallId?: string,
+  selectedToolOutput?: unknown
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
   const childrenByParent = new Map<string, string[]>()
@@ -225,7 +429,14 @@ export function buildAgentToolFlowProjection(
       if (!toolCallId) return
 
       const parentToolCallId = getPartParentToolCallId(part)
+      const input = getToolPartInput(part)
+      const title = isRecord(input)
+        ? [input.description, input.subject, input.title, input.name].find(
+            (value) => typeof value === 'string' && value.trim()
+          )
+        : undefined
       const node: AgentToolFlowNode = {
+        ...(typeof title === 'string' ? { title: title.trim() } : {}),
         toolCallId,
         toolName: getToolNameFromPart(part) ?? toolCallId,
         parentToolCallId,
@@ -271,13 +482,31 @@ export function buildAgentToolFlowProjection(
     )
     if (promptMessage) {
       flowMessages.push(promptMessage)
-      flowPartsByMessageId[promptMessage.id] = promptMessage.parts as CherryMessagePart[]
+      flowPartsByMessageId[promptMessage.id] = promptMessage.parts
+    }
+
+    const taskIds = new Set<string>()
+    for (const { parts } of messageEntries) {
+      for (const part of parts) {
+        if (
+          part.type === 'data-agent-task-event' &&
+          part.data.toolUseId &&
+          part.data.toolUseId !== selectedToolCallId &&
+          selectedToolCallIds.has(part.data.toolUseId)
+        ) {
+          taskIds.add(part.data.taskId)
+        }
+      }
     }
 
     const assistantParts: CherryMessagePart[] = []
     for (const { parts } of messageEntries) {
       for (let partIndex = 0; partIndex < parts.length; partIndex++) {
         const part = parts[partIndex]
+        if (part.type === 'data-agent-task-event') {
+          if (taskIds.has(part.data.taskId)) assistantParts.push(part)
+          continue
+        }
         const toolCallId = getToolCallId(part)
         if (toolCallId) {
           if (toolCallId === selectedToolCallId || !selectedToolCallIds.has(toolCallId)) continue
@@ -290,8 +519,19 @@ export function buildAgentToolFlowProjection(
       }
     }
 
-    const outputText = getToolOutputText(selectedToolPart)
-    if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
+    const selectedOutput =
+      selectedToolOutput !== undefined
+        ? selectedToolOutput
+        : selectedToolPart
+          ? getToolPartOutput(selectedToolPart)
+          : undefined
+    const selectedOutputText = textFromContent(selectedOutput)
+    // A detached Agent result is only a control receipt and may expose internal ids or paths. Its
+    // actual conversation already arrives through the child flow parts collected above.
+    const outputText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
+      ? undefined
+      : selectedOutputText
+    if (outputText) assistantParts.push({ type: 'text', text: outputText })
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -319,20 +559,44 @@ export function buildAgentToolFlowProjection(
   }
 }
 
-function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMessagePart, fallbackId: string): void {
-  const toolName = getToolNameFromPart(part)
+interface TaskPlanProjectionState {
+  tasks: Map<string, AgentStatusTask>
+  /** Undefined until a TaskCreate is observed, preserving TaskList-only history. */
+  currentPlanTaskIds?: Set<string>
+}
+
+function applyTaskToolPart(
+  state: TaskPlanProjectionState,
+  part: CherryMessagePart,
+  fallbackId: string,
+  toolName: string | undefined
+): boolean {
+  const taskMap = state.tasks
   const input = getToolPartInput(part)
   const output = getToolPartOutput(part)
 
   if (toolName === AgentToolsType.TaskCreate) {
+    const currentPlanCompleted =
+      taskMap.size > 0 && Array.from(taskMap.values()).every((task) => task.status === 'completed')
+    if (currentPlanCompleted) {
+      taskMap.clear()
+      state.currentPlanTaskIds = new Set()
+    } else if (taskMap.size === 0 && !state.currentPlanTaskIds) {
+      state.currentPlanTaskIds = new Set()
+    }
+
     const inputRecord = isTaskRecord(input) ? input : {}
     const outputRecord = isTaskRecord(output) ? output : {}
     const outputTask = isTaskRecord(outputRecord.task) ? outputRecord.task : undefined
-    const id = (outputTask ? getTaskId(outputTask) : undefined) ?? getNextTaskOrdinalId(taskMap) ?? fallbackId
+    const outputTextId =
+      typeof output === 'string' ? output.match(/^Task #(\S+) created successfully:/)?.[1] : undefined
+    const id =
+      (outputTask ? getTaskId(outputTask) : undefined) ?? outputTextId ?? getNextTaskOrdinalId(taskMap) ?? fallbackId
     const title = (outputTask ? getTaskTitle(outputTask) : undefined) ?? getTaskTitle(inputRecord, id) ?? id
     const activeText = getTaskActiveText(inputRecord)
     taskMap.set(id, { id, title, activeText, status: 'pending' })
-    return
+    state.currentPlanTaskIds?.add(id)
+    return true
   }
 
   if (toolName === AgentToolsType.TaskUpdate) {
@@ -346,7 +610,7 @@ function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMe
       activeText: getTaskActiveText(inputRecord) ?? existing?.activeText,
       status: status ?? existing?.status ?? 'pending'
     })
-    return
+    return true
   }
 
   if (toolName === AgentToolsType.TaskList) {
@@ -356,13 +620,17 @@ function applyTaskToolPart(taskMap: Map<string, AgentStatusTask>, part: CherryMe
       const id = getTaskId(task)
       const title = getTaskTitle(task, id)
       if (!id || !title) continue
+      if (state.currentPlanTaskIds && !state.currentPlanTaskIds.has(id)) continue
       taskMap.set(id, {
         id,
         title,
         status: normalizeTaskStatus(task.status) ?? 'pending'
       })
     }
+    return true
   }
+
+  return false
 }
 
 function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | undefined {
@@ -373,37 +641,73 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
   return undefined
 }
 
-function applyAgentTaskEvent(taskMap: Map<string, AgentStatusTask>, data: AgentTaskEventPartData): void {
-  const existing = taskMap.get(data.taskId)
-  const title = data.title?.trim() || data.summary?.trim() || data.description?.trim() || existing?.title
+// Keyed on the canonical TodoWrite identity: every runtime's native todo tool normalizes onto
+// it through the transport-tagged tool-name mapping, so no runtime is special-cased here.
+function getTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined {
+  if (getCanonicalToolName(part) !== AgentToolsType.TodoWrite || getToolPartState(part) !== 'output-available') {
+    return undefined
+  }
+
+  const input = getToolPartInput(part)
+  if (!isRecord(input) || !Array.isArray(input.todos)) return undefined
+
+  return input.todos.flatMap((todo, index) => {
+    if (!isRecord(todo) || typeof todo.content !== 'string') return []
+    const title = todo.content.trim()
+    if (!title) return []
+
+    return [
+      {
+        id: `todo:${index}:${title}`,
+        title,
+        status: (typeof todo.status === 'string' ? normalizeTaskStatus(todo.status) : undefined) ?? 'pending'
+      }
+    ]
+  })
+}
+
+const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
+
+function applyAgentTaskEvent(
+  runTaskMap: Map<string, AgentRunTask>,
+  data: AgentTaskEventPartData,
+  originMessageId?: string,
+  originMessageIds?: Map<string, string>
+): void {
+  const existing = runTaskMap.get(data.taskId)
+  // A completion's summary is prose, not a name — it must never become the row title.
+  const title = existing?.title || data.title?.trim() || data.description?.trim()
   if (!title) return
 
-  taskMap.set(data.taskId, {
+  // Events reach this map from two orderings (message parts, then the late-event cache), so a stale
+  // pre-completion event can apply after the completion did. A settled task never resurrects.
+  const incoming = data.status ?? existing?.status ?? 'pending'
+  const status =
+    existing && RUN_TASK_TERMINAL_STATUSES.has(existing.status) && !RUN_TASK_TERMINAL_STATUSES.has(incoming)
+      ? existing.status
+      : incoming
+
+  runTaskMap.set(data.taskId, {
     id: data.taskId,
+    toolUseId: data.toolUseId ?? existing?.toolUseId,
     title,
     activeText: data.activeText ?? data.description ?? existing?.activeText,
-    status: data.status ?? existing?.status ?? 'pending'
+    status,
+    taskType: data.taskType ?? existing?.taskType,
+    subagentType: data.subagentType ?? existing?.subagentType,
+    workflowName: data.workflowName ?? existing?.workflowName,
+    summary: data.summary ?? existing?.summary,
+    lastToolName: data.lastToolName ?? existing?.lastToolName,
+    outputFile: data.outputFile ?? existing?.outputFile,
+    usage: data.usage ?? existing?.usage
   })
+  if (originMessageId && !originMessageIds?.has(data.taskId)) {
+    originMessageIds?.set(data.taskId, originMessageId)
+  }
 }
 
 function isReportArtifactsTool(toolName: string | undefined): boolean {
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || (toolName?.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`) ?? false)
-}
-
-function getSubagentName(input: unknown, fallback: string): string {
-  if (isRecord(input)) {
-    const description = typeof input.description === 'string' ? input.description.trim() : ''
-    if (description) return description
-    const name = typeof input.name === 'string' ? input.name.trim() : ''
-    if (name) return name
-  }
-  return fallback
-}
-
-function getSubagentStatus(state: string | undefined): AgentSubagent['status'] {
-  if (state === 'output-error' || state === 'output-denied') return 'error'
-  if (isTerminalToolState(state)) return 'done'
-  return 'running'
 }
 
 function getPathBasename(path: string): string {
@@ -416,32 +720,42 @@ function getPathBasename(path: string): string {
 
 export function buildAgentRightPaneStatus(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: Record<string, CherryMessagePart[]>,
+  /**
+   * Latest per-task lifecycle edge for the current CLI process. Applied last by task id so a
+   * background task's completion settles the row the transcript parts built.
+   */
+  lateTaskEvents: AgentSessionTaskEvents = {},
+  /** Omitted means "trust the events" — production always passes it. */
+  liveness?: AgentRunLiveness
 ): AgentRightPaneStatus {
-  const taskMap = new Map<string, AgentStatusTask>()
-  const subagentByCallId = new Map<string, AgentSubagent>()
+  const taskPlanState: TaskPlanProjectionState = { tasks: new Map() }
+  const taskMap = taskPlanState.tasks
+  let todoSnapshotTasks: AgentStatusTask[] | undefined
+  const runTaskMap = new Map<string, AgentRunTask>()
+  const runTaskOriginMessageIds = new Map<string, string>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
-        applyAgentTaskEvent(taskMap, part.data)
+        applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)
       }
 
       if (!isToolUIPart(part)) return
-      const state = getToolPartState(part)
-      const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
-      applyTaskToolPart(taskMap, part, fallbackId)
-
       const toolName = getToolNameFromPart(part)
-      if (toolName === AgentToolsType.Agent || toolName === AgentToolsType.Task) {
-        subagentByCallId.set(fallbackId, {
-          toolCallId: fallbackId,
-          name: getSubagentName(getToolPartInput(part), toolName),
-          status: getSubagentStatus(state)
-        })
-      } else if (isReportArtifactsTool(toolName)) {
+      const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
+      // The plan has two writers — the incremental task ledger and full-list todo snapshots —
+      // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
+      // Both writers are main-agent-only: spawned-run parts are parented under their Task call.
+      if (!hasPartParentToolCallId(part)) {
+        if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
+        const todoSnapshot = getTodoSnapshot(part)
+        if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      }
+
+      if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))
         if (parsed.success) {
           for (const artifact of parsed.data.artifacts) {
@@ -459,14 +773,42 @@ export function buildAgentRightPaneStatus(
     })
   }
 
-  const tasks = Array.from(taskMap.values())
+  for (const data of Object.values(lateTaskEvents)) {
+    applyAgentTaskEvent(runTaskMap, data)
+  }
+
+  // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
+  // app restart means it never will. Foreground liveness belongs to the originating assistant row,
+  // while background liveness comes only from the runtime's current background-task membership snapshot.
+  if (liveness) {
+    for (const [id, task] of runTaskMap) {
+      if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
+      const originMessageId = runTaskOriginMessageIds.get(id)
+      if (
+        (originMessageId && liveness.activeMessageIds.has(originMessageId)) ||
+        liveness.liveBackgroundTaskIds.has(id)
+      ) {
+        continue
+      }
+      runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
+    }
+  }
+
+  // The SDK's task tools share one id space with spawned runs, so `TaskList` output can echo a
+  // running subagent back into the plan. The runs section owns those ids; keep the plan to items
+  // that are only ever plan.
+  for (const id of runTaskMap.keys()) {
+    taskMap.delete(id)
+  }
+
+  const tasks = todoSnapshotTasks ?? Array.from(taskMap.values())
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
 
   return {
     tasks,
     completedTaskCount,
     totalTaskCount: tasks.length,
-    subagents: Array.from(subagentByCallId.values()),
+    runTasks: Array.from(runTaskMap.values()),
     artifacts: Array.from(artifactByPath.values())
   }
 }

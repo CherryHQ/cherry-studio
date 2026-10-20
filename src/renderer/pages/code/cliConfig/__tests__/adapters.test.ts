@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { CodeCli } from '@shared/types/codeCli'
 import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from '@shared/utils/cliConfig'
-import { describe, expect, it } from 'vitest'
 
 import { CLI_CONFIG_ADAPTERS, type CliConfigAdapter, getAdapter } from '../adapters'
 
@@ -22,7 +23,7 @@ const REQUIRED_METHODS = [
   'extractConfig'
 ] as const satisfies readonly (keyof CliConfigAdapter)[]
 
-// Own-login exposes a config panel for every file tool except OpenCode.
+// Own-login exposes a config panel only when the tool has managed settings beyond provider/model selection.
 const OWN_LOGIN_CONFIGURABLE_TOOLS = new Set<string>([
   CodeCli.CLAUDE_CODE,
   CodeCli.OPENAI_CODEX,

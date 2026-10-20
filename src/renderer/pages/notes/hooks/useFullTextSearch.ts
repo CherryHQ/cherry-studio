@@ -1,7 +1,8 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import type { SearchOptions, SearchResult } from '@renderer/services/NotesSearchService'
 import { searchAllFiles } from '@renderer/services/NotesSearchService'
 import type { NotesTreeNode } from '@renderer/types/note'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface UseFullTextSearchOptions extends SearchOptions {
   debounceMs?: number

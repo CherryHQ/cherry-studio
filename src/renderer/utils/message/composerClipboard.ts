@@ -1,17 +1,21 @@
 import { loggerService } from '@logger'
-import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
+import { FILE_TYPE, type FileType } from '@renderer/types/file'
+import {
+  type ComposerClipboardTokenKind,
+  isComposerClipboardPromptTokenKind,
+  isComposerClipboardTokenKind
+} from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { type FileUrlString } from '@shared/types/file'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
 
-import { type ComposerAttachment, toComposerAttachment } from './composerAttachment'
+import type { ComposerAttachment } from './composerAttachment'
 import {
   createComposerSecureRandomId,
   isComposerFileTokenPathLike,
   readComposerFileTokenIdSuffix,
-  readComposerFileTokenSourceIdFromTokenId,
-  withComposerFileTokenSourceId
+  readComposerFileTokenSourceIdFromTokenId
 } from './composerFileTokenSource'
 
 const logger = loggerService.withContext('composerClipboard')
@@ -20,18 +24,7 @@ export const COMPOSER_CLIPBOARD_FRAGMENT_MIME = 'web application/x-cherry-compos
 
 const COMPOSER_CLIPBOARD_FRAGMENT_VERSION = 1
 const COMPOSER_CLIPBOARD_FRAGMENT_MAX_LENGTH = 250_000
-const COMPOSER_CLIPBOARD_TOKEN_KINDS = [
-  'skill',
-  'file',
-  'folder',
-  'knowledge',
-  'reference',
-  'quote',
-  'promptVariable'
-] as const
 const COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS = 30 * 60 * 1000
-
-type ComposerClipboardTokenKind = (typeof COMPOSER_CLIPBOARD_TOKEN_KINDS)[number]
 
 export interface ComposerClipboardSourceToken {
   id: string
@@ -116,15 +109,6 @@ interface ComposerClipboardDraft {
   tokens: readonly ComposerClipboardDraftToken[]
 }
 
-const COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
-  'skill',
-  'file',
-  'folder',
-  'knowledge',
-  'reference',
-  'quote'
-])
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -181,7 +165,7 @@ function readFileDisplayPayload(
 
 interface FileRestorationRegistryEntry {
   sourceId: string
-  file: FileMetadata
+  file: ComposerAttachment
   expiresAt: number
 }
 
@@ -197,21 +181,23 @@ function pruneExpiredFileRestorationHandles(now = Date.now()) {
   }
 }
 
-function registerFileRestorationHandle(file: FileMetadata): string {
+function registerFileRestorationHandle(file: ComposerAttachment): string {
   pruneExpiredFileRestorationHandles()
 
-  const restorableFile = withComposerFileTokenSourceId(file)
   const handle = createFileRestorationHandle()
 
   fileRestorationRegistry.set(handle, {
-    sourceId: restorableFile.fileTokenSourceId,
-    file: restorableFile,
+    sourceId: file.fileTokenSourceId,
+    file,
     expiresAt: Date.now() + COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS
   })
+  // Release retained image bytes even if the user never pastes or copies again.
+  const timer = setTimeout(() => fileRestorationRegistry.delete(handle), COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS)
+  timer.unref?.()
   return handle
 }
 
-function resolveFileRestorationHandle(handle: string, sourceId: string): FileMetadata | null {
+function resolveFileRestorationHandle(handle: string, sourceId: string): ComposerAttachment | null {
   pruneExpiredFileRestorationHandles()
 
   const entry = fileRestorationRegistry.get(handle)
@@ -219,39 +205,37 @@ function resolveFileRestorationHandle(handle: string, sourceId: string): FileMet
   return { ...entry.file }
 }
 
-function createFileMetadataFromWritePayload(
+function createAttachmentFromWritePayload(
   token: Pick<ComposerClipboardSourceToken, 'id' | 'label'>,
   payload: unknown
-): FileMetadata | null {
+): ComposerAttachment | null {
   if (!isRecord(payload)) return null
 
   const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
   const payloadSourceId = readString(payload.fileTokenSourceId)
   const path = stripFileUrl(readString(payload.path))
-  if (!sourceId || payloadSourceId !== sourceId || !path) return null
+  const blob = payload.blob instanceof Blob ? payload.blob : undefined
+  if (!sourceId || payloadSourceId !== sourceId || (!path && !blob)) return null
 
   const name = readString(payload.name) || readString(payload.origin_name) || token.label
   const ext = readString(payload.ext) || getFileExtensionFromName(name)
   const type = isFileType(payload.type) ? payload.type : getFileTypeByExt(ext)
-  const rawId = readString(payload.id)
 
   return {
-    id: rawId && !hasUnsafeComposerClipboardFileTokenId({ id: rawId, kind: 'file' }) ? rawId : sourceId,
     fileTokenSourceId: sourceId,
     name,
     origin_name: readString(payload.origin_name) || name,
-    path,
+    ...(path && { path: AbsoluteFilePathSchema.parse(path) }),
+    ...(blob && { blob }),
     size: readNumber(payload.size) ?? 0,
     ext,
-    type,
-    created_at: readString(payload.created_at) ?? '',
-    count: readNumber(payload.count) ?? 1
+    type
   }
 }
 
 function createFilePayloadForWrite(token: Pick<ComposerClipboardSourceToken, 'id' | 'label' | 'payload'>) {
   const payload = readFileDisplayPayload(token.payload)
-  const file = createFileMetadataFromWritePayload(token, token.payload)
+  const file = createAttachmentFromWritePayload(token, token.payload)
   const handle = file ? registerFileRestorationHandle(file) : null
   if (!handle) return payload
 
@@ -261,27 +245,14 @@ function createFilePayloadForWrite(token: Pick<ComposerClipboardSourceToken, 'id
   }
 }
 
-function isComposerClipboardTokenKind(value: unknown): value is ComposerClipboardTokenKind {
-  return typeof value === 'string' && COMPOSER_CLIPBOARD_TOKEN_KINDS.includes(value as ComposerClipboardTokenKind)
-}
-
 // Kinds whose promptText is restored verbatim from the fragment. Unlike file tokens
 // (handle-gated) or skill/knowledge (re-resolved from live markers), these trust the
 // clipboard's promptText directly. Since any app can forge our clipboard MIME, a short
 // visible label could hide an injected promptText that silently reaches the model on
 // send. We trust these only when the fragment carries a session-private nonce proving
 // this renderer wrote it; otherwise they degrade to their visible fallback text.
-const COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS = new Set<ComposerClipboardTokenKind>([
-  'folder',
-  'quote',
-  'promptVariable'
-])
 const COMPOSER_CLIPBOARD_PROMPT_NONCE_TTL_MS = 30 * 60 * 1000
 const trustedPromptFragmentNonces = new Map<string, number>()
-
-function isPromptRestorationTokenKind(kind: unknown): kind is ComposerClipboardTokenKind {
-  return isComposerClipboardTokenKind(kind) && COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS.has(kind)
-}
 
 function pruneExpiredPromptFragmentNonces(now = Date.now()) {
   for (const [nonce, expiresAt] of trustedPromptFragmentNonces) {
@@ -384,7 +355,7 @@ function sanitizeComposerClipboardSegment(
 
   // Reject forged hidden prompts: only session-authored fragments may restore a
   // promptText-bearing folder/quote/promptVariable token; others show visible text.
-  if (!trustedPromptText && isPromptRestorationTokenKind(token.kind) && token.promptText) {
+  if (!trustedPromptText && isComposerClipboardPromptTokenKind(token.kind) && token.promptText) {
     return { type: 'text', text: fallbackText }
   }
 
@@ -403,7 +374,7 @@ export function createComposerClipboardFragment(segments: readonly ComposerClipb
 
   const requiresPromptNonce = safeSegments.some(
     (segment) =>
-      segment.type === 'token' && isPromptRestorationTokenKind(segment.token.kind) && segment.token.promptText
+      segment.type === 'token' && isComposerClipboardPromptTokenKind(segment.token.kind) && segment.token.promptText
   )
 
   return JSON.stringify({
@@ -569,7 +540,7 @@ function projectTextPartToClipboardSegments(
   }
 
   const tokens = composer.tokens
-    .filter((token) => COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS.has(token.kind) && token.label)
+    .filter((token) => isComposerClipboardTokenKind(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
     .map((token) => mergeFileTokenPayload(token, filePayloadsBySourceId))
 
@@ -664,7 +635,7 @@ export function createComposerAttachmentFromComposerClipboardToken(
   if (!sourceId) return null
 
   const file = resolveFileRestorationHandle(token.payload.handle, sourceId)
-  return file ? toComposerAttachment(file) : null
+  return file
 }
 
 export function readComposerClipboardFragment(value: string): ComposerClipboardFragment | null {

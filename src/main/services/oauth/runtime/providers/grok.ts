@@ -1,12 +1,13 @@
 import { randomBytes } from 'node:crypto'
 
-import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { net } from 'electron'
 import * as z from 'zod'
 
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
+
 import { OAuthServiceError } from '../../errors'
 import { PkceOAuthClient } from '../PkceOAuthClient'
-import type { OAuthRuntimeProviderDefinition } from '../types'
+import type { OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from '../types'
 
 const GROK_CONFIG = {
   CLIENT_ID: 'b1a00492-073a-47ea-816f-4c329264a828',
@@ -35,9 +36,12 @@ function assertXaiEndpoint(url: string): string {
   return url
 }
 
-async function discoverGrok(): Promise<Discovery> {
+async function discoverGrok(signal?: AbortSignal): Promise<Discovery> {
   if (grokDiscoveryCache) return grokDiscoveryCache
-  const response = await net.fetch(GROK_CONFIG.DISCOVERY_URL, { headers: { Accept: 'application/json' } })
+  const response = await net.fetch(GROK_CONFIG.DISCOVERY_URL, {
+    headers: { Accept: 'application/json' },
+    signal
+  })
   if (!response.ok) {
     throw new OAuthServiceError(`xAI OAuth discovery failed: ${response.status}`)
   }
@@ -55,16 +59,13 @@ export const grokOAuthProvider = {
   // OAuth is the only credential; logout/token loss disables the provider.
   clearDisablesProvider: true,
   transport: {
-    type: 'loopback',
-    config: {
-      hosts: [GROK_CONFIG.CALLBACK_HOST],
-      port: GROK_CONFIG.CALLBACK_PORT,
-      path: GROK_CONFIG.CALLBACK_PATH,
-      redirectUri: GROK_CONFIG.REDIRECT_URI
-    }
+    hosts: [GROK_CONFIG.CALLBACK_HOST],
+    port: GROK_CONFIG.CALLBACK_PORT,
+    path: GROK_CONFIG.CALLBACK_PATH,
+    redirectUri: GROK_CONFIG.REDIRECT_URI
   },
-  createClient: async () => {
-    const discovery = await discoverGrok()
+  createClient: async (context?: OAuthRuntimeProviderContext) => {
+    const discovery = await discoverGrok(context?.signal)
     const nonce = randomBytes(16).toString('hex')
     return new PkceOAuthClient({
       clientId: GROK_CONFIG.CLIENT_ID,

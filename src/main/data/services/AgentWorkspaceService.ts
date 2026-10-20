@@ -1,24 +1,39 @@
+import path from 'path'
+
+import { and, asc, count, desc, eq, exists, ne, notExists, or, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentWorkspaceEntity,
+  type AgentWorkspaceReferenceItem,
+  type AgentWorkspaceReferenceList,
+  type AgentWorkspaceReferences,
   AgentWorkspaceTypeSchema,
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
-import { and, asc, eq } from 'drizzle-orm'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
+const AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT = 21
+
+function buildReferenceList(items: AgentWorkspaceReferenceItem[], total = items.length): AgentWorkspaceReferenceList {
+  return { items: items.slice(0, AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT), total }
+}
 
 export function rowToAgentWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
   return {
@@ -45,12 +60,94 @@ function normalizeWorkspaceName(rawName: string): string {
 }
 
 export class AgentWorkspaceService {
+  listStorageClaims(): { path: string; type: string }[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ path: agentWorkspaceTable.path, type: agentWorkspaceTable.type })
+      .from(agentWorkspaceTable)
+      .all()
+  }
+
+  buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+    if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
+      throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
+    }
+    const date = new Date(createdAt)
+    const year = String(date.getUTCFullYear()).padStart(4, '0')
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return path.join(systemWorkspacesRoot, `${year}-${month}-${day}`, sessionId)
+  }
+
+  private normalizeWorkspacePath(rawPath: string): string {
+    const trimmed = rawPath.trim()
+    if (!trimmed) {
+      throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
+    }
+    if (!path.isAbsolute(trimmed)) {
+      throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
+    }
+    const normalized = path.normalize(trimmed)
+    const root = path.parse(normalized).root
+    let end = normalized.length
+    while (end > root.length && /[\\/]/.test(normalized[end - 1])) end -= 1
+    return normalized.slice(0, end)
+  }
+
   list(options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity[] {
     const db = application.get('DbService').getDb()
     const rows = db
       .select()
       .from(agentWorkspaceTable)
-      .where(options.includeSystem ? undefined : eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
+      .where(
+        options.includeSystem
+          ? undefined
+          : and(
+              eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER),
+              or(
+                notExists(
+                  db
+                    .select({ id: sessionsTable.id })
+                    .from(sessionsTable)
+                    .where(
+                      and(eq(sessionsTable.workspaceId, agentWorkspaceTable.id), eq(sessionsTable.type, 'background'))
+                    )
+                ),
+                exists(
+                  db
+                    .select({ id: sessionsTable.id })
+                    .from(sessionsTable)
+                    .where(
+                      and(eq(sessionsTable.workspaceId, agentWorkspaceTable.id), ne(sessionsTable.type, 'background'))
+                    )
+                ),
+                exists(
+                  db
+                    .select({ id: agentChannelTable.id })
+                    .from(agentChannelTable)
+                    .where(
+                      and(
+                        sql`json_extract(${agentChannelTable.workspace}, '$.type') = 'user'`,
+                        sql`json_extract(${agentChannelTable.workspace}, '$.workspaceId') = ${agentWorkspaceTable.id}`
+                      )
+                    )
+                ),
+                exists(
+                  db
+                    .select({ id: jobScheduleTable.id })
+                    .from(jobScheduleTable)
+                    .where(
+                      and(
+                        eq(jobScheduleTable.type, 'agent.task'),
+                        sql`json_extract(${jobScheduleTable.jobInputTemplate}, '$.workspace.type') = 'user'`,
+                        sql`json_extract(${jobScheduleTable.jobInputTemplate}, '$.workspace.workspaceId') = ${agentWorkspaceTable.id}`
+                      )
+                    )
+                )
+              )
+            )
+      )
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
       .all()
     return rows.map(rowToAgentWorkspace)
@@ -76,12 +173,38 @@ export class AgentWorkspaceService {
     return row
   }
 
+  getReferences(id: string): AgentWorkspaceReferences {
+    const db = application.get('DbService').getDb()
+    this.getRowByIdTx(db, id)
+
+    const [{ total: sessionTotal }] = db
+      .select({ total: count() })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, id))
+      .all()
+    const sessions = db
+      .select({ id: sessionsTable.id, name: sessionsTable.name })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, id))
+      .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
+      .limit(AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT)
+      .all()
+    const channels = agentChannelService.listWorkspaceReferencesTx(db, id)
+    const tasks = getDataService('AgentTaskService').listWorkspaceReferencesTx(db, id)
+
+    return {
+      sessions: buildReferenceList(sessions, sessionTotal),
+      channels: buildReferenceList(channels),
+      tasks: buildReferenceList(tasks)
+    }
+  }
+
   findOrCreateByPath(rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {
     return this.findOrCreateByPathResult(rawPath, options).workspace
   }
 
   findOrCreateByPathResult(rawPath: string, options: { name?: string } = {}): FindOrCreateAgentWorkspaceResult {
-    const workspacePath = normalizeWorkspacePath(rawPath)
+    const workspacePath = this.normalizeWorkspacePath(rawPath)
     const result = withSqliteErrors(
       () =>
         application
@@ -92,11 +215,13 @@ export class AgentWorkspaceService {
         unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
       }
     )
+    if (result.created)
+      notifyDataApiDataChange([{ endpoint: '/agent-workspaces', kind: 'membership', entityIds: [result.row.id] }])
     return { workspace: rowToAgentWorkspace(result.row), created: result.created }
   }
 
   findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {
-    const workspacePath = normalizeWorkspacePath(rawPath)
+    const workspacePath = this.normalizeWorkspacePath(rawPath)
     const result = withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
       unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
@@ -135,9 +260,13 @@ export class AgentWorkspaceService {
     return { row, created: true }
   }
 
-  createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string }): AgentWorkspaceEntity {
-    const workspacePath = normalizeWorkspacePath(
-      path.join(application.getPath('feature.agents.workspaces'), input.sessionId)
+  createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string; createdAt: number }): AgentWorkspaceEntity {
+    const workspacePath = this.normalizeWorkspacePath(
+      this.buildSystemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        input.sessionId,
+        input.createdAt
+      )
     )
     const row = withSqliteErrors(
       () =>
@@ -187,6 +316,47 @@ export class AgentWorkspaceService {
       .returning({ id: agentWorkspaceTable.id })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+  }
+
+  /**
+   * Delete a workspace row only while nothing references it: sessions (whose
+   * FK cascades on delete), channels, and task schedules all keep the row
+   * alive. A referenced — or already missing — row is left in place.
+   *
+   * Used by cleanup paths (e.g. agent deletion dropping an auto-provisioned
+   * heartbeat workspace) where the row may have been reused by, or shared
+   * with, user data: deleting a referenced row would cascade unrelated
+   * sessions and leave dangling template references.
+   *
+   * @param expectedPath Only delete when the row still points at this owned directory.
+   * @returns Whether the row was deleted.
+   */
+  deleteIfUnreferencedTx(tx: DbOrTx, id: string, expectedPath?: string): boolean {
+    const [row] = tx
+      .select({ id: agentWorkspaceTable.id })
+      .from(agentWorkspaceTable)
+      .where(
+        and(
+          eq(agentWorkspaceTable.id, id),
+          expectedPath === undefined ? undefined : eq(agentWorkspaceTable.path, expectedPath)
+        )
+      )
+      .limit(1)
+      .all()
+    if (!row) return false
+
+    const [session] = tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, id))
+      .limit(1)
+      .all()
+    if (session) return false
+    if (agentChannelService.listWorkspaceReferencesTx(tx, id).length > 0) return false
+    if (getDataService('AgentTaskService').listWorkspaceReferencesTx(tx, id).length > 0) return false
+
+    this.deleteByIdTx(tx, id)
+    return true
   }
 
   reorder(id: string, anchor: OrderRequest): void {

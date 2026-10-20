@@ -1,20 +1,30 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
-import type {
-  KnowledgeAddConflictStrategy,
-  KnowledgeAddItemInput,
-  KnowledgeAddItemsResult,
-  KnowledgeItem,
-  KnowledgeItemStatus
+import type { KnowledgeItemListResponse, KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
+import {
+  KNOWLEDGE_RUNTIME_ITEMS_MAX,
+  type KnowledgeAddConflictStrategy,
+  type KnowledgeAddItemInput,
+  type KnowledgeAddItemsResult,
+  type KnowledgeItem,
+  type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
 
 const KNOWLEDGE_ITEMS_POLLING_INTERVAL = 2000
 const TERMINAL_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
+
+const chunkKnowledgeItemIds = (itemIds: string[]) => {
+  const batches: string[][] = []
+  for (let index = 0; index < itemIds.length; index += KNOWLEDGE_RUNTIME_ITEMS_MAX) {
+    batches.push(itemIds.slice(index, index + KNOWLEDGE_RUNTIME_ITEMS_MAX))
+  }
+  return batches
+}
 
 const hasNonTerminalItem = (pages?: KnowledgeItemListResponse[]) =>
   pages?.some((page) => page.items.some((item) => !TERMINAL_STATUSES.has(item.status))) ?? false
@@ -47,7 +57,11 @@ const refreshKnowledgeItemsCaches = async (
   }
 }
 
-export const useKnowledgeItems = (baseId: string, groupId: string | null = null) => {
+export const useKnowledgeItems = (
+  baseId: string,
+  groupId: string | null = null,
+  sort: KnowledgeItemSort | null = null
+) => {
   // Without this, polling revalidates only page 0 (SWR's `revalidateFirstPage` default), and a
   // pure status flip never changes the keyset cursors, so later pages keep their key — a
   // non-terminal row on page ≥2 would stay stale forever AND keep `hasNonTerminalItem` true,
@@ -59,7 +73,12 @@ export const useKnowledgeItems = (baseId: string, groupId: string | null = null)
 
   // `null` lists the base's top-level items; a directory item's id lists that directory's
   // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
-  const query = useMemo(() => ({ groupId }), [groupId])
+  const sortBy = sort?.sortBy
+  const sortOrder = sort?.sortOrder
+  const query = useMemo(
+    () => ({ groupId, ...(sortBy && sortOrder ? { sortBy, sortOrder } : {}) }),
+    [groupId, sortBy, sortOrder]
+  )
 
   const { pages, isLoading, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases/:id/items', {
     params: { id: baseId },
@@ -69,6 +88,7 @@ export const useKnowledgeItems = (baseId: string, groupId: string | null = null)
     swrOptions: {
       refreshInterval: (pages?: KnowledgeItemListResponse[]) =>
         hasNonTerminalItem(pages) ? KNOWLEDGE_ITEMS_POLLING_INTERVAL : 0,
+      keepPreviousData: false,
       revalidateAll: revalidateAllPages
     }
   })
@@ -116,7 +136,7 @@ export const useKnowledgeItems = (baseId: string, groupId: string | null = null)
   useEffect(() => {
     setIsLoadingMore(false)
     loadStartPagesRef.current = 0
-  }, [baseId, groupId])
+  }, [baseId, groupId, sortBy, sortOrder])
 
   return {
     items,
@@ -201,8 +221,8 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
   const [isDeleting, setIsDeleting] = useState(false)
   const invalidateCache = useInvalidateCache()
 
-  const deleteItem = useCallback(
-    async (item: KnowledgeItem): Promise<void> => {
+  const deleteItems = useCallback(
+    async (itemIds: string[]): Promise<void> => {
       if (!baseId) {
         return Promise.reject(new Error('Knowledge base id is required'))
       }
@@ -212,13 +232,15 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
 
       let deleteError: Error | undefined
       try {
-        await ipcApi.request('knowledge.delete_items', { baseId, itemIds: [item.id] })
+        for (const batchItemIds of chunkKnowledgeItemIds(itemIds)) {
+          await ipcApi.request('knowledge.delete_items', { baseId, itemIds: batchItemIds })
+        }
       } catch (error) {
         deleteError = normalizeKnowledgeError(error)
 
         deleteLogger.error('Failed to delete knowledge source', deleteError, {
           baseId,
-          itemId: item.id
+          itemIds
         })
 
         setError(deleteError)
@@ -230,7 +252,7 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
           'Failed to refresh knowledge source list after delete',
           {
             baseId,
-            itemId: item.id
+            itemIds
           }
         )
 
@@ -244,7 +266,10 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
     [baseId, invalidateCache]
   )
 
+  const deleteItem = useCallback((item: KnowledgeItem): Promise<void> => deleteItems([item.id]), [deleteItems])
+
   return {
+    deleteItems,
     deleteItem,
     isDeleting,
     error
@@ -256,8 +281,8 @@ export const useReindexKnowledgeItem = (baseId: string) => {
   const [isReindexing, setIsReindexing] = useState(false)
   const invalidateCache = useInvalidateCache()
 
-  const reindexItem = useCallback(
-    async (item: KnowledgeItem): Promise<void> => {
+  const reindexItems = useCallback(
+    async (itemIds: string[]): Promise<void> => {
       if (!baseId) {
         return Promise.reject(new Error('Knowledge base id is required'))
       }
@@ -267,13 +292,15 @@ export const useReindexKnowledgeItem = (baseId: string) => {
 
       let reindexError: Error | undefined
       try {
-        await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: [item.id] })
+        for (const batchItemIds of chunkKnowledgeItemIds(itemIds)) {
+          await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: batchItemIds })
+        }
       } catch (error) {
         reindexError = normalizeKnowledgeError(error)
 
         reindexLogger.error('Failed to reindex knowledge source', reindexError, {
           baseId,
-          itemId: item.id
+          itemIds
         })
 
         setError(reindexError)
@@ -285,7 +312,7 @@ export const useReindexKnowledgeItem = (baseId: string) => {
           'Failed to refresh knowledge source list after reindex',
           {
             baseId,
-            itemId: item.id
+            itemIds
           }
         )
 
@@ -299,7 +326,10 @@ export const useReindexKnowledgeItem = (baseId: string) => {
     [baseId, invalidateCache]
   )
 
+  const reindexItem = useCallback((item: KnowledgeItem): Promise<void> => reindexItems([item.id]), [reindexItems])
+
   return {
+    reindexItems,
     reindexItem,
     isReindexing,
     error

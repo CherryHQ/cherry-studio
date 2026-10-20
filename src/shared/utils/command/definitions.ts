@@ -18,7 +18,9 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['Escape'],
-      editable: false
+      editable: false,
+      // A MiniApp guest owns Escape (closing its own dialogs); the host must not steal it.
+      when: '!webview.focused'
     }
   }),
   defineCommand({
@@ -69,13 +71,30 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.window.close',
+    titleKey: 'settings.shortcuts.close_window',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'main',
+    keybinding: {
+      // Registered (not editable) so the fixed accelerator participates in the
+      // shared conflict model; the native close role performs the action.
+      defaultBinding: ['CommandOrControl', 'Shift', 'W'],
+      editable: false,
+      // The app menu that owns this accelerator exists on macOS only.
+      supportedPlatforms: ['darwin']
+    }
+  }),
+  defineCommand({
     id: 'app.zoom.in',
     titleKey: 'settings.shortcuts.zoom_in',
     categoryKey: 'settings.shortcuts.general',
     scope: 'main',
     keybinding: {
       defaultBinding: ['CommandOrControl', '='],
-      additionalBindings: [['CommandOrControl', 'numadd']],
+      additionalBindings: [
+        ['CommandOrControl', 'Shift', '='],
+        ['CommandOrControl', 'numadd']
+      ],
       editable: false
     }
   }),
@@ -98,6 +117,25 @@ export const COMMAND_DEFINITIONS = [
     keybinding: {
       defaultBinding: ['CommandOrControl', '0'],
       editable: false
+    }
+  }),
+  defineCommand({
+    id: 'chat.input.focus',
+    titleKey: 'settings.shortcuts.focus_input',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'I'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
+    id: 'chat.context.toggle_new',
+    titleKey: 'settings.shortcuts.toggle_new_context',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'K']
     }
   }),
   defineCommand({
@@ -175,6 +213,28 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'screenshot.capture',
+    titleKey: 'settings.shortcuts.screenshot_capture',
+    categoryKey: 'settings.shortcuts.feature.screenshot',
+    scope: 'main',
+    enablement: 'feature.screenshot.enabled',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Shift', 'A'],
+      global: true,
+      when: 'feature.screenshot.enabled',
+      supportedPlatforms: ['darwin', 'win32', 'linux']
+    }
+  }),
+  defineCommand({
+    id: 'topic.clear_messages',
+    titleKey: 'chat.topics.clear.title',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'L']
+    }
+  }),
+  defineCommand({
     id: 'topic.create',
     titleKey: 'settings.shortcuts.new_topic',
     categoryKey: 'settings.shortcuts.topic',
@@ -200,13 +260,41 @@ export const COMMAND_DEFINITIONS = [
     keybinding: {
       defaultBinding: ['CommandOrControl', ']']
     }
+  }),
+  defineCommand({
+    id: 'tab.close',
+    titleKey: 'settings.shortcuts.close_tab',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'W']
+    }
+  }),
+  defineCommand({
+    id: 'tab.next',
+    titleKey: 'settings.shortcuts.next_tab',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      // macOS reserves Cmd+Tab for the system app switcher.
+      defaultBinding: { default: ['CommandOrControl', 'Tab'], darwin: ['Ctrl', 'Tab'] }
+    }
+  }),
+  defineCommand({
+    id: 'tab.prev',
+    titleKey: 'settings.shortcuts.prev_tab',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: { default: ['CommandOrControl', 'Shift', 'Tab'], darwin: ['Ctrl', 'Shift', 'Tab'] }
+    }
   })
 ] as const satisfies readonly CommandDefinition[]
 
 export type CommandId = (typeof COMMAND_DEFINITIONS)[number]['id']
 
 export const commandShortcutPreferenceKey = (command: CommandId): CommandShortcutPreferenceKey<CommandId> =>
-  `shortcut.${command}` as CommandShortcutPreferenceKey<CommandId>
+  `shortcut.${command}`
 
 export const KEYBINDING_RULES = COMMAND_DEFINITIONS.flatMap((definition) =>
   definition.keybinding

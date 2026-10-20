@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type {
@@ -7,7 +9,7 @@ import type {
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { Sequencer } from '@shared/utils/async'
 
 const logger = loggerService.withContext('useCodeCli')
 
@@ -30,7 +32,7 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   return { ...state, providers }
 }
 
-export const useCodeCli = () => {
+export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (tool: CodeCli) => void) => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
   // Mirror configs in a ref so sequential writes read the freshest value.
@@ -38,13 +40,19 @@ export const useCodeCli = () => {
   // never clobber each other (setConfigs takes a plain value, not an updater).
   const configsRef = useRef(configs)
   configsRef.current = configs
-  const writeQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const writeQueueRef = useRef(new Sequencer())
 
-  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(DEFAULT_TOOL)
+  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(initialTool)
 
-  const selectTool = useCallback((tool: CodeCli) => {
-    setSelectedCliTool(tool)
-  }, [])
+  useEffect(() => setSelectedCliTool(initialTool), [initialTool])
+
+  const selectTool = useCallback(
+    (tool: CodeCli) => {
+      setSelectedCliTool(tool)
+      onToolChange?.(tool)
+    },
+    [onToolChange]
+  )
 
   const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
 
@@ -59,15 +67,13 @@ export const useCodeCli = () => {
 
   const patchToolState = useCallback(
     (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState): Promise<void> => {
-      const task = writeQueueRef.current.then(async () => {
+      return writeQueueRef.current.queue(async () => {
         const latest = configsRef.current
         const prev = getToolState(toolId, latest)
         const next = { ...latest, [toolId]: patch(prev) }
         configsRef.current = next
         await setConfigs(next)
       })
-      writeQueueRef.current = task.catch(() => {})
-      return task
     },
     [setConfigs]
   )
@@ -148,14 +154,14 @@ export const useCodeCli = () => {
 
   const setTerminal = useCallback(
     async (terminal: string) => {
-      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, terminal }))
+      await patchToolState(selectedCliTool, (prev) => ({ ...prev, terminal }))
     },
     [patchToolState, selectedCliTool]
   )
 
   const setDirectory = useCallback(
     async (directory: string) => {
-      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, directory }))
+      await patchToolState(selectedCliTool, (prev) => ({ ...prev, directory }))
     },
     [patchToolState, selectedCliTool]
   )

@@ -1,5 +1,5 @@
 /**
- * DataApi-backed session queries and mutations.
+ * DataApi-backed session queries and data mutations; lifecycle commands use IpcApi.
  *
  * Sessions are pure agent instances — only `id / agentId / name / description /
  * orderKey / timestamps` live here. For config (model / instructions /
@@ -7,19 +7,27 @@
  * with `session.agentId`.
  */
 
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
   useMutation,
-  useQuery
+  useQuery,
+  useWriteCache
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
@@ -28,11 +36,9 @@ import type {
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+const logger = loggerService.withContext('useSession')
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
@@ -40,8 +46,42 @@ type UseSessionsOptions = {
   enabled?: boolean
 }
 
+export type SessionDeleteOutcome = { status: 'succeeded' } | { status: 'stale' } | { status: 'failed'; error: string }
+
+type DeleteSessionOutcomeOptions = {
+  showFeedback?: boolean
+  permanent?: boolean
+}
+
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
+
+/**
+ * Preserve entity identity across list refreshes when DataApi returns an
+ * equivalent object graph. Order changes still publish a new array, while
+ * unchanged rows retain their references for memoized consumers.
+ */
+function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSessionEntity[] {
+  const previousSessionsRef = useRef<AgentSessionEntity[]>([])
+
+  return useMemo(() => {
+    const previousSessions = previousSessionsRef.current
+    const previousById = new Map(previousSessions.map((session) => [session.id, session] as const))
+    let arrayChanged = previousSessions.length !== sessions.length
+
+    const nextSessions = sessions.map((session, index) => {
+      const previous = previousById.get(session.id)
+      const next = previous && isEqual(previous, session) ? previous : session
+      if (next !== previousSessions[index]) {
+        arrayChanged = true
+      }
+      return next
+    })
+    const sharedSessions = arrayChanged ? nextSessions : previousSessions
+    previousSessionsRef.current = sharedSessions
+    return sharedSessions
+  }, [sessions])
+}
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -60,26 +100,35 @@ export const useSession = (sessionId: string | null) => {
     swrOptions: { keepPreviousData: false }
   })
 
+  useDataChange('/agent-sessions/:sessionId', (effects) => {
+    if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) {
+      void mutate()
+    }
+  })
+
   return { session, error, isLoading, mutate }
 }
 
 /**
- * The globally most-recently-updated session, for first-entry restore.
+ * The globally most-recently-active session, for first-entry restore.
  *
- * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
- * last-touched session without waiting for the full session history to paginate
+ * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
+ * last-active session without waiting for the full session history to paginate
  * in and without depending on the pinned-first `/agent-sessions` list order.
  *
- * `/agent-sessions/latest` is a global MAX(updatedAt) aggregate, so keeping its
- * cache coherent would mean every updatedAt-bumping write invalidating it (an
- * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
- * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
- * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * Activity-bearing writes publish a scalar data-change signal so a mounted
+ * first-entry surface cannot keep a stale winner from another window. Folding
+ * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
+ * revalidation rather than trust a stale cache.
  * `latestSession` is `undefined` while loading and when there are no sessions.
  */
 export function useLatestSession(opts?: { enabled?: boolean }) {
   const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/agent-sessions/latest', {
     enabled: opts?.enabled
+  })
+
+  useDataChange('/agent-sessions/latest', () => {
+    void refetch()
   })
 
   return {
@@ -95,27 +144,43 @@ export interface UseActiveSessionOptions {
   activeSessionId: string | null
   /** Write back when callers select a different session. */
   setActiveSessionId: (id: string | null) => void
-  /** Optimistic session to paint before its by-id query resolves (e.g. first-entry restore). */
+  /**
+   * Optimistic session to paint before its by-id query resolves (e.g. a matching row from the
+   * already-loaded session list). This value may arrive after mount; the by-id query remains
+   * canonical and a not-found response disables this fallback.
+   */
   initialSession?: AgentSessionEntity | null
 }
 
 /**
  * Resolves the active session (query-backed, with an optimistic fallback) and owns the pending
  * session itself — mirroring {@link import('@renderer/hooks/useTopic').useActiveTopic}. Callers pass
- * only `activeSessionId` + `setActiveSessionId` and drive selection through `setActiveSession` /
- * `selectSession` / `clearActiveSession`; the hook keeps pending in `useState` so a stale optimistic
- * session is ignored via the id match rather than eagerly nulled at every call site.
+ * `activeSessionId` + `setActiveSessionId`, may provide a list-backed `initialSession`, and drive
+ * selection through `setActiveSession` / `selectSession` / `clearActiveSession`; the hook keeps
+ * explicitly selected pending entities in `useState` so stale optimistic state is ignored via the
+ * id match rather than eagerly nulled at every call site.
  */
 export const useActiveSession = ({ activeSessionId, setActiveSessionId, initialSession }: UseActiveSessionOptions) => {
   const result = useSession(activeSessionId)
-  const [pendingSession, setPendingSession] = useState<AgentSessionEntity | null>(() => initialSession ?? null)
+  const [pendingSession, setPendingSession] = useState<AgentSessionEntity | null>(null)
 
-  const querySession = activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
+  // NOT_FOUND is authoritative even if SWR still exposes cached data or the caller has an
+  // optimistic entity. Otherwise a concurrently deleted session can be resurrected indefinitely.
+  const isNotFound = isDataApiNotFoundError(result.error)
+  const querySession =
+    !isNotFound && activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
   // Only a pending session whose id matches the active id resolves; a leftover one is inert (never
   // returned, never counted as the source), so no path has to null it out to stay correct.
-  const resolvedPendingSession = activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
-  const session = querySession ?? resolvedPendingSession
-  const sessionSource: AgentSessionSource = querySession ? 'query' : resolvedPendingSession ? 'pending' : 'none'
+  const resolvedPendingSession =
+    !isNotFound && activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
+  // Unlike an explicitly selected pending entity, a list-backed fallback is caller-owned and may
+  // arrive after this hook mounts. Resolve it directly instead of copying it into state. A
+  // not-found response proves the list snapshot is stale; transient failures do not.
+  const resolvedInitialSession =
+    !isNotFound && activeSessionId && initialSession?.id === activeSessionId ? initialSession : undefined
+  const fallbackSession = resolvedPendingSession ?? resolvedInitialSession
+  const session = querySession ?? fallbackSession
+  const sessionSource: AgentSessionSource = querySession ? 'query' : fallbackSession ? 'pending' : 'none'
 
   // Set the active id and its optimistic session together. `entity` may be null to move to an id
   // whose row is fetched by query (e.g. history/global-search reveal), or the id may be null to clear.
@@ -161,14 +226,24 @@ export const useSessions = (
 ) => {
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
+  const invalidate = useInvalidateCache()
+  const writeCache = useWriteCache()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
 
+  // A load-all source must refresh every loaded page once the chain is complete,
+  // but it should fetch only the new page while the chain is growing. SWR
+  // Infinite otherwise revalidates page 0 on every `setSize`, and `revalidateAll`
+  // would re-fetch every previous page. Disable both growth-time behaviors;
+  // once fully loaded, `revalidateAll` still keeps mutations/passive refreshes
+  // complete. Progressive pagination retains SWR's first-page revalidation.
+  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: agentId ? { agentId } : undefined,
     limit: pageSize,
-    enabled
+    enabled,
+    swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
@@ -177,17 +252,32 @@ export const useSessions = (
   // the persisted `orderKey`, `id`. The `/pins` map is composed in the renderer
   // for row indicators, toggle handling, and display grouping/sorting that
   // promotes pinned sessions.
-  const sessions = useInfiniteFlatItems(pages)
-  const { data: pinList, isLoading: isPinsLoading } = useQuery('/pins', { query: { entityType: 'session' } })
+  const flatSessions = useInfiniteFlatItems(pages)
+  const sessions = useStructurallySharedSessions(flatSessions)
+  const {
+    data: pinList,
+    isLoading: isPinsLoading,
+    isRefreshing: isPinsRefreshing,
+    refetch: refetchPins
+  } = useQuery('/pins', { query: { entityType: 'session' }, enabled })
+  useDataChange('/pins', () => {
+    if (enabled !== false) void refetchPins()
+  })
   const pinIdBySessionId = useMemo(
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
   )
+  const pinIdBySessionIdRef = useRef(pinIdBySessionId)
+  pinIdBySessionIdRef.current = pinIdBySessionId
   const total = sessions.length
   const hasMore = hasNext
   const isFullyLoaded = !loadAll || (!isLoading && !hasMore)
   const isLoadingAll = isLoading || (loadAll && hasMore)
   const isLoadingMore = isRefreshing && pages.length > 1
+
+  useEffect(() => {
+    setRevalidateAllPages(loadAll && isFullyLoaded)
+  }, [loadAll, isFullyLoaded])
 
   useEffect(() => {
     if (loadAll && hasMore && !isLoading && !isRefreshing) {
@@ -196,6 +286,10 @@ export const useSessions = (
   }, [loadAll, hasMore, isLoading, isRefreshing, loadNext])
 
   const reload = useCallback(() => refresh(), [refresh])
+  const refreshFromDataChange = useCallback(() => {
+    if (enabled !== false) void refresh()
+  }, [enabled, refresh])
+  useDataChange('/agent-sessions', refreshFromDataChange)
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {
@@ -236,44 +330,83 @@ export const useSessions = (
     [agentId, createTrigger, refresh, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: ['/agent-sessions']
-  })
-  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
-  const deleteSession = useCallback(
-    async (id: string): Promise<boolean> => {
+  const deleteSessionWithOutcome = useCallback(
+    async (
+      id: string,
+      { showFeedback = true, permanent = false }: DeleteSessionOutcomeOptions = {}
+    ): Promise<SessionDeleteOutcome> => {
       try {
-        await deleteTrigger({ params: { sessionId: id } })
-        closeConversationTabs('agents', [id])
-        return true
+        const result = await ipcApi.request(
+          permanent ? 'ai.agent.session.delete_permanently' : 'ai.agent.session.delete',
+          { sessionIds: [id] }
+        )
+        const deleted = result.deletedIds.includes(id)
+        if (deleted) closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
+        }
+        if (!deleted) {
+          if (showFeedback) toast.info(t('recycle_bin.already_moved'))
+          return { status: 'stale' }
+        }
+        return { status: 'succeeded' }
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-        return false
+        if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+        return { status: 'failed', error: getErrorMessage(error) }
       }
     },
-    [closeConversationTabs, deleteTrigger, t]
+    [closeConversationTabs, invalidate, t]
+  )
+
+  const deleteSession = useCallback(
+    async (id: string, options?: DeleteSessionOutcomeOptions): Promise<boolean> =>
+      (await deleteSessionWithOutcome(id, options)).status === 'succeeded',
+    [deleteSessionWithOutcome]
+  )
+
+  const restoreSession = useCallback(
+    async (id: string): Promise<AgentSessionEntity> => {
+      const session = await ipcApi.request('ai.agent.session.restore', { sessionId: id })
+      try {
+        // Inactive detail queries cannot revalidate a cached NOT_FOUND after undo.
+        await writeCache(`/agent-sessions/${id}`, session)
+        await invalidate(['/agent-sessions', `/agent-sessions/${id}`, '/agents/*'])
+      } catch (error) {
+        logger.warn('Failed to refresh after restoring Agent Session', error as Error, { sessionId: id })
+      }
+      logger.info('Restored Agent Session', { sessionId: id })
+      return session
+    },
+    [invalidate, writeCache]
   )
 
   const deleteSessions = useCallback(
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
-        const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: ids })
         closeConversationTabs('agents', result.deletedIds)
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (error) {
+          logger.warn('Failed to refresh after deleting Agent Sessions', error as Error, {
+            sessionIds: result.deletedIds
+          })
+        }
         return result
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return null
       }
     },
-    [closeConversationTabs, deleteManyTrigger, t]
+    [closeConversationTabs, invalidate, t]
   )
 
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
       try {
-        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
+        await applyReorderedList(reorderedList)
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
@@ -305,7 +438,7 @@ export const useSessions = (
   const { trigger: unpinTrigger } = useMutation('DELETE', '/pins/:id', { refresh: ['/pins', '/agent-sessions'] })
   const togglePin = useCallback(
     async (sessionId: string) => {
-      const pinId = pinIdBySessionId.get(sessionId)
+      const pinId = pinIdBySessionIdRef.current.get(sessionId)
       try {
         if (pinId) {
           await unpinTrigger({ params: { id: pinId } })
@@ -318,7 +451,7 @@ export const useSessions = (
         return false
       }
     },
-    [pinIdBySessionId, pinTrigger, unpinTrigger, t]
+    [pinTrigger, unpinTrigger, t]
   )
 
   return {
@@ -334,13 +467,16 @@ export const useSessions = (
     loadMore,
     createSession,
     deleteSession,
+    deleteSessionWithOutcome,
     deleteSessions,
+    restoreSession,
     reorderSession,
     reorderSessions,
     togglePin,
     isFullyLoaded,
     isLoadingAll,
-    isPinsLoading
+    isPinsLoading,
+    isPinsRefreshing
   }
 }
 
@@ -357,16 +493,12 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
-    refresh: ({ args }) => [
-      '/agent-sessions',
-      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
-      '/agent-workspaces'
-    ]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`, '/agent-workspaces']
   })
 
   const updateSession = useCallback(
@@ -407,14 +539,14 @@ export const useUpdateSession = () => {
 }
 
 /**
- * Listens for `ai.agent_session_auto_renamed` and invalidates the
+ * Listens for `ai.agent.session.auto_renamed` and invalidates the
  * renamed session's SWR cache so the new name appears without manual refetch.
  */
 export function useAgentSessionAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
   useIpcOn(
-    'ai.agent_session_auto_renamed',
+    'ai.agent.session.auto_renamed',
     ({ sessionId }) => void invalidate(['/agent-sessions', `/agent-sessions/${sessionId}`])
   )
 }

@@ -1,14 +1,14 @@
+import { debounce, trim } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
-import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
-import { debounce, trim } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { PatchProvider } from './types'
 
@@ -47,6 +47,8 @@ interface UseProviderEndpointActionsParams {
   anthropicApiHost: string
   setAnthropicApiHost: (value: string) => void
   apiVersion: string
+  /** Registry factory-default host for the primary endpoint; '' when none. */
+  defaultApiHost: string
   patchProvider: PatchProvider
 }
 
@@ -60,10 +62,10 @@ export function useProviderEndpointActions({
   anthropicApiHost,
   setAnthropicApiHost,
   apiVersion,
+  defaultApiHost,
   patchProvider
 }: UseProviderEndpointActionsParams) {
   const { t } = useTranslation()
-  const providerConfig = provider ? PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS] : undefined
   const lastPersistedApiHostRef = useRef(trim(providerApiHost))
 
   useEffect(() => {
@@ -260,7 +262,7 @@ export function useProviderEndpointActions({
       return false
     }
 
-    const nextBaseUrl = providerConfig?.api?.url ?? ''
+    const nextBaseUrl = defaultApiHost
     const nextEndpointConfigs = {
       ...provider.endpointConfigs,
       [primaryEndpoint]: {
@@ -278,7 +280,7 @@ export function useProviderEndpointActions({
       toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
       return false
     }
-  }, [patchProvider, primaryEndpoint, provider, providerConfig?.api?.url, setApiHost, t])
+  }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
 
   return {
     commitApiHost,

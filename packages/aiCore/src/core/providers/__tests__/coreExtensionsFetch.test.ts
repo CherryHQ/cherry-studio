@@ -17,7 +17,7 @@ vi.mock('@ai-sdk/anthropic', async (importOriginal) => ({
 
 const { coreExtensions } = await import('../core/initialization')
 
-type AnyVariant = { suffix: string; transform?: (provider: unknown, settings: unknown) => unknown }
+type AnyVariant = { suffix: string; transform?: (provider: unknown, settings: unknown) => unknown | Promise<unknown> }
 
 function getVariantTransform(extensionName: string, suffix: string) {
   const ext = coreExtensions.find((e) => e.config.name === extensionName)
@@ -37,11 +37,11 @@ describe('core extensions — variant fetch forwarding', () => {
     vi.clearAllMocks()
   })
 
-  it('azure-anthropic forwards the injected fetch to createAnthropic', () => {
+  it('azure-anthropic forwards the injected fetch to createAnthropic', async () => {
     const transform = getVariantTransform('azure', 'anthropic')
     const sentinelFetch = vi.fn()
 
-    transform(
+    await transform(
       {},
       { baseURL: 'https://example.openai.azure.com', apiKey: 'k', headers: { 'x-test': '1' }, fetch: sentinelFetch }
     )
@@ -50,10 +50,10 @@ describe('core extensions — variant fetch forwarding', () => {
     expect(anthropicCallOptions().fetch).toBe(sentinelFetch)
   })
 
-  it('azure-anthropic passes fetch through as undefined when none is injected', () => {
+  it('azure-anthropic passes fetch through as undefined when none is injected', async () => {
     const transform = getVariantTransform('azure', 'anthropic')
 
-    transform({}, { baseURL: 'https://example.openai.azure.com', apiKey: 'k' })
+    await transform({}, { baseURL: 'https://example.openai.azure.com', apiKey: 'k' })
 
     expect(createAnthropicMock).toHaveBeenCalledTimes(1)
     expect(anthropicCallOptions()).toHaveProperty('fetch', undefined)

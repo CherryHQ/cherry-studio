@@ -1,6 +1,11 @@
+import { isFileUIPart } from 'ai'
+import { takeRight } from 'es-toolkit/compat'
+
 /**
- * Renderer helpers that call the AI (`ai.generate_text`) to produce short text:
+ * Renderer helpers that call the AI (`ai.text.generate`) to produce short text:
  * generic text generation plus topic/note auto-naming. Stateless request/response.
+ * Every request passes `reasoningEffort: 'none'`: short throwaway output never
+ * benefits from provider-default thinking, which only adds latency and tokens.
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -9,14 +14,12 @@ import { ipcApi } from '@renderer/ipc'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { getErrorMessage } from '@renderer/utils/error'
-import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import { purifyMarkdownImages } from '@renderer/utils/markdownLight'
 import { getNamingTextContent } from '@renderer/utils/message/find'
 import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model } from '@shared/data/types/model'
-import { isFileUIPart } from 'ai'
-import { takeRight } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('aiGeneration')
 
@@ -52,8 +55,9 @@ export async function fetchMessagesSummary({
   const conversation = JSON.stringify(structuredMessages)
 
   try {
-    const { text } = await ipcApi.request('ai.generate_text', {
+    const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
+      reasoningEffort: 'none',
       system: prompt,
       prompt: conversation
     })
@@ -82,8 +86,9 @@ export async function fetchNoteSummary({ content }: { content: string; assistant
   const purifiedContent = purifyMarkdownImages(content.substring(0, 2000))
 
   try {
-    const { text } = await ipcApi.request('ai.generate_text', {
+    const { text } = await ipcApi.request('ai.text.generate', {
       uniqueModelId: model.id,
+      reasoningEffort: 'none',
       system: prompt,
       prompt: purifiedContent
     })
@@ -97,29 +102,51 @@ export async function fetchGenerate({
   prompt,
   content,
   model,
-  throwOnError = false
+  throwOnError = false,
+  signal
 }: {
   prompt: string
   content: string
   model?: Model
   throwOnError?: boolean
+  signal?: AbortSignal
 }): Promise<string> {
+  let stopAbortRelay: (() => void) | undefined
+
   try {
+    signal?.throwIfAborted()
     const resolvedModel = model ?? (await readDefaultModel())
     if (!resolvedModel) {
       logger.error('fetchGenerate: no model available')
       if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
       return ''
     }
-    const { text } = await ipcApi.request('ai.generate_text', {
+    signal?.throwIfAborted()
+
+    // Cancellation is main-side: relay the abort to `ai.text.abort` and let the
+    // in-flight `ai.text.generate` reject on its own.
+    const requestId = signal ? crypto.randomUUID() : undefined
+    if (signal && requestId) {
+      const relayAbort = () => void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
+      signal.addEventListener('abort', relayAbort, { once: true })
+      stopAbortRelay = () => signal.removeEventListener('abort', relayAbort)
+    }
+
+    const { text } = await ipcApi.request('ai.text.generate', {
+      ...(requestId ? { requestId } : {}),
       uniqueModelId: resolvedModel.id,
+      reasoningEffort: 'none',
       system: prompt,
       prompt: content
     })
     return text || ''
   } catch (error: any) {
-    logger.error('fetchGenerate failed', error)
+    if (!signal?.aborted) {
+      logger.error('fetchGenerate failed', error)
+    }
     if (throwOnError) throw error
     return ''
+  } finally {
+    stopAbortRelay?.()
   }
 }

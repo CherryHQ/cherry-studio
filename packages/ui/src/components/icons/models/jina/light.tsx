@@ -1,0 +1,15 @@
+import type { SVGProps } from 'react'
+
+import type { IconComponent } from '../../types'
+const JinaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
+    <path
+      fill="#000"
+      fillRule="evenodd"
+      d="M7.68671 19.9368C8.66448 19.9368 9.60221 19.5383 10.2936 18.8289C10.985 18.1195 11.3734 17.1573 11.3734 16.1541C11.3734 15.1509 10.985 14.1887 10.2936 13.4793C9.60221 12.7699 8.66448 12.3714 7.68671 12.3714C6.70893 12.3714 5.7712 12.7699 5.07981 13.4793C4.38842 14.1887 4 15.1509 4 16.1541C4 17.1573 4.38842 18.1195 5.07981 18.8289C5.7712 19.5383 6.70893 19.9368 7.68671 19.9368ZM19.1152 4.01231C19.6064 4.01231 20 4.41615 20 4.92013V12.309C20 16.5198 16.6817 19.9499 12.6266 20V12.3213L12.6026 4.90781C12.6026 4.40384 12.9954 4 13.4874 4H19.2136L19.1152 4.01231Z"
+      clipRule="evenodd"
+    />
+  </svg>
+)
+export { JinaLight }
+export default JinaLight

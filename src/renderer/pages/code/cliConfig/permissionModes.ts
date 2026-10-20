@@ -23,7 +23,7 @@ const CODEX_PERMISSION_CONFIG: Record<CodexPermissionMode, { approval_policy: st
 }
 
 function isOneOf<T extends readonly string[]>(values: T, value: unknown): value is T[number] {
-  return typeof value === 'string' && values.includes(value as T[number])
+  return typeof value === 'string' && values.includes(value)
 }
 
 export function isClaudePermissionMode(value: unknown): value is (typeof CLAUDE_PERMISSION_MODES)[number] {

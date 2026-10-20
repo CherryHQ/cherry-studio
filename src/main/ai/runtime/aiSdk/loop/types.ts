@@ -1,6 +1,4 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { AiPlugin } from '@cherrystudio/ai-core'
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type {
   Experimental_DownloadFunction as DownloadFunction,
   ModelMessage,
@@ -13,8 +11,12 @@ import type {
   ToolSet
 } from 'ai'
 
+import type { AiPlugin } from '@cherrystudio/ai-core'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
+
 import type { MediaCapabilities } from '../../../messages/messageCapabilities'
 import type { AppProviderSettingsMap } from '../../../types'
+import type { WrapLanguageModel } from '../retry/createRetryableWrap'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -57,6 +59,9 @@ export interface AgentLoopHooks {
 
   /** Aggregate per-run state in your own `onStepFinish`; read it here via closure. */
   onFinish?: () => Promise<void> | void
+
+  /** Clean cancellation only; errors continue to use `onError`. */
+  onAbort?: () => Promise<void> | void
 
   /** Return 'retry' to retry the run, 'abort' to stop. Default: 'abort'. Retry is not implemented yet. */
   onError?: (ctx: ErrorContext) => Promise<'retry' | 'abort'> | 'retry' | 'abort'
@@ -102,9 +107,13 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string
+  /** App provider/model identifiers attached to normalized stream errors. */
+  errorContext?: { providerId: string; modelId: string }
   /** Stable id for the first assistant UIMessage emitted by this execution. */
   messageId?: string
   plugins?: AiPlugin[]
+  /** Wraps the resolved model (e.g. ai-retry retry/fallback) before the agent uses it. */
+  wrapModel?: WrapLanguageModel
   tools?: ToolSet
   system?: string
   options?: AgentOptions
@@ -112,4 +121,6 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
   /** Modalities the model accepts; unsupported media is stripped before conversion. */
   mediaCapabilities?: MediaCapabilities
+  /** Media a tool result may carry to this wire+model; defaults to `mediaCapabilities`. */
+  toolResultMediaCapabilities?: MediaCapabilities
 }

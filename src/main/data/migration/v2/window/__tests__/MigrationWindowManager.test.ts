@@ -1,6 +1,8 @@
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import { app, BrowserWindow } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 
 import { MigrationWindowManager } from '../MigrationWindowManager'
 
@@ -43,15 +45,18 @@ function makeFakeWindow() {
 describe('MigrationWindowManager', () => {
   let manager: MigrationWindowManager
   let fakeWindow: FakeWindow
-  let quitMock: ReturnType<typeof vi.fn>
+  let quitMock: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   beforeEach(() => {
     vi.clearAllMocks()
     fakeWindow = makeFakeWindow()
-    vi.mocked(BrowserWindow).mockImplementation(() => fakeWindow as unknown as BrowserWindow)
+    vi.mocked(BrowserWindow).mockImplementation(function BrowserWindowMock() {
+      return fakeWindow as unknown as BrowserWindow
+    })
     // The global electron mock's `app` has no `quit`; provide one to observe quit attempts.
     quitMock = vi.fn()
     ;(app as unknown as { quit: typeof quitMock }).quit = quitMock
+    ;(app as unknown as { isPackaged: boolean }).isPackaged = false
     manager = new MigrationWindowManager()
     manager.create()
   })
@@ -95,6 +100,18 @@ describe('MigrationWindowManager', () => {
 
     expect(fakeWindow.close).toHaveBeenCalledTimes(1)
     expect(quitMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes packaged restarts through the application relaunch policy', async () => {
+    const electronRelaunch = vi.fn()
+    const electronExit = vi.fn()
+    Object.assign(app, { isPackaged: true, relaunch: electronRelaunch, exit: electronExit })
+
+    await manager.restartApp()
+
+    expect(application.relaunch).toHaveBeenCalledOnce()
+    expect(electronRelaunch).not.toHaveBeenCalled()
+    expect(electronExit).not.toHaveBeenCalled()
   })
 
   // Regression: confirmQuit() during an in-flow stage must NOT re-trigger the in-flow

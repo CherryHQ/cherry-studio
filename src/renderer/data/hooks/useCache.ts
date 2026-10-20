@@ -1,3 +1,8 @@
+import { isPlainObject } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector'
+
+import type { CacheSetStateAction, ReadonlyValue } from '@data/CacheService'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type {
@@ -11,50 +16,8 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultSharedCache, DefaultUseCache } from '@shared/data/cache/cacheSchemas'
 import { findMatchingSharedCacheSchemaKey, isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
-import { isPlainObject } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { useSyncExternalStoreWithSelector } from 'use-sync-external-store/with-selector'
 
 const logger = loggerService.withContext('useCache')
-
-// ============================================================================
-// Functional Updater Types
-// ============================================================================
-
-/**
- * Shallow-readonly view of a cache value, used for the `prev` argument of a
- * functional updater. Containers (objects/arrays) become `Readonly<T>` so the
- * most common footgun — mutating `prev` in place and returning it — fails to
- * compile; primitives pass through unchanged so `prev => !prev` / `prev => prev + 1`
- * still work.
- *
- * Shallow only: nested mutation (e.g. `prev.items[0].x = ...`) is NOT caught by
- * the type — keep updaters pure (see {@link CacheSetStateAction}).
- */
-type ReadonlyValue<T> = T extends object ? Readonly<T> : T
-
-/**
- * Setter input for cache hooks, mirroring React's `SetStateAction<T>`: either a
- * concrete value or an updater `(prev) => next`.
- *
- * The updater is resolved against the **latest stored value** at write time (not
- * the render-time snapshot), which is what makes read-modify-write safe across an
- * `await`. It MUST be pure and return a new value: mutating `prev` in place and
- * returning the same reference makes `CacheService` short-circuit on
- * `isEqual(stored, value)` and silently skip the subscriber notification.
- *
- * "Pure" also means no side effects inside the updater: do not smuggle a derived
- * result out (e.g. by writing to an enclosing-scope variable) to drive post-write
- * work, and do not assume how many times or when it runs. To react to *what
- * changed* — e.g. dispose resources for items that were removed — derive it from
- * the value transition in a `useEffect` that watches the value, not from inside
- * the updater.
- *
- * Caveat (same as React's `SetStateAction`): for keys whose value type is itself
- * a function (only the `any`-typed keys in practice), a function argument is
- * always treated as an updater, never stored verbatim.
- */
-type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
 
 // ============================================================================
 // Template Matching Utilities
@@ -71,9 +34,9 @@ type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
  *
  * @example
  * ```typescript
- * // Given schema has 'app.user.avatar' and 'scroll.position.${id}'
+ * // Given schema has 'app.path.resources' and 'scroll.position.${id}'
  *
- * findMatchingUseCacheSchemaKey('app.user.avatar')       // 'app.user.avatar'
+ * findMatchingUseCacheSchemaKey('app.path.resources')    // 'app.path.resources'
  * findMatchingUseCacheSchemaKey('scroll.position.123')   // 'scroll.position.${id}'
  * findMatchingUseCacheSchemaKey('unknown.key')           // undefined
  * ```
@@ -87,8 +50,8 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
   // Then, check template patterns
   const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
   for (const schemaKey of schemaKeys) {
-    if (isTemplateKey(schemaKey as string)) {
-      const regex = templateToRegex(schemaKey as string)
+    if (isTemplateKey(schemaKey)) {
+      const regex = templateToRegex(schemaKey)
       if (regex.test(key)) {
         return schemaKey
       }
@@ -110,10 +73,10 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': '' (default)
+ * // 'app.path.resources': '' (default)
  * // 'scroll.position.${id}': 0 (default)
  *
- * getUseCacheDefaultValue('app.user.avatar')       // ''
+ * getUseCacheDefaultValue('app.path.resources')    // ''
  * getUseCacheDefaultValue('scroll.position.123')   // 0
  * getUseCacheDefaultValue('unknown.key')           // undefined
  * ```
@@ -151,7 +114,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * Data is lost when the app restarts.
  *
  * Supports both fixed keys and template keys:
- * - Fixed keys: `useCache('app.user.avatar')`
+ * - Fixed keys: `useCache('app.path.resources')`
  * - Template keys: `useCache('scroll.position.topic123')` (matches schema `'scroll.position.${id}'`)
  *
  * Template keys follow the same dot-separated pattern as fixed keys.
@@ -165,7 +128,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * @example
  * ```typescript
  * // Fixed key usage
- * const [avatar, setAvatar] = useCache('app.user.avatar')
+ * const [resourcesPath, setResourcesPath] = useCache('app.path.resources')
  *
  * // Template key usage (schema: 'scroll.position.${id}': number)
  * const [scrollPos, setScrollPos] = useCache('scroll.position.topic123')
@@ -175,7 +138,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * const [generating, setGenerating] = useCache('chat.web_search.searching', true)
  *
  * // Update the value
- * setAvatar('new-avatar-url')
+ * setResourcesPath('/path/to/resources')
  *
  * // Functional update — resolved against the latest stored value (safe across awaits)
  * setOpened((prev) => prev.filter((item) => item.id !== id))
@@ -197,6 +160,7 @@ export function useCache<K extends UseCacheKey>(
 ): [InferUseCacheValue<K>, (value: CacheSetStateAction<InferUseCacheValue<K>>) => void] {
   // Get the default value for this key (works with both fixed and template keys)
   const defaultValue = getUseCacheDefaultValue(key)
+  const fallbackValue = initValue !== undefined ? initValue : defaultValue!
 
   /**
    * Subscribe to cache changes using React's useSyncExternalStore
@@ -249,23 +213,24 @@ export function useCache<K extends UseCacheKey>(
    * Memoized setter function for updating the cache value.
    * Accepts a concrete value or a functional updater `(prev) => next`. The
    * updater is resolved against the latest stored value via the same default
-   * fallback chain as the hook return (`get ?? initValue ?? schema default`),
-   * so it stays correct across an `await`.
+   * fallback chain as the hook return, treating only undefined as absent,
+   * so it preserves explicit null values and stays correct across an `await`.
    * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
     (newValue: CacheSetStateAction<InferUseCacheValue<K>>) => {
       if (typeof newValue === 'function') {
-        const prev = (cacheService.get(key) ?? initValue ?? defaultValue) as ReadonlyValue<InferUseCacheValue<K>>
+        const storedValue = cacheService.get(key)
+        const prev = (storedValue !== undefined ? storedValue : fallbackValue) as ReadonlyValue<InferUseCacheValue<K>>
         cacheService.set(key, newValue(prev))
       } else {
         cacheService.set(key, newValue)
       }
     },
-    [key, initValue, defaultValue]
+    [key, fallbackValue]
   )
 
-  return [value ?? initValue ?? defaultValue!, setValue]
+  return [value !== undefined ? value : fallbackValue, setValue]
 }
 
 /**
@@ -682,19 +647,13 @@ export function usePersistCache<K extends RendererPersistCacheKey>(
   /**
    * Memoized setter function for updating the persist cache value.
    * Changes will be synchronized across all windows and persisted to localStorage.
-   * Accepts a concrete value or a functional updater `(prev) => next` resolved
-   * against the latest persisted value (`getPersist` never returns undefined).
+   * Both the concrete-value and functional-updater forms are resolved by
+   * `setPersist` itself, so a write-only call site can skip this hook (and its
+   * subscription) entirely and call `cacheService.setPersist` directly.
    * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
-    (newValue: CacheSetStateAction<RendererPersistCacheSchema[K]>) => {
-      if (typeof newValue === 'function') {
-        const prev = cacheService.getPersist(key) as ReadonlyValue<RendererPersistCacheSchema[K]>
-        cacheService.setPersist(key, newValue(prev))
-      } else {
-        cacheService.setPersist(key, newValue)
-      }
-    },
+    (newValue: CacheSetStateAction<RendererPersistCacheSchema[K]>) => cacheService.setPersist(key, newValue),
     [key]
   )
 

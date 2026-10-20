@@ -1,12 +1,14 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import {
   ClaudePluginsSearchResponseSchema,
   ClawhubSearchResponseSchema,
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { normalizeClaudePlugins, normalizeClawhub, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
 
-import { normalizeClaudePlugins, searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
+import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -24,11 +26,6 @@ describe('Skill search API schemas', () => {
       if (result.success) {
         expect(result.data.skills).toHaveLength(4)
       }
-    })
-
-    it('should snapshot the parsed fixture', () => {
-      const result = ClaudePluginsSearchResponseSchema.parse(claudePluginsFixture)
-      expect(result).toMatchSnapshot()
     })
 
     it('should handle missing optional fields', () => {
@@ -66,11 +63,6 @@ describe('Skill search API schemas', () => {
       }
     })
 
-    it('should snapshot the parsed fixture', () => {
-      const result = SkillsShSearchResponseSchema.parse(skillsShFixture)
-      expect(result).toMatchSnapshot()
-    })
-
     it('should reject missing required fields', () => {
       const invalid = {
         query: 'test',
@@ -91,11 +83,6 @@ describe('Skill search API schemas', () => {
       }
     })
 
-    it('should snapshot the parsed fixture', () => {
-      const result = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
-      expect(result).toMatchSnapshot()
-    })
-
     it('should handle null version', () => {
       const result = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
       const nullVersion = result.results.find((r) => r.version === null)
@@ -112,11 +99,6 @@ describe('Skill search API schemas', () => {
         expect(result.data.skill.slug).toBe('code-reviewer-pro')
         expect(result.data.owner?.handle).toBe('devmaster')
       }
-    })
-
-    it('should snapshot the parsed fixture', () => {
-      const result = ClawhubSkillDetailSchema.parse(clawhubDetailFixture)
-      expect(result).toMatchSnapshot()
     })
 
     it('should handle null owner and moderation', () => {
@@ -140,7 +122,7 @@ describe('Skill search API schemas', () => {
 })
 
 // =============================================================================
-// Normalizer tests (inline reimplementations to test without fetch mocking)
+// Normalizer tests
 // =============================================================================
 
 describe('Skill search normalizers', () => {
@@ -151,7 +133,6 @@ describe('Skill search normalizers', () => {
       // cp-002 (null metadata) and cp-003 (no directoryPath/sourceUrl path)
       // are filtered out because their install source is ambiguous.
       expect(results).toHaveLength(2)
-      expect(results).toMatchSnapshot()
 
       // Verify specific normalization rules
       const codeReview = results.find((r) => r.name === 'code-review')!
@@ -241,23 +222,13 @@ describe('Skill search normalizers', () => {
 
   describe('normalizeSkillsSh', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = SkillsShSearchResponseSchema.parse(skillsShFixture)
-      const results = parsed.skills.map((s) => ({
-        slug: s.id,
-        name: s.name,
-        description: null,
-        author: s.source.split('/')[0] ?? null,
-        stars: 0,
-        downloads: s.installs,
-        sourceRegistry: 'skills.sh' as const,
-        installSource: `skills.sh:${s.id}`
-      }))
+      const results = normalizeSkillsSh(skillsShFixture)
 
       expect(results).toHaveLength(3)
-      expect(results).toMatchSnapshot()
 
       expect(results[0].author).toBe('vercel-labs')
       expect(results[0].description).toBeNull()
+      expect(results[0].sourceUrl).toBe('https://skills.sh/vercel-labs/skills/find-skills')
       expect(results[1].downloads).toBe(263730)
       expect(results[2].installSource).toBe('skills.sh:vercel-labs/agent-skills/vercel-composition-patterns')
     })
@@ -265,28 +236,31 @@ describe('Skill search normalizers', () => {
 
   describe('normalizeClawhub', () => {
     it('should normalize fixture to unified results', () => {
-      const parsed = ClawhubSearchResponseSchema.parse(clawhubSearchFixture)
-      const results = parsed.results.map((s) => ({
-        slug: s.slug,
-        name: s.displayName,
-        description: s.summary ?? null,
-        author: s.ownerHandle ?? null,
-        stars: 0,
-        downloads: 0,
-        sourceRegistry: 'clawhub.ai' as const,
-        sourceUrl: s.ownerHandle
-          ? `https://clawhub.ai/${s.ownerHandle}/skills/${s.slug}`
-          : `https://clawhub.ai/skills/${s.slug}`,
-        installSource: `clawhub:${s.slug}`
-      }))
+      const results = normalizeClawhub(clawhubSearchFixture)
 
       expect(results).toHaveLength(2)
-      expect(results).toMatchSnapshot()
 
       expect(results[0].name).toBe('Code Reviewer Pro')
-      expect(results[0].installSource).toBe('clawhub:code-reviewer-pro')
+      expect(results[0].installSource).toBe('clawhub:devmaster/code-reviewer-pro')
       expect(results[0].author).toBe('devmaster')
       expect(results[0].sourceUrl).toBe('https://clawhub.ai/devmaster/skills/code-reviewer-pro')
+    })
+
+    it('drops results without an owner because clawhub slugs are not globally unique', () => {
+      const results = normalizeClawhub({
+        results: [
+          {
+            score: 1,
+            slug: 'shared-slug',
+            displayName: 'Shared Slug',
+            summary: 'Ambiguous publisher',
+            version: null,
+            updatedAt: 1
+          }
+        ]
+      })
+
+      expect(results).toEqual([])
     })
   })
 })
@@ -320,6 +294,91 @@ describe('searchSkills', () => {
     expect(results.every((result) => result.sourceRegistry === 'skills.sh')).toBe(true)
   })
 
+  it('keeps same-named skills from different publishers and registries independently installable', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const requestUrl = url.toString()
+      let body: unknown
+
+      if (requestUrl.startsWith('https://skills.sh/')) {
+        body = {
+          query: 'review',
+          skills: [
+            {
+              id: 'first/repo/code-review',
+              skillId: 'code-review',
+              name: 'Code-Review',
+              installs: 10,
+              source: 'first/repo'
+            },
+            {
+              id: 'second/repo/code-review',
+              skillId: 'code-review',
+              name: 'code-review',
+              installs: 5,
+              source: 'second/repo'
+            }
+          ],
+          count: 2
+        }
+      } else if (requestUrl.startsWith('https://claude-plugins.dev/')) {
+        body = {
+          skills: [
+            {
+              id: 'plugin-code-review',
+              name: 'code-review',
+              namespace: 'third',
+              metadata: { repoOwner: 'third', repoName: 'repo', directoryPath: 'code-review' }
+            }
+          ]
+        }
+      } else {
+        body = { results: [] }
+      }
+
+      return { ok: true, json: async () => body } as Response
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const results = await searchSkills('review')
+
+    expect(results.map((result) => result.installSource)).toEqual([
+      'skills.sh:first/repo/code-review',
+      'skills.sh:second/repo/code-review',
+      'claude-plugins:third/repo/code-review'
+    ])
+  })
+
+  it('offers one install when a registry repeats the same source with different display names', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) => ({
+        ok: true,
+        json: async () =>
+          url.toString().startsWith('https://skills.sh/')
+            ? {
+                query: 'review',
+                skills: ['Code Review', 'Code Review Updated'].map((name) => ({
+                  id: 'owner/repo/code-review',
+                  skillId: 'code-review',
+                  name,
+                  installs: 10,
+                  source: 'owner/repo'
+                })),
+                count: 2
+              }
+            : url.toString().startsWith('https://claude-plugins.dev/')
+              ? { skills: [] }
+              : { results: [] }
+      }))
+    )
+
+    const results = await searchSkills('review')
+
+    expect(results.map((result) => ({ name: result.name, installSource: result.installSource }))).toEqual([
+      { name: 'Code Review', installSource: 'skills.sh:owner/repo/code-review' }
+    ])
+  })
+
   it('should reject when all registries fail', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
     vi.stubGlobal('fetch', fetchMock)
@@ -343,32 +402,5 @@ describe('searchSkills', () => {
 
     await expect(searchSkills('vercel')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
     expect(fetchMock).toHaveBeenCalledTimes(3)
-  })
-})
-
-// =============================================================================
-// Deduplication logic
-// =============================================================================
-
-describe('Skill search deduplication', () => {
-  it('should deduplicate results by name (case-insensitive)', () => {
-    const allResults = [
-      { name: 'Code-Review', slug: 'a', sourceRegistry: 'claude-plugins.dev' as const },
-      { name: 'code-review', slug: 'b', sourceRegistry: 'skills.sh' as const },
-      { name: 'Code-review', slug: 'c', sourceRegistry: 'clawhub.ai' as const },
-      { name: 'Unique-Skill', slug: 'd', sourceRegistry: 'skills.sh' as const }
-    ]
-
-    const seen = new Set<string>()
-    const deduped = allResults.filter((r) => {
-      const key = r.name.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-
-    expect(deduped).toHaveLength(2)
-    expect(deduped[0].slug).toBe('a')
-    expect(deduped[1].slug).toBe('d')
   })
 })

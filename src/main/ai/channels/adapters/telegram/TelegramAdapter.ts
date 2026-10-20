@@ -1,3 +1,6 @@
+import { type ApiCallFn, Bot, InputFile, type Transformer } from 'grammy'
+import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
+
 import {
   downloadFileAsBase64,
   downloadImageAsBase64,
@@ -5,13 +8,13 @@ import {
   type ImageAttachment,
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
-import { Bot, InputFile } from 'grammy'
-import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 
 const TELEGRAM_MAX_LENGTH = 4096
+const TELEGRAM_LONG_POLL_TIMEOUT_SECONDS = 30
+const TELEGRAM_GET_UPDATES_TIMEOUT_MS = 45_000
+type GrammyAbortSignal = NonNullable<Parameters<ApiCallFn>[2]>
 /**
  * Plain-text chunk budget under MarkdownV2. We split the *plain* text (so each
  * chunk has an index-aligned plain fallback) and then escape it; escaping only
@@ -22,10 +25,29 @@ const TELEGRAM_MAX_LENGTH = 4096
  */
 const TELEGRAM_MARKDOWN_CHUNK_BUDGET = 3200
 
+const withGetUpdatesTimeout: Transformer = async (prev, method, payload, signal) => {
+  if (method !== 'getUpdates') return prev(method, payload, signal)
+
+  const controller = new AbortController()
+  const abort = () => controller.abort((signal as unknown as { reason?: unknown } | undefined)?.reason)
+  if (signal?.aborted) abort()
+  else signal?.addEventListener('abort', abort, { once: true })
+  const timeout = setTimeout(() => controller.abort(), TELEGRAM_GET_UPDATES_TIMEOUT_MS)
+
+  try {
+    return await prev(method, payload, controller.signal as unknown as GrammyAbortSignal)
+  } finally {
+    clearTimeout(timeout)
+    signal?.removeEventListener('abort', abort)
+  }
+}
+
 import { splitMessage } from '../../utils'
 
 class TelegramAdapter extends ChannelAdapter {
   private bot: Bot | null = null
+  private pollingBot: Bot | null = null
+  private pollingPromise: Promise<void> | null = null
   private readonly botToken: string
   private readonly allowedChatIds: string[]
 
@@ -36,6 +58,8 @@ class TelegramAdapter extends ChannelAdapter {
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private stabilityTimer: ReturnType<typeof setTimeout> | null = null
+  private resumePromise: Promise<void> | null = null
+  private pollingGeneration = 0
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
   private readonly maxReconnectAttempts = 50
   // Long polling has no "ready" event (a fatal 409 surfaces *after* `markConnected`), so
@@ -65,9 +89,16 @@ class TelegramAdapter extends ChannelAdapter {
     await this.startBot()
   }
 
-  private async startBot(): Promise<void> {
+  private async startBot(existingBot?: Bot): Promise<void> {
+    if (existingBot) {
+      this.bot = existingBot
+      this.startPolling(existingBot)
+      return
+    }
+
     const bot = new Bot(this.botToken)
     this.bot = bot
+    bot.api.config.use(withGetUpdatesTimeout)
 
     // Auth middleware — must be first
     bot.use(async (ctx, next) => {
@@ -187,26 +218,72 @@ class TelegramAdapter extends ChannelAdapter {
       this.log.error(`Bot error: ${msg}`)
     })
 
-    // Start long polling (fire-and-forget). `bot.start()` only resolves when the bot stops;
-    // a fatal polling error (e.g. 409 Conflict) rejects here — schedule a backoff reconnect.
-    bot.start().catch((err) => {
-      const msg = err instanceof Error ? err.message : String(err)
-      this.clearStabilityTimer()
-      this.markDisconnected(msg)
-      this.log.error(`Polling stopped: ${msg}`)
-      this.scheduleReconnect()
-    })
+    this.startPolling(bot)
+  }
 
-    this.markConnected()
-    this.log.info('Telegram bot polling started')
+  private startPolling(bot: Bot): void {
+    const generation = ++this.pollingGeneration
+    this.pollingBot = bot
+    this.pollingPromise = bot
+      .start({
+        timeout: TELEGRAM_LONG_POLL_TIMEOUT_SECONDS,
+        onStart: () => {
+          if (this.shouldStop || this.bot !== bot || this.pollingBot !== bot || this.pollingGeneration !== generation)
+            return
+          this.markConnected()
+          this.log.info('Telegram bot polling started')
+          this.startStabilityTimer(bot, generation)
+        }
+      })
+      .catch((err) => {
+        if (this.shouldStop || this.bot !== bot || this.pollingBot !== bot || this.pollingGeneration !== generation)
+          return
+        this.pollingBot = null
+        const msg = err instanceof Error ? err.message : String(err)
+        this.clearStabilityTimer()
+        this.markDisconnected(msg)
+        this.log.error(`Polling stopped: ${msg}`)
+        this.scheduleReconnect()
+      })
+  }
 
-    // Reset the reconnect budget once this connection has stayed up for the stability window.
-    // The `this.bot === bot` guard ensures a stale timer from a superseded connection no-ops.
+  private startStabilityTimer(bot: Bot, generation: number): void {
     this.clearStabilityTimer()
     this.stabilityTimer = setTimeout(() => {
       this.stabilityTimer = null
-      if (!this.shouldStop && this.bot === bot) this.reconnectAttempts = 0
+      if (!this.shouldStop && this.bot === bot && this.pollingBot === bot && this.pollingGeneration === generation)
+        this.reconnectAttempts = 0
     }, this.stabilityResetMs)
+  }
+
+  override handleSystemResume(): void {
+    if (this.shouldStop || !this.pollingBot || this.resumePromise) return
+
+    const bot = this.pollingBot
+    const resume = this.restartPollingAfterResume(bot)
+    this.resumePromise = resume
+    void resume.finally(() => {
+      if (this.resumePromise === resume) this.resumePromise = null
+    })
+  }
+
+  private async restartPollingAfterResume(bot: Bot): Promise<void> {
+    const polling = this.pollingPromise
+    this.pollingGeneration++
+    this.pollingBot = null
+    this.clearReconnectTimer()
+    this.clearStabilityTimer()
+    this.markDisconnected('System resumed; restarting Telegram polling')
+    try {
+      await bot.stop()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      this.log.warn(`Failed to stop stale Telegram poll after system resume: ${msg}`)
+    }
+    // grammY stop() does not wait for middleware or the old polling loop to finish.
+    await polling
+    if (this.shouldStop || this.bot !== bot) return
+    await this.startBot(bot)
   }
 
   private clearStabilityTimer(): void {
@@ -249,6 +326,8 @@ class TelegramAdapter extends ChannelAdapter {
 
   protected override async performDisconnect(): Promise<void> {
     this.shouldStop = true
+    this.pollingGeneration++
+    this.pollingBot = null
     this.clearReconnectTimer()
     this.clearStabilityTimer()
     if (this.bot) {
@@ -372,12 +451,8 @@ class TelegramAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('telegram', (channel, agentId) => {
+export function createTelegramAdapter(config: ChannelAdapterConfig<'telegram'>) {
   return new TelegramAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

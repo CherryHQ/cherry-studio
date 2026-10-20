@@ -1,3 +1,5 @@
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -8,12 +10,11 @@ import {
   CommandSharedPreferencesContext,
   useCommandContextSnapshot
 } from '@renderer/hooks/command'
-import { getShortcutBindingFromKeyboardEvent } from '@renderer/utils/command'
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { ContextReader, MenuPresentationMode, SupportedPlatform } from '@shared/types/command'
+import type { ContextReader, SupportedPlatform } from '@shared/types/command'
 import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 
 const logger = loggerService.withContext('CommandProvider')
 
@@ -62,7 +63,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   const handlersRef = useRef(new Map<CommandId, CommandHandlerEntry[]>())
   const dispatcherStateRef = useRef<CommandDispatcherState>({
     context: contextSnapshot,
-    shortcutPreferences: shortcutPreferences as Partial<Record<CommandId, PreferenceShortcutType>>,
+    shortcutPreferences: shortcutPreferences,
     hasHandler: () => false,
     execute: () => {}
   })
@@ -103,7 +104,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   const hasHandler = useCallback((command: CommandId) => Boolean(getActiveHandler(command)), [getActiveHandler])
 
   const execute = useCallback(
-    (command: CommandId) => {
+    (command: CommandId, args?: unknown) => {
       const handler = getActiveHandler(command)?.handler
       if (!handler) {
         logger.warn(`No renderer command handler registered: ${command}`)
@@ -111,7 +112,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        void Promise.resolve(handler()).catch((error) => {
+        void Promise.resolve(handler(args)).catch((error) => {
           logger.error(`Renderer command handler failed: ${command}`, error as Error)
         })
       } catch (error) {
@@ -124,7 +125,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     dispatcherStateRef.current = {
       context: contextSnapshot,
-      shortcutPreferences: shortcutPreferences as Partial<Record<CommandId, PreferenceShortcutType>>,
+      shortcutPreferences: shortcutPreferences,
       hasHandler,
       execute
     }
@@ -180,8 +181,8 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
 
   const sharedPreferences = useMemo<CommandSharedPreferences>(
     () => ({
-      shortcutPreferences: shortcutPreferences as Partial<Record<CommandId, PreferenceShortcutType>>,
-      menuPresentationMode: menuPresentationMode as MenuPresentationMode | undefined
+      shortcutPreferences: shortcutPreferences,
+      menuPresentationMode: menuPresentationMode
     }),
     [shortcutPreferences, menuPresentationMode]
   )

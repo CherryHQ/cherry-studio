@@ -8,9 +8,10 @@
  * dropped, other features continue, the request still proceeds.
  */
 
+import type { StopCondition, ToolSet } from 'ai'
+
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import type { StopCondition, ToolSet } from 'ai'
 
 import type { AgentLoopHooks } from '../loop/types'
 import type { RequestFeature } from './feature'

@@ -57,6 +57,14 @@ describe('assistant catalog presets', () => {
     await waitFor(() => expect(result.current.presets).toHaveLength(2))
     expect(assistantCatalogMocks.read).toHaveBeenCalledWith('/resources/data/agents-en.json', 'utf-8')
     expect(result.current.presets.map((preset) => preset.id)).toEqual(['preset-product', 'preset-business'])
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not load assistant presets while disabled', () => {
+    const { result } = renderHook(() => useAssistantCatalogPresets({ enabled: false }))
+
+    expect(assistantCatalogMocks.read).not.toHaveBeenCalled()
+    expect(result.current).toEqual({ isLoading: false, presets: [] })
   })
 
   it('keeps my assistants first and orders known system groups before custom groups', () => {
@@ -87,6 +95,20 @@ describe('assistant catalog presets', () => {
 
     expect(presets.map((preset) => preset.name)).toEqual(['Product Manager', 'Research Writer'])
     expect(filterAssistantCatalogPresets(presets, ASSISTANT_CATALOG_MY_TAB, 'product')).toEqual([])
+  })
+
+  it('searches preset names by initials within the selected category without romanizing prompts', () => {
+    const presets = [
+      { id: 'name', name: '知识库助手', group: ['Career'] },
+      { id: 'prompt', name: 'Other', prompt: '知识库助手', group: ['Career'] },
+      { id: 'category', name: '知识库助手', group: ['Business'] }
+    ]
+    expect(filterAssistantCatalogPresets(presets, 'Career', 'ZSKZS').map((preset) => preset.id)).toEqual(['name'])
+    expect(filterAssistantCatalogPresets(presets, 'Career', '知识').map((preset) => preset.id)).toEqual([
+      'name',
+      'prompt'
+    ])
+    expect(filterAssistantCatalogPresets(presets, 'Career', 'zk')).toEqual([])
   })
 
   it('builds a DataApi create payload from a catalog preset without legacy fields', () => {

@@ -1,37 +1,34 @@
 {
   "name": "@cherrystudio/provider-registry",
-  "version": "0.0.1-alpha.1",
-  "description": "Provider and Model Registry",
-  "private": true,
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.cts",
-  "packageManager": "pnpm@10.27.0",
-  "scripts": {
-    "build": "tsdown",
-    "dev": "tsc -w",
-    "clean": "rm -rf dist",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json",
-    "generate:check": "tsx scripts/generate-catalog.ts --report"
-  },
-  "author": "Cherry Studio",
-  "license": "MIT",
-  "files": [
-    "dist/**/*",
-    "data/**/*"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/CherryHQ/cherry-studio.git"
-  },
+  "version": "0.2.3",
+  "description": "Cross-platform AI provider and model catalogs, schemas, and lookup utilities",
+  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "bugs": {
     "url": "https://github.com/CherryHQ/cherry-studio/issues"
   },
-  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "license": "MIT",
+  "author": "Cherry Studio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/provider-registry"
+  },
+  "files": [
+    "dist/**/*",
+    "data/**/*",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.cts",
   "exports": {
     ".": {
+      "react-native": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
       "import": {
         "types": "./dist/index.d.mts",
         "default": "./dist/index.mjs"
@@ -40,7 +37,6 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       },
-      "react-native": "./dist/index.cjs",
       "default": "./dist/index.mjs"
     },
     "./node": {
@@ -52,23 +48,103 @@
         "types": "./dist/registry-loader.d.cts",
         "default": "./dist/registry-loader.cjs"
       },
-      "default": "./dist/registry-loader.cjs"
-    }
+      "default": "./dist/registry-loader.mjs"
+    },
+    "./data": {
+      "react-native": {
+        "types": "./dist/bundled-catalog.d.mts",
+        "default": "./dist/bundled-catalog.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-catalog.d.mts",
+        "default": "./dist/bundled-catalog.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-catalog.d.cts",
+        "default": "./dist/bundled-catalog.cjs"
+      },
+      "default": "./dist/bundled-catalog.mjs"
+    },
+    "./data/models": {
+      "react-native": {
+        "types": "./dist/bundled-models.d.mts",
+        "default": "./dist/bundled-models.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-models.d.mts",
+        "default": "./dist/bundled-models.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-models.d.cts",
+        "default": "./dist/bundled-models.cjs"
+      },
+      "default": "./dist/bundled-models.mjs"
+    },
+    "./data/providers": {
+      "react-native": {
+        "types": "./dist/bundled-providers.d.mts",
+        "default": "./dist/bundled-providers.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-providers.d.mts",
+        "default": "./dist/bundled-providers.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-providers.d.cts",
+        "default": "./dist/bundled-providers.cjs"
+      },
+      "default": "./dist/bundled-providers.mjs"
+    },
+    "./data/provider-models": {
+      "react-native": {
+        "types": "./dist/bundled-provider-models.d.mts",
+        "default": "./dist/bundled-provider-models.mjs"
+      },
+      "import": {
+        "types": "./dist/bundled-provider-models.d.mts",
+        "default": "./dist/bundled-provider-models.mjs"
+      },
+      "require": {
+        "types": "./dist/bundled-provider-models.d.cts",
+        "default": "./dist/bundled-provider-models.cjs"
+      },
+      "default": "./dist/bundled-provider-models.mjs"
+    },
+    "./data/models.json": "./data/models.json",
+    "./data/providers.json": "./data/providers.json",
+    "./data/provider-models.json": "./data/provider-models.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "rm -rf dist",
+    "compat:baseline": "tsx scripts/createCompatibilityBaseline.ts",
+    "compat:check": "tsx scripts/checkCatalogCompatibility.ts",
+    "compat:policy": "tsx scripts/compatibilityPolicy.ts",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/provider-registry/tsconfig.json",
+    "generate": "tsx scripts/generate-catalog.ts --write && pnpm --workspace-root exec oxfmt --write packages/provider-registry/data/models.json packages/provider-registry/data/provider-models.json packages/provider-registry/data/providers.json packages/provider-registry/src/patterns/reasoning-families.gen.ts packages/provider-registry/src/patterns/server-tool-models.gen.ts packages/provider-registry/src/patterns/server-tool-constraints.gen.ts",
+    "generate:check": "tsx scripts/generate-catalog.ts --report",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "test:package": "pnpm typecheck && pnpm build && node scripts/check-package.mjs",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "semver": "^7.7.1"
   },
   "devDependencies": {
-    "@ai-sdk/provider-utils": "^4.0.23",
-    "@types/json-schema": "^7.0.15",
+    "@ai-sdk/provider-utils": "^4.0.40",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",
-    "tsdown": "^0.16.6",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.13",
-    "zod": "^4.1.12"
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1",
+    "zod": "4.4.3"
   },
-  "peerDependencies": {},
-  "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "json-schema": "^0.4.0",
-    "lucide-react": "^0.563.0"
+  "peerDependencies": {
+    "zod": "^4.4.3"
   }
 }

@@ -1,9 +1,10 @@
+import { first } from 'es-toolkit/compat'
+import type { FC } from 'react'
+
 import { Avatar, AvatarFallback } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
-import { first } from 'es-toolkit/compat'
-import type { FC } from 'react'
 
 /**
  * Structural minimum the avatar needs. `getModelLogoRef` is shape-agnostic

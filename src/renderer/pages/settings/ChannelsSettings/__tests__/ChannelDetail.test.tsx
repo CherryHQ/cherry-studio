@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
+
 import ChannelDetail from '../ChannelDetail'
 import type { AvailableChannel } from '../channelTypes'
 
@@ -41,14 +43,18 @@ vi.mock('@renderer/components/Scrollbar', () => ({
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: (props: React.HTMLAttributes<HTMLHRElement>) => <hr {...props} />,
+  SettingGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <section {...props}>{children}</section>
+  ),
   SettingsContentBody: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
     <div {...props}>{children}</div>
   ),
   SettingTitle: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useQuery: () => ({ data: [] })
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  useDataChange: (await import('@renderer/data/hooks/useDataChange')).useDataChange,
+  useQuery: () => ({ data: [], refetch: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -78,17 +84,29 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUiModule>()
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void } | null>(null)
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+    ({
+      children,
+      closeOnOverlayClick,
+      closeLabel,
+      ...props
+    }: {
+      children?: React.ReactNode
+      closeOnOverlayClick?: boolean
+      closeLabel?: string
+    }) => {
       void closeOnOverlayClick
+      void closeLabel
       return React.createElement(tag, props, children)
     }
 
   return {
+    ...actual,
     Badge: passthrough('span'),
     Button: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
       <button type="button" onClick={onClick} {...props}>
@@ -96,13 +114,27 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     ConfirmDialog: ({ open }: { open?: boolean }) => (open ? <div role="dialog" /> : null),
-    Dialog: ({ children, open }: { children?: React.ReactNode; open?: boolean }) =>
-      open ? <div>{children}</div> : null,
+    Dialog: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children?: React.ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => (
+      <div data-open={open}>
+        {children}
+        {open && onOpenChange && <button type="button" aria-label="close dialog" onClick={() => onOpenChange(false)} />}
+      </div>
+    ),
     DialogContent: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: passthrough('label'),
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
       <SelectContext value={{ onValueChange }}>{children}</SelectContext>
     ),
@@ -153,16 +185,39 @@ describe('ChannelDetail', () => {
     available: true,
     defaultConfig: { bot_token: '', allowed_chat_ids: [] }
   }
+  const feishuChannelDef: AvailableChannel = {
+    type: 'feishu',
+    name: 'Feishu',
+    titleKey: 'agent.channels.feishu.title',
+    description: 'agent.channels.feishu.description',
+    available: true,
+    defaultConfig: {
+      app_id: '',
+      app_secret: '',
+      encrypt_key: '',
+      verification_token: '',
+      allowed_chat_ids: [],
+      domain: 'feishu'
+    }
+  }
+  const wechatChannelDef: AvailableChannel = {
+    type: 'wechat',
+    name: 'WeChat',
+    titleKey: 'agent.channels.wechat.title',
+    description: 'agent.channels.wechat.description',
+    available: true,
+    defaultConfig: { token_path: '', allowed_chat_ids: [] }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
+    HTMLElement.prototype.scrollIntoView = vi.fn()
     channelMocks.channels = [
       {
         id: 'channel-1',
         type: 'telegram',
         name: 'Telegram channel',
         agentId: 'agent-1',
-        sessionId: null,
         workspace: { type: 'system' },
         config: { bot_token: 'token', allowed_chat_ids: [] },
         isActive: true,
@@ -172,18 +227,52 @@ describe('ChannelDetail', () => {
       }
     ]
 
-    // ChannelDetail now reads logs/statuses via ipcApi.request and subscribes via useIpcOn
-    // (ipcApi.on). Stub the IpcApi bridge: log/status queries resolve empty, events no-op.
+    // Logs and QR events still use IpcApi; connection status comes from Shared Cache.
     window.api = {
       ipcApi: {
         request: vi.fn((route: string) =>
-          route === 'channel.get_logs' || route === 'channel.get_statuses'
-            ? Promise.resolve([])
-            : Promise.resolve(undefined)
+          route === 'channel.get_logs' ? Promise.resolve([]) : Promise.resolve(undefined)
         ),
         on: vi.fn(() => () => {})
       }
     } as never
+  })
+
+  it('creates new channels inactive so empty default credentials pass server validation', async () => {
+    channelMocks.createChannel.mockResolvedValue({ id: 'channel-2' })
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'telegram',
+          config: channelDef.defaultConfig,
+          isActive: false
+        })
+      )
+    })
+  })
+
+  it('passes independent WeCom field patches through the settings save boundary', async () => {
+    const config = { bot_id: 'old-bot', secret: 'old-secret', allowed_chat_ids: [], allowed_user_ids: [] }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'wecom', config, isActive: false }]
+    render(<ChannelDetail channelDef={{ ...channelDef, type: 'wecom', name: 'WeCom', defaultConfig: config }} />)
+    const tooltip = await screen.findByText('common.edit')
+    fireEvent.click(within(tooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button'))
+    for (const [key, value] of [
+      ['botId', 'new-bot'],
+      ['secret', ' secret ']
+    ]) {
+      const input = await screen.findByLabelText(`agent.channels.wecom.${key}`)
+      fireEvent.change(input, { target: { value } })
+      fireEvent.blur(input)
+    }
+    expect(channelMocks.updateChannel.mock.calls).toEqual([
+      ['channel-1', { configPatch: { bot_id: 'new-bot' } }],
+      ['channel-1', { configPatch: { secret: ' secret ' } }]
+    ])
   })
 
   it('sends null permissionMode when clearing an existing override to inherit', async () => {
@@ -193,10 +282,78 @@ describe('ChannelDetail', () => {
     const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
     fireEvent.click(editButton)
 
+    const nameInput = await screen.findByDisplayValue<HTMLInputElement>('Telegram channel')
+    expect(nameInput).toHaveFocus()
+    expect(nameInput.selectionStart).toBe(nameInput.selectionEnd)
+
     fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgent'))
 
     await waitFor(() => {
       expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', { permissionMode: null })
     })
+  })
+
+  it('creates Feishu channels active so binding an agent can start QR registration', async () => {
+    channelMocks.channels = []
+    channelMocks.createChannel.mockResolvedValue({
+      id: 'new-feishu-channel',
+      type: 'feishu',
+      name: 'Feishu 1',
+      config: feishuChannelDef.defaultConfig,
+      isActive: true
+    })
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'feishu',
+          config: feishuChannelDef.defaultConfig,
+          isActive: true
+        })
+      )
+    })
+  })
+
+  it('creates WeChat channels active so binding an agent can start QR login', async () => {
+    channelMocks.channels = []
+    channelMocks.createChannel.mockResolvedValue({
+      id: 'new-wechat-channel',
+      type: 'wechat',
+      name: 'WeChat',
+      config: wechatChannelDef.defaultConfig,
+      isActive: true
+    })
+    render(<ChannelDetail channelDef={wechatChannelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'wechat',
+          config: wechatChannelDef.defaultConfig,
+          isActive: true
+        })
+      )
+    })
+  })
+
+  it('closes the edit dialog without clearing its content first', () => {
+    const { rerender } = render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = screen.getByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    fireEvent.click(editButton)
+    fireEvent.click(screen.getByRole('button', { name: 'close dialog' }))
+
+    channelMocks.channels = []
+    rerender(<ChannelDetail channelDef={channelDef} />)
+
+    const title = screen.getByRole('heading', { name: 'Telegram channel' })
+    expect(title).toBeInTheDocument()
+    expect(title.closest('[data-open]')).toHaveAttribute('data-open', 'false')
   })
 })

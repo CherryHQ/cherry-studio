@@ -4,17 +4,25 @@
  * Handles CRUD operations for knowledge bases stored in SQLite.
  */
 
+import { and, asc, count as sqlCount, desc, eq, gte, inArray, isNull, ne, type SQL, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { DbOrTx, DbType } from '@data/db/types'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeBaseListItem,
+  KnowledgeBaseListResponse,
   ListKnowledgeBasesQuery,
+  ReorderKnowledgeBaseDto,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { OffsetPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api/types'
 import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -23,49 +31,53 @@ import {
   DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
   DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
   type KnowledgeBase,
-  KnowledgeBaseSchema
+  KnowledgeBaseSchema,
+  KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
-import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
+import { registerDataService } from './dataServiceRegistry'
+import { groupService } from './GroupService'
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
-
-function validateKnowledgeBaseConfig(config: {
-  chunkSize: number
-  chunkOverlap: number
-  chunkStrategy?: string | null
-  chunkSeparator?: string | null
-}): Record<string, string[]> {
-  const fieldErrors: Record<string, string[]> = {}
-
-  if (config.chunkOverlap >= config.chunkSize) {
-    fieldErrors.chunkOverlap = ['Chunk overlap must be smaller than chunk size']
-  }
-
-  if (config.chunkStrategy === 'delimiter' && !config.chunkSeparator) {
-    fieldErrors.chunkSeparator = ['Separator is required when chunk strategy is delimiter']
-  }
-
-  return fieldErrors
+type KnowledgeBaseListSortBy = NonNullable<ListKnowledgeBasesQuery['sortBy']>
+type KnowledgeBaseOffsetListQuery = Omit<ListKnowledgeBasesQuery, 'cursor'> & { page: number }
+type KnowledgeBaseDiscoveryQuery = {
+  limit: number
+  cursor?: string
+  query?: string
+  groupId?: string
+  restrictedIds?: readonly [string, ...string[]]
+}
+type KnowledgeBaseDiscoveryPage = CursorPaginationResponse<KnowledgeBase> & { total: number }
+type KnowledgeBaseListFilters = {
+  groupId?: string
+  ids?: readonly string[]
+  includeItemSourcesInSearch?: boolean
 }
 
-// The vector arm of the DB CHECK requires a positive dimensions alongside the model;
-// a no-model base always persists a null dimensions regardless of what is passed. The
-// IPC boundary already rejects a model without dimensions via CreateKnowledgeBaseSchema's
-// refine, so this guards internal callers (e.g. restoreBase) that build a DTO directly,
-// before the write reaches the DB CHECK as an untranslated constraint violation.
-function validateDimensionsForEmbeddingModel(
-  embeddingModelId: string | null,
-  dimensions: number | null | undefined
-): Record<string, string[]> {
-  if (embeddingModelId != null && !(typeof dimensions === 'number' && Number.isInteger(dimensions) && dimensions > 0)) {
-    return { dimensions: ['A knowledge base with an embedding model requires positive dimensions'] }
+const sourceItemTable = alias(knowledgeItemTable, 'source_item')
+const KnowledgeBaseProjectionSchema = z.object(KnowledgeBaseSchema.shape)
+
+function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+  if (groupId == null) return
+
+  const group = groupService.findByIdTx(tx, groupId)
+  if (!group) {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group not found: ${groupId}`]
+    })
   }
-  return {}
+  if (group.entityType !== 'knowledge') {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group must have entityType 'knowledge': ${groupId}`]
+    })
+  }
 }
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
@@ -83,17 +95,121 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   })
 }
 
-function buildSearchPredicate(search: string | undefined): SQL | undefined {
+function buildSearchPredicate(search: string | undefined, includeItemSources = false): SQL | undefined {
   const trimmed = search?.trim()
   if (!trimmed) return undefined
 
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
-  return sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const nameMatch = sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+  if (!includeItemSources) return nameMatch
+
+  const itemSourceMatch = sql`EXISTS (
+    SELECT 1
+    FROM ${knowledgeItemTable} AS ${sql.identifier('source_item')}
+    WHERE ${sourceItemTable.baseId} = ${knowledgeBaseTable.id}
+      AND ${sourceItemTable.groupId} IS NULL
+      AND ${sourceItemTable.status} = 'completed'
+      AND (
+        json_extract(${sourceItemTable.data}, '$.source') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.url') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.relativePath') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.file.origin_name') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.file.name') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.content') LIKE ${pattern} ESCAPE '\\'
+      )
+  )`
+
+  return sql`(${nameMatch} OR (${knowledgeBaseTable.status} = 'completed' AND ${itemSourceMatch}))`
+}
+
+function buildListFilterConditions(
+  query: Pick<ListKnowledgeBasesQuery, 'ids' | 'search' | 'updatedAtFrom'>,
+  filters: KnowledgeBaseListFilters = {}
+): SQL[] {
+  const conditions: SQL[] = []
+  const search = buildSearchPredicate(query.search, filters.includeItemSourcesInSearch)
+  if (search) conditions.push(search)
+  if (query.updatedAtFrom !== undefined) {
+    conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
+  }
+  if (query.ids !== undefined) {
+    conditions.push(inArray(knowledgeBaseTable.id, query.ids))
+  }
+  if (filters.groupId !== undefined) {
+    conditions.push(eq(knowledgeBaseTable.groupId, filters.groupId))
+  }
+  if (filters.ids !== undefined) {
+    conditions.push(filters.ids.length > 0 ? inArray(knowledgeBaseTable.id, [...filters.ids]) : sql`0`)
+  }
+  return conditions
+}
+
+function getListSortColumn(sortBy: KnowledgeBaseListSortBy) {
+  return {
+    createdAt: knowledgeBaseTable.createdAt,
+    updatedAt: knowledgeBaseTable.updatedAt,
+    name: knowledgeBaseTable.name,
+    orderKey: knowledgeBaseTable.orderKey
+  }[sortBy]
+}
+
+function getListSortValue(row: KnowledgeBaseRow, sortBy: KnowledgeBaseListSortBy): string | number {
+  return row[sortBy]
+}
+
+function rowToKnowledgeBaseListItem(row: { base: KnowledgeBaseRow; itemCount: number }): KnowledgeBaseListItem {
+  return {
+    ...rowToKnowledgeBase(row.base),
+    itemCount: row.itemCount
+  }
+}
+
+function knowledgeBaseListItemToBase(item: KnowledgeBaseListItem): KnowledgeBase {
+  return KnowledgeBaseSchema.parse(KnowledgeBaseProjectionSchema.parse(item))
 }
 
 export class KnowledgeBaseService {
+  private readonly embeddingModelsBeingRemoved = new Set<string>()
+
   private get db() {
     return application.get('DbService').getDb()
+  }
+
+  /** Prevents a reference from being added while an owner asynchronously removes a model's weights. */
+  acquireEmbeddingModelRemovalGuard(modelId: string): (() => void) | undefined {
+    if (this.embeddingModelsBeingRemoved.has(modelId)) {
+      return undefined
+    }
+
+    this.embeddingModelsBeingRemoved.add(modelId)
+    try {
+      const [inUse] = this.db
+        .select({ id: knowledgeBaseTable.id })
+        .from(knowledgeBaseTable)
+        .where(eq(knowledgeBaseTable.embeddingModelId, modelId))
+        .limit(1)
+        .all()
+      if (inUse) {
+        this.embeddingModelsBeingRemoved.delete(modelId)
+        return undefined
+      }
+    } catch (error) {
+      this.embeddingModelsBeingRemoved.delete(modelId)
+      throw error
+    }
+
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.embeddingModelsBeingRemoved.delete(modelId)
+    }
+  }
+
+  private assertEmbeddingModelIsNotBeingRemoved(modelId: string | null): void {
+    if (modelId !== null && this.embeddingModelsBeingRemoved.has(modelId)) {
+      throw DataApiErrorFactory.resourceLocked('EmbeddingModel', modelId, 'model weight removal')
+    }
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): KnowledgeBaseEntitySearchItem[] {
@@ -108,6 +224,7 @@ export class KnowledgeBaseService {
       .select({
         id: knowledgeBaseTable.id,
         name: knowledgeBaseTable.name,
+        orderKey: knowledgeBaseTable.orderKey,
         updatedAt: knowledgeBaseTable.updatedAt
       })
       .from(knowledgeBaseTable)
@@ -125,25 +242,25 @@ export class KnowledgeBaseService {
     }))
   }
 
-  list(query: ListKnowledgeBasesQuery): OffsetPaginationResponse<KnowledgeBaseListItem> {
+  listAllIds(): Set<string> {
+    return new Set(
+      this.db
+        .select({ id: knowledgeBaseTable.id })
+        .from(knowledgeBaseTable)
+        .all()
+        .map(({ id }) => id)
+    )
+  }
+
+  list(query: KnowledgeBaseOffsetListQuery): OffsetPaginationResponse<KnowledgeBaseListItem> {
     const { page, limit } = query
     const offset = (page - 1) * limit
-    const conditions: SQL[] = []
-    const search = buildSearchPredicate(query.search)
-    if (search) conditions.push(search)
-    if (query.updatedAtFrom !== undefined) {
-      conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
-    }
+    const conditions = buildListFilterConditions(query)
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const sortBy = query.sortBy ?? 'createdAt'
-    const sortOrder = query.sortOrder ?? 'desc'
+    const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
     const orderFn = sortOrder === 'asc' ? asc : desc
-    const sortByToColumn = {
-      createdAt: knowledgeBaseTable.createdAt,
-      updatedAt: knowledgeBaseTable.updatedAt,
-      name: knowledgeBaseTable.name
-    } as const
-    const sortColumn = sortByToColumn[sortBy]
+    const sortColumn = getListSortColumn(sortBy)
     const rows = this.db
       .select({
         base: knowledgeBaseTable,
@@ -167,12 +284,84 @@ export class KnowledgeBaseService {
       .all()
 
     return {
-      items: rows.map((row) => ({
-        ...rowToKnowledgeBase(row.base),
-        itemCount: row.itemCount
-      })),
+      items: rows.map(rowToKnowledgeBaseListItem),
       total: count,
       page
+    }
+  }
+
+  listCursor(query: ListKnowledgeBasesQuery): KnowledgeBaseListResponse {
+    return this.listCursorWithFilters(query)
+  }
+
+  listForDiscovery(query: KnowledgeBaseDiscoveryQuery): KnowledgeBaseDiscoveryPage {
+    const page = this.listCursorWithFilters(
+      {
+        limit: query.limit,
+        ...(query.cursor ? { cursor: query.cursor } : {}),
+        ...(query.query ? { search: query.query } : {})
+      },
+      {
+        ...(query.groupId ? { groupId: query.groupId } : {}),
+        ...(query.restrictedIds ? { ids: query.restrictedIds } : {}),
+        includeItemSourcesInSearch: true
+      }
+    )
+
+    return {
+      items: page.items.map(knowledgeBaseListItemToBase),
+      total: page.total,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
+    }
+  }
+
+  private listCursorWithFilters(
+    query: ListKnowledgeBasesQuery,
+    filters: KnowledgeBaseListFilters = {}
+  ): KnowledgeBaseListResponse {
+    const { limit } = query
+    const filterConditions = buildListFilterConditions(query, filters)
+    const sortBy = query.sortBy ?? 'createdAt'
+    const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
+    const sortColumn = getListSortColumn(sortBy)
+    const ordering = keysetOrdering(sortColumn, knowledgeBaseTable.id, { major: sortOrder, tie: sortOrder })
+    const cursor =
+      sortBy === 'name' || sortBy === 'orderKey'
+        ? decodeListCursor(query.cursor, asStringKey, 'knowledge-base')
+        : decodeListCursor(query.cursor, asNumericKey, 'knowledge-base')
+    const conditions = [...filterConditions]
+    if (cursor) conditions.push(ordering.where(cursor))
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+    const filterWhereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined
+    const rows = this.db
+      .select({
+        base: knowledgeBaseTable,
+        itemCount: sqlCount(knowledgeItemTable.id)
+      })
+      .from(knowledgeBaseTable)
+      .leftJoin(
+        knowledgeItemTable,
+        and(eq(knowledgeItemTable.baseId, knowledgeBaseTable.id), ne(knowledgeItemTable.status, 'deleting'))
+      )
+      .groupBy(knowledgeBaseTable.id)
+      .where(whereClause)
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(knowledgeBaseTable)
+      .where(filterWhereClause)
+      .all()
+    const pageRows = rows.slice(0, limit)
+    const tail = pageRows.at(-1)
+
+    return {
+      items: pageRows.map(rowToKnowledgeBaseListItem),
+      total: count,
+      nextCursor:
+        rows.length > limit && tail ? encodeCursor(getListSortValue(tail.base, sortBy), tail.base.id) : undefined
     }
   }
 
@@ -197,15 +386,7 @@ export class KnowledgeBaseService {
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
       chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR
     }
-    const createFieldErrors = {
-      ...validateKnowledgeBaseConfig(createConfig),
-      ...validateDimensionsForEmbeddingModel(embeddingModelId, dto.dimensions)
-    }
-    if (Object.keys(createFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(createFieldErrors)
-    }
-
-    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
+    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'orderKey' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
       dimensions: usesEmbeddings ? (dto.dimensions ?? null) : null,
@@ -222,8 +403,28 @@ export class KnowledgeBaseService {
       documentCount: dto.documentCount ?? null
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.insert(knowledgeBaseTable).values(createValues).returning().all()
+    // threshold/documentCount are nullable in the insert values but optional in the
+    // write schema, so nulls become undefined for validation.
+    const createCandidate = {
+      ...createValues,
+      threshold: createValues.threshold ?? undefined,
+      documentCount: createValues.documentCount ?? undefined
+    }
+    const createValidation = KnowledgeBaseWriteSchema.safeParse(createCandidate)
+    if (!createValidation.success) {
+      throw toDataApiError(createValidation.error, 'create knowledge base')
+    }
+
+    this.assertEmbeddingModelIsNotBeingRemoved(embeddingModelId)
+
+    const row = application.get('DbService').withWriteTx((tx) => {
+      validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      return insertWithOrderKey(tx, knowledgeBaseTable, createValues, {
+        pkColumn: knowledgeBaseTable.id,
+        position: 'first',
+        scope: dto.groupId ? eq(knowledgeBaseTable.groupId, dto.groupId) : isNull(knowledgeBaseTable.groupId)
+      }) as KnowledgeBaseRow
+    })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
@@ -280,12 +481,29 @@ export class KnowledgeBaseService {
       chunkSeparator: dto.chunkSeparator !== undefined ? dto.chunkSeparator : existing.chunkSeparator
     }
 
-    const updateFieldErrors = {
-      ...validateKnowledgeBaseConfig(nextConfig),
-      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions)
+    // Validate the merged next-state (existing row + this PATCH) against the same
+    // invariants as the read schema — a failed base's leftover-incompatible pairing
+    // isn't governed by these invariants until it goes through restore, so
+    // metadata-only updates (rename, move group) must not be blocked by them; that
+    // gating lives inside `refineKnowledgeBaseInvariants` itself (only enforced
+    // when `status === 'completed'`).
+    const { orderKey: _orderKey, id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...existingConfig } = existing
+    void _id // Intentionally unused - excluding id/createdAt/updatedAt from the write candidate
+    void _orderKey
+    void _createdAt
+    void _updatedAt
+    const updateCandidate = {
+      ...existingConfig,
+      embeddingModelId: nextEmbeddingModelId,
+      dimensions: nextDimensions,
+      chunkSize: nextConfig.chunkSize,
+      chunkOverlap: nextConfig.chunkOverlap,
+      chunkStrategy: nextConfig.chunkStrategy,
+      chunkSeparator: nextConfig.chunkSeparator
     }
-    if (Object.keys(updateFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(updateFieldErrors)
+    const updateValidation = KnowledgeBaseWriteSchema.safeParse(updateCandidate)
+    if (!updateValidation.success) {
+      throw toDataApiError(updateValidation.error, 'update knowledge base')
     }
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
@@ -331,22 +549,93 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
+    if (embeddingModelChanged) {
+      this.assertEmbeddingModelIsNotBeingRemoved(nextEmbeddingModelId)
+    }
+
+    const row = application.get('DbService').withWriteTx((tx) => {
+      if (dto.groupId !== undefined) {
+        validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      }
+      const [updated] = tx
+        .update(knowledgeBaseTable)
+        .set(updates)
+        .where(eq(knowledgeBaseTable.id, id))
+        .returning()
+        .all()
+      if (updated && dto.groupId !== undefined && dto.groupId !== existing.groupId) {
+        applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
+          pkColumn: knowledgeBaseTable.id,
+          scope: dto.groupId === null ? isNull(knowledgeBaseTable.groupId) : eq(knowledgeBaseTable.groupId, dto.groupId)
+        })
+        return tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()!
+      }
+      if (!updated) {
+        throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+      }
+      return updated
+    })
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)
+  }
+
+  ungroupTx(tx: DbOrTx, groupId: string): void {
+    const rows = tx
+      .select({ id: knowledgeBaseTable.id })
+      .from(knowledgeBaseTable)
+      .where(eq(knowledgeBaseTable.groupId, groupId))
+      .orderBy(asc(knowledgeBaseTable.orderKey), asc(knowledgeBaseTable.id))
+      .all()
+    for (const { id } of rows) {
+      tx.update(knowledgeBaseTable).set({ groupId: null }).where(eq(knowledgeBaseTable.id, id)).run()
+      applyMoves(tx, knowledgeBaseTable, [{ id, anchor: { position: 'last' } }], {
+        pkColumn: knowledgeBaseTable.id,
+        scope: isNull(knowledgeBaseTable.groupId)
+      })
+    }
+  }
+
+  reorder(id: string, { anchor, groupId }: ReorderKnowledgeBaseDto): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const existing = tx.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).get()
+      if (!existing) throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+      const targetGroupId = groupId === undefined ? existing.groupId : groupId
+      validateKnowledgeBaseGroupTx(tx, targetGroupId)
+      if (targetGroupId !== existing.groupId) {
+        tx.update(knowledgeBaseTable).set({ groupId: targetGroupId }).where(eq(knowledgeBaseTable.id, id)).run()
+      }
+      applyMoves(tx, knowledgeBaseTable, [{ id, anchor }], {
+        pkColumn: knowledgeBaseTable.id,
+        scope:
+          targetGroupId === null ? isNull(knowledgeBaseTable.groupId) : eq(knowledgeBaseTable.groupId, targetGroupId)
+      })
+    })
   }
 
   delete(id: string): void {
     // Verify knowledge base exists
     this.getById(id)
 
-    const db = application.get('DbService').getDb()
-    db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    let affectedAgentIds: string[] = []
+    application.get('DbService').withWriteTx((tx) => {
+      affectedAgentIds = agentService.removeKnowledgeBaseFromAllAgentsTx(tx, id)
+      tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
+    })
+
+    try {
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'knowledgeBaseIds')
+    } catch (error) {
+      logger.error('Knowledge base deleted but agent refresh failed; affected agents may retain stale tool scope', {
+        knowledgeBaseId: id,
+        affectedAgentIds,
+        error
+      })
+    }
 
     logger.info('Deleted knowledge base', { id })
   }
 }
 
 export const knowledgeBaseService = new KnowledgeBaseService()
+registerDataService('KnowledgeBaseService', knowledgeBaseService)

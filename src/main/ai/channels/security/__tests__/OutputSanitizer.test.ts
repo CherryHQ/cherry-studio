@@ -20,6 +20,19 @@ describe('sanitizeChannelOutput', () => {
     expect(redacted).toBe(false)
   })
 
+  it('strips internal citation markers from channel output', () => {
+    const { text, redacted } = sanitizeChannelOutput('Prices rose. [cite:e5351d74-1] Demand fell. [cite:e5351d74-2]')
+
+    expect(text).toBe('Prices rose. Demand fell.')
+    expect(redacted).toBe(false)
+  })
+
+  it('preserves citation-like text in inline and fenced code', () => {
+    const input = '`[cite:example-1]`\n```txt\n[cite:example-2]\n```\nOutside [cite:e5351d74-1]'
+
+    expect(sanitizeChannelOutput(input).text).toBe('`[cite:example-1]`\n```txt\n[cite:example-2]\n```\nOutside')
+  })
+
   it('redacts PEM private keys', () => {
     const input = `Here is the key:
 -----BEGIN RSA PRIVATE KEY-----

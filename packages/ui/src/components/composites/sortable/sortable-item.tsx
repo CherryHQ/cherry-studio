@@ -39,6 +39,7 @@ export function SortableItem<T>({
   return (
     <ItemRenderer
       ref={setNodeRef}
+      activatorRef={dragHandle ? undefined : setActivatorNodeRef}
       item={item}
       index={index}
       renderItem={renderItem}

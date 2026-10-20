@@ -1,0 +1,4 @@
+{"level":"error","message":"Provider request failed with status 400: Unsupported parameter reasoning_effort","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 15:00:00"}
+{"level":"error","message":"DeepSeek tool call failed: No tool output found for tool call call_00_abc, provider returned 400","module":"AiStreamManager","process":"main","timestamp":"2026-08-20 15:01:00"}
+{"level":"error","message":"Request handling failed: PATCH /models/example::demo Invalid operation: update model example/demo","status":400,"name":"DataApiError","code":"INVALID_OPERATION","details":{"operation":"update model example/demo","reason":"managed default model cannot be modified"},"timestamp":"2026-08-20 16:00:00"}
+{"level":"error","message":"Summarization returned no object","usage":{"inputTokens":400,"outputTokens":12},"model":"example/demo-4","timestamp":"2026-08-20 17:00:00"}

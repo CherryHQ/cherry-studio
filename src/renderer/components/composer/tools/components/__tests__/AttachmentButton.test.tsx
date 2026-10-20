@@ -1,8 +1,10 @@
+import { act, render, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { act, render, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { AttachmentToolRuntime } from '../AttachmentButton'
 
@@ -55,7 +57,7 @@ describe('AttachmentToolRuntime', () => {
         ...window.api?.file,
         select: vi.fn(async () => [selectedFile])
       }
-    } as typeof window.api
+    }
     restoreRequestAnimationFrame = installSyncRafMock()
   })
 
@@ -117,7 +119,7 @@ describe('AttachmentToolRuntime', () => {
         files={[
           {
             fileTokenSourceId: 'existing',
-            path: '/tmp/existing.txt',
+            path: '/tmp/existing.txt' as AbsoluteFilePath,
             name: 'existing.txt',
             origin_name: 'existing.txt',
             ext: '.txt',

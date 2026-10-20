@@ -2,6 +2,11 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { and, eq, or } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
@@ -19,36 +24,57 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { and, eq, or } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
-const { lookupModelMock } = vi.hoisted(() => ({
-  // `list()` enriches every row by calling `lookupModel`. Default to an
-  // empty registry hit (no preset / override) so the enrichment is a no-op
-  // unless a test opts in; individual tests override per (providerId, modelId).
-  lookupModelMock: vi.fn<
-    (
-      providerId: string,
-      modelId: string
-    ) => {
-      presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown } | null
-      registryOverride: {
-        capabilities?: { force?: string[]; add?: string[]; remove?: string[] }
-        imageGeneration?: unknown
-      } | null
-    }
-  >(() => ({ presetModel: null, registryOverride: null }))
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
+const { resolveModelMock } = vi.hoisted(() => ({
+  // Default to no registry match; individual cases supply the preset contract
+  // needed to verify stored overrides and resolved model behavior.
+  resolveModelMock: vi.fn<
+    (providerContext: ProviderRegistryServiceModule.ReasoningProviderContext, modelId: string) => any
+  >(() => ({
+    presetModel: null,
+    registryOverride: null,
+    reasoningProfile: { format: 'openai-chat', wire: { disabled: true } }
+  }))
 }))
+
+const OPENAI_CHAT_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'openai-chat' as const,
+  wire: {
+    off: { operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }] },
+    auto: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] },
+    effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+  }
+}
+
+const OLLAMA_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'ollama' as const,
+  wire: {
+    off: { operations: [{ target: 'think', value: { source: 'literal', value: false } }] },
+    auto: { operations: [{ target: 'think', value: { source: 'literal', value: true } }] },
+    effort: { operations: [{ target: 'think', value: { source: 'effort' } }] }
+  }
+}
+
+beforeEach(() => {
+  resolveModelMock.mockReset()
+  resolveModelMock.mockReturnValue({
+    presetModel: null,
+    registryOverride: null,
+    reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+  })
+})
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
   return {
     ...actual,
     providerRegistryService: {
-      lookupModel: lookupModelMock
+      resolveModel: resolveModelMock
     }
   }
 })
@@ -75,6 +101,41 @@ function modelRow(providerId: string, modelId: string, values: Partial<InsertUse
   }
 }
 
+describe('user_model delta storage invariant', () => {
+  const dbh = setupTestDatabase()
+
+  it('rejects an incomplete custom row while allowing sparse preset rows', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    expect(() =>
+      dbh.db
+        .insert(userModelTable)
+        .values(
+          modelRow('openai', 'broken-custom', {
+            name: null,
+            capabilities: null,
+            supportsStreaming: null
+          })
+        )
+        .run()
+    ).toThrow()
+
+    expect(() =>
+      dbh.db
+        .insert(userModelTable)
+        .values(
+          modelRow('openai', 'sparse-preset', {
+            presetModelId: 'sparse-preset',
+            name: null,
+            capabilities: null,
+            supportsStreaming: null
+          })
+        )
+        .run()
+    ).not.toThrow()
+  })
+})
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FIELD_MAP completeness — prevents forgetting to map new DTO fields
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,7 +155,6 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'contextWindow',
       'maxInputTokens',
       'maxOutputTokens',
-      'reasoning',
       'pricing',
       'isEnabled',
       'isHidden',
@@ -191,6 +251,25 @@ describe('ModelService.update', () => {
     expect(row.parameters).toEqual(params)
   })
 
+  it('records an explicitly empty input-modality update as user-owned', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'legacy-custom', {
+        inputModalities: [],
+        inputModalitiesExplicit: false
+      })
+    )
+
+    modelService.update('openai', 'legacy-custom', { inputModalities: [] })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'legacy-custom')))
+
+    expect(row).toMatchObject({ inputModalities: [], inputModalitiesExplicit: true })
+  })
+
   it('throws NOT_FOUND when model does not exist', async () => {
     let err: unknown
     try {
@@ -204,7 +283,7 @@ describe('ModelService.update', () => {
     })
   })
 
-  it('adds enrichable field to userOverrides when changed', async () => {
+  it('stores a changed preset field directly in its sparse column', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { name: 'Updated Name' })
@@ -214,10 +293,169 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides).toContain('name')
+    expect(row.name).toBe('Updated Name')
   })
 
-  it('records model group edits as user overrides', async () => {
+  it('removes an override when a PATCH echoes the current registry baseline', async () => {
+    await seedExistingModel()
+    await dbh.db.update(userModelTable).set({ name: 'My GPT-4o' }).where(eq(userModelTable.id, 'openai::gpt-4o'))
+
+    resolveModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    modelService.update('openai', 'gpt-4o', { name: 'GPT-4o' })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.name).toBeNull()
+
+    resolveModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o (2026)' },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    expect(modelService.getByKey('openai', 'gpt-4o').name).toBe('GPT-4o (2026)')
+  })
+
+  it('compares same-canonical variants against the exact API model baseline', async () => {
+    const apiModelId = 'deepseek-v4-flash-202605'
+    await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('tokenhub', apiModelId, {
+        presetModelId: 'deepseek-v4-flash',
+        name: 'My DeepSeek Flash'
+      })
+    )
+    resolveModelMock.mockImplementation((_providerContext, modelId) => {
+      const isDatedVariant = modelId === apiModelId
+      return {
+        presetModel: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+        registryOverride: {
+          providerId: 'tokenhub',
+          modelId: 'deepseek-v4-flash',
+          apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash',
+          ...(isDatedVariant ? { name: 'DeepSeek-V4-Flash 原厂直供' } : {})
+        },
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      }
+    })
+
+    const updated = modelService.update('tokenhub', apiModelId, { name: 'DeepSeek-V4-Flash 原厂直供' })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('tokenhub', apiModelId)))
+    expect(row.name).toBeNull()
+    expect(updated.name).toBe('DeepSeek-V4-Flash 原厂直供')
+  })
+
+  it('does not freeze the edit drawer empty-pricing echo when the registry has no pricing', async () => {
+    await seedExistingModel()
+    resolveModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    modelService.update('openai', 'gpt-4o', {
+      name: 'GPT-4o',
+      pricing: {
+        input: { perMillionTokens: 0, currency: 'USD' },
+        output: { perMillionTokens: 0, currency: 'USD' }
+      }
+    })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.name).toBeNull()
+    expect(row.pricing).toBeNull()
+  })
+
+  it('does not freeze registry pricing when the edit drawer adds the default currency', async () => {
+    await seedExistingModel()
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    modelService.update('openai', 'gpt-4o', {
+      name: 'My GPT-4o',
+      pricing: {
+        input: { perMillionTokens: 5, currency: 'USD' },
+        output: { perMillionTokens: 15, currency: 'USD' }
+      }
+    })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.name).toBe('My GPT-4o')
+    expect(row.pricing).toBeNull()
+  })
+
+  it('keeps an input-token tier as a sparse pricing delta over a flat registry baseline', async () => {
+    await seedExistingModel()
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+    const pricing = {
+      input: { perMillionTokens: 5, currency: 'USD' as const },
+      output: { perMillionTokens: 15, currency: 'USD' as const },
+      inputTokenTiers: [
+        {
+          minInputTokens: 200_000,
+          input: { perMillionTokens: 10, currency: 'USD' as const },
+          output: { perMillionTokens: 30, currency: 'USD' as const }
+        }
+      ]
+    }
+
+    modelService.update('openai', 'gpt-4o', { pricing })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.pricing).toEqual(pricing)
+  })
+
+  it.each([false, true])('round-trips an image-only price for a model with registry match %s', async (hasPreset) => {
+    await seedExistingModel()
+    if (hasPreset) {
+      resolveModelMock.mockReturnValue({
+        presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+        registryOverride: null,
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      })
+    }
+    const pricing = {
+      input: { perMillionTokens: null, currency: 'USD' as const },
+      output: { perMillionTokens: null, currency: 'USD' as const },
+      perImage: { price: 0.04, unit: 'image' as const }
+    }
+    modelService.update('openai', 'gpt-4o', { pricing })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { name: 'My image model' })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { pricing: { ...pricing, perImage: { price: 0, unit: 'image' } } })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing?.perImage).toEqual({ price: 0, unit: 'image' })
+  })
+
+  it('stores model group edits in the sparse group column', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { group: 'My Models' })
@@ -228,10 +466,9 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.group).toBe('My Models')
-    expect(row.userOverrides).toContain('group')
   })
 
-  it('does not add non-enrichable fields to userOverrides', async () => {
+  it('updates status fields without changing preset delta columns', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { isEnabled: false })
@@ -241,10 +478,11 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides ?? []).toEqual([])
+    expect(row.name).toBe('GPT-4o')
+    expect(row.isEnabled).toBe(false)
   })
 
-  it('updates isDeprecated without touching enrichable overrides', async () => {
+  it('updates isDeprecated without touching sparse deltas', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { isDeprecated: true })
@@ -255,10 +493,10 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.isDeprecated).toBe(true)
-    expect(row.userOverrides ?? []).toEqual([])
+    expect(row.name).toBe('GPT-4o')
   })
 
-  it('preserves existing userOverrides when adding new ones', async () => {
+  it('preserves existing sparse deltas when adding another one', async () => {
     await seedExistingModel()
 
     modelService.update('openai', 'gpt-4o', { name: 'Name V2' })
@@ -269,11 +507,11 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides).toContain('name')
-    expect(row.userOverrides).toContain('description')
+    expect(row.name).toBe('Name V2')
+    expect(row.description).toBe('A description')
   })
 
-  it('maps parameterSupport DTO key to parameters in userOverrides', async () => {
+  it('maps parameterSupport DTO key to the sparse parameters column', async () => {
     await seedExistingModel()
 
     const params = { temperature: { supported: true } } as any
@@ -284,11 +522,21 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.userOverrides).toContain('parameters')
+    expect(row.parameters).toEqual(params)
   })
 
   it('returns existing model unchanged when DTO is empty', async () => {
     await seedExistingModel()
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: ['function-call'],
+        contextWindow: 128_000
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
 
     const result = modelService.update('openai', 'gpt-4o', {})
 
@@ -352,8 +600,10 @@ describe('ModelService.create', () => {
         contextWindow: 128_000,
         maxOutputTokens: 4096
       } as any,
-      registryOverride: null
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     }
+    resolveModelMock.mockReturnValue(registryData)
 
     const [created] = modelService.create([{ dto, registryData }])
 
@@ -366,9 +616,13 @@ describe('ModelService.create', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
-    expect(row.name).toBe('GPT-4o')
-    expect(row.capabilities).toEqual(['function-call'])
-    expect(row.contextWindow).toBe(128_000)
+    expect(row.name).toBeNull()
+    expect(row.description).toBeNull()
+    expect(row.capabilities).toBeNull()
+    expect(row.inputModalities).toBeNull()
+    expect(row.contextWindow).toBeNull()
+    expect(row.maxOutputTokens).toBeNull()
+    expect(row.supportsStreaming).toBeNull()
   })
 
   it('uses DTO maxInputTokens over registry values during merge', async () => {
@@ -388,8 +642,9 @@ describe('ModelService.create', () => {
             name: 'GPT-4o',
             maxInputTokens: 128_000,
             maxOutputTokens: 4_096
-          } as any,
-          registryOverride: null
+          },
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
     ])
@@ -404,6 +659,39 @@ describe('ModelService.create', () => {
 
     expect(row.maxInputTokens).toBe(64_000)
     expect(row.maxOutputTokens).toBe(8_192)
+    expect(row.name).toBeNull()
+    expect(row.capabilities).toBeNull()
+    expect(row.supportsStreaming).toBeNull()
+  })
+
+  it('does not freeze baseline-equal fields sent by the create flow', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          name: 'GPT-4o',
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          supportsStreaming: true
+        },
+        registryData: {
+          presetModel: {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+          },
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+        }
+      }
+    ])
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.name).toBeNull()
+    expect(row.capabilities).toBeNull()
+    expect(row.supportsStreaming).toBeNull()
   })
 
   it('logs custom model creation when dto presetModelId is present without a registry match', async () => {
@@ -422,6 +710,13 @@ describe('ModelService.create', () => {
       }
     ])
 
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::custom-gpt'))
+    expect(row).toMatchObject({
+      presetModelId: null,
+      name: 'Custom GPT',
+      capabilities: [],
+      supportsStreaming: true
+    })
     expect(infoSpy).toHaveBeenCalledWith('Created custom model (no registry match)', {
       providerId: 'openai',
       modelId: 'custom-gpt'
@@ -499,7 +794,8 @@ describe('ModelService.create', () => {
             contextWindow: 128_000,
             maxOutputTokens: 4096
           } as any,
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       },
       {
@@ -511,6 +807,15 @@ describe('ModelService.create', () => {
         }
       }
     ]
+    resolveModelMock.mockImplementation((providerContext, modelId) =>
+      providerContext.id === 'openai' && modelId === 'gpt-4o'
+        ? batch[0].registryData
+        : {
+            presetModel: null,
+            registryOverride: null,
+            reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+          }
+    )
 
     const created = modelService.create(batch as any)
 
@@ -548,9 +853,10 @@ describe('ModelService.create', () => {
       providerId: 'openai',
       modelId: 'gpt-4o',
       presetModelId: 'gpt-4o',
-      name: 'GPT-4o',
-      capabilities: ['function-call'],
-      contextWindow: 128_000
+      name: null,
+      capabilities: null,
+      contextWindow: null,
+      supportsStreaming: null
     })
     expect(customRow).toMatchObject({
       providerId: 'custom',
@@ -694,7 +1000,7 @@ describe('ModelService.list', () => {
   it('filters by capability (post-filter)', async () => {
     await seedMultipleModels()
 
-    const models = modelService.list({ capability: 'reasoning' as any })
+    const models = modelService.list({ capability: 'reasoning' })
 
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('claude-3')
@@ -719,13 +1025,11 @@ describe('ModelService.list', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ModelService.list — registry enrichment (imageGeneration + capability union)
+// ModelService.list — current registry baseline plus explicit user deltas
 //
-// `list()` reads each row's at-rest capabilities and unions in ONLY
-// `image-generation` from the registry preset (so the painting filter picks a
-// model up even when the provider shipped it untagged). It does NOT re-add any
-// OTHER preset capability the user removed. It also attaches `imageGeneration`
-// preset metadata (not stored on user_model) when present.
+// Preset-backed rows resolve from the current registry on every read. Every
+// non-null sparse config column is a stored delta.
+// Registry-only metadata such as `imageGeneration` is attached at read time.
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('ModelService.list — registry enrichment', () => {
@@ -735,8 +1039,478 @@ describe('ModelService.list — registry enrichment', () => {
 
   beforeEach(() => {
     // Reset to the default no-op registry hit; tests opt in per model.
-    lookupModelMock.mockReset()
-    lookupModelMock.mockReturnValue({ presetModel: null, registryOverride: null })
+    resolveModelMock.mockReset()
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+  })
+
+  it('hydrates a sparse preset row entirely from the current registry baseline', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o (registry)',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        contextWindow: 128_000
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+
+    expect(model).toMatchObject({
+      name: 'GPT-4o (registry)',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      contextWindow: 128_000,
+      supportsStreaming: true
+    })
+  })
+
+  it("keeps a sparse GPT-6 Astra row on a custom provider's Chat endpoint", async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('custom-provider', 'Custom Provider'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+      }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('custom-provider', 'openai/gpt-6-astra', {
+        presetModelId: 'gpt-6-astra',
+        name: null,
+        capabilities: null,
+        endpointTypes: null,
+        supportsStreaming: null
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+        endpointTypes: ['openai-responses']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'custom-provider' })
+
+    expect(model).toMatchObject({
+      apiModelId: 'openai/gpt-6-astra',
+      presetModelId: 'gpt-6-astra',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    expect(model.endpointTypes).toBeUndefined()
+  })
+
+  it('hydrates same-canonical variants through their exact API model ID', async () => {
+    const apiModelId = 'deepseek-v4-flash-202605'
+    await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('tokenhub', apiModelId, {
+        presetModelId: 'deepseek-v4-flash',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null
+      })
+    )
+    resolveModelMock.mockImplementation((_providerContext, modelId) => {
+      const isDatedVariant = modelId === apiModelId
+      return {
+        presetModel: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+        registryOverride: {
+          providerId: 'tokenhub',
+          modelId: 'deepseek-v4-flash',
+          apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash',
+          ...(isDatedVariant
+            ? {
+                name: 'DeepSeek-V4-Flash 原厂直供',
+                limits: { contextWindow: 131_072 }
+              }
+            : {})
+        },
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      }
+    })
+
+    const [model] = modelService.list({ providerId: 'tokenhub' })
+
+    expect(model).toMatchObject({
+      apiModelId,
+      presetModelId: 'deepseek-v4-flash',
+      name: 'DeepSeek-V4-Flash 原厂直供',
+      contextWindow: 131_072
+    })
+  })
+
+  it('inherits registry fields added after row creation without updating the stored delta', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+    const [beforeRegistryUpdate] = modelService.list({ providerId: 'openai' })
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        family: 'GPT-4o',
+        ownedBy: 'openai',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [afterRegistryUpdate] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(beforeRegistryUpdate.family).toBeUndefined()
+    expect(afterRegistryUpdate).toMatchObject({ family: 'GPT-4o', ownedBy: 'openai' })
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('hydrates missing registry metadata when a custom model later gains a registry match', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'future-model',
+          name: 'Future Model',
+          maxOutputTokens: 4096
+        }
+      }
+    ])
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+    expect(storedBeforeRegistryUpdate).toMatchObject({
+      description: null,
+      inputModalities: null,
+      inputModalitiesExplicit: false,
+      outputModalities: null
+    })
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'future-model',
+        name: 'Future Model (registry)',
+        description: 'Registry description',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        inputModalities: ['text'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxInputTokens: 120_000,
+        maxOutputTokens: 16_384,
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: {
+        inputModalities: ['text', 'image'],
+        outputModalities: ['image'],
+        endpointTypes: ['openai-responses'],
+        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 },
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } },
+          topP: { supported: false, range: { min: 0, max: 1 } }
+        }
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model).toMatchObject({
+      presetModelId: null,
+      name: 'Future Model',
+      description: 'Registry description',
+      capabilities: [],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      contextWindow: 256_000,
+      maxInputTokens: 120_000,
+      maxOutputTokens: 4096,
+      parameterSupport: expect.objectContaining({
+        temperature: expect.objectContaining({ supported: false }),
+        topP: expect.objectContaining({ supported: false })
+      }),
+      pricing: {
+        input: { perMillionTokens: 5 },
+        output: { perMillionTokens: 15 }
+      }
+    })
+    expect(model.endpointTypes).toBeUndefined()
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('preserves explicit custom description and modalities during registry enrichment', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'future-model',
+          name: 'Future Model',
+          description: 'Custom description',
+          inputModalities: ['audio'],
+          outputModalities: ['video'],
+          parameterSupport: {
+            temperature: { supported: true, range: { min: 0, max: 2 } },
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          }
+        }
+      }
+    ])
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+    expect(storedBeforeRegistryUpdate).toMatchObject({ inputModalitiesExplicit: true })
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'future-model',
+        name: 'Future Model (registry)',
+        description: 'Registry description',
+        inputModalities: ['text'],
+        outputModalities: ['text']
+      },
+      registryOverride: {
+        inputModalities: ['text', 'image'],
+        outputModalities: ['image'],
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } }
+        }
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model).toMatchObject({
+      presetModelId: null,
+      name: 'Future Model',
+      description: 'Custom description',
+      inputModalities: ['audio'],
+      outputModalities: ['video'],
+      parameterSupport: expect.objectContaining({
+        temperature: { supported: true, range: { min: 0, max: 2 } }
+      })
+    })
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('hydrates legacy implicit empty input modalities without mutating the stored row', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'legacy-model', {
+        inputModalities: [],
+        inputModalitiesExplicit: false
+      })
+    )
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'legacy-model',
+        name: 'Legacy Model',
+        inputModalities: ['text', 'image']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model.inputModalities).toEqual(['text', 'image'])
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('preserves an explicitly empty custom input-modality list', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'explicit-empty-model',
+          inputModalities: []
+        }
+      }
+    ])
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+    expect(storedBeforeRegistryUpdate).toMatchObject({ inputModalities: [], inputModalitiesExplicit: true })
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'explicit-empty-model',
+        name: 'Explicit Empty Model',
+        inputModalities: ['text', 'image']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model.inputModalities).toEqual([])
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('refreshes every registry-owned field while preserving row identity and status', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: null,
+        description: null,
+        capabilities: null,
+        inputModalities: null,
+        outputModalities: null,
+        endpointTypes: null,
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: null,
+        supportsStreaming: null,
+        parameters: null,
+        pricing: null,
+        isEnabled: false,
+        isHidden: true,
+        isDeprecated: true,
+        notes: 'keep me'
+      })
+    )
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o (current)',
+        description: 'Current description',
+        family: 'GPT-4o',
+        ownedBy: 'openai',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxInputTokens: 120_000,
+        maxOutputTokens: 16_384,
+        parameterSupport: {
+          temperature: { supported: false },
+          topP: { supported: true },
+          topK: { supported: false },
+          frequencyPenalty: true,
+          presencePenalty: true,
+          maxTokens: true,
+          stopSequences: true,
+          systemMessage: true
+        },
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        },
+        imageGeneration: imageGenerationMeta
+      },
+      registryOverride: {
+        endpointTypes: ['openai-responses'],
+        limits: { maxOutputTokens: 32_768 }
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+
+    expect(model).toMatchObject({
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: 'GPT-4o (current)',
+      description: 'Current description',
+      family: 'GPT-4o',
+      ownedBy: 'openai',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      contextWindow: 128_000,
+      maxInputTokens: 120_000,
+      maxOutputTokens: 32_768,
+      supportsStreaming: true,
+      parameterSupport: expect.objectContaining({ maxTokens: true }),
+      pricing: {
+        input: { perMillionTokens: 5, currency: undefined },
+        output: { perMillionTokens: 15, currency: undefined },
+        cacheRead: undefined,
+        cacheWrite: undefined
+      },
+      imageGeneration: imageGenerationMeta,
+      isEnabled: false,
+      isHidden: true,
+      isDeprecated: true,
+      notes: 'keep me'
+    })
+  })
+
+  it('applies exact stored values only for explicitly overridden fields', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: '',
+        group: '',
+        capabilities: [],
+        supportsStreaming: false
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+
+    expect(model.name).toBe('')
+    expect(model.group).toBe('')
+    expect(model.capabilities).toEqual([])
+    expect(model.supportsStreaming).toBe(false)
   })
 
   it('adds image-generation (and imageGeneration metadata) when the preset declares it but the user row lacks it', async () => {
@@ -746,22 +1520,23 @@ describe('ModelService.list — registry enrichment', () => {
         presetModelId: 'qwen-image-edit-2509',
         name: 'Qwen Image Edit',
         // Provider's /models endpoint shipped it untagged.
-        capabilities: []
+        capabilities: null
       })
     )
 
-    lookupModelMock.mockImplementation((providerId: string, modelId: string) => {
-      if (providerId === 'cherryin' && modelId === 'qwen-image-edit-2509') {
+    resolveModelMock.mockImplementation((providerContext, modelId) => {
+      if (providerContext.id === 'cherryin' && modelId === 'qwen-image-edit-2509') {
         return {
           presetModel: {
             id: 'qwen-image-edit-2509',
             capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
             imageGeneration: imageGenerationMeta
           },
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
-      return { presetModel: null, registryOverride: null }
+      return { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
     })
 
     const [model] = modelService.list({ providerId: 'cherryin' })
@@ -776,23 +1551,23 @@ describe('ModelService.list — registry enrichment', () => {
       modelRow('cherryin', 'qwen-image-edit-2509', {
         presetModelId: 'qwen-image-edit-2509',
         name: 'Qwen Image Edit',
-        capabilities: [],
-        userOverrides: ['capabilities']
+        capabilities: []
       })
     )
 
-    lookupModelMock.mockImplementation((providerId: string, modelId: string) => {
-      if (providerId === 'cherryin' && modelId === 'qwen-image-edit-2509') {
+    resolveModelMock.mockImplementation((providerContext, modelId) => {
+      if (providerContext.id === 'cherryin' && modelId === 'qwen-image-edit-2509') {
         return {
           presetModel: {
             id: 'qwen-image-edit-2509',
             capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
             imageGeneration: imageGenerationMeta
           },
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
-      return { presetModel: null, registryOverride: null }
+      return { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
     })
 
     const [model] = modelService.list({ providerId: 'cherryin' })
@@ -812,13 +1587,13 @@ describe('ModelService.list — registry enrichment', () => {
       modelRow('anthropic', 'claude-3', {
         presetModelId: 'claude-3',
         name: 'Claude 3',
-        // User dropped `reasoning` from the at-rest row; only function-call left.
+        // User explicitly dropped `reasoning`; only function-call remains.
         capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
       })
     )
 
-    lookupModelMock.mockImplementation((providerId: string, modelId: string) => {
-      if (providerId === 'anthropic' && modelId === 'claude-3') {
+    resolveModelMock.mockImplementation((providerContext, modelId) => {
+      if (providerContext.id === 'anthropic' && modelId === 'claude-3') {
         return {
           presetModel: {
             id: 'claude-3',
@@ -826,16 +1601,278 @@ describe('ModelService.list — registry enrichment', () => {
             // be resurrected at read time.
             capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
           },
-          registryOverride: null
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
       }
-      return { presetModel: null, registryOverride: null }
+      return { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
     })
 
     const [model] = modelService.list({ providerId: 'anthropic' })
 
     expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
     expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reasoning descriptor enrichment (#16598) — stored descriptors are frozen at
+// creation; list() recomputes preset-backed rows from the current registry and
+// infers descriptors for non-catalog rows, so both populations turn
+// descriptor-driven without a DB migration.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService — reasoning descriptor enrichment', () => {
+  const dbh = setupTestDatabase()
+
+  async function seedStalePresetReasoningModel(modelId: string) {
+    await dbh.db.insert(userProviderTable).values(providerRow('aihubmix', 'AiHubMix'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('aihubmix', modelId, {
+        presetModelId: modelId,
+        name: modelId,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          type: 'openai-chat',
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max']
+        } as never
+      })
+    )
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: modelId,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max', 'auto']
+        }
+      } as any,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+  }
+
+  beforeEach(() => {
+    resolveModelMock.mockReset()
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+  })
+
+  it('recomputes a stale preset-backed descriptor from the current registry', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('anthropic', 'claude-opus-4-6', {
+        presetModelId: 'claude-opus-4-6',
+        name: 'Claude Opus 4.6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        // Row created before the catalog carried a reasoning block.
+        reasoning: null
+      })
+    )
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'claude-opus-4-6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max']
+        }
+      } as any,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'anthropic' })
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max'])
+    expect(model.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }])
+    expect(model.reasoning).not.toHaveProperty('type')
+  })
+
+  it('getByKey serves the same re-enriched descriptor as list (composer single-model path)', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('aihubmix', 'AiHubMix'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('aihubmix', 'claude-sonnet-5', {
+        presetModelId: 'claude-sonnet-5',
+        name: 'Claude Sonnet 5',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        // Stale stored descriptor: predates the vocabulary gaining 'auto'.
+        reasoning: {
+          type: 'openai-chat',
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max']
+        } as never
+      })
+    )
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'claude-sonnet-5',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'max', 'auto'] }],
+          supportedEfforts: ['low', 'medium', 'high', 'max', 'auto']
+        }
+      } as any,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const model = modelService.getByKey('aihubmix', 'claude-sonnet-5')
+
+    expect(model.reasoning?.selectableEfforts).toContain('auto')
+  })
+
+  it('update returns the current registry reasoning descriptor instead of the stale stored value', async () => {
+    await seedStalePresetReasoningModel('claude-sonnet-5-update')
+
+    const model = modelService.update('aihubmix', 'claude-sonnet-5-update', { group: 'Updated' })
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max', 'auto'])
+  })
+
+  it('bulkUpdate returns current registry reasoning descriptors after committing the transaction', async () => {
+    await seedStalePresetReasoningModel('claude-sonnet-5-bulk-update')
+
+    const [model] = modelService.bulkUpdate([
+      { providerId: 'aihubmix', modelId: 'claude-sonnet-5-bulk-update', patch: { group: 'Updated' } }
+    ])
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max', 'auto'])
+  })
+
+  it('ignores a legacy user reasoning override and reprojects registry data', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
+    const userReasoning = { type: 'openai-chat' as const, supportedEfforts: ['low' as const] }
+    await dbh.db.insert(userModelTable).values(
+      modelRow('anthropic', 'claude-opus-4-6', {
+        presetModelId: 'claude-opus-4-6',
+        name: 'Claude Opus 4.6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        // Preset reasoning is registry-owned, so a stale stored value is ignored.
+        reasoning: userReasoning as any
+      })
+    )
+
+    resolveModelMock.mockReturnValue({
+      presetModel: {
+        id: 'claude-opus-4-6',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { supportedEfforts: ['low', 'medium', 'high', 'max'] }
+      } as any,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'anthropic' })
+
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'max'])
+    expect(model.reasoning).not.toHaveProperty('type')
+  })
+
+  it('infers a descriptor for a non-catalog row with the reasoning capability', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('my-compat', 'qwen3-32b', {
+        name: 'Qwen3 32B',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: null
+      })
+    )
+
+    const [model] = modelService.list({ providerId: 'my-compat' })
+
+    // qwen3-32b: toggle + budget from the registry heuristics.
+    expect(model.reasoning?.selectableEfforts).toEqual(['none', 'low', 'medium', 'high'])
+    expect(model.reasoning?.thinkingTokenLimits).toEqual({ min: 1024, max: 38_912 })
+    expect(model.reasoning).not.toHaveProperty('type')
+  })
+
+  it('infers a descriptor for a non-catalog row recognized by id alone', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('my-compat', 'deepseek-v3.1', {
+        name: 'DeepSeek V3.1',
+        capabilities: [],
+        reasoning: null
+      })
+    )
+
+    const [model] = modelService.list({ providerId: 'my-compat' })
+
+    expect(model.reasoning?.controls).toEqual([{ kind: 'toggle' }])
+    expect(model.reasoning?.selectableEfforts).toEqual(['none', 'auto'])
+  })
+
+  it('leaves non-reasoning custom rows untouched', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('my-compat', 'acme-embedder', {
+        name: 'Acme Embedder',
+        capabilities: [],
+        reasoning: null
+      })
+    )
+
+    const [model] = modelService.list({ providerId: 'my-compat' })
+
+    expect(model.reasoning).toBeUndefined()
+  })
+
+  it('infers a descriptor at create time for a custom model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+
+    const [created] = modelService.create([
+      { dto: { providerId: 'my-compat', modelId: 'glm-4.6', capabilities: [MODEL_CAPABILITY.REASONING] } }
+    ])
+
+    expect(created.reasoning?.controls).toEqual([{ kind: 'toggle' }])
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'my-compat'), eq(userModelTable.modelId, 'glm-4.6')))
+    expect((row.reasoning as { controls?: unknown })?.controls).toEqual([{ kind: 'toggle' }])
+  })
+
+  it('uses Ollama toggle and effort controls for an unknown model that declares the thinking capability', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'ollama',
+          modelId: 'acme-thinker:latest',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        },
+        registryData
+      }
+    ])
+
+    expect(created.reasoning).toMatchObject({
+      controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }],
+      selectableEfforts: ['low', 'medium', 'high', 'none']
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'ollama'), eq(userModelTable.modelId, 'acme-thinker:latest')))
+    expect(row.reasoning).toMatchObject({
+      controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+    })
   })
 })
 
@@ -907,83 +1944,6 @@ describe('ModelService.findByIdTx', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ModelService.batchUpsert — registry sync overwrite protection
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('ModelService.batchUpsert', () => {
-  const dbh = setupTestDatabase()
-
-  it('skips enrichable user-overridden fields while still updating presetModelId', async () => {
-    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values(
-      modelRow('openai', 'gpt-4o', {
-        presetModelId: 'gpt-4o-legacy',
-        name: 'My Custom Name',
-        group: 'My Models',
-        capabilities: ['function-call'],
-        contextWindow: 32_000,
-        userOverrides: ['name', 'group', 'contextWindow']
-      })
-    )
-
-    modelService.batchUpsert([
-      modelRow('openai', 'gpt-4o', {
-        presetModelId: 'gpt-4o',
-        name: 'Registry Name',
-        group: 'Registry Group',
-        capabilities: ['reasoning'],
-        contextWindow: 128_000,
-        maxOutputTokens: 8192
-      })
-    ])
-
-    const [row] = await dbh.db
-      .select()
-      .from(userModelTable)
-      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
-
-    expect(row.presetModelId).toBe('gpt-4o')
-    expect(row.name).toBe('My Custom Name')
-    expect(row.group).toBe('My Models')
-    expect(row.contextWindow).toBe(32_000)
-    expect(row.capabilities).toEqual(['reasoning'])
-    expect(row.maxOutputTokens).toBe(8192)
-    expect(row.userOverrides).toEqual(['name', 'group', 'contextWindow'])
-  })
-
-  it('rejects batch upsert for the managed CherryAI default model', async () => {
-    await dbh.db.insert(userProviderTable).values(providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI'))
-    await dbh.db.insert(userModelTable).values(
-      modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
-        id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-        name: 'Qwen'
-      })
-    )
-
-    let err: unknown
-    try {
-      modelService.batchUpsert([
-        modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
-          id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-          name: 'Registry rewrite'
-        })
-      ])
-    } catch (e) {
-      err = e
-    }
-    expect(err).toMatchObject({
-      code: ErrorCode.INVALID_OPERATION
-    })
-
-    const [row] = await dbh.db
-      .select()
-      .from(userModelTable)
-      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-    expect(row.name).toBe('Qwen')
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ModelService.getNamesByUniqueIdsTx — tx-aware batch name resolution for embeds
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1035,6 +1995,44 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   })
 })
 
+/**
+ * Seeders run inside `DbService.onInit()`, where `getDb()` still throws. A `*Tx`
+ * read that reaches for the service singleton instead of its own transaction
+ * therefore aborts startup (v2.0.11 shipped exactly that: the Cherry Support
+ * seeder could not create the built-in Agent). Edition availability must be
+ * decided from columns the caller's own query already returned.
+ */
+describe('ModelService — transaction-scoped reads never re-enter DbService', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
+    MockMainDbServiceUtils.setDb({
+      select: () => {
+        throw new Error('Database is not initialized, please call init() first!')
+      }
+    })
+  })
+
+  afterEach(() => MockMainDbServiceUtils.setDb(dbh.db))
+
+  const uid = createUniqueModelId('openai', 'gpt-4o')
+
+  it('resolves model names', () => {
+    expect(modelService.getNamesByUniqueIdsTx(dbh.db, [uid]).get(uid)).toBe('GPT-4o')
+  })
+
+  it('finds a model by id', () => {
+    expect(modelService.findByIdTx(dbh.db, uid)?.id).toBe(uid)
+  })
+
+  it('checks model existence', () => {
+    expect(modelService.existsByIdTx(dbh.db, uid)).toBe(true)
+    expect(modelService.existsByIdTx(dbh.db, 'openai::missing')).toBe(false)
+  })
+})
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ModelService.delete — removal behavior
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1068,12 +2066,14 @@ describe('ModelService.delete', () => {
       ])
     const targetPin = pinService.pin({ entityType: 'model', entityId: targetModelId })
     const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
+    notifyDataApiDataChangeMock.mockClear()
 
     modelService.delete('openai', 'gpt-4o')
 
     const pins = await dbh.db.select().from(pinTable)
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {
@@ -1130,6 +2130,7 @@ describe('ModelService.delete', () => {
       })
     )
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -1318,6 +2319,7 @@ describe('ModelService.bulkDelete', () => {
       })
     ])
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -1427,7 +2429,7 @@ describe('ModelService.bulkDelete', () => {
 describe('ModelService.bulkUpdate', () => {
   const dbh = setupTestDatabase()
 
-  it('records model group edits as user overrides', async () => {
+  it('stores model group edits in the sparse group column', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o'))
 
@@ -1438,7 +2440,26 @@ describe('ModelService.bulkUpdate', () => {
       .from(userModelTable)
       .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
     expect(row.group).toBe('My Models')
-    expect(row.userOverrides).toContain('group')
+  })
+
+  it('clears a sparse field when the PATCH equals the registry baseline', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: 'My GPT-4o'
+      })
+    )
+    resolveModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    modelService.bulkUpdate([{ providerId: 'openai', modelId: 'gpt-4o', patch: { name: 'GPT-4o' } }])
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.name).toBeNull()
   })
 
   it('rejects managed CherryAI default model PATCHes before writing other rows', async () => {
@@ -1521,8 +2542,24 @@ describe('ModelService.reconcileForProvider', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
-    lookupModelMock.mockClear()
+    resolveModelMock.mockClear()
   })
+
+  it.each(['comfyui', 'ollama', 'openai'])(
+    'preserves custom %s models during reconcile but allows explicit deletion',
+    (providerId) => {
+      dbh.db.insert(userProviderTable).values(providerRow(providerId, providerId)).run()
+      const id = createUniqueModelId(providerId, 'saved-model')
+      dbh.db
+        .insert(userModelTable)
+        .values(modelRow(providerId, 'saved-model', { id }))
+        .run()
+      const remaining = modelService.reconcileForProvider(providerId, { toAdd: [], toRemove: [id] })
+      expect(remaining.map((model) => model.id)).toEqual([id])
+      modelService.delete(providerId, 'saved-model')
+      expect(dbh.db.select().from(userModelTable).all()).toEqual([])
+    }
+  )
 
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer
@@ -1615,34 +2652,6 @@ describe('ModelService.reconcileForProvider', () => {
     expect(remainingRows).toHaveLength(0)
     expect(pins.find((pin) => pin.id === firstPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === lastPin.id)).toBeUndefined()
-  })
-
-  it('warns when toRemove references IDs that do not exist for this provider', async () => {
-    // S2 regression coverage: stale renderer state passes a toRemove with a
-    // non-existent id; reconcile completes but logs the count mismatch.
-    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values([
-      modelRow('openai', 'gpt-4o', {
-        id: createUniqueModelId('openai', 'gpt-4o'),
-        presetModelId: 'gpt-4o'
-      })
-    ])
-
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    modelService.reconcileForProvider('openai', {
-      toAdd: [],
-      toRemove: [createUniqueModelId('openai', 'gpt-4o'), createUniqueModelId('openai', 'never-existed')]
-    })
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Reconcile toRemove count mismatch',
-      expect.objectContaining({
-        providerId: 'openai',
-        requestedRemove: 2,
-        actuallyDeleted: 1
-      })
-    )
-    warnSpy.mockRestore()
   })
 
   it('removes preset-backed models during reconcile', async () => {

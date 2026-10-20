@@ -8,7 +8,8 @@
 import * as z from 'zod'
 
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
-import { TagIdSchema } from '../../types/tag'
+import { GroupIdSchema, GroupNameSchema } from '../../types/group'
+import { PromptContentSchema, PromptTitleSchema } from '../../types/prompt'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -18,12 +19,11 @@ import type { OrderEndpoints } from './_endpointHelpers'
 
 /**
  * Mutable assistant fields — explicit whitelist of everything a client may edit.
- * Anything not listed here (id, createdAt, updatedAt, tags, modelName, future
+ * Anything not listed here (id, createdAt, updatedAt, modelName, future
  * auto-managed columns) is rejected at the API boundary by default.
  *
  * Not in the whitelist:
- * - `tags` is embedded on read via inline join; writes use `tagIds` below.
- * - `modelName` is resolved at read time from `user_model.name`; edits go via
+ * - `modelName` is resolved at read time through ModelService; edits go via
  *   `modelId`.
  * - `orderKey` is service-owned; writes go through `/assistants/:id/order`.
  */
@@ -34,29 +34,48 @@ const ASSISTANT_MUTABLE_FIELDS = {
   description: true,
   settings: true,
   modelId: true,
+  groupId: true,
   mcpServerIds: true,
   knowledgeBaseIds: true
 } as const
 
 /**
- * Shared tag-binding field for Create / Update DTOs.
- * Semantics mirror `mcpServerIds`/`knowledgeBaseIds`:
- *   - `undefined` → leave existing bindings untouched
- *   - `[]`        → clear all bindings
- *   - `[...ids]`  → replace bindings with this exact set
- */
-const TagIdsField = z.array(TagIdSchema).optional()
-
-/**
  * DTO for creating a new assistant.
  * - `name` is required (non-empty)
- * - `mcpServerIds` / `knowledgeBaseIds` / `tagIds` are synced to junction tables
+ * - `mcpServerIds` / `knowledgeBaseIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
-  .partial()
-  .required({ name: true })
-  .extend({ tagIds: TagIdsField })
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
+
+export const DuplicateAssistantSchema = AssistantSchema.pick({ name: true })
+export type DuplicateAssistantDto = z.infer<typeof DuplicateAssistantSchema>
+
+export const ImportAssistantPhraseSchema = z.strictObject({
+  title: PromptTitleSchema,
+  content: PromptContentSchema
+})
+export type ImportAssistantPhraseDto = z.infer<typeof ImportAssistantPhraseSchema>
+
+/**
+ * Legacy assistant import payload.
+ *
+ * The legacy file format only carries these assistant fields plus one optional
+ * group name. Group resolution stays server-side so resolving/creating the
+ * group and inserting the assistant can share one write transaction.
+ * `GroupNameSchema` intentionally has no current-UI length cap: v1 exports may
+ * contain tag names longer than 64 characters and must remain importable.
+ */
+export const ImportAssistantSchema = CreateAssistantSchema.pick({
+  name: true,
+  prompt: true,
+  emoji: true,
+  description: true,
+  settings: true
+}).extend({
+  groupName: GroupNameSchema.optional(),
+  regularPhrases: z.array(ImportAssistantPhraseSchema).optional()
+})
+export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
 
 /**
  * DTO for updating an existing assistant. All fields optional.
@@ -67,13 +86,13 @@ export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
  * keeps a corrupt-but-historically-tolerated field (e.g. `maxTokens: 0`)
  * from blocking unrelated updates.
  *
- * Relation arrays (`mcpServerIds`, `knowledgeBaseIds`, `tagIds`), if provided,
+ * Relation arrays (`mcpServerIds`, `knowledgeBaseIds`), if provided,
  * replace existing junction table rows. Update picks directly from the entity,
  * not Create, so Create defaults do not bleed into partial updates.
  */
 export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
   .partial()
-  .extend({ settings: AssistantSettingsSchema.partial().optional(), tagIds: TagIdsField })
+  .extend({ settings: AssistantSettingsSchema.partial().optional() })
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 export const ASSISTANTS_DEFAULT_PAGE = 1
@@ -88,17 +107,22 @@ export const ASSISTANTS_MAX_LIMIT = 500
  *   `description`. Wildcards (`%` / `_`) typed by the user are escaped server
  *   side — matches the `SearchParams` convention in `apiTypes.ts` and the
  *   search naming rule in `api-design-guidelines.md`.
- * - `tagIds` filters to assistants bound to ANY of the given tags (union /
- *   OR semantics — matches the resource-library chip picker).
- * - `search` and `tagIds` compose with AND (tag-scoped keyword search).
+ * - `groupId` filters to assistants assigned to that exact group.
+ * - `search` and `groupId` compose with AND (group-scoped keyword search).
  */
 export const ListAssistantsQuerySchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1).max(ASSISTANTS_MAX_LIMIT).optional(),
   /** Filter by assistant ID */
   id: z.string().optional(),
+  /**
+   * `true` lists only trashed (soft-deleted) assistants — the trash view.
+   * Omitted/false keeps the default active-only filter (files.ts precedent).
+   */
+  inTrash: z.boolean().optional(),
   /** Free-text match against name OR description (case-insensitive LIKE) */
   search: z.string().trim().min(1).optional(),
-  /** Return assistants bound to ANY of these tag ids (union) */
-  tagIds: z.array(TagIdSchema).min(1).optional(),
+  /** Return assistants assigned to this group */
+  groupId: GroupIdSchema.optional(),
   /** Filter by assistant updatedAt timestamp, inclusive (`updatedAt >= updatedAtFrom`). */
   updatedAtFrom: z.iso.datetime().optional(),
   /** Sort field. Defaults to orderKey for library/resource ordering. */
@@ -127,10 +151,11 @@ export type ListAssistantsQuery = z.output<typeof ListAssistantsQuerySchema>
 
 export const DeleteAssistantQuerySchema = z.strictObject({
   /**
-   * Delete the assistant's topics in the same main-process transaction.
-   * Omitted/false preserves the historical "delete assistant only" behavior.
+   * `true` hard-deletes only an assistant already in the Recycle Bin. Junction
+   * rows cascade and `topic.assistantId` is set to null, so topic active/trash
+   * state is preserved. Archiving is an IpcApi lifecycle command.
    */
-  deleteTopics: z.boolean().optional()
+  permanent: z.literal(true)
 })
 export type DeleteAssistantQueryParams = z.input<typeof DeleteAssistantQuerySchema>
 
@@ -166,10 +191,30 @@ export type AssistantSchemas = {
   }
 
   /**
+   * Import one assistant from the legacy preset shape. Group lookup/creation
+   * and assistant creation are committed atomically.
+   */
+  '/assistants:import': {
+    POST: {
+      body: ImportAssistantDto
+      response: Assistant
+    }
+  }
+
+  /** Atomically duplicate an Assistant and every owned relation. */
+  '/assistants/:id/duplicate': {
+    POST: {
+      params: { id: string }
+      body: DuplicateAssistantDto
+      response: Assistant
+    }
+  }
+
+  /**
    * Individual assistant endpoint
    * @example GET /assistants/abc123
    * @example PATCH /assistants/abc123 { "name": "Updated Name" }
-   * @example DELETE /assistants/abc123
+   * @example DELETE /assistants/abc123?permanent=true
    */
   '/assistants/:id': {
     /** Get an assistant by ID */
@@ -183,11 +228,24 @@ export type AssistantSchemas = {
       body: UpdateAssistantDto
       response: Assistant
     }
-    /** Delete an assistant */
+    /** Permanently delete an assistant already in the Recycle Bin. */
     DELETE: {
       params: { id: string }
-      query?: DeleteAssistantQueryParams
+      query: DeleteAssistantQueryParams
       response: DeleteAssistantResult
+    }
+  }
+
+  /**
+   * Restore a trashed assistant (resource-action pattern).
+   * Clears `deletedAt` so the assistant reappears in active listings.
+   * Tags/pins purged at Delete time are NOT restored.
+   * @example POST /assistants/abc123/restore
+   */
+  '/assistants/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Assistant
     }
   }
 } & OrderEndpoints<'/assistants'>

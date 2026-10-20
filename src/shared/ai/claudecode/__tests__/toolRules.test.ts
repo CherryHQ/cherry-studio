@@ -62,6 +62,12 @@ describe('Claude Code tool rules', () => {
     expect(resolveClaudeToolAccess(webSearch, {}).approval).toBe('prompt')
   })
 
+  it('treats auto mode as default — the SDK classifier decides, so nothing is pre-approved', () => {
+    expect(resolveClaudeToolAccess(read, { permissionMode: 'auto' }).approval).toBe('auto')
+    expect(resolveClaudeToolAccess(edit, { permissionMode: 'auto' }).approval).toBe('prompt')
+    expect(resolveClaudeToolAccess(webSearch, { permissionMode: 'auto' }).approval).toBe('prompt')
+  })
+
   it('applies invocation-level acceptEdits Bash defaults', () => {
     const bash: ClaudeToolDescriptor = {
       id: 'Bash',

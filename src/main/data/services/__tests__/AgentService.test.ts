@@ -1,26 +1,43 @@
+import '@data/services/AgentSessionMessageService'
+import { randomUUID } from 'node:crypto'
+import { resolve } from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq, sql } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
-import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
@@ -32,6 +49,10 @@ function captureError(fn: () => unknown): unknown {
     return error
   }
   throw new Error('Expected the call to throw, but it returned normally')
+}
+
+function createAgentForTest(request: Parameters<typeof agentService.createAgentWithId>[1]) {
+  return agentService.createAgentWithId(randomUUID(), request)
 }
 
 vi.mock('@main/apiServer/services/mcp', () => ({
@@ -52,7 +73,21 @@ vi.mock('@main/apiServer/services/models', () => ({
 
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
-  const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+  it('filters requested IDs before pagination and excludes deleted agents', async () => {
+    const rows = generateOrderKeySequence(502).map((orderKey, index) => ({
+      id: `agent-${index}`,
+      name: `Agent ${index}`,
+      type: 'claude-code',
+      instructions: '',
+      orderKey,
+      deletedAt: index === 501 ? Date.now() : null
+    }))
+    dbh.db.insert(agentTable).values(rows).run()
+    const result = agentService.listAgents({ ids: ['agent-500', 'agent-501', 'missing'], limit: 1 })
+    expect(result.agents.map((agent) => agent.id)).toEqual(['agent-500'])
+    expect(result.total).toBe(1)
+  })
 
   // Seed a user_model row whose id is the canonical FK form, so createAgent
   // calls with `model: <canonical id>` satisfy the FK.
@@ -70,21 +105,23 @@ describe('AgentService', () => {
         providerId: 'anthropic',
         modelId: 'claude-3-5-sonnet',
         name: 'claude-3-5-sonnet',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: generateOrderKeyBetween(null, null)
       })
       .onConflictDoNothing()
   })
 
   async function insertAgent(
-    overrides: Partial<typeof agentTable.$inferInsert> & { mcps?: string[] } = {}
+    overrides: Partial<typeof agentTable.$inferInsert> & { mcps?: string[]; knowledgeBaseIds?: string[] } = {}
   ): Promise<{ id: string }> {
     const id = overrides.id ?? `agent_test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-    const { mcps, ...rest } = overrides
+    const { mcps, knowledgeBaseIds, ...rest } = overrides
     const base: typeof agentTable.$inferInsert = {
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
-      // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
+      // Default to NULL; model-behavior tests override it with a seeded user_model FK.
       model: null,
       orderKey: 'a0',
       ...rest,
@@ -94,6 +131,11 @@ describe('AgentService', () => {
     // Insert junction rows for MCP associations
     if (mcps && mcps.length > 0) {
       await dbh.db.insert(agentMcpServerTable).values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+    }
+    if (knowledgeBaseIds && knowledgeBaseIds.length > 0) {
+      await dbh.db
+        .insert(agentKnowledgeBaseTable)
+        .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
     }
     return { id }
   }
@@ -113,8 +155,10 @@ describe('AgentService', () => {
         id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
         providerId: 'anthropic',
         modelId: 'claude-sonnet-4-5',
-        presetModelId: 'claude-sonnet-4-5',
+        presetModelId: null,
         name: 'Claude Sonnet 4.5',
+        capabilities: [],
+        supportsStreaming: true,
         isEnabled: true,
         isHidden: false,
         orderKey: generateOrderKeyBetween(null, null)
@@ -129,6 +173,25 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
+  // BM25-only base: no embedding model / dimensions, which keeps the status/error check
+  // constraint happy without needing to seed a user_model for the embedding FK.
+  async function insertKnowledgeBase(id: string): Promise<void> {
+    await dbh.db
+      .insert(knowledgeBaseTable)
+      .values({
+        orderKey: 'a0',
+        id,
+        name: id,
+        status: 'completed',
+        error: null,
+        embeddingModelId: null,
+        dimensions: null,
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+      .onConflictDoNothing()
+  }
+
   async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
     await dbh.db
       .insert(agentGlobalSkillTable)
@@ -137,18 +200,138 @@ describe('AgentService', () => {
   }
 
   describe('createAgent', () => {
-    it('generates a UUID v4 agent ID', async () => {
-      const agent = agentService.createAgent({
+    it('creates preset and custom provider agents inside database initialization transactions', () => {
+      const presetProviderId = 'startup-preset'
+      const customProviderId = 'startup-custom'
+      const presetModelId = createUniqueModelId(presetProviderId, 'claude-sonnet-4-5')
+      const customModelId = createUniqueModelId(customProviderId, 'gpt-oss-120b')
+
+      dbh.db
+        .insert(userProviderTable)
+        .values([
+          {
+            providerId: presetProviderId,
+            presetProviderId: 'anthropic',
+            name: 'Startup Anthropic',
+            orderKey: generateOrderKeyBetween(null, null)
+          },
+          {
+            providerId: customProviderId,
+            name: 'Startup Custom',
+            presetProviderId: 'groq',
+            orderKey: generateOrderKeyBetween(null, null)
+          }
+        ])
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values([
+          {
+            id: presetModelId,
+            providerId: presetProviderId,
+            modelId: 'claude-sonnet-4-5',
+            presetModelId: 'claude-sonnet-4-5',
+            name: 'Preset Reasoner',
+            capabilities: [MODEL_CAPABILITY.REASONING],
+            orderKey: generateOrderKeyBetween(null, null)
+          },
+          {
+            id: customModelId,
+            providerId: customProviderId,
+            modelId: 'gpt-oss-120b',
+            presetModelId: 'gpt-oss-120b',
+            name: 'Custom Reasoner',
+            capabilities: [MODEL_CAPABILITY.REASONING],
+            reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }] },
+            supportsStreaming: true,
+            orderKey: generateOrderKeyBetween(null, null)
+          }
+        ])
+        .run()
+
+      const getPathMock = vi.mocked(application.getPath)
+      const originalGetPathImplementation = getPathMock.getMockImplementation()
+      getPathMock.mockImplementation((key, filename) =>
+        key === 'feature.provider_registry.data' && filename
+          ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+          : key === 'app.root'
+            ? resolve(process.cwd(), filename ?? '')
+            : (originalGetPathImplementation?.(key, filename) ?? `/mock/${key}${filename ? `/${filename}` : ''}`)
+      )
+      providerRegistryService.clearCache()
+
+      const dbService = application.get('DbService')
+      const getDbMock = vi.mocked(dbService.getDb)
+      getDbMock.mockImplementation(() => {
+        throw new Error('Database is not initialized, please call init() first!')
+      })
+
+      const [presetCreated, customCreated, presetModel, customModel] = (() => {
+        try {
+          return dbh.db.transaction((tx) => {
+            const presetCreated = agentService.createAgentTx(tx, 'startup-preset-agent', {
+              id: 'startup-preset-agent',
+              type: 'claude-code',
+              name: 'Preset Agent',
+              description: '',
+              instructions: '',
+              model: presetModelId,
+              configuration: { reasoning_effort: 'high' }
+            })
+            const customCreated = agentService.createAgentTx(tx, 'startup-custom-agent', {
+              id: 'startup-custom-agent',
+              type: 'claude-code',
+              name: 'Custom Agent',
+              description: '',
+              instructions: '',
+              model: customModelId,
+              configuration: { reasoning_effort: 'low' }
+            })
+            return [
+              presetCreated,
+              customCreated,
+              modelService.findByIdTx(tx, presetModelId),
+              modelService.findByIdTx(tx, customModelId)
+            ] as const
+          })
+        } finally {
+          getDbMock.mockImplementation(() => dbh.db)
+          if (originalGetPathImplementation) getPathMock.mockImplementation(originalGetPathImplementation)
+          providerRegistryService.clearCache()
+        }
+      })()
+
+      expect(presetCreated?.modelName).toBe('Preset Reasoner')
+      expect(customCreated?.modelName).toBe('Custom Reasoner')
+
+      expect(presetModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
+      expect(presetModel?.reasoning?.controls).toEqual([{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }])
+      expect(customModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
+      expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
+      expect(customModel?.requestControls?.serviceTier).toEqual({
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex']
+      })
+      expect(agentService.getAgent('startup-preset-agent')?.configuration?.reasoning_effort).toBe('high')
+      expect(agentService.getAgent('startup-custom-agent')?.configuration?.reasoning_effort).toBe('low')
+    })
+
+    it('notifies live agent lists after creation', () => {
+      notifyDataApiDataChangeMock.mockClear()
+
+      const agent = createAgentForTest({
         type: 'claude-code',
-        name: 'UUID ID Test',
+        name: 'Externally Created',
         model: TEST_MODEL_ID
       })
 
-      expect(agent.id).toMatch(uuidV4Pattern)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }
+      ])
     })
 
     it('persists plan and small models when provided', async () => {
-      const agent = agentService.createAgent({
+      const agent = createAgentForTest({
         type: 'claude-code',
         name: 'Model Roles Test',
         model: TEST_MODEL_ID,
@@ -163,9 +346,25 @@ describe('AgentService', () => {
       })
     })
 
+    it('clears plan and small models when PATCHed with null', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      const updated = agentService.updateAgent(created.id, { planModel: null, smallModel: null })
+
+      // The entity reports the tiers as unset; the row itself holds SQL NULL.
+      expect(updated).toMatchObject({ planModel: undefined, smallModel: undefined })
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, created.id))
+      expect(row.planModel).toBeNull()
+      expect(row.smallModel).toBeNull()
+    })
+
     it('does not mislabel non-skill FK failures as stale selected skills', async () => {
       const error = captureError(() =>
-        agentService.createAgent({
+        createAgentForTest({
           type: 'claude-code',
           name: 'Missing Model',
           model: 'anthropic::missing-model'
@@ -181,22 +380,22 @@ describe('AgentService', () => {
       expect(agents).toHaveLength(0)
     })
 
-    it('places newly created agents by default orderKey sort', async () => {
+    it('places newly created agents first by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Newest',
         model: TEST_MODEL_ID
       })
 
       const { agents } = agentService.listAgents()
-      expect(agents.at(-1)?.id).toBe(created.id)
+      expect(agents[0]?.id).toBe(created.id)
     })
 
     it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
-      const agent = agentService.createAgent({
+      const agent = createAgentForTest({
         type: 'claude-code',
         name: 'Disabled Tools Default',
         model: TEST_MODEL_ID
@@ -206,10 +405,355 @@ describe('AgentService', () => {
     })
   })
 
+  describe('ensureBuiltinAgent', () => {
+    const defaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
+      builtinRole: 'assistant',
+      name: 'Cherry Assistant',
+      preferredModelId: TEST_MODEL_ID,
+      type: 'claude-code',
+      configuration: {
+        avatar: '🍒',
+        permission_mode: 'default' as const,
+        env_vars: {}
+      }
+    }
+
+    function builtinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(sql`json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`)
+        .all()
+    }
+
+    function activeBuiltinRows() {
+      return dbh.db
+        .select()
+        .from(agentTable)
+        .where(
+          sql`${agentTable.deletedAt} IS NULL AND json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`
+        )
+        .all()
+    }
+
+    it('creates one protected assistant and returns it unchanged on repeated calls', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+      const second = agentService.ensureBuiltinAgent({
+        builtinRole: 'assistant',
+        name: 'Replacement Name',
+        preferredModelId: null,
+        type: 'claude-code',
+        configuration: { avatar: '🤖' }
+      })
+
+      expect(second).toEqual(first)
+      expect(first).toMatchObject({
+        name: 'Cherry Assistant',
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🍒',
+          permission_mode: 'default',
+          env_vars: {},
+          builtin_role: 'assistant'
+        }
+      })
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('keeps a newly created built-in assistant after existing agents', () => {
+      const ordinary = createAgentForTest({
+        type: 'claude-code',
+        name: 'Ordinary Agent',
+        model: TEST_MODEL_ID
+      })
+      const builtin = agentService.ensureBuiltinAgent(defaults)
+
+      expect(agentService.listAgents().agents.map((agent) => agent.id)).toEqual([ordinary.id, builtin.id])
+    })
+
+    it('restores exactly one active assistant after the previous row was soft-deleted', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+      dbh.db
+        .update(agentTable)
+        .set({ deletedAt: Date.UTC(2026, 0, 1) })
+        .where(eq(agentTable.id, first.id))
+        .run()
+
+      const restored = agentService.ensureBuiltinAgent(defaults)
+      const repeated = agentService.ensureBuiltinAgent(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(repeated.id).toBe(restored.id)
+      expect(builtinRows()).toHaveLength(2)
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('restores the assistant after the Agent delete endpoint removed its row', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+
+      expect(agentService.deleteAgent(first.id, { deleteSessions: true })).toMatchObject({ deleted: true })
+
+      const restored = agentService.ensureBuiltinAgent(defaults)
+
+      expect(restored.id).not.toBe(first.id)
+      expect(agentService.getAgent(first.id)).toBeNull()
+      expect(activeBuiltinRows()).toHaveLength(1)
+    })
+
+    it('re-fires onAgentCreated when a soft-deleted Support agent is restored in place', () => {
+      // The claim path restores the reserved support row WITHOUT creating a
+      // new one (created: false) — post-commit provisioning subscribers (the
+      // heartbeat schedule sync) must still hear about it.
+      const supportDefaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
+        ...defaults,
+        builtinRole: 'support',
+        name: 'Cherry Support'
+      }
+      const first = agentService.ensureBuiltinAgent(supportDefaults)
+      dbh.db
+        .update(agentTable)
+        .set({ deletedAt: Date.UTC(2026, 0, 1) })
+        .where(eq(agentTable.id, first.id))
+        .run()
+
+      const events: string[] = []
+      const disposable = agentService.onAgentCreated(({ agentId }) => events.push(agentId))
+      try {
+        const restored = agentService.ensureBuiltinAgent(supportDefaults)
+        // Restored in place under the reserved identity — not a fresh row.
+        expect(restored.id).toBe(first.id)
+        // An active repeat fires nothing.
+        agentService.ensureBuiltinAgent(supportDefaults)
+      } finally {
+        disposable.dispose()
+      }
+
+      expect(events).toEqual([first.id])
+    })
+
+    it('leaves the model unset when the default cannot run the Agent runtime', () => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({ providerId: 'embedding', name: 'Embedding', orderKey: generateOrderKeyBetween(null, null) })
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'embedding::vectors',
+          providerId: 'embedding',
+          modelId: 'vectors',
+          name: 'Vectors',
+          capabilities: ['embedding'],
+          supportsStreaming: false,
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .run()
+
+      const assistant = agentService.ensureBuiltinAgent({
+        ...defaults,
+        preferredModelId: 'embedding::vectors'
+      })
+
+      expect(assistant.model).toBeNull()
+    })
+
+    it('does not trust a Support role on an ordinary ID and restores the fixed identity in place', async () => {
+      await insertAgent({
+        id: 'ordinary-support',
+        name: 'User Agent',
+        instructions: 'User instructions',
+        configuration: { builtin_role: 'support', avatar: 'U' }
+      })
+      await insertAgent({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Existing Support',
+        description: 'Keep description',
+        instructions: 'Keep fixed instructions',
+        model: TEST_MODEL_ID,
+        deletedAt: Date.UTC(2026, 0, 1),
+        configuration: { avatar: 'S', heartbeat_interval: 7 }
+      })
+
+      const support = agentService.ensureBuiltinAgent({ ...defaults, builtinRole: 'support' })
+
+      expect(support).toMatchObject({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Existing Support',
+        description: 'Keep description',
+        instructions: 'Keep fixed instructions',
+        model: TEST_MODEL_ID,
+        configuration: { avatar: 'S', heartbeat_interval: 7, builtin_role: 'support' }
+      })
+      const [restoredRow] = dbh.db
+        .select({ deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(eq(agentTable.id, CHERRY_SUPPORT_AGENT_ID))
+        .all()
+      expect(restoredRow.deletedAt).toBeNull()
+      expect(agentService.getAgent('ordinary-support')).toMatchObject({
+        name: 'User Agent',
+        instructions: 'User instructions',
+        configuration: { avatar: 'U' }
+      })
+    })
+  })
+
+  describe('model updates', () => {
+    it('normalizes a stored medium effort when switching the agent to Kimi K3', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      const created = await insertAgent({ configuration: { reasoning_effort: 'medium' } })
+
+      const updated = agentService.updateAgent(created.id, { model: kimiK3ModelId })
+
+      expect(updated).toMatchObject({
+        model: kimiK3ModelId,
+        configuration: { reasoning_effort: 'high' }
+      })
+    })
+
+    it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, { model: TEST_MODEL_ID })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'default' }
+      })
+    })
+
+    it('merges a reasoning patch before normalizing it for the new model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', bootstrap_completed: true, reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: {
+          avatar: '🤖',
+          bootstrap_completed: true,
+          reasoning_effort: 'default'
+        }
+      })
+    })
+
+    it('preserves an explicit reasoning tombstone while changing the model', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', reasoning_effort: 'high' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        model: TEST_MODEL_ID,
+        configuration: { reasoning_effort: undefined }
+      })
+
+      expect(updated).toMatchObject({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖' }
+      })
+      expect(updated?.configuration).not.toHaveProperty('reasoning_effort')
+    })
+  })
+
+  describe('configuration patches', () => {
+    it('merges each patch into the latest persisted configuration', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', plugin_state: 'keep-me' }
+      })
+
+      agentService.updateAgent(created.id, { configuration: { bootstrap_completed: true } })
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        plugin_state: 'keep-me',
+        bootstrap_completed: true,
+        reasoning_effort: 'high'
+      })
+    })
+
+    it('normalizes an explicit reasoning patch against the current persisted model', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        configuration: { avatar: '🤖', reasoning_effort: 'low' }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        reasoning_effort: 'default'
+      })
+    })
+
+    it('replaces nested configuration values instead of deep-merging them', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', env_vars: { A: '1', B: '2' } }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { env_vars: { A: '3' } }
+      })
+
+      expect(updated?.configuration).toEqual({
+        avatar: '🤖',
+        env_vars: { A: '3' }
+      })
+    })
+
+    it('removes an explicitly undefined key while preserving omitted siblings', async () => {
+      const created = await insertAgent({
+        configuration: { avatar: '🤖', heartbeat_interval: 10 }
+      })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { heartbeat_interval: undefined }
+      })
+
+      expect(updated?.configuration).toEqual({ avatar: '🤖' })
+    })
+  })
+
   describe('builtin_role write protection', () => {
+    it('does not expose a legacy Support marker on an ordinary Agent', async () => {
+      await insertAgent({ id: 'legacy-support-read', configuration: { builtin_role: 'support', avatar: 'U' } })
+
+      expect(agentService.getAgent('legacy-support-read')?.configuration).toEqual({ avatar: 'U' })
+    })
+
     it('rejects createAgent when configuration carries a builtin_role', async () => {
       const error = captureError(() =>
-        agentService.createAgent({
+        createAgentForTest({
           type: 'claude-code',
           name: 'Forged Assistant',
           model: TEST_MODEL_ID,
@@ -226,7 +770,7 @@ describe('AgentService', () => {
     })
 
     it('rejects updateAgent adding a builtin_role to an ordinary agent', async () => {
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Ordinary Agent',
         model: TEST_MODEL_ID
@@ -244,7 +788,9 @@ describe('AgentService', () => {
       const agentId = 'agent_builtin_change'
       await insertAgent({ id: agentId, configuration: { builtin_role: 'assistant' } })
 
-      const error = captureError(() => agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' } }))
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'other' as never } })
+      )
       expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
       expect(agentService.getAgent(agentId)?.configuration?.builtin_role).toBe('assistant')
     })
@@ -268,11 +814,23 @@ describe('AgentService', () => {
       expect(updated?.configuration?.builtin_role).toBe('assistant')
       expect(updated?.configuration?.avatar).toBe('🍒')
     })
+
+    it('rejects preserving a legacy Support marker on a non-system ID', async () => {
+      const agentId = 'legacy-forged-support'
+      await insertAgent({ id: agentId, configuration: { builtin_role: 'support', avatar: 'U' } })
+
+      const error = captureError(() =>
+        agentService.updateAgent(agentId, { configuration: { builtin_role: 'support', avatar: 'changed' } })
+      )
+
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent(agentId)?.configuration).toEqual({ avatar: 'U' })
+    })
   })
 
   describe('disabledTools round-trip', () => {
     it('persists disabledTools on create and update', async () => {
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Disabled Tools',
         model: TEST_MODEL_ID,
@@ -293,7 +851,7 @@ describe('AgentService', () => {
       await insertMcpServer('mcp_a')
       await insertMcpServer('mcp_b')
 
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'MCP Create',
         model: TEST_MODEL_ID,
@@ -309,7 +867,7 @@ describe('AgentService', () => {
       await insertMcpServer('mcp_a')
       await insertMcpServer('mcp_b')
       await insertMcpServer('mcp_c')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'MCP Replace',
         model: TEST_MODEL_ID,
@@ -329,7 +887,7 @@ describe('AgentService', () => {
     // PR fixes.
     it('preserves existing mcps when update omits the field', async () => {
       await insertMcpServer('mcp_a')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'MCP Preserve',
         model: TEST_MODEL_ID,
@@ -346,7 +904,7 @@ describe('AgentService', () => {
 
     it('clears mcps when update passes an empty array', async () => {
       await insertMcpServer('mcp_a')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'MCP Clear',
         model: TEST_MODEL_ID,
@@ -361,12 +919,190 @@ describe('AgentService', () => {
     })
   })
 
+  describe('knowledgeBaseIds round-trip', () => {
+    it('reports a missing create binding as KnowledgeBase and leaves no agent row', async () => {
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Missing KB Create',
+          model: TEST_MODEL_ID,
+          knowledgeBaseIds: ['missing-kb']
+        })
+      )
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'missing-kb' }
+      })
+      const rows = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing KB Create'))
+      expect(rows).toHaveLength(0)
+    })
+
+    it('rechecks knowledge-base bindings inside the create transaction', async () => {
+      await insertKnowledgeBase('kb_create_race')
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) => {
+        dbh.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb_create_race')).run()
+        return dbh.db.transaction(fn as never)
+      })
+
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'KB Create Race',
+          model: TEST_MODEL_ID,
+          knowledgeBaseIds: ['kb_create_race']
+        })
+      )
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'kb_create_race' }
+      })
+      const rows = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'KB Create Race'))
+      expect(rows).toHaveLength(0)
+    })
+
+    it('persists knowledgeBaseIds on create through the service', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Create',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a', 'kb_b']
+      })
+      expect([...(created.knowledgeBaseIds ?? [])].sort()).toEqual(['kb_a', 'kb_b'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect([...(reloaded?.knowledgeBaseIds ?? [])].sort()).toEqual(['kb_a', 'kb_b'])
+    })
+
+    it('replaces knowledgeBaseIds when update provides a new array', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+      await insertKnowledgeBase('kb_c')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Replace',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a', 'kb_b']
+      })
+
+      const updated = agentService.updateAgent(created.id, { knowledgeBaseIds: ['kb_c'] })
+      expect(updated?.knowledgeBaseIds).toEqual(['kb_c'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual(['kb_c'])
+    })
+
+    it('reports a missing update binding as KnowledgeBase and preserves the existing binding', async () => {
+      await insertKnowledgeBase('kb_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Missing KB Update',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+
+      const error = captureError(() => agentService.updateAgent(created.id, { knowledgeBaseIds: ['missing-kb'] }))
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'missing-kb' }
+      })
+      expect(agentService.getAgent(created.id)?.knowledgeBaseIds).toEqual(['kb_a'])
+    })
+
+    it('rechecks knowledge-base bindings inside the update transaction', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Update Race',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) => {
+        dbh.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb_b')).run()
+        return dbh.db.transaction(fn as never)
+      })
+
+      const error = captureError(() => agentService.updateAgent(created.id, { knowledgeBaseIds: ['kb_b'] }))
+
+      expect(error).toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'KnowledgeBase', id: 'kb_b' }
+      })
+      expect(agentService.getAgent(created.id)?.knowledgeBaseIds).toEqual(['kb_a'])
+    })
+
+    // Load-bearing: the `if (newKnowledgeBaseIds !== undefined)` guard in updateAgent —
+    // an unconditional delete would wipe an agent's knowledge bindings on any unrelated
+    // update (e.g. a rename).
+    it('preserves existing knowledgeBaseIds when update omits the field', async () => {
+      await insertKnowledgeBase('kb_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Preserve',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+
+      const updated = agentService.updateAgent(created.id, { name: 'Renamed' })
+      expect(updated?.name).toBe('Renamed')
+      expect(updated?.knowledgeBaseIds).toEqual(['kb_a'])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual(['kb_a'])
+    })
+
+    it('clears knowledgeBaseIds when update passes an empty array', async () => {
+      await insertKnowledgeBase('kb_a')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Clear',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a']
+      })
+
+      const updated = agentService.updateAgent(created.id, { knowledgeBaseIds: [] })
+      expect(updated?.knowledgeBaseIds).toEqual([])
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual([])
+    })
+
+    // FK ON DELETE CASCADE: deleting a knowledge base must drop the agent's binding so a
+    // stale id can never scope kb_search to a base that no longer exists.
+    it('drops the binding when the bound knowledge base is deleted', async () => {
+      await insertKnowledgeBase('kb_a')
+      await insertKnowledgeBase('kb_b')
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'KB Cascade',
+        model: TEST_MODEL_ID,
+        knowledgeBaseIds: ['kb_a', 'kb_b']
+      })
+
+      await dbh.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb_a'))
+
+      const reloaded = agentService.getAgent(created.id)
+      expect(reloaded?.knowledgeBaseIds).toEqual(['kb_b'])
+      const junctionRows = await dbh.db
+        .select()
+        .from(agentKnowledgeBaseTable)
+        .where(eq(agentKnowledgeBaseTable.agentId, created.id))
+      expect(junctionRows.map((r) => r.knowledgeBaseId)).toEqual(['kb_b'])
+    })
+  })
+
   describe('skill enablement round-trip', () => {
     it('enables the provided global skills for the new agent on create', async () => {
       await insertGlobalSkill('skill_a')
       await insertGlobalSkill('skill_b')
 
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Skill Create',
         model: TEST_MODEL_ID,
@@ -379,8 +1115,8 @@ describe('AgentService', () => {
     })
 
     it('writes no skill rows when skillIds is omitted or empty', async () => {
-      const omitted = agentService.createAgent({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
-      const empty = agentService.createAgent({
+      const omitted = createAgentForTest({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
+      const empty = createAgentForTest({
         type: 'claude-code',
         name: 'Empty Skills',
         model: TEST_MODEL_ID,
@@ -395,7 +1131,7 @@ describe('AgentService', () => {
 
     it('rejects with NOT_FOUND and persists no agent when a skillId does not exist', async () => {
       const error = captureError(() =>
-        agentService.createAgent({
+        createAgentForTest({
           type: 'claude-code',
           name: 'Bad Skill',
           model: TEST_MODEL_ID,
@@ -419,7 +1155,7 @@ describe('AgentService', () => {
 
       try {
         const error = captureError(() =>
-          agentService.createAgent({
+          createAgentForTest({
             type: 'claude-code',
             name: 'Raced Skill',
             model: TEST_MODEL_ID,
@@ -440,7 +1176,7 @@ describe('AgentService', () => {
 
     it('leaves skill rows unchanged when update omits skillUpdates', async () => {
       await insertGlobalSkill('skill_a')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Skill Preserve',
         model: TEST_MODEL_ID,
@@ -458,7 +1194,7 @@ describe('AgentService', () => {
       await insertGlobalSkill('skill_a')
       await insertGlobalSkill('skill_b')
       await insertGlobalSkill('skill_c')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Skill Replace',
         model: TEST_MODEL_ID,
@@ -485,7 +1221,7 @@ describe('AgentService', () => {
 
     it('writes an explicit disabled row when a builtin skill is disabled', async () => {
       await insertGlobalSkill('skill_builtin', undefined, 'builtin')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Builtin Disable',
         model: TEST_MODEL_ID
@@ -502,7 +1238,7 @@ describe('AgentService', () => {
     it('preserves disabled builtin rows when applying other skill updates', async () => {
       await insertGlobalSkill('skill_builtin', undefined, 'builtin')
       await insertGlobalSkill('skill_regular')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Builtin Preserve',
         model: TEST_MODEL_ID
@@ -525,7 +1261,7 @@ describe('AgentService', () => {
 
     it('rejects update skillUpdates when a selected skill does not exist', async () => {
       await insertGlobalSkill('skill_a')
-      const created = agentService.createAgent({
+      const created = createAgentForTest({
         type: 'claude-code',
         name: 'Skill Bad Update',
         model: TEST_MODEL_ID,
@@ -545,13 +1281,214 @@ describe('AgentService', () => {
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
+      agentService.deleteAgent(id)
+      notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentService.deleteAgent(id)
+      const result = agentService.deleteAgent(id, { permanent: true })
 
       expect(result.deleted).toBe(true)
       expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', entityIds: [id] }
+      ])
+    })
+
+    it('returns retention purge impact and publishes detached child projections post-commit', async () => {
+      const purgedAgent = await insertAgent({ id: 'agent-retention-impact', deletedAt: 1 })
+      const retainedAgent = await insertAgent({ id: 'agent-retention-retained', deletedAt: 2_000 })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-retention-impact',
+        name: 'Workspace',
+        path: '/tmp/agent-retention-impact',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-retention-impact',
+          agentId: purgedAgent.id,
+          name: '',
+          workspaceId: 'workspace-retention-impact',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-retention-retained',
+          agentId: retainedAgent.id,
+          name: '',
+          workspaceId: 'workspace-retention-impact',
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(agentChannelTable).values([
+        {
+          id: 'channel-retention-impact',
+          type: 'telegram',
+          name: 'Impact',
+          agentId: purgedAgent.id,
+          workspace: { type: 'system' },
+          config: {}
+        },
+        {
+          id: 'channel-retention-retained',
+          type: 'telegram',
+          name: 'Retained',
+          agentId: retainedAgent.id,
+          workspace: { type: 'system' },
+          config: {}
+        }
+      ])
+      notifyDataApiDataChangeMock.mockClear()
+
+      const impact = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, 1_000, 10))
+
+      expect(impact).toEqual({
+        purgedIds: [purgedAgent.id],
+        affectedSessionIds: ['session-retention-impact'],
+        affectedChannelIds: ['channel-retention-impact']
+      })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      expect(
+        dbh.db
+          .select({ id: agentSessionTable.id, agentId: agentSessionTable.agentId })
+          .from(agentSessionTable)
+          .orderBy(agentSessionTable.id)
+          .all()
+      ).toEqual([
+        { id: 'session-retention-impact', agentId: null },
+        { id: 'session-retention-retained', agentId: retainedAgent.id }
+      ])
+      expect(
+        dbh.db
+          .select({ id: agentChannelTable.id, agentId: agentChannelTable.agentId })
+          .from(agentChannelTable)
+          .orderBy(agentChannelTable.id)
+          .all()
+      ).toEqual([
+        { id: 'channel-retention-impact', agentId: null },
+        { id: 'channel-retention-retained', agentId: retainedAgent.id }
+      ])
+
+      agentService.notifyPurged(impact)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-retention-impact'] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: ['session-retention-impact']
+        },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-retention-impact'] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-channels', kind: 'projection', entityIds: ['channel-retention-impact'] },
+        { endpoint: '/agent-channels/:channelId', entityIds: ['channel-retention-impact'] }
+      ])
+    })
+
+    it('keeps active sessions attached when moving only the agent to the Recycle Bin', async () => {
+      const { id } = await insertAgent({ id: 'agent_standalone_trash_001' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-standalone-trash',
+        name: 'Workspace',
+        path: '/tmp/agent-standalone-trash',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-standalone-trash',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-standalone-trash',
+        orderKey: 'a0'
+      })
+
+      const result = agentService.deleteAgent(id)
+
+      expect(result).toEqual({ deleted: true })
+      const [session] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-standalone-trash'))
+      expect(session).toEqual({ agentId: id, deletedAt: null })
+    })
+
+    it('trashes only active sessions and restores them with the agent', async () => {
+      const { id } = await insertAgent({ id: 'agent_trash_restore_001' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-trash-1', name: 'W1', path: '/tmp/agent-trash-1', orderKey: 'a0' },
+        { id: 'workspace-trash-2', name: 'W2', path: '/tmp/agent-trash-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        { id: 'session-with-agent', agentId: id, name: '', workspaceId: 'workspace-trash-1', orderKey: 'a0' },
+        { id: 'session-trashed-earlier', agentId: id, name: '', workspaceId: 'workspace-trash-2', orderKey: 'a1' }
+      ])
+      await dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: 100 })
+        .where(eq(agentSessionTable.id, 'session-trashed-earlier'))
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(result).toEqual({ deleted: true, deletedSessionIds: ['session-with-agent'] })
+      const trashedSessions = await dbh.db
+        .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+      expect(trashedSessions.find((session) => session.id === 'session-with-agent')?.deletedAt).toEqual(
+        expect.any(Number)
+      )
+      expect(trashedSessions.find((session) => session.id === 'session-trashed-earlier')?.deletedAt).toBe(100)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', entityIds: [id] }
+      ])
+      expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(1)
+
+      notifyDataApiDataChangeMock.mockClear()
+      agentService.restoreAgent(id)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', entityIds: [id] }
+      ])
+
+      const sessions = await dbh.db
+        .select({ id: agentSessionTable.id, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+      expect(sessions.find((s) => s.id === 'session-with-agent')?.deletedAt).toBeNull()
+      // Trashed on its own before the agent — restoring the agent must not revive it.
+      expect(sessions.find((s) => s.id === 'session-trashed-earlier')?.deletedAt).toBe(100)
+    })
+
+    it('does not reclaim a related session that was independently restored and reassigned', async () => {
+      const { id } = await insertAgent({ id: 'agent-former-owner-001' })
+      const nextOwner = await insertAgent({ id: 'agent-next-owner-001' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-independent-reassign',
+        name: 'Workspace',
+        path: '/tmp/agent-independent-reassign',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-independent-reassign',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-independent-reassign',
+        orderKey: 'a0'
+      })
+
+      agentService.deleteAgent(id, { deleteSessions: true })
+      agentSessionService.restore('session-independent-reassign')
+      agentSessionService.update('session-independent-reassign', { agentId: nextOwner.id })
+      agentService.restoreAgent(id)
+
+      const [session] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId, deletedAt: agentSessionTable.deletedAt })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-independent-reassign'))
+      expect(session).toEqual({ agentId: nextOwner.id, deletedAt: null })
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {
@@ -559,14 +1496,59 @@ describe('AgentService', () => {
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
       pinService.pin({ entityType: 'agent', entityId: id })
       const otherPin = pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
+      notifyDataApiDataChangeMock.mockClear()
 
       agentService.deleteAgent(id)
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
-    it('deletes agent sessions atomically when requested', async () => {
+    it('purges prompt bindings on permanent delete without deleting the global prompt', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_prompt_001' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440021'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
+
+      agentService.deleteAgent(id)
+      agentService.deleteAgent(id, { permanent: true })
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
+    })
+
+    it('keeps prompt bindings when moving to the Recycle Bin, so restore returns the agent fully bound', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_prompt_002' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440022'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
+
+      agentService.deleteAgent(id)
+
+      // Unlike pins, bindings survive Delete — only a purge drops them.
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(1)
+
+      agentService.restoreAgent(id)
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(1)
+    })
+
+    it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
+      await insertKnowledgeBase('kb_agent_delete')
+      const { id } = await insertAgent({ id: 'agent_with_kb_001', knowledgeBaseIds: ['kb_agent_delete'] })
+
+      agentService.deleteAgent(id)
+      agentService.deleteAgent(id, { permanent: true })
+
+      const rows = await dbh.db.select().from(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id))
+      expect(rows).toHaveLength(0)
+    })
+
+    it('permanently deletes only the agent and ignores deleteSessions', async () => {
       const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
       const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
       await dbh.db.insert(agentWorkspaceTable).values([
@@ -582,25 +1564,113 @@ describe('AgentService', () => {
           orderKey: 'a0'
         },
         {
+          id: 'session-trashed-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-1',
+          orderKey: 'a1',
+          deletedAt: 222
+        },
+        {
           id: 'session-keep-with-other-agent',
           agentId: otherAgent.id,
           name: '',
           workspaceId: 'workspace-agent-delete-2',
-          orderKey: 'a1'
+          orderKey: 'a2'
         }
       ])
+      agentService.deleteAgent(id)
+      notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentService.deleteAgent(id, { deleteSessions: true })
+      const result = agentService.deleteAgent(id, { deleteSessions: true, permanent: true })
 
       expect(result.deleted).toBe(true)
-      expect(result.deletedSessionIds).toEqual(['session-delete-with-agent'])
+      expect(result.deletedSessionIds).toBeUndefined()
       const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
       expect(agentRows).toHaveLength(0)
-      const sessionRows = await dbh.db.select().from(agentSessionTable)
-      expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+      const sessionRows = await dbh.db
+        .select({
+          id: agentSessionTable.id,
+          agentId: agentSessionTable.agentId,
+          deletedAt: agentSessionTable.deletedAt
+        })
+        .from(agentSessionTable)
+      expect(sessionRows).toEqual(
+        expect.arrayContaining([
+          { id: 'session-delete-with-agent', agentId: null, deletedAt: null },
+          { id: 'session-trashed-with-agent', agentId: null, deletedAt: 222 },
+          { id: 'session-keep-with-other-agent', agentId: otherAgent.id, deletedAt: null }
+        ])
+      )
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        {
+          endpoint: '/agent-sessions',
+          kind: 'projection',
+          entityIds: ['session-delete-with-agent', 'session-trashed-with-agent']
+        },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: ['session-delete-with-agent', 'session-trashed-with-agent']
+        },
+        {
+          endpoint: '/agent-sessions/:sessionId',
+          entityIds: ['session-delete-with-agent', 'session-trashed-with-agent']
+        },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
-    it('rolls back the already-deleted sessions when a later delete step fails', async () => {
+    it('clears a task binding before permanent agent deletion detaches its session', async () => {
+      const { id } = await insertAgent({ id: 'agent_default_detach_001' })
+      const task = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'default-detach-task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: id, prompt: 'test', timeoutMinutes: 0, workspace: { type: 'system' } },
+        catchUpPolicy: { kind: 'skip-missed' },
+        metadata: { reuse: { enabled: true, revision: 0 } }
+      })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-default-detach',
+        name: 'Workspace',
+        path: '/tmp/default-detach',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-default-detach',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-default-detach',
+        taskScheduleId: task.id,
+        orderKey: 'a0'
+      })
+      agentService.deleteAgent(id)
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
+
+      const [session] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-default-detach'))
+      expect(session).toEqual({ agentId: null, taskScheduleId: null })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: ['session-default-detach']
+        },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-default-detach'] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+    })
+
+    it('rolls back the soft-cascade parent and child updates when agent pin cleanup fails', async () => {
       const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
       await dbh.db
         .insert(agentWorkspaceTable)
@@ -612,31 +1682,49 @@ describe('AgentService', () => {
         workspaceId: 'workspace-rollback-1',
         orderKey: 'a0'
       })
-
-      // Run the delete inside a real transaction so a mid-transaction failure rolls back;
-      // the default DbService mock just passes the callback through without one.
       ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) =>
         dbh.db.transaction(fn as never)
       )
-      // Fail *after* deleteByAgentIdTx has already removed the session rows, so the assertions
-      // below can only pass if that earlier delete is rolled back with the agent delete.
-      const deleteAgentSpy = vi.spyOn(agentService, 'deleteAgentTx').mockImplementationOnce(() => {
-        throw new Error('agent delete failed')
+      const purgePinSpy = vi.spyOn(pinService, 'purgeForEntityTx').mockImplementationOnce(() => {
+        throw new Error('agent pin purge failed')
       })
 
       try {
-        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent delete failed')
+        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent pin purge failed')
       } finally {
-        deleteAgentSpy.mockRestore()
+        purgePinSpy.mockRestore()
       }
 
-      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
-      expect(agentRows).toHaveLength(1)
-      const sessionRows = await dbh.db
-        .select()
+      const [agent] = await dbh.db
+        .select({ deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(eq(agentTable.id, id))
+      expect(agent.deletedAt).toBeNull()
+      const [session] = await dbh.db
+        .select({ deletedAt: agentSessionTable.deletedAt })
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-rollback-1'))
-      expect(sessionRows).toHaveLength(1)
+      expect(session.deletedAt).toBeNull()
+    })
+
+    it('rejects permanent deletion of an active agent and keeps it active', async () => {
+      const { id } = await insertAgent({ id: 'agent_active_permanent_001' })
+
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: false })
+
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(row).toMatchObject({ id, deletedAt: null })
+    })
+
+    it('rejects a stale permanent delete after the agent has been restored', async () => {
+      const { id } = await insertAgent({ id: 'agent_restored_permanent_001' })
+      agentService.deleteAgent(id)
+      agentService.restoreAgent(id)
+
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: false })
+
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(row).toMatchObject({ id, deletedAt: null })
     })
   })
 
@@ -712,6 +1800,69 @@ describe('AgentService', () => {
       expect(events).toHaveLength(0)
 
       disposable.dispose()
+    })
+  })
+
+  describe('KnowledgeBaseService.delete() cascade', () => {
+    it('removes bindings and emits the refreshed knowledgeBaseIds for affected agents', async () => {
+      const deletedKbId = '10000000-0000-4000-8000-000000000001'
+      const keptKbId = '10000000-0000-4000-8000-000000000002'
+      await insertKnowledgeBase(deletedKbId)
+      await insertKnowledgeBase(keptKbId)
+      await insertAgent({ id: 'agent_with_kb_1', knowledgeBaseIds: [deletedKbId, keptKbId] })
+      await insertAgent({ id: 'agent_with_kb_2', knowledgeBaseIds: [deletedKbId] })
+      await insertAgent({ id: 'agent_without_deleted_kb', knowledgeBaseIds: [keptKbId] })
+
+      const events: Array<{ agentId: string; knowledgeBaseIds: string[] }> = []
+      const disposable = agentService.onAgentUpdated((event) => {
+        if (event.updates.knowledgeBaseIds !== undefined) {
+          events.push({ agentId: event.agentId, knowledgeBaseIds: event.updates.knowledgeBaseIds })
+        }
+      })
+
+      knowledgeBaseService.delete(deletedKbId)
+
+      expect(agentService.getAgent('agent_with_kb_1')?.knowledgeBaseIds).toEqual([keptKbId])
+      expect(agentService.getAgent('agent_with_kb_2')?.knowledgeBaseIds).toEqual([])
+      expect(agentService.getAgent('agent_without_deleted_kb')?.knowledgeBaseIds).toEqual([keptKbId])
+      expect(events).toHaveLength(2)
+      expect(events.find((event) => event.agentId === 'agent_with_kb_1')?.knowledgeBaseIds).toEqual([keptKbId])
+      expect(events.find((event) => event.agentId === 'agent_with_kb_2')?.knowledgeBaseIds).toEqual([])
+
+      disposable.dispose()
+    })
+
+    it('does not emit an agent update when no agent references the deleted knowledge base', async () => {
+      const unreferencedKbId = '10000000-0000-4000-8000-000000000003'
+      const otherKbId = '10000000-0000-4000-8000-000000000004'
+      await insertKnowledgeBase(unreferencedKbId)
+      await insertKnowledgeBase(otherKbId)
+      await insertAgent({ id: 'agent_other_kb', knowledgeBaseIds: [otherKbId] })
+      const events: string[] = []
+      const disposable = agentService.onAgentUpdated((event) => events.push(event.agentId))
+
+      knowledgeBaseService.delete(unreferencedKbId)
+
+      expect(events).toEqual([])
+      disposable.dispose()
+    })
+
+    it('keeps a committed delete successful when the post-commit agent refresh fails', async () => {
+      const knowledgeBaseId = '10000000-0000-4000-8000-000000000005'
+      await insertKnowledgeBase(knowledgeBaseId)
+      await insertAgent({ id: 'agent_refresh_failure', knowledgeBaseIds: [knowledgeBaseId] })
+      const emitSpy = vi.spyOn(agentService, 'emitAgentUpdatedForIds').mockImplementationOnce(() => {
+        throw new Error('refresh failed')
+      })
+
+      try {
+        expect(() => knowledgeBaseService.delete(knowledgeBaseId)).not.toThrow()
+
+        const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, knowledgeBaseId))
+        expect(rows).toHaveLength(0)
+      } finally {
+        emitSpy.mockRestore()
+      }
     })
   })
 
@@ -808,6 +1959,8 @@ describe('AgentService', () => {
         providerId: 'anthropic',
         modelId: 'deleted-model',
         name: 'Deleted Model',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: generateOrderKeyBetween(null, null)
       })
 
@@ -921,6 +2074,23 @@ describe('AgentService', () => {
           id: 'agent_builtin_global_search',
           subtitle:
             'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+        })
+      ])
+    })
+
+    it('matches and displays Cherry Support through its localized fallback description', async () => {
+      await insertAgent({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Cherry Support',
+        description: '',
+        configuration: { builtin_role: 'support' },
+        updatedAt: 100
+      })
+
+      expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
+        expect.objectContaining({
+          id: CHERRY_SUPPORT_AGENT_ID,
+          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
         })
       ])
     })

@@ -1,3 +1,9 @@
+import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken } from 'builder-util-runtime'
+import { app, net } from 'electron'
+import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import { AppUpdater, autoUpdater } from 'electron-updater'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
@@ -5,50 +11,57 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { regionService } from '@main/services/RegionService'
+import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
-import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { CancellationToken } from 'builder-util-runtime'
-import { app, net } from 'electron'
-import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
-import { autoUpdater } from 'electron-updater'
-import semver from 'semver'
+import {
+  hasMultiLanguageReleaseNotes,
+  localizeReleaseNotes,
+  mergeReleaseHistory,
+  parseReleaseHistory,
+  type ReleaseNotesEntry
+} from '@shared/utils/releaseNotes'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
-export enum FeedUrl {
-  PRODUCTION = 'https://releases.cherry-ai.com',
-  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
+type ReleaseRegion = 'cn' | 'global'
+
+export const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
+const RELEASE_HISTORY_TIMEOUT_MS = 10_000
+const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
+
+function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): string {
+  return edition === 'cn' ? `${channel}-cn` : channel
 }
 
-export enum UpdateConfigUrl {
-  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
-  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
-}
-
-export enum UpdateMirror {
-  GITHUB = 'github',
-  GITCODE = 'gitcode'
-}
-
-function getCommonHeaders() {
+function getUpdateHeaders({ region, edition }: { region: ReleaseRegion; edition: AppEdition }) {
   return {
     'User-Agent': generateUserAgent(),
     'Cache-Control': 'no-cache',
     'Client-Id': getClientId(),
     'App-Name': APP_NAME,
     'App-Version': `v${app.getVersion()}`,
-    OS: process.platform
+    OS: process.platform,
+    'X-Edition': edition,
+    'X-Region': region
   }
 }
 
-// Language markers constants for multi-language release notes
-const LANG_MARKERS = {
-  EN_START: '<!--LANG:en-->',
-  ZH_CN_START: '<!--LANG:zh-CN-->',
-  END: '<!--LANG:END-->'
+class ReleaseNotesUpdater extends AppUpdater {
+  constructor() {
+    super(undefined)
+  }
+
+  protected doDownloadUpdate(): Promise<string[]> {
+    return Promise.reject(new Error('Release-notes updater cannot download updates'))
+  }
+
+  quitAndInstall(): never {
+    throw new Error('Release-notes updater cannot install updates')
+  }
 }
 
 // Auto update-check scheduling. The cadence lives in the main process (this
@@ -73,28 +86,6 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
   maxDelayMs: 60 * 60 * 1000
 }
 
-interface UpdateConfig {
-  lastUpdated: string
-  versions: {
-    [versionKey: string]: VersionConfig
-  }
-}
-
-interface VersionConfig {
-  minCompatibleVersion: string
-  description: string
-  channels: {
-    latest: ChannelConfig | null
-    rc: ChannelConfig | null
-    beta: ChannelConfig | null
-  }
-}
-
-interface ChannelConfig {
-  version: string
-  feedUrls: Record<UpdateMirror, string>
-}
-
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'SchedulerService'])
@@ -106,16 +97,14 @@ export class AppUpdaterService extends BaseService {
 
   protected async onInit(): Promise<void> {
     autoUpdater.logger = logger as Logger
+    // Packaged builds use app-update.yml generated from electron-builder.yml;
+    // development uses the repository's dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = application.get('PreferenceService').get('app.dist.auto_update.enabled')
     // Never auto-install on quit - user must explicitly click "Install Now"
     // Auto-install on quit can cause issues: unexpected updates on restart,
     // corruption if system shuts down during install, or app uninstall on force shutdown
     autoUpdater.autoInstallOnAppQuit = false
-    autoUpdater.requestHeaders = {
-      ...autoUpdater.requestHeaders,
-      ...getCommonHeaders()
-    }
 
     this.registerAutoUpdaterListeners()
 
@@ -142,11 +131,11 @@ export class AppUpdaterService extends BaseService {
 
   protected async onAllReady(): Promise<void> {
     application.get('PowerService').registerShutdownHandler(() => {
-      this.setAutoUpdate(false)
+      autoUpdater.autoDownload = false
     })
 
-    // Dev builds and portable builds never auto-update; the manual "check for
-    // update" button still works in those cases.
+    // Development builds skip automatic checks but still support manual checks.
+    // Portable builds do not perform update checks.
     if (!app.isPackaged || this.isPortable()) {
       return
     }
@@ -190,173 +179,132 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
   }
 
-  public setAutoUpdate(isActive: boolean) {
-    autoUpdater.autoDownload = isActive
-    // autoInstallOnAppQuit is always false - user must explicitly click "Install Now"
+  private async getUpdateRequest() {
+    const currentVersion = app.getVersion()
+    const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
+    const requestedChannel = testPlan
+      ? application.get('PreferenceService').get('app.dist.test_plan.channel') || UpgradeChannel.RC
+      : UpgradeChannel.LATEST
+
+    const ipCountry = await regionService.getCountry()
+    const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
+    const edition = getAppEdition()
+    const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
+
+    const updateHeaders = getUpdateHeaders({ region, edition })
+
+    return { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders }
   }
 
-  private _getChannelByVersion(version: string) {
-    if (version.includes(`-${UpgradeChannel.BETA}.`)) {
-      return UpgradeChannel.BETA
+  private async configureUpdaterForCheck() {
+    const { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders } =
+      await this.getUpdateRequest()
+
+    autoUpdater.requestHeaders = {
+      ...autoUpdater.requestHeaders,
+      ...updateHeaders
     }
-    if (version.includes(`-${UpgradeChannel.RC}.`)) {
-      return UpgradeChannel.RC
-    }
-    return UpgradeChannel.LATEST
+
+    logger.info(
+      `Using managed update feed for version ${currentVersion}, edition: ${edition}, testPlan: ${testPlan}, channel: ${updateChannel}, region: ${region} (IP country: ${ipCountry})`
+    )
+    autoUpdater.channel = updateChannel
+
+    // disable downgrade after change the channel
+    autoUpdater.allowDowngrade = false
+    // The updater falls back to a full download when blockmaps or the cached base are unavailable.
+    autoUpdater.disableDifferentialDownload = false
   }
 
-  private _getTestChannel() {
-    const currentChannel = this._getChannelByVersion(app.getVersion())
-    const savedChannel = application.get('PreferenceService').get('app.dist.test_plan.channel')
-
-    if (currentChannel === UpgradeChannel.LATEST) {
-      return savedChannel || UpgradeChannel.RC
-    }
-
-    if (savedChannel === currentChannel) {
-      return savedChannel
-    }
-
-    // if the upgrade channel is not equal to the current channel, use the latest channel
-    return UpgradeChannel.LATEST
-  }
-
-  /**
-   * Fetch update configuration from GitHub or GitCode based on mirror
-   * @param mirror - Mirror to fetch config from
-   * @returns UpdateConfig object or null if fetch fails
-   */
-  private async _fetchUpdateConfig(mirror: UpdateMirror): Promise<UpdateConfig | null> {
-    const configUrl = mirror === UpdateMirror.GITCODE ? UpdateConfigUrl.GITCODE : UpdateConfigUrl.GITHUB
-
+  private async fetchReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
     try {
-      logger.info(`Fetching update config from ${configUrl} (mirror: ${mirror})`)
-      const response = await net.fetch(configUrl, {
-        headers: {
-          ...getCommonHeaders(),
-          Accept: 'application/json'
-        }
+      const { updateHeaders } = await this.getUpdateRequest()
+      const response = await net.fetch(RELEASE_HISTORY_URL, {
+        headers: updateHeaders,
+        redirect: 'follow',
+        signal: AbortSignal.timeout(RELEASE_HISTORY_TIMEOUT_MS)
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`Release history request failed with HTTP ${response.status}`)
       }
 
-      const config = (await response.json()) as UpdateConfig
-      logger.info(`Update config fetched successfully, last updated: ${config.lastUpdated}`)
-      return config
+      const contentLength = Number(response.headers.get('content-length'))
+      if (Number.isFinite(contentLength) && contentLength > RELEASE_HISTORY_MAX_BYTES) {
+        throw new Error('Release history response exceeds the size limit')
+      }
+
+      const source = await response.text()
+      if (Buffer.byteLength(source, 'utf8') > RELEASE_HISTORY_MAX_BYTES) {
+        throw new Error('Release history response exceeds the size limit')
+      }
+
+      return parseReleaseHistory(source)
     } catch (error) {
-      logger.error('Failed to fetch update config:', error as Error)
+      logger.warn('Failed to fetch release history', error as Error)
       return null
     }
   }
 
-  /**
-   * Find compatible channel configuration based on current version
-   * @param currentVersion - Current app version
-   * @param requestedChannel - Requested upgrade channel (latest/rc/beta)
-   * @param config - Update configuration object
-   * @returns Object containing ChannelConfig and actual channel if found, null otherwise
-   */
-  private _findCompatibleChannel(
-    currentVersion: string,
-    requestedChannel: UpgradeChannel,
-    config: UpdateConfig
-  ): { config: ChannelConfig; channel: UpgradeChannel } | null {
-    // Get all version keys and sort descending (newest first)
-    const versionKeys = Object.keys(config.versions).sort(semver.rcompare)
-
-    logger.info(
-      `Finding compatible channel for version ${currentVersion}, requested channel: ${requestedChannel}, available versions: ${versionKeys.join(', ')}`
-    )
-
-    for (const versionKey of versionKeys) {
-      const versionConfig = config.versions[versionKey]
-      const channelConfig = versionConfig.channels[requestedChannel]
-      const latestChannelConfig = versionConfig.channels[UpgradeChannel.LATEST]
-
-      if (!semver.gte(currentVersion, versionConfig.minCompatibleVersion)) {
-        continue
-      }
-
-      // Check version compatibility and channel availability
-      if (channelConfig !== null) {
-        logger.info(
-          `Found compatible version: ${versionKey} (minCompatibleVersion: ${versionConfig.minCompatibleVersion}), version: ${channelConfig.version}`
-        )
-
-        if (
-          requestedChannel !== UpgradeChannel.LATEST &&
-          latestChannelConfig &&
-          semver.gte(latestChannelConfig.version, channelConfig.version)
-        ) {
-          logger.info(
-            `latest channel version is greater than the requested channel version: ${latestChannelConfig.version} > ${channelConfig.version}, using latest instead`
-          )
-          return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
-        }
-
-        return { config: channelConfig, channel: requestedChannel }
-      } else if (requestedChannel !== UpgradeChannel.LATEST && latestChannelConfig !== null) {
-        // Fallback: requested channel (rc/beta) is null, but latest channel is available
-        logger.info(
-          `Requested channel ${requestedChannel} is null for ${versionKey}, falling back to latest channel: ${latestChannelConfig.version}`
-        )
-        return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
-      }
-    }
-
-    logger.warn(`No compatible channel found for version ${currentVersion} and channel ${requestedChannel}`)
-    return null
+  public async queryUpdateAvailability(): Promise<
+    | { status: 'unsupported' }
+    | { status: 'current'; currentVersion: string }
+    | { status: 'available'; currentVersion: string; version: string }
+  > {
+    if (this.isPortable()) return { status: 'unsupported' }
+    const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
+    const updater = new ReleaseNotesUpdater()
+    updater.logger = logger as Logger
+    updater.forceDevUpdateConfig = !app.isPackaged
+    updater.autoDownload = false
+    updater.autoInstallOnAppQuit = false
+    updater.requestHeaders = updateHeaders
+    updater.channel = updateChannel
+    updater.allowDowngrade = false
+    const result = await updater.checkForUpdates()
+    if (!result) throw new Error('Update query did not produce a result')
+    return result.isUpdateAvailable
+      ? { status: 'available', currentVersion, version: result.updateInfo.version }
+      : { status: 'current', currentVersion }
   }
 
-  private _setChannel(channel: UpgradeChannel, feedUrl: string) {
-    autoUpdater.channel = channel
-    autoUpdater.setFeedURL(feedUrl)
+  public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
+    try {
+      const { updateChannel, updateHeaders } = await this.getUpdateRequest()
+      const updater = new ReleaseNotesUpdater()
+      updater.logger = logger as Logger
+      updater.forceDevUpdateConfig = !app.isPackaged
+      updater.autoDownload = false
+      updater.autoInstallOnAppQuit = false
+      updater.requestHeaders = updateHeaders
+      updater.channel = updateChannel
+      updater.allowDowngrade = false
 
-    // disable downgrade after change the channel
-    autoUpdater.allowDowngrade = false
-    // github and gitcode don't support multiple range download
-    autoUpdater.disableDifferentialDownload = true
+      const result = await updater.checkForUpdates()
+      if (!result?.isUpdateAvailable) {
+        return null
+      }
+
+      const releaseNotes = result.updateInfo.releaseNotes
+      if (typeof releaseNotes !== 'string' || !releaseNotes.trim()) {
+        return null
+      }
+
+      return { releaseNotes, version: result.updateInfo.version }
+    } catch (error) {
+      logger.warn('Failed to fetch latest release notes', error as Error)
+      return null
+    }
   }
 
-  private async _setFeedUrl() {
-    const currentVersion = app.getVersion()
-    const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
-    const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
+  public async getReleaseHistory(): Promise<ReleaseNotesEntry[] | null> {
+    const [history, latestRelease] = await Promise.all([this.fetchReleaseHistory(), this.getLatestReleaseNotes()])
 
-    // Determine mirror based on IP country
-    const ipCountry = await regionService.getCountry()
-    const mirror = ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
-
-    logger.info(
-      `Setting feed URL for version ${currentVersion}, testPlan: ${testPlan}, requested channel: ${requestedChannel}, mirror: ${mirror} (IP country: ${ipCountry})`
-    )
-
-    // Try to fetch update config from remote
-    const config = await this._fetchUpdateConfig(mirror)
-
-    if (config) {
-      // Use new config-based system
-      const result = this._findCompatibleChannel(currentVersion, requestedChannel, config)
-
-      if (result) {
-        const { config: channelConfig, channel: actualChannel } = result
-        const feedUrl = channelConfig.feedUrls[mirror]
-        logger.info(
-          `Using config-based feed URL: ${feedUrl} for channel ${actualChannel} (requested: ${requestedChannel}, mirror: ${mirror})`
-        )
-        this._setChannel(actualChannel, feedUrl)
-        return
-      }
+    if (!history) {
+      return latestRelease ? [latestRelease] : null
     }
 
-    logger.info('Failed to fetch update config, falling back to default feed URL')
-    // Fallback: use default feed URL based on mirror
-    const defaultFeedUrl = mirror === UpdateMirror.GITCODE ? FeedUrl.PRODUCTION : FeedUrl.GITHUB_LATEST
-
-    logger.info(`Using fallback feed URL: ${defaultFeedUrl}`)
-    this._setChannel(UpgradeChannel.LATEST, defaultFeedUrl)
+    return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
   }
 
   public cancelDownload() {
@@ -372,14 +320,14 @@ export class AppUpdaterService extends BaseService {
   }
 
   /**
-   * Throwing core of the update check: feed-url setup → check → (manual) download
+   * Throwing core of the update check: updater setup → check → (manual) download
    * trigger. A check/network failure REJECTS so callers that need a failure
    * signal — the scheduler's backoff — can observe it. The public IPC entry
    * `checkForUpdates()` wraps this and swallows the error to preserve its
    * event-driven contract: errors reach the renderer via the `UpdateError`
    * broadcast (see `registerAutoUpdaterListeners`), not the return value.
    */
-  private async _runUpdateCheck() {
+  private async performUpdateCheck() {
     void application.get('AnalyticsService').trackAppUpdate()
 
     if (this.isPortable()) {
@@ -389,7 +337,7 @@ export class AppUpdaterService extends BaseService {
       }
     }
 
-    await this._setFeedUrl()
+    await this.configureUpdaterForCheck()
 
     this.updateCheckResult = await autoUpdater.checkForUpdates()
     logger.info(
@@ -411,7 +359,7 @@ export class AppUpdaterService extends BaseService {
 
   public async checkForUpdates() {
     try {
-      return await this._runUpdateCheck()
+      return await this.performUpdateCheck()
     } catch (error) {
       logger.error('Failed to check for update:', error as Error)
       return {
@@ -440,11 +388,11 @@ export class AppUpdaterService extends BaseService {
     try {
       // Gate per tick rather than subscribing to the preference: when disabled
       // the loop keeps ticking (harmless no-op) and resumes automatically once
-      // re-enabled. Only the detection failure of `_runUpdateCheck` drives
+      // re-enabled. Only the detection failure of `performUpdateCheck` drives
       // backoff — the manual download trigger is fire-and-forget and surfaces
       // its own errors via the `UpdateError` event.
       if (application.get('PreferenceService').get('app.dist.auto_update.enabled')) {
-        await this._runUpdateCheck()
+        await this.performUpdateCheck()
       }
       this.updateCheckFailures = 0
       this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
@@ -466,57 +414,6 @@ export class AppUpdaterService extends BaseService {
   }
 
   /**
-   * Check if release notes contain multi-language markers
-   */
-  private hasMultiLanguageMarkers(releaseNotes: string): boolean {
-    return releaseNotes.includes(LANG_MARKERS.EN_START)
-  }
-
-  /**
-   * Parse multi-language release notes and return the appropriate language version
-   * @param releaseNotes - Release notes string with language markers
-   * @returns Parsed release notes for the user's language
-   *
-   * Expected format:
-   * <!--LANG:en-->English content<!--LANG:zh-CN-->Chinese content<!--LANG:END-->
-   */
-  private parseMultiLangReleaseNotes(releaseNotes: string): string {
-    try {
-      const language = application.get('PreferenceService').get('app.language')
-      const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
-
-      // Create regex patterns using constants
-      const enPattern = new RegExp(
-        `${LANG_MARKERS.EN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
-      )
-      const zhPattern = new RegExp(
-        `${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
-      )
-
-      // Extract language sections
-      const enMatch = releaseNotes.match(enPattern)
-      const zhMatch = releaseNotes.match(zhPattern)
-
-      // Return appropriate language version with proper fallback
-      if (isChineseUser && zhMatch) {
-        return zhMatch[1].trim()
-      } else if (enMatch) {
-        return enMatch[1].trim()
-      } else {
-        // Clean fallback: remove all language markers
-        logger.warn('Failed to extract language-specific release notes, using cleaned fallback')
-        return releaseNotes
-          .replace(new RegExp(`${LANG_MARKERS.EN_START}|${LANG_MARKERS.ZH_CN_START}|${LANG_MARKERS.END}`, 'g'), '')
-          .trim()
-      }
-    } catch (error) {
-      logger.error('Failed to parse multi-language release notes', error as Error)
-      // Return original notes as safe fallback
-      return releaseNotes
-    }
-  }
-
-  /**
    * Process release info to handle multi-language release notes
    * @param releaseInfo - Original release info from updater
    * @returns Processed release info with localized release notes
@@ -526,9 +423,13 @@ export class AppUpdaterService extends BaseService {
 
     // Handle multi-language release notes in string format
     if (releaseInfo.releaseNotes && typeof releaseInfo.releaseNotes === 'string') {
-      // Check if it contains multi-language markers
-      if (this.hasMultiLanguageMarkers(releaseInfo.releaseNotes)) {
-        processedInfo.releaseNotes = this.parseMultiLangReleaseNotes(releaseInfo.releaseNotes)
+      if (hasMultiLanguageReleaseNotes(releaseInfo.releaseNotes)) {
+        try {
+          const language = application.get('PreferenceService').get('app.language')
+          processedInfo.releaseNotes = localizeReleaseNotes(releaseInfo.releaseNotes, language)
+        } catch (error) {
+          logger.error('Failed to localize release notes', error as Error)
+        }
       }
     }
 

@@ -1,5 +1,6 @@
-import type { Serializable } from '@shared/types/serializable'
 import * as z from 'zod'
+
+import type { Serializable } from '@shared/types/serializable'
 
 /**
  * Check if a value is serializable (safe to persist or pass across the IPC boundary)

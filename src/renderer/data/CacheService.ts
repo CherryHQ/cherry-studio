@@ -17,6 +17,8 @@
  * @see {@link CacheService} For implementation details
  */
 
+import { isEqual } from 'es-toolkit/compat'
+
 import { loggerService } from '@logger'
 import type {
   InferSharedCacheValue,
@@ -35,11 +37,46 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'es-toolkit/compat'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
 const logger = loggerService.withContext('CacheService')
+
+/**
+ * Shallow-readonly view of a cache value, used for the `prev` argument of a
+ * functional updater. Containers (objects/arrays) become `Readonly<T>` so the
+ * most common footgun — mutating `prev` in place and returning it — fails to
+ * compile; primitives pass through unchanged so `prev => !prev` / `prev => prev + 1`
+ * still work.
+ *
+ * Shallow only: nested mutation (e.g. `prev.items[0].x = ...`) is NOT caught by
+ * the type — keep updaters pure (see {@link CacheSetStateAction}).
+ */
+export type ReadonlyValue<T> = T extends object ? Readonly<T> : T
+
+/**
+ * Setter input for cache writes, mirroring React's `SetStateAction<T>`: either a
+ * concrete value or an updater `(prev) => next`.
+ *
+ * The updater is resolved against the **latest stored value** at write time (not
+ * a render-time snapshot), which is what makes read-modify-write safe across an
+ * `await` — and what lets a write-only consumer skip subscribing entirely. It
+ * MUST be pure and return a new value: mutating `prev` in place and returning the
+ * same reference makes the `isEqual` short-circuit drop the write and silently
+ * skip the subscriber notification.
+ *
+ * "Pure" also means no side effects inside the updater: do not smuggle a derived
+ * result out (e.g. by writing to an enclosing-scope variable) to drive post-write
+ * work, and do not assume how many times or when it runs. To react to *what
+ * changed* — e.g. dispose resources for items that were removed — derive it from
+ * the value transition in a `useEffect` that watches the value, not from inside
+ * the updater.
+ *
+ * Caveat (same as React's `SetStateAction`): for keys whose value type is itself
+ * a function (only the `any`-typed keys in practice), a function argument is
+ * always treated as an updater, never stored verbatim.
+ */
+export type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
 
 /**
  * Renderer process cache service
@@ -51,7 +88,7 @@ const logger = loggerService.withContext('CacheService')
  *
  * Features:
  * - All APIs are synchronous (including shared cache via local copy)
- * - TTL lazy cleanup (check on get, not timer-based)
+ * - Memory TTL cleanup on expiry; shared TTL follows the main process
  * - Hook reference tracking (prevent deletion of active hooks)
  * - Unified sync mechanism for shared and persist
  * - Type-safe persist cache with predefined schema
@@ -69,6 +106,8 @@ export class CacheService {
   private subscribers = new Map<string, Set<CacheSubscriber>>()
 
   // Persist cache debounce
+  private memoryExpiryTimer?: ReturnType<typeof setTimeout>
+  private memoryExpiryDeadline = Infinity
   private persistSaveTimer?: NodeJS.Timeout
   private persistDirty = false
   private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
@@ -76,6 +115,7 @@ export class CacheService {
   // Shared cache ready state for initialization sync
   private sharedCacheReady = false
   private sharedCacheReadyCallbacks: Array<() => void> = []
+  private sharedKeysUpdatedDuringInitialSync = new Set<string>()
 
   constructor() {
     this.initialize()
@@ -246,6 +286,7 @@ export class CacheService {
       const newExpireAt = ttl ? Date.now() + ttl : undefined
       if (!Object.is(existingEntry.expireAt, newExpireAt)) {
         existingEntry.expireAt = newExpireAt
+        this.scheduleMemoryExpiry(newExpireAt)
         logger.verbose(`Updated TTL for memory cache key "${key}"`)
       } else {
         logger.verbose(`Skipped memory cache update for key "${key}" - value and TTL unchanged`)
@@ -259,8 +300,34 @@ export class CacheService {
     }
 
     this.memoryCache.set(key, entry)
+    this.scheduleMemoryExpiry(entry.expireAt)
     this.notifySubscribers(key)
     logger.verbose(`Updated memory cache for key "${key}"`)
+  }
+
+  private scheduleMemoryExpiry(expireAt: number | undefined): void {
+    if (expireAt === undefined || expireAt >= this.memoryExpiryDeadline) return
+    clearTimeout(this.memoryExpiryTimer)
+    this.memoryExpiryDeadline = expireAt
+    this.memoryExpiryTimer = setTimeout(
+      () => {
+        this.memoryExpiryTimer = undefined
+        this.memoryExpiryDeadline = Infinity
+        const expired: string[] = []
+        let next = Infinity
+        for (const [key, entry] of this.memoryCache) {
+          if (entry.expireAt === undefined) continue
+          if (entry.expireAt <= Date.now()) {
+            this.memoryCache.delete(key)
+            expired.push(key)
+          } else next = Math.min(next, entry.expireAt)
+        }
+        for (const key of expired) this.notifySubscribers(key)
+        if (next !== Infinity) this.scheduleMemoryExpiry(next)
+      },
+      Math.min(2 ** 31 - 1, Math.max(1, expireAt - Date.now()))
+    )
+    this.memoryExpiryTimer.unref?.()
   }
 
   /**
@@ -603,26 +670,38 @@ export class CacheService {
 
   /**
    * Set value in persist cache with cross-window sync and localStorage persistence
+   *
+   * Accepts a concrete value or a functional updater `(prev) => next`, resolved
+   * against the latest stored value (`getPersist` never returns undefined). The
+   * updater form is what lets write-only call sites write correctly without
+   * holding a render-time snapshot — and therefore without subscribing at all.
+   * Keep it pure and return a new value (see {@link CacheSetStateAction}).
+   *
    * @param key - Persist cache key to store
-   * @param value - Value to cache (must match schema type)
+   * @param value - New value, or an updater computing it from the latest value
    */
-  setPersist<K extends RendererPersistCacheKey>(key: K, value: RendererPersistCacheSchema[K]): void {
+  setPersist<K extends RendererPersistCacheKey>(
+    key: K,
+    value: CacheSetStateAction<RendererPersistCacheSchema[K]>
+  ): void {
+    const nextValue =
+      typeof value === 'function' ? value(this.getPersist(key) as ReadonlyValue<RendererPersistCacheSchema[K]>) : value
     const existingValue = this.persistCache.get(key)
 
     // Use deep comparison for persist cache (usually objects)
-    if (isEqual(existingValue, value)) {
+    if (isEqual(existingValue, nextValue)) {
       logger.verbose(`Skipped persist cache update for key "${key}" - value unchanged`)
       return // Skip all updates
     }
 
-    this.persistCache.set(key, value)
+    this.persistCache.set(key, nextValue)
     this.notifySubscribers(key)
 
-    // Broadcast to other windows
+    // Broadcast to other windows — the resolved value, never the updater itself
     this.broadcastSync({
       type: 'persist',
       key,
-      value
+      value: nextValue
     })
 
     // Schedule persist save
@@ -920,6 +999,8 @@ export class CacheService {
       let syncedCount = 0
 
       for (const [key, entry] of Object.entries(allShared)) {
+        if (this.sharedKeysUpdatedDuringInitialSync.has(key)) continue
+
         // Skip expired entries
         if (entry.expireAt && Date.now() > entry.expireAt) {
           continue
@@ -945,6 +1026,7 @@ export class CacheService {
     } catch (error) {
       logger.error('Failed to sync shared cache from Main:', error as Error)
     } finally {
+      this.sharedKeysUpdatedDuringInitialSync.clear()
       this.markSharedCacheReady()
     }
   }
@@ -1059,7 +1141,7 @@ export class CacheService {
   }
 
   /**
-   * Schedule persist cache save with 200ms debounce to avoid excessive writes
+   * Schedule persist cache save with 350ms debounce to avoid excessive writes
    */
   private schedulePersistSave(): void {
     this.persistDirty = true
@@ -1096,6 +1178,8 @@ export class CacheService {
     // Listen for cache sync messages from other windows
     window.api.cache.onSync((message: CacheSyncMessage) => {
       if (message.type === 'shared') {
+        if (!this.sharedCacheReady) this.sharedKeysUpdatedDuringInitialSync.add(message.key)
+
         if (message.value === undefined) {
           // Deletion tombstone: physically remove and always notify so
           // observers see the value disappear (unlike main's
@@ -1153,6 +1237,9 @@ export class CacheService {
     }
 
     // Clear timers
+    clearTimeout(this.memoryExpiryTimer)
+    this.memoryExpiryTimer = undefined
+    this.memoryExpiryDeadline = Infinity
     if (this.persistSaveTimer) {
       clearTimeout(this.persistSaveTimer)
     }

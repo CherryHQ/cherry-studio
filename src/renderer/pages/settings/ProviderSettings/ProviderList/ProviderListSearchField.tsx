@@ -1,7 +1,8 @@
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { Search, X } from 'lucide-react'
 import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 
 interface ProviderListSearchFieldProps {
   value: string
@@ -43,7 +44,7 @@ export default function ProviderListSearchField({
             disabled={disabled}
             onClick={() => onValueChange('')}
             className={providerListClasses.searchClearButton}>
-            <X size={10} />
+            <X size={9} />
           </button>
         ) : null}
         {trailing}

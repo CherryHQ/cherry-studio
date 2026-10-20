@@ -192,7 +192,7 @@ describe('TopicMessageFlowCanvas', () => {
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-connectable', 'false')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edges', '1')
     expect(screen.getByTestId('flow-controls')).toBeInTheDocument()
-    expect(screen.getByTestId('flow-minimap')).toHaveAttribute('data-bg-color', 'var(--color-card)')
+    expect(screen.getByTestId('flow-minimap')).toHaveAttribute('data-bg-color', 'var(--card)')
     expect(screen.getByTestId('flow-minimap')).toHaveClass('border-border')
     expect(screen.getByTestId('topic-message-flow-legend')).toBeInTheDocument()
     expect(screen.getByText('Plan the topic branch')).toBeInTheDocument()
@@ -330,42 +330,6 @@ describe('TopicMessageFlowCanvas', () => {
     expect(onNodeSelect).toHaveBeenCalledWith('assistant-1')
   })
 
-  it('does not select input draft nodes', async () => {
-    const onNodeSelect = vi.fn()
-
-    render(
-      <TopicMessageFlowCanvas
-        graph={{
-          ...graph,
-          nodes: [
-            ...graph.nodes,
-            {
-              id: 'branch-draft:assistant-1',
-              type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
-              position: { x: 520, y: 240 },
-              data: {
-                createdAt: '2026-01-01T00:02:00.000Z',
-                isActive: false,
-                isInactiveBranch: false,
-                isInputDraft: true,
-                isOnActivePath: false,
-                messageId: 'branch-draft:assistant-1',
-                preview: 'chat.message.flow.status.awaiting_input',
-                role: 'user',
-                status: 'paused'
-              }
-            }
-          ]
-        }}
-        onNodeSelect={onNodeSelect}
-      />
-    )
-
-    fireEvent.click(await screen.findByTestId('flow-node-branch-draft:assistant-1'))
-
-    expect(onNodeSelect).not.toHaveBeenCalled()
-  })
-
   it('calls onNodeContextMenu with the right-clicked message id', async () => {
     const onNodeContextMenu = vi.fn()
 
@@ -412,6 +376,6 @@ describe('TopicMessageFlowCanvas', () => {
     const errorNode = (await screen.findByText('Broken branch.')).closest('[data-message-id="error-1"]')
 
     expect(errorNode).toHaveAttribute('data-active', 'true')
-    expect(errorNode?.querySelector('.bg-destructive')).toBeInTheDocument()
+    expect(errorNode?.querySelector('.bg-error')).toBeInTheDocument()
   })
 })

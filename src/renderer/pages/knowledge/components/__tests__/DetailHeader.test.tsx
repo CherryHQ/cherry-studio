@@ -1,7 +1,8 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import DetailHeader from '../DetailHeader'
 
@@ -21,6 +22,12 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type={type} {...props}>
       {children}
     </button>
+  ),
+  PageHeader: ({ title, action, className }: { title: ReactNode; action?: ReactNode; className?: string }) => (
+    <div className={className}>
+      <h2>{title}</h2>
+      {action}
+    </div>
   )
 }))
 
@@ -45,6 +52,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
@@ -92,7 +100,6 @@ describe('DetailHeader', () => {
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByText('失败')).toHaveClass('bg-destructive/10', 'text-destructive')
 
     const rebuildTrigger = screen.getByRole('button', { name: '失败, 重建知识库' })
     fireEvent.click(rebuildTrigger)

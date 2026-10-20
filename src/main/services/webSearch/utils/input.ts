@@ -1,10 +1,15 @@
-import { isValidUrl } from '@main/utils/http'
+import { isHttpUrl } from '@shared/utils/url'
 
 export const MAX_WEB_SEARCH_INPUTS = 20
 
 export function normalizeWebSearchKeywords(keywords: string[]): string[] {
   // Free-form search terms are valid inputs; URL-only constraints belong to fetchUrls.
-  const normalized = keywords.map((keyword) => keyword.trim()).filter(Boolean)
+  // Guard against non-string elements (e.g. null/undefined from malformed tool calls)
+  // so that .trim() never throws TypeError.
+  const normalized = keywords
+    .filter((keyword): keyword is string => typeof keyword === 'string')
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
 
   if (normalized.length === 0) {
     throw new Error('At least one web search keyword is required')
@@ -28,7 +33,7 @@ export function normalizeWebSearchUrls(urls: string[]): string[] {
     throw new Error(`Web search supports at most ${MAX_WEB_SEARCH_INPUTS} inputs per request`)
   }
 
-  const invalidUrls = normalized.filter((url) => !isValidUrl(url))
+  const invalidUrls = normalized.filter((url) => !isHttpUrl(url))
   if (invalidUrls.length > 0) {
     throw new Error(`Invalid URL format: ${invalidUrls.join(', ')}`)
   }

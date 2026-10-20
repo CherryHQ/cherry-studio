@@ -1,36 +1,46 @@
+import { Link } from '@tanstack/react-router'
+import { AlertTriangle, ChevronRight, X } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { classifyError } from '@renderer/utils/errorClassifier'
-import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ChevronRight, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
+import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
-import type { MessageErrorDiagnosisResult, MessageListItem } from '../types'
+import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
-const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
+const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 504]
+const ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
+const ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
 interface Props {
   partId: string
   error: SerializedError | undefined
   message: MessageListItem
-  cachedDiagnosis?: MessageErrorDiagnosisResult
 }
 
-const ErrorBlock: React.FC<Props> = ({ partId, error, message, cachedDiagnosis }) => {
-  return <MessageErrorInfo partId={partId} error={error} message={message} cachedDiagnosis={cachedDiagnosis} />
+const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
+  return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
 const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const { t, i18n } = useTranslation()
+
+  const claudeCodeExit = getClaudeCodeExitInfo(error)
+  if (claudeCodeExit) {
+    const { reference, exitCode, exitSignal } = claudeCodeExit
+    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+    return t('error.claude_code_exit.start', { reference })
+  }
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
@@ -49,13 +59,28 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: (
-              <Link style={{ color: 'var(--color-primary)' }} to="/settings/provider" search={{ id: providerId }} />
-            )
+            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
           }}
         />
       )
     }
+    // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
+    // its values may embed a verbatim provider diagnostic.
+    const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+    if (typeof detailKey === 'string' && detailKey) {
+      const detailFullKey = `error.${detailKey}`
+      if (i18n.exists(detailFullKey)) {
+        const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
+          | Record<string, string>
+          | undefined
+        return (
+          <span>
+            {t(i18nKey)} {t(detailFullKey, detailValues)}
+          </span>
+        )
+      }
+    }
+    return t(i18nKey)
   }
 
   if (i18n.exists(errorKey)) {
@@ -65,20 +90,19 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <span>
-        {t(getHttpMessageLabelKey(errorStatus.toString()))} {error?.message}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
       </span>
     )
   }
 
-  return error?.message || ''
+  return providerErrorText(error)
 }
 
 const MessageErrorInfo: React.FC<{
   partId: string
   error: Props['error']
   message: MessageListItem
-  cachedDiagnosis?: MessageErrorDiagnosisResult
-}> = ({ partId, error, message, cachedDiagnosis }) => {
+}> = ({ partId, error, message }) => {
   const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
     useMessageListActions()
   const { setTimeoutTimer } = useTimer()
@@ -86,32 +110,37 @@ const MessageErrorInfo: React.FC<{
   const [aiSummary, setAiSummary] = useState<string>('')
 
   const errorMessage = error?.message ?? undefined
-  const errorStatus =
-    (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
-  const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
-  const classificationStatus =
-    typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
+  const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
+  const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
+  const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
+  const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
-  const classification = useMemo(() => {
-    const classificationError: SerializedError = {
-      name: null,
-      message: errorMessage ?? null,
-      stack: null,
-      ...(classificationStatus !== undefined
-        ? {
-            status: classificationStatus,
-            statusCode: classificationStatus
-          }
-        : {})
-    }
-
-    return classifyError(classificationError, providerId)
-  }, [classificationStatus, errorMessage, providerId])
+  const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  // An app-owned i18nKey is the throwing code's own display text — prefer it over a
+  // pattern-matched category heading, which can name the wrong subsystem entirely (an
+  // OCR-fallback failure must not present as a chat-provider auth error). Keys that
+  // interpolate <provider> still go through the classification branch: plain `t()`
+  // would render the raw tags, and the provider branch needs the <Trans> link form.
+  const localizedErrorMessage = useMemo(
+    () =>
+      hasAppOwnedI18nKey && !providerId
+        ? t(appOwnedErrorKey)
+        : t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
+    [hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, providerId, t]
+  )
 
   useEffect(() => {
-    if (classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError) return
+    if (
+      claudeCodeExitCategory !== undefined ||
+      hasAppOwnedI18nKey ||
+      classification.category !== 'unknown' ||
+      !errorMessage ||
+      !error ||
+      !diagnoseMessageError
+    )
+      return
     let cancelled = false
     diagnoseMessageError({
       message,
@@ -130,16 +159,16 @@ const MessageErrorInfo: React.FC<{
     // Intentionally exclude `error` from deps — its identity changes per render
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classification.category, diagnoseMessageError, errorMessage, i18n.language, message, partId])
-
-  const diagnosisContext = useMemo(
-    () => ({
-      errorSource: 'chat' as const,
-      providerName: errorProviderId,
-      modelId: errorModelId
-    }),
-    [errorProviderId, errorModelId]
-  )
+  }, [
+    claudeCodeExitCategory,
+    classification.category,
+    diagnoseMessageError,
+    errorMessage,
+    hasAppOwnedI18nKey,
+    i18n.language,
+    message,
+    partId
+  ])
 
   const onRemoveErrorPart = useCallback(
     (e: React.MouseEvent) => {
@@ -165,8 +194,7 @@ const MessageErrorInfo: React.FC<{
       message,
       error,
       partId,
-      cachedDiagnosis,
-      diagnosisContext
+      localizedErrorMessage
     })
   }
 
@@ -192,7 +220,7 @@ const MessageErrorInfo: React.FC<{
       {canRemoveErrorPart && (
         <button
           type="button"
-          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-foreground-muted opacity-0 transition-all duration-150"
+          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-muted-foreground opacity-0 transition-all duration-150"
           onClick={onRemoveErrorPart}
           aria-label="close"
           title={t('common.close')}>
@@ -202,16 +230,16 @@ const MessageErrorInfo: React.FC<{
 
       {/* Header: icon + title */}
       <div className="mb-1.5 flex items-center gap-2">
-        <div className="flex shrink-0 items-center justify-center text-error-base">
+        <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
       </div>
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
-        style={{ color: 'var(--color-foreground-secondary)' }}>
+        className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
+        style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>
 
@@ -222,7 +250,7 @@ const MessageErrorInfo: React.FC<{
             size="sm"
             type="button"
             variant="outline"
-            className="rounded-[5px] text-foreground-secondary hover:border-border-hover hover:bg-accent hover:text-foreground"
+            className="rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
             onClick={onNavigate}>
             {t('error.diagnosis.go_to_settings')}
           </Button>
@@ -230,7 +258,7 @@ const MessageErrorInfo: React.FC<{
         {canOpenDetail && (
           <div
             className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
-            style={{ color: 'var(--color-foreground-muted)' }}>
+            style={{ color: ERROR_DETAIL_COLOR }}>
             {t('common.detail')}
             <ChevronRight size={14} />
           </div>

@@ -1,8 +1,15 @@
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import EmojiPickerReact, { Categories, EmojiStyle, SuggestionMode } from 'emoji-picker-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { convertEmojiRecords } from '../emojiData'
+
+const require = createRequire(import.meta.url)
+const productionEntry = join(dirname(require.resolve('emoji-picker-react')), 'emoji-picker-react.cjs.production.min.js')
+const ProductionEmojiPickerReact = (require(productionEntry) as { default: typeof EmojiPickerReact }).default
 
 vi.stubGlobal(
   'IntersectionObserver',
@@ -30,7 +37,7 @@ vi.stubGlobal(
   }
 )
 
-describe('emoji-picker-react controlled suggestions patch', () => {
+describe('emoji-picker-react controlled props patch', () => {
   beforeEach(() => {
     localStorage.clear()
   })
@@ -97,6 +104,55 @@ describe('emoji-picker-react controlled suggestions patch', () => {
 
     await waitFor(() => {
       expect(within(suggestedCategory).getByText('📁')).toBeInTheDocument()
+    })
+  })
+
+  it('updates the controlled hidden emoji list after rerender', async () => {
+    const suggestedEmojis = ['🐦‍🔥']
+    const picker = (hiddenEmojis: string[]) => (
+      <EmojiPickerReact
+        categories={[{ category: Categories.SUGGESTED, name: 'Recently Used' }]}
+        emojiStyle={EmojiStyle.NATIVE}
+        hiddenEmojis={hiddenEmojis}
+        previewConfig={{ showPreview: false }}
+        searchDisabled
+        skinTonesDisabled
+        suggestedEmojis={suggestedEmojis}
+        suggestedEmojisMode={SuggestionMode.RECENT}
+      />
+    )
+    const view = render(picker([]))
+    const suggestedCategory = await screen.findByRole('listitem', { name: 'Recently Used' })
+
+    expect(within(suggestedCategory).getByText('🐦‍🔥')).toBeInTheDocument()
+
+    view.rerender(picker(['1f426-200d-1f525']))
+
+    await waitFor(() => {
+      expect(within(suggestedCategory).queryByText('🐦‍🔥')).not.toBeInTheDocument()
+    })
+  })
+
+  it('updates the controlled hidden emoji list through the production CJS entry', async () => {
+    const picker = (hiddenEmojis: string[]) => (
+      <ProductionEmojiPickerReact
+        categories={[{ category: Categories.SMILEYS_PEOPLE, name: 'Smileys' }]}
+        emojiStyle={EmojiStyle.NATIVE}
+        hiddenEmojis={hiddenEmojis}
+        previewConfig={{ showPreview: false }}
+        searchDisabled
+        skinTonesDisabled
+      />
+    )
+    const view = render(picker([]))
+    const smileysCategory = await screen.findByRole('listitem', { name: 'Smileys' })
+
+    expect(within(smileysCategory).getByText('😀')).toBeInTheDocument()
+
+    view.rerender(picker(['1f600']))
+
+    await waitFor(() => {
+      expect(within(smileysCategory).queryByText('😀')).not.toBeInTheDocument()
     })
   })
 

@@ -5,5 +5,9 @@ export default defineCreator({
   name: 'Perplexity',
   modelsDevProviders: ['perplexity'],
   idPrefixes: ['sonar'],
-  webSearch: ['sonar']
+  reasoningFamilies: [
+    { pattern: '^sonar-reasoning|^sonar-deep-research', effort: ['low', 'medium', 'high'] },
+    // Membership profile (no knobs): unanchored superset of the effort rule.
+    { pattern: 'sonar-deep-research' }
+  ]
 })

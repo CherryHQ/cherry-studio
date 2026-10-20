@@ -1,3 +1,5 @@
+import { app, BrowserWindow, screen } from 'electron'
+
 /**
  * QuickAssistantService — business orchestration for the quick assistant window.
  *
@@ -11,7 +13,7 @@
  *   - cursor-aware repositioning across displays
  *   - platform-specific hide branch (Windows minimize+opacity, macOS app.hide)
  *   - mainWindow lifecycle coupling (auto-hide when main window appears)
- *   - strict navigation safety (block any non-localhost navigation)
+ *   - strict navigation safety (block navigation outside the renderer origin)
  *   - bounds persistence (via WindowManager's rememberBounds capability)
  *
  * Notes for future maintainers:
@@ -27,8 +29,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import { app, BrowserWindow, screen, shell } from 'electron'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
@@ -238,8 +240,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   /**
    * Strict navigation safety for the quick window. Quick window is a single-page SPA;
-   * any will-navigate that is not the dev-server URL is treated as an attempt to leave
-   * the SPA shell and is either re-routed to the system browser (when safe) or denied.
+   * any will-navigate that does not target the app's own renderer is treated as an
+   * attempt to leave the SPA shell and is either re-routed to the system browser
+   * (when safe) or denied.
    *
    * Coexists with WindowManager's default handlers (WindowManager.ts: createWindow):
    *   - will-navigate: both listeners fire; this stricter preventDefault wins.
@@ -248,13 +251,17 @@ export class QuickAssistantService extends BaseService implements Activatable {
    */
   private setupQuickAssistantWebContents(window: BrowserWindow) {
     window.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:517')) {
+      // In-app navigation (dev-server origin, or a packaged page under the app root).
+      if (isAppRendererUrl(url)) {
         return
       }
 
       event.preventDefault()
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(url)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
@@ -262,7 +269,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     window.webContents.setWindowOpenHandler((details) => {
       if (isSafeExternalUrl(details.url)) {
-        void shell.openExternal(details.url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(details.url)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }

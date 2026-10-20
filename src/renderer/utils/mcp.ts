@@ -10,7 +10,8 @@ const logger = loggerService.withContext('utils:mcp')
 export function getMcpConfigSampleFromReadme(readme: string): Record<string, any> | null {
   if (readme) {
     try {
-      const regex = /"mcpServers"\s*:\s*({(?:[^{}]*|{(?:[^{}]*|{[^{}]*})*})*})/g
+      // Single-char `[^{}]` inside the repeated groups: `[^{}]*` there backtracks exponentially on unmatched blocks.
+      const regex = /"mcpServers"\s*:\s*({(?:[^{}]|{(?:[^{}]|{[^{}]*})*})*})/g
       for (const match of readme.matchAll(regex)) {
         let orgSample = JSON.parse(match[1])
         orgSample = orgSample[Object.keys(orgSample)[0] ?? '']

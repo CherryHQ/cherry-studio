@@ -1,16 +1,15 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
-import { app } from 'electron'
 
 import { toAsarUnpackedPath } from './asar'
 
 const logger = loggerService.withContext('builtinSkills')
-
-const VERSION_FILE = '.version'
 
 /**
  * Copy built-in skills from app resources to the global skills storage
@@ -23,15 +22,13 @@ const VERSION_FILE = '.version'
  * disables it, so a synced `agent_global_skill` row is enabled everywhere
  * without any `agent_skill` rows.
  *
- * Each installed skill gets a `.version` file recording the app version that
- * installed it. On subsequent launches the bundled version is compared with
- * the installed version — the skill files are overwritten only when the app
- * ships a newer version.
+ * Each installed skill gets a `.version` file recording the app version.
+ * Startup sync compares both that version and the full bundled content hash,
+ * so changed builtins refresh even within the same development app version.
  */
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
   const resourceSkillsPath = toAsarUnpackedPath(application.getPath('feature.agents.skills.builtin'))
-  const globalSkillsPath = application.getPath('feature.agents.skills')
   const appVersion = app.getVersion()
 
   try {
@@ -43,26 +40,21 @@ export async function installBuiltinSkills(): Promise<void> {
   const entries = await fs.readdir(resourceSkillsPath, { withFileTypes: true })
   const dirs = entries.filter((e) => {
     if (!e.isDirectory()) return false
-    const destPath = path.join(globalSkillsPath, e.name)
-    return destPath.startsWith(globalSkillsPath + path.sep)
+    const sourcePath = path.join(resourceSkillsPath, e.name)
+    return sourcePath.startsWith(resourceSkillsPath + path.sep)
   })
 
   let installed = 0
   // Process sequentially to avoid interleaved delete+insert on the skills
   // table when multiple builtins require a metadata refresh.
   for (const entry of dirs) {
-    const destPath = path.join(globalSkillsPath, entry.name)
-    const filesUpdated = !(await isUpToDate(destPath, appVersion))
-
-    if (filesUpdated) {
-      await fs.mkdir(destPath, { recursive: true })
-      await fs.cp(path.join(resourceSkillsPath, entry.name), destPath, { recursive: true })
-      await fs.writeFile(path.join(destPath, VERSION_FILE), appVersion, 'utf-8')
-      installed++
-    }
-
     try {
-      await skillService.syncBuiltinSkill(entry.name, destPath, filesUpdated)
+      const filesUpdated = await skillService.syncBuiltinSkill(
+        entry.name,
+        path.join(resourceSkillsPath, entry.name),
+        appVersion
+      )
+      if (filesUpdated) installed++
     } catch (error) {
       logger.warn('Failed to sync built-in skill to DB', {
         folderName: entry.name,
@@ -73,14 +65,5 @@ export async function installBuiltinSkills(): Promise<void> {
 
   if (installed > 0) {
     logger.info('Built-in skills installed', { installed, version: appVersion })
-  }
-}
-
-async function isUpToDate(destPath: string, appVersion: string): Promise<boolean> {
-  try {
-    const installedVersion = (await fs.readFile(path.join(destPath, VERSION_FILE), 'utf-8')).trim()
-    return installedVersion === appVersion
-  } catch {
-    return false
   }
 }

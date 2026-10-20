@@ -1,26 +1,35 @@
+import { Activity, GitBranch, Globe } from 'lucide-react'
+import type { PropsWithChildren } from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
+  createResourcePaneCapability,
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
   ResourcePaneLocateOpener,
-  ResourcePaneProvider,
-  RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  type RightPanelComposition,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
+  useRightPanelActions,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { TracePane } from '@renderer/components/chat/trace/TracePane'
+import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { Activity, GitBranch } from 'lucide-react'
-import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useIpcOn } from '@renderer/ipc'
+import { topicBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
-import TopicBranchPanel from './TopicBranchPanel'
+const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
+
+const TracePane = lazy(() =>
+  import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
+)
 
 interface TopicRightPaneMeta {
   topicId?: string
@@ -31,11 +40,10 @@ interface TopicRightPaneMeta {
 
 interface TopicRightPaneViewportCallbacks {
   onLocateMessage?: (messageId: string) => void
-  onStartBranchDraft?: (messageId: string) => Promise<void> | void
-  onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
 }
 
 interface TopicRightPanelScope extends TopicRightPaneMeta {
+  browserTitle: string
   branchTitle: string
   developerMode: boolean
   resourcePane: ResourcePaneConfig | null
@@ -88,10 +96,9 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
 const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
-
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
-  if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane>')
+  if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
   return store
 }
 
@@ -113,10 +120,6 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-function TopicResourceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  return scope.resourcePane?.node ?? null
-}
-
 function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   const panelState = useRightPanelState()
   const branchLiveState = useTopicBranchLiveState(scope.topicId ?? '')
@@ -127,53 +130,86 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   if (!scope.topicId) return null
 
   return (
-    <TopicBranchPanel
-      open={active}
-      topicId={scope.topicId}
-      topicName={scope.topicName}
-      liveState={branchLiveState}
-      focusKey={canvasFocusKey}
-      layoutReady={canvasLayoutReady}
-      onLocateMessage={callbacks.onLocateMessage}
-      onStartBranchDraft={callbacks.onStartBranchDraft}
-      onCancelBranchDraft={callbacks.onCancelBranchDraft}
+    <Suspense fallback={null}>
+      <TopicBranchPanel
+        open={active}
+        topicId={scope.topicId}
+        topicName={scope.topicName}
+        liveState={branchLiveState}
+        focusKey={canvasFocusKey}
+        layoutReady={canvasLayoutReady}
+        onLocateMessage={callbacks.onLocateMessage}
+      />
+    </Suspense>
+  )
+}
+
+function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!scope.topicId) return null
+  return (
+    <SessionBrowserView
+      runtime={browserRuntime}
+      sessionId={scope.topicId}
+      securityProfile={WebviewSecurityProfile.AgentBrowser}
+      isHostActive={active}
+      target={{ id: `topic-browser:${scope.topicId}`, label: scope.browserTitle }}
+      onNavigate={(url) => browserRuntime.ensure(scope.topicId!, url)}
     />
   )
 }
 
-function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  return <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
+function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
+  const actions = useRightPanelActions()
+  useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
+    if (scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
+  })
+  return null
+}
+
+function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!active) return null
+  return (
+    <Suspense fallback={null}>
+      <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
+    </Suspense>
+  )
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */
+const TRACE_PANE_ID = 'trace'
+const TOPIC_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<TopicRightPanelScope>()
+const TOPIC_TRACE_PANE_CAPABILITY = {
+  component: TopicTraceRightPanel,
+  resolve: (scope: TopicRightPanelScope) => ({
+    id: TRACE_PANE_ID,
+    instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
+    title: scope.traceTitle,
+    readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
+  })
+} satisfies RightPanelCapability<TopicRightPanelScope>
 const TOPIC_RIGHT_PANEL_CAPABILITIES = [
-  {
-    component: TopicResourceRightPanel,
-    resolve: (scope) => ({
-      id: RESOURCE_PANE_TAB,
-      instanceKey: RESOURCE_PANE_TAB,
-      title: scope.resourcePane?.label ?? '',
-      readiness: scope.resourcePane ? 'ready' : 'unavailable'
-    })
-  },
+  TOPIC_RESOURCE_PANE_CAPABILITY,
   {
     component: TopicBranchRightPanel,
     resolve: (scope) => ({
       id: 'branch',
       instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
       title: scope.branchTitle,
-      readiness: scope.topicId ? 'ready' : 'unavailable'
+      readiness: scope.topicId ? 'ready' : 'unavailable',
+      canMaximize: true
     })
   },
   {
-    component: TopicTraceRightPanel,
+    component: TopicBrowserRightPanel,
     resolve: (scope) => ({
-      id: 'trace',
-      instanceKey: `trace:${scope.topicId ?? 'unavailable'}:${scope.traceId ?? ''}`,
-      title: scope.traceTitle,
-      readiness: scope.developerMode && scope.topicId ? 'ready' : 'unavailable'
+      id: 'browser',
+      instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
+      title: scope.browserTitle,
+      readiness: scope.topicId ? 'ready' : 'unavailable',
+      canMaximize: true
     })
-  }
+  },
+  TOPIC_TRACE_PANE_CAPABILITY
 ] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
 function TopicRightPaneProvider({
@@ -185,6 +221,7 @@ function TopicRightPaneProvider({
   present = true,
   defaultOpen = false,
   onOpenChange,
+  userOpenIntentSeq,
   revealRequest
 }: PropsWithChildren<
   TopicRightPaneMeta & {
@@ -192,6 +229,7 @@ function TopicRightPaneProvider({
     present?: boolean
     defaultOpen?: boolean
     onOpenChange?: (open: boolean) => void
+    userOpenIntentSeq?: number
     revealRequest?: ResourceListRevealRequest
   }
 >) {
@@ -206,6 +244,7 @@ function TopicRightPaneProvider({
       traceId,
       resourcePane: resourcePane ?? null,
       developerMode: enableDeveloperMode,
+      browserTitle: t('settings.browser.title'),
       branchTitle: t('chat.message.flow.title'),
       traceTitle: t('trace.label')
     }),
@@ -213,52 +252,48 @@ function TopicRightPaneProvider({
   )
 
   return (
-    <ResourcePaneProvider value={resourcePane ?? null}>
-      <RightPanelProvider
-        capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES}
-        scope={scope}
-        defaultPanelId={RESOURCE_PANE_TAB}
-        defaultOpen={defaultOpen}
-        onOpenChange={onOpenChange}
-        present={present}>
-        <ResourcePaneLocateOpener revealRequest={revealRequest} />
-        <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
-      </RightPanelProvider>
-    </ResourcePaneProvider>
+    <RightPanelProvider
+      capabilities={TOPIC_RIGHT_PANEL_CAPABILITIES}
+      scope={scope}
+      defaultPanelId={RESOURCE_PANE_TAB}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      userOpenIntentSeq={userOpenIntentSeq}
+      present={present}>
+      <TopicBrowserPaneOpener topicId={topicId} />
+      <ResourcePaneLocateOpener revealRequest={revealRequest} />
+      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+    </RightPanelProvider>
   )
 }
 
-function TopicRightPaneViewport({
-  onLocateMessage,
-  onStartBranchDraft,
-  onCancelBranchDraft
-}: TopicRightPaneViewportCallbacks) {
-  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(
-    () => ({ onLocateMessage, onStartBranchDraft, onCancelBranchDraft }),
-    [onCancelBranchDraft, onLocateMessage, onStartBranchDraft]
-  )
+function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallbacks) {
+  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(() => ({ onLocateMessage }), [onLocateMessage])
 
   return (
     <TopicRightPaneViewportContext value={callbacks}>
-      <RightPanelViewport>
-        <RightPanel />
-      </RightPanelViewport>
+      <RightPanelViewport />
     </TopicRightPaneViewportContext>
   )
 }
 
-function TopicRightPaneShortcuts() {
+function TopicRightPaneShortcuts({ browserEnabled = true }: { browserEnabled?: boolean }) {
   const { t } = useTranslation()
+  const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
 
   return (
     <>
+      {browserEnabled && browserControlEnabled && (
+        <RightPanelShortcut tab="browser" label={t('settings.browser.title')} icon={<Globe className="size-3.5" />} />
+      )}
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
-      <RightPanelShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+      <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>
   )
 }
 
-export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
+export const TopicRightPane = {
+  Scope: TopicRightPaneProvider,
   Viewport: TopicRightPaneViewport,
   Shortcuts: TopicRightPaneShortcuts
-})
+} satisfies RightPanelComposition

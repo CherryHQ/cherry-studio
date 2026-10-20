@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import type { NotesTreeNode } from '@renderer/types/note'
 
 const logger = loggerService.withContext('NotesSearchService')
@@ -168,27 +169,6 @@ export function matchFileName(node: NotesTreeNode, keyword: string, caseSensitiv
   const name = caseSensitive ? node.name : node.name.toLowerCase()
   const key = caseSensitive ? keyword : keyword.toLowerCase()
   return name.includes(key)
-}
-
-/**
- * Flatten tree to extract file nodes
- */
-export function flattenTreeToFiles(nodes: NotesTreeNode[]): NotesTreeNode[] {
-  const result: NotesTreeNode[] = []
-
-  function traverse(nodes: NotesTreeNode[]) {
-    for (const node of nodes) {
-      if (node.type === 'file') {
-        result.push(node)
-      }
-      if (node.children && node.children.length > 0) {
-        traverse(node.children)
-      }
-    }
-  }
-
-  traverse(nodes)
-  return result
 }
 
 /**

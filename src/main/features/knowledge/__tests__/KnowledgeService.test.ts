@@ -1,3 +1,8 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
@@ -8,9 +13,10 @@ import {
   type KnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
-import type * as PathStorage from '../utils/storage/pathStorage'
+import type * as PathStorage from '../pathStorage'
 
 const {
   cancelManyMock,
@@ -18,24 +24,29 @@ const {
   getIndexStoreMock,
   deleteStoreMock,
   enqueueMock,
+  enqueueTxMock,
   fileProcessingStartJobMock,
   getJobMock,
   aiEmbedManyMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
+  knowledgeBaseListAllIdsMock,
+  knowledgeBaseListForDiscoveryMock,
   knowledgeBaseListMock,
   knowledgeBaseUpdateMock,
-  knowledgeItemCreateMock,
+  knowledgeItemCreateActiveMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
   knowledgeItemFailInterruptedItemsMock,
+  knowledgeItemClearIndexedRelativePathMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemGetOutermostSelectedItemIdsMock,
   knowledgeItemGetRootItemsByBaseIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
+  knowledgeItemSetSubtreeStatusTxMock,
   knowledgeItemUpdateStatusMock,
   listMock,
   registerHandlerMock,
@@ -56,15 +67,18 @@ const {
   getIndexStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
+  enqueueTxMock: vi.fn(),
   fileProcessingStartJobMock: vi.fn(),
   getJobMock: vi.fn(),
   aiEmbedManyMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
+  knowledgeBaseListAllIdsMock: vi.fn(),
+  knowledgeBaseListForDiscoveryMock: vi.fn(),
   knowledgeBaseListMock: vi.fn(),
   knowledgeBaseUpdateMock: vi.fn(),
-  knowledgeItemCreateMock: vi.fn(),
+  knowledgeItemCreateActiveMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
   knowledgeItemFailInterruptedItemsMock: vi.fn(),
@@ -74,6 +88,8 @@ const {
   knowledgeItemGetRootItemsByBaseIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
+  knowledgeItemClearIndexedRelativePathMock: vi.fn(),
+  knowledgeItemSetSubtreeStatusTxMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   listMock: vi.fn(),
   registerHandlerMock: vi.fn(),
@@ -92,7 +108,8 @@ const {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
+  const { default: nodePath } = await import('node:path')
+  const mocked = mockApplicationFactory({
     FileProcessingService: {
       startJob: fileProcessingStartJobMock
     },
@@ -100,6 +117,7 @@ vi.mock('@application', async () => {
       cancel: cancelMock,
       cancelMany: cancelManyMock,
       enqueue: enqueueMock,
+      enqueueTx: enqueueTxMock,
       get: getJobMock,
       list: listMock,
       registerHandler: registerHandlerMock
@@ -112,6 +130,10 @@ vi.mock('@application', async () => {
       embedMany: aiEmbedManyMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
+  // The shared `/mock/<key>` stub has no drive, so `path.join` on Windows yields `\mock\…`, which
+  // AbsoluteFilePathSchema rejects; resolve it to a host-absolute root instead.
+  mocked.application.getPath = vi.fn((key: string, filename?: string) => nodePath.resolve('/mock', key, filename ?? ''))
+  return mocked
 })
 
 vi.mock('@logger', () => ({
@@ -152,6 +174,8 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
     create: knowledgeBaseCreateMock,
     delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock,
+    listAllIds: knowledgeBaseListAllIdsMock,
+    listForDiscovery: knowledgeBaseListForDiscoveryMock,
     list: knowledgeBaseListMock,
     update: knowledgeBaseUpdateMock
   }
@@ -159,7 +183,8 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    create: knowledgeItemCreateMock,
+    clearIndexedRelativePath: knowledgeItemClearIndexedRelativePathMock,
+    createActive: knowledgeItemCreateActiveMock,
     delete: knowledgeItemDeleteMock,
     getDeletingRootGroups: knowledgeItemGetDeletingRootGroupsMock,
     failInterruptedItems: knowledgeItemFailInterruptedItemsMock,
@@ -169,16 +194,17 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getOutermostSelectedItemIds: knowledgeItemGetOutermostSelectedItemIdsMock,
     getRootItemsByBaseId: knowledgeItemGetRootItemsByBaseIdMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
+    setSubtreeStatusTx: knowledgeItemSetSubtreeStatusTxMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
 
-vi.mock('../utils/indexing/rerank', () => ({
+vi.mock('../pipeline/indexing/rerank', () => ({
   rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
 
-vi.mock('../utils/storage/pathStorage', async () => {
-  const actual = await vi.importActual<typeof PathStorage>('../utils/storage/pathStorage')
+vi.mock('../pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../pathStorage')
   return {
     ...actual,
     copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,
@@ -188,7 +214,18 @@ vi.mock('../utils/storage/pathStorage', async () => {
   }
 })
 
-const { KnowledgeService, KNOWLEDGE_TREE_MAX_NODES } = await import('../KnowledgeService')
+vi.mock('@main/utils/binaryResolver', () => ({
+  getBinaryPath: async () =>
+    `${process.cwd()}/resources/binaries/${process.platform}-${process.arch}/rg${process.platform === 'win32' ? '.exe' : ''}`
+}))
+
+const { KnowledgeService } = await import('../KnowledgeService')
+const ripgrepModule = await import('@main/ai/mcp/servers/filesystem/types')
+// Unit-test CI does not download the bundled binaries; the real-ripgrep cases run wherever `pnpm dev` fetched them.
+const hasBundledRipgrep = existsSync(await ripgrepModule.getRipgrepBinaryPath())
+const { KNOWLEDGE_TREE_MAX_NODES } = await import('../query/KnowledgeConceptService')
+
+const knowledgeDataPath = (...segments: string[]) => path.resolve('/mock/feature.knowledgebase.data', ...segments)
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
@@ -198,6 +235,7 @@ const PROCESSING_NOTE_ITEM_ID = '0198f3f2-7d1e-7abc-8def-123456789abc'
 const EMBEDDING_NOTE_ITEM_ID = '0198f3f2-7d1f-7abc-8def-123456789abc'
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: 'kb-1',
     name: 'KB',
     groupId: null,
@@ -222,7 +260,7 @@ function createNoteItem(
   id = 'note-1',
   baseId = 'kb-1',
   groupId: string | null = null,
-  status: KnowledgeItemOf<'note'>['status'] = 'idle'
+  status: KnowledgeItemOf<'note'>['status'] = 'processing'
 ): KnowledgeItemOf<'note'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
@@ -242,7 +280,7 @@ function createNoteItem(
 function createDirectoryItem(
   id = 'dir-1',
   groupId: string | null = null,
-  status: KnowledgeItemOf<'directory'>['status'] = 'idle'
+  status: KnowledgeItemOf<'directory'>['status'] = 'processing'
 ): KnowledgeItemOf<'directory'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
@@ -252,7 +290,7 @@ function createDirectoryItem(
     baseId: 'kb-1',
     groupId,
     type: 'directory',
-    data: { source: id },
+    data: { source: `/${id}` },
     ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -263,7 +301,8 @@ function createFileItem(
   id = 'file-1',
   baseId = 'kb-1',
   source = '/docs/source.pdf',
-  status: KnowledgeItemOf<'file'>['status'] = 'idle'
+  status: KnowledgeItemOf<'file'>['status'] = 'processing',
+  indexedRelativePath?: PosixRelativeFilePath
 ): KnowledgeItemOf<'file'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
@@ -273,7 +312,11 @@ function createFileItem(
     baseId,
     groupId: null,
     type: 'file',
-    data: { source, relativePath: source.split('/').pop() ?? source },
+    data: {
+      source,
+      relativePath: (source.split('/').pop() ?? source) as PosixRelativeFilePath,
+      ...(indexedRelativePath ? { indexedRelativePath } : {})
+    },
     ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -315,6 +358,8 @@ describe('KnowledgeService', () => {
     knowledgeBaseCreateMock.mockReturnValue(createBase())
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+    knowledgeBaseListAllIdsMock.mockReturnValue(new Set())
+    knowledgeBaseListForDiscoveryMock.mockReturnValue({ items: [], total: 0 })
     knowledgeBaseUpdateMock.mockImplementation((_id: string, patch: Partial<KnowledgeBase>) => createBase(patch))
     fsStatMock.mockResolvedValue({
       isFile: () => true,
@@ -329,13 +374,15 @@ describe('KnowledgeService', () => {
     copyFileIntoKnowledgeBaseAtMock.mockImplementation(
       async (_baseId: string, _sourcePath: string, relativePath: string) => relativePath
     )
-    knowledgeItemCreateMock.mockImplementation((baseId: string, input: { type?: string; data: { source: string } }) => {
-      createdItemBaseIds.set(input.data.source, baseId)
-      if (input.type === 'file') {
-        return createFileItem(input.data.source, baseId, input.data.source)
+    knowledgeItemCreateActiveMock.mockImplementation(
+      (baseId: string, input: { type?: string; data: { source: string } }) => {
+        createdItemBaseIds.set(input.data.source, baseId)
+        if (input.type === 'file') {
+          return createFileItem(input.data.source, baseId, input.data.source, 'processing')
+        }
+        return createNoteItem(input.data.source, baseId, null, 'processing')
       }
-      return createNoteItem(input.data.source, baseId)
-    })
+    )
     knowledgeItemDeleteMock.mockReturnValue(undefined)
     deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
     knowledgeItemGetDeletingRootGroupsMock.mockReturnValue([])
@@ -357,20 +404,22 @@ describe('KnowledgeService', () => {
       }
     )
     knowledgeItemSetSubtreeStatusMock.mockReturnValue(['note-1'])
+    knowledgeItemSetSubtreeStatusTxMock.mockReturnValue(['note-1'])
     knowledgeItemUpdateStatusMock.mockImplementation((id: string, status: KnowledgeItemOf<'note'>['status']) => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1', null, status)
     })
     enqueueMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+    enqueueTxMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     fileProcessingStartJobMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
     getJobMock.mockResolvedValue(null)
     listMock.mockResolvedValue([])
-    getIndexStoreMock.mockResolvedValue({
+    getIndexStoreMock.mockReturnValue({
       search: storeSearchMock,
       listMaterialUnits: listMaterialUnitsMock,
       getMaterialByRelativePath: getMaterialByRelativePathMock,
       readMaterialContent: readMaterialContentMock
     })
-    listMaterialUnitsMock.mockResolvedValue([])
+    listMaterialUnitsMock.mockReturnValue([])
     storeSearchMock.mockResolvedValue([])
     getMaterialByRelativePathMock.mockResolvedValue(null)
     readMaterialContentMock.mockResolvedValue(null)
@@ -384,7 +433,8 @@ describe('KnowledgeService', () => {
     expect(getDependencies(KnowledgeService)).toEqual([
       'KnowledgeVectorStoreService',
       'JobManager',
-      'FileProcessingService'
+      'FileProcessingService',
+      'WebSearchService'
     ])
   })
 
@@ -530,7 +580,9 @@ describe('KnowledgeService', () => {
     )
     expect(getIndexStoreMock).toHaveBeenCalledWith(base)
 
-    getIndexStoreMock.mockRejectedValueOnce(new Error('store failed'))
+    getIndexStoreMock.mockImplementationOnce(() => {
+      throw new Error('store failed')
+    })
     await expect(
       service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
     ).rejects.toThrow('store failed')
@@ -539,7 +591,9 @@ describe('KnowledgeService', () => {
 
   it('rollback removes the orphaned index dir and still surfaces the original error when cleanup itself fails', async () => {
     const service = new KnowledgeService()
-    getIndexStoreMock.mockRejectedValueOnce(new Error('store failed'))
+    getIndexStoreMock.mockImplementationOnce(() => {
+      throw new Error('store failed')
+    })
     // Even if the orphan-dir cleanup throws, the caller must see the open error.
     deleteStoreMock.mockRejectedValueOnce(new Error('cleanup boom'))
 
@@ -551,6 +605,41 @@ describe('KnowledgeService', () => {
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
+  it('removes orphan artifacts only when the base is still unowned', async () => {
+    const service = new KnowledgeService()
+
+    await expect(service.removeOrphanBaseArtifacts('orphan-base')).resolves.toBe(true)
+    expect(deleteStoreMock).toHaveBeenCalledWith('orphan-base')
+
+    knowledgeBaseListAllIdsMock.mockReturnValueOnce(new Set(['owned-base']))
+    await expect(service.removeOrphanBaseArtifacts('owned-base')).resolves.toBe(false)
+    expect(deleteStoreMock).not.toHaveBeenCalledWith('owned-base')
+  })
+
+  it('serializes orphan cleanup and artifact creation for the same base', async () => {
+    const service = new KnowledgeService()
+    const cleanupEntered = createDeferred()
+    const releaseCleanup = createDeferred()
+    const base = createBase({ id: 'kb-1' })
+    deleteStoreMock.mockImplementationOnce(async () => {
+      cleanupEntered.resolve()
+      await releaseCleanup.promise
+    })
+    knowledgeBaseCreateMock.mockReturnValueOnce(base)
+
+    const cleanup = service.removeOrphanBaseArtifacts(base.id)
+    await cleanupEntered.promise
+    const creation = service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
+    await flushMicrotasks()
+
+    expect(getIndexStoreMock).not.toHaveBeenCalled()
+
+    releaseCleanup.resolve()
+    await expect(cleanup).resolves.toBe(true)
+    await expect(creation).resolves.toBe(base)
+    expect(getIndexStoreMock).toHaveBeenCalledWith(base)
+  })
+
   it('deletes base jobs before vector artifacts and SQLite base', async () => {
     const service = new KnowledgeService()
 
@@ -559,6 +648,13 @@ describe('KnowledgeService', () => {
     expect(listMock).toHaveBeenCalledWith({
       queue: 'base.kb-1',
       status: ['pending', 'delayed', 'running'],
+      type: [
+        'knowledge.prepare-root',
+        'knowledge.index-documents',
+        'knowledge.check-file-processing-result',
+        'knowledge.delete-subtree',
+        'knowledge.reindex-subtree'
+      ],
       limit: 5000
     })
     expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
@@ -581,7 +677,7 @@ describe('KnowledgeService', () => {
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
           firstScheduledAt: 1779811200000,
-          parentJobId: null
+          processedRelativePath: 'source.md' as PosixRelativeFilePath
         }
       }
     ])
@@ -659,6 +755,30 @@ describe('KnowledgeService', () => {
       'knowledge.index-documents',
       expect.objectContaining({ baseId: 'restored-kb' }),
       expect.objectContaining({ idempotencyKey: expect.stringContaining('knowledge:restored-kb:') })
+    )
+  })
+
+  it('restores a base without embeddings as BM25-only', async () => {
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: null, dimensions: null })
+    knowledgeBaseGetByIdMock
+      .mockReturnValueOnce(createBase({ id: 'source-kb' }))
+      .mockReturnValueOnce(restoredBase)
+      .mockReturnValueOnce(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([createNoteItem('source-note', 'source-kb')])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored BM25 KB',
+        embeddingModelId: null,
+        dimensions: null
+      })
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ embeddingModelId: null, dimensions: null })
     )
   })
 
@@ -839,16 +959,23 @@ describe('KnowledgeService', () => {
 
     const processedSourceFile = {
       ...createFileItem('src-file', 'source-kb', '/docs/report.pdf'),
-      data: { source: '/docs/report.pdf', relativePath: 'report.pdf', indexedRelativePath: 'report.md' }
+      data: {
+        source: '/docs/report.pdf',
+        relativePath: 'report.pdf' as PosixRelativeFilePath,
+        indexedRelativePath: 'report.md' as PosixRelativeFilePath
+      }
     }
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([processedSourceFile])
 
     const restoredFile = {
       ...createFileItem('restored-file', 'restored-kb', '/docs/report.pdf', 'processing'),
-      data: { source: '/docs/report.pdf', relativePath: 'report.pdf', indexedRelativePath: 'report.md' }
+      data: {
+        source: '/docs/report.pdf',
+        relativePath: 'report.pdf' as PosixRelativeFilePath,
+        indexedRelativePath: 'report.md' as PosixRelativeFilePath
+      }
     }
-    knowledgeItemCreateMock.mockReturnValueOnce(restoredFile)
-    knowledgeItemUpdateStatusMock.mockReturnValueOnce(restoredFile)
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(restoredFile)
     knowledgeItemGetByIdMock.mockReturnValue(restoredFile)
 
     await service.restoreBase({
@@ -860,15 +987,19 @@ describe('KnowledgeService', () => {
 
     // Both the source file and its already-processed artifact are copied into the restored base.
     expect(copyFileIntoKnowledgeBaseAtMock.mock.calls).toEqual([
-      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.pdf', 'report.pdf'],
-      ['restored-kb', '/mock/feature.knowledgebase.data/source-kb/raw/report.md', 'report.md']
+      ['restored-kb', knowledgeDataPath('source-kb', 'raw', 'report.pdf'), 'report.pdf'],
+      ['restored-kb', knowledgeDataPath('source-kb', 'raw', 'report.md'), 'report.md']
     ])
     // The created item carries the artifact path.
-    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
       'restored-kb',
       expect.objectContaining({
         type: 'file',
-        data: { source: '/docs/report.pdf', relativePath: 'report.pdf', indexedRelativePath: 'report.md' }
+        data: {
+          source: '/docs/report.pdf',
+          relativePath: 'report.pdf' as PosixRelativeFilePath,
+          indexedRelativePath: 'report.md' as PosixRelativeFilePath
+        }
       })
     )
     // The file processor is skipped and indexing runs straight from the artifact (re-embedding still happens).
@@ -890,7 +1021,11 @@ describe('KnowledgeService', () => {
     const sourceUrl = {
       ...createNoteItem('source-url', 'source-kb'),
       type: 'url' as const,
-      data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example-page.md' }
+      data: {
+        source: 'https://example.com',
+        url: 'https://example.com',
+        relativePath: 'example-page.md' as PosixRelativeFilePath
+      }
     }
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([sourceUrl])
 
@@ -904,15 +1039,19 @@ describe('KnowledgeService', () => {
     // The snapshot markdown is copied into the restored base under the same name.
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
       'restored-kb',
-      '/mock/feature.knowledgebase.data/source-kb/raw/example-page.md',
+      knowledgeDataPath('source-kb', 'raw', 'example-page.md'),
       'example-page.md'
     )
     // The created url item is pinned to the copied snapshot so first index reads it offline.
-    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
       'restored-kb',
       expect.objectContaining({
         type: 'url',
-        data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example-page.md' }
+        data: {
+          source: 'https://example.com',
+          url: 'https://example.com',
+          relativePath: 'example-page.md' as PosixRelativeFilePath
+        }
       })
     )
   })
@@ -939,7 +1078,7 @@ describe('KnowledgeService', () => {
     })
 
     // No snapshot to carry: the restored url has no relativePath so first index re-captures it.
-    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
       'restored-kb',
       expect.objectContaining({ type: 'url', data: { source: 'https://example.com', url: 'https://example.com' } })
     )
@@ -956,10 +1095,10 @@ describe('KnowledgeService', () => {
 
     expect(enqueueMock.mock.calls.map((call) => call[0])).toEqual([
       'knowledge.index-documents',
-      'knowledge.delete-subtree',
       'knowledge.reindex-subtree'
     ])
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
+    expect(enqueueTxMock.mock.calls.map((call) => call[1])).toEqual(['knowledge.delete-subtree'])
+    expect(knowledgeItemSetSubtreeStatusTxMock).toHaveBeenCalledWith(expect.anything(), 'kb-1', ['note-1'], 'deleting')
   })
 
   describe('enableEmbeddingModel', () => {
@@ -1026,7 +1165,7 @@ describe('KnowledgeService', () => {
     it('rejects a backfill when a root item source no longer exists, without committing the model', async () => {
       const service = new KnowledgeService()
       const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
-      probeKnowledgeFileMock.mockResolvedValue('missing')
+      probeKnowledgeSourcePathMock.mockResolvedValue('missing')
       knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([root])
       knowledgeItemGetByIdMock.mockReturnValue(root)
       knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -1070,20 +1209,20 @@ describe('KnowledgeService', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-08T00:00:00.000Z'))
     const service = new KnowledgeService()
-    const createdFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf')
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
-    knowledgeItemCreateMock.mockReturnValueOnce(createdFile)
-    knowledgeItemUpdateStatusMock.mockReturnValueOnce(processingFile)
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
@@ -1099,7 +1238,7 @@ describe('KnowledgeService', () => {
         fileProcessingJobId: 'fp-job-1',
         pollRound: 0,
         firstScheduledAt: expect.any(Number),
-        parentJobId: 'fp-job-1'
+        processedRelativePath: 'source.md' as PosixRelativeFilePath
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
@@ -1114,10 +1253,7 @@ describe('KnowledgeService', () => {
   it('auto-renames a duplicate uploaded file name instead of rejecting the import', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
-    knowledgeItemCreateMock
-      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/notes.md'))
-      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md'))
-    knowledgeItemUpdateStatusMock
+    knowledgeItemCreateActiveMock
       .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/notes.md', 'processing'))
       .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md', 'processing'))
     knowledgeItemGetByIdMock
@@ -1125,12 +1261,12 @@ describe('KnowledgeService', () => {
       .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md', 'processing'))
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' } },
-      { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' } }
+      { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' as AbsoluteFilePath } },
+      { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' as AbsoluteFilePath } }
     ])
 
     // Both imports land; the second's relativePath is deduped (`_N`) rather than refused.
-    expect(knowledgeItemCreateMock).toHaveBeenCalledTimes(2)
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(2)
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/notes.md', 'notes.md')
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/notes.md', 'notes_1.md')
   })
@@ -1138,26 +1274,24 @@ describe('KnowledgeService', () => {
   it('auto-renames a file whose processed-markdown name would collide', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
-    knowledgeItemCreateMock
-      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf'))
-      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx'))
-    knowledgeItemUpdateStatusMock
-      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf', 'processing'))
-      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
+    knowledgeItemCreateActiveMock
+      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.md', 'processing'))
+      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.pdf', 'processing'))
     knowledgeItemGetByIdMock
-      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf', 'processing'))
-      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
+      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.md', 'processing'))
+      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.pdf', 'processing'))
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' } },
-      { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' } }
+      { type: 'file', data: { source: '/Users/me/a/brief.md', path: '/Users/me/a/brief.md' as AbsoluteFilePath } },
+      { type: 'file', data: { source: '/Users/me/b/brief.pdf', path: '/Users/me/b/brief.pdf' as AbsoluteFilePath } }
     ])
 
-    // brief.pdf reserves brief.pdf + its brief.md output; brief.docx would also emit
-    // brief.md, so it is bumped to brief_1.docx (whose brief_1.md sibling is free).
-    expect(knowledgeItemCreateMock).toHaveBeenCalledTimes(2)
-    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/brief.pdf', 'brief.pdf')
-    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/brief.docx', 'brief_1.docx')
+    // brief.md occupies the name brief.pdf's processed artifact would take, so the pdf is
+    // bumped to brief_1.pdf (whose brief_1.md sibling is free) even though brief.pdf itself
+    // was never taken.
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(2)
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/brief.md', 'brief.md')
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/brief.pdf', 'brief_1.pdf')
   })
 
   it('auto-renames a restored url snapshot whose name collides with an existing url snapshot', async () => {
@@ -1168,7 +1302,11 @@ describe('KnowledgeService', () => {
       {
         ...createNoteItem('existing-url', 'kb-1'),
         type: 'url' as const,
-        data: { source: 'https://example.com/old', url: 'https://example.com/old', relativePath: 'example-page.md' }
+        data: {
+          source: 'https://example.com/old',
+          url: 'https://example.com/old',
+          relativePath: 'example-page.md' as PosixRelativeFilePath
+        }
       }
     ])
 
@@ -1178,7 +1316,7 @@ describe('KnowledgeService', () => {
         data: {
           source: 'https://example.com/new',
           url: 'https://example.com/new',
-          snapshotPath: '/captured/example-page.md'
+          snapshotPath: '/captured/example-page.md' as AbsoluteFilePath
         }
       }
     ])
@@ -1191,11 +1329,15 @@ describe('KnowledgeService', () => {
       '/captured/example-page.md',
       'example-page_1.md'
     )
-    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
       'kb-1',
       expect.objectContaining({
         type: 'url',
-        data: { source: 'https://example.com/new', url: 'https://example.com/new', relativePath: 'example-page_1.md' }
+        data: {
+          source: 'https://example.com/new',
+          url: 'https://example.com/new',
+          relativePath: 'example-page_1.md' as PosixRelativeFilePath
+        }
       })
     )
   })
@@ -1205,7 +1347,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
     // The url restore copies its snapshot to raw/ before the row is created; that create fails.
-    knowledgeItemCreateMock.mockImplementationOnce(() => {
+    knowledgeItemCreateActiveMock.mockImplementationOnce(() => {
       throw new Error('db down')
     })
 
@@ -1216,7 +1358,7 @@ describe('KnowledgeService', () => {
           data: {
             source: 'https://example.com/p',
             url: 'https://example.com/p',
-            snapshotPath: '/captured/example-page.md'
+            snapshotPath: '/captured/example-page.md' as AbsoluteFilePath
           }
         }
       ])
@@ -1227,7 +1369,12 @@ describe('KnowledgeService', () => {
     // later hard-failed on the orphan.
     expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith(
       'kb-1',
-      [expect.objectContaining({ type: 'url', data: expect.objectContaining({ relativePath: 'example-page.md' }) })],
+      [
+        expect.objectContaining({
+          type: 'url',
+          data: expect.objectContaining({ relativePath: 'example-page.md' as PosixRelativeFilePath })
+        })
+      ],
       expect.anything()
     )
   })
@@ -1240,11 +1387,10 @@ describe('KnowledgeService', () => {
       {
         ...createNoteItem('existing-note', 'kb-1'),
         type: 'note' as const,
-        data: { source: 'Meeting notes', content: 'hello', relativePath: 'Meeting notes.md' }
+        data: { source: 'Meeting notes', content: 'hello', relativePath: 'Meeting notes.md' as PosixRelativeFilePath }
       }
     ])
-    knowledgeItemCreateMock.mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/Meeting notes.md'))
-    knowledgeItemUpdateStatusMock.mockReturnValueOnce(
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(
       createFileItem('file-1', 'kb-1', '/Users/me/Meeting notes.md', 'processing')
     )
     knowledgeItemGetByIdMock.mockReturnValueOnce(
@@ -1252,7 +1398,10 @@ describe('KnowledgeService', () => {
     )
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/Meeting notes.md', path: '/Users/me/Meeting notes.md' } }
+      {
+        type: 'file',
+        data: { source: '/Users/me/Meeting notes.md', path: '/Users/me/Meeting notes.md' as AbsoluteFilePath }
+      }
     ])
 
     // The new file's name collides with the existing note's reserved snapshot path, so it is
@@ -1263,11 +1412,11 @@ describe('KnowledgeService', () => {
       '/Users/me/Meeting notes.md',
       'Meeting notes_1.md'
     )
-    expect(knowledgeItemCreateMock).toHaveBeenCalledWith(
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
       'kb-1',
       expect.objectContaining({
         type: 'file',
-        data: { source: '/Users/me/Meeting notes.md', relativePath: 'Meeting notes_1.md' }
+        data: { source: '/Users/me/Meeting notes.md', relativePath: 'Meeting notes_1.md' as PosixRelativeFilePath }
       })
     )
   })
@@ -1282,21 +1431,21 @@ describe('KnowledgeService', () => {
       {
         ...createNoteItem('existing-note', 'kb-1'),
         type: 'note' as const,
-        data: { source: 'Source', content: 'hello', relativePath: 'source.md' }
+        data: { source: 'Source', content: 'hello', relativePath: 'source.md' as PosixRelativeFilePath }
       }
     ])
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
     // The processed-artifact reservation guard must treat the note snapshot as occupied (it lives
     // under `raw/` too), so it refuses the colliding `.md` output instead of overwriting it on disk.
-    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
+    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
       'Knowledge file already exists: source.md'
     )
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
@@ -1311,7 +1460,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('file-existing', 'kb-1', '/old/notes.md')])
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' } }
+      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' as AbsoluteFilePath } }
     ])
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/notes.md', 'notes_1.md')
@@ -1326,7 +1475,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('file-existing', 'kb-1', '/old/brief.pdf')])
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/c/brief.md', path: '/Users/me/c/brief.md' } }
+      { type: 'file', data: { source: '/Users/me/c/brief.md', path: '/Users/me/c/brief.md' as AbsoluteFilePath } }
     ])
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/brief.md', 'brief_1.md')
@@ -1337,12 +1486,80 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
 
     await expect(
-      service.addItems('kb-1', [{ type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' } }])
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' as AbsoluteFilePath } }
+      ])
     ).rejects.toThrow('Unsupported knowledge file type: /Users/me/app.exe')
 
-    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
+  it('drops the stale processed artifact when a reindexed file will not be reprocessed', async () => {
+    const service = new KnowledgeService()
+    // The base's document processor was removed after this PDF was processed, so nothing will
+    // regenerate source.md — indexing it would rebuild search from the pre-refresh document.
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(
+      createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing', 'source.md' as PosixRelativeFilePath)
+    )
+
+    const ingestionService = (
+      service as unknown as {
+        ingestionService: {
+          scheduleItem(
+            baseId: string,
+            itemId: string,
+            parentJobId?: string | null,
+            options?: { forceFileReprocess?: boolean }
+          ): Promise<void>
+        }
+      }
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job', { forceFileReprocess: true })
+
+    expect(knowledgeItemClearIndexedRelativePathMock).toHaveBeenCalledWith('file-1')
+    // Nothing reserves source.md once the pin is gone, so its bytes must go too or a later
+    // import of that name collides with an orphan.
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith(
+      'kb-1',
+      [{ type: 'file', data: { relativePath: 'source.md' } }],
+      expect.objectContaining({ itemId: 'file-1', staleRelativePath: 'source.md' })
+    )
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the processed-artifact pin when the reindexed file is reprocessed onto the same path', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(
+      createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing', 'source.md' as PosixRelativeFilePath)
+    )
+
+    const ingestionService = (
+      service as unknown as {
+        ingestionService: {
+          scheduleItem(
+            baseId: string,
+            itemId: string,
+            parentJobId?: string | null,
+            options?: { forceFileReprocess?: boolean }
+          ): Promise<void>
+        }
+      }
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job', { forceFileReprocess: true })
+
+    // The processor rewrites source.md in place, so the pin still describes the refreshed file;
+    // clearing it here would strand the check handler's availability guard on a live artifact.
+    expect(knowledgeItemClearIndexedRelativePathMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') }
+      }),
+      expect.anything()
+    )
   })
 
   it('passes the parent job when starting file processing during reindex', async () => {
@@ -1351,20 +1568,20 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
-    await workflowService.scheduleItem('kb-1', 'file-1', 'reindex-job')
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job')
 
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.pdf') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
@@ -1380,7 +1597,7 @@ describe('KnowledgeService', () => {
         fileProcessingJobId: 'fp-job-1',
         pollRound: 0,
         firstScheduledAt: expect.any(Number),
-        parentJobId: 'reindex-job'
+        processedRelativePath: 'source.md' as PosixRelativeFilePath
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
@@ -1400,15 +1617,15 @@ describe('KnowledgeService', () => {
       throw new Error('check enqueue failed')
     })
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
-    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
+    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
 
     expect(fileProcessingStartJobMock).toHaveBeenCalled()
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
@@ -1424,15 +1641,15 @@ describe('KnowledgeService', () => {
     })
     cancelMock.mockRejectedValueOnce(new Error('cancel failed'))
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
-    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
+    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
   })
 
@@ -1442,18 +1659,18 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
-    await workflowService.scheduleItem('kb-1', 'file-1', 'reindex-job')
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job')
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: 'kb-1', itemId: 'file-1', parentJobId: 'reindex-job' },
+      { baseId: 'kb-1', itemId: 'file-1' },
       {
         idempotencyKey: 'knowledge:kb-1:file-1:index:reindex-job',
         queue: 'base.kb-1',
@@ -1466,23 +1683,29 @@ describe('KnowledgeService', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-08T00:00:00.000Z'))
     const service = new KnowledgeService()
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleFileProcessingCheck(
             baseId: string,
             itemId: string,
             fileProcessingJobId: string,
-            options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
+            options: {
+              pollRound: number
+              firstScheduledAt: number
+              parentJobId: string | null
+              processedRelativePath: string
+            }
           ): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
-    await workflowService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', {
+    await ingestionService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', {
       pollRound: 1,
       firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
-      parentJobId: 'check-job-0'
+      parentJobId: 'check-job-0',
+      processedRelativePath: 'source.md'
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1493,7 +1716,7 @@ describe('KnowledgeService', () => {
         fileProcessingJobId: 'fp-job-1',
         pollRound: 1,
         firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
-        parentJobId: 'check-job-0'
+        processedRelativePath: 'source.md' as PosixRelativeFilePath
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:1',
@@ -1506,19 +1729,19 @@ describe('KnowledgeService', () => {
 
   it('schedules direct indexing for file items when the extension does not need file processing', async () => {
     const service = new KnowledgeService()
-    const createdFile = createFileItem('file-1', 'kb-1', '/docs/source.md')
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.md', 'processing')
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
-    knowledgeItemCreateMock.mockReturnValueOnce(createdFile)
-    knowledgeItemUpdateStatusMock.mockReturnValueOnce(processingFile)
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.md', path: '/docs/source.md' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.md', path: '/docs/source.md' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: 'kb-1', itemId: 'file-1', parentJobId: null },
+      { baseId: 'kb-1', itemId: 'file-1' },
       {
         idempotencyKey: 'knowledge:kb-1:file-1:index',
         queue: 'base.kb-1',
@@ -1529,19 +1752,19 @@ describe('KnowledgeService', () => {
 
   it('schedules direct indexing for document files when the base has no file processor', async () => {
     const service = new KnowledgeService()
-    const createdFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf')
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
-    knowledgeItemCreateMock.mockReturnValueOnce(createdFile)
-    knowledgeItemUpdateStatusMock.mockReturnValueOnce(processingFile)
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: 'kb-1', itemId: 'file-1', parentJobId: null },
+      { baseId: 'kb-1', itemId: 'file-1' },
       {
         idempotencyKey: 'knowledge:kb-1:file-1:index',
         queue: 'base.kb-1',
@@ -1565,20 +1788,18 @@ describe('KnowledgeService', () => {
       ])
     ).rejects.toThrow('enqueue failed')
 
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-2', 'processing')
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-2', 'failed', {
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-2'], 'failed', {
       error: 'Failed to schedule knowledge item job: enqueue failed'
     })
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('note-1', 'failed', expect.anything())
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
   })
 
-  it('rolls back every created addItems row when a status update fails', async () => {
+  it('rolls back already-created addItems rows when a later create fails mid-batch', async () => {
     const service = new KnowledgeService()
-    knowledgeItemUpdateStatusMock
+    knowledgeItemCreateActiveMock
       .mockReturnValueOnce(createNoteItem('note-1', 'kb-1', null, 'processing'))
       .mockImplementationOnce(() => {
-        throw new Error('status failed')
+        throw new Error('create failed')
       })
 
     await expect(
@@ -1586,21 +1807,24 @@ describe('KnowledgeService', () => {
         { type: 'note', data: { source: 'note-1', content: 'hello 1' } },
         { type: 'note', data: { source: 'note-2', content: 'hello 2' } }
       ])
-    ).rejects.toThrow('status failed')
+    ).rejects.toThrow('create failed')
 
+    // note-2's row was never created, so there is nothing to roll back for it.
     expect(knowledgeItemDeleteMock).toHaveBeenCalledWith('note-1')
-    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith('note-2')
+    expect(knowledgeItemDeleteMock).not.toHaveBeenCalledWith('note-2')
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
   it('runs best-effort copied-file cleanup and preserves the original addItems error', async () => {
     const service = new KnowledgeService()
-    knowledgeItemCreateMock.mockImplementationOnce(() => {
+    knowledgeItemCreateActiveMock.mockImplementationOnce(() => {
       throw new Error('create failed')
     })
 
     await expect(
-      service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/x.pdf', path: '/docs/x.pdf' } }])
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/docs/x.pdf', path: '/docs/x.pdf' as AbsoluteFilePath } }
+      ])
     ).rejects.toThrow('create failed')
 
     // Copied-file cleanup is delegated to the best-effort variant, which swallows its
@@ -1608,18 +1832,17 @@ describe('KnowledgeService', () => {
     expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps items deleting when delete cleanup enqueue fails', async () => {
+  it('runs delete marking and enqueue inside one transaction', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1'))
-    enqueueMock.mockImplementationOnce(() => {
+    enqueueTxMock.mockImplementationOnce(() => {
       throw new Error('enqueue failed')
     })
 
     await expect(service.deleteItems('kb-1', ['note-1'])).rejects.toThrow('enqueue failed')
 
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
-    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
-    expect(enqueueMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeItemSetSubtreeStatusTxMock).toHaveBeenCalledWith(expect.anything(), 'kb-1', ['note-1'], 'deleting')
+    expect(enqueueTxMock).toHaveBeenCalledTimes(1)
   })
 
   it('collapses nested delete and reindex inputs to top-level roots', async () => {
@@ -1633,14 +1856,15 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenNthCalledWith(1, 'kb-1', ['dir-1', 'note-1'])
     expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenNthCalledWith(2, 'kb-1', ['dir-1', 'note-1'])
 
-    expect(enqueueMock).toHaveBeenNthCalledWith(
+    expect(enqueueTxMock).toHaveBeenNthCalledWith(
       1,
+      expect.anything(),
       'knowledge.delete-subtree',
       { baseId: 'kb-1', rootItemIds: ['dir-1'] },
       expect.any(Object)
     )
     expect(enqueueMock).toHaveBeenNthCalledWith(
-      2,
+      1,
       'knowledge.reindex-subtree',
       { baseId: 'kb-1', rootItemIds: ['dir-1'] },
       expect.any(Object)
@@ -1674,7 +1898,7 @@ describe('KnowledgeService', () => {
     const migratedChild: KnowledgeItemOf<'file'> = {
       ...createFileItem('file-1', 'kb-1', '/legacy/abs/x.md', 'completed'),
       groupId: 'dir-1',
-      data: { source: '/legacy/abs/x.md', relativePath: 'file-1' }
+      data: { source: '/legacy/abs/x.md', relativePath: 'file-1' as PosixRelativeFilePath }
     }
     probeKnowledgeSourcePathMock.mockResolvedValue('missing')
     knowledgeItemGetByIdMock.mockReturnValue(root)
@@ -1717,10 +1941,13 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
   })
 
-  it('rejects reindex of a file whose source file no longer exists on disk', async () => {
+  it('rejects reindex of a file whose original file no longer exists on disk', async () => {
     const service = new KnowledgeService()
+    // Reindex re-copies the user's original over this base's copy, so the original is what must
+    // still be there — a readable copy is not enough to re-acquire from.
     const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
-    probeKnowledgeFileMock.mockResolvedValue('missing')
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
+    probeKnowledgeFileMock.mockResolvedValue('readable')
     knowledgeItemGetByIdMock.mockReturnValue(root)
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
@@ -1790,12 +2017,12 @@ describe('KnowledgeService', () => {
       ...item,
       data: {
         ...item.data,
-        relativePath: 'stored-report.pdf',
-        indexedRelativePath: 'stored-report.md'
+        relativePath: 'stored-report.pdf' as PosixRelativeFilePath,
+        indexedRelativePath: 'stored-report.md' as PosixRelativeFilePath
       }
     })
 
-    expect(service.getFilePath('file-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/stored-report.pdf')
+    expect(service.getFilePath('file-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'stored-report.pdf'))
   })
 
   it('resolves a URL preview to the captured knowledge snapshot', () => {
@@ -1808,7 +2035,7 @@ describe('KnowledgeService', () => {
       data: {
         source: 'https://example.com/product-docs',
         url: 'https://example.com/product-docs',
-        relativePath: 'Product Docs.md'
+        relativePath: 'Product Docs.md' as PosixRelativeFilePath
       },
       status: 'completed',
       error: null,
@@ -1816,7 +2043,7 @@ describe('KnowledgeService', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
-    expect(service.getFilePath('url-1')).toBe('/mock/feature.knowledgebase.data/kb-1/raw/Product Docs.md')
+    expect(service.getFilePath('url-1')).toBe(knowledgeDataPath('kb-1', 'raw', 'Product Docs.md'))
   })
 
   it('rejects URL preview path resolution before a snapshot is captured', () => {
@@ -1853,7 +2080,7 @@ describe('KnowledgeService', () => {
     const directory = createDirectoryItem('directory-1', null, 'completed')
     knowledgeItemGetByIdMock.mockReturnValue({
       ...directory,
-      data: { ...directory.data, relativePath: 'stored-directory' }
+      data: { ...directory.data, relativePath: 'stored-directory' as PosixRelativeFilePath }
     })
 
     expect(() => service.getFilePath('directory-1')).toThrow(
@@ -1990,6 +2217,43 @@ describe('KnowledgeService', () => {
     })
   })
 
+  describe('listBasesForDiscovery', () => {
+    it('returns one restricted cursor page', () => {
+      const firstBase = createBase({ id: 'kb-1', name: 'First' })
+      const page = { items: [firstBase], total: 21, nextCursor: 'cursor-2' }
+      knowledgeBaseListForDiscoveryMock.mockReturnValue(page)
+
+      const service = new KnowledgeService()
+
+      expect(
+        service.listBasesForDiscovery({
+          limit: 20,
+          cursor: 'cursor-1',
+          query: 'notes',
+          groupId: 'group-1',
+          scope: { kind: 'restricted', baseIds: ['kb-1', 'kb-2'] }
+        })
+      ).toEqual(page)
+      expect(knowledgeBaseListForDiscoveryMock).toHaveBeenCalledWith({
+        limit: 20,
+        cursor: 'cursor-1',
+        query: 'notes',
+        groupId: 'group-1',
+        restrictedIds: ['kb-1', 'kb-2']
+      })
+    })
+
+    it('passes unrestricted discovery without an id filter', () => {
+      const page = { items: [createBase()], total: 1 }
+      knowledgeBaseListForDiscoveryMock.mockReturnValue(page)
+
+      const service = new KnowledgeService()
+
+      expect(service.listBasesForDiscovery({ limit: 20, scope: { kind: 'unrestricted' } })).toEqual(page)
+      expect(knowledgeBaseListForDiscoveryMock).toHaveBeenCalledWith({ limit: 20 })
+    })
+  })
+
   describe('readConcept', () => {
     const CONCEPT_ID = 'docs/intro.md'
 
@@ -2112,93 +2376,174 @@ describe('KnowledgeService', () => {
       readMaterialContentMock.mockResolvedValue(text)
     }
 
-    it('returns each match with a 1-based line number, offsets, and a snippet', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('line one\nline two match\nline three match')
+    describe.skipIf(!hasBundledRipgrep)('with the bundled ripgrep', () => {
+      it('returns each match with a 1-based line number, offsets, and a snippet', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('line one\nline two match\nline three match')
 
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'match' })
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'match' })
 
-      expect(result.totalMatches).toBe(2)
-      expect(result.matches.map((m) => m.line)).toEqual([2, 3])
-      expect(result.matches[0].snippet).toContain('match')
-      expect(
-        'line one\nline two match\nline three match'.slice(result.matches[0].charStart, result.matches[0].charEnd)
-      ).toBe('match')
+        expect(result.totalMatches).toBe(2)
+        expect(result.matches.map((m) => m.line)).toEqual([2, 3])
+        expect(result.matches[0].snippet).toContain('match')
+        expect(
+          'line one\nline two match\nline three match'.slice(result.matches[0].charStart, result.matches[0].charEnd)
+        ).toBe('match')
+      })
+
+      it('reports UTF-16 offsets after multi-byte and astral characters', async () => {
+        const service = new KnowledgeService()
+        const text = '前言 😀\n中文 cherry studio 😀 studio'
+        arrangeReadable(text)
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'studio' })
+
+        expect(result.matches.map((m) => text.slice(m.charStart, m.charEnd))).toEqual(['studio', 'studio'])
+      })
+
+      it('keeps first-line offsets aligned when the text starts with a byte-order mark', async () => {
+        const service = new KnowledgeService()
+        const text = '﻿studio'
+        arrangeReadable(text)
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'studio' })
+
+        expect(text.slice(result.matches[0].charStart, result.matches[0].charEnd)).toBe('studio')
+      })
+
+      it('is case-insensitive by default and case-sensitive when asked', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('Foo foo FOO')
+
+        expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })).totalMatches).toBe(3)
+        expect(
+          (await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo', ignoreCase: false })).totalMatches
+        ).toBe(1)
+      })
+
+      it('reports the same 1-based line for several matches on one line, with strictly ascending offsets', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('intro\nFoo foo FOO')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })
+
+        expect(result.matches.map((m) => m.line)).toEqual([2, 2, 2])
+        const starts = result.matches.map((m) => m.charStart)
+        expect(starts).toEqual([...starts].sort((a, b) => a - b))
+        expect(new Set(starts).size).toBe(starts.length)
+      })
+
+      it('caps returned matches at maxMatches while still reporting the full totalMatches', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('a a a\na\na')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'a', maxMatches: 2 })
+
+        expect(result.totalMatches).toBe(5)
+        expect(result.matches).toHaveLength(2)
+      })
+
+      it('binds anchors to each line', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('alpha\nbeta\ngamma')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^beta$' })
+
+        expect(result.totalMatches).toBe(1)
+        expect(result.matches[0].line).toBe(2)
+      })
+
+      it('drops matches past the per-line length cap', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('x'.repeat(2100) + 'NEEDLE')
+
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'NEEDLE' })
+
+        expect(result.totalMatches).toBe(0)
+      })
+
+      it('finishes a catastrophic-backtracking pattern quickly instead of blocking', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('a'.repeat(29) + '!')
+
+        const startedAt = Date.now()
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^(\\w+\\s?)*$' })
+
+        expect(result.totalMatches).toBe(0)
+        expect(Date.now() - startedAt).toBeLessThan(2000)
+      })
+
+      it('still supports look-around and backreferences', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('cherry studio, studious, abab')
+
+        expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'stud(?=io\\b)' })).totalMatches).toBe(1)
+        expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(ab)\\1' })).totalMatches).toBe(1)
+      })
+
+      it('rejects a backtracking pattern that exhausts the PCRE2 match limit with a validation error', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('a'.repeat(40) + '!')
+
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(?=a)^(\\w+\\s?)*$' })).rejects.toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR
+        })
+      })
+
+      it('throws a validation error for an invalid regular expression', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('whatever')
+
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(' })).rejects.toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR
+        })
+      })
     })
 
-    it('is case-insensitive by default and case-sensitive when asked', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('Foo foo FOO')
+    describe('ripgrep process failures', () => {
+      afterEach(() => {
+        vi.restoreAllMocks()
+      })
 
-      expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })).totalMatches).toBe(3)
-      expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo', ignoreCase: false })).totalMatches).toBe(
-        1
-      )
-    })
+      it('rejects a timed-out pattern with a validation error instead of reporting no matches', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('whatever')
+        vi.spyOn(ripgrepModule, 'runRipgrep').mockResolvedValue({ ok: true, stdout: '', stderr: '', exitCode: null })
 
-    it('reports the same 1-based line for several matches on one line, with strictly ascending offsets', async () => {
-      const service = new KnowledgeService()
-      // Matches sit on row 2 (not the first line) so the assertion pins both: the line number is the shared
-      // row, and the offsets are distinct and ascending per match on that row.
-      arrangeReadable('intro\nFoo foo FOO')
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'x' })).rejects.toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR
+        })
+      })
 
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })
+      it('fails when ripgrep cannot start instead of reporting no matches', async () => {
+        const service = new KnowledgeService()
+        arrangeReadable('whatever')
+        vi.spyOn(ripgrepModule, 'runRipgrep').mockResolvedValue({ ok: false, stdout: '', stderr: '', exitCode: null })
 
-      expect(result.matches.map((m) => m.line)).toEqual([2, 2, 2])
-      const starts = result.matches.map((m) => m.charStart)
-      expect(starts).toEqual([...starts].sort((a, b) => a - b))
-      expect(new Set(starts).size).toBe(starts.length)
-    })
+        await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'x' })).rejects.toThrow(/ripgrep/)
+      })
 
-    it('caps returned matches at maxMatches while still reporting the full totalMatches', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('a a a a a')
+      it('converts ripgrep byte offsets to UTF-16 offsets', async () => {
+        const service = new KnowledgeService()
+        const text = '前言\n中文 😀 studio'
+        arrangeReadable(text)
+        // Recorded from `rg --json -e studio -` over the same input.
+        const matchRecord = JSON.stringify({
+          type: 'match',
+          data: {
+            line_number: 2,
+            lines: { text: '中文 😀 studio' },
+            submatches: [{ match: { text: 'studio' }, start: 12 }]
+          }
+        })
+        vi.spyOn(ripgrepModule, 'runRipgrep')
+          .mockResolvedValueOnce({ ok: true, stdout: '1\n', stderr: '', exitCode: 0 })
+          .mockResolvedValueOnce({ ok: true, stdout: `${matchRecord}\n`, stderr: '', exitCode: 0 })
 
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'a', maxMatches: 2 })
+        const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'studio' })
 
-      expect(result.totalMatches).toBe(5)
-      expect(result.matches).toHaveLength(2)
-    })
-
-    it('does not loop forever on a zero-width pattern', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('abc')
-
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'x*' })
-
-      // 'x*' matches empty at each position (4 in "abc"); the lastIndex bump keeps it terminating.
-      expect(result.totalMatches).toBe(4)
-    })
-
-    it('matches anchors and bounds matching per line (no full-document backtracking)', async () => {
-      const service = new KnowledgeService()
-      // `^`/`$` bind to each line now that matching is line-oriented: a whole-document scan
-      // would never match `^beta$` mid-string.
-      arrangeReadable('alpha\nbeta\ngamma')
-
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^beta$' })
-
-      expect(result.totalMatches).toBe(1)
-      expect(result.matches[0].line).toBe(2)
-    })
-
-    it('drops matches past the per-line length cap so a single line cannot freeze the scan', async () => {
-      const service = new KnowledgeService()
-      // The needle sits past CONCEPT_GREP_MAX_LINE_CHARS (2000) on one line, so the truncated
-      // line the pattern runs over never reaches it — proving the per-line evaluation is bounded.
-      arrangeReadable('x'.repeat(2100) + 'NEEDLE')
-
-      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'NEEDLE' })
-
-      expect(result.totalMatches).toBe(0)
-    })
-
-    it('throws a validation error for an invalid regular expression', async () => {
-      const service = new KnowledgeService()
-      arrangeReadable('whatever')
-
-      await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(' })).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
+        expect(result.totalMatches).toBe(1)
+        expect(text.slice(result.matches[0].charStart, result.matches[0].charEnd)).toBe('studio')
       })
     })
 
@@ -2234,11 +2579,11 @@ describe('KnowledgeService', () => {
 
     it('omits conceptId for a leaf that is not completed (not readable yet)', async () => {
       const service = new KnowledgeService()
-      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('f1', 'kb-1', '/a.pdf', 'idle')])
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('f1', 'kb-1', '/a.pdf', 'processing')])
 
       const tree = service.getOrganizationTree('kb-1')
 
-      expect(tree.nodes[0]).toMatchObject({ depth: 0, itemType: 'file', status: 'idle' })
+      expect(tree.nodes[0]).toMatchObject({ depth: 0, itemType: 'file', status: 'processing' })
       expect(tree.nodes[0].conceptId).toBeUndefined()
     })
 
@@ -2294,7 +2639,12 @@ describe('KnowledgeService', () => {
 
       expect(getMaterialByRelativePathMock).toHaveBeenCalledWith(CONCEPT_ID)
       expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID])
-      expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID], 'deleting')
+      expect(knowledgeItemSetSubtreeStatusTxMock).toHaveBeenCalledWith(
+        expect.anything(),
+        'kb-1',
+        [NOTE_ITEM_ID],
+        'deleting'
+      )
       expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
     })
 
@@ -2314,7 +2664,7 @@ describe('KnowledgeService', () => {
       const result = await service.deleteConcepts('kb-1', [CONCEPT_ID])
 
       expect(result).toEqual({ applied: [], notFound: [CONCEPT_ID] })
-      expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+      expect(knowledgeItemSetSubtreeStatusTxMock).not.toHaveBeenCalled()
     })
 
     it('collapses duplicate Concept IDs to a single resolution', async () => {
@@ -2333,7 +2683,7 @@ describe('KnowledgeService', () => {
       const result = await service.deleteConcepts('kb-1', ['docs/missing.md'])
 
       expect(result).toEqual({ applied: [], notFound: ['docs/missing.md'] })
-      expect(enqueueMock).not.toHaveBeenCalled()
+      expect(enqueueTxMock).not.toHaveBeenCalled()
     })
   })
 
@@ -2462,7 +2812,7 @@ describe('KnowledgeService', () => {
 
   it('translates a search failure into a defined error when the store was closed mid-flight', async () => {
     const service = new KnowledgeService()
-    getIndexStoreMock.mockResolvedValueOnce({
+    getIndexStoreMock.mockReturnValueOnce({
       search: vi.fn().mockRejectedValue(new Error('Knowledge index store driver is closed')),
       listMaterialUnits: listMaterialUnitsMock,
       isClosed: () => true
@@ -2477,7 +2827,7 @@ describe('KnowledgeService', () => {
   it('rethrows a genuine search failure unchanged when the store is still open', async () => {
     const service = new KnowledgeService()
     const queryError = new Error('disk I/O error')
-    getIndexStoreMock.mockResolvedValueOnce({
+    getIndexStoreMock.mockReturnValueOnce({
       search: vi.fn().mockRejectedValue(queryError),
       listMaterialUnits: listMaterialUnitsMock,
       isClosed: () => false
@@ -2489,7 +2839,7 @@ describe('KnowledgeService', () => {
   it('lists chunks after checking item ownership', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
-    listMaterialUnitsMock.mockResolvedValueOnce([
+    listMaterialUnitsMock.mockReturnValueOnce([
       {
         unitId: 'chunk-1',
         materialId: 'note-1',
@@ -2514,7 +2864,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetSubtreeItemsMock
       .mockReturnValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
       .mockReturnValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
-    listMaterialUnitsMock.mockResolvedValueOnce([
+    listMaterialUnitsMock.mockReturnValueOnce([
       {
         unitId: 'chunk-1',
         materialId: 'note-1',
@@ -2564,9 +2914,11 @@ describe('KnowledgeService', () => {
   it('translates a listItemChunks failure into a defined error when the store was closed mid-flight', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
-    getIndexStoreMock.mockResolvedValueOnce({
+    getIndexStoreMock.mockReturnValueOnce({
       search: storeSearchMock,
-      listMaterialUnits: vi.fn().mockRejectedValue(new Error('Knowledge index store driver is closed')),
+      listMaterialUnits: vi.fn().mockImplementation(() => {
+        throw new Error('Knowledge index store driver is closed')
+      }),
       isClosed: () => true
     })
 

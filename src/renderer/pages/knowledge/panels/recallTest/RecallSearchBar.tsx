@@ -1,7 +1,8 @@
-import { Button, Input } from '@cherrystudio/ui'
 import { History, Search, Zap } from 'lucide-react'
 import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Input } from '@cherrystudio/ui'
 
 import RecallHistoryList from './RecallHistoryList'
 import { useRecallQuery, useRecallResult } from './RecallTestProvider'
@@ -38,8 +39,8 @@ const RecallSearchBar = () => {
           clipped by the panel's `overflow-x-hidden` ancestor (and overlapped by the open
           history dropdown), leaving the lower/right edge incomplete. Drawing it inset keeps
           the whole focus border within the wrapper, so it always renders fully. */}
-      <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-1.25 transition-all focus-within:border-border-active focus-within:ring-1 focus-within:ring-ring/50 focus-within:ring-inset">
-        <Search className="size-3.5 shrink-0 text-foreground-muted" />
+      <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border-subtle bg-transparent px-2.5 py-1.25 transition-all focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/50 focus-within:ring-inset">
+        <Search className="size-3.5 shrink-0 text-foreground-tertiary" />
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -52,14 +53,14 @@ const RecallSearchBar = () => {
             }
           }}
           placeholder={t('knowledge.recall.placeholder')}
-          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-foreground text-sm leading-5 shadow-none placeholder:text-foreground-muted placeholder:text-sm focus-visible:border-0 focus-visible:ring-0"
+          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-sm leading-5 text-foreground shadow-none placeholder:text-sm placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
         />
         {hasHistory ? (
           <Button
             type="button"
             variant="ghost"
             tabIndex={-1}
-            className={`min-h-0 shrink-0 rounded-none p-0 shadow-none transition-colors hover:bg-transparent hover:text-foreground ${isHistoryOpen ? 'text-primary' : 'text-foreground-muted'}`}
+            className={`min-h-0 shrink-0 rounded-none p-0 shadow-none transition-colors hover:bg-transparent hover:text-foreground ${isHistoryOpen ? 'text-primary' : 'text-muted-foreground'}`}
             onMouseDown={keepInputFocus}
             onClick={(event) => {
               event.stopPropagation()
@@ -73,7 +74,7 @@ const RecallSearchBar = () => {
         {hasHistory && isHistoryOpen ? (
           <div
             data-recall-history
-            className="absolute top-full right-0 left-0 z-300 mt-1 max-h-45 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-0.75"
+            className="absolute top-full right-0 left-0 z-300 mt-1 max-h-45 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg [&::-webkit-scrollbar]:w-0.75 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]"
             onMouseDown={keepInputFocus}>
             <RecallHistoryList />
           </div>

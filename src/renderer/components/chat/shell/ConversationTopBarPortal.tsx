@@ -1,7 +1,9 @@
-import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
-import { cn } from '@renderer/utils/style'
 import { createContext, type ReactNode, use, useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+
+import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
+import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
+import { cn } from '@renderer/utils/style'
 
 type ConversationTopBarPortalContextValue = {
   iconOnly: boolean
@@ -26,7 +28,7 @@ export function ConversationTopBarPortalProvider({ children }: { children: React
   return <ConversationTopBarPortalContext value={value}>{children}</ConversationTopBarPortalContext>
 }
 
-export function ConversationTopBarPortalHost({ className }: { className?: string }) {
+export function ConversationTopBarPortalHost({ children, className }: { children?: ReactNode; className?: string }) {
   const context = use(ConversationTopBarPortalContext)
 
   return (
@@ -36,16 +38,18 @@ export function ConversationTopBarPortalHost({ className }: { className?: string
       className={cn(
         'ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden [-webkit-app-region:no-drag] [&_button]:h-7 [&_button]:px-1.5',
         className
-      )}
-    />
+      )}>
+      {children}
+    </div>
   )
 }
 
 export function ConversationTopBarPortal({ children }: { children: ReactNode }) {
   const context = use(ConversationTopBarPortalContext)
+  const composerOverridden = useActiveComposerOverride() !== null
 
   if (!context) return children
-  if (!context.target) return null
+  if (!context.target || composerOverridden) return null
 
   return createPortal(children, context.target)
 }

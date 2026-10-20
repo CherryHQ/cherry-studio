@@ -1,19 +1,24 @@
-import { toast } from '@renderer/services/toast'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
-import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
+
 import { IpcChatTransport } from '../IpcChatTransport'
+
+interface IpcMock {
+  request: (route: string, input: unknown) => unknown
+  on: (event: string, callback: (payload: unknown) => void) => () => void
+}
 
 // Production calls ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*'). `ipcMock` is
 // re-pointed at a fresh createMockAiApi()'s dispatchers in beforeEach (hoisted so the
 // vi.mock factory can capture it).
-const { ipcMock } = vi.hoisted(() => ({
+const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
   ipcMock: {
-    request: (() => undefined) as (route: string, input: unknown) => unknown,
-    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+    request: () => undefined,
+    on: () => () => {}
   }
 }))
 vi.mock('@renderer/ipc', () => ({
@@ -26,12 +31,13 @@ vi.mock('@renderer/ipc', () => ({
 // ── Mock the AI stream IPC ──────────────────────────────────────────
 
 interface MockAiApi {
-  streamOpen: ReturnType<typeof vi.fn>
-  streamAttach: ReturnType<typeof vi.fn>
-  streamAbort: ReturnType<typeof vi.fn>
-  onStreamChunk: ReturnType<typeof vi.fn>
-  onStreamDone: ReturnType<typeof vi.fn>
-  onStreamError: ReturnType<typeof vi.fn>
+  streamOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamAttach: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamAbort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamDetach: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamChunk: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamDone: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  onStreamError: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 function createMockAiApi() {
@@ -49,6 +55,7 @@ function createMockAiApi() {
     streamOpen: vi.fn().mockResolvedValue({ mode: 'started' }),
     streamAttach: vi.fn().mockResolvedValue({ status: 'not-found' }),
     streamAbort: vi.fn().mockResolvedValue(undefined),
+    streamDetach: vi.fn().mockResolvedValue(undefined),
     onStreamChunk: vi.fn((cb) => {
       listeners.chunk.push(cb)
       return () => {
@@ -75,23 +82,25 @@ function createMockAiApi() {
   // ipcApi-shaped dispatchers wired to the spies above (so per-method assertions still work).
   const request = (route: string, input: unknown): unknown => {
     switch (route) {
-      case 'ai.stream_open':
+      case 'ai.stream.open':
         return mockApi.streamOpen(input)
-      case 'ai.stream_attach':
+      case 'ai.stream.attach':
         return mockApi.streamAttach(input)
-      case 'ai.stream_abort':
+      case 'ai.stream.abort':
         return mockApi.streamAbort(input)
+      case 'ai.stream.detach':
+        return mockApi.streamDetach(input)
       default:
-        return Promise.resolve(undefined) // ai.stream_detach — not asserted here
+        return Promise.resolve(undefined)
     }
   }
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream_chunk':
+      case 'ai.stream.chunk':
         return mockApi.onStreamChunk(cb)
-      case 'ai.stream_done':
+      case 'ai.stream.done':
         return mockApi.onStreamDone(cb)
-      case 'ai.stream_error':
+      case 'ai.stream.error':
         return mockApi.onStreamError(cb)
       default:
         return () => {}
@@ -139,7 +148,7 @@ describe('IpcChatTransport', () => {
     abortSignal: undefined
   }
 
-  it('returns a ReadableStream and calls streamOpen', async () => {
+  it('opens a ReadableStream and detaches it on consumer cancellation', async () => {
     const stream = await transport.sendMessages(baseOptions)
     expect(stream).toBeInstanceOf(ReadableStream)
     expect(mock.mockApi.streamOpen).toHaveBeenCalledOnce()
@@ -149,6 +158,13 @@ describe('IpcChatTransport', () => {
         trigger: 'submit-message'
       })
     )
+
+    await stream.cancel()
+
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId })
+    expect(mock.listeners.chunk).toHaveLength(0)
+    expect(mock.listeners.done).toHaveLength(0)
+    expect(mock.listeners.error).toHaveLength(0)
   })
 
   it('filters chunks by topicId', async () => {
@@ -156,11 +172,11 @@ describe('IpcChatTransport', () => {
     const reader = stream.getReader()
 
     // Chunk for different topic — ignored
-    mock.emitChunk('other-topic', { type: 'text-start', id: 'x' } as UIMessageChunk)
+    mock.emitChunk('other-topic', { type: 'text-start', id: 'x' })
 
     // Chunks for our topic
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
-    mock.emitChunk(topicId, { type: 'text-delta', id: 't1', delta: 'Hello' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' })
+    mock.emitChunk(topicId, { type: 'text-delta', id: 't1', delta: 'Hello' })
     mock.emitDone(topicId)
 
     const chunks: UIMessageChunk[] = []
@@ -177,7 +193,7 @@ describe('IpcChatTransport', () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' })
     mock.emitDone(topicId)
 
     const { done: firstDone } = await reader.read()
@@ -191,7 +207,7 @@ describe('IpcChatTransport', () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' } as UIMessageChunk, 'provider-a::model-a')
+    mock.emitChunk(topicId, { type: 'text-start', id: 'exec' }, 'provider-a::model-a')
     mock.emitDone(topicId, undefined, true)
 
     const { done } = await reader.read()
@@ -207,7 +223,7 @@ describe('IpcChatTransport', () => {
     await expect(reader.read()).rejects.toThrow('Something went wrong')
   })
 
-  it('shows workspace dispatch failures as toast and closes the stream', async () => {
+  it('closes the stream when dispatch is blocked', async () => {
     mock.mockApi.streamOpen.mockResolvedValue({
       mode: 'blocked',
       reason: 'agent-session-workspace',
@@ -218,7 +234,6 @@ describe('IpcChatTransport', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ done: true })
-    expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
   it('calls streamAbort on abort signal', async () => {
@@ -229,7 +244,7 @@ describe('IpcChatTransport', () => {
     })
     const reader = stream.getReader()
 
-    mock.emitChunk(topicId, { type: 'text-start', id: 't1' } as UIMessageChunk)
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' })
     abortController.abort()
 
     const chunks: UIMessageChunk[] = []
@@ -285,6 +300,7 @@ describe('IpcChatTransport', () => {
 
     const stream = await transport.reconnectToStream({ chatId: topicId })
     expect(stream).toBeInstanceOf(ReadableStream)
+    await stream?.cancel()
   })
 
   it('reconnectToStream returns closed stream when done', async () => {

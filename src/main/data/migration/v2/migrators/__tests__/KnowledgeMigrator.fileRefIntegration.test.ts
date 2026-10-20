@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
+
 // Integration tests for `KnowledgeMigrator` reference-integrity guards.
 //
 // Runs FileMigrator → KnowledgeMigrator against a real SQLite DB and then
@@ -18,9 +22,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
 
 import { AssistantMigrator } from '../AssistantMigrator'
 import { FileMigrator } from '../FileMigrator'
@@ -408,9 +409,15 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     // The user removed this embedding model from the provider's model list but kept the provider
     // (and its credentials), so v2 has the provider plus a sibling model — just not this one.
     await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
-    await dbh.db
-      .insert(userModelTable)
-      .values({ id: 'openai::gpt-4o', providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o', orderKey: 'a0' })
+    await dbh.db.insert(userModelTable).values({
+      id: 'openai::gpt-4o',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      name: 'GPT-4o',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: 'a0'
+    })
 
     const reduxKnowledge = {
       bases: [

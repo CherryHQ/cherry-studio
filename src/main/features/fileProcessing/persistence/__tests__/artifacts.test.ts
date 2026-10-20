@@ -1,6 +1,7 @@
-import type { JobContext } from '@main/core/job/types'
-import type { FilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobContext } from '@main/core/job/types'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FileProcessingJobPayload } from '../../tasks/shared'
 
@@ -45,7 +46,7 @@ function createMarkdownCtx(): JobContext<FileProcessingJobPayload> {
     input: {
       feature: 'document_to_markdown',
       file: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000204' },
-      output: { kind: 'path', path: '/tmp/out.md' as FilePath },
+      output: { kind: 'path', path: '/tmp/out.md' as AbsoluteFilePath },
       processorId: 'doc2x'
     }
   })
@@ -148,7 +149,7 @@ describe('isMarkdownFileArtifact', () => {
       isMarkdownFileArtifact({
         kind: 'file',
         format: 'markdown',
-        path: '/tmp/out.md' as FilePath
+        path: '/tmp/out.md' as AbsoluteFilePath
       })
     ).toBe(true)
     expect(isMarkdownFileArtifact({ kind: 'text', format: 'plain', text: 'hello' })).toBe(false)

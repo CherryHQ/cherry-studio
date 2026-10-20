@@ -16,7 +16,6 @@ import {
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
-  RuntimeReasoningSchema,
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
@@ -33,6 +32,8 @@ export const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
+const PositiveModelTokenLimitSchema = z.number().int().positive()
+
 export const CreateModelSchema = z.strictObject({
   /** Provider ID */
   providerId: z.string().min(1),
@@ -55,15 +56,13 @@ export const CreateModelSchema = z.strictObject({
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
-  contextWindow: z.number().int().positive().optional(),
+  contextWindow: PositiveModelTokenLimitSchema.optional(),
   /** Maximum input tokens */
-  maxInputTokens: z.number().int().positive().optional(),
+  maxInputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Maximum output tokens */
-  maxOutputTokens: z.number().int().positive().optional(),
+  maxOutputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
-  /** Reasoning configuration */
-  reasoning: RuntimeReasoningSchema.optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */
@@ -94,6 +93,10 @@ export const UpdateModelSchema = CreateModelSchema.omit({
 })
   .partial()
   .extend({
+    /** `null` explicitly clears a stored limit; `undefined` or an absent key leaves it unchanged. */
+    contextWindow: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxInputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxOutputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),
@@ -155,9 +158,8 @@ export type ReconcileProviderModelsDto = z.infer<typeof ReconcileProviderModelsS
 export const ResolveProviderModelsQuerySchema = z.strictObject({
   /**
    * Raw model IDs from SDK listModels(), repeated as ?ids=a&ids=b or provided as an array by IPC callers.
-   * Omit ids to list active provider-model pairs from the registry.
    */
-  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional()
+  ids: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)])
 })
 export type ResolveProviderModelsQuery = z.infer<typeof ResolveProviderModelsQuerySchema>
 

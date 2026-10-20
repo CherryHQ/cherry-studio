@@ -1,12 +1,11 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
-import { defaultAppHeaders } from '@main/utils/http'
 import type { Provider } from '@shared/data/types/provider'
-import { withoutTrailingSlash } from '@shared/utils/api'
+import { isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
 
-import { getBaseUrl } from '../../utils/provider'
-import { normalizeVertexCredentials } from '../config'
+import { getBaseUrl, getProviderAppHeaders } from '../../utils/provider'
+import { normalizeVertexCredentials } from '../vertex'
 
 const logger = loggerService.withContext('ModelListService')
 
@@ -30,7 +29,7 @@ function getVertexServiceEndpoint(provider: Provider, location: string): string 
   const defaultHost =
     location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
 
-  if (!apiHost || apiHost.endsWith('aiplatform.googleapis.com')) {
+  if (!apiHost || isBareVertexApiHost(apiHost)) {
     return defaultHost
   }
 
@@ -113,7 +112,7 @@ export async function createVertexModelListRequest(
   return {
     baseUrl: getVertexServiceEndpoint(provider, location),
     headers: {
-      ...defaultAppHeaders(),
+      ...getProviderAppHeaders(provider),
       ...authHeaders,
       ...provider.settings?.extraHeaders
     }
@@ -144,7 +143,9 @@ export function getVertexModelPublisher(name: string): string {
 }
 
 export function isSupportedVertexPublisherModel(modelId: string): boolean {
-  const normalizedModelId = modelId.trim().toLowerCase()
+  // MaaS ids arrive publisher-prefixed (`meta/llama-4-…-maas`); the support patterns are
+  // anchored to the bare model name, so match against the segment after the publisher.
+  const normalizedModelId = (modelId.split('/').pop() ?? modelId).trim().toLowerCase()
 
   if (EXCLUDED_VERTEX_PUBLISHER_MODEL_KEYWORDS.some((keyword) => normalizedModelId.includes(keyword))) {
     return false

@@ -1,23 +1,29 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
+
 import { collectFromFeatures } from '../collectFromFeatures'
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
 
 function makeScope(): RequestScope {
   return {
-    request: { mcpToolIds: [] } as never,
+    request: { conversation: { id: 'test' }, mcpToolIds: [] },
     signal: new AbortController().signal,
     registry: {} as never,
     assistant: undefined,
     model: { id: 'm1' } as never,
     provider: { id: 'p1' } as never,
     capabilities: undefined,
-    sdkConfig: { providerId: 'p1' as never, providerSettings: {} as never, modelId: 'm1' },
+    sdkConfig: { providerId: 'p1' as never, providerOptionsKey: 'p1', providerSettings: {}, modelId: 'm1' },
     endpointType: undefined,
-    aiSdkProviderId: 'openai-compatible' as never,
+    aiSdkProviderId: 'openai-compatible',
+    reasoningProfile: { format: 'none', wire: { disabled: true } },
+    reasoning: { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: { requestId: 'req-1', abortSignal: new AbortController().signal },
-    mcpToolIds: new Set()
+    mcpToolIds: new Set(),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 

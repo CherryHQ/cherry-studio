@@ -1,14 +1,16 @@
-import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { getReactStyleFromToken } from '@renderer/utils/shiki'
-import { cn } from '@renderer/utils/style'
-import { uuid } from '@renderer/utils/uuid'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
+
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
+import { getReactStyleFromToken } from '@renderer/utils/shiki'
+import { cn } from '@renderer/utils/style'
+import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('CodeViewer')
 
@@ -105,6 +107,7 @@ const CodeViewer = ({
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
+  const hasRequestedHighlightRef = useRef(false)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -217,7 +220,7 @@ const CodeViewer = ({
       let charOffset = 0
       if (node.nodeType === Node.TEXT_NODE) {
         // 遍历该行的所有文本节点，找到当前节点的位置
-        const walker = document.createTreeWalker(lineContent as Node, NodeFilter.SHOW_TEXT)
+        const walker = document.createTreeWalker(lineContent, NodeFilter.SHOW_TEXT)
         let currentNode: Node | null
         while ((currentNode = walker.nextNode())) {
           if (currentNode === node) {
@@ -372,7 +375,35 @@ const CodeViewer = ({
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
   // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
-  const estimateSize = useCallback(() => Math.round(fontSize * 1.6), [fontSize])
+  const lineHeight = useMemo(() => Math.round(fontSize * 1.6), [fontSize])
+
+  const getWrapContentWidth = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (!scroller || scroller.clientWidth <= 0) return 0
+    const gutterPx = lineNumbers ? gutterDigits * fontSize * 0.6 + 16 : 0
+    const horizontalPadding = fontSize * 2
+    return Math.max(1, scroller.clientWidth - gutterPx - horizontalPadding)
+  }, [fontSize, gutterDigits, lineNumbers])
+
+  const estimateWrappedVisualRows = useCallback(
+    (line: string, contentWidth: number) => {
+      if (!wrapped || contentWidth <= 0) return 1
+      if (line.length === 0) return 1
+      const charWidth = fontSize * 0.6
+      const charsPerRow = Math.max(1, Math.floor(contentWidth / charWidth))
+      return Math.max(1, Math.ceil(line.length / charsPerRow))
+    },
+    [fontSize, wrapped]
+  )
+
+  const estimateSize = useCallback(
+    (index: number) => {
+      const contentWidth = getWrapContentWidth()
+      const visualRows = estimateWrappedVisualRows(rawLines[index] ?? '', contentWidth)
+      return lineHeight * visualRows
+    },
+    [estimateWrappedVisualRows, getWrapContentWidth, lineHeight, rawLines]
+  )
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -382,6 +413,59 @@ const CodeViewer = ({
     estimateSize,
     overscan: 20
   })
+
+  const previousRawLinesRef = useRef<string[] | null>(null)
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    let lastWidth = scroller.clientWidth
+    const observer = new ResizeObserver(() => {
+      const nextWidth = scroller.clientWidth
+      if (nextWidth === lastWidth) return
+      lastWidth = nextWidth
+      if (wrapped && !expanded) {
+        virtualizer.measure()
+      }
+    })
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [expanded, virtualizer, wrapped])
+
+  const previousWrapLayoutSignatureRef = useRef<string | null>(null)
+
+  useLayoutEffect(() => {
+    if (!wrapped || expanded) return
+    const signature = `${lineNumbers}:${gutterDigits}:${fontSize}`
+    if (previousWrapLayoutSignatureRef.current === signature) return
+    previousWrapLayoutSignatureRef.current = signature
+    virtualizer.measure()
+  }, [expanded, fontSize, gutterDigits, lineNumbers, virtualizer, wrapped])
+
+  useLayoutEffect(() => {
+    if (!wrapped || expanded) {
+      previousRawLinesRef.current = rawLines
+      return
+    }
+
+    const previous = previousRawLinesRef.current
+    previousRawLinesRef.current = rawLines
+    if (!previous) return
+
+    const scroller = scrollerRef.current
+    const maxIndex = Math.max(previous.length, rawLines.length) - 1
+    for (let index = 0; index <= maxIndex; index++) {
+      if (previous[index] === rawLines[index]) continue
+      // Feed the virtualizer the row's real DOM height: writing an estimate would
+      // overwrite its measured size and drift every subsequent row's offset.
+      // Unmounted rows are skipped — they use fresh estimates until measured on mount.
+      const element = scroller?.querySelector<HTMLElement>(`[data-index="${index}"]`)
+      if (element) {
+        virtualizer.resizeItem(index, element.offsetHeight)
+      }
+    }
+  }, [expanded, rawLines, virtualizer, wrapped])
 
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
@@ -406,6 +490,7 @@ const CodeViewer = ({
     if (wasHighlightEnabledRef.current) {
       resetHighlight()
       wasHighlightEnabledRef.current = false
+      hasRequestedHighlightRef.current = false
     }
   }, [debouncedHighlightLines, highlight, resetHighlight])
 
@@ -415,55 +500,69 @@ const CodeViewer = ({
     }
   }, [debouncedHighlightLines])
 
-  // 渐进式高亮
+  // 首帧仅让视口内代码块绕过防抖，避免可见文本闪烁和离屏 Worker 请求突发。
   useEffect(() => {
     if (!highlight) return
-    if (virtualItems.length > 0 && shikiThemeRef.current) {
-      const lastIndex = virtualItems[virtualItems.length - 1].index
-      void debouncedHighlightLines(lastIndex + 1)
+    const shikiTheme = shikiThemeRef.current
+    if (virtualItems.length === 0 || !shikiTheme) return
+
+    const lastIndex = virtualItems[virtualItems.length - 1].index
+    if (!hasRequestedHighlightRef.current) {
+      hasRequestedHighlightRef.current = true
+      const rect = shikiTheme.getBoundingClientRect()
+      const intersectsViewport =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > 0 &&
+        rect.right > 0 &&
+        rect.top < window.innerHeight &&
+        rect.left < window.innerWidth
+
+      if (!intersectsViewport) {
+        void debouncedHighlightLines(lastIndex + 1)
+        return
+      }
+      void highlightLines(lastIndex + 1)
+      return
     }
-  }, [virtualItems, debouncedHighlightLines, highlight])
+
+    void debouncedHighlightLines(lastIndex + 1)
+  }, [virtualItems, debouncedHighlightLines, highlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
-  const handleSelectionChange = useMemo(
-    () =>
-      debounce(() => {
-        const selection = window.getSelection()
+  const handleSelectionChange = useCallback(
+    (selection: Selection | null) => {
+      if (!selection || !selectionBelongsToViewer(selection)) {
+        savedSelectionRef.current = null
+        return
+      }
 
-        // No valid selection: clear and return
-        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-          savedSelectionRef.current = null
-          return
+      // In collapsed state, detect multi-line selection and request expand
+      if (!expanded && onRequestExpand) {
+        const saved = saveSelection()
+        if (saved && saved.endLine > saved.startLine) {
+          logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
+            startLine: saved.startLine,
+            endLine: saved.endLine
+          })
+          onRequestExpand()
         }
-
-        // Only handle selections within this CodeViewer
-        if (!selectionBelongsToViewer(selection)) {
-          savedSelectionRef.current = null
-          return
-        }
-
-        // In collapsed state, detect multi-line selection and request expand
-        if (!expanded && onRequestExpand) {
-          const saved = saveSelection()
-          if (saved && saved.endLine > saved.startLine) {
-            logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
-              startLine: saved.startLine,
-              endLine: saved.endLine
-            })
-            onRequestExpand()
-          }
-        }
-      }, 100),
+      }
+    },
     [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer]
   )
+  const selectionChangeHandlerRef = useRef(handleSelectionChange)
+
+  useLayoutEffect(() => {
+    selectionChangeHandlerRef.current = handleSelectionChange
+  }, [handleSelectionChange])
 
   useEffect(() => {
-    document.addEventListener('selectionchange', handleSelectionChange)
-    return () => {
-      document.removeEventListener('selectionchange', handleSelectionChange)
-      handleSelectionChange.cancel()
-    }
-  }, [handleSelectionChange])
+    const scroller = scrollerRef.current
+    if (!scroller) return
+
+    return codeViewerSelectionManager.register(scroller, (selection) => selectionChangeHandlerRef.current(selection))
+  }, [])
 
   // Listen for copy events
   useEffect(() => {
@@ -492,12 +591,12 @@ const CodeViewer = ({
     <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
       <div
         ref={scrollerRef}
-        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
+        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em] [scrollbar-color:auto]"
         onScroll={handleScroll}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
-            '--line-height': `${estimateSize()}px`,
+            '--line-height': `${lineHeight}px`,
             fontSize,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,
@@ -635,8 +734,13 @@ const VirtualizedRow = memo(
         )}
         <span
           className={cn(
-            'line-content flex-1 whitespace-pre pr-[1em]',
-            wrapped ? '[&_*]:whitespace-pre-wrap [&_*]:break-words' : '[&_*]:whitespace-pre [&_*]:break-normal'
+            // min-w-0 lets the flex item shrink below its min-content width so long
+            // unbreakable lines (base64, URLs, minified JSON) wrap instead of overflowing.
+            // The !important on the wrapped whitespace beats global markdown CSS
+            // (`.markdown pre span { white-space: pre }`) that would otherwise pin
+            // token spans to `pre` and defeat wrapping inside chat code blocks.
+            'line-content min-w-0 flex-1 whitespace-pre pr-[1em]',
+            wrapped ? '[&_*]:whitespace-pre-wrap! [&_*]:break-words!' : '[&_*]:whitespace-pre [&_*]:break-normal'
           )}>
           {completeTokenLine.map((token, tokenIndex) => (
             <span key={tokenIndex} style={getReactStyleFromToken(token, { isDarkTheme })}>

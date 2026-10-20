@@ -6,7 +6,6 @@ import { EmptyState } from '../EmptyState'
 import { ErrorState } from '../ErrorState'
 import { LoadingState } from '../LoadingState'
 import { Panel } from '../Panel'
-import { StatusBadge } from '../StatusBadge'
 import { Toolbar } from '../Toolbar'
 
 type MockProps = Record<string, unknown> & {
@@ -34,8 +33,6 @@ vi.mock('@cherrystudio/ui', async () => {
         action
       )
     },
-    Badge: ({ children, ...props }: MockProps) =>
-      React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Skeleton: ({ children, ...props }: MockProps) =>
       React.createElement('div', { ...props, 'data-slot': 'skeleton' }, children)
   }
@@ -99,11 +96,5 @@ describe('chat primitives', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByText('Error title')).toBeInTheDocument()
     expect(screen.getByText('Error description')).toBeInTheDocument()
-  })
-
-  it('renders status badge content', () => {
-    render(<StatusBadge status="success">Ready</StatusBadge>)
-
-    expect(screen.getByText('Ready')).toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@ import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import type { OpenAIProviderSettings } from '@ai-sdk/openai'
+import { OpenAICompatibleChatLanguageModel, OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import {
   OpenAICompletionLanguageModel,
   OpenAIEmbeddingModel,
@@ -10,12 +11,12 @@ import {
   OpenAISpeechModel,
   OpenAITranscriptionModel
 } from '@ai-sdk/openai/internal'
-import { OpenAICompatibleChatLanguageModel, OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import {
   type EmbeddingModelV3,
   type ImageModelV3,
   type JSONValue,
   type LanguageModelV3,
+  type LanguageModelV3CallOptions,
   type ProviderV3,
   type RerankingModelV3,
   type SpeechModelV3,
@@ -24,6 +25,7 @@ import {
 import { type FetchFunction, loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
 import { OpenAICompatibleRerankingModel } from './openai-compatible-reranking-model'
+import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransform'
 
 export const CHERRYIN_PROVIDER_NAME = 'cherryin' as const
 export const DEFAULT_CHERRYIN_BASE_URL = 'https://open.cherryin.net/v1'
@@ -75,7 +77,14 @@ export interface CherryInProviderSettings {
    * Optional endpoint type to distinguish different endpoint behaviors.
    * "image-generation" is also openai endpoint, but specifically for image generation.
    */
-  endpointType?: 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
+  endpointType?:
+    | 'openai'
+    | 'openai-response'
+    | 'anthropic'
+    | 'gemini'
+    | 'image-generation'
+    | 'jina-rerank'
+    | 'embedding'
 }
 
 export interface CherryInProvider extends ProviderV3 {
@@ -85,6 +94,7 @@ export interface CherryInProvider extends ProviderV3 {
   responses(modelId: string): LanguageModelV3
   completion(modelId: string, settings?: OpenAIProviderSettings): LanguageModelV3
   embedding(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
+  embeddingModel(modelId: string, settings?: OpenAIProviderSettings): EmbeddingModelV3
   image(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
   imageModel(modelId: string, settings?: OpenAIProviderSettings): ImageModelV3
   transcription(modelId: string): TranscriptionModelV3
@@ -131,11 +141,13 @@ const createCustomFetch = (originalFetch?: any) => {
     return originalFetch ? originalFetch(url, options) : fetch(url, options)
   }
 }
+
 class CherryInOpenAIChatLanguageModel extends OpenAICompatibleChatLanguageModel {
   constructor(modelId: string, settings: any) {
     super(modelId, {
       ...settings,
-      fetch: createCustomFetch(settings.fetch)
+      fetch: createCustomFetch(settings.fetch),
+      transformRequestBody: applyReasoningModelMaxTokensConversion
     })
   }
 }
@@ -237,6 +249,31 @@ const createAuthHeadersGetter = (options: CherryInProviderSettings): (() => Reco
   })
 }
 
+// CherryIN's Anthropic upstream rejects input_examples (#21994).
+function omitToolInputExamples(options: LanguageModelV3CallOptions): LanguageModelV3CallOptions {
+  if (!options.tools?.some((tool) => tool.type === 'function' && tool.inputExamples != null)) return options
+
+  return {
+    ...options,
+    tools: options.tools.map((tool) => {
+      if (tool.type !== 'function' || tool.inputExamples == null) return tool
+      const { inputExamples, ...rest } = tool
+      void inputExamples
+      return rest
+    })
+  }
+}
+
+class CherryInAnthropicMessagesLanguageModel extends AnthropicMessagesLanguageModel {
+  override doGenerate(options: LanguageModelV3CallOptions) {
+    return super.doGenerate(omitToolInputExamples(options))
+  }
+
+  override doStream(options: LanguageModelV3CallOptions) {
+    return super.doStream(omitToolInputExamples(options))
+  }
+}
+
 export const createCherryIn = (options: CherryInProviderSettings = {}): CherryInProvider => {
   const {
     baseURL = DEFAULT_CHERRYIN_BASE_URL,
@@ -252,7 +289,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
   const createAnthropicModel = (modelId: string) =>
-    new AnthropicMessagesLanguageModel(modelId, {
+    new CherryInAnthropicMessagesLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.anthropic`,
       baseURL: anthropicBaseURL,
       headers: () => {
@@ -324,6 +361,10 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
         return createGeminiModel(modelId)
       case 'openai':
         return createOpenAIChatModel(modelId)
+      case 'embedding':
+        throw new Error('Use embeddingModel() for embedding endpoint type')
+      case 'jina-rerank':
+        throw new Error('Use rerankingModel() for jina-rerank endpoint type')
       case 'openai-response':
       default:
         return new OpenAIResponsesLanguageModel(modelId, {
@@ -451,7 +492,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
 
   provider.rerankingModel = createRerankingModel
 
-  return provider as CherryInProvider
+  return provider
 }
 
 export const cherryIn = createCherryIn()

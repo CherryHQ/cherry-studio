@@ -1,3 +1,6 @@
+import type { IpcMainEvent } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for the shared-tier TTL synchronization contract (issue #17050).
  *
@@ -17,8 +20,6 @@
  */
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { IpcMainEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from main.setup.ts — we want the REAL CacheService
 vi.unmock('@main/data/CacheService')
@@ -57,18 +58,6 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { BeforeReady: 'BeforeReady', WhenReady: 'WhenReady' }
 }))
 
-// Override electron BrowserWindow with a test-controllable mock.
-vi.mock('electron', async () => {
-  const actual = await vi.importActual<any>('electron')
-  const fakeBrowserWindow: any = vi.fn()
-  fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
-  fakeBrowserWindow.fromWebContents = vi.fn(() => null)
-  return {
-    ...actual,
-    BrowserWindow: fakeBrowserWindow
-  }
-})
-
 // JobManager's live keys — the standing consumer of TTL'd main-owned entries.
 const STATE_KEY = 'jobs.state.job-1' as const
 const PROGRESS_KEY = 'jobs.progress.job-1' as const
@@ -85,7 +74,7 @@ const TTL = 60_000
 
 describe('CacheService shared-tier TTL sync', () => {
   let service: any
-  let send: ReturnType<typeof vi.fn>
+  let send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   let now: number
 
   const lastMessage = (): CacheSyncMessage => send.mock.calls.at(-1)![1] as CacheSyncMessage
@@ -101,7 +90,8 @@ describe('CacheService shared-tier TTL sync', () => {
 
     const { BrowserWindow } = (await import('electron')) as any
     send = vi.fn()
-    BrowserWindow.getAllWindows.mockReturnValue([{ isDestroyed: () => false, id: 99, webContents: { send } }])
+    BrowserWindow.getAllWindows = vi.fn(() => [{ isDestroyed: () => false, id: 99, webContents: { send } }])
+    BrowserWindow.fromWebContents = vi.fn(() => null)
 
     const { CacheService } = await import('../CacheService')
     service = new CacheService()

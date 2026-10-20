@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+
 const { listByEntityTypeMock, getByIdMock, pinMock, unpinMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
   listByEntityTypeMock: vi.fn(),
   getByIdMock: vi.fn(),
@@ -115,6 +117,15 @@ describe('pinHandlers', () => {
       expect(pinMock).toHaveBeenCalledWith({ entityType: 'agent', entityId: AGENT_ID })
     })
 
+    it('should accept the built-in Support Agent id for agent pins', async () => {
+      const body = { entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID } as const
+      const row = { id: PIN_ID, ...body, orderKey: 'a0' }
+      pinMock.mockResolvedValue(row)
+
+      await expect(pinHandlers['/pins'].POST({ body })).resolves.toMatchObject(row)
+      expect(pinMock).toHaveBeenCalledWith(body)
+    })
+
     it('should accept UniqueModelId entityId values for model pins', async () => {
       pinMock.mockResolvedValueOnce({ id: PIN_ID, entityType: 'model', entityId: MODEL_ID })
 
@@ -162,7 +173,7 @@ describe('pinHandlers', () => {
     it('should delegate GET with the parsed id', async () => {
       getByIdMock.mockResolvedValueOnce({ id: PIN_ID })
 
-      await expect(pinHandlers['/pins/:id'].GET({ params: { id: PIN_ID } } as never)).resolves.toEqual({
+      await expect(pinHandlers['/pins/:id'].GET({ params: { id: PIN_ID } })).resolves.toEqual({
         id: PIN_ID
       })
       expect(getByIdMock).toHaveBeenCalledWith(PIN_ID)
@@ -171,18 +182,18 @@ describe('pinHandlers', () => {
     it('should delegate DELETE with the parsed id', async () => {
       unpinMock.mockResolvedValueOnce(undefined)
 
-      await expect(pinHandlers['/pins/:id'].DELETE({ params: { id: PIN_ID } } as never)).resolves.toBeUndefined()
+      await expect(pinHandlers['/pins/:id'].DELETE({ params: { id: PIN_ID } })).resolves.toBeUndefined()
       expect(unpinMock).toHaveBeenCalledWith(PIN_ID)
     })
 
     it('should reject invalid pin ids in path params before calling the service', async () => {
-      await expect(pinHandlers['/pins/:id'].GET({ params: { id: 'not-a-uuid' } } as never)).rejects.toHaveProperty(
+      await expect(pinHandlers['/pins/:id'].GET({ params: { id: 'not-a-uuid' } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )
       expect(getByIdMock).not.toHaveBeenCalled()
 
-      await expect(pinHandlers['/pins/:id'].DELETE({ params: { id: 'not-a-uuid' } } as never)).rejects.toHaveProperty(
+      await expect(pinHandlers['/pins/:id'].DELETE({ params: { id: 'not-a-uuid' } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )
@@ -198,7 +209,7 @@ describe('pinHandlers', () => {
         pinHandlers['/pins/:id/order'].PATCH({
           params: { id: PIN_ID },
           body: { before: OTHER_PIN_ID }
-        } as never)
+        })
       ).resolves.toBeUndefined()
 
       expect(reorderMock).toHaveBeenCalledWith(PIN_ID, { before: OTHER_PIN_ID })
@@ -209,7 +220,7 @@ describe('pinHandlers', () => {
         pinHandlers['/pins/:id/order'].PATCH({
           params: { id: PIN_ID },
           body: { before: OTHER_PIN_ID, after: OTHER_PIN_ID }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(reorderMock).not.toHaveBeenCalled()
     })
@@ -247,7 +258,7 @@ describe('pinHandlers', () => {
     })
 
     it('should reject an empty moves array before calling the service', async () => {
-      await expect(pinHandlers['/pins/order:batch'].PATCH({ body: { moves: [] } } as never)).rejects.toHaveProperty(
+      await expect(pinHandlers['/pins/order:batch'].PATCH({ body: { moves: [] } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )

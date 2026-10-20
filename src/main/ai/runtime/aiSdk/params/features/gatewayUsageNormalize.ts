@@ -1,51 +1,31 @@
-import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
-import { definePlugin } from '@cherrystudio/ai-core'
+import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
+
+import { definePlugin } from '@cherrystudio/ai-core'
+import { isFlatV3Usage, normalizeFlatV3Usage } from '@main/ai/utils/usageNormalize'
 
 import type { RequestFeature } from '../feature'
 
-interface FlatGatewayUsage {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-  reasoningTokens?: number
-  cachedInputTokens?: number
-}
-
-function isFlatUsage(usage: unknown): usage is FlatGatewayUsage {
-  if (!usage || typeof usage !== 'object') return false
-  const u = usage as Record<string, unknown>
-  // V3-nested usage has `inputTokens` as an object; flat has it as a number.
-  // Also handle the case where the field is absent (still treat as flat-shaped
-  // upstream — V3 nested would carry the empty object).
-  return typeof u.inputTokens !== 'object' || u.inputTokens === null
-}
-
-function normalizeUsage(flat: FlatGatewayUsage): LanguageModelV3Usage {
-  return {
-    inputTokens: {
-      total: flat.inputTokens,
-      noCache: undefined,
-      cacheRead: flat.cachedInputTokens,
-      cacheWrite: undefined
-    },
-    outputTokens: {
-      total: flat.outputTokens,
-      text: undefined,
-      reasoning: flat.reasoningTokens
-    }
-  }
-}
+export {
+  ensureNestedV3Usage,
+  isFlatV3Usage as isFlatUsage,
+  normalizeFlatV3Usage,
+  normalizeFlatV3Usage as normalizeGatewayUsage
+} from '@main/ai/utils/usageNormalize'
 
 const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
   specificationVersion: 'v3',
+  wrapGenerate: async ({ doGenerate }) => {
+    const result = await doGenerate()
+    return isFlatV3Usage(result.usage) ? { ...result, usage: normalizeFlatV3Usage(result.usage) } : result
+  },
   wrapStream: async ({ doStream }) => {
     const { stream, ...rest } = await doStream()
     const normalized = stream.pipeThrough(
       new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
         transform(chunk, controller) {
-          if (chunk.type === 'finish' && isFlatUsage(chunk.usage)) {
-            controller.enqueue({ ...chunk, usage: normalizeUsage(chunk.usage) })
+          if (chunk.type === 'finish' && isFlatV3Usage(chunk.usage)) {
+            controller.enqueue({ ...chunk, usage: normalizeFlatV3Usage(chunk.usage) })
             return
           }
           controller.enqueue(chunk)
@@ -59,7 +39,10 @@ const gatewayUsageNormalizeMiddleware: LanguageModelMiddleware = {
 function createGatewayUsageNormalizePlugin() {
   return definePlugin({
     name: 'gateway-usage-normalize',
-    enforce: 'pre',
+    // Shape adapters belong directly against the provider. `post` makes this
+    // middleware innermost, so usage capture and the application both observe
+    // the normalized AI SDK v6 shape.
+    enforce: 'post',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
       context.middlewares.push(gatewayUsageNormalizeMiddleware)
@@ -69,6 +52,7 @@ function createGatewayUsageNormalizePlugin() {
 
 export const gatewayUsageNormalizeFeature: RequestFeature = {
   name: 'gateway-usage-normalize',
-  applies: (scope) => scope.sdkConfig.providerId === 'gateway',
+  // Flat usage can surface on any provider path; `isFlatV3Usage` is the gate.
+  applies: () => true,
   contributeModelAdapters: () => [createGatewayUsageNormalizePlugin()]
 }

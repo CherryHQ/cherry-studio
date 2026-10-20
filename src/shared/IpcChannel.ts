@@ -2,32 +2,18 @@
  * Central registry of legacy Electron IPC channel names. Command IPC has largely moved to
  * IpcApi (`ipcApi.request`); what remains here is the data/IpcApi transport infrastructure
  * plus channels not yet migrated — v1-only backup / nutstore / copilot, the file module,
- * LAN transfer, and a handful of micro-domains.
+ * and a handful of micro-domains.
  */
 export enum IpcChannel {
-  App_GetCacheSize = 'app:get-cache-size',
-  App_ClearCache = 'app:clear-cache',
-  App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',
   App_IsPathInside = 'app:is-path-inside',
-  App_Copy = 'app:copy',
   Application_PreventQuit = 'application:prevent-quit',
   Application_AllowQuit = 'application:allow-quit',
-  App_SetAppDataPath = 'app:set-app-data-path',
-  App_GetDataPathFromArgs = 'app:get-data-path-from-args',
-  App_FlushAppData = 'app:flush-app-data',
-  App_IsNotEmptyDir = 'app:is-not-empty-dir',
   Application_Relaunch = 'application:relaunch',
-  App_ResetData = 'app:reset-data',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
-
-  // StorageMonitor: main-process disk-space watcher for the user-data volume
-  StorageMonitor_GetHealth = 'storage-monitor:get-health',
-  StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
   // Python: main→renderer(pyodide)→main reverse RPC
   Python_ExecutionRequest = 'python:execution-request',
@@ -74,13 +60,9 @@ export enum IpcChannel {
   File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
   File_SaveImage = 'file:saveImage',
-  File_SavePastedImage = 'file:savePastedImage',
   File_BinaryImage = 'file:binaryImage',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',
-  File_IsTextFile = 'file:isTextFile',
-  File_IsDirectory = 'file:isDirectory',
-  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_ListDirectoryEntries = 'file:listDirectoryEntries',
   File_CheckFileName = 'file:checkFileName',
@@ -91,14 +73,7 @@ export enum IpcChannel {
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
-  File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
-  // DirectoryTreeBuilder primitive — top-level file-module surface, parallel
-  // to the FileEntry channels above. See docs/references/file/directory-tree.md.
-  File_TreeCreate = 'file:tree:create',
-  File_TreeDispose = 'file:tree:dispose',
-  File_TreeRename = 'file:tree:rename',
-  File_TreeMutation = 'file:tree:mutation',
 
   // backup
   Backup_Backup = 'backup:backup',
@@ -117,8 +92,6 @@ export enum IpcChannel {
   Backup_RestoreFromS3 = 'backup:restoreFromS3',
   Backup_ListS3Files = 'backup:listS3Files',
   Backup_DeleteS3File = 'backup:deleteS3File',
-  Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
-  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // zip
   Zip_Decompress = 'zip:decompress',
@@ -146,9 +119,8 @@ export enum IpcChannel {
 
   // Data: API Channels
   DataApi_Request = 'data-api:request',
-  DataApi_Subscribe = 'data-api:subscribe',
-  DataApi_Unsubscribe = 'data-api:unsubscribe',
-  DataApi_Stream = 'data-api:stream',
+  // Single fixed channel for DataApi data change notifications (main → all windows).
+  DataApi_DataChanged = 'data-api:data-changed',
 
   // IpcApi: RPC-over-IPC command channel (renderer→main request, main→renderer event)
   IpcApi_Request = 'ipc-api:request',
@@ -156,24 +128,7 @@ export enum IpcChannel {
 
   // TRACE
   TRACE_GET_DATA = 'trace:getData',
-  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-
-  // ExternalApps
-  ExternalApps_DetectInstalled = 'external-apps:detect-installed',
-
-  // Global Skills
-  Skill_ReadFile = 'skill:read-file',
-  Skill_ListFiles = 'skill:list-files',
-
-  // LAN Transfer
-  LanTransfer_StartScan = 'lan-transfer:start-scan',
-  LanTransfer_StopScan = 'lan-transfer:stop-scan',
-  LanTransfer_ServicesUpdated = 'lan-transfer:services-updated',
-  LanTransfer_Connect = 'lan-transfer:connect',
-  LanTransfer_Disconnect = 'lan-transfer:disconnect',
-  LanTransfer_ClientEvent = 'lan-transfer:client-event',
-  LanTransfer_SendFile = 'lan-transfer:send-file',
-  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer'
+  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

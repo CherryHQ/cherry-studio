@@ -17,9 +17,7 @@ describe('SelectionToolbarView surface', () => {
       />
     )
 
-    expect(container.firstElementChild?.className).toContain(
-      '[background:var(--selection-toolbar-background,var(--color-card))]'
-    )
+    expect(container.firstElementChild?.className).toContain('bg-card')
     expect(container.firstElementChild?.className).not.toContain('rgb(245_245_245_/_0.95)')
     expect(container.firstElementChild?.className).not.toContain('rgb(20_20_20_/_0.95)')
   })

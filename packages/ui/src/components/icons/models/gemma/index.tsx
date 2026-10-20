@@ -9,7 +9,7 @@ const Gemma = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const GemmaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gemma, {
   Avatar: GemmaAvatar,
-  colorPrimary: '#53A3FF'
+  colorPrimary: '#000000'
 })
 
 export default GemmaIcon

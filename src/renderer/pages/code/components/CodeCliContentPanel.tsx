@@ -1,11 +1,13 @@
-import { Button, SearchInput } from '@cherrystudio/ui'
+import { ExternalLink } from 'lucide-react'
+import { type FC, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Alert, Button, SearchInput } from '@cherrystudio/ui'
+import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { CircleAlert, ExternalLink } from 'lucide-react'
-import { type FC, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { ConfigList } from './ConfigList'
@@ -21,9 +23,12 @@ interface CodeCliContentPanelProps {
     launching: boolean
     running: boolean
     stopping: boolean
+    upgradeDisabled: boolean
   }
   installingTools: Set<string>
   upgradingTools: Set<string>
+  /** Failure message of the last install attempt for the selected tool (from the main-process install-state map). */
+  installError?: string
   providerState: {
     providerless: boolean
     showSelectionHint: boolean
@@ -32,10 +37,11 @@ interface CodeCliContentPanelProps {
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
   currentProviderModelName?: string
+  providerActionsDisabled?: boolean
   resolveProviderMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onInstall: () => void
   onUpgrade: () => void
-  onRemove: () => void
+  onRemove?: () => void
   onLaunch: () => void
   onStop: () => void
   onOpenDashboard: () => void
@@ -51,6 +57,7 @@ function getAddProviderHintKey(cliTool: CodeCli): string {
     case CodeCli.OPENAI_CODEX:
       return 'code.add_provider_hint_openai_responses'
     case CodeCli.GEMINI_CLI:
+    case CodeCli.ANTIGRAVITY_CLI:
       return 'code.add_provider_hint_gemini'
     default:
       return 'code.add_provider_hint'
@@ -64,11 +71,13 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   versionCard,
   installingTools,
   upgradingTools,
+  installError,
   providerState,
   supportedProviders,
   providerConfigs,
   currentProviderId,
   currentProviderModelName,
+  providerActionsDisabled,
   resolveProviderMeta,
   onInstall,
   onUpgrade,
@@ -82,10 +91,21 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
 }) => {
   const { t } = useTranslation()
   const [providerSearch, setProviderSearch] = useState('')
+  const [showInstallError, setShowInstallError] = useState(false)
+
+  // Reset on tool switch: the dialog's controlled `open` goes false when
+  // `installError` clears for the new tool, but Radix does not fire onOpenChange
+  // on a controlled close, so `showInstallError` would stay true and re-surface
+  // the dialog unprompted when switching back to a failed tool.
+  useEffect(() => setShowInstallError(false), [selectedCliTool])
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto max-w-2xl space-y-5">
+        {selectedCliTool === CodeCli.GEMINI_CLI && (
+          <Alert type="warning" showIcon description={t('code.gemini_cli_discontinued')} className="shadow-none" />
+        )}
+
         {versionCard.visible && (
           <VersionStatusCard
             toolId={selectedCliTool}
@@ -103,18 +123,28 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             stopping={versionCard.stopping}
             isInstalling={installingTools.has(selectedCliTool)}
             isUpgrading={upgradingTools.has(selectedCliTool)}
+            upgradeDisabled={versionCard.upgradeDisabled}
+            installError={installError}
+            onShowError={() => setShowInstallError(true)}
+            launchDisabledHint={
+              providerState.showSelectionHint
+                ? t('code.select_provider_before_launch', { toolName: activeMeta.label })
+                : undefined
+            }
           />
         )}
 
-        {providerState.showSelectionHint && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning text-xs">
-            <CircleAlert className="size-3.5 shrink-0" />
-            <span>{t('code.select_provider_before_launch', { toolName: activeMeta.label })}</span>
-          </div>
-        )}
+        <BinaryInstallErrorDialog
+          error={
+            showInstallError && installError
+              ? { name: activeMeta.label, message: installError, action: 'install' }
+              : null
+          }
+          onOpenChange={(open) => !open && setShowInstallError(false)}
+        />
 
         {providerState.providerless ? (
-          <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
+          <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
             {t('code.providerless_hint')}
           </div>
         ) : (
@@ -148,6 +178,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
                 providerConfigs={providerConfigs}
                 currentProviderId={currentProviderId}
                 currentProviderModelName={currentProviderModelName}
+                providerActionsDisabled={providerActionsDisabled}
                 resolveMeta={resolveProviderMeta}
                 onConfigure={onConfigure}
                 onToggleCurrent={onToggleCurrent}
@@ -161,7 +192,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               variant="outline"
               size="sm"
               onClick={() => openSettingsTab('/settings/provider')}
-              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-foreground-secondary hover:border-border hover:text-foreground">
+              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-muted-foreground hover:border-border hover:text-foreground">
               {t(getAddProviderHintKey(selectedCliTool))}
               <ExternalLink size={10} />
             </Button>

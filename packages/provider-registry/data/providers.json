@@ -1,6 +1,7 @@
 {
   "providers": [
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "CherryIN - AI model provider",
       "endpointConfigs": {
@@ -8,7 +9,18 @@
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
         },
+        "google-generate-content": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net"
+        },
         "openai-chat-completions": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
         }
@@ -17,14 +29,28 @@
       "metadata": {
         "website": {
           "apiKey": "https://open.cherryin.ai/console/token",
+          "billing": "https://open.cherryin.ai/console/topup",
           "docs": "https://open.cherryin.ai",
           "models": "https://open.cherryin.ai/pricing",
           "official": "https://open.cherryin.ai"
         }
       },
-      "name": "CherryIN"
+      "name": "CherryIN",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini", "openai"]
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini"]
+        }
+      ]
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Silicon - AI model provider",
       "endpointConfigs": {
@@ -34,13 +60,16 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.siliconflow.cn/v1"
+          "baseUrl": "https://api.siliconflow.cn/v1",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
         }
       },
       "id": "silicon",
       "metadata": {
         "website": {
-          "apiKey": "https://cloud.siliconflow.cn/",
+          "apiKey": "https://cloud.siliconflow.cn/i/d1nTBKXU",
           "docs": "https://docs.siliconflow.cn/",
           "models": "https://cloud.siliconflow.cn/models",
           "official": "https://www.siliconflow.cn"
@@ -49,6 +78,7 @@
       "name": "Silicon"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AiHubMix - AI model provider",
       "endpointConfigs": {
@@ -56,7 +86,15 @@
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com"
         },
+        "google-generate-content": {
+          "adapterFamily": "aihubmix",
+          "baseUrl": "https://aihubmix.com/gemini/v1beta"
+        },
         "openai-chat-completions": {
+          "adapterFamily": "aihubmix",
+          "baseUrl": "https://aihubmix.com/v1"
+        },
+        "openai-responses": {
           "adapterFamily": "aihubmix",
           "baseUrl": "https://aihubmix.com/v1"
         }
@@ -70,10 +108,23 @@
           "official": "https://aihubmix.com"
         }
       },
-      "name": "AiHubMix"
+      "name": "AiHubMix",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini", "openai"]
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini"]
+        }
+      ]
     },
     {
       "authOptional": true,
+      "availableInEditions": ["global", "cn"],
       "description": "OpenVINO Model Server - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -92,6 +143,7 @@
       "name": "OpenVINO Model Server"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "ocoolAI - AI model provider",
       "endpointConfigs": {
@@ -112,6 +164,7 @@
       "name": "ocoolAI"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "ZhiPu - AI model provider",
       "endpointConfigs": {
@@ -121,7 +174,45 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://open.bigmodel.cn/api/paas/v4/"
+          "baseUrl": "https://open.bigmodel.cn/api/paas/v4/",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "zhipu",
@@ -133,12 +224,17 @@
           "official": "https://open.bigmodel.cn/"
         }
       },
-      "name": "ZhiPu"
+      "name": "ZhiPu",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["zhipu"]
+        }
+      ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "deepseek - AI model provider",
       "endpointConfigs": {
@@ -148,21 +244,75 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "deepseek",
-          "baseUrl": "https://api.deepseek.com"
+          "baseUrl": "https://api.deepseek.com",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.deepseek.com",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "deepseek",
       "metadata": {
         "website": {
           "apiKey": "https://platform.deepseek.com/api_keys",
-          "docs": "https://platform.deepseek.com/api-docs/",
-          "models": "https://platform.deepseek.com/api-docs/",
+          "billing": "https://platform.deepseek.com/top_up",
+          "docs": "https://api-docs.deepseek.com/",
+          "models": "https://api-docs.deepseek.com/",
           "official": "https://deepseek.com/"
         }
       },
-      "name": "deepseek"
+      "name": "deepseek",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AlayaNew - AI model provider",
       "endpointConfigs": {
@@ -183,15 +333,20 @@
       "name": "AlayaNew"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "DMXAPI - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "anthropic",
+          "adapterFamily": "dmxapi",
           "baseUrl": "https://www.dmxapi.cn"
         },
+        "google-generate-content": {
+          "adapterFamily": "dmxapi",
+          "baseUrl": "https://www.dmxapi.cn/v1beta/"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
+          "adapterFamily": "dmxapi",
           "baseUrl": "https://www.dmxapi.cn"
         }
       },
@@ -207,12 +362,25 @@
       "name": "DMXAPI"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "AIOnly - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "newapi"
+        },
+        "google-generate-content": {
+          "adapterFamily": "newapi"
+        },
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.aiionly.com"
+          "adapterFamily": "newapi",
+          "baseUrl": "https://api.aiionly.com",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "newapi"
         }
       },
       "id": "aionly",
@@ -227,6 +395,7 @@
       "name": "AIOnly"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "BurnCloud - AI model provider",
       "endpointConfigs": {
@@ -247,6 +416,7 @@
       "name": "BurnCloud"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "302.AI - AI model provider",
       "endpointConfigs": {
@@ -271,6 +441,7 @@
       "name": "302.AI"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "LANYUN - AI model provider",
       "endpointConfigs": {
@@ -291,6 +462,7 @@
       "name": "LANYUN"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "PH8 - AI model provider",
       "endpointConfigs": {
@@ -311,6 +483,7 @@
       "name": "PH8"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "SophNet - AI model provider",
       "endpointConfigs": {
@@ -331,6 +504,7 @@
       "name": "SophNet"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "PPIO - AI model provider",
       "endpointConfigs": {
@@ -348,12 +522,11 @@
           "official": "https://ppio.com/"
         }
       },
-      "name": "PPIO"
+      "name": "PPIO",
+      "supplementModelsFromRegistry": true
     },
     {
-      "apiFeatures": {
-        "developerRole": false
-      },
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Qiniu - AI model provider",
       "endpointConfigs": {
@@ -363,7 +536,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.qnaigc.com"
+          "baseUrl": "https://api.qnaigc.com",
+          "dialect": {
+            "developerRole": false
+          }
         }
       },
       "id": "qiniu",
@@ -378,14 +554,97 @@
       "name": "Qiniu"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "openrouter",
-          "baseUrl": "https://openrouter.ai/api"
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://openrouter.ai/api",
+          "requestControls": {
+            "serviceTier": {
+              "default": "standard",
+              "options": ["standard", "fast", "flex"],
+              "wire": {
+                "delivery": {
+                  "key": "service_tier",
+                  "type": "request-body"
+                },
+                "values": {
+                  "fast": "priority",
+                  "flex": "flex",
+                  "standard": "default"
+                }
+              }
+            }
+          }
         },
         "openai-chat-completions": {
+          "adapterFamily": "openrouter",
+          "baseUrl": "https://openrouter.ai/api/v1/",
+          "modelsApiUrls": {
+            "default": "https://openrouter.ai/api/v1/models",
+            "embedding": "https://openrouter.ai/api/v1/embeddings/models",
+            "image": "https://openrouter.ai/api/v1/images/models"
+          },
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoning.effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoning.effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoning.effort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "requestControls": {
+            "serviceTier": {
+              "default": "standard",
+              "options": ["standard", "fast", "flex"],
+              "wire": {
+                "delivery": {
+                  "key": "service_tier",
+                  "type": "provider-option"
+                },
+                "values": {
+                  "fast": "priority",
+                  "flex": "flex",
+                  "standard": "default"
+                }
+              }
+            }
+          }
+        },
+        "openai-image-generation": {
           "adapterFamily": "openrouter",
           "baseUrl": "https://openrouter.ai/api/v1/"
         }
@@ -399,10 +658,23 @@
           "official": "https://openrouter.ai/"
         }
       },
-      "name": "OpenRouter"
+      "name": "OpenRouter",
+      "reportedCostCurrency": "USD",
+      "reportsActualCost": true,
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "all-chat-models"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "all-chat-models"
+        }
+      ]
     },
     {
       "authOptional": true,
+      "availableInEditions": ["global", "cn"],
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -411,7 +683,10 @@
         },
         "ollama-chat": {
           "adapterFamily": "ollama",
-          "baseUrl": "http://localhost:11434"
+          "baseUrl": "http://localhost:11434",
+          "reasoningFormat": {
+            "type": "ollama"
+          }
         }
       },
       "id": "ollama",
@@ -425,21 +700,95 @@
       "name": "Ollama"
     },
     {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AMD GPU Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
+        }
+      },
+      "id": "radeon-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "docs": "https://developer.amd.com.cn/radeon/",
+          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
+          "official": "https://developer.amd.com.cn/radeon/"
+        }
+      },
+      "name": "AMD GPU Cloud"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TokenDance - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway",
+          "modelsApiUrls": {
+            "default": "https://tokendance.space/gateway/v1/models"
+          }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://tokendance.space/gateway"
+        }
+      },
+      "id": "tokendance",
+      "metadata": {
+        "website": {
+          "apiKey": "https://tokendance.space/keys",
+          "docs": "https://tokendance.space/docs/cherry-studio",
+          "models": "https://tokendance.space/models",
+          "official": "https://tokendance.space"
+        }
+      },
+      "name": "TokenDance"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "newapi",
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         },
         "google-generate-content": {
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         },
         "openai-chat-completions": {
           "adapterFamily": "newapi",
-          "baseUrl": "http://localhost:3000"
+          "baseUrl": "http://localhost:3000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-image-edit": {
+          "adapterFamily": "newapi"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "newapi"
         },
         "openai-responses": {
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         }
       },
       "id": "new-api",
@@ -449,10 +798,24 @@
           "official": "https://docs.newapi.pro/"
         }
       },
-      "name": "New API"
+      "name": "New API",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini", "openai"]
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent",
+          "vendors": ["anthropic", "gemini"]
+        }
+      ]
     },
     {
       "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -461,7 +824,10 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "http://localhost:1234"
+          "baseUrl": "http://localhost:1234",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
         }
       },
       "id": "lmstudio",
@@ -475,6 +841,31 @@
       "name": "LM Studio"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "LiteLLM - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:4000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "litellm",
+      "metadata": {
+        "website": {
+          "apiKey": "https://docs.litellm.ai/docs/proxy/virtual_keys",
+          "docs": "https://docs.litellm.ai/docs/proxy/quick_start",
+          "official": "https://www.litellm.ai/"
+        }
+      },
+      "name": "LiteLLM"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
       "endpointConfigs": {
@@ -487,15 +878,27 @@
       "metadata": {
         "website": {
           "apiKey": "https://console.anthropic.com/settings/keys",
+          "billing": "https://platform.claude.com/settings/billing",
           "docs": "https://docs.anthropic.com/en/docs",
           "models": "https://docs.anthropic.com/en/docs/about-claude/models",
           "official": "https://anthropic.com/"
         }
       },
-      "name": "Anthropic"
+      "name": "Anthropic",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "authMethods": ["external-cli"],
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Claude Code - AI model provider",
       "endpointConfigs": {
@@ -503,6 +906,9 @@
           "adapterFamily": "anthropic",
           "baseUrl": "https://api.anthropic.com"
         }
+      },
+      "fastMode": {
+        "transport": "claude-code"
       },
       "id": "claude-code",
       "metadata": {
@@ -512,20 +918,109 @@
         }
       },
       "modelListSource": "registry",
-      "name": "Claude Code"
+      "name": "Claude Code",
+      "serverTools": [
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
       "authMethods": ["oauth"],
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI Codex - AI model provider",
       "endpointConfigs": {
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://chatgpt.com/backend-api/codex"
+          "baseUrl": "https://chatgpt.com/backend-api/codex",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
+      },
+      "fastMode": {
+        "transport": "openai-priority"
       },
       "id": "openai-codex",
       "metadata": {
@@ -539,6 +1034,7 @@
     },
     {
       "authMethods": ["oauth"],
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "Grok CLI - AI model provider",
       "endpointConfigs": {
@@ -558,49 +1054,268 @@
       "name": "Grok CLI"
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-responses",
+      "description": "oMLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "http://localhost:8000"
+        }
       },
+      "id": "omlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/jundot/omlx",
+          "official": "https://omlx.ai"
+        }
+      },
+      "name": "oMLX"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://api.openai.com"
+          "baseUrl": "https://api.openai.com",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "openai",
       "metadata": {
         "website": {
           "apiKey": "https://platform.openai.com/api-keys",
+          "billing": "https://platform.openai.com/settings/organization/billing/overview",
           "docs": "https://platform.openai.com/docs",
           "models": "https://platform.openai.com/docs/models",
           "official": "https://openai.com/"
         }
       },
-      "name": "OpenAI"
+      "name": "OpenAI",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "OpenCode Go - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://opencode.ai/zen/go/v1",
+          "reasoningFormat": {
+            "type": "anthropic"
+          }
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://opencode.ai/zen/go/v1"
+          "baseUrl": "https://opencode.ai/zen/go/v1",
+          "modelsApiUrls": {
+            "default": "https://opencode.ai/zen/go/v1/models"
+          },
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://opencode.ai/zen/go/v1",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "opencode",
       "metadata": {
         "website": {
           "apiKey": "https://opencode.ai/auth",
-          "docs": "https://opencode.ai/docs/go",
-          "models": "https://opencode.ai/docs/go",
+          "docs": "https://opencode.ai/docs/go/",
+          "models": "https://opencode.ai/zen/go/v1/models",
           "official": "https://opencode.ai"
         }
       },
       "name": "OpenCode Go"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Azure OpenAI - AI model provider",
       "endpointConfigs": {
@@ -608,7 +1323,89 @@
           "adapterFamily": "azure"
         },
         "openai-responses": {
-          "adapterFamily": "azure-responses"
+          "adapterFamily": "azure-responses",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "default": {
+                "operations": [
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  },
+                  {
+                    "target": "reasoningSummary",
+                    "value": {
+                      "source": "assistant-summary"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "azure-openai",
@@ -620,9 +1417,20 @@
           "official": "https://azure.microsoft.com/en-us/products/ai-services/openai-service"
         }
       },
-      "name": "Azure OpenAI"
+      "name": "Azure OpenAI",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "google-generate-content",
       "description": "Gemini - AI model provider",
       "endpointConfigs": {
@@ -640,9 +1448,20 @@
           "official": "https://gemini.google.com/"
         }
       },
-      "name": "Gemini"
+      "name": "Gemini",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "google-generate-content",
       "description": "VertexAI - AI model provider",
       "endpointConfigs": {
@@ -662,29 +1481,22 @@
           "official": "https://cloud.google.com/vertex-ai"
         }
       },
-      "name": "VertexAI"
+      "name": "VertexAI",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent",
+          "vendors": ["gemini"]
+        }
+      ],
+      "supplementModelsFromRegistry": true
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Github Models - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://models.github.ai/inference"
-        }
-      },
-      "id": "github",
-      "metadata": {
-        "website": {
-          "apiKey": "https://github.com/settings/tokens",
-          "docs": "https://docs.github.com/en/github-models",
-          "models": "https://github.com/marketplace/models",
-          "official": "https://github.com/marketplace/models"
-        }
-      },
-      "name": "Github Models"
-    },
-    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Github Copilot - AI model provider",
       "endpointConfigs": {
@@ -702,26 +1514,7 @@
       "name": "Github Copilot"
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Yi - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.lingyiwanwu.com"
-        }
-      },
-      "id": "yi",
-      "metadata": {
-        "website": {
-          "apiKey": "https://platform.lingyiwanwu.com/apikeys",
-          "docs": "https://platform.lingyiwanwu.com/docs",
-          "models": "https://platform.lingyiwanwu.com/docs",
-          "official": "https://platform.lingyiwanwu.com/"
-        }
-      },
-      "name": "Yi"
-    },
-    {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Moonshot AI - AI model provider",
       "endpointConfigs": {
@@ -731,7 +1524,45 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.moonshot.cn"
+          "baseUrl": "https://api.moonshot.cn",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "moonshot",
@@ -743,12 +1574,90 @@
           "official": "https://www.moonshot.cn/"
         }
       },
-      "name": "Moonshot AI"
+      "name": "Moonshot AI",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["kimi"]
+        }
+      ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Moonshot - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.moonshot.ai/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.moonshot.ai",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
       },
+      "id": "moonshot-global",
+      "metadata": {
+        "website": {
+          "apiKey": "https://platform.moonshot.ai/console/api-keys",
+          "docs": "https://platform.moonshot.ai/docs/",
+          "models": "https://platform.moonshot.ai/docs/",
+          "official": "https://www.moonshot.ai/"
+        }
+      },
+      "name": "Moonshot",
+      "presetProviderId": "moonshot",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["kimi"]
+        }
+      ]
+    },
+    {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "BAICHUAN AI - AI model provider",
       "endpointConfigs": {
@@ -769,6 +1678,7 @@
       "name": "BAICHUAN AI"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Bailian - AI model provider",
       "endpointConfigs": {
@@ -778,11 +1688,17 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "dashscope",
@@ -794,9 +1710,20 @@
           "official": "https://www.aliyun.com/product/bailian"
         }
       },
-      "name": "Bailian"
+      "name": "Bailian",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "StepFun - AI model provider",
       "endpointConfigs": {
@@ -821,53 +1748,84 @@
       "name": "StepFun"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "doubao - AI model provider",
+      "description": "Doubao - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/"
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "auto"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/"
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
+      },
+      "fastMode": {
+        "serviceTier": "fast",
+        "transport": "openai-priority"
       },
       "id": "doubao",
       "metadata": {
         "website": {
           "apiKey": "https://www.volcengine.com/experience/ark",
-          "docs": "https://www.volcengine.com/docs/82379/1182403",
-          "models": "https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint",
+          "docs": "https://console.volcengine.com/ark/region:cn-beijing/docs/82379/1099455?lang=zh",
+          "models": "https://console.volcengine.com/ark/region:cn-beijing/model?view=CARD_VIEW",
           "official": "https://console.volcengine.com/ark/"
         }
       },
-      "name": "doubao"
+      "name": "Doubao",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent",
+          "vendors": ["doubao"]
+        }
+      ]
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Infini - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://cloud.infini-ai.com/maas"
-        }
-      },
-      "id": "infini",
-      "metadata": {
-        "website": {
-          "apiKey": "https://cloud.infini-ai.com/iam/secret/key",
-          "docs": "https://docs.infini-ai.com/gen-studio/api/maas.html",
-          "models": "https://cloud.infini-ai.com/genstudio/model",
-          "official": "https://cloud.infini-ai.com/"
-        }
-      },
-      "name": "Infini"
-    },
-    {
-      "apiFeatures": {
-        "arrayContent": false
-      },
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "MiniMax - AI model provider",
       "endpointConfigs": {
@@ -877,14 +1835,14 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.minimaxi.com/v1"
+          "baseUrl": "https://api.minimaxi.com/v1/"
         }
       },
       "id": "minimax",
       "metadata": {
         "website": {
           "apiKey": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
-          "docs": "https://platform.minimaxi.com/docs/api-reference/api-overview",
+          "docs": "https://platform.minimaxi.com/docs/api-reference/text-openai-api",
           "models": "https://platform.minimaxi.com/document/Models",
           "official": "https://platform.minimaxi.com/"
         }
@@ -892,15 +1850,34 @@
       "name": "MiniMax"
     },
     {
-      "apiFeatures": {
-        "serviceTier": true
-      },
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Groq - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "groq",
-          "baseUrl": "https://api.groq.com/openai"
+          "baseUrl": "https://api.groq.com/openai",
+          "reasoningFormat": {
+            "type": "none"
+          },
+          "requestControls": {
+            "serviceTier": {
+              "default": "standard",
+              "options": ["standard", "auto", "flex"],
+              "wire": {
+                "delivery": {
+                  "key": "serviceTier",
+                  "type": "provider-option"
+                },
+                "values": {
+                  "auto": "auto",
+                  "fast": "performance",
+                  "flex": "flex",
+                  "standard": "on_demand"
+                }
+              }
+            }
+          }
         }
       },
       "id": "groq",
@@ -915,32 +1892,112 @@
       "name": "Groq"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Together - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "togetherai",
-          "baseUrl": "https://api.together.xyz"
+          "baseUrl": "https://api.together.ai",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
         }
       },
       "id": "together",
       "metadata": {
         "website": {
-          "apiKey": "https://api.together.ai/settings/api-keys",
-          "docs": "https://docs.together.ai/docs/introduction",
-          "models": "https://docs.together.ai/docs/serverless-models",
-          "official": "https://www.together.ai/"
+          "apiKey": "https://api.together.ai/settings/projects/~current/api-keys",
+          "docs": "https://docs.together.ai/intro",
+          "models": "https://docs.together.ai/docs/serverless/models",
+          "official": "https://www.together.ai"
         }
       },
       "name": "Together"
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-responses",
       "description": "Fireworks - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.fireworks.ai/inference",
+          "reasoningFormat": {
+            "type": "anthropic",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  },
+                  {
+                    "target": "thinking.budgetTokens",
+                    "value": {
+                      "source": "literal",
+                      "value": 1024
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "effortMap": {
+                  "max": "high"
+                },
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  },
+                  {
+                    "target": "thinking.budgetTokens",
+                    "value": {
+                      "source": "literal",
+                      "value": 1024
+                    }
+                  },
+                  {
+                    "target": "effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.fireworks.ai/inference"
+          "baseUrl": "https://api.fireworks.ai/inference",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.fireworks.ai/inference",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "fireworks",
@@ -952,15 +2009,23 @@
           "official": "https://fireworks.ai/"
         }
       },
-      "name": "Fireworks"
+      "name": "Fireworks",
+      "supplementModelsFromRegistry": true
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "nvidia - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://integrate.api.nvidia.com"
+          "baseUrl": "https://integrate.api.nvidia.com",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "disabled": true
+            }
+          }
         }
       },
       "id": "nvidia",
@@ -975,6 +2040,7 @@
       "name": "nvidia"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "Grok - AI model provider",
       "endpointConfigs": {
@@ -984,7 +2050,46 @@
         },
         "openai-responses": {
           "adapterFamily": "xai-responses",
-          "baseUrl": "https://api.x.ai/v1"
+          "baseUrl": "https://api.x.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-responses",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoningEffort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "grok",
@@ -995,38 +2100,25 @@
           "official": "https://x.ai/"
         }
       },
-      "name": "Grok"
+      "name": "Grok",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Hyperbolic - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.hyperbolic.xyz"
-        }
-      },
-      "id": "hyperbolic",
-      "metadata": {
-        "website": {
-          "apiKey": "https://app.hyperbolic.xyz/settings",
-          "docs": "https://docs.hyperbolic.xyz",
-          "models": "https://app.hyperbolic.xyz/models",
-          "official": "https://app.hyperbolic.xyz"
-        }
-      },
-      "name": "Hyperbolic"
-    },
-    {
-      "apiFeatures": {
-        "streamOptions": false
-      },
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Mistral - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "mistral",
-          "baseUrl": "https://api.mistral.ai"
+          "baseUrl": "https://api.mistral.ai",
+          "dialect": {
+            "streamOptions": false
+          }
         }
       },
       "id": "mistral",
@@ -1041,6 +2133,7 @@
       "name": "Mistral"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Jina - AI model provider",
       "endpointConfigs": {
@@ -1053,7 +2146,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://jina.ai/",
-          "docs": "https://jina.ai",
+          "docs": "https://api.jina.ai/scalar",
           "models": "https://jina.ai",
           "official": "https://jina.ai"
         }
@@ -1061,6 +2154,7 @@
       "name": "Jina"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Perplexity - AI model provider",
       "endpointConfigs": {
@@ -1078,9 +2172,16 @@
           "official": "https://perplexity.ai/"
         }
       },
-      "name": "Perplexity"
+      "name": "Perplexity",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "ModelScope - AI model provider",
       "endpointConfigs": {
@@ -1105,9 +2206,7 @@
       "name": "ModelScope"
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Xirang - AI model provider",
       "endpointConfigs": {
@@ -1128,46 +2227,7 @@
       "name": "Xirang"
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "hunyuan - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.hunyuan.cloud.tencent.com"
-        }
-      },
-      "id": "hunyuan",
-      "metadata": {
-        "website": {
-          "apiKey": "https://console.cloud.tencent.com/hunyuan/api-key",
-          "docs": "https://cloud.tencent.com/document/product/1729/111007",
-          "models": "https://cloud.tencent.com/document/product/1729/104753",
-          "official": "https://cloud.tencent.com/product/hunyuan"
-        }
-      },
-      "name": "hunyuan"
-    },
-    {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Tencent Cloud TI - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.lkeap.cloud.tencent.com"
-        }
-      },
-      "id": "tencent-cloud-ti",
-      "metadata": {
-        "website": {
-          "apiKey": "https://console.cloud.tencent.com/lkeap/api",
-          "docs": "https://cloud.tencent.com/document/product/1772",
-          "models": "https://console.cloud.tencent.com/tione/v2/aimarket",
-          "official": "https://cloud.tencent.com/product/ti"
-        }
-      },
-      "name": "Tencent Cloud TI"
-    },
-    {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenHub - AI model provider",
       "endpointConfigs": {
@@ -1187,7 +2247,7 @@
       "id": "tokenhub",
       "metadata": {
         "website": {
-          "apiKey": "https://console.cloud.tencent.com/tokenhub/inference",
+          "apiKey": "https://console.cloud.tencent.com/tokenhub/apikey",
           "docs": "https://cloud.tencent.com/document/product/1823",
           "models": "https://cloud.tencent.com/document/product/1823/130079",
           "official": "https://cloud.tencent.com/product/tokenhub"
@@ -1197,6 +2257,7 @@
       "name": "TokenHub"
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Baidu Cloud - AI model provider",
       "endpointConfigs": {
@@ -1218,11 +2279,15 @@
     },
     {
       "authOptional": true,
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "GPUStack - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "adapterFamily": "openai-compatible"
+          "adapterFamily": "openai-compatible",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
         }
       },
       "id": "gpustack",
@@ -1236,6 +2301,7 @@
       "name": "GPUStack"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "VoyageAI - AI model provider",
       "endpointConfigs": {
@@ -1257,11 +2323,18 @@
       "name": "VoyageAI"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "AWS Bedrock - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "bedrock"
+          "adapterFamily": "bedrock",
+          "reasoningFormat": {
+            "type": "anthropic",
+            "wire": {
+              "disabled": true
+            }
+          }
         }
       },
       "id": "aws-bedrock",
@@ -1274,43 +2347,153 @@
         }
       },
       "modelListSource": "registry",
-      "name": "AWS Bedrock"
+      "name": "AWS Bedrock",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
-      "apiFeatures": {
-        "arrayContent": false,
-        "developerRole": false
-      },
-      "defaultChatEndpoint": "openai-chat-completions",
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-responses",
       "description": "Poe - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.poe.com"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.poe.com/v1/"
+          "baseUrl": "https://api.poe.com/v1/",
+          "dialect": {
+            "developerRole": false
+          },
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "disabled": true
+            }
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.poe.com/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "poe",
       "metadata": {
         "website": {
           "apiKey": "https://poe.com/api/keys",
-          "docs": "https://creator.poe.com/docs/external-applications/openai-compatible-api",
-          "models": "https://poe.com/",
+          "docs": "https://creator.poe.com/docs",
+          "models": "https://poe.com/api/models",
           "official": "https://poe.com/"
         }
       },
-      "name": "Poe"
+      "name": "Poe",
+      "serverTools": [
+        {
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "LongCat - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://api.longcat.chat/anthropic"
+          "baseUrl": "https://api.longcat.chat/anthropic",
+          "reasoningFormat": {
+            "type": "anthropic",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.longcat.chat/openai"
+          "baseUrl": "https://api.longcat.chat/openai",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "enabled"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "thinking.type",
+                    "value": {
+                      "source": "literal",
+                      "value": "disabled"
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "longcat",
@@ -1322,14 +2505,24 @@
           "official": "https://longcat.chat"
         }
       },
+      "modelListSource": "registry",
       "name": "LongCat"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "Hugging Face - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://router.huggingface.co/v1/"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.huggingface.co/v1"
+        },
         "openai-responses": {
-          "adapterFamily": "huggingface",
+          "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
         }
       },
@@ -1345,6 +2538,7 @@
       "name": "Hugging Face"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Vercel AI Gateway - AI model provider",
       "endpointConfigs": {
@@ -1365,12 +2559,29 @@
       "name": "Vercel AI Gateway"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Cerebras AI - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "cerebras",
-          "baseUrl": "https://api.cerebras.ai/v1"
+          "baseUrl": "https://api.cerebras.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "off": {
+                "operations": [
+                  {
+                    "target": "disable_reasoning",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "id": "cerebras",
@@ -1385,30 +2596,85 @@
       "name": "Cerebras AI"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "description": "ComfyUI - AI model provider",
+      "endpointConfigs": {
+        "openai-image-generation": {
+          "adapterFamily": "comfyui",
+          "baseUrl": "http://localhost:8188"
+        }
+      },
+      "id": "comfyui",
+      "metadata": {
+        "website": {
+          "docs": "https://docs.comfy.org",
+          "official": "https://www.comfy.org"
+        }
+      },
+      "modelResolution": {
+        "defaults": {
+          "capabilities": ["image-generation"],
+          "endpointTypes": ["openai-image-generation"],
+          "imageGeneration": {
+            "modes": {
+              "generate": {
+                "supports": {
+                  "seed": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          },
+          "inputModalities": ["text"],
+          "outputModalities": ["image"],
+          "supportsStreaming": false
+        },
+        "source": "provider"
+      },
+      "name": "ComfyUI"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Xiaomi MiMo - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://api.xiaomimimo.com/anthropic"
+          "baseUrl": "https://api.xiaomimimo.com/anthropic",
+          "reasoningFormat": {
+            "type": "anthropic"
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.xiaomimimo.com"
+          "baseUrl": "https://api.xiaomimimo.com",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://api.xiaomimimo.com",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
         }
       },
       "id": "mimo",
       "metadata": {
         "website": {
-          "apiKey": "https://platform.xiaomimimo.com/#/console/usage",
-          "docs": "https://platform.xiaomimimo.com/#/docs/welcome",
-          "models": "https://platform.xiaomimimo.com/",
-          "official": "https://platform.xiaomimimo.com/"
+          "apiKey": "https://platform.xiaomimimo.com/",
+          "docs": "https://mimo.mi.com/docs/zh-CN",
+          "models": "https://mimo.mi.com/docs/zh-CN/quick-start/summary/model",
+          "official": "https://mimo.mi.com/"
         }
       },
       "name": "Xiaomi MiMo"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "zai - AI model provider",
       "endpointConfigs": {
@@ -1434,6 +2700,7 @@
       "presetProviderId": "zhipu"
     },
     {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "minimax-global - AI model provider",
       "endpointConfigs": {
@@ -1443,14 +2710,14 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.minimax.io/v1"
+          "baseUrl": "https://api.minimax.io/v1/"
         }
       },
       "id": "minimax-global",
       "metadata": {
         "website": {
           "apiKey": "https://platform.minimax.io/user-center/basic-information/interface-key",
-          "docs": "https://platform.minimax.io/docs/api-reference/api-overview",
+          "docs": "https://platform.minimax.io/docs/api-reference/text-openai-api",
           "models": "https://platform.minimax.io/document/Models",
           "official": "https://platform.minimax.io/"
         }
@@ -1459,5 +2726,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "3d9f0c6d2e2c192f"
+  "version": "1b44511badb438e6"
 }

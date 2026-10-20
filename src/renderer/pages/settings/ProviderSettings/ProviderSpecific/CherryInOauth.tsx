@@ -1,5 +1,10 @@
+import { RefreshCw } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+
 import { Button, Skeleton } from '@cherrystudio/ui'
-import { Cherryin } from '@cherrystudio/ui/icons'
+import { Cherryin } from '@cherrystudio/ui/icons/providers'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
@@ -7,23 +12,18 @@ import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/prim
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
+import { cn } from '@renderer/utils/style'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('CherryInOauth')
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
-
-export const getAvatarInitials = (name: string): string => {
-  if (!name) return '??'
-  const trimmed = name.trim()
-  if (trimmed.length <= 2) return trimmed.toUpperCase()
-  return trimmed.slice(0, 2).toUpperCase()
-}
 
 interface CherryInOauthProps {
   providerId: string
@@ -41,6 +41,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
   const { t } = useTranslation()
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [isCancellingLogin, setIsCancellingLogin] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [balanceInfo, setBalanceInfo] = useState<CherryInBalance | null>(null)
@@ -48,15 +50,17 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   // `oauth.has_token` returns only a boolean — the access/refresh tokens stay in
   // the main process and never reach the renderer (null = status not loaded yet).
   const [remoteHasOAuthToken, setRemoteHasOAuthToken] = useState<boolean | null>(null)
+  const topupInProgressRef = useRef(false)
+  const signInRequestIdRef = useRef<string | null>(null)
 
   const refreshHasToken = useCallback(async () => {
     try {
-      setRemoteHasOAuthToken(await ipcApi.request('oauth.has_token', { providerId }))
+      setRemoteHasOAuthToken(await ipcApi.request('oauth.has_token', { providerId: SystemProviderIds.cherryin }))
     } catch (error) {
       logger.warn('Failed to check CherryIN OAuth token status:', error as Error)
       setRemoteHasOAuthToken(false)
     }
-  }, [providerId])
+  }, [])
 
   useEffect(() => {
     void refreshHasToken()
@@ -93,7 +97,25 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     }
   }, [oauthTokenOverride, remoteHasOAuthToken])
 
+  // Top-up happens in the system browser,
+  // so the balance refresh must wait for the user to come back.
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      if (topupInProgressRef.current) {
+        topupInProgressRef.current = false
+        void fetchData()
+      }
+    }
+    window.addEventListener('focus', handleWindowFocus)
+    return () => window.removeEventListener('focus', handleWindowFocus)
+  }, [fetchData])
+
   const handleOAuthLogin = useCallback(async () => {
+    if (signInRequestIdRef.current) return
+
+    const requestId = crypto.randomUUID()
+    signInRequestIdRef.current = requestId
+    setIsLoggingIn(true)
     try {
       await oauthWithCherryIn(
         async (apiKeys: string) => {
@@ -110,14 +132,36 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           toast.success(t('auth.get_key_success'))
         },
         {
-          oauthServer: CHERRYIN_OAUTH_SERVER
+          oauthServer: CHERRYIN_OAUTH_SERVER,
+          requestId
         }
       )
     } catch (error) {
+      if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
       logger.error('OAuth error:', error as Error)
       toast.error(t('settings.provider.oauth.error'))
+    } finally {
+      if (signInRequestIdRef.current === requestId) {
+        signInRequestIdRef.current = null
+        setIsLoggingIn(false)
+      }
     }
   }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
+
+  const handleCancelLogin = useCallback(async () => {
+    const requestId = signInRequestIdRef.current
+    if (!requestId) return
+
+    setIsCancellingLogin(true)
+    try {
+      await ipcApi.request('oauth.cancel_sign_in', { providerId: SystemProviderIds.cherryin, requestId })
+    } catch (error) {
+      logger.error('Failed to cancel CherryIN OAuth login:', error as Error)
+      toast.error(t('settings.provider.oauth.error'))
+    } finally {
+      setIsCancellingLogin(false)
+    }
+  }, [t])
 
   const handleLogout = useCallback(async () => {
     const confirmed = await popup.confirm({
@@ -155,7 +199,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
 
   const handleTopup = useCallback(() => {
-    window.open(CHERRYIN_TOPUP_URL, '_blank')
+    topupInProgressRef.current = true
+    void openExternalWebsite(CHERRYIN_TOPUP_URL)
   }, [])
 
   if (!provider) {
@@ -185,12 +230,22 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 <div className={oauthCardClasses.loggedInName}>
                   {t('settings.provider.oauth.cherryIn.not_logged_in')}
                 </div>
-                <div className={oauthCardClasses.loggedInEmail}>{t('settings.provider.oauth.cherryIn.tagline')}</div>
+                <div className={cn(oauthCardClasses.loggedInEmail, 'text-muted-foreground')}>
+                  {t('settings.provider.oauth.cherryIn.tagline')}
+                </div>
               </div>
             </div>
-            <Button variant="emphasis" onClick={handleOAuthLogin}>
-              {t('settings.provider.oauth.cherryIn.login_button')}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="emphasis" onClick={handleOAuthLogin} disabled={isLoggingIn}>
+                {isLoggingIn ? <RefreshCw className="size-4 animate-spin" aria-hidden /> : null}
+                {t('settings.provider.oauth.cherryIn.login_button')}
+              </Button>
+              {isLoggingIn ? (
+                <Button variant="outline" onClick={handleCancelLogin} disabled={isCancellingLogin}>
+                  {t('common.cancel')}
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -205,24 +260,24 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   return (
     <div className={oauthCardClasses.container}>
-      <div className={oauthCardClasses.shellLoggedIn}>
+      <div className={cn(oauthCardClasses.shellLoggedIn, 'text-muted-foreground')}>
         <div className={oauthCardClasses.loggedInRow}>
           <div className={oauthCardClasses.profileMeta}>
-            <div className={oauthCardClasses.avatarSm}>
-              <span>{getAvatarInitials(profileName)}</span>
-            </div>
+            <Cherryin.Avatar shape="circle" size={40} />
             <div className={oauthCardClasses.nameBlock}>
               <div className={oauthCardClasses.nameRow}>
-                <div className={oauthCardClasses.loggedInName}>{profileName}</div>
+                <div className={cn(oauthCardClasses.loggedInName, 'text-foreground')}>{profileName}</div>
                 {profileGroup ? <span className={oauthCardClasses.badge}>{profileGroup}</span> : null}
               </div>
-              <div className={oauthCardClasses.loggedInEmail}>{profileEmail}</div>
+              <div className={cn(oauthCardClasses.loggedInEmail, 'text-muted-foreground')}>{profileEmail}</div>
             </div>
           </div>
-          <div className={oauthCardClasses.loggedInActions}>
-            <div className={oauthCardClasses.inlineBalanceBlock}>
-              <p className={oauthCardClasses.inlineBalanceLabel}>{t('settings.provider.oauth.balance')}</p>
-              <div className={oauthCardClasses.inlineBalanceValue}>
+          <div className={cn(oauthCardClasses.loggedInActions, 'gap-1.5')}>
+            <div className={cn(oauthCardClasses.inlineBalanceBlock, 'mr-1 flex items-baseline gap-1.5 text-left')}>
+              <p className={cn(oauthCardClasses.inlineBalanceLabel, 'text-muted-foreground')}>
+                {t('settings.provider.oauth.balance')}
+              </p>
+              <div className={cn(oauthCardClasses.inlineBalanceValue, 'text-foreground')}>
                 {isLoadingData && !balanceInfo ? (
                   <Skeleton className={`${oauthCardClasses.balanceValueSkeleton} h-5`} />
                 ) : (
@@ -230,11 +285,15 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 )}
               </div>
             </div>
-            <Button className={oauthCardClasses.topupPrimaryButton} onClick={handleTopup} size="sm" variant="default">
+            <Button
+              className={cn(oauthCardClasses.topupPrimaryButton, 'h-7 px-2.5 py-0')}
+              onClick={handleTopup}
+              size="sm"
+              variant="default">
               {t('settings.provider.oauth.topup')}
             </Button>
             <Button
-              className={oauthCardClasses.logoutCompact}
+              className={cn(oauthCardClasses.logoutCompact, 'h-7 px-2 py-0 text-muted-foreground')}
               disabled={isLoggingOut}
               onClick={handleLogout}
               variant="ghost">
@@ -242,14 +301,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
             </Button>
           </div>
         </div>
-        <p className={oauthCardClasses.serviceAttribution}>
+        <p className={cn(oauthCardClasses.serviceAttribution, 'text-muted-foreground')}>
           <Trans
             i18nKey="settings.provider.oauth.cherryIn.service_attribution"
             components={{
               link: (
                 <a
                   key="cherryin-service-link"
-                  className={oauthCardClasses.serviceLink}
+                  className={cn(oauthCardClasses.serviceLink, 'text-muted-foreground')}
                   href={CHERRYIN_OAUTH_SERVER}
                   rel="noreferrer"
                   target="_blank"

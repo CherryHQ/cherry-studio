@@ -4,6 +4,7 @@
  */
 
 import { createReadStream } from 'fs'
+
 import { parser } from 'stream-json'
 import { streamArray } from 'stream-json/streamers/StreamArray'
 

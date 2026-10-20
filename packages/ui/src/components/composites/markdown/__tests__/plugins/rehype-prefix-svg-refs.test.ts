@@ -64,7 +64,7 @@ describe('rehypePrefixSvgReferences', () => {
               children: []
             }
           ]
-        } as Element
+        }
       ]
     }
 

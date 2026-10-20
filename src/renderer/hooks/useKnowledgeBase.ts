@@ -1,17 +1,17 @@
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache, useMutation } from '@data/hooks/useDataApi'
+import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
+import { reorderLocally } from '@renderer/data/utils/reorder'
 import { ipcApi } from '@renderer/ipc'
-import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeBaseListItem, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
-import { useCallback, useMemo, useState } from 'react'
-
-const KNOWLEDGE_V2_BASES_QUERY = {
-  page: 1,
-  limit: KNOWLEDGE_BASES_MAX_LIMIT
-} as const
 
 const logger = loggerService.withContext('useKnowledgeBases')
+const EMPTY_KNOWLEDGE_BASES: KnowledgeBaseListItem[] = []
+const KNOWLEDGE_BASES_QUERY = { sortBy: 'orderKey', sortOrder: 'asc' } as const
 
 const normalizeError = (error: unknown): Error => {
   if (error instanceof Error) {
@@ -30,20 +30,60 @@ export type RestoreKnowledgeBaseInput = Pick<
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
 >
 
-export const useKnowledgeBases = () => {
-  const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
-    query: KNOWLEDGE_V2_BASES_QUERY
+export const useKnowledgeBases = (options: { enabled?: boolean; revalidateOnFocus?: boolean } = {}) => {
+  const enabled = options.enabled !== false
+  const [revalidateAllPages, setRevalidateAllPages] = useState(false)
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases', {
+    query: KNOWLEDGE_BASES_QUERY,
+    limit: KNOWLEDGE_BASES_MAX_LIMIT,
+    enabled: options.enabled,
+    swrOptions: {
+      revalidateAll: revalidateAllPages,
+      revalidateFirstPage: false,
+      ...(options.revalidateOnFocus !== undefined && { revalidateOnFocus: options.revalidateOnFocus })
+    }
   })
+  const flatBases = useInfiniteFlatItems(pages)
+  const isFullyLoaded = enabled && pages.length > 0 && !isLoading && !hasNext && !error
+  const lastCompleteBasesRef = useRef<KnowledgeBaseListItem[]>(EMPTY_KNOWLEDGE_BASES)
 
-  const bases = useMemo(() => data?.items ?? [], [data])
+  if (isFullyLoaded) {
+    lastCompleteBasesRef.current = flatBases
+  }
+
+  useEffect(() => {
+    setRevalidateAllPages(isFullyLoaded)
+  }, [isFullyLoaded])
+
+  useEffect(() => {
+    if (enabled && hasNext && !isLoading && !isRefreshing && !error) {
+      loadNext()
+    }
+  }, [enabled, error, hasNext, isLoading, isRefreshing, loadNext])
+
+  const bases = enabled ? lastCompleteBasesRef.current : EMPTY_KNOWLEDGE_BASES
 
   return {
     bases,
-    isLoading,
+    isLoading: enabled && !isFullyLoaded && !error,
     error,
-    refetch
+    refetch: refresh
   }
 }
+
+export const useKnowledgeBaseReorder = () =>
+  useReorder('/knowledge-bases', {
+    query: KNOWLEDGE_BASES_QUERY,
+    infinite: { limit: KNOWLEDGE_BASES_MAX_LIMIT },
+    computeOptimistic: (items, id, anchor, idKey, request) => {
+      const moving = items.find((item) => item[idKey] === id)
+      if (!moving) throw new Error(`Knowledge base ${id} not found in the cached list`)
+      const groupId = 'anchor' in request && request.groupId !== undefined ? request.groupId : (moving.groupId ?? null)
+      const destination = items.filter((item) => item[idKey] !== id && (item.groupId ?? null) === groupId)
+      const reordered = reorderLocally([...destination, { ...moving, groupId }], id, anchor, idKey)
+      return [...items.filter((item) => item[idKey] !== id && (item.groupId ?? null) !== groupId), ...reordered]
+    }
+  })
 
 export const useCreateKnowledgeBase = () => {
   const [isCreating, setIsCreating] = useState(false)
@@ -56,22 +96,13 @@ export const useCreateKnowledgeBase = () => {
 
       const name = input.name.trim()
       const groupId = input.groupId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim()
 
       if (!name) {
         throw new Error('Knowledge base name is required')
       }
 
-      // A base is BM25-only by default and gets its embedding model later from the
-      // RAG settings. The one exception is creation-time backfill: the create dialog
-      // passes the local embedding model (paired with its dimensions) when it is
-      // already downloaded, so the base starts as a vector base. Keep the pair intact
-      // — the create schema rejects one without the other.
-      const body: {
-        name: string
-        groupId?: string
-        embeddingModelId?: string
-        dimensions?: number
-      } = {
+      const body: CreateKnowledgeBaseInput = {
         name
       }
 
@@ -79,8 +110,9 @@ export const useCreateKnowledgeBase = () => {
         body.groupId = groupId
       }
 
-      if (input.embeddingModelId && input.dimensions) {
-        body.embeddingModelId = input.embeddingModelId
+      // Embedding is optional; when present the schema requires its dimensions alongside it.
+      if (embeddingModelId) {
+        body.embeddingModelId = embeddingModelId
         body.dimensions = input.dimensions
       }
 
@@ -131,7 +163,7 @@ export const useRestoreKnowledgeBase = () => {
 
       const sourceBaseId = input.sourceBaseId.trim()
       const name = input.name?.trim()
-      const embeddingModelId = input.embeddingModelId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim() || null
       const dimensions = input.dimensions
 
       if (!sourceBaseId) {
@@ -142,12 +174,12 @@ export const useRestoreKnowledgeBase = () => {
         throw new Error('Knowledge base name is required')
       }
 
-      if (!embeddingModelId) {
-        throw new Error('Knowledge base embedding model is required')
+      if (dimensions !== null && (!Number.isInteger(dimensions) || dimensions <= 0)) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
       }
 
-      if (!Number.isInteger(dimensions) || dimensions <= 0) {
-        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
+      if ((embeddingModelId === null) !== (dimensions === null)) {
+        throw new Error('Knowledge base embedding model and dimensions must be provided together')
       }
 
       setIsRestoring(true)
@@ -321,9 +353,9 @@ export const useDeleteKnowledgeBase = () => {
       }
 
       try {
-        await invalidateCache('/knowledge-bases')
+        await invalidateCache(['/knowledge-bases', '/agents', '/agents/*', '/assistants', '/assistants/*'])
       } catch (invalidateError) {
-        logger.error('Failed to refresh knowledge base list after delete', normalizeError(invalidateError), {
+        logger.error('Failed to refresh dependent data after knowledge base delete', normalizeError(invalidateError), {
           baseId
         })
       }

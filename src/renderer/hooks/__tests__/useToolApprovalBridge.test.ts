@@ -1,7 +1,8 @@
-import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useToolApprovalBridge } from '../useToolApprovalBridge'
 
@@ -9,11 +10,11 @@ const mocks = vi.hoisted(() => ({
   respondToolApproval: vi.fn()
 }))
 
-// The bridge now delivers decisions via ipcApi.request('ai.respond_tool_approval', …).
+// The bridge now delivers decisions via ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.respond_tool_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))

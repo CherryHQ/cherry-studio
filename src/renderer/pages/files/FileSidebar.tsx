@@ -1,11 +1,12 @@
-import { Button } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
-import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Trash2, Video } from 'lucide-react'
+import { FileCode, FileQuestion, Files, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { MenuDivider, MenuItem, MenuList, PageHeader, Scrollbar } from '@cherrystudio/ui'
+
 export type SidebarFilter =
-  | { kind: 'library'; value: 'all' | 'trash' }
+  | { kind: 'library'; value: 'all' }
   | { kind: 'type'; value: 'image' | 'video' | 'audio' | 'text' | 'document' | 'other' }
 
 type SidebarEntry = {
@@ -26,8 +27,7 @@ const TYPE_ENTRIES: SidebarEntry[] = [
 ]
 
 const LIBRARY_ENTRIES: SidebarEntry[] = [
-  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' },
-  { kind: 'library', value: 'trash', label: (t) => t('files.trash'), icon: Trash2, countKey: 'trash' }
+  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' }
 ]
 
 export function FileSidebar({
@@ -47,26 +47,34 @@ export function FileSidebar({
     const Icon = entry.icon
     const count = fileCounts[entry.countKey]
     return (
-      <Button
+      <MenuItem
         key={`${entry.kind}-${entry.value}`}
-        variant="ghost"
-        size="sm"
+        icon={<Icon />}
+        label={entry.label(t)}
+        suffix={
+          count !== undefined && count > 0 ? <span className="text-xs text-muted-foreground">{count}</span> : null
+        }
+        active={active}
         onClick={() => onFilterChange({ kind: entry.kind, value: entry.value } as SidebarFilter)}
-        className={`w-full justify-start gap-2 px-2.5 py-[5px] ${
-          active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-        }`}>
-        <Icon size={13} strokeWidth={1.5} className="shrink-0 text-muted-foreground/60" />
-        <span className="flex-1 truncate text-left text-sm">{entry.label(t)}</span>
-        {count !== undefined && count > 0 && <span className="text-muted-foreground/40 text-xs">{count}</span>}
-      </Button>
+        labelClassName="group-data-[active=true]:font-medium"
+        className="h-8 rounded-[10px] border-transparent px-2.5 text-sm font-normal text-foreground hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground"
+      />
     )
   }
 
   return (
-    <div className="flex w-[180px] shrink-0 select-none flex-col overflow-y-auto border-border/30 border-r">
-      <div className="space-y-[1px] px-1.5 pt-2 pb-1">{TYPE_ENTRIES.map(renderEntry)}</div>
-      <div className="mx-2.5 border-border/20 border-t" />
-      <div className="space-y-[1px] px-1.5 pt-1 pb-2">{LIBRARY_ENTRIES.map(renderEntry)}</div>
-    </div>
+    <aside
+      data-ui="files.navigation"
+      className="flex w-(--settings-width) min-w-(--settings-width) shrink-0 flex-col border-r-[0.5px] border-border select-none">
+      <PageHeader title={t('files.title')} />
+      <Scrollbar className="min-h-0 flex-1">
+        <MenuList className="gap-0.5 px-2.5 pb-2.5">
+          <div className="px-2.5 pb-0.5 text-xs text-muted-foreground">{t('files.type')}</div>
+          {TYPE_ENTRIES.map(renderEntry)}
+          <MenuDivider className="my-1 bg-transparent" />
+          {LIBRARY_ENTRIES.map(renderEntry)}
+        </MenuList>
+      </Scrollbar>
+    </aside>
   )
 }

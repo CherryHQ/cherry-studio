@@ -38,7 +38,13 @@ describe('profileHandlers.set_avatar', () => {
     await profileHandlers['profile.set_avatar']({ kind: 'image', data }, ctx)
 
     expect(transcodeMock).toHaveBeenCalledWith(data)
-    expect(createInternalEntryMock).toHaveBeenCalledWith({ source: 'bytes', data: WEBP, name: 'image', ext: 'webp' })
+    expect(createInternalEntryMock).toHaveBeenCalledWith({
+      source: 'bytes',
+      data: WEBP,
+      name: 'image',
+      ext: 'webp',
+      cleanupPolicy: 'manual'
+    })
     expect(preferences.set).toHaveBeenCalledWith('app.user.avatar', `file:${FILE_ID}`)
     expect(permanentDeleteMock).not.toHaveBeenCalled()
   })

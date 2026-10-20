@@ -1,11 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { EditorView } from '@codemirror/view'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { loadLanguage } from '@uiw/codemirror-extensions-langs'
 import { type ComponentProps, type ReactNode, type Ref, useImperativeHandle, useRef, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import PromptEditorField from '../PromptEditorField'
 
@@ -15,6 +16,7 @@ type MockCodeEditorProps = ComponentProps<'textarea'> & {
   onChange?: (value: string) => void
   options?: { foldGutter?: boolean; lineNumbers?: boolean }
   theme?: unknown
+  editable?: boolean
 }
 
 const mocks = vi.hoisted(() => ({
@@ -59,33 +61,37 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       <div data-testid="markdown" data-md-id={id}>
         {children}
       </div>
-    ),
-    CodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme }: MockCodeEditorProps) => {
-      const textareaRef = useRef<HTMLTextAreaElement>(null)
-      mocks.codeEditorProps = { options, theme }
-      useImperativeHandle(ref, () => ({
-        focus: () => textareaRef.current?.focus()
-      }))
-      return (
-        <div className="cm-editor" data-testid="editor-empty-area">
-          {options?.lineNumbers !== false || options?.foldGutter !== false ? (
-            <div className="cm-gutters" data-testid="gutter" />
-          ) : null}
-          <div className="cm-content">
-            <textarea
-              ref={textareaRef}
-              autoFocus={autoFocus}
-              aria-label="Prompt editor"
-              placeholder={placeholder}
-              value={value}
-              onChange={(event) => onChange?.(event.currentTarget.value)}
-            />
-          </div>
-        </div>
-      )
-    }
+    )
   }
 })
+
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ ref, value, onChange, placeholder, autoFocus, options, theme, editable }: MockCodeEditorProps) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    mocks.codeEditorProps = { options, theme }
+    useImperativeHandle(ref, () => ({
+      focus: () => textareaRef.current?.focus()
+    }))
+    return (
+      <div className="cm-editor" data-testid="editor-empty-area">
+        {options?.lineNumbers !== false || options?.foldGutter !== false ? (
+          <div className="cm-gutters" data-testid="gutter" />
+        ) : null}
+        <div className="cm-content">
+          <textarea
+            ref={textareaRef}
+            autoFocus={autoFocus}
+            aria-label="Prompt editor"
+            placeholder={placeholder}
+            value={value}
+            readOnly={editable === false}
+            onChange={(event) => onChange?.(event.currentTarget.value)}
+          />
+        </div>
+      </div>
+    )
+  }
+}))
 
 describe('PromptEditorField', () => {
   beforeEach(() => {
@@ -110,10 +116,11 @@ describe('PromptEditorField', () => {
 
     const editorContainer = screen.getByTestId('editor-empty-area').parentElement
     expect(editorContainer).toHaveClass('bg-background')
-    expect(editorContainer).toHaveClass('border-border', 'focus-within:border-border-hover')
-    expect(editorContainer).toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
+    expect(editorContainer).toHaveClass('border-border', 'focus-within:border-ring')
+    expect(editorContainer).toHaveClass('focus-within:border-ring')
+    expect(editorContainer).not.toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
     expect(editorContainer).not.toHaveClass('bg-accent/15', 'focus-within:bg-accent/20')
-    expect(editorContainer).not.toHaveClass('border-border/20', 'focus-within:border-border/40')
+    expect(editorContainer).not.toHaveClass('border-border-subtle', 'focus-within:border-border-subtle')
   })
 
   it('marks the prompt theme as dark in dark mode', () => {
@@ -139,7 +146,7 @@ describe('PromptEditorField', () => {
     parent.remove()
   })
 
-  it('keeps Markdown markers visually secondary', () => {
+  it('keeps Markdown markers visually secondary', async () => {
     function Harness() {
       const [value, setValue] = useState('')
       return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
@@ -169,14 +176,21 @@ describe('PromptEditorField', () => {
       return getComputedStyle(tokens[occurrence])
     }
 
-    expect(tokenStyle('#').color).toBe('var(--color-foreground-secondary)')
-    expect(tokenStyle(' Heading').color).toBe('var(--color-foreground)')
+    await waitFor(() => {
+      const renderedTokens = Array.from(view.dom.querySelectorAll<HTMLElement>('.cm-content span')).map(
+        (token) => token.textContent
+      )
+      expect(renderedTokens).toContain('**')
+    })
+
+    expect(tokenStyle('#').color).toBe('var(--muted-foreground)')
+    expect(tokenStyle(' Heading').color).toBe('var(--foreground)')
     expect(tokenStyle(' Heading').fontWeight).toBe('var(--font-weight-medium)')
-    expect(tokenStyle('**').color).toBe('var(--color-foreground-secondary)')
+    expect(tokenStyle('**').color).toBe('var(--muted-foreground)')
     expect(tokenStyle('strong').fontWeight).toBe('var(--font-weight-bold)')
-    expect(tokenStyle('link').color).toBe('var(--color-primary)')
-    expect(tokenStyle('[').color).toBe('var(--color-foreground-secondary)')
-    expect(getComputedStyle(view.contentDOM).padding).toBe('var(--cs-size-3xs)')
+    expect(tokenStyle('link').color).toBe('var(--link)')
+    expect(tokenStyle('[').color).toBe('var(--muted-foreground)')
+    expect(getComputedStyle(view.contentDOM).padding).toBe('calc(var(--spacing) * 3)')
 
     view.destroy()
     parent.remove()
@@ -190,6 +204,18 @@ describe('PromptEditorField', () => {
 
     expect(preview).toHaveClass('text-xs', 'min-h-0', 'flex-1')
     expect(editorFrame).toHaveClass('flex-col', 'border-border')
+  })
+
+  // Regression guard for #18377: the prompt preview container must carry the
+  // `prompt-preview` scope class so the scoped CSS rule can restore visible
+  // line breaks (global `.markdown p { white-space: normal }` collapses soft
+  // newlines; the scoped override re-enables pre-wrap here only).
+  it('marks the preview container with the prompt-preview scope class (#18377)', () => {
+    render(<PromptEditorField label={<span>Prompt</span>} value="Line one\nLine two" onChange={vi.fn()} />)
+
+    const preview = screen.getByTestId('markdown').parentElement
+
+    expect(preview).toHaveClass('prompt-preview')
   })
 
   it('does not submit a parent form when toggling preview', () => {
@@ -233,6 +259,29 @@ describe('PromptEditorField', () => {
     fireEvent.mouseDown(screen.getByTestId('editor-empty-area'))
 
     expect(editor).toHaveFocus()
+  })
+
+  it('rejects typing while disabled', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [value, setValue] = useState('')
+      return <PromptEditorField disabled label={<span>Prompt</span>} value={value} onChange={setValue} />
+    }
+
+    render(<Harness />)
+    await user.type(screen.getByLabelText('Prompt editor'), 'Typed text')
+
+    expect(screen.getByLabelText('Prompt editor')).toHaveValue('')
+  })
+
+  it('keeps the preview from switching to the editor while disabled', () => {
+    render(<PromptEditorField disabled label={<span>Prompt</span>} value="Original prompt" onChange={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    fireEvent.doubleClick(screen.getByTestId('markdown'))
+
+    expect(screen.queryByLabelText('Prompt editor')).not.toBeInTheDocument()
   })
 
   it('focuses the editor when autoFocus is enabled', async () => {

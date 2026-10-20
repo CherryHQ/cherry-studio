@@ -1,5 +1,6 @@
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 
 import { embedTexts } from './localEmbeddingRuntime'
@@ -57,7 +58,7 @@ export function createLocalEmbeddingProvider(_settings: LocalEmbeddingProviderSe
     specificationVersion: 'v3',
     embeddingModel,
     textEmbeddingModel: embeddingModel,
-    languageModel: unsupported('language models') as (modelId: string) => LanguageModelV3,
-    imageModel: unsupported('image models') as (modelId: string) => ImageModelV3
+    languageModel: unsupported('language models'),
+    imageModel: unsupported('image models')
   }
 }

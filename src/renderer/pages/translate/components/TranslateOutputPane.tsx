@@ -1,14 +1,17 @@
-import { Scrollbar } from '@cherrystudio/ui'
-import { Check, Copy, NotebookPen } from 'lucide-react'
+import { Check, Copy, NotebookPen, Volume2 } from 'lucide-react'
 import type { Ref } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Scrollbar } from '@cherrystudio/ui'
+import { AppMarkdown } from '@renderer/components/markdown'
+import { readTextAloud } from '@renderer/services/voice'
 
 import IconButton from './IconButton'
 
 type Props = {
   ref?: Ref<HTMLDivElement>
   translatedContent: string
-  renderedMarkdown: string
   enableMarkdown: boolean
   translating: boolean
   copied: boolean
@@ -20,7 +23,6 @@ type Props = {
 const TranslateOutputPane = ({
   ref,
   translatedContent,
-  renderedMarkdown,
   enableMarkdown,
   translating,
   copied,
@@ -29,22 +31,34 @@ const TranslateOutputPane = ({
   onScroll
 }: Props) => {
   const { t } = useTranslation()
+  const readButtonRef = useRef<HTMLButtonElement>(null)
+  const currentResultRef = useRef({ translatedContent, translating })
+  currentResultRef.current = { translatedContent, translating }
+  const playbackRef = useRef<AbortController | undefined>(undefined)
+  useLayoutEffect(() => () => playbackRef.current?.abort(), [translatedContent, translating])
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <div data-ui="translate.output" className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <Scrollbar
         ref={ref}
         onScroll={onScroll}
         className="selectable min-h-0 flex-1 overflow-x-hidden p-4 pr-12 text-base leading-relaxed">
         <div className="flex min-h-full flex-col">
           {translating && !translatedContent ? (
-            <div className="flex items-center gap-2 text-foreground-secondary">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
               <span>{t('translate.processing')}</span>
             </div>
           ) : translatedContent ? (
             enableMarkdown ? (
-              <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
+              <AppMarkdown isStreaming={translating}>{translatedContent}</AppMarkdown>
             ) : (
               <div className="wrap-break-word whitespace-pre-wrap text-foreground">{translatedContent}</div>
             )
@@ -57,13 +71,40 @@ const TranslateOutputPane = ({
         </IconButton>
       </div>
       <div className="flex shrink-0 items-center px-3 py-4">
-        {translatedContent && <span className="text-foreground-muted text-xs">{translatedContent.length}</span>}
+        {translatedContent && <span className="text-foreground-tertiary text-xs">{translatedContent.length}</span>}
+        <Button
+          ref={readButtonRef}
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('chat.message.read_aloud.label')}
+          disabled={translating || !translatedContent.trim()}
+          className="ml-auto"
+          onClick={() => {
+            playbackRef.current?.abort()
+            const controller = new AbortController()
+            playbackRef.current = controller
+            void readTextAloud({
+              text: translatedContent,
+              mode: 'document',
+              sourceLabel: 'document',
+              sourceEntityId: 'translate-page-result',
+              signal: controller.signal,
+              isCurrent: () =>
+                mountedRef.current &&
+                !currentResultRef.current.translating &&
+                currentResultRef.current.translatedContent === translatedContent,
+              focusOnClose: () => readButtonRef.current?.focus()
+            })
+          }}>
+          <Volume2 className="size-4" />
+        </Button>
         <IconButton
           size="sm"
           onClick={onExportToNotes}
           disabled={!translatedContent.trim()}
           aria-label={t('notes.save')}
-          className="ml-auto">
+          className="ml-1">
           <NotebookPen size={14} />
         </IconButton>
       </div>

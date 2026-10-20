@@ -96,7 +96,7 @@ describe('McpServerMappings', () => {
         args: undefined,
         env: null
       }
-      const result = transformMcpServer(source as any, 0)
+      const result = transformMcpServer(source, 0)
       expect(result.row).toStrictEqual(
         expect.objectContaining({
           ...NULL_FIELDS,
@@ -108,7 +108,7 @@ describe('McpServerMappings', () => {
     })
 
     it('should default isActive to false when missing', () => {
-      const result = transformMcpServer({ id: 'srv-4', name: 'no-active-field' } as any, 0)
+      const result = transformMcpServer({ id: 'srv-4', name: 'no-active-field' }, 0)
       expect(result.row).toStrictEqual(
         expect.objectContaining({
           ...NULL_FIELDS,

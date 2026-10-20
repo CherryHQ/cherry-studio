@@ -1,23 +1,27 @@
+import dayjs from 'dayjs'
+import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
-import dayjs from 'dayjs'
-import { Sparkle } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 
 import {
   useMessageListActions,
   useMessageListMeta,
   useMessageListSelection,
-  useMessageRenderConfig
+  useMessageRenderConfig,
+  useOptionalMessageListActions
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
-import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
+import { getMessageListItemModel } from '../utils/messageListItem'
 import MessageAvatar, { MESSAGE_MODEL_AVATAR_ICON_CLASS, MessageAvatarFrame } from './MessageAvatar'
 import MessageTokens from './MessageTokens'
 
@@ -25,13 +29,75 @@ interface Props {
   message: MessageListItem
   model?: Model
   isGroupContextMessage?: boolean
+  showModelIdentity?: boolean
   actionsSlot?: ReactNode
   contentSlot?: ReactNode
   footerSlot?: ReactNode
 }
 
+/** Why a runtime opened an assistant turn with no user message; the transcript's only explanation. */
+export const AutonomousTurnOriginBadge: FC<{ origin: AutonomousTurnOrigin }> = ({ origin }) => {
+  const { t } = useTranslation()
+  const label =
+    origin.kind === 'goal-round'
+      ? t('agent.session_turn_origin.goal_round', { round: origin.round })
+      : t('agent.session_turn_origin.background_work')
+  const Icon = origin.kind === 'goal-round' ? Target : Bot
+  return (
+    <Tooltip content={label}>
+      <span className="flex h-5 min-w-0 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
+        <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
+    </Tooltip>
+  )
+}
+
+export const AgentSessionDeliveryBadge: FC<{
+  delivery: NonNullable<MessageListItem['delivery']>
+}> = ({ delivery }) => {
+  const { t } = useTranslation()
+  const actions = useOptionalMessageListActions()
+  const senderSessionLabel = delivery.senderSnapshot?.sessionName.trim() || delivery.sender.sessionId
+  const senderAgentLabel = delivery.senderSnapshot?.agentName.trim() || delivery.sender.agentId
+  const senderLabel = t('agent.session_delivery.from', {
+    agent: senderAgentLabel,
+    session: senderSessionLabel
+  })
+  const content = (
+    <>
+      <MousePointerClick aria-hidden="true" className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{senderLabel}</span>
+      {actions?.navigateToRoute ? <ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /> : null}
+    </>
+  )
+
+  const openSenderSession = () => {
+    if (!actions?.navigateToRoute) return
+    void actions.navigateToRoute({ path: '/app/agents', query: { sessionId: delivery.sender.sessionId } })
+  }
+
+  return (
+    <Tooltip content={senderLabel}>
+      {actions?.navigateToRoute ? (
+        <button
+          type="button"
+          aria-label={senderLabel}
+          className="flex h-5 max-w-[min(18rem,45vw)] cursor-pointer items-center gap-1 text-foreground-tertiary text-xs hover:text-link hover:underline focus-visible:text-link focus-visible:underline focus-visible:outline-none"
+          onClick={openSenderSession}>
+          {content}
+        </button>
+      ) : (
+        <span className="flex h-5 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
+          {content}
+        </span>
+      )}
+    </Tooltip>
+  )
+}
+
 const MessageHeader: FC<Props> = memo(
-  ({ model, message, isGroupContextMessage, actionsSlot, contentSlot, footerSlot }) => {
+  ({ model, message, isGroupContextMessage, showModelIdentity = false, actionsSlot, contentSlot, footerSlot }) => {
     const { theme } = useTheme()
     const actions = useMessageListActions()
     const meta = useMessageListMeta()
@@ -51,6 +117,7 @@ const MessageHeader: FC<Props> = memo(
 
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
+    const displayModelName = displayModel?.name || displayModel?.id
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
@@ -59,19 +126,16 @@ const MessageHeader: FC<Props> = memo(
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
     const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
-    const modelName = getMessageListItemModelName(message)
-
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
-        return authorName || modelName || model?.name || model?.id || ''
+        return authorName || displayModel?.name || displayModel?.id || ''
       }
 
       return userName || t('common.you')
-    }, [authorName, modelName, message.role, model, t, userName])
+    }, [authorName, displayModel, message.role, t, userName])
 
     const isAssistantMessage = message.role === 'assistant'
-    // When the author is named, demote the model to a muted secondary label.
-    const secondaryModelName = isAssistantMessage && authorName ? modelName : undefined
+    const delivery = message.delivery
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
       : 'group-hover/message:opacity-100'
@@ -117,22 +181,27 @@ const MessageHeader: FC<Props> = memo(
             <span
               className="truncate font-semibold text-sm leading-5"
               style={{
-                color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--color-foreground)'
+                color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
               }}>
               {username}
             </span>
-            {secondaryModelName && (
-              <span className="min-w-0 max-w-[160px] shrink truncate text-foreground-muted text-xs leading-5">
-                {secondaryModelName}
+            {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
+            {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
+            {isAssistantMessage && showModelIdentity && displayModelName && (
+              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
+                <span aria-hidden="true" className="shrink-0">
+                  <ModelAvatar className="rounded-full" model={displayModel} size={16} />
+                </span>
+                <span className="truncate">{displayModelName}</span>
               </span>
             )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
-                <Sparkle className="shrink-0" fill="var(--color-primary)" strokeWidth={0} size={16} />
+                <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
               </Tooltip>
             )}
             <div
-              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-muted leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
+              className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-tertiary leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
               <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
               {renderConfig.showEstimatedTokens &&
                 isBubbleStyle &&
@@ -146,7 +215,7 @@ const MessageHeader: FC<Props> = memo(
             </div>
             {actionsSlot && (
               <div
-                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 ${hiddenActionsHoverClass}`}>
+                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100 ${hiddenActionsHoverClass}`}>
                 {actionsSlot}
               </div>
             )}

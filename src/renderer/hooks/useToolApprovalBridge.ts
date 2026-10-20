@@ -1,7 +1,8 @@
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
-import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useToolApprovalBridge')
 
@@ -11,7 +12,7 @@ type ToolApprovalRespondFn = (args: MessageToolApprovalInput) => Promise<void> |
  * Tool-approval flow.
  *
  * The renderer is NOT a writer of approval state. It only delivers the
- * user's decision to Main via `ai.respond_tool_approval`. Main is the single
+ * user's decision to Main via `ai.tool.respond_approval`. Main is the single
  * authority: it applies the decision to the DB-authoritative anchor parts and
  * persists, then (Claude-Agent) resolves the live `canUseTool` or (MCP)
  * dispatches `continue-conversation` once every approval on the turn is
@@ -23,7 +24,7 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
       const approvalId = match.approvalId
 
       try {
-        const result = await ipcApi.request('ai.respond_tool_approval', {
+        const result = await ipcApi.request('ai.tool.respond_approval', {
           approvalId,
           approved,
           reason,

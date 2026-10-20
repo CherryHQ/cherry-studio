@@ -50,11 +50,11 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'thinking' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'text-start', id: 't1' } as UIMessageChunk,
-          { type: 'text-delta', id: 't1', delta: 'answer' } as UIMessageChunk
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'thinking' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'answer' }
         ])
       )
     )
@@ -68,7 +68,7 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
+          { type: 'reasoning-start', id: 'r1' },
           {
             type: 'reasoning-end',
             id: 'r1',
@@ -76,7 +76,7 @@ describe('withReasoningTimingMetadata', () => {
               openai: { itemId: 'provider-item' },
               cherry: { existing: true }
             }
-          } as UIMessageChunk
+          }
         ])
       )
     )
@@ -105,7 +105,7 @@ describe('withReasoningTimingMetadata', () => {
               'claude-code': { parentToolCallId: 'parent-tool' },
               cherry: { transport: 'claude-agent' }
             }
-          } as UIMessageChunk,
+          },
           {
             type: 'reasoning-end',
             id: 'r1',
@@ -113,7 +113,7 @@ describe('withReasoningTimingMetadata', () => {
               openai: { itemId: 'provider-item' },
               cherry: { existing: true }
             }
-          } as UIMessageChunk
+          }
         ])
       )
     )
@@ -135,6 +135,67 @@ describe('withReasoningTimingMetadata', () => {
     })
   })
 
+  it('merges reasoning-delta provider metadata (e.g. anthropic signature) into the reasoning-end chunk', async () => {
+    vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValueOnce(35)
+
+    const chunks = await collect(
+      withReasoningTimingMetadata(
+        streamFrom([
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'thinking' },
+          {
+            type: 'reasoning-delta',
+            id: 'r1',
+            delta: '',
+            providerMetadata: { anthropic: { signature: 'sig-abc' } }
+          },
+          { type: 'reasoning-end', id: 'r1' }
+        ])
+      )
+    )
+
+    const reasoningEnd = chunks[3] as UIMessageChunk & {
+      providerMetadata: { anthropic: Record<string, unknown>; cherry: Record<string, unknown> }
+    }
+    expect(reasoningEnd.providerMetadata.anthropic).toEqual({ signature: 'sig-abc' })
+    expect(reasoningEnd.providerMetadata.cherry).toEqual({ thinkingMs: 25, startedAt: expect.any(Number) })
+  })
+
+  it('preserves the anthropic signature in the accumulated final message', async () => {
+    vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(450).mockReturnValueOnce(1000)
+
+    const result = await pipeStreamLoop(
+      withReasoningTimingMetadata(
+        streamFrom([
+          { type: 'start' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
+          {
+            type: 'reasoning-delta',
+            id: 'r1',
+            delta: '',
+            providerMetadata: { anthropic: { signature: 'sig-abc' } }
+          },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'finish' }
+        ])
+      ),
+      new AbortController().signal,
+      { onChunk: () => {} }
+    )
+
+    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning') as
+      | { text?: string; providerMetadata?: Record<string, unknown> }
+      | undefined
+
+    expect(finalReasoningPart?.text).toBe('steady thought')
+    expect(finalReasoningPart?.providerMetadata?.anthropic).toEqual({ signature: 'sig-abc' })
+    expect(finalReasoningPart?.providerMetadata?.cherry).toEqual({
+      thinkingMs: 350,
+      startedAt: expect.any(Number)
+    })
+  })
+
   it('tracks multiple reasoning ids independently', async () => {
     vi.spyOn(performance, 'now')
       .mockReturnValueOnce(100)
@@ -145,10 +206,10 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'a' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'b' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'a' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'b' } as UIMessageChunk
+          { type: 'reasoning-start', id: 'a' },
+          { type: 'reasoning-start', id: 'b' },
+          { type: 'reasoning-end', id: 'a' },
+          { type: 'reasoning-end', id: 'b' }
         ])
       )
     )
@@ -164,14 +225,14 @@ describe('withReasoningTimingMetadata', () => {
     const result = await pipeStreamLoop(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'start' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'text-start', id: 't1' } as UIMessageChunk,
-          { type: 'text-delta', id: 't1', delta: 'answer' } as UIMessageChunk,
-          { type: 'text-end', id: 't1' } as UIMessageChunk,
-          { type: 'finish' } as UIMessageChunk
+          { type: 'start' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'answer' },
+          { type: 'text-end', id: 't1' },
+          { type: 'finish' }
         ])
       ),
       new AbortController().signal,
@@ -196,7 +257,7 @@ describe('withReasoningTimingMetadata', () => {
     const result = await pipeStreamLoop(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'start' } as UIMessageChunk,
+          { type: 'start' },
           {
             type: 'reasoning-start',
             id: 'r1',
@@ -204,10 +265,10 @@ describe('withReasoningTimingMetadata', () => {
               'claude-code': { parentToolCallId: 'parent-tool' },
               cherry: { transport: 'claude-agent' }
             }
-          } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'finish' } as UIMessageChunk
+          },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'finish' }
         ])
       ),
       new AbortController().signal,
@@ -228,7 +289,7 @@ describe('withReasoningTimingMetadata', () => {
 
   it('passes through reasoning-end chunks untouched if no matching reasoning-start was seen', async () => {
     const chunks = await collect(
-      withReasoningTimingMetadata(streamFrom([{ type: 'reasoning-end', id: 'unmatched-id' } as UIMessageChunk]))
+      withReasoningTimingMetadata(streamFrom([{ type: 'reasoning-end', id: 'unmatched-id' }]))
     )
 
     expect(chunks[0]).toEqual({ type: 'reasoning-end', id: 'unmatched-id' })
@@ -247,9 +308,9 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-end', id: 'r1' }
         ])
       )
     )
@@ -271,11 +332,11 @@ describe('withReasoningTimingMetadata', () => {
     const result = await pipeStreamLoop(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'start' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'finish' } as UIMessageChunk
+          { type: 'start' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'finish' }
         ])
       ),
       new AbortController().signal,

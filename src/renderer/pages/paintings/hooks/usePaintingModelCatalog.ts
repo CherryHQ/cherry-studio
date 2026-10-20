@@ -1,8 +1,9 @@
+import { useCallback, useMemo } from 'react'
+
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { createUniqueModelId, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
-import { useCallback, useMemo } from 'react'
+import type { Provider } from '@shared/data/types/provider'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
@@ -38,7 +39,7 @@ function createSelectorProvider(providerId: string, provider: Provider | undefin
     name: getProviderDisplayName(provider) || providerId,
     apiKeys: [],
     authType: 'api-key',
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     settings: {},
     isEnabled: provider?.isEnabled ?? false
   }

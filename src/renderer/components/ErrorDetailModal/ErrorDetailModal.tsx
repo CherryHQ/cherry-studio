@@ -1,9 +1,15 @@
-import { Button } from '@cherrystudio/ui'
+import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
+import React, { memo, useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
-import ContentPopup from '@renderer/components/popups/ContentPopup'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { DoctorPopup } from '@renderer/components/doctor'
+import { DoctorAgentDialog } from '@renderer/components/doctor'
 import i18n from '@renderer/i18n/resolver'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
@@ -31,21 +37,40 @@ import {
   isSerializedError
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
+import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
+import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { doctorScopeKey } from '@shared/utils/doctor'
 
 import Scrollbar from '../Scrollbar'
-import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
+import {
+  buildDiagnosticReportDescription,
+  type DiagnosticReportConfig,
+  resolveDiagnosticReportLocation
+} from './diagnosticReportDescription'
+import { ErrorBasicInformation } from './ErrorBasicInformation'
+import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+import { isDiagnosticReportEligible } from './isDiagnosticReportEligible'
 
 interface ErrorDetailContentProps {
   error?: SerializedError
+  localizedErrorMessage?: string
   diagnosisContext?: DiagnosisContext
-  blockId?: string
-  cachedDiagnosis?: DiagnosisResult
+  diagnosticReport?: DiagnosticReportConfig
+  subject?: DoctorSubjectRef
+  /** The failed message this error belongs to; binds the AI consultation to it. */
+  incident?: DoctorAgentIncident
+  onOpenDiagnosticReport?: (description: string) => void
+  onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
+
+interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
+  readonly doctorCloseBlocked?: boolean
+  readonly onDoctorCloseBlockedChange?: (blocked: boolean) => void
+}
+
+const ignoreDoctorNavigation = () => undefined
 
 const truncateLargeData = (
   data: string,
@@ -92,7 +117,7 @@ const ErrorDetailLabel = ({ className, ...props }: React.HTMLAttributes<HTMLDivE
 const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[4px] border border-[var(--color-border)] bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
+      'rounded-[4px] border border-border bg-background-subtle p-2 font-[var(--code-font-family)] text-[12px] text-foreground [word-break:break-word]',
       className
     )}
     {...props}
@@ -102,7 +127,7 @@ const ErrorDetailValue = ({ className, ...props }: React.HTMLAttributes<HTMLDivE
 const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'rounded-[6px] border border-error-base bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error-base [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
+      'rounded-[6px] border border-error-border bg-background-subtle p-3 [&_pre]:m-0 [&_pre]:whitespace-pre-wrap [&_pre]:font-[var(--code-font-family)] [&_pre]:text-[12px] [&_pre]:text-error [&_pre]:leading-[1.4] [&_pre]:[word-break:break-word]',
       className
     )}
     {...props}
@@ -111,9 +136,9 @@ const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement
 
 const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
   <span
-    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-[var(--color-warning)]', className)}
+    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-warning', className)}
     style={{
-      background: 'var(--color-warning-bg, rgba(250, 173, 20, 0.1))',
+      background: 'var(--warning-subtle)',
       ...style
     }}
     {...props}
@@ -123,7 +148,15 @@ const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTM
 // --- Sub-Components ---
 
 const BuiltinError = memo(({ error }: { error: SerializedError }) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
+  // the raw `message` alone would only repeat the generic headline.
+  const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+  const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
+    | Record<string, string>
+    | undefined
+  const detailFullKey = typeof detailKey === 'string' ? `error.${detailKey}` : ''
+  const hasDetail = detailFullKey !== '' && i18n.exists(detailFullKey)
   return (
     <>
       {error.name && (
@@ -136,6 +169,12 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
           <ErrorDetailValue className="selectable">{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {hasDetail && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('common.detail')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{t(detailFullKey, detailValues)}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.stack && (
@@ -152,60 +191,11 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
 
 const AiSdkErrorBase = memo(({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
-  const tRef = useRef(t)
-  useEffect(() => {
-    tRef.current = t
-  }, [t])
-
-  const { highlightCode } = useCodeStyle()
-  const [highlightedString, setHighlightedString] = useState('')
-  const [isTruncated, setIsTruncated] = useState(false)
-  const cause = error.cause
-
-  useEffect(() => {
-    const highlight = async () => {
-      try {
-        const { content: truncatedCause, truncated, isLikelyBase64 } = truncateLargeData(cause || '', tRef.current)
-        setIsTruncated(truncated)
-
-        if (isLikelyBase64) {
-          setHighlightedString(truncatedCause)
-          return
-        }
-
-        try {
-          const parsed = JSON.parse(truncatedCause || '{}')
-          const formatted = JSON.stringify(parsed, null, 2)
-          const result = await highlightCode(formatted, 'json')
-          setHighlightedString(result)
-        } catch {
-          setHighlightedString(truncatedCause || '')
-        }
-      } catch {
-        setHighlightedString(cause || '')
-      }
-    }
-    const timer = setTimeout(highlight, 0)
-
-    return () => clearTimeout(timer)
-  }, [highlightCode, cause])
 
   return (
     <>
       <BuiltinError error={error} />
-      {cause && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>
-            {t('error.cause')}:{isTruncated && <TruncatedBadge>{t('error.truncatedBadge')}</TruncatedBadge>}
-          </ErrorDetailLabel>
-          <ErrorDetailValue>
-            <div
-              className="markdown [&_pre]:bg-transparent! [&_pre_span]:whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: highlightedString }}
-            />
-          </ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
+      {error.cause && <TruncatedCodeViewer value={error.cause} label={t('error.cause')} />}
     </>
   )
 })
@@ -491,32 +481,22 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
 // --- Main Content Component ---
 
-const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
+const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
+  localizedErrorMessage,
   diagnosisContext,
-  blockId,
-  cachedDiagnosis
+  subject,
+  incident,
+  diagnosticReport,
+  onOpenDiagnosticReport,
+  onDoctorNavigate,
+  doctorCloseBlocked = false,
+  onDoctorCloseBlockedChange
 }) => {
   const { t } = useTranslation()
-  const [diagStatus, setDiagStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(cachedDiagnosis ? 'done' : 'idle')
-  const diagSectionRef = useRef<{ runDiagnosis: () => void }>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const isInitialRenderRef = useRef(true)
-
-  // Scroll to bottom when diagnosis status changes, but skip initial render
-  useEffect(() => {
-    if (isInitialRenderRef.current) {
-      isInitialRenderRef.current = false
-      return
-    }
-
-    if (diagStatus !== 'idle') {
-      requestAnimationFrame(() => {
-        containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
-      })
-    }
-  }, [diagStatus])
-
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(false)
+  const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const copyErrorDetails = useCallback(() => {
     if (!error) {
       return
@@ -535,6 +515,30 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     toast.success(t('message.copied'))
   }, [error, t])
 
+  const openDiagnosticReport = useCallback(() => {
+    if (doctorCloseBlocked || !diagnosticReport || !onOpenDiagnosticReport) return
+    onOpenDiagnosticReport(
+      buildDiagnosticReportDescription({
+        diagnosisContext,
+        error,
+        localizedErrorMessage,
+        labels: {
+          errorMessage: t('error.message'),
+          location: t('error.diagnostic_report.location'),
+          model: t('error.modelId')
+        },
+        location: resolveDiagnosticReportLocation(t, diagnosticReport.location, i18n.language)
+      })
+    )
+  }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, localizedErrorMessage, onOpenDiagnosticReport, t])
+
+  const showDiagnosticReportAction =
+    Boolean(diagnosticReport && onOpenDiagnosticReport) && isDiagnosticReportEligible(error)
+
+  const showDetails = () => {
+    setDetailsOpen(true)
+  }
+
   const renderErrorDetails = (error?: SerializedError) => {
     if (!error) {
       return <div>{t('error.unknown')}</div>
@@ -551,66 +555,146 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     )
   }
 
-  const handleDiagnose = () => {
-    if (diagStatus === 'loading') return
-    setDiagStatus('loading')
-    diagSectionRef.current?.runDiagnosis()
-  }
-
-  const getDiagButtonText = () => {
-    switch (diagStatus) {
-      case 'loading':
-        return t('error.diagnosis.ai_loading') + '...'
-      case 'done':
-        return t('error.diagnosis.ai_done')
-      default:
-        return t('error.diagnosis.ai_button')
-    }
-  }
-
   return (
     <>
-      <ErrorDetailContainer ref={containerRef}>
-        {renderErrorDetails(error)}
-        {diagStatus !== 'idle' && (
-          <AiDiagnosisSectionWithStatus
-            key={blockId ?? error?.message}
-            ref={diagSectionRef}
-            error={error}
-            status={diagStatus}
-            onStatusChange={setDiagStatus}
-            diagnosisContext={diagnosisContext}
-            blockId={blockId}
-            cachedDiagnosis={cachedDiagnosis}
-          />
-        )}
-      </ErrorDetailContainer>
-      <div className="my-2 mt-4 flex justify-end gap-2">
-        <Button variant="outline" onClick={copyErrorDetails}>
-          <Copy size={14} />
-          {t('common.copy')}
-        </Button>
-        <Button disabled={diagStatus === 'loading'} onClick={handleDiagnose}>
-          {diagStatus === 'loading' ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : diagStatus === 'done' ? (
-            <CheckCircle size={14} />
+      <DialogHeader className="pr-8">
+        <DialogTitle>{t('error.detail')}</DialogTitle>
+      </DialogHeader>
+      <ErrorDetailContainer>
+        <div className="space-y-4">
+          {subject ? (
+            <ErrorDoctorDiagnostics
+              key={doctorScopeKey(subject)}
+              subject={subject}
+              incident={incident}
+              onNavigate={onDoctorNavigate ?? ignoreDoctorNavigation}
+              onReportProblem={onOpenDiagnosticReport}
+              onCloseBlockedChange={onDoctorCloseBlockedChange}
+            />
           ) : (
-            <Stethoscope size={14} />
+            <p className="text-muted-foreground text-sm">{t('error.diagnostics.context_unavailable')}</p>
           )}
-          {getDiagButtonText()}
-        </Button>
-      </div>
+          <ErrorBasicInformation
+            viewDetailsButtonRef={viewDetailsButtonRef}
+            error={error}
+            localizedErrorMessage={localizedErrorMessage}
+            diagnosisContext={diagnosisContext}
+            diagnosticReport={diagnosticReport}
+            onCopy={copyErrorDetails}
+            onViewDetails={showDetails}
+          />
+        </div>
+      </ErrorDetailContainer>
+
+      {subject || showDiagnosticReportAction ? (
+        <div className="flex justify-end gap-2">
+          {showDiagnosticReportAction ? (
+            <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
+              <FileUp size={14} />
+              {t('error.diagnostic_report.action')}
+            </Button>
+          ) : null}
+          {subject ? (
+            <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
+              <Sparkles size={14} />
+              {t('settings.doctor.agent.title')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {subject && agentOpen ? (
+        <DoctorAgentDialog
+          subject={subject}
+          incident={incident}
+          open
+          onOpenChange={setAgentOpen}
+          onReportProblem={diagnosticReport && onOpenDiagnosticReport ? openDiagnosticReport : undefined}
+        />
+      ) : null}
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent
+          size="xl"
+          closeLabel={t('common.close')}
+          className="max-h-[calc(100vh-2rem)] overflow-hidden"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            viewDetailsButtonRef.current?.focus()
+          }}>
+          <DialogHeader className="flex-row items-center gap-2 pr-8">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('error.diagnostics.back_to_overview')}
+              onClick={() => setDetailsOpen(false)}>
+              <ArrowLeft className="size-4" aria-hidden />
+            </Button>
+            <DialogTitle>{t('error.detail')}</DialogTitle>
+          </DialogHeader>
+          <ErrorDetailContainer>
+            <div className="space-y-4">{renderErrorDetails(error)}</div>
+          </ErrorDetailContainer>
+          <DialogFooter>
+            <Button variant="outline" disabled={!error} onClick={copyErrorDetails}>
+              <Copy size={14} />
+              {t('common.copy')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
 
-export function showErrorDetailPopup(params: ErrorDetailContentProps) {
-  void ContentPopup.show({
-    title: i18n.t('error.detail'),
-    content: <ErrorDetailContent {...params} />,
-    width: '60vw',
-    styles: { content: { maxWidth: '1200px', minWidth: '600px' } }
+type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
+
+const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
+  const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
+  const close = useCallback(() => {
+    if (!doctorCloseBlocked) resolve()
+  }, [doctorCloseBlocked, resolve])
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) close()
+      }}>
+      <DialogContent
+        size="xl"
+        closeLabel={i18n.t('common.close')}
+        closeOnOverlayClick={!doctorCloseBlocked}
+        showCloseButton={!doctorCloseBlocked}
+        className="max-h-[calc(100vh-2rem)] overflow-hidden"
+        onEscapeKeyDown={(event) => {
+          if (doctorCloseBlocked) event.preventDefault()
+        }}>
+        <ErrorDetailContent
+          {...props}
+          doctorCloseBlocked={doctorCloseBlocked}
+          onDoctorCloseBlockedChange={setDoctorCloseBlocked}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const ErrorDetailPopup = createPopup<ErrorDetailContentProps, void>(ErrorDetailDialog)
+
+export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
+  const finishHandoff = (action: () => void) => {
+    ErrorDetailPopup.hide()
+    window.setTimeout(action, POPUP_EXIT_MS)
+  }
+
+  void ErrorDetailPopup.show({
+    ...params,
+    onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+    onOpenDiagnosticReport: (initialDescription) =>
+      finishHandoff(() => {
+        void DoctorPopup.show({ initialPanel: 'report', initialDescription })
+      })
   })
 }
 

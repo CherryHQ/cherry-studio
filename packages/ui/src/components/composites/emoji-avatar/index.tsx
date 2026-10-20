@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import React, { memo } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 interface EmojiAvatarProps {
   children: string
@@ -16,7 +17,7 @@ const EmojiAvatar = ({ children, size = 31, fontSize, onClick, className, style 
     className={cn(
       'flex items-center justify-center',
       'bg-background-soft border-border',
-      'rounded-[20%] cursor-pointer',
+      'cursor-pointer rounded-[20%]',
       'transition-opacity hover:opacity-80',
       'border-[0.5px]',
       className

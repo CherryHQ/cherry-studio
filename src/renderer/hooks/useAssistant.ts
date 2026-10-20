@@ -16,17 +16,20 @@
  *  - {@link import('./useKnowledgeBase').useKnowledgeBases} for KBs
  */
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback, useRef } from 'react'
+
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useRef } from 'react'
 
 const logger = loggerService.withContext('useAssistant')
 
@@ -83,28 +86,25 @@ export function useAssistantApiById(id: string | undefined) {
 }
 
 /**
- * Assistant mutations (create / update / delete) backed by DataApi.
+ * Assistant mutations backed by DataApi, with archive commands routed through IpcApi.
  */
 export function useAssistantMutations() {
+  const invalidate = useInvalidateCache()
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/assistants', {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/assistants/:id', {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/assistants/:id', {
-    refresh: ({ args }) => [
-      ...ASSISTANTS_REFRESH_KEYS,
-      '/pins',
-      ...(args?.query?.deleteTopics === true ? (['/topics'] as ConcreteApiPaths[]) : [])
-    ]
+  const { trigger: restoreTrigger } = useMutation('POST', '/assistants/:id/restore', {
+    refresh: ASSISTANTS_REFRESH_KEYS
   })
   const createTriggerRef = useRef(createTrigger)
   const updateTriggerRef = useRef(updateTrigger)
-  const deleteTriggerRef = useRef(deleteTrigger)
+  const restoreTriggerRef = useRef(restoreTrigger)
   createTriggerRef.current = createTrigger
   updateTriggerRef.current = updateTrigger
-  deleteTriggerRef.current = deleteTrigger
+  restoreTriggerRef.current = restoreTrigger
 
   const createAssistant = useCallback(async (dto: CreateAssistantDto): Promise<Assistant> => {
     const created = await createTriggerRef.current({ body: dto })
@@ -122,23 +122,36 @@ export function useAssistantMutations() {
   }, [])
 
   const deleteAssistant = useCallback(
-    async (id: string, options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> => {
-      const result: DeleteAssistantResult = await deleteTriggerRef.current(
-        options.deleteTopics === true ? { params: { id }, query: { deleteTopics: true } } : { params: { id } }
+    async (
+      id: string,
+      options: { deleteTopics?: boolean; permanent?: boolean } = {}
+    ): Promise<DeleteAssistantResult> => {
+      const deleteTopics = options.deleteTopics === true
+      const result = await ipcApi.request(
+        options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
+        { assistantId: id, deleteTopics }
       )
+      await invalidate(deleteTopics ? [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics'] : ASSISTANTS_REFRESH_KEYS)
       logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
       return result
     },
-    []
+    [invalidate]
   )
+
+  const restoreAssistant = useCallback(async (id: string): Promise<Assistant> => {
+    const restored = await restoreTriggerRef.current({ params: { id } })
+    logger.info('Restored assistant', { id })
+    return restored
+  }, [])
 
   return {
     createAssistant,
     updateAssistant,
     deleteAssistant,
+    restoreAssistant,
     isCreating,
     isUpdating,
-    isDeleting
+    isDeleting: false
   }
 }
 
@@ -186,12 +199,15 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const shouldLoadDefaultModel = options.loadDefaultModel ?? true
+  const { providers } = useProviders()
   const idRef = useRef(id)
   const assistantRef = useRef(assistant)
   const patchAssistantRef = useRef(patchAssistant)
+  const providersRef = useRef(providers)
   idRef.current = id
   assistantRef.current = assistant
   patchAssistantRef.current = patchAssistant
+  providersRef.current = providers
 
   const modelId =
     assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
@@ -202,8 +218,8 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const updateAssistantSettings = useCallback((settings: Partial<AssistantSettings>) => {
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
-    if (!currentId || !currentAssistant) return
-    void patchAssistantRef.current(currentId, { settings })
+    if (!currentId || !currentAssistant) return Promise.resolve(undefined)
+    return patchAssistantRef.current(currentId, { settings })
   }, [])
 
   const setModel = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
@@ -211,11 +227,12 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     const currentAssistant = assistantRef.current
     if (!currentId || !currentAssistant) return
     // reconcile* are v2-native; next.id is the UniqueModelId.
-    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort, currentId)
-    const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings)
+    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort)
+    const nextProvider = providersRef.current.find((provider) => provider.id === next.providerId)
+    const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings, nextProvider)
     const settingsPatch =
       extraSettings || reasoning || webSearch
-        ? { ...currentAssistant.settings, ...extraSettings, ...reasoning, ...webSearch }
+        ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }
         : undefined
     return patchAssistantRef.current(
       currentId,

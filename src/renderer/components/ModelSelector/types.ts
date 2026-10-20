@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
+
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CommandId } from '@shared/utils/command'
-import type { ReactNode } from 'react'
 
 import type { ModelSelectorTag } from './filters'
 
@@ -9,16 +10,19 @@ export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
 export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
+export type ModelSelectorFilter = (model: Model, provider?: Provider) => boolean
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
-  prioritizedProviderIds?: string[]
+  isModelDisabled?: ModelSelectorFilter
+  includeAgentOnlyModels?: boolean
+  prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
   sideOffset?: number
@@ -39,6 +43,7 @@ export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps 
   multiple: false
   selectionType?: 'model'
   value?: Model
+  noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
 
@@ -46,6 +51,7 @@ export interface ModelSelectorSingleIdProps extends ModelSelectorCommonProps {
   multiple: false
   selectionType: 'id'
   value?: UniqueModelId
+  noneOptionLabel?: string
   onSelect: (modelId: UniqueModelId | undefined) => void
 }
 
@@ -81,6 +87,7 @@ export interface ModelSelectorGroupItem {
 export interface ModelSelectorModelItem {
   key: string
   type: 'model'
+  groupKind: 'pinned' | 'provider'
   model: Model
   provider: Provider
   modelId: UniqueModelId
@@ -92,17 +99,23 @@ export interface ModelSelectorModelItem {
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
 
 export interface UseModelSelectorDataOptions {
+  enabled?: boolean
+  includeAgentOnlyModels?: boolean
   selectedModelIds?: readonly UniqueModelId[]
   maxSelectedCount?: number
   searchText: string
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
+  /** Limits visible rows and tags without changing selectable models. */
+  visibilityFilter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
-  prioritizedProviderIds?: string[]
+  prioritizedProviderIds?: readonly string[]
 }
 
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
+  getModelDescription: (model: Model) => string | undefined
+  isModelUnavailable: (model: Model) => boolean
   isLoading: boolean
   isPinActionDisabled: boolean
   listItems: FlatListItem[]

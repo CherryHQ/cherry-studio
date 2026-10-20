@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return await importOriginal<typeof CherryStudioUi>()
@@ -57,5 +57,23 @@ describe('LanguageSelect', () => {
 
     expect(popoverContent).toHaveClass('w-[var(--radix-popover-trigger-width)]')
     expect(popoverContent).not.toHaveClass('w-72')
+  })
+
+  it('shows the flag and localized name without the raw language code in the closed selector', () => {
+    render(<LanguageSelect value="zh-cn" />)
+
+    expect(screen.getByRole<HTMLInputElement>('combobox')).toHaveValue('🇨🇳 Chinese')
+  })
+
+  it('finds a language by typing its language code', () => {
+    const onChange = vi.fn()
+    render(<LanguageSelect value="en-us" onChange={onChange} />)
+
+    const trigger = screen.getByRole('combobox')
+    fireEvent.focus(trigger)
+    fireEvent.change(trigger, { target: { value: 'zh-cn' } })
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith('zh-cn')
   })
 })

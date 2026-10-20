@@ -2,15 +2,18 @@
  * Hook for subscribing to migration progress updates
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticSavePayload,
+  type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationStage,
   type MigratorStatus,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Re-export types for convenience
 export type { MigrationProgress, MigrationStage, MigratorStatus }
@@ -68,7 +71,7 @@ export function useMigrationProgress() {
       }
     }
 
-    window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
+    const cleanupProgressListener = window.electron.ipcRenderer.on(MigrationIpcChannels.Progress, handleProgress)
 
     // Request initial progress
     window.electron.ipcRenderer
@@ -94,9 +97,7 @@ export function useMigrationProgress() {
         logger.error('Failed to get last migration error', error)
       })
 
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners(MigrationIpcChannels.Progress)
-    }
+    return cleanupProgressListener
   }, [applyMigrationStageTiming])
 
   return {
@@ -129,11 +130,34 @@ export function useMigrationActions() {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SkipMigration)
   }, [])
 
+  const saveDiagnostics = useCallback(
+    (dialogTitle: string, logDate: string): Promise<MigrationDiagnosticSaveResult> => {
+      const payload: MigrationDiagnosticSavePayload = {
+        dialogTitle,
+        logDate
+      }
+      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, payload)
+    },
+    []
+  )
+
+  const showDiagnosticBundleInFolder = useCallback((): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+  }, [])
+
+  // Main maps the language to a regional site; the renderer never names a URL.
+  const openDownloadPage = useCallback((language: string): Promise<boolean> => {
+    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.OpenDownloadPage, language)
+  }, [])
+
   return {
     startMigration,
     retry,
     cancel,
     restart,
-    skipMigration
+    skipMigration,
+    saveDiagnostics,
+    showDiagnosticBundleInFolder,
+    openDownloadPage
   }
 }

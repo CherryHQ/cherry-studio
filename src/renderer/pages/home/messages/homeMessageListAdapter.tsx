@@ -1,32 +1,30 @@
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
+import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
-import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
-import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
-import { useMessageHeaderCapabilities } from '@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities'
-import { useMessageLeafCapabilities } from '@renderer/components/chat/messages/hooks/useMessageLeafCapabilities'
-import { useMessageListRenderConfig } from '@renderer/components/chat/messages/hooks/useMessageListRenderConfig'
-import { useMessageMenuConfig } from '@renderer/components/chat/messages/hooks/useMessageMenuConfig'
-import { useMessageSelectionController } from '@renderer/components/chat/messages/hooks/useMessageSelectionController'
-import { useMessageUiStateCache } from '@renderer/components/chat/messages/hooks/useMessageUiStateCache'
+import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
   pickMessageLeafActions,
   pickMessageLeafState
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
-import type {
-  MessageGroupRuntime,
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListRuntime,
-  MessageListState,
-  MessageRuntime,
-  MessageStreamingLayers
+import {
+  DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageGroupRuntime,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListRuntime,
+  type MessageListSelectAllPagination,
+  type MessageListState,
+  type MessageRuntime,
+  type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import {
   bindCaptureMessageImageRuntime,
@@ -34,19 +32,20 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
+import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import { updateCodeBlock } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
@@ -54,11 +53,8 @@ import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel } from '@shared/utils/model'
-import { useNavigate } from '@tanstack/react-router'
-import { last } from 'es-toolkit/compat'
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   consumePendingTopicImageActions,
@@ -68,10 +64,16 @@ import {
   type TopicImageActionType
 } from './topicImageActionBus'
 
+const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
+  const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+  return popup.show({ title, messages, processingMethod: '1' })
+}
+
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
 interface HomeMessageListParams {
   topic: Topic
+  assistant?: Assistant
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -79,8 +81,10 @@ interface HomeMessageListParams {
   isMessagesStale?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   imageActionConsumer?: 'capture'
+  onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
@@ -88,6 +92,7 @@ interface HomeMessageListParams {
 
 export function useHomeMessageListProviderValue({
   topic,
+  assistant,
   messages,
   partsByMessageId,
   streamingLayers,
@@ -95,31 +100,36 @@ export function useHomeMessageListProviderValue({
   isMessagesStale = false,
   loadOlder,
   hasOlder = false,
+  selectAllPagination,
   openCitationsPanel,
   imageActionConsumer,
+  onBindRuntime,
   onStartBranchDraft,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
   const topicId = topic.id
   const assistantId = topic.assistantId
-  const navigate = useNavigate()
-  const { assistant } = useAssistant(assistantId)
+  const { trigger: copyBranchToNewTopicTrigger } = useMutation('POST', '/topics/:id/duplicate', {
+    refresh: ['/topics']
+  })
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
-  const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
+  const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
+  const {
+    languages: translationLanguages,
+    getLabel: getTranslationLanguageLabel,
+    status: translationLanguagesStatus,
+    refetch: refetchTranslationLanguages
+  } = useLanguages({
+    enabled: normalInteractionsEnabled && translationLanguagesRequested
+  })
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const getMessageActivityState = useMessageActivityState(topicId, partsByMessageId)
-  const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const menuConfig = useMessageMenuConfig()
-  const exportActions = useMessageExportActions({ topicName: topic.name })
-  const errorActions = useMessageErrorActions()
-  const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
-  const headerCapabilities = useMessageHeaderCapabilities()
-  const messageUiStateCache = useMessageUiStateCache()
-  const { editingMessageId, startEditing } = useMessageEditing()
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
+  const { editingMessage, editingMessageId, startEditing } = useMessageEditing()
+  const canStartNewContext =
+    normalInteractionsEnabled && Boolean(chatWrite?.canStartNewContext) && editingMessage?.message.topicId !== topicId
   const resolvedAssistantId = assistant?.id ?? assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -154,6 +164,7 @@ export function useHomeMessageListProviderValue({
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
+  const listRuntimeRef = useRef<MessageListRuntime | null>(null)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
   const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
 
@@ -176,6 +187,14 @@ export function useHomeMessageListProviderValue({
     [translatingMessageIds]
   )
 
+  const requestTranslationLanguages = useCallback(() => {
+    setTranslationLanguagesRequested(true)
+  }, [])
+
+  const retryTranslationLanguages = useCallback(() => {
+    void refetchTranslationLanguages()
+  }, [refetchTranslationLanguages])
+
   useEffect(() => {
     messagesRef.current = messageItems
   }, [messageItems])
@@ -197,40 +216,45 @@ export function useHomeMessageListProviderValue({
     [chatWrite, t, topic.id]
   )
 
-  const clearTopic = useCallback(
-    async (data: Topic) => {
-      if (data && data.id !== topic.id) return
-      try {
-        await requireChatWrite('clearTopicMessages').clearTopicMessages()
-      } catch (error) {
-        logger.error('Failed to clear topic messages:', error as Error)
-        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
-      }
-    },
-    [requireChatWrite, t, topic.id]
+  const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
+    (messageId, traceOptions) => requireChatWrite('deleteMessage').deleteMessage(messageId, traceOptions),
+    [requireChatWrite]
   )
 
-  useEffect(() => {
-    if (!normalInteractionsEnabled) return
+  const getDoctorSubject = useCallback((message: MessageListItem): DoctorSubjectRef | undefined => {
+    const model = getMessageListItemModel(message)
+    return model ? { kind: 'chat', providerId: model.provider, modelId: model.id } : undefined
+  }, [])
 
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
-        const confirmed = await popup.confirm({
-          title: t('chat.input.clear.title'),
-          content: t('chat.input.clear.content'),
-          centered: true
-        })
-        if (!confirmed) return
+  const diagnosticReport = useMemo(
+    () => (normalInteractionsEnabled ? { location: 'home' } : undefined),
+    [normalInteractionsEnabled]
+  )
 
-        void clearTopic(data)
-      }),
-      EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
-        logger.info('[NEW_CONTEXT] Not yet implemented.')
-      })
-    ]
-
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [clearTopic, normalInteractionsEnabled, t])
+  const {
+    errorActions,
+    exportActions,
+    getMessageActivityState,
+    messageActivityStore,
+    headerCapabilities,
+    leafCapabilities,
+    menuConfig,
+    messageUiStateCache,
+    renderConfig,
+    selectionController,
+    updateRenderConfig
+  } = useMessageListAdapterCapabilities({
+    exportToObsidian,
+    topicId,
+    topicName: topic.name,
+    messages: messageItems,
+    partsByMessageId,
+    streamingLayers,
+    deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
+    diagnosticReport,
+    getDoctorSubject,
+    selectAllPagination
+  })
 
   useEffect(() => {
     if (!assistant) return
@@ -245,7 +269,7 @@ export function useHomeMessageListProviderValue({
   useCommandHandler(
     'chat.message.copy_last',
     () => {
-      const lastMessage = last(messageItems)
+      const lastMessage = messageItems.findLast((message) => !message.isContextBoundary)
       if (lastMessage) {
         const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
         const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
@@ -269,7 +293,7 @@ export function useHomeMessageListProviderValue({
   useCommandHandler(
     'chat.message.edit_last_user',
     () => {
-      const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
+      const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && !m.isContextBoundary)
       if (lastUserMessage) {
         void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
       }
@@ -313,8 +337,13 @@ export function useHomeMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      listRuntimeRef.current = runtime
+      const clearBoundRuntime = () => {
+        if (listRuntimeRef.current === runtime) listRuntimeRef.current = null
+      }
+      const unbindExternalRuntime = onBindRuntime?.(runtime)
       if (imageActionConsumer === 'capture') {
-        return bindCaptureMessageImageRuntime({
+        const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Topic image export was cancelled',
           consumePendingActions: consumePendingTopicImageActions,
           rejectPendingActions: rejectPendingTopicImageActions,
@@ -322,6 +351,13 @@ export function useHomeMessageListProviderValue({
           settleActionRequest: settleTopicImageActionRequest,
           targetId: topic.id
         })
+        return () => {
+          unbindCaptureRuntime()
+          clearBoundRuntime()
+          if (typeof unbindExternalRuntime === 'function') {
+            unbindExternalRuntime()
+          }
+        }
       }
 
       flushPendingTopicImageActions(runtime)
@@ -335,9 +371,15 @@ export function useHomeMessageListProviderValue({
         )
       ]
 
-      return () => unsubscribes.forEach((unsub) => unsub())
+      return () => {
+        unsubscribes.forEach((unsub) => unsub())
+        clearBoundRuntime()
+        if (typeof unbindExternalRuntime === 'function') {
+          unbindExternalRuntime()
+        }
+      }
     },
-    [consumeTopicImageAction, flushPendingTopicImageActions, imageActionConsumer, topic.id]
+    [consumeTopicImageAction, flushPendingTopicImageActions, imageActionConsumer, onBindRuntime, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -372,38 +414,61 @@ export function useHomeMessageListProviderValue({
   )
 
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
-    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+    const runtime = listRuntimeRef.current
+    if (!runtime) {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+      return
+    }
+
+    runtime.locateMessage(messageId)
+    window.requestAnimationFrame(() => {
+      void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)
+    })
   }, [])
 
   const startNewContext = useCallback(() => {
-    logger.info('[NEW_CONTEXT] Not yet implemented.')
-  }, [])
+    if (!canStartNewContext) return
+
+    void requireChatWrite('startNewContext')
+      .startNewContext()
+      .then(() => {
+        void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: topic.id })
+      })
+      .catch((error) => {
+        logger.error('Failed to update context boundary:', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      })
+  }, [canStartNewContext, requireChatWrite, t, topic.id])
 
   const saveCodeBlock = useCallback(
-    async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
-      const { msgBlockId, codeBlockId, newContent } = data
+    async (data: { msgBlockId: string; originalContent: string; newContent: string }) => {
+      const { msgBlockId, originalContent, newContent } = data
 
       try {
         const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
-          const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+          const { updateCodeBlock } = await import('@renderer/utils/markdown')
+          const updatedText = updateCodeBlock(textPart.text || '', originalContent, newContent)
+          if (updatedText === null) {
+            logger.warn(`Failed to save code block to message block ${msgBlockId}: no unique matching code block`)
+            toast.error(t('code_block.edit.save.failed.label'))
+            return
+          }
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
-          } as CherryMessagePart
+          }
           await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           toast.success(t('code_block.edit.save.success'))
           return
         }
 
-        logger.error(
-          `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
-        )
+        logger.error(`Failed to save code block content to message block ${msgBlockId}: unable to resolve part`)
         toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
-        logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
+        logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
@@ -418,13 +483,18 @@ export function useHomeMessageListProviderValue({
     return window.api.file.showInFolder(path)
   }, [])
 
-  const abortTool = useCallback((toolId: string) => {
-    return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
-  }, [])
+  const abortTool = useCallback(
+    (toolId: string) => {
+      // Scope must match the registration in mcpTools.ts — provider call ids can
+      // collide across topics, and an unscoped abort must not hit another topic's call.
+      return ipcApi.request('mcp.tool.abort_call', { callId: toolId, scope: topicId })
+    },
+    [topicId]
+  )
 
   const navigateToRoute = useCallback<NonNullable<MessageListActions['navigateToRoute']>>(
-    ({ path, query }) => navigate({ to: path, search: query }),
-    [navigate]
+    ({ path, query }) => openRoute(path, query),
+    []
   )
 
   const removeMessageErrorPart = useCallback<NonNullable<MessageListActions['removeMessageErrorPart']>>(
@@ -476,7 +546,7 @@ export function useHomeMessageListProviderValue({
           ...(sourceLanguage && { sourceLanguage })
         }
       }
-      await write.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      await write.editMessage(messageId, [...baseParts, loadingPart])
       if (!isCurrentTranslation()) return null
 
       let pendingUpdate = Promise.resolve()
@@ -496,7 +566,7 @@ export function useHomeMessageListProviderValue({
         pendingUpdate = pendingUpdate
           .then(() => {
             if (!isCurrentTranslation()) return
-            return write.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+            return write.editMessage(messageId, [...baseParts, translationPart])
           })
           .catch((error) => {
             logger.error('Failed to update message translation:', error as Error, { messageId })
@@ -601,8 +671,8 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
-  const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
-    (messageId, traceOptions) => requireChatWrite('deleteMessage').deleteMessage(messageId, traceOptions),
+  const getMessageDeleteAvailability = useCallback<NonNullable<MessageListActions['getMessageDeleteAvailability']>>(
+    (messageId) => requireChatWrite('getMessageDeleteAvailability').getMessageDeleteAvailability(messageId),
     [requireChatWrite]
   )
 
@@ -616,18 +686,28 @@ export function useHomeMessageListProviderValue({
     [onStartBranchDraft, requireChatWrite]
   )
 
+  const copyBranchToNewTopic = useCallback<NonNullable<MessageListActions['copyBranchToNewTopic']>>(
+    async (messageId) => {
+      await copyBranchToNewTopicTrigger({
+        params: { id: topicId },
+        body: { nodeId: messageId }
+      })
+    },
+    [copyBranchToNewTopicTrigger, topicId]
+  )
+
   const setActiveBranch = useCallback<NonNullable<MessageListActions['setActiveBranch']>>(
     (messageId) => requireChatWrite('setActiveBranch').setActiveBranch(messageId),
     [requireChatWrite]
   )
 
   const deleteMessageGroup = useCallback<NonNullable<MessageListActions['deleteMessageGroup']>>(
-    (parentId) => requireChatWrite('deleteMessageGroup').deleteMessageGroup(parentId),
+    (messageIds) => requireChatWrite('deleteMessageGroup').deleteMessageGroup(messageIds),
     [requireChatWrite]
   )
 
   const deleteMessageGroupWithConfirm = useCallback<NonNullable<MessageListActions['deleteMessageGroupWithConfirm']>>(
-    async (parentId) => {
+    async (messageIds) => {
       const confirmed = await popup.confirm({
         title: t('message.group.delete.title'),
         content: t('message.group.delete.content'),
@@ -640,7 +720,7 @@ export function useHomeMessageListProviderValue({
       if (!confirmed) return
 
       try {
-        await deleteMessageGroup(parentId)
+        await deleteMessageGroup(messageIds)
       } catch (error) {
         logger.error('Failed to delete message group:', error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
@@ -672,7 +752,7 @@ export function useHomeMessageListProviderValue({
           } as SharedModel)
         : undefined
 
-      const mentionModelFilter = (model: SharedModel) => {
+      const mentionModelFilter: ModelSelectorFilter = (model) => {
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
@@ -703,15 +783,6 @@ export function useHomeMessageListProviderValue({
     [regenerateMessageUsingModel, t]
   )
 
-  const selectionController = useMessageSelectionController({
-    topicId: topic.id,
-    messages: messageItems,
-    partsByMessageId,
-    deleteMessage,
-    saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
-  })
-
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -722,26 +793,23 @@ export function useHomeMessageListProviderValue({
       isMessagesStale,
       hasOlder,
       messageNavigation,
-      estimateSize: 600,
-      overscan: 8,
-      loadOlderDelayMs: 300,
-      loadingResetDelayMs: 300,
-      listKey: assistant?.id ?? topic.assistantId,
-      readonly: false,
+      ...DEFAULT_MESSAGE_LIST_CONFIG,
+      listKey: resolvedAssistantId,
       renderConfig,
       menuConfig,
       selection: selectionController.selection,
       editingMessageId,
-      translationLanguages: translationLanguages ?? [],
+      translationLanguages,
+      translationLanguagesStatus,
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
+      messageActivityStore,
       getMessageActivityState,
       isMessageTranslating,
       ...pickMessageLeafState(leafCapabilities),
       getTranslationLanguageLabel
     }),
     [
-      assistant?.id,
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
@@ -754,13 +822,16 @@ export function useHomeMessageListProviderValue({
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,
+      messageActivityStore,
       messageNavigation,
       partsByMessageId,
       renderConfig,
+      resolvedAssistantId,
       selectionController.selection,
       streamingLayers,
       topic,
-      translationLanguages
+      translationLanguages,
+      translationLanguagesStatus
     ]
   )
 
@@ -771,7 +842,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
-      startNewContext,
+      ...(canStartNewContext && { startNewContext }),
       saveCodeBlock,
       ...exportActions,
       ...errorActions,
@@ -788,12 +859,16 @@ export function useHomeMessageListProviderValue({
       updateRenderConfig,
       editMessage,
       startEditing,
-      deleteMessage,
+      getMessageDeleteAvailability: normalInteractionsEnabled ? getMessageDeleteAvailability : undefined,
+      deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
       startMessageBranch,
+      copyBranchToNewTopic: normalInteractionsEnabled ? copyBranchToNewTopic : undefined,
       setActiveBranch,
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
       regenerateMessage,
+      requestTranslationLanguages: normalInteractionsEnabled ? requestTranslationLanguages : undefined,
+      retryTranslationLanguages: normalInteractionsEnabled ? retryTranslationLanguages : undefined,
       translateMessage,
       abortMessageTranslation,
       removeMessageTranslation,
@@ -805,6 +880,9 @@ export function useHomeMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
+      canStartNewContext,
+      copyBranchToNewTopic,
+      getMessageDeleteAvailability,
       deleteMessage,
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
@@ -817,9 +895,12 @@ export function useHomeMessageListProviderValue({
       loadOlder,
       locateMessage,
       messageUiStateCache.updateMessageUiState,
+      normalInteractionsEnabled,
       openCitationsPanel,
       openPath,
       regenerateMessage,
+      requestTranslationLanguages,
+      retryTranslationLanguages,
       renderRegenerateModelPicker,
       removeMessageErrorPart,
       saveCodeBlock,
@@ -839,9 +920,10 @@ export function useHomeMessageListProviderValue({
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
+      assistantProfile: assistant ? { name: assistant.name, avatar: assistant.emoji } : undefined,
       imageExportFileName: topic.name
     }),
-    [headerCapabilities.userProfile, topic.name]
+    [assistant, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

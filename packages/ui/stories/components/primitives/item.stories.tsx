@@ -1,3 +1,6 @@
+import type { Meta, StoryObj } from '@storybook/react'
+import { Bell, Check, ChevronRight, Cloud, Database, FileText, Settings, Shield } from 'lucide-react'
+
 import {
   Badge,
   Button,
@@ -12,8 +15,6 @@ import {
   ItemSeparator,
   ItemTitle
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
-import { Bell, Check, ChevronRight, Cloud, Database, FileText, Settings, Shield } from 'lucide-react'
 
 const meta: Meta<typeof Item> = {
   title: 'Components/Primitives/Item',
@@ -136,7 +137,7 @@ export const WithHeaderAndFooter: Story = {
     <Item variant="outline" className="w-[420px]">
       <ItemHeader>
         <Badge variant="outline">Security</Badge>
-        <span className="text-muted-foreground text-xs">Updated today</span>
+        <span className="text-xs text-muted-foreground">Updated today</span>
       </ItemHeader>
       <ItemMedia variant="icon">
         <Shield />
@@ -151,8 +152,8 @@ export const WithHeaderAndFooter: Story = {
         </Button>
       </ItemActions>
       <ItemFooter>
-        <span className="text-muted-foreground text-xs">2 devices trusted</span>
-        <span className="flex items-center gap-1 text-success text-xs">
+        <span className="text-xs text-muted-foreground">2 devices trusted</span>
+        <span className="flex items-center gap-1 text-xs text-success">
           <Check size={12} />
           Enabled
         </span>

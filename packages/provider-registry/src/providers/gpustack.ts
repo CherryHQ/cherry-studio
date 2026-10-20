@@ -3,11 +3,13 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'gpustack',
   name: 'GPUStack',
+  availableInEditions: ['global', 'cn'],
   authOptional: true,
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {
-      adapterFamily: 'openai-compatible'
+      adapterFamily: 'openai-compatible',
+      reasoningFormat: { type: 'openai-chat' }
     }
   },
   metadata: {

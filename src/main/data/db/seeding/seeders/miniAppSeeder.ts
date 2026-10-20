@@ -1,7 +1,8 @@
-import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
-import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { isNotNull } from 'drizzle-orm'
+
+import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
+import { generateOrderKeySequence, generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
@@ -29,6 +30,8 @@ export class MiniAppSeeder implements ISeeder {
   }
 
   run(db: DbType): void {
+    const insertOrderKeys = this.buildInsertOrderKeys(db)
+
     for (const preset of PRESETS_MINI_APPS) {
       const insertRow: InsertMiniAppRow = {
         appId: preset.id,
@@ -41,7 +44,7 @@ export class MiniAppSeeder implements ISeeder {
         supportedRegions: preset.supportedRegions ?? null,
         nameKey: preset.nameKey ?? null,
         status: 'enabled',
-        orderKey: this.presetDefaultOrderKeys.get(preset.id) ?? ''
+        orderKey: insertOrderKeys.get(preset.id) ?? this.presetDefaultOrderKeys.get(preset.id) ?? ''
       }
 
       // On conflict: refresh preset display fields, but only for rows that
@@ -49,6 +52,7 @@ export class MiniAppSeeder implements ISeeder {
       // A custom row whose appId happens to collide with a preset id (e.g. a
       // migrated v1 custom app) keeps its own name/url/logo. status, orderKey,
       // and presetMiniAppId stay untouched on every existing row.
+      // eslint-disable-next-line no-restricted-syntax -- the onConflictDoUpdate here only refreshes preset display fields, scoped by setWhere to preset-seeded rows; custom rows untouched
       db.insert(miniAppTable)
         .values(insertRow)
         .onConflictDoUpdate({
@@ -66,5 +70,22 @@ export class MiniAppSeeder implements ISeeder {
         })
         .run()
     }
+  }
+
+  private buildInsertOrderKeys(db: DbType): ReadonlyMap<string, string> {
+    const existingRows = db
+      .select({ appId: miniAppTable.appId, status: miniAppTable.status, orderKey: miniAppTable.orderKey })
+      .from(miniAppTable)
+      .all()
+    if (existingRows.length === 0) return this.presetDefaultOrderKeys
+
+    const existingIds = new Set(existingRows.map(({ appId }) => appId))
+    const missingPresets = PRESETS_MINI_APPS.filter(({ id }) => !existingIds.has(id))
+    const lastVisibleOrderKey = existingRows
+      .filter(({ status }) => status === 'enabled' || status === 'pinned')
+      .reduce<string | null>((last, { orderKey }) => (last === null || orderKey > last ? orderKey : last), null)
+    const keys = generateOrderKeySequenceBetween(lastVisibleOrderKey, null, missingPresets.length)
+
+    return new Map(missingPresets.map(({ id }, index) => [id, keys[index]]))
   }
 }

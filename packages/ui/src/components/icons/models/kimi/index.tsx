@@ -17,7 +17,7 @@ const Kimi = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const KimiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Kimi, {
   Avatar: KimiAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#027AFF'
 })
 
 export default KimiIcon

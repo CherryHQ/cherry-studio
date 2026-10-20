@@ -1,15 +1,19 @@
 import path from 'node:path'
 
+import mime from 'mime'
+
 import { application } from '@application'
 import type { JobContext } from '@main/core/job/types'
+import { t } from '@main/i18n'
 import { toFileInfo } from '@main/services/file'
 import { stat as fsStat } from '@main/utils/file'
+import { getPdfPageCount } from '@main/utils/pdf'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorInput, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileHandle } from '@shared/data/types/file'
-import { type FileInfo, FileInfoSchema, type FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, type FileInfo, FileInfoSchema } from '@shared/types/file'
+import { GB, MB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
-import mime from 'mime'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
 import { processorRegistry } from '../processors/registry'
@@ -17,7 +21,7 @@ import type {
   FileProcessingCapabilityHandler,
   FileProcessingProcessorCapabilities,
   FileProcessingRemoteContext,
-  PreparedBackgroundJob,
+  PreparedFileProcessingJob,
   PreparedRemoteJob
 } from '../processors/types'
 import type { FileProcessingJobPayload } from './shared'
@@ -32,7 +36,7 @@ interface PreparedFileProcessingJobBase {
 }
 
 export interface PreparedBackgroundFileProcessingJob extends PreparedFileProcessingJobBase {
-  prepared: PreparedBackgroundJob
+  prepared: PreparedFileProcessingJob
 }
 
 export interface PreparedRemotePollFileProcessingJob extends PreparedFileProcessingJobBase {
@@ -59,14 +63,22 @@ export async function prepareFileProcessingJob(
   const { feature, file, processorId } = input
   const config = resolveProcessorConfigByFeature(feature, processorId)
   const handler = getCapabilityHandler(config.id, feature)
-  assertModeMatches(handler, expectedMode)
+  if (handler.mode !== 'auto') {
+    assertModeMatches({ mode: handler.mode }, expectedMode)
+  } else if (expectedMode !== 'background') {
+    throw new Error('Internal error - Auto capability must use the background job type')
+  }
   const fileInfo = await resolveFileProcessingFileInfo(file)
   assertFileTypeSupported(fileInfo, feature, config)
+  await assertDocumentInputLimits(ctx, handler.mode, fileInfo, config)
 
   const prepared = await handler.prepare(fileInfo, config, ctx.signal, {
+    ...(ctx.metadata.remoteState !== undefined ? { remoteState: ctx.metadata.remoteState } : {}),
     ...(input.context?.dataId ? { dataId: input.context.dataId } : {})
   })
-  assertModeMatches(prepared, expectedMode)
+  if (handler.mode !== 'auto') {
+    assertModeMatches(prepared, expectedMode)
+  }
 
   return createPreparedFileProcessingJobResult(expectedMode, {
     feature,
@@ -75,6 +87,61 @@ export async function prepareFileProcessingJob(
     config,
     prepared
   })
+}
+
+async function assertDocumentInputLimits(
+  ctx: JobContext<FileProcessingJobPayload>,
+  mode: FileProcessingCapabilityHandler['mode'],
+  file: FileInfo,
+  config: FileProcessorMerged
+): Promise<void> {
+  if (
+    ctx.input.feature !== 'document_to_markdown' ||
+    (mode !== 'background' && hasPersistedProviderTask(ctx.metadata.remoteState))
+  ) {
+    return
+  }
+
+  const capability = config.capabilities.find((item) => item.feature === 'document_to_markdown')
+  if (capability?.maxInputBytes !== undefined && file.size >= capability.maxInputBytes) {
+    throw new Error(
+      t('file_processing.errors.document_size_limit_exceeded', {
+        maxSize: formatByteLimit(capability.maxInputBytes)
+      })
+    )
+  }
+
+  if (file.ext?.toLowerCase() !== 'pdf') {
+    return
+  }
+
+  if (capability?.maxInputPages === undefined) {
+    return
+  }
+
+  const pageCount = await getPdfPageCount(file.path)
+  if (pageCount > capability.maxInputPages) {
+    throw new Error(t('file_processing.errors.pdf_page_limit_exceeded', { maxPages: capability.maxInputPages }))
+  }
+}
+
+function formatByteLimit(bytes: number): string {
+  if (bytes % GB === 0) {
+    return `${bytes / GB} GB`
+  }
+  if (bytes % MB === 0) {
+    return `${bytes / MB} MB`
+  }
+  return `${bytes} bytes`
+}
+
+function hasPersistedProviderTask(remoteState: unknown): boolean {
+  return (
+    typeof remoteState === 'object' &&
+    remoteState !== null &&
+    typeof (remoteState as { providerTaskId?: unknown }).providerTaskId === 'string' &&
+    (remoteState as { providerTaskId: string }).providerTaskId.length > 0
+  )
 }
 
 function createPreparedFileProcessingJobResult<Mode extends FileProcessingJobMode>(
@@ -161,7 +228,7 @@ export async function resolveFileProcessingFileInfo(file: FileHandle): Promise<F
  * difference is that path/name/ext come from the raw path instead of FileEntry
  * metadata.
  */
-async function resolveFileProcessingPathInfo(filePath: FilePath): Promise<FileInfo> {
+async function resolveFileProcessingPathInfo(filePath: AbsoluteFilePath): Promise<FileInfo> {
   const stats = await fsStat(filePath)
   if (stats.isDirectory) {
     throw new Error('File processing does not support directories')
@@ -178,5 +245,5 @@ async function resolveFileProcessingPathInfo(filePath: FilePath): Promise<FileIn
     type: getFileTypeByExt(ext ?? ''),
     createdAt: stats.createdAt || stats.modifiedAt,
     modifiedAt: stats.modifiedAt
-  }) as FileInfo
+  })
 }

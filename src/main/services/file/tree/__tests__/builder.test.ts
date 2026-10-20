@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { TreeMutationEvent } from '@shared/utils/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { TreeMutationEvent } from '@shared/utils/file'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
@@ -184,6 +185,40 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
   })
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('ignores hidden files after an allowed missing root appears and observes visible artifacts', async () => {
+    const root = path.join(tmp, 'system-workspace')
+    const builder = await createDirectoryTree(root, { watchMissingRoot: true })
+    try {
+      expect(builder.root.children).toEqual({})
+
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => events.push(event))
+      const addedPromise = waitForEvent(
+        builder,
+        (event) => event.type === 'added' && event.path.endsWith('/artifact.md'),
+        10_000
+      )
+      await mkdir(root)
+      await mkdir(path.join(root, '.claude'))
+      await writeFile(path.join(root, '.claude', 'plugins.json'), '{}')
+      await mkdir(path.join(root, 'output'))
+      await writeFile(path.join(root, 'output', '.result.json'), '{}')
+      await writeFile(path.join(root, 'artifact.md'), '# Artifact')
+
+      await addedPromise
+      subscription.dispose()
+      expect(events.some((event) => 'path' in event && event.path.includes('/.claude'))).toBe(false)
+      expect(events.some((event) => 'path' in event && event.path.endsWith('/.result.json'))).toBe(false)
+      expect(builder.getNode(path.join(root, '.claude'))).toBeNull()
+      expect(builder.getNode(path.join(root, '.claude', 'plugins.json'))).toBeNull()
+      expect(builder.getNode(path.join(root, 'output'))).not.toBeNull()
+      expect(builder.getNode(path.join(root, 'output', '.result.json'))).toBeNull()
+      expect(builder.getNode(path.join(root, 'artifact.md'))).not.toBeNull()
+    } finally {
+      await builder.disposeAsync()
+    }
   })
 
   it('emits "added" when a new matching file appears on disk', async () => {
@@ -369,6 +404,33 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     }
   })
 
+  it('rename() removes a visible node when its new path is hidden', async () => {
+    const visiblePath = path.join(tmp, 'visible.md')
+    const hiddenPath = path.join(tmp, '.visible.md')
+    const normalizedVisiblePath = visiblePath.replace(/\\/g, '/')
+    await writeFile(visiblePath, 'x')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+    try {
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => events.push(event))
+
+      const applied = builder.rename(visiblePath, hiddenPath)
+
+      expect(applied).toBe(true)
+      expect(builder.getNode(visiblePath)).toBeNull()
+      expect(builder.getNode(hiddenPath)).toBeNull()
+      expect(events).toContainEqual({ type: 'removed', path: normalizedVisiblePath })
+
+      await rename(visiblePath, hiddenPath)
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      expect(builder.getNode(hiddenPath)).toBeNull()
+
+      subscription.dispose()
+    } finally {
+      await builder.disposeAsync()
+    }
+  })
+
   it('rename() of a directory cascades descendants in the lookup map', async () => {
     await mkdir(path.join(tmp, 'old'))
     await writeFile(path.join(tmp, 'old', 'leaf.md'), 'x')
@@ -392,11 +454,33 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     }
   })
 
-  it('rename() returns false when the source node is missing', async () => {
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+  it('keeps the watcher add fallback when unlink wins the rename race', async () => {
+    const oldPath = path.join(tmp, 'old.md')
+    const newPath = path.join(tmp, 'new.md')
+    const oldNorm = oldPath.replace(/\\/g, '/')
+    const newNorm = newPath.replace(/\\/g, '/')
+    await writeFile(oldPath, 'retained note')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
     try {
-      const applied = builder.rename(path.join(tmp, 'missing.md'), path.join(tmp, 'whatever.md'))
+      let applied: boolean | undefined
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => {
+        events.push(event)
+        if (event.type === 'removed' && event.path === oldNorm) {
+          applied = builder.rename(oldPath, newPath)
+        }
+      })
+      const added = waitForEvent(builder, (event) => event.type === 'added' && event.path === newNorm)
+      await rename(oldPath, newPath)
+      await added
+
       expect(applied).toBe(false)
+      expect(builder.getNode(oldPath)).toBeNull()
+      expect(builder.getNode(newPath)?.stats).toBeDefined()
+      expect(builder.root.hasChild('new.md')).toBe(true)
+      expect(events.map((event) => event.type)).toEqual(['removed', 'added'])
+      expect(await readFile(newPath, 'utf8')).toBe('retained note')
+      subscription.dispose()
     } finally {
       await builder.disposeAsync()
     }

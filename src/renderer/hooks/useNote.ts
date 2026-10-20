@@ -1,9 +1,10 @@
+import { useCallback, useMemo } from 'react'
+
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
 import type { NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
-import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useNote')
 

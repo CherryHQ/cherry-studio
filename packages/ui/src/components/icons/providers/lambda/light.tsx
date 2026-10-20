@@ -5,31 +5,23 @@ const LambdaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
-      <g clipPath={`url(#${iconId}-lambdalight__a)`}>
-        <path fill="#000" d="M101.5 18.5H18.5V101.5H101.5V18.5Z" />
-        <mask
-          id={`${iconId}-lambdalight__b`}
-          width={64}
-          height={64}
-          x={28}
-          y={28}
-          maskUnits="userSpaceOnUse"
-          style={{
-            maskType: 'luminance'
-          }}>
-          <path fill="#fff" d="M91.125 28.875H28.875V91.125H91.125V28.875Z" />
-        </mask>
-        <g fill="#fff" mask={`url(#${iconId}-lambdalight__b)`}>
-          <path d="M45.0346 39.7187L55.8661 58.6988L43.8145 80.6793L51.5708 80.673L59.6011 65.677L68.1542 80.6793H76.06L52.9403 39.7125L45.0346 39.7187Z" />
-          <path d="M28.875 28.875V91.125H91.125V28.875H28.875ZM85.6283 85.6448H34.3717V34.3552H85.6283V85.6448Z" />
-        </g>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+      <mask
+        id={`${iconId}-lambdalight__a`}
+        width={65}
+        height={65}
+        x={28}
+        y={27}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M93 27H28V92H93V27Z" />
+      </mask>
+      <g fill="#000" mask={`url(#${iconId}-lambdalight__a)`}>
+        <path d="M44.8735 38.3227L56.1835 58.1413L43.5995 81.0928L51.6984 81.0862L60.0835 65.4278L69.0144 81.0928H77.2695L53.1284 38.3163L44.8735 38.3227Z" />
+        <path d="M28 27V92H93V27H28ZM87.2605 86.2777H33.7395V32.7223H87.2605V86.2777Z" />
       </g>
-      <defs>
-        <clipPath id={`${iconId}-lambdalight__a`}>
-          <path fill="#fff" d="M0 0H83V83H0z" transform="translate(18.5 18.5)" />
-        </clipPath>
-      </defs>
     </svg>
   )
 }

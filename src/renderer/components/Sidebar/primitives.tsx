@@ -1,49 +1,12 @@
 import { EmojiIcon } from '@cherrystudio/ui'
-import MiniAppLogo from '@renderer/components/icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
 
-import type { SidebarMiniAppTab, SidebarUser } from './types'
-
-type MiniAppIconSize = 'sm' | 'md' | 'lg'
-
-export function ActiveIndicator({ className, glow = false }: { className?: string; glow?: boolean }) {
-  return (
-    <>
-      <div className={`pointer-events-none absolute inset-0 border border-sidebar-active-border ${className ?? ''}`} />
-      {glow && (
-        <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 flex items-center">
-          <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-sidebar-glow-bg blur-[6px]" />
-          <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-sidebar-glow-line blur-[2px]" />
-        </div>
-      )}
-    </>
-  )
-}
+import type { SidebarUser } from './types'
 
 export function DefaultLogo({ title }: { title: string }) {
   return (
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 font-medium text-primary text-sm">
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
       {title ? title.slice(0, 1).toUpperCase() : ''}
-    </div>
-  )
-}
-
-export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size?: MiniAppIconSize }) {
-  const pixelSize = size === 'sm' ? 14 : size === 'md' ? 16 : 22
-  const { miniApp } = tab
-
-  if (miniApp.logo) {
-    return <MiniAppLogo app={{ logo: miniApp.logo, name: tab.title }} appearance="bare" size={pixelSize} />
-  }
-
-  const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : size === 'md' ? 'h-4 w-4' : 'h-[22px] w-[22px]'
-  const fontSize = size === 'sm' ? 'text-[6px]' : size === 'md' ? 'text-[8px]' : 'text-[11px]'
-
-  return (
-    <div
-      className={`${iconSize} ${fontSize} flex flex-shrink-0 items-center justify-center rounded-[3px] text-white`}
-      style={{ background: miniApp.color ?? 'transparent' }}>
-      {tab.title?.[0] ?? ''}
     </div>
   )
 }
@@ -68,23 +31,15 @@ function getUserAvatarFallback(user?: SidebarUser) {
   return user?.name ? user.name.slice(0, 1).toUpperCase() : ''
 }
 
-export function UserAvatar({
-  user,
-  className,
-  ring = true
-}: {
-  user: SidebarUser
-  className?: string
-  ring?: boolean
-}) {
+export function UserAvatar({ user, className }: { user: SidebarUser; className?: string }) {
   const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
 
   return (
-    <div className={`overflow-hidden rounded-full ${ring ? 'ring-1 ring-border' : ''} ${className ?? ''}`}>
+    <div className={`overflow-hidden rounded-full ${className ?? ''}`}>
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
       ) : isEmojiAvatar ? (
-        <EmojiIcon emoji={user.avatar!} fluid fontSize={10} />
+        <EmojiIcon emoji={user.avatar!} fluid />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}

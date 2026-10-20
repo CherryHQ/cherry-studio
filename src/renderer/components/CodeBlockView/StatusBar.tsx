@@ -1,13 +1,14 @@
-import { Flex } from '@cherrystudio/ui'
 import type { FC, ReactNode } from 'react'
 import { memo } from 'react'
+
+import { Flex } from '@cherrystudio/ui'
 
 interface Props {
   children: string | ReactNode
 }
 
 const StatusBar: FC<Props> = ({ children }) => {
-  return <Flex className="flex-col gap-2 overflow-y-auto text-wrap rounded-b-lg bg-muted p-3">{children}</Flex>
+  return <Flex className="flex-col gap-2 overflow-y-auto rounded-b-lg bg-muted p-3 text-wrap">{children}</Flex>
 }
 
 export default memo(StatusBar)

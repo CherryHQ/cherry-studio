@@ -1,3 +1,7 @@
+import type { FormEvent, KeyboardEvent } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -9,9 +13,6 @@ import {
   Input,
   Label
 } from '@cherrystudio/ui'
-import type { FormEvent, KeyboardEvent } from 'react'
-import { useEffect, useId, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface EditNameDialogProps {
   initialName: string
@@ -79,6 +80,14 @@ const EditNameDialog = ({
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // IME candidate confirmation still emits keydown; submitting there would save the raw pinyin
+    // buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
+    // oxlint-disable-next-line no-deprecated
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
+    if (event.key === ' ' || event.key === 'Spacebar') {
+      event.stopPropagation()
+      return
+    }
     if (event.key !== 'Enter') return
 
     event.preventDefault()
@@ -89,20 +98,20 @@ const EditNameDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         closeOnOverlayClick={false}
-        className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
-        <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
+        className="max-w-md gap-0 overflow-hidden rounded-2xl border-border-subtle p-0">
+        <DialogHeader className="gap-0.5 border-b border-border-subtle px-4 py-3 text-left">
           <DialogTitle className="leading-4">{title}</DialogTitle>
         </DialogHeader>
         <form className="flex flex-col" onSubmit={handleSubmit}>
           <div className="space-y-1 px-4 py-3">
-            <Label htmlFor={inputId} className="text-muted-foreground leading-4">
+            <Label htmlFor={inputId} className="leading-4 text-muted-foreground">
               {inputLabel ?? t('common.name')}
             </Label>
             <Input
               id={inputId}
               aria-invalid={hasAttemptedSubmit && !name.trim()}
               autoFocus
-              className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground/70"
+              className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground"
               placeholder={placeholder}
               value={name}
               onChange={(event) => {
@@ -115,7 +124,7 @@ const EditNameDialog = ({
               <FieldError className="leading-4">{t('common.required_field')}</FieldError>
             ) : null}
           </div>
-          <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">
+          <DialogFooter className="gap-2 border-t border-border-subtle px-4 py-3 sm:justify-end">
             <Button type="button" variant="outline" className="h-8 rounded-lg px-3" onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>

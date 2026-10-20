@@ -1,0 +1,69 @@
+/**
+ * Download sources for model weights. HuggingFace and hf-mirror expose the compatible
+ * `/<repo>/resolve/<revision>/<file>` route; ModelScope nests repos under `models/` and
+ * defaults its branch to `master` (HF uses `main`).
+ *
+ * Download-time only. Inference never consults it: models load by absolute path, which is
+ * what keeps them off the network entirely.
+ */
+import type { DownloadUrls, ModelSourceId } from '../catalog/types'
+
+export type { ModelSourceId } from '../catalog/types'
+export type DownloadSourcePreference = 'china-first' | 'global-first'
+
+export function orderDownloadUrls(urls: DownloadUrls, preference: DownloadSourcePreference): string[] {
+  if (!('china' in urls)) return [...urls]
+  return preference === 'china-first' ? [urls.china, urls.global] : [urls.global, urls.china]
+}
+
+interface ModelSource {
+  /** e.g. `https://huggingface.co`. */
+  remoteHost: string
+  /** e.g. `{model}/resolve/{revision}`. */
+  remotePathTemplate: string
+  /** Branch/tag — `main` on HuggingFace, `master` on ModelScope. */
+  revision: string
+}
+
+const SOURCES: Record<ModelSourceId, ModelSource> = {
+  huggingface: {
+    remoteHost: 'https://huggingface.co',
+    remotePathTemplate: '{model}/resolve/{revision}',
+    revision: 'main'
+  },
+  'hf-mirror': {
+    remoteHost: 'https://hf-mirror.com',
+    remotePathTemplate: '{model}/resolve/{revision}',
+    revision: 'main'
+  },
+  modelscope: {
+    remoteHost: 'https://www.modelscope.cn',
+    remotePathTemplate: 'models/{model}/resolve/{revision}',
+    revision: 'master'
+  }
+}
+
+/**
+ * China-first defaults to ModelScope (HuggingFace is hard to reach in China). The preference
+ * is resolved once at the management boundary from the egress region, not from display locale.
+ */
+export function defaultModelSourceId(preference: DownloadSourcePreference): ModelSourceId {
+  return preference === 'china-first' ? 'modelscope' : 'huggingface'
+}
+
+/** Region-preferred order across every declared catalog source. */
+export function modelSourceOrder(preference: DownloadSourcePreference): [ModelSourceId, ...ModelSourceId[]] {
+  return defaultModelSourceId(preference) === 'modelscope'
+    ? ['modelscope', 'hf-mirror', 'huggingface']
+    : ['huggingface', 'hf-mirror', 'modelscope']
+}
+
+/**
+ * Direct download URL for `<repo>/<file>` on a given mirror, e.g.
+ * `https://huggingface.co/PaddlePaddle/PP-OCRv6_medium_det_onnx/resolve/main/inference.onnx`.
+ */
+export function resolveModelFileUrl(id: ModelSourceId, repo: string, file: string, revision?: string): string {
+  const source = SOURCES[id]
+  const repoPath = source.remotePathTemplate.replace('{model}', repo).replace('{revision}', revision ?? source.revision)
+  return `${source.remoteHost}/${repoPath}/${file}`
+}

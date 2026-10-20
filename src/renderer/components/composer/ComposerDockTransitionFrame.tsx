@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+
 import {
   ChatBottomOverlayInsetProvider,
   type ChatBottomOverlayInsets
@@ -8,8 +11,6 @@ import {
 } from '@renderer/components/chat/motion/composerDockMotion'
 import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode } from 'react'
-import { useLayoutEffect, useRef, useState } from 'react'
 
 const COMPOSER_MESSAGE_GAP_PX = 16
 
@@ -31,6 +32,16 @@ interface ComposerInlineInsets {
 }
 
 const ZERO_COMPOSER_INLINE_INSETS: ComposerInlineInsets = { left: 0, right: 0 }
+
+function findComposerViewportInsetTarget(node: HTMLElement): HTMLElement | null {
+  const activeLayer = node.querySelector<HTMLElement>('[data-composer-active-layer]')
+  const targetRoot = activeLayer ?? node
+
+  return (
+    targetRoot.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
+    targetRoot.querySelector<HTMLElement>('[data-composer-inputbar]')
+  )
+}
 
 export default function ComposerDockTransitionFrame({
   placement,
@@ -62,6 +73,8 @@ export default function ComposerDockTransitionFrame({
   useLayoutEffect(() => {
     const node = composerRef.current
     if (!node) return
+    let observer: ResizeObserver | null = null
+    let observedInsetTarget: HTMLElement | null = null
 
     const updateInset = () => {
       if (!isDocked || !hasComposer) {
@@ -71,9 +84,12 @@ export default function ComposerDockTransitionFrame({
         )
         return
       }
-      const insetTarget =
-        node.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
-        node.querySelector<HTMLElement>('[data-composer-inputbar]')
+      const insetTarget = findComposerViewportInsetTarget(node)
+      if (observer && insetTarget !== observedInsetTarget) {
+        if (observedInsetTarget) observer.unobserve(observedInsetTarget)
+        if (insetTarget) observer.observe(insetTarget)
+        observedInsetTarget = insetTarget
+      }
       const root = rootRef.current
       if (!insetTarget || !root) {
         setBottomOverlayInsets(null)
@@ -83,6 +99,11 @@ export default function ComposerDockTransitionFrame({
         return
       }
       const insetTargetRect = insetTarget.getBoundingClientRect()
+      // A composer mid-swap (e.g. its lazy chunk still loading behind Suspense)
+      // measures as a zero rect. Deriving insets from it would push the message
+      // list's bottom margin to the full stage height and collapse the list to
+      // zero height, so keep the last good insets until the composer lays out.
+      if (insetTargetRect.width === 0 && insetTargetRect.height === 0) return
       const composerRect = node.getBoundingClientRect()
       const rootRect = root.getBoundingClientRect()
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
@@ -112,20 +133,28 @@ export default function ComposerDockTransitionFrame({
 
     if (typeof ResizeObserver === 'undefined') return
 
-    const observer = new ResizeObserver(updateInset)
+    observer = new ResizeObserver(updateInset)
     if (rootRef.current) observer.observe(rootRef.current)
     observer.observe(node)
-    const insetTarget =
-      node.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
-      node.querySelector<HTMLElement>('[data-composer-inputbar]')
-    if (insetTarget) observer.observe(insetTarget)
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
     if (scroller) observer.observe(scroller)
-    return () => observer.disconnect()
+    updateInset()
+
+    const mutationObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateInset)
+    mutationObserver?.observe(node, {
+      attributes: true,
+      attributeFilter: ['data-composer-active-layer', 'data-composer-active-override'],
+      subtree: true
+    })
+
+    return () => {
+      mutationObserver?.disconnect()
+      observer?.disconnect()
+    }
   }, [hasComposer, isDocked])
 
   return (
-    <div ref={rootRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <div ref={rootRef} data-composer-stage="" className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <ChatBottomOverlayInsetProvider value={bottomOverlayInsets}>
         <div
           className={cn('flex h-full min-h-0 flex-1 flex-col overflow-hidden', !mainVisible && 'pointer-events-none')}
@@ -145,13 +174,17 @@ export default function ComposerDockTransitionFrame({
             : undefined
         }
         className={cn(
-          'absolute inset-x-0 w-full',
+          // The whole dock stack stays click-through: the layer, the wrapper, and
+          // any width-capped centering inside the composer all span or flank the
+          // pane, so pointer events are re-enabled only by the composer content
+          // roots (ComposerSurface's NarrowLayout and the override composers).
+          'pointer-events-none absolute inset-x-0 w-full',
           composerElevated ? 'z-50' : 'z-10',
           isDocked
             ? 'bottom-0'
-            : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
+            : "top-0 bottom-0 flex flex-col before:min-h-0 before:flex-1 before:content-[''] after:min-h-0 after:flex-1 after:basis-[12vh] after:content-['']"
         )}>
-        <div className="pointer-events-auto w-full">
+        <div className="w-full shrink-0">
           <div
             ref={composerRef}
             data-composer-dock-surface=""

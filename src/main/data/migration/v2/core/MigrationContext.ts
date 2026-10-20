@@ -2,11 +2,13 @@
  * Migration context shared between all migrators
  */
 
+import fs from 'fs/promises'
+
+import Store from 'electron-store'
+
 import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
 import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
-import Store from 'electron-store'
-import fs from 'fs/promises'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'
@@ -52,13 +54,13 @@ export interface MigrationContext {
 
 /**
  * Create a migration context with all data sources
- * @param reduxData - Parsed Redux state data from Renderer
+ * @param reduxSource - Redux export directory in production; parsed data in focused tests
  * @param dexieExportPath - Path to exported Dexie files
  */
 export async function createMigrationContext(
   db: DbType,
   paths: MigrationPaths,
-  reduxData: Record<string, unknown>,
+  reduxSource: Record<string, unknown> | string,
   dexieExportPath: string,
   localStorageExportPath?: string
 ): Promise<MigrationContext> {
@@ -96,7 +98,7 @@ export async function createMigrationContext(
   return {
     sources: {
       electronStore,
-      reduxState: new ReduxStateReader(reduxData),
+      reduxState: new ReduxStateReader(reduxSource),
       dexieExport: dexieFileReader,
       dexieSettings: new DexieSettingsReader(dexieSettingsRecords),
       localStorage: new LocalStorageReader(localStorageRecords),

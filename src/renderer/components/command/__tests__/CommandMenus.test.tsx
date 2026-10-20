@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type MouseEvent as ReactMouseEvent, useEffect } from 'react'
+import type ReactType from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerErrorMock, loggerWarnMock, preferenceValues, showNativePopupMenuMock } = vi.hoisted(() => ({
@@ -35,8 +36,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => {
-  const React = require('react')
-  const MenuOpenContext = React.createContext(null)
+  const React = require('react') as typeof ReactType
+  const MenuOpenContext = React.createContext<((open: boolean) => void) | null>(null)
 
   return {
     ContextMenu: ({
@@ -64,11 +65,23 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return <span onContextMenu={handleContextMenu}>{children}</span>
     },
-    ContextMenuContent: ({ children, ...props }: React.ComponentProps<'div'>) => (
-      <div data-testid="menu-content" {...props}>
-        {children}
-      </div>
-    ),
+    ContextMenuContent: ({
+      children,
+      onCloseAutoFocus,
+      ...props
+    }: React.ComponentProps<'div'> & { onCloseAutoFocus?: (event: Event) => void }) => {
+      const [contentNode, setContentNode] = React.useState<HTMLDivElement | null>(null)
+      React.useEffect(() => {
+        if (!contentNode || !onCloseAutoFocus) return
+        contentNode.addEventListener('focusScope.autoFocusOnUnmount', onCloseAutoFocus)
+        return () => contentNode.removeEventListener('focusScope.autoFocusOnUnmount', onCloseAutoFocus)
+      }, [contentNode, onCloseAutoFocus])
+      return (
+        <div data-testid="menu-content" ref={setContentNode} {...props}>
+          {children}
+        </div>
+      )
+    },
     ContextMenuSeparator: () => <hr />,
     ContextMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     ContextMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -133,8 +146,17 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return <span onClick={handleClick}>{children}</span>
     },
-    DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
-      <div data-testid="dropdown-menu-content">{children}</div>
+    DropdownMenuContent: ({
+      children,
+      onCloseAutoFocus
+    }: {
+      children: React.ReactNode
+      onCloseAutoFocus?: () => void
+    }) => (
+      <div data-testid="dropdown-menu-content">
+        {children}
+        <button type="button" data-testid="dropdown-menu-close-complete" onClick={onCloseAutoFocus} />
+      </div>
     ),
     DropdownMenuSeparator: () => <hr />,
     DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -261,6 +283,38 @@ describe('CommandContextMenu', () => {
       )
       expect(onSelect).toHaveBeenCalledOnce()
     })
+  })
+
+  it('prevents the close focus-restore when focus is held outside the menu', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    renderMenu({
+      extraItems: [{ type: 'item', id: 'notes.rename', label: 'Rename', onSelect: vi.fn() }],
+      location: 'webcontents.context'
+    })
+    render(<input aria-label="external-target" />)
+    const external = screen.getByLabelText('external-target') as HTMLInputElement
+    external.focus()
+
+    const content = screen.getByTestId('menu-content')
+    const event = new CustomEvent('focusScope.autoFocusOnUnmount', { cancelable: true, bubbles: false })
+    content.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('keeps the default close focus-restore when focus stays inside the menu', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    renderMenu({
+      extraItems: [{ type: 'item', id: 'notes.rename', label: 'Rename', onSelect: vi.fn() }],
+      location: 'webcontents.context'
+    })
+    screen.getByRole('button', { name: 'Rename' }).focus()
+
+    const content = screen.getByTestId('menu-content')
+    const event = new CustomEvent('focusScope.autoFocusOnUnmount', { cancelable: true, bubbles: false })
+    content.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
   })
 
   it('runs extra submenu actions selected from the native menu result', async () => {
@@ -698,10 +752,15 @@ describe('CommandContextMenu', () => {
     })
   })
 
-  it('triggers onOpenChange(true) when clicked in cherry mode, and onOpenChange(false) when selecting item', async () => {
+  it('runs deferred cherry popup actions after the close lifecycle finishes', () => {
     preferenceValues['menu.presentation_mode'] = 'cherry'
     const onOpenChange = vi.fn()
     const onSelect = vi.fn()
+    let frameCallback: FrameRequestCallback | undefined
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frameCallback = callback
+      return 1
+    })
 
     render(
       <CommandContextKeyProvider>
@@ -709,6 +768,7 @@ describe('CommandContextMenu', () => {
           <CommandPopupMenu
             location="webcontents.context"
             onOpenChange={onOpenChange}
+            deferActionsUntilClosed
             extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect }]}>
             <button type="button">trigger-popup</button>
           </CommandPopupMenu>
@@ -721,10 +781,15 @@ describe('CommandContextMenu', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Branch/ }))
     expect(onOpenChange).toHaveBeenNthCalledWith(2, false)
+    expect(onSelect).not.toHaveBeenCalled()
 
-    await waitFor(() => {
-      expect(onSelect).toHaveBeenCalledOnce()
-    })
+    fireEvent.click(screen.getByTestId('dropdown-menu-close-complete'))
+    expect(onSelect).not.toHaveBeenCalled()
+
+    act(() => frameCallback?.(0))
+    expect(onSelect).toHaveBeenCalledOnce()
+
+    requestAnimationFrameSpy.mockRestore()
   })
 
   it('keeps disabled popup extra item descriptions in a tooltip in cherry mode', () => {

@@ -1,3 +1,4 @@
+export { AudioTag } from './AudioTag'
 export { EmbeddingTag } from './EmbeddingTag'
 export { FreeTag } from './FreeTag'
 export { ModelTag, type ModelTagProps } from './ModelTag'
@@ -15,5 +16,6 @@ export {
 export { ReasoningTag } from './ReasoningTag'
 export { RerankerTag } from './RerankerTag'
 export { ToolsCallingTag } from './ToolsCallingTag'
+export { VideoTag } from './VideoTag'
 export { VisionTag } from './VisionTag'
 export { WebSearchTag } from './WebSearchTag'

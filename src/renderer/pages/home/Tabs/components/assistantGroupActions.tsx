@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags } from 'lucide-react'
+
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
@@ -6,9 +9,8 @@ import {
   buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import type { TFunction } from 'i18next'
-import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'
 
 export interface AssistantGroupActionContext {
   assistantId: string
@@ -16,14 +18,16 @@ export interface AssistantGroupActionContext {
   deleteAssistantDisabled?: boolean
   deleteTopicsDisabled?: boolean
   disabled?: boolean
-  isTagGrouping: boolean
+  isGroupGrouping: boolean
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
-  onToggleTagGrouping: () => void | Promise<void>
+  onToggleGrouping: () => void | Promise<void>
   onTogglePin: (assistantId: string) => void | Promise<void>
+  onToggleSidebar: (assistantId: string) => void
   pinned: boolean
+  sidebarPinned: boolean
   t: TFunction
 }
 
@@ -45,6 +49,11 @@ assistantGroupActionRegistry.registerCommand({
 })
 
 assistantGroupActionRegistry.registerCommand({
+  id: 'assistant-group.toggle-sidebar',
+  run: ({ assistantId, onToggleSidebar }) => onToggleSidebar(assistantId)
+})
+
+assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.delete-topics',
   availability: ({ deleteTopicsDisabled }) => ({ enabled: !deleteTopicsDisabled }),
   run: ({ assistantId, onDeleteAllTopics }) => onDeleteAllTopics(assistantId)
@@ -58,12 +67,12 @@ for (const type of RESOURCE_ICON_TYPE_OPTIONS) {
 }
 
 assistantGroupActionRegistry.registerCommand({
-  id: 'assistant-group.toggle-tag-grouping',
-  run: ({ onToggleTagGrouping }) => onToggleTagGrouping()
+  id: 'assistant-group.toggle-grouping',
+  run: ({ onToggleGrouping }) => onToggleGrouping()
 })
 
 assistantGroupActionRegistry.registerCommand({
-  id: 'assistant-group.delete-assistant',
+  id: 'assistant-group.archive-assistant',
   availability: ({ deleteAssistantDisabled }) => ({ enabled: !deleteAssistantDisabled }),
   run: ({ assistantId, onDeleteAssistant }) => onDeleteAssistant(assistantId)
 })
@@ -90,6 +99,17 @@ assistantGroupActionRegistry.registerAction(
 
 assistantGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
+    id: 'assistant-group.toggle-sidebar',
+    commandId: 'assistant-group.toggle-sidebar',
+    label: ({ sidebarPinned, t }) =>
+      sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
+    icon: ({ sidebarPinned }) => <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
+    order: 22
+  })
+)
+
+assistantGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
     id: 'assistant-group.delete-topics',
     commandId: 'assistant-group.delete-topics',
     label: ({ t }) => t('assistants.clear.menu_title'),
@@ -110,9 +130,10 @@ assistantGroupActionRegistry.registerAction(
 
 assistantGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
-    id: 'assistant-group.toggle-tag-grouping',
-    commandId: 'assistant-group.toggle-tag-grouping',
-    label: ({ isTagGrouping, t }) => (isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by')),
+    id: 'assistant-group.toggle-grouping',
+    commandId: 'assistant-group.toggle-grouping',
+    label: ({ isGroupGrouping, t }) =>
+      isGroupGrouping ? t('assistants.groups.ungroup') : t('assistants.groups.group_by'),
     icon: () => <Tags size={14} />,
     order: 35
   })
@@ -120,13 +141,12 @@ assistantGroupActionRegistry.registerAction(
 
 assistantGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
-    id: 'assistant-group.delete-assistant',
-    commandId: 'assistant-group.delete-assistant',
-    label: ({ t }) => t('assistants.delete.title'),
-    icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
+    id: 'assistant-group.archive-assistant',
+    commandId: 'assistant-group.archive-assistant',
+    label: ({ t }) => t('common.archive'),
+    icon: () => <Archive size={14} />,
     group: 'danger',
-    order: 40,
-    danger: true
+    order: 40
   })
 )
 

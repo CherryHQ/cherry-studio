@@ -11,7 +11,7 @@ const codeEditorGutterTheme = EditorView.theme({
   '.cm-gutters': {
     backgroundColor: 'transparent',
     borderRight: 'none',
-    color: 'var(--color-muted-foreground)'
+    color: 'var(--muted-foreground)'
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent'
@@ -87,6 +87,36 @@ const CodeEditor = ({
     if (!editorView) return false
 
     editorView.dispatch(editorView.state.replaceSelection(text))
+    editorView.focus()
+    return true
+  }, [])
+
+  const getSelection = useCallback(() => {
+    const editorView = editorViewRef.current
+    if (!editorView) return null
+    const { from, to } = editorView.state.selection.main
+    return { from, to, text: editorView.state.sliceDoc(from, to) }
+  }, [])
+
+  const replaceRange = useCallback((range: { from: number; to: number }, text: string) => {
+    const editorView = editorViewRef.current
+    if (
+      !editorView ||
+      !editorView.state.facet(EditorView.editable) ||
+      editorView.state.readOnly ||
+      !Number.isInteger(range.from) ||
+      !Number.isInteger(range.to) ||
+      range.from < 0 ||
+      range.to < range.from ||
+      range.to > editorView.state.doc.length
+    ) {
+      return false
+    }
+
+    editorView.dispatch({
+      changes: { from: range.from, to: range.to, insert: text },
+      selection: { anchor: range.from + text.length }
+    })
     editorView.focus()
     return true
   }, [])
@@ -172,12 +202,15 @@ const CodeEditor = ({
     return () => {
       scrollCleanupRef.current?.()
       scrollCleanupRef.current = null
+      editorViewRef.current = null
     }
   }, [])
 
   useImperativeHandle(ref, () => ({
     save: handleSave,
     getContent: () => editorViewRef.current?.state.doc.toString() ?? '',
+    getSelection,
+    replaceRange,
     scrollToLine,
     insertText,
     focus
@@ -218,6 +251,9 @@ const CodeEditor = ({
         fontSize,
         marginTop: 0,
         borderRadius: 'inherit',
+        // ReactCodeMirror only sizes .cm-editor, so a percentage height collapses to
+        // auto unless this host element carries the same height.
+        ...(expanded ? undefined : { height }),
         ...style
       }}
       className={`code-editor ${className ?? ''}`}

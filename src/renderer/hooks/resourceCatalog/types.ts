@@ -4,8 +4,8 @@ export interface ResourceListQuery {
   enabled?: boolean
   /** Free-text match against name OR description (passed through to the API). */
   search?: string
-  /** Backend tag-id filter transport shape; current assistant UI passes at most one id. */
-  tagIds?: string[]
+  /** Exact assistant-group filter. */
+  groupId?: string
   limit?: number
   offset?: number
 }

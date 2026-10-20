@@ -1,6 +1,7 @@
-import { EmptyState } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Sparkles } from 'lucide-react'
+
+import { EmptyState } from '@cherrystudio/ui'
 
 const meta: Meta<typeof EmptyState> = {
   title: 'Components/Composites/empty-state',

@@ -1,7 +1,8 @@
-import { toast } from '@renderer/services/toast'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import ModelListItem from '../ModelListItem'
 
@@ -22,6 +23,14 @@ vi.mock('@logger', () => ({
       error: vi.fn()
     })
   }
+}))
+
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -140,8 +149,9 @@ describe('ModelListItem', () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
-  it('disables the row delete button when deletion is disabled', () => {
+  it('disables row mutations while model checks are running', () => {
     const onDelete = vi.fn()
+    const onEdit = vi.fn()
 
     render(
       <ModelListItem
@@ -155,15 +165,19 @@ describe('ModelListItem', () => {
           } as any
         }
         disabled
-        onEdit={vi.fn()}
+        onEdit={onEdit}
         onDelete={onDelete}
       />
     )
 
+    const settingsButton = screen.getByLabelText('common.settings')
     const deleteButton = screen.getByLabelText('settings.models.manage.remove_model')
+    expect(settingsButton).toBeDisabled()
     expect(deleteButton).toBeDisabled()
 
+    fireEvent.click(settingsButton)
     fireEvent.click(deleteButton)
+    expect(onEdit).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
   })
 

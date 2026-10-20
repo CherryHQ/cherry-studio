@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { DefaultUseCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAppUpdateState } from '../useAppUpdateState'
 

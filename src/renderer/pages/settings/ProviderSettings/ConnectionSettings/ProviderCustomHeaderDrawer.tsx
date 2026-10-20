@@ -1,7 +1,15 @@
+import { isEmpty, trim } from 'es-toolkit/compat'
+import { Braces, List, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
+
 import {
+  Badge,
   Button,
   InputGroup,
   InputGroupInput,
+  Label,
   MenuItem,
   MenuList,
   Popover,
@@ -17,16 +25,19 @@ import { cn } from '@renderer/utils/style'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { isEmpty, trim } from 'es-toolkit/compat'
-import { Braces, List, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v4 as uuidv4 } from 'uuid'
 
+import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
 import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
+import {
+  findInvalidProviderImageEndpointDraft,
+  mergeProviderImageEndpointDraft,
+  type ProviderImageEndpointDraft,
+  type ProviderImageEndpointDraftField,
+  readProviderImageEndpointDraft
+} from '../utils/providerImageEndpoints'
 
 const logger = loggerService.withContext('ProviderCustomHeaderDrawer')
 
@@ -51,6 +62,26 @@ const ENDPOINT_TYPE_LABEL_KEYS: Partial<Record<EndpointType, string>> = {
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'settings.provider.more_endpoints.openai_responses'
 }
 
+const IMAGE_ENDPOINT_TYPES = new Set<EndpointType>([
+  ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+])
+
+/** Which image draft carries the host of an image endpoint. */
+function imageDraftFieldFor(type: EndpointType): ProviderImageEndpointDraftField {
+  return type === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT ? 'imageEditBaseUrl' : 'imageGenerationBaseUrl'
+}
+
+const DEFAULT_CHAT_ENDPOINT_TYPES = new Set<EndpointType>([
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT,
+  ENDPOINT_TYPE.OLLAMA_GENERATE,
+  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
+])
+
 function newRow(partial?: Partial<Pick<HeaderRow, 'key' | 'value'>>): HeaderRow {
   return { id: uuidv4(), key: partial?.key ?? '', value: partial?.value ?? '' }
 }
@@ -73,6 +104,21 @@ function rowsToHeadersObject(rows: HeaderRow[]): Record<string, string> {
     out[k] = row.value
   }
   return out
+}
+
+/**
+ * Build an `extraHeaders` merge patch that fully replaces the stored headers.
+ *
+ * PATCH /providers/:providerId applies `providerSettings` with JSON Merge Patch
+ * semantics: keys absent from the patch are kept, so deletions must be expressed
+ * as explicit `null` values (see ProviderService.applyJsonMergePatch).
+ */
+function buildExtraHeadersReplacementPatch(
+  previous: Record<string, string>,
+  next: Record<string, string>
+): Record<string, string | null> {
+  const removed = Object.keys(previous).filter((key) => !Object.hasOwn(next, key))
+  return { ...next, ...Object.fromEntries(removed.map((key) => [key, null])) }
 }
 
 /** Parse JSON object for custom headers; primitive values coerced to strings. */
@@ -108,40 +154,35 @@ export function resolveEndpointTypes(
   primary: EndpointType
 ): EndpointType[] {
   const configured = Object.keys(provider?.endpointConfigs ?? {}) as EndpointType[]
-  const others = configured.filter((type) => type !== primary).sort()
-  return [primary, ...others]
+  const others = configured.filter((type) => type !== primary && !IMAGE_ENDPOINT_TYPES.has(type)).sort()
+  return IMAGE_ENDPOINT_TYPES.has(primary) ? others : [primary, ...others]
+}
+
+export interface EndpointDraft {
+  baseUrl: string
 }
 
 /**
- * Merge a per-endpoint baseUrl drafts map back into a full endpointConfigs
- * object.
+ * Merge per-endpoint drafts back into a full endpointConfigs object.
  *
- * - Non-empty draft → write `baseUrl`, keep any other configured fields
- *   (reasoningFormatType, modelsApiUrls) on that endpoint.
- * - Empty primary draft → strip `baseUrl` but keep other fields so the
- *   primary entry survives when fields like reasoningFormatType are set.
- * - Empty non-primary draft → drop the entry entirely. Today no surface
- *   sets non-baseUrl fields on secondary endpoints, so this stays clean;
- *   if a future surface writes them, this branch must change accordingly.
+ * Each drafted endpoint's `baseUrl` is written or stripped from the draft;
+ * other configured fields on the entry are kept. An empty entry is dropped.
  */
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
-  drafts: Record<string, string>,
-  primary: EndpointType
+  drafts: Record<string, EndpointDraft>
 ): Partial<Record<EndpointType, EndpointConfig>> {
   const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
-  for (const [type, raw] of Object.entries(drafts) as [EndpointType, string][]) {
-    const value = trim(raw)
+  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
+    const next: EndpointConfig = { ...out[type] }
+    const value = trim(draft.baseUrl)
     if (value) {
-      out[type] = { ...out[type], baseUrl: value }
-    } else if (type === primary) {
-      const rest = { ...out[type] }
-      delete rest.baseUrl
-      if (!isEmpty(rest)) {
-        out[type] = rest
-      } else {
-        delete out[type]
-      }
+      next.baseUrl = value
+    } else {
+      delete next.baseUrl
+    }
+    if (!isEmpty(next)) {
+      out[type] = next
     } else {
       delete out[type]
     }
@@ -155,12 +196,12 @@ export function mergeEndpointConfigs(
  * validated separately (it has its own required-ness rules).
  */
 export function findInvalidSecondaryEndpointUrl(
-  drafts: Record<string, string>,
+  drafts: Record<string, EndpointDraft>,
   primary: EndpointType
 ): EndpointType | null {
-  for (const [type, raw] of Object.entries(drafts) as [EndpointType, string][]) {
+  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
     if (type === primary) continue
-    const value = trim(raw)
+    const value = trim(draft.baseUrl)
     if (value && !validateApiHost(value)) {
       return type
     }
@@ -183,7 +224,14 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   )
 
   const [rows, setRows] = useState<HeaderRow[]>([])
-  const [endpointDrafts, setEndpointDrafts] = useState<Record<string, string>>({})
+  const [endpointDrafts, setEndpointDrafts] = useState<Record<string, EndpointDraft>>({})
+  const [defaultChatEndpoint, setDefaultChatEndpoint] = useState<EndpointType>(primaryEndpoint)
+  const [imageEndpointDraft, setImageEndpointDraft] = useState<ProviderImageEndpointDraft>(() =>
+    readProviderImageEndpointDraft(undefined)
+  )
+  const [invalidImageEndpointField, setInvalidImageEndpointField] = useState<ProviderImageEndpointDraftField | null>(
+    null
+  )
   const [visibleEndpointTypes, setVisibleEndpointTypes] = useState<EndpointType[]>([])
   const [addEndpointOpen, setAddEndpointOpen] = useState(false)
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
@@ -198,17 +246,22 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const drafts: Record<string, string> = {}
+    const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
-      drafts[type] = trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
+      drafts[type] = {
+        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
+      }
     }
     setEndpointDrafts(drafts)
+    setDefaultChatEndpoint(primaryEndpoint)
+    setImageEndpointDraft(readProviderImageEndpointDraft(provider?.endpointConfigs))
+    setInvalidImageEndpointField(null)
     setVisibleEndpointTypes(endpointTypes)
     setAddEndpointOpen(false)
     setRows(headersObjectToRows(sourceHeaders))
     setJsonDraft(JSON.stringify(sourceHeaders, null, 2))
     setHeadersUiMode('list')
-  }, [open, sourceHeaders, endpointTypes, provider?.endpointConfigs])
+  }, [open, sourceHeaders, endpointTypes, primaryEndpoint, provider?.endpointConfigs])
 
   const syncListToJson = useCallback(() => {
     setJsonDraft(JSON.stringify(rowsToHeadersObject(rows), null, 2))
@@ -239,24 +292,38 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const handleSave = useCallback(async () => {
     if (!provider) return
 
-    // Validate the primary baseUrl — non-empty + URL-shape, unless this is
-    // Vertex (whose primary endpoint is account-managed, no URL needed).
-    const primaryDraft = trim(endpointDrafts[primaryEndpoint] ?? '')
-    const isVertex = provider.authType === 'iam-gcp'
-    if (!isVertex && (!primaryDraft || !validateApiHost(primaryDraft))) {
+    // Validate the selected default baseUrl — non-empty + URL-shape, unless
+    // this is Vertex (whose text endpoints are account-managed). A provider with
+    // no chat endpoint defaults to its image endpoint, and `resolveEndpointTypes`
+    // keeps image endpoints out of `endpointDrafts`, so its host is validated here.
+    const defaultEndpointIsImage = IMAGE_ENDPOINT_TYPES.has(defaultChatEndpoint)
+    const defaultEndpointDraft = defaultEndpointIsImage
+      ? trim(imageEndpointDraft[imageDraftFieldFor(defaultChatEndpoint)])
+      : trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
+    const isAccountManagedProvider = provider.authType === 'iam-gcp'
+    if (!isAccountManagedProvider && (!defaultEndpointDraft || !validateApiHost(defaultEndpointDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
 
     // Secondary endpoints are optional, but a non-empty one must still be a
     // valid URL — otherwise it surfaces as an opaque chat-traffic failure later.
-    if (findInvalidSecondaryEndpointUrl(endpointDrafts, primaryEndpoint)) {
+    if (findInvalidSecondaryEndpointUrl(endpointDrafts, defaultChatEndpoint)) {
       toast.error(t('settings.provider.api_host_no_valid'))
       return
     }
 
-    const nextEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts, primaryEndpoint)
-    const previousPrimaryBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const invalidImageEndpoint = findInvalidProviderImageEndpointDraft(imageEndpointDraft)
+    if (invalidImageEndpoint) {
+      setInvalidImageEndpointField(invalidImageEndpoint)
+      toast.error(t('settings.provider.api_host_no_valid'))
+      return
+    }
+
+    const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
+    const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
+    const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+    const defaultEndpointChanged = !defaultEndpointIsImage && defaultChatEndpoint !== primaryEndpoint
 
     let parsedHeaders: Record<string, string>
     if (headersUiMode === 'json') {
@@ -273,7 +340,13 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     try {
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
-        providerSettings: { ...provider.settings, extraHeaders: parsedHeaders }
+        // `defaultChatEndpoint` names a text endpoint; an image-only provider
+        // keeps the value it already has instead of recording an image one.
+        defaultChatEndpoint: defaultEndpointIsImage ? provider.defaultChatEndpoint : defaultChatEndpoint,
+        providerSettings: {
+          ...provider.settings,
+          extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+        }
       })
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
@@ -283,23 +356,30 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    if (primaryDraft !== previousPrimaryBaseUrl) {
-      syncProviderModels().catch((error) => {
-        logger.error('Background model sync after baseUrl change failed', error as Error, { providerId })
+    if (defaultEndpointChanged || defaultEndpointDraft !== previousDefaultBaseUrl) {
+      syncProviderModels({
+        ...provider,
+        endpointConfigs: nextEndpointConfigs,
+        defaultChatEndpoint
+      }).catch((error) => {
+        logger.error('Background model sync after endpoint change failed', error as Error, { providerId })
       })
     }
 
     toast.success(t('message.save.success.title'))
     onClose()
   }, [
+    defaultChatEndpoint,
     endpointDrafts,
     headersUiMode,
+    imageEndpointDraft,
     jsonDraft,
     onClose,
     primaryEndpoint,
     provider,
     providerId,
     rows,
+    sourceHeaders,
     syncProviderModels,
     t,
     updateProvider
@@ -328,7 +408,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
   const handleAddEndpoint = (type: EndpointType) => {
     setVisibleEndpointTypes((prev) => (prev.includes(type) ? prev : [...prev, type]))
-    setEndpointDrafts((prev) => ({ ...prev, [type]: prev[type] ?? '' }))
+    setEndpointDrafts((prev) => ({ ...prev, [type]: prev[type] ?? { baseUrl: '' } }))
     setAddEndpointOpen(false)
   }
 
@@ -340,27 +420,55 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       footer={footer}>
       <div className={customHeaderDrawerClasses.bodyScroll}>
         {visibleEndpointTypes.map((type, index) => {
-          const isPrimary = index === 0
+          const isInitialPrimary = index === 0
+          const isDefault = type === defaultChatEndpoint
           const labelKey = ENDPOINT_TYPE_LABEL_KEYS[type]
-          const label = isPrimary ? t('settings.provider.api_host') : labelKey ? t(labelKey) : type
+          const label = labelKey ? t(labelKey) : isInitialPrimary ? t('settings.provider.api_host') : type
           const inputId = `provider-request-config-endpoint-${type}`
+          const isConfiguredDefaultCandidate =
+            type === primaryEndpoint ||
+            Object.prototype.hasOwnProperty.call(provider?.endpointConfigs ?? {}, type) ||
+            Boolean(trim(endpointDrafts[type]?.baseUrl ?? ''))
           return (
             <div key={type} className="space-y-1.5">
-              <label className="font-medium text-muted-foreground/60 text-xs" htmlFor={inputId}>
-                {label}
-              </label>
+              <div className="flex min-h-5 items-center gap-2">
+                <Label className="text-[13px] text-foreground" htmlFor={inputId}>
+                  {label}
+                </Label>
+                {isDefault ? (
+                  <Badge
+                    variant="secondary"
+                    className="h-5 border-0 px-1.5 py-0 text-xs font-normal text-foreground-tertiary">
+                    {t('settings.provider.create_custom.endpoint_fields.default_chat')}
+                  </Badge>
+                ) : DEFAULT_CHAT_ENDPOINT_TYPES.has(type) && isConfiguredDefaultCandidate ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:-top-5 before:bottom-0 before:content-[''] active:scale-[0.96]"
+                    onClick={() => setDefaultChatEndpoint(type)}>
+                    {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
+                  </Button>
+                ) : null}
+              </div>
               <InputGroup className={fieldClasses.inputGroup}>
                 <InputGroupInput
                   id={inputId}
                   className={fieldClasses.input}
-                  value={endpointDrafts[type] ?? ''}
+                  value={endpointDrafts[type]?.baseUrl ?? ''}
                   placeholder={t('settings.provider.api_host')}
-                  onChange={(e) => setEndpointDrafts((prev) => ({ ...prev, [type]: e.target.value }))}
+                  onChange={(e) =>
+                    setEndpointDrafts((prev) => ({
+                      ...prev,
+                      [type]: { ...(prev[type] ?? { baseUrl: '' }), baseUrl: e.target.value }
+                    }))
+                  }
                   autoComplete="off"
                 />
               </InputGroup>
-              {isPrimary && (
-                <p className="wrap-break-word text-muted-foreground/40 text-xs leading-relaxed">
+              {isDefault && (
+                <p className="text-xs leading-relaxed wrap-break-word text-muted-foreground">
                   {t('settings.provider.api_host_drawer_hint')}
                 </p>
               )}
@@ -390,11 +498,18 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           </Popover>
         )}
 
+        <ProviderImageEndpointFields
+          value={imageEndpointDraft}
+          invalidField={invalidImageEndpointField}
+          onChange={(value) => {
+            setImageEndpointDraft(value)
+            setInvalidImageEndpointField(null)
+          }}
+        />
+
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-medium text-muted-foreground/60 text-xs">
-              {t('settings.provider.copilot.custom_headers')}
-            </span>
+            <span className="text-xs text-muted-foreground">{t('settings.provider.copilot.custom_headers')}</span>
             <Tooltip content={toggleLabel}>
               <button
                 type="button"
@@ -450,7 +565,11 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                         size="icon"
                         className={customHeaderDrawerClasses.removeIconButton}
                         onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                        aria-label={t('common.delete')}>
+                        aria-label={
+                          row.key.trim()
+                            ? t('settings.provider.delete.header', { key: row.key.trim() })
+                            : t('common.delete')
+                        }>
                         <Trash2 aria-hidden />
                       </Button>
                     </div>
@@ -480,7 +599,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 placeholder={t('settings.provider.copilot.headers_json_placeholder')}
                 className={customHeaderDrawerClasses.headersJsonEditor}
               />
-              <p className="text-muted-foreground/40 text-xs leading-relaxed">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 {t('settings.provider.copilot.headers_description')}
               </p>
             </div>

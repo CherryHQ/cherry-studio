@@ -16,6 +16,10 @@ export const TOPIC_MESSAGE_FLOW_NODE_SIZE = {
   height: 112
 } as const
 
+// This reviewed visualization color belongs to the message-flow graph rather
+// than the shared readable-content hierarchy.
+export const TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR = 'oklch(0.71 0.02 261)'
+
 const GRAPH_SPACING = {
   nodesep: 56,
   ranksep: 96,
@@ -25,26 +29,21 @@ const GRAPH_SPACING = {
 } as const
 
 const EDGE_COLORS: Record<TopicMessageFlowEdgeState, string> = {
-  active: 'var(--color-success)',
-  default: 'var(--color-border)',
-  inactive: 'var(--color-gray-400)',
-  sibling: 'var(--color-border)'
+  active: 'var(--success)',
+  default: 'var(--border)',
+  inactive: TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR,
+  sibling: 'var(--border)'
 }
 
 export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): TopicMessageFlowLayout {
-  const draftNodeIds = new Set(graph.nodes.filter((node) => node.data.isInputDraft).map((node) => node.id))
-  const layoutInputNodes = graph.nodes.filter((node) => !draftNodeIds.has(node.id))
-  const depthById = getDepthById({ ...graph, nodes: layoutInputNodes })
-  const orderedNodes = [...layoutInputNodes].sort((a, b) => compareGraphNodes(a, b, depthById))
+  const depthById = getDepthById(graph)
+  const orderedNodes = [...graph.nodes].sort((a, b) => compareGraphNodes(a, b, depthById))
   const orderConstraints = buildSiblingOrderConstraints(orderedNodes)
   const nodeOrder = new Map(orderedNodes.map((node, index) => [node.id, index]))
   const visibleEdges = getVisibleEdges({ ...graph, nodes: orderedNodes }).sort((a, b) =>
     compareGraphEdges(a, b, nodeOrder)
   )
-  const draftEdges = getVisibleEdges(graph).filter(
-    (edge) => draftNodeIds.has(edge.source) || draftNodeIds.has(edge.target)
-  )
-  if (orderedNodes.length === 0 && draftNodeIds.size === 0) {
+  if (orderedNodes.length === 0) {
     return {
       nodes: [],
       edges: [],
@@ -70,7 +69,7 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
 
   layout(dagreGraph, { constraints: orderConstraints })
 
-  const layoutNodes = orderedNodes.map((node): TopicMessageFlowNodeModel => {
+  const nodes = orderedNodes.map((node): TopicMessageFlowNodeModel => {
     const positioned = dagreGraph.node(node.id)
 
     return toReactFlowNode(node, {
@@ -78,14 +77,10 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
       y: positioned.y - TOPIC_MESSAGE_FLOW_NODE_SIZE.height / 2
     })
   })
-  const positionedLayoutNodes = new Map(layoutNodes.map((node) => [node.id, node]))
-  const draftNodes = graph.nodes
-    .filter((node) => draftNodeIds.has(node.id))
-    .map((node, index) => toReactFlowNode(node, getDraftNodePosition(node, graph.nodes, positionedLayoutNodes, index)))
 
   return {
-    nodes: [...layoutNodes, ...draftNodes],
-    edges: [...visibleEdges, ...draftEdges].map(toReactFlowEdge),
+    nodes,
+    edges: visibleEdges.map(toReactFlowEdge),
     activeNodeId: graph.activeNodeId,
     stats: graph.stats
   }
@@ -113,45 +108,6 @@ function toReactFlowNode(
       width: TOPIC_MESSAGE_FLOW_NODE_SIZE.width,
       height: TOPIC_MESSAGE_FLOW_NODE_SIZE.height
     }
-  }
-}
-
-function getDraftNodePosition(
-  node: TopicMessageFlowGraph['nodes'][number],
-  graphNodes: TopicMessageFlowGraph['nodes'],
-  positionedLayoutNodes: Map<string, TopicMessageFlowNodeModel>,
-  draftIndex: number
-): TopicMessageFlowNodeModel['position'] {
-  const parentNode = node.parentId ? positionedLayoutNodes.get(node.parentId) : undefined
-  const siblingPositions = graphNodes
-    .filter((candidate) => candidate.parentId === node.parentId && !candidate.data.isInputDraft)
-    .flatMap((candidate) => {
-      const positioned = positionedLayoutNodes.get(candidate.id)
-      return positioned ? [positioned.position] : []
-    })
-
-  if (parentNode) {
-    const rightMostSiblingX =
-      siblingPositions.length > 0 ? Math.max(...siblingPositions.map((position) => position.x)) : parentNode.position.x
-    const siblingY =
-      siblingPositions[0]?.y ?? parentNode.position.y + TOPIC_MESSAGE_FLOW_NODE_SIZE.height + GRAPH_SPACING.ranksep
-
-    return {
-      x:
-        rightMostSiblingX +
-        (siblingPositions.length > 0 ? TOPIC_MESSAGE_FLOW_NODE_SIZE.width + GRAPH_SPACING.nodesep : 0) +
-        draftIndex * (TOPIC_MESSAGE_FLOW_NODE_SIZE.width + GRAPH_SPACING.nodesep),
-      y: siblingY
-    }
-  }
-
-  const positionedNodes = [...positionedLayoutNodes.values()]
-  const rightMostX =
-    positionedNodes.length > 0 ? Math.max(...positionedNodes.map((positioned) => positioned.position.x)) : 0
-
-  return {
-    x: rightMostX + draftIndex * (TOPIC_MESSAGE_FLOW_NODE_SIZE.width + GRAPH_SPACING.nodesep),
-    y: GRAPH_SPACING.marginy
   }
 }
 

@@ -1,9 +1,10 @@
-import { toast } from '@renderer/services/toast'
-import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 import { useTranslateHistory } from '../useTranslateHistory'
 
@@ -45,9 +46,9 @@ describe('useTranslateHistory', () => {
     const addTrigger = vi.fn().mockResolvedValue({ id: 'h1' })
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/translate/histories') {
-        return { trigger: addTrigger, isLoading: false, error: undefined } as any
+        return { trigger: addTrigger, isLoading: false, error: undefined }
       }
-      return { trigger: vi.fn(), isLoading: false, error: undefined } as any
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
 
     const { result } = renderHook(() => useTranslateHistory())
@@ -73,9 +74,9 @@ describe('useTranslateHistory', () => {
     const updateTrigger = vi.fn().mockResolvedValue({ id: 'hist-123' })
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'PATCH' && path === '/translate/histories/:id') {
-        return { trigger: updateTrigger, isLoading: false, error: undefined } as any
+        return { trigger: updateTrigger, isLoading: false, error: undefined }
       }
-      return { trigger: vi.fn(), isLoading: false, error: undefined } as any
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
 
     const { result } = renderHook(() => useTranslateHistory())
@@ -98,12 +99,12 @@ describe('useTranslateHistory', () => {
     const clearTrigger = vi.fn().mockResolvedValue(undefined)
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'DELETE' && path === '/translate/histories/:id') {
-        return { trigger: removeTrigger, isLoading: false, error: undefined } as any
+        return { trigger: removeTrigger, isLoading: false, error: undefined }
       }
       if (method === 'DELETE' && path === '/translate/histories') {
-        return { trigger: clearTrigger, isLoading: false, error: undefined } as any
+        return { trigger: clearTrigger, isLoading: false, error: undefined }
       }
-      return { trigger: vi.fn(), isLoading: false, error: undefined } as any
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
 
     const { result } = renderHook(() => useTranslateHistory())
@@ -120,16 +121,18 @@ describe('useTranslateHistory', () => {
     const updateTrigger = vi.fn().mockRejectedValue(failure)
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'PATCH' && path === '/translate/histories/:id') {
-        return { trigger: updateTrigger, isLoading: false, error: undefined } as any
+        return { trigger: updateTrigger, isLoading: false, error: undefined }
       }
-      return { trigger: vi.fn(), isLoading: false, error: undefined } as any
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 
     const { result } = renderHook(() => useTranslateHistory({ update: { rethrowError: false } }))
 
     await expect(result.current.update('hist-123', { star: false })).resolves.toBeUndefined()
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to update translate history', failure)
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to update translate history', failure, {
+      operation: 'translate.history.error.save'
+    })
     expect(toast.error).toHaveBeenCalledWith('t(translate.history.error.save)')
   })
 })

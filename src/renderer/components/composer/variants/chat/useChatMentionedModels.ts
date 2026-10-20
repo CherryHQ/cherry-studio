@@ -1,5 +1,6 @@
-import type { Model } from '@shared/data/types/model'
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+
+import type { Model } from '@shared/data/types/model'
 
 interface UseMentionedModelSelectorParams {
   /** Whether the mentioned-model selector UI is in use (chat home / placement). */
@@ -21,6 +22,8 @@ interface UseMentionedModelSelectorResult {
   handleMentionedModelsSelect: (models: Model[]) => void
   handleMentionedModelMultiSelectModeChange: (enabled: boolean) => void
   handleMentionedModelSelectorRestore: () => void
+  restoreMentionedModelDraft: (models: Model[], multiSelectMode: boolean) => void
+  restoreMentionedModelSelection: (selectorModels: Model[], mentionedModels: Model[], multiSelectMode: boolean) => void
 }
 
 /**
@@ -143,11 +146,32 @@ export function useChatMentionedModels({
     setMentionedModels([])
   }, [runtimeModel, setMentionedModels])
 
+  const restoreMentionedModelSelection = useCallback(
+    (selectorModels: Model[], restoredMentionedModels: Model[], multiSelectMode: boolean) => {
+      mentionedModelsRef.current = restoredMentionedModels
+      mentionedModelSelectorValueRef.current = selectorModels
+      mentionedModelMultiSelectModeRef.current = multiSelectMode
+      setMentionedModels(restoredMentionedModels)
+      setMentionedModelSelectorValue(selectorModels)
+      setMentionedModelMultiSelectMode(multiSelectMode)
+    },
+    [setMentionedModels]
+  )
+
+  const restoreMentionedModelDraft = useCallback(
+    (models: Model[], multiSelectMode: boolean) => {
+      restoreMentionedModelSelection(models, models, multiSelectMode)
+    },
+    [restoreMentionedModelSelection]
+  )
+
   return {
     mentionedModelSelectorValue,
     mentionedModelMultiSelectMode,
     handleMentionedModelsSelect,
     handleMentionedModelMultiSelectModeChange,
-    handleMentionedModelSelectorRestore
+    handleMentionedModelSelectorRestore,
+    restoreMentionedModelDraft,
+    restoreMentionedModelSelection
   }
 }

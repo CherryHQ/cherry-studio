@@ -1,7 +1,12 @@
-import type { FileMetadata } from '@renderer/types/file'
-import type { FileEntry } from '@shared/data/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ModelListSchema } from '@cherrystudio/provider-registry'
+import type { FileMetadata } from '@renderer/types/file'
+import type { FileEntry } from '@shared/data/types/file'
+
+import modelCatalog from '../../../../../../packages/provider-registry/data/models.json'
+import { isOptionsConfigItem } from '../../form/baseConfigItem'
+import { imageGenerationToFields } from '../../form/imageGenerationToFields'
 import { canonicalGenerate } from '../canonicalGenerate'
 import type { GenerateInput } from '../types/generateInput'
 import type { PaintingData } from '../types/paintingData'
@@ -47,7 +52,7 @@ function makeInput(params: Record<string, unknown>, overrides: Partial<PaintingD
       apiHost: 'https://example.com',
       isEnabled: true,
       getApiKey: async () => 'api-key'
-    } as never,
+    },
     tab: 'default',
     abortController: new AbortController()
   }
@@ -57,6 +62,27 @@ describe('canonicalGenerate', () => {
   beforeEach(() => {
     generatePaintingMock.mockClear()
   })
+
+  it.each(['1536x864', '864x1536', '1536x960', '3840x2160', '2160x3840'])(
+    'offers and submits the GPT-Image-2 size %s without replacing it',
+    async (size) => {
+      const support = ModelListSchema.parse(modelCatalog).models.find(
+        (model) => model.id === 'gpt-image-2'
+      )?.imageGeneration
+      const field = imageGenerationToFields(support, { mode: 'generate' }).find((item) => item.key === 'size')
+      expect(field?.type).toBe('sizeChips')
+      if (!field || !isOptionsConfigItem(field) || !Array.isArray(field.options)) {
+        throw new Error('Expected static size choices')
+      }
+      expect(field.options).toContainEqual(expect.objectContaining({ value: size }))
+
+      await canonicalGenerate(makeInput({ size }, { providerId: 'openai', model: 'gpt-image-2' }), {
+        support,
+        mode: 'generate'
+      })
+      expect(lastGenerateCall().paramValues.size).toBe(size)
+    }
+  )
 
   it('ships the validated params as one canonical paramValues bag (no partition / rename)', async () => {
     await canonicalGenerate(
@@ -73,6 +99,34 @@ describe('canonicalGenerate', () => {
       outputFormat: 'png'
     })
     expect(call.inputImages).toBeUndefined()
+  })
+
+  it('submits the same effective slider value rendered from a numeric string', async () => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+
+    await canonicalGenerate(makeInput({ strength: '4.5' }), { support, mode: 'generate' })
+
+    expect(lastGenerateCall().paramValues.strength).toBe(4.5)
+  })
+
+  it.each([true, false, [], ['4.5']])('drops invalid numeric input %# instead of coercing it', async (value) => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+        }
+      }
+    }
+
+    await canonicalGenerate(makeInput({ strength: value }), { support, mode: 'generate' })
+
+    expect(lastGenerateCall().paramValues.strength).toBeUndefined()
   })
 
   it('composes the customSize widget trio into size and drops the companions', async () => {
@@ -111,5 +165,57 @@ describe('canonicalGenerate', () => {
     // Encoded to a `data:` URL (`base64('\x01\x02\x03') === 'AQID'`); not in paramValues.
     expect(call.inputImages).toEqual(['data:image/png;base64,AQID'])
     expect(call.paramValues).toEqual({})
+  })
+
+  it('rejects input images beyond the selected mode limit before reading files', async () => {
+    const binaryImage = vi.fn()
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+    const inputFiles = [
+      { id: 'file-1', ext: 'png' },
+      { id: 'file-2', ext: 'png' }
+    ] as unknown as FileEntry[]
+
+    await expect(
+      canonicalGenerate(makeInput({}, { inputFiles }), {
+        mode: 'edit',
+        support: { modes: { edit: { supports: {}, maxInputImages: 1 } } }
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
+
+    expect(binaryImage).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
+  })
+
+  it('skips non-image input files (e.g. a pasted-text .txt) so they never ship as images', async () => {
+    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+
+    const inputFiles = [
+      { id: 'note', ext: 'txt' },
+      { id: 'pic', ext: 'png' }
+    ] as unknown as FileEntry[]
+    await canonicalGenerate(makeInput({}, { inputFiles }))
+
+    // Only the image was fetched/encoded; the .txt was filtered out.
+    expect(binaryImage).toHaveBeenCalledTimes(1)
+    expect(binaryImage).toHaveBeenCalledWith('pic.png')
+    expect(lastGenerateCall().inputImages).toEqual(['data:image/png;base64,AQID'])
+  })
+
+  it('throws EDIT_IMAGE_REQUIRED for an image-requiring mode with no image input', async () => {
+    await expect(canonicalGenerate(makeInput({}), { mode: 'edit' })).rejects.toMatchObject({
+      code: 'EDIT_IMAGE_REQUIRED'
+    })
+  })
+
+  it('throws EDIT_IMAGE_REQUIRED when the only input for an edit mode is a non-image file', async () => {
+    const inputFiles = [{ id: 'note', ext: 'txt' }] as unknown as FileEntry[]
+    await expect(canonicalGenerate(makeInput({}, { inputFiles }), { mode: 'edit' })).rejects.toMatchObject({
+      code: 'EDIT_IMAGE_REQUIRED'
+    })
+  })
+
+  it('allows the generate mode without any input image', async () => {
+    await expect(canonicalGenerate(makeInput({}), { mode: 'generate' })).resolves.toEqual([])
   })
 })

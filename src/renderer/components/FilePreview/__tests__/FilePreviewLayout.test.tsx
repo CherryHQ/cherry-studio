@@ -1,10 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { FilePreviewLayout } from '../FilePreviewLayout'
-import { FilePreviewToolbar } from '../FilePreviewToolbar'
+import { FilePreviewLayout, FilePreviewToolbar } from '@cherrystudio/file-preview/react'
 
 afterEach(cleanup)
 
@@ -17,6 +15,7 @@ describe('FilePreview layout composition', () => {
     )
 
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+    expect(screen.getByTestId('file-preview-content').parentElement).toHaveClass('bg-transparent')
     expect(screen.getByTestId('file-preview-content')).toHaveTextContent('Preview content')
   })
 
@@ -31,7 +30,7 @@ describe('FilePreview layout composition', () => {
     )
 
     const toolbar = screen.getByRole('toolbar', { name: 'PDF preview tools' })
-    expect(toolbar).toHaveClass('h-10')
+    expect(toolbar).toHaveClass('h-11', 'after:left-3', 'after:right-3', 'after:border-border', 'after:border-b')
     expect(toolbar).not.toHaveClass('bg-background')
     expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument()

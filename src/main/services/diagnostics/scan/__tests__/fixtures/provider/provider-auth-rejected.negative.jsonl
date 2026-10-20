@@ -1,0 +1,3 @@
+{"level":"warn","message":"Unauthorized write risks noted for preset layering design","module":"CherryAssistant","process":"main","timestamp":"2026-08-20 10:00:00"}
+{"level":"warn","message":"AppearanceSettings.tsx:403-417 is missing an accessible name","module":"A11y","process":"renderer","window":"mainWindow","timestamp":"2026-08-20 10:01:00"}
+{"level":"error","message":"AI repair generateText failed No object generated: could not parse the response.","usage":{"inputTokens":401,"outputTokens":401,"totalTokens":802},"timestamp":"2026-08-20 15:00:00"}

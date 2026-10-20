@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     'components/index': 'src/components/index.ts',
     'icons/index': 'src/components/icons/index.ts',
+    'icons/providers/index': 'src/components/icons/providers/index.ts',
     'hooks/index': 'src/hooks/index.ts',
     'utils/index': 'src/utils/index.ts'
   },
@@ -13,5 +14,7 @@ export default defineConfig({
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json',
-  external: ['react', 'react-dom', 'motion', 'tailwindcss', 'unist-util-visit']
+  deps: {
+    neverBundle: ['react', 'react-dom', 'motion', 'tailwindcss', 'unist-util-visit']
+  }
 })

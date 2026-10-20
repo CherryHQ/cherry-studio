@@ -1,10 +1,11 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
-import { type CodeEditorHandles } from '@renderer/components/CodeEditor'
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, SaveIcon } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { CodeEditorHandles } from '@cherrystudio/ui'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 
 interface UseSaveToolProps {
   enabled?: boolean
@@ -26,11 +27,7 @@ export const useSaveTool = ({ enabled, sourceViewRef, setTools }: UseSaveToolPro
     if (enabled) {
       registerTool({
         ...TOOL_SPECS.save,
-        icon: saved ? (
-          <Check className="tool-icon" color="var(--color-status-success)" />
-        ) : (
-          <SaveIcon className="tool-icon" />
-        ),
+        icon: saved ? <Check className="tool-icon" color="var(--success)" /> : <SaveIcon className="tool-icon" />,
         tooltip: t('code_block.edit.save.label'),
         onClick: handleSave
       })

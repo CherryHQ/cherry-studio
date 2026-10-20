@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { CHERRY_SUPPORT_AGENT_ID } from '../../ai/builtinAgent'
 import { UniqueModelIdSchema } from './model'
 
 /**
@@ -30,11 +31,19 @@ export type EntityType = z.infer<typeof EntityTypeSchema>
  * (entity_tag, pin, group, ...). Accepts:
  * - UUID v4 — current default for assistant / topic / group / pin tables
  *   (`uuidPrimaryKey()` helper)
+ * - UUID v5 — deterministic IDs generated for migrated agents and sessions
  * - UUID v7 — used by tables that benefit from time-ordered inserts
  *   (`uuidPrimaryKeyOrdered()` helper);
  * - UniqueModelId — `providerId::modelId` composite for model pins
+ * - Built-in Agent id — the fixed `cherry-support` slug (not a UUID)
  *
  * See the design note on EntityTypeSchema above for why no `entityType ↔ entityId`
  * cross-check.
  */
-export const EntityIdSchema = z.union([z.uuidv4(), z.uuidv7(), UniqueModelIdSchema])
+export const EntityIdSchema = z.union([
+  z.uuidv4(),
+  z.uuid({ version: 'v5' }),
+  z.uuidv7(),
+  UniqueModelIdSchema,
+  z.literal(CHERRY_SUPPORT_AGENT_ID)
+])

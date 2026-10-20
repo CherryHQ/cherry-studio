@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentProps, ReactNode } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type ToolbarDensity = 'compact' | 'default'
 type ToolbarVariant = 'plain' | 'surface'
@@ -18,7 +19,7 @@ const densityClassNames: Record<ToolbarDensity, string> = {
 
 const variantClassNames: Record<ToolbarVariant, string> = {
   plain: '',
-  surface: 'border-border/60 border-b bg-background'
+  surface: 'border-border-subtle border-b bg-background'
 }
 
 export function Toolbar({

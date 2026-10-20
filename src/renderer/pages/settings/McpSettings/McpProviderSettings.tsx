@@ -1,16 +1,17 @@
+import { Check, ExternalLink, Plus } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
-import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getProviderDisplayName, type ProviderConfig } from './providers/config'
 import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
@@ -65,9 +66,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     (value: string) => {
       setToken(value)
       // Auto-save token when user types
-      if (value.trim()) {
-        provider.saveToken(value)
-      }
+      provider.saveToken(value)
     },
     [provider]
   )
@@ -114,9 +113,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   asChild
                   variant="ghost"
                   size="icon-sm"
-                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-blue-600 dark:hover:text-blue-400">
+                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-link">
                   <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
-                    <SquareArrowOutUpRight size={13} />
+                    <ExternalLink size={13} />
                   </a>
                 </Button>
               )}
@@ -149,8 +148,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
             target="_blank"
             rel="noreferrer"
             href={provider.apiKeyUrl}
-            className="mt-3.5 inline-flex items-center font-medium text-xs hover:underline"
-            style={{ color: 'var(--color-blue-600)' }}>
+            className="mt-3.5 inline-flex items-center text-xs text-link hover:underline">
             {t('settings.provider.get_api_key')}
           </a>
         )}
@@ -173,7 +171,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
               <ServerItem key={server.id}>
                 <div className="flex flex-1 flex-row items-center gap-3">
                   {server.logoUrl && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
                       <img src={server.logoUrl} alt={server.name} className="h-full w-full object-cover" />
                     </div>
                   )}
@@ -214,26 +212,26 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 }
 
 const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
-  <SettingsContentColumn className={cn('w-full min-w-0', className)} {...props} />
+  <SettingsContentColumn className={cn('w-full min-w-0 pt-2', className)} {...props} />
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-1.5', className)}
+    className={cn('flex items-center justify-between gap-3 border-b border-border-subtle pb-1.5', className)}
     {...props}
   />
 )
 
 const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-semibold text-[15px] leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate text-[15px] leading-5 font-semibold', className)} {...props} />
 )
 
 const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-4', className)} {...props} />
+  <SettingGroup className={className} {...props} />
 )
 
 const PanelTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('font-semibold text-foreground text-sm', className)} {...props} />
+  <div className={cn('text-sm text-foreground', className)} {...props} />
 )
 
 const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -243,7 +241,7 @@ const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
+      'flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
       className
     )}
     {...props}
@@ -251,11 +249,11 @@ const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.5 font-medium text-sm leading-5', className)} {...props} />
+  <div className={cn('mb-0.5 text-sm leading-5', className)} {...props} />
 )
 
 const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('line-clamp-2 text-muted-foreground text-xs leading-5', className)} {...props} />
+  <div className={cn('line-clamp-2 text-xs leading-5 text-muted-foreground', className)} {...props} />
 )
 
 export default McpProviderSettings

@@ -1,41 +1,63 @@
 /**
- * Thin facade — preserves existing DataApi/MCP IPC shape (ScheduledTaskEntity etc.).
- * Internally delegates to JobManager + jobScheduleService + jobService.
- * TODO: migrate callers (data/api/handlers/agents.ts, ai/mcp/servers/cherryAutonomyTools.ts) to the
- * generic Job/Scheduler API directly, then delete this facade.
+ * Read-side service for agent scheduled tasks: list / get / run logs plus the
+ * JobScheduleSnapshot → ScheduledTaskEntity mapping and subscription reads.
+ * User-driven task mutations go through `AgentJobsService` (IpcApi
+ * `ai.agent.task.*`); the workspace cleanup methods below are DB-only
+ * transaction primitives used by workspace deletion.
  */
 
+import { and, inArray, isNull } from 'drizzle-orm'
+
 import { application } from '@application'
-import { agentTable as agentsTable } from '@data/db/schemas/agent'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentTable } from '@data/db/schemas/agent'
+import { jobTable } from '@data/db/schemas/job'
+import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { registerDataService } from '@data/services/dataServiceRegistry'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import { loggerService } from '@logger'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
-  CreateTaskDto,
   ScheduledTaskEntity,
+  ScheduledTaskListItem,
   TaskRunLogEntity,
-  UpdateTaskDto
+  TaskRunSummary
 } from '@shared/data/api/schemas/agents'
 import {
+  AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
-  AgentSessionWorkspaceSourceSchema
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { JobScheduleSnapshot, JobSnapshot, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
-import type { ListOptions } from '@shared/data/api/types'
-import { eq } from 'drizzle-orm'
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 
-const logger = loggerService.withContext('AgentTaskService')
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '../../ai/agents/agentTaskDefaults'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
-const HEARTBEAT_TASK_NAME = 'heartbeat'
+
+/**
+ * Reserved prompt marking a schedule as an agent heartbeat rather than a
+ * user-authored task. It is the only heartbeat marker that survives the v1→v2
+ * migration intact — the schedule name does not, because `job_schedule` is
+ * UNIQUE on (type, name) while v1 gave every agent its own `heartbeat` row, so
+ * all but the first are renamed to `task_<v1Id>`.
+ */
+export const HEARTBEAT_PROMPT_SENTINEL = '__heartbeat__'
 
 type AgentTaskJobInputTemplate = {
   agentId: string
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+}
+
+type TaskOwnerStateChange = {
+  scheduleIds: string[]
+  deletedSchedules: JobScheduleSnapshot[]
 }
 
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
@@ -48,108 +70,378 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   return {
     agentId: template.agentId,
     prompt: template.prompt,
-    timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2,
+    timeoutMinutes:
+      typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
   }
 }
 
-function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
+/**
+ * Session-reuse state for an `agent.task` schedule. Lives in the schedule row's
+ * generic `metadata` JSON column (not `jobInputTemplate`) for two reasons: it is
+ * schedule state rather than handler input, so it stays clear of
+ * `AgentJobsService.updateTask`'s template diff / re-arm logic; while the
+ * sticky session pointer is a constrained relation owned by AgentSessionService.
+ */
+export type TaskSessionReuse = {
+  enabled: boolean
+  /** Monotonic config epoch captured by each queued job. */
+  revision: number
+}
+
+const TASK_REUSE_METADATA_KEY = 'reuse'
+const CIRCUIT_BREAKER_PAUSED_KEY = 'circuitBreakerPaused'
+
+/** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Set by the agent-task circuit breaker (consecutive failed terminal runs) so
+ * config-driven convergence (heartbeat sync) can tell "paused by the breaker"
+ * apart from plain drift and must not silently re-arm it.
+ */
+export function isCircuitBreakerPaused(metadata: unknown): boolean {
+  return isPlainRecord(metadata) && metadata[CIRCUIT_BREAKER_PAUSED_KEY] === true
+}
+
+/** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
+export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): Record<string, unknown> {
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
+}
+
+function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
+  if (!isPlainRecord(value)) return false
+  const workspace = AgentSessionWorkspaceSourceSchema.safeParse(value.workspace)
+  return (
+    workspace.success && workspace.data.type === AGENT_WORKSPACE_TYPE.USER && workspace.data.workspaceId === workspaceId
+  )
+}
+
+function findWorkspaceScheduleReferences(schedules: JobScheduleSnapshot[], workspaceId: string) {
+  const references: Array<{ schedule: JobScheduleSnapshot; template: Record<string, unknown> }> = []
+  for (const schedule of schedules) {
+    if (referencesWorkspace(schedule.jobInputTemplate, workspaceId)) {
+      references.push({ schedule, template: schedule.jobInputTemplate })
+    }
+  }
+  return references
+}
+
+export function normalizeTaskSessionReuseRevision(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
+}
+
+export function readTaskSessionReuse(metadata: Record<string, unknown> | undefined): TaskSessionReuse {
+  const raw = metadata?.[TASK_REUSE_METADATA_KEY]
+  if (!isPlainRecord(raw)) return { enabled: false, revision: 0 }
+  const reuse = raw as Partial<TaskSessionReuse>
+  const enabled = reuse.enabled === true
+  return { enabled, revision: normalizeTaskSessionReuseRevision(reuse.revision) }
+}
+
+/**
+ * Merge reuse state back into the full metadata record. Callers must pass the
+ * row's current metadata — `JobScheduleService.update` replaces the column
+ * wholesale, so a partial write would drop unrelated keys.
+ */
+export function writeTaskSessionReuse(
+  metadata: Record<string, unknown> | undefined,
+  reuse: TaskSessionReuse
+): Record<string, unknown> {
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
+}
+
+export function isMissedTask(metadata: Record<string, unknown>): boolean {
+  return isPlainRecord(metadata.missed) && metadata.missed.reason === 'agent_archived'
+}
+
+export function clearMissedTask(metadata: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...metadata }
+  delete next.missed
+  return next
+}
+
+function deriveStatus(snapshot: JobScheduleSnapshot): ScheduledTaskEntity['status'] {
+  if (isMissedTask(snapshot.metadata)) return 'missed'
+  if (
+    snapshot.trigger.kind === 'once' &&
+    snapshot.lastRun !== null &&
+    Date.parse(snapshot.lastRun) >= snapshot.trigger.at
+  )
+    return 'completed'
   if (!snapshot.enabled) return 'paused'
-  if (snapshot.trigger.kind === 'once' && snapshot.nextRun == null && snapshot.lastRun != null) return 'completed'
   return 'active'
 }
 
+function taskReadModelEffects(
+  entityIds: string[],
+  kind: 'membership' | 'projection' = 'projection'
+): DataApiDataChangeEffect[] {
+  return [
+    { endpoint: '/agent-tasks', kind, entityIds },
+    { endpoint: '/agents/:agentId/tasks', kind, entityIds },
+    { endpoint: '/agent-tasks/:taskId', entityIds },
+    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+  ]
+}
+
 export class AgentTaskService {
-  private assertAgentExists(agentId: string): void {
-    const database = application.get('DbService').getDb()
-    const [row] = database
-      .select({ id: agentsTable.id })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
-      .limit(1)
-      .all()
+  getHeartbeatSchedule(agentId: string): JobScheduleSnapshot | null {
+    return (
+      jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).find((schedule) => {
+        const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+        return template?.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
+      }) ?? null
+    )
+  }
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Agent', agentId)
+  getHeartbeatStatus(agentId: string) {
+    const schedule = this.getHeartbeatSchedule(agentId)
+    return {
+      scheduleEnabled: schedule?.enabled ?? false,
+      latestRun: schedule ? (jobService.list({ scheduleId: schedule.id, limit: 1 })[0] ?? null) : null
     }
   }
 
-  private assertChannelsBelongToAgent(agentId: string, channelIds: string[]): void {
-    for (const channelId of channelIds) {
-      const channel = agentChannelService.getChannel(channelId)
-      if (!channel || channel.agentId !== agentId) {
-        throw DataApiErrorFactory.notFound('Channel', channelId)
-      }
+  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number): boolean {
+    const schedule = jobScheduleService.getByIdTx(tx, taskId)
+    if (
+      !schedule ||
+      schedule.type !== AGENT_TASK_TYPE ||
+      !isMissedTask(schedule.metadata) ||
+      !isPlainRecord(schedule.metadata.missed) ||
+      schedule.metadata.missed.jobId !== jobId
+    )
+      return false
+    jobScheduleService.updateTx(tx, taskId, { metadata: clearMissedTask(schedule.metadata) })
+    jobScheduleService.markFiredTx(tx, taskId, finishedAt, null)
+    return true
+  }
+
+  setOwnerStateTx(
+    tx: DbOrTx,
+    agentId: string,
+    state: 'active' | 'trashed' | 'missing',
+    now: number
+  ): TaskOwnerStateChange {
+    const schedules = jobScheduleService
+      .listAllTx(tx, { type: AGENT_TASK_TYPE })
+      .filter((schedule) => isPlainRecord(schedule.jobInputTemplate) && schedule.jobInputTemplate.agentId === agentId)
+    for (const schedule of schedules) this.transitionOwnerTx(tx, schedule, state, now)
+    return {
+      scheduleIds: schedules.map((schedule) => schedule.id),
+      deletedSchedules: state === 'missing' ? schedules : []
     }
   }
 
-  async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
-    this.assertAgentExists(agentId)
-    if (dto.channelIds?.length) {
-      this.assertChannelsBelongToAgent(agentId, dto.channelIds)
-    }
-
-    const timeoutMinutes = dto.timeoutMinutes ?? 2
-    const jobInputTemplate: AgentTaskJobInputTemplate = {
-      agentId,
-      prompt: dto.prompt,
-      timeoutMinutes,
-      workspace: dto.workspace
-    }
-
-    const { id } = application.get('JobManager').registerJobSchedule({
-      type: AGENT_TASK_TYPE,
-      name: dto.name,
-      trigger: dto.trigger,
-      jobInputTemplate,
-      catchUpPolicy: { kind: 'skip-missed' }
+  reconcileOwnerStatesTx(tx: DbOrTx, now: number): TaskOwnerStateChange {
+    const schedules = jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE })
+    const missedJobs = schedules.flatMap((schedule) => {
+      const missed = schedule.metadata.missed
+      return isPlainRecord(missed) && typeof missed.jobId === 'string' ? [missed.jobId] : []
     })
-
-    if (dto.channelIds?.length) {
-      try {
-        agentChannelService.replaceTaskSubscriptions(id, dto.channelIds)
-      } catch (error) {
-        try {
-          await application.get('JobManager').unregisterJobScheduleById(id)
-        } catch (rollbackError) {
-          logger.warn('Failed to rollback task schedule after channel subscription failure', {
-            taskId: id,
-            rollbackError
-          })
-        }
-        throw error
+    const completed = new Map(
+      missedJobs.length === 0
+        ? []
+        : tx
+            .select({ id: jobTable.id, status: jobTable.status, finishedAt: jobTable.finishedAt })
+            .from(jobTable)
+            .where(inArray(jobTable.id, missedJobs))
+            .all()
+            .map((job) => [job.id, job])
+    )
+    const ids = [
+      ...new Set(
+        schedules.flatMap((schedule) => {
+          const template = schedule.jobInputTemplate
+          return isPlainRecord(template) && typeof template.agentId === 'string' ? [template.agentId] : []
+        })
+      )
+    ]
+    if (ids.length === 0) return { scheduleIds: [], deletedSchedules: [] }
+    const owners = new Map(
+      tx
+        .select({ id: agentTable.id, deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(inArray(agentTable.id, ids))
+        .all()
+        .map((row) => [row.id, row])
+    )
+    const changedIds: string[] = []
+    const orphanedSchedules: JobScheduleSnapshot[] = []
+    for (const schedule of schedules) {
+      const template = schedule.jobInputTemplate
+      if (!isPlainRecord(template) || typeof template.agentId !== 'string') continue
+      const owner = owners.get(template.agentId)
+      const state = !owner ? 'missing' : owner.deletedAt == null ? 'active' : 'trashed'
+      if (this.transitionOwnerTx(tx, schedule, state, now)) changedIds.push(schedule.id)
+      if (state === 'missing') orphanedSchedules.push(schedule)
+      const missed = schedule.metadata.missed
+      const job = isPlainRecord(missed) && typeof missed.jobId === 'string' ? completed.get(missed.jobId) : undefined
+      if (
+        job?.status === 'completed' &&
+        job.finishedAt !== null &&
+        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt)
+      ) {
+        changedIds.push(schedule.id)
       }
     }
-
-    const snapshot = jobScheduleService.getById(id)
-    if (!snapshot) {
-      throw DataApiErrorFactory.invalidOperation('create task', 'schedule disappeared after insert')
-    }
-
-    logger.info('Task created', { taskId: id, agentId })
-    return this.toScheduledTaskEntity(snapshot)
+    return { scheduleIds: changedIds, deletedSchedules: orphanedSchedules }
   }
 
-  getTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
+  private transitionOwnerTx(
+    tx: DbOrTx,
+    schedule: JobScheduleSnapshot,
+    state: 'active' | 'trashed' | 'missing',
+    now: number
+  ): boolean {
+    if (state === 'missing') return jobScheduleService.deleteTx(tx, schedule.id)
+    if (state === 'trashed') {
+      if (!schedule.enabled) return false
+      jobScheduleService.updateTx(tx, schedule.id, {
+        enabled: false,
+        metadata: { ...schedule.metadata, agentTrash: { resumeOnRestore: true } }
+      })
+      return true
+    }
+    const marker = schedule.metadata.agentTrash
+    if (!isPlainRecord(marker) || marker.resumeOnRestore !== true) return false
+    const metadata = { ...schedule.metadata }
+    delete metadata.agentTrash
+    const expiredOnce = schedule.trigger.kind === 'once' && schedule.trigger.at <= now
+    const consumedOnce =
+      schedule.trigger.kind === 'once' &&
+      schedule.lastRun !== null &&
+      Date.parse(schedule.lastRun) >= schedule.trigger.at
+    const missed = expiredOnce && !consumedOnce
+    if (missed) metadata.missed = { reason: 'agent_archived', at: now }
+    jobScheduleService.updateTx(tx, schedule.id, { enabled: !missed, metadata })
+    return true
+  }
+
+  /** Publish every DataApi projection backed by the composed task read model. */
+  notifyReadModelChange(taskIds: readonly string[], kind: 'membership' | 'projection' = 'projection'): void {
+    const entityIds = [...new Set(taskIds)]
+    if (entityIds.length === 0) return
+    notifyDataApiDataChange([
+      ...taskReadModelEffects(entityIds, kind),
+      { endpoint: '/agent-workspaces', kind: 'membership' }
+    ])
+  }
+
+  /** Publish task and run-log projections together: membership on enqueue, projection on state changes. */
+  notifyRunChange(taskId: string, jobId: string, kind: 'membership' | 'projection'): void {
+    notifyDataApiDataChange([
+      ...taskReadModelEffects([taskId]),
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind, routeParams: { taskId }, entityIds: [jobId] }
+    ])
+  }
+
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    ).map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
+  }
+
+  /**
+   * This cleanup changes only the template used when the task creates a new
+   * session. A reused session keeps its own workspace, and any reused session
+   * bound to this workspace is deleted by the same outer transaction. The
+   * trigger is unchanged and JobManager re-reads the schedule before each run,
+   * so this path does not bump the reuse revision, clear the schedule, or re-arm
+   * its timer.
+   */
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = findWorkspaceScheduleReferences(
+      jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),
+      workspaceId
+    )
+
+    for (const { schedule, template } of references) {
+      jobScheduleService.updateTx(tx, schedule.id, {
+        jobInputTemplate: {
+          ...template,
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    }
+
+    return references.map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
+  }
+
+  getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
     const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
-    if (!template || template.agentId !== agentId) return null
-    return this.toScheduledTaskEntity(snapshot)
+    if (!template || !this.getActiveAgentIds([template.agentId]).has(template.agentId)) return null
+    if (template.prompt === HEARTBEAT_PROMPT_SENTINEL) return null
+    return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
+  }
+
+  getTaskDetail(taskId: string): ScheduledTaskListItem | null {
+    const task = this.getTaskById(taskId)
+    if (!task) return null
+    return { ...task, runSummary: this.getRunSummariesByScheduleIds([taskId]).get(taskId) ?? null }
+  }
+
+  /**
+   * Fetch one task, guarding identity in a single lookup: the row must exist,
+   * be an `agent.task` schedule, and belong to `agentId` — the three failure
+   * cases are indistinguishable (`null`) on purpose. AgentJobsService relies
+   * on this as the ownership/type guard for every by-id command.
+   */
+  getTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
+    const task = this.getTaskById(taskId)
+    if (!task || task.agentId !== agentId) return null
+    return task
   }
 
   listTasks(
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
   ): { tasks: ScheduledTaskEntity[]; total: number } {
-    const { includeHeartbeat = false, limit, offset } = options
+    return this.queryTasks({ ...options, agentId })
+  }
+
+  /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+    tasks: ScheduledTaskListItem[]
+    total: number
+  } {
+    const result = this.queryTasks(options)
+    const runSummaries = this.getRunSummariesByScheduleIds(result.tasks.map((task) => task.id))
+    return {
+      tasks: result.tasks.map((task) => ({ ...task, runSummary: runSummaries.get(task.id) ?? null })),
+      total: result.total
+    }
+  }
+
+  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+    tasks: ScheduledTaskEntity[]
+    total: number
+  } {
+    const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 
-    const filtered = all.filter((s) => {
+    const candidates = all.filter((s) => {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
-      if (!template || template.agentId !== agentId) return false
-      if (!includeHeartbeat && s.name === HEARTBEAT_TASK_NAME) return false
+      if (!template) return false
+      if (agentId !== undefined && template.agentId !== agentId) return false
+      if (!includeHeartbeat && template.prompt === HEARTBEAT_PROMPT_SENTINEL) return false
       return true
+    })
+    const activeAgentIds = this.getActiveAgentIds(
+      candidates.flatMap((schedule) => {
+        const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+        return template ? [template.agentId] : []
+      })
+    )
+    const filtered = candidates.filter((schedule) => {
+      const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+      return template !== null && activeAgentIds.has(template.agentId)
     })
 
     const sorted = [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
@@ -160,85 +452,36 @@ export class AgentTaskService {
           : sorted.slice(0, limit)
         : sorted
 
+    const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
     return {
-      tasks: sliced.map((s) => this.toScheduledTaskEntity(s)),
+      tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
       total: filtered.length
     }
   }
 
-  async updateTask(agentId: string, taskId: string, patch: UpdateTaskDto): Promise<ScheduledTaskEntity | null> {
-    const existing = this.getTask(agentId, taskId)
-    if (!existing) return null
-
-    const existingSnapshot = jobScheduleService.getById(taskId)
-    const existingTemplate = existingSnapshot ? normalizeAgentTaskTemplate(existingSnapshot.jobInputTemplate) : null
-    if (!existingSnapshot || !existingTemplate) return null
-    if (patch.channelIds !== undefined) {
-      this.assertChannelsBelongToAgent(agentId, patch.channelIds)
-    }
-
-    // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
-    const nextPrompt = patch.prompt ?? existingTemplate.prompt
-    const nextTimeoutMinutes = patch.timeoutMinutes ?? existingTemplate.timeoutMinutes
-    const nextWorkspace = patch.workspace ?? existingTemplate.workspace
-    const templateChanged =
-      (patch.prompt !== undefined && patch.prompt !== existingTemplate.prompt) ||
-      (patch.timeoutMinutes !== undefined && patch.timeoutMinutes !== existingTemplate.timeoutMinutes) ||
-      patch.workspace !== undefined
-
-    const updatePatch: UpdateJobScheduleDto = {}
-    if (patch.name !== undefined) updatePatch.name = patch.name
-    if (patch.trigger !== undefined) updatePatch.trigger = patch.trigger
-    if (patch.enabled !== undefined) updatePatch.enabled = patch.enabled
-    if (templateChanged) {
-      updatePatch.jobInputTemplate = {
-        agentId: existingTemplate.agentId,
-        prompt: nextPrompt,
-        timeoutMinutes: nextTimeoutMinutes,
-        workspace: nextWorkspace
-      }
-    }
-
-    const updated = application.get('JobManager').updateJobSchedule(taskId, updatePatch)
-    if (!updated) return null
-
-    if (patch.channelIds !== undefined) {
-      try {
-        agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
-      } catch (error) {
-        const rollbackPatch: UpdateJobScheduleDto = {}
-        if (updatePatch.name !== undefined) rollbackPatch.name = existingSnapshot.name
-        if (updatePatch.trigger !== undefined) rollbackPatch.trigger = existingSnapshot.trigger
-        if (updatePatch.enabled !== undefined) rollbackPatch.enabled = existingSnapshot.enabled
-        if (updatePatch.jobInputTemplate !== undefined)
-          rollbackPatch.jobInputTemplate = existingSnapshot.jobInputTemplate
-
-        try {
-          application.get('JobManager').updateJobSchedule(taskId, rollbackPatch)
-        } catch (rollbackError) {
-          logger.warn('Failed to rollback task schedule after channel subscription failure', {
-            taskId,
-            rollbackError
-          })
-        }
-        throw error
-      }
-    }
-
-    logger.info('Task updated', { taskId, agentId })
-    const refreshed = jobScheduleService.getById(taskId)
-    if (!refreshed) return null
-    return this.toScheduledTaskEntity(refreshed)
+  private getActiveAgentIds(agentIds: readonly string[]): Set<string> {
+    const uniqueIds = [...new Set(agentIds)]
+    if (uniqueIds.length === 0) return new Set()
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({ id: agentTable.id })
+      .from(agentTable)
+      .where(and(inArray(agentTable.id, uniqueIds), isNull(agentTable.deletedAt)))
+      .all()
+    return new Set(rows.map((row) => row.id))
   }
 
-  async deleteTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = this.getTask(agentId, taskId)
-    if (!existing) return false
-    const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
-    if (deleted) {
-      logger.info('Task deleted', { taskId, agentId })
-    }
-    return deleted
+  private getRunSummariesByScheduleIds(scheduleIds: readonly string[]): Map<string, TaskRunSummary> {
+    return new Map(
+      [...jobService.getRunStatesByScheduleIds(AGENT_TASK_TYPE, scheduleIds)].map(
+        ([scheduleId, runState]): [string, TaskRunSummary] => {
+          if (runState.kind === 'running') return [scheduleId, { status: 'running' }]
+          if (runState.kind === 'unfinished') return [scheduleId, { status: 'queued' }]
+          return [scheduleId, { status: runState.status, finishedAt: timestampToISO(runState.finishedAt) }]
+        }
+      )
+    )
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
@@ -261,12 +504,13 @@ export class AgentTaskService {
   // Mappers (snapshot → entity)
   // ------------------------------------------------------------------
 
-  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot): ScheduledTaskEntity {
+  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot, reuseSessionId: string | null): ScheduledTaskEntity {
     const tmpl = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!tmpl) {
       throw DataApiErrorFactory.invalidOperation('read task', 'invalid agent task template')
     }
     const channelRows = agentChannelService.getSubscribedChannels(snapshot.id)
+    const reuse = readTaskSessionReuse(snapshot.metadata)
     return {
       id: snapshot.id,
       agentId: tmpl.agentId,
@@ -278,6 +522,8 @@ export class AgentTaskService {
       trigger: snapshot.trigger,
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
+      reuseSession: reuse.enabled,
+      reuseSessionId: reuse.enabled ? reuseSessionId : null,
       channelIds: channelRows.map((c) => c.id),
       nextRun: snapshot.nextRun,
       lastRun: snapshot.lastRun,
@@ -289,27 +535,38 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { sessionId?: string; result?: string } | null
+    const output = job.output as { result?: string; sessionId?: string } | null
+    // New runs persist the link before execution; older v2 job rows only have it in output.
+    const sessionId = job.metadata.sessionId ?? output?.sessionId
     const startedAt = job.startedAt ?? job.scheduledAt
-    // jobTable stores ISO strings on these columns — use Date.parse so
-    // a NaN result (corrupt row) flows through as durationMs = 0 instead
-    // of `NaN`.
-    const startedMs = Date.parse(startedAt)
-    const finishedMs = job.finishedAt ? Date.parse(job.finishedAt) : NaN
-    const durationMs = Number.isFinite(finishedMs - startedMs) ? finishedMs - startedMs : 0
+    // A cancel-requested row's fate is sealed (live cancel and startup recovery
+    // both end it as cancelled) — show the outcome before the row settles.
+    const provisionalCancel = job.cancelRequested && !job.finishedAt
 
     // jobTable has 6 states; the renderer's run log model only shows running
     // + 3 terminal states. Collapse pending/delayed to 'running' so queued
     // jobs are visible (matches the user's mental model of "task is in flight").
-    const status: TaskRunLogEntity['status'] =
-      job.status === 'pending' || job.status === 'delayed' ? 'running' : job.status
+    const status: TaskRunLogEntity['status'] = provisionalCancel
+      ? 'cancelled'
+      : job.status === 'pending' || job.status === 'delayed'
+        ? 'running'
+        : job.status
+
+    // Cancelled runs end at the cancel-request time — recovery stamps finishedAt
+    // at sweep time, up to a process lifetime after the run actually stopped.
+    const endIso = status === 'cancelled' ? (job.cancelRequestedAt ?? job.finishedAt) : job.finishedAt
+    // NaN (never started / unfinished / corrupt row) flows through the
+    // isFinite check as durationMs = null — no duration, not queue-wait time.
+    const startedMs = job.startedAt ? Date.parse(job.startedAt) : NaN
+    const endMs = endIso ? Date.parse(endIso) : NaN
+    const durationMs = Number.isFinite(endMs - startedMs) ? Math.max(0, endMs - startedMs) : null
 
     return {
       id: job.id,
       scheduleId: job.scheduleId ?? '',
-      sessionId: output?.sessionId ?? null,
+      sessionId: typeof sessionId === 'string' ? sessionId : null,
       startedAt,
-      durationMs: Math.max(0, durationMs),
+      durationMs,
       status,
       result: typeof output?.result === 'string' ? output.result : output != null ? JSON.stringify(output) : null,
       error: job.error?.message ?? null
@@ -318,3 +575,4 @@ export class AgentTaskService {
 }
 
 export const agentTaskService = new AgentTaskService()
+registerDataService('AgentTaskService', agentTaskService)

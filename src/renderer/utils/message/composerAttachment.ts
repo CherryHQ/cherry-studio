@@ -3,6 +3,7 @@ import {
   createComposerFileTokenSourceId,
   getComposerFileTokenSourceId
 } from '@renderer/utils/message/composerFileTokenSource'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
  * Lean, composer-owned v2 attachment descriptor. Replaces legacy `FileMetadata`
@@ -17,8 +18,25 @@ import {
 export interface ComposerAttachment {
   /** Identity → token id `file:<sourceId>`. */
   fileTokenSourceId: string
-  /** Temp-or-real absolute path; used at send (`createInternalEntry source:'path'`) + image preview. */
-  path: string
+  /**
+   * Absolute path of the backing file, used at send (`createInternalEntry
+   * source:'path'`) + image preview.
+   *
+   * Absent when the attachment has no path we can prove is a filesystem path —
+   * today that is the message-editing round-trip, which reconstructs
+   * attachments from a stored part's `file://` URL. Such an attachment is
+   * display-only: it is never re-sent through `createInternalEntry` (the edit
+   * flow reuses the original part), and every path-consuming call site skips it.
+   */
+  /** In-memory attachment; shared by drafts, undo history and queued sends. */
+  blob?: Blob
+  path?: AbsoluteFilePath
+  /**
+   * Display-only image preview source, set when the attachment has no `path` —
+   * the message-editing round-trip, which only knows the stored part's
+   * `file://` URL. Never used for send.
+   */
+  previewUrl?: string
   name: string
   /** Display label. */
   origin_name: string
@@ -40,7 +58,7 @@ export interface ComposerAttachment {
 export function toComposerAttachment(meta: FileMetadata): ComposerAttachment {
   return {
     fileTokenSourceId: getComposerFileTokenSourceId(meta) ?? createComposerFileTokenSourceId(),
-    path: meta.path,
+    path: AbsoluteFilePathSchema.parse(meta.path),
     name: meta.name,
     origin_name: meta.origin_name,
     ext: meta.ext,

@@ -6,7 +6,7 @@
  *
  * WARNING: Bypassing MigrationPaths and calling `app.getPath('userData')`
  * directly will cause data loss for v1 users who configured a custom
- * userData directory via `~/.cherrystudio/config/config.json`. On the
+ * userData directory via `{cherryHome}/config/config.json`. On the
  * first v2 launch, `app.getPath('userData')` returns the Electron default
  * — not the user's actual data directory — because `resolveUserDataLocation()`
  * has not yet migrated the legacy config into boot-config.json.
@@ -15,11 +15,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { loggerService } from '@logger'
-import { CHERRY_HOME } from '@main/core/paths/constants'
+import { CHERRY_HOME, DEV_PROFILE_ROOT } from '@main/core/paths/constants'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
-import { app } from 'electron'
 
 import { evaluateCandidateVersion } from './versionPolicy'
 
@@ -40,12 +41,12 @@ export interface MigrationPaths {
 
   /** Resolved v1 userData directory (accounts for legacy config.json custom path). */
   readonly userData: string
-  /** ~/.cherrystudio — cherry home directory. */
+  /** Cherry home directory (`~/.cherrystudio` by default). */
   readonly cherryHome: string
 
   // ── Derived from userData (pre-computed, consumers use directly) ──
 
-  /** {userData}/cherrystudio.sqlite */
+  /** {userData}/Data/cherrystudio.sqlite */
   readonly databaseFile: string
   /** {userData}/Data/KnowledgeBase */
   readonly knowledgeBaseDir: string
@@ -55,10 +56,30 @@ export interface MigrationPaths {
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
-  /** {userData}/Data/Agents — default v2 Claude Code workspace root. */
-  readonly agentWorkspacesDir: string
+  /** {userData}/.claude — v1 Claude Agent SDK config source. */
+  readonly legacyClaudeConfigDir: string
+  /** {userData}/.claude/projects — v1 Claude Agent SDK project-session source. */
+  readonly legacyClaudeProjectsDir: string
+  /** {userData}/Data/Agents — v2 agent identity/memory data and system-workspace root. */
+  readonly agentsDataDir: string
+  /** {userData}/Data/Agents/.claude — v2 Claude Agent SDK config destination. */
+  readonly claudeConfigDir: string
+  /** {userData}/Data/Agents/.claude/projects — v2 Claude Agent SDK project-session destination. */
+  readonly claudeProjectsDir: string
+  /** {userData}/Data/Agents/system — app-owned per-session workspace root. */
+  readonly agentSystemWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
+  /** {userData}/migration_temp — renderer export staging root. */
+  readonly migrationTempDir: string
+  /** {userData}/migration_temp/redux_export — per-category Redux exports. */
+  readonly migrationReduxExportDir: string
+  /** {userData}/migration_temp/dexie_export — per-table Dexie exports. */
+  readonly migrationDexieExportDir: string
+  /** {userData}/migration_temp/localstorage_export — migration-owned localStorage export. */
+  readonly migrationLocalStorageExportDir: string
+  /** {userData}/migration_temp/localstorage_export/localStorage.json. */
+  readonly migrationLocalStorageExportFile: string
 
   // ── Derived from cherryHome ──
 
@@ -108,7 +129,7 @@ export interface MigrationPathsResult {
  *   1. Start with the current `app.getPath('userData')` (set by
  *      `resolveUserDataLocation()` in preboot — may be the Electron
  *      default if boot-config.json had no entry).
- *   2. Read `~/.cherrystudio/config/config.json` for a legacy `appDataPath`.
+ *   2. Read `{cherryHome}/config/config.json` for a legacy `appDataPath`.
  *   3. If a valid custom path is found and differs from current:
  *      - Call `app.setPath('userData', ...)` so Chromium-level storage
  *        (IndexedDB, localStorage) initializes at the correct location
@@ -142,14 +163,16 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   let dataLocation: string | undefined
 
   const exe = getNormalizedExecutablePath()
-  const bootConfigEntry = bootConfigService.get('app.user_data_path')?.[exe]
+  const bootConfigEntry = DEV_PROFILE_ROOT ? undefined : bootConfigService.get('app.user_data_path')?.[exe]
 
   // ── Front gate P: split the boot-config short-circuit ──
   //
   // resolveUserDataLocation() (preboot) has already run: if a boot-config
   // entry existed and was VALID, it setPath'd userData to it; if it existed
   // but was INVALID, it silently fell through to the Electron default.
-  if (bootConfigEntry) {
+  if (DEV_PROFILE_ROOT) {
+    logger.info('Dev profile root active, skipping legacy userData redirects', { currentUserData })
+  } else if (bootConfigEntry) {
     if (isUsableDataDir(bootConfigEntry)) {
       // Valid → current userData already IS the target. Skip legacy probing.
       logger.info('Boot-config userData entry present and valid, skipping legacy detection', { exe })
@@ -204,16 +227,28 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   }
 
   const filesDataDir = path.join(currentUserData, 'Data', 'Files')
+  const migrationTempDir = path.join(currentUserData, 'migration_temp')
+  const migrationLocalStorageExportDir = path.join(migrationTempDir, 'localstorage_export')
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
-    databaseFile: path.join(currentUserData, DB_NAME),
+    databaseFile: path.join(currentUserData, 'Data', DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     filesDataDir,
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
-    agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
+    legacyClaudeConfigDir: path.join(currentUserData, '.claude'),
+    legacyClaudeProjectsDir: path.join(currentUserData, '.claude', 'projects'),
+    agentsDataDir: path.join(currentUserData, 'Data', 'Agents'),
+    claudeConfigDir: path.join(currentUserData, 'Data', 'Agents', '.claude'),
+    claudeProjectsDir: path.join(currentUserData, 'Data', 'Agents', '.claude', 'projects'),
+    agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
+    migrationTempDir,
+    migrationReduxExportDir: path.join(migrationTempDir, 'redux_export'),
+    migrationDexieExportDir: path.join(migrationTempDir, 'dexie_export'),
+    migrationLocalStorageExportDir,
+    migrationLocalStorageExportFile: path.join(migrationLocalStorageExportDir, 'localStorage.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
@@ -306,8 +341,16 @@ export function selectLegacyUserData(input: {
       : { kind: 'redirect', target: exactEntry.dataPath, notice: false }
   }
 
-  // B — fuzzy fallback over all candidate dirs (default ∪ entry dataPaths).
-  const dirs = dedupeLocations([currentUserData, ...entries.map((e) => e.dataPath)])
+  // B — fuzzy fallback over compatible candidate dirs. v1 treats each
+  // Windows portable location as an isolated installation: without an exact
+  // executable mapping it uses that portable directory's own `data` folder.
+  // Preserve that contract here; setup builds may recover from other setup
+  // entries, but neither side may fuzzy-recover portable data.
+  const currentIsPortable = isWindowsPortableExecutable(currentExe)
+  const compatibleEntries = currentIsPortable
+    ? []
+    : entries.filter((entry) => !isWindowsPortableExecutable(entry.executablePath))
+  const dirs = dedupeLocations([currentUserData, ...compatibleEntries.map((e) => e.dataPath)])
   const candidates = dirs.filter((d) => probe.isUsableDir(d) && probe.hasV1Data(d))
 
   // B1 — eligible dirs (also version-ok): pick the most recently used.
@@ -326,7 +369,7 @@ export function selectLegacyUserData(input: {
 
   // B3 — no candidate, but a recorded dir is unreachable (unmounted / removed
   // / not read-writable). Prompt rather than silently start fresh on default.
-  const unreachable = entries
+  const unreachable = compatibleEntries
     .map((e) => e.dataPath)
     .find((d) => !sameLocation(d, currentUserData) && !probe.isUsableDir(d))
   if (unreachable) {
@@ -413,6 +456,11 @@ export function readLegacyEntries(configFile: string, currentExe: string): Legac
   return []
 }
 
+function isWindowsPortableExecutable(executablePath: string): boolean {
+  const normalized = executablePath.replaceAll('\\', '/')
+  return normalized.slice(normalized.lastIndexOf('/') + 1).toLowerCase() === 'cherry-studio-portable.exe'
+}
+
 /**
  * Whether a directory holds recognizable v1 data. Multi-marker on purpose:
  * pre-1.7 directories have no version.log, so we also accept Chromium storage
@@ -445,7 +493,7 @@ function configHasKeys(configFile: string): boolean {
  */
 function hasValidSqlite(dir: string): boolean {
   try {
-    const stat = fs.statSync(path.join(dir, DB_NAME))
+    const stat = fs.statSync(path.join(dir, 'Data', DB_NAME))
     return stat.isFile() && stat.size > 0
   } catch {
     return false

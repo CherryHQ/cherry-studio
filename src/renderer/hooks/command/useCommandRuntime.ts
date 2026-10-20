@@ -1,19 +1,20 @@
+import { createContext, use, useEffect, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { MenuPresentationMode } from '@shared/types/command'
 import type { CommandId } from '@shared/utils/command'
-import { createContext, use, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useCommandRuntime')
 
-export type CommandHandler = () => void | Promise<void>
+export type CommandHandler = (args?: unknown) => void | Promise<void>
 
 export interface CommandHandlerOptions {
   enabled?: boolean
 }
 
 export interface CommandRuntime {
-  execute: (command: CommandId) => void
+  execute: (command: CommandId, args?: unknown) => void
   hasHandler: (command: CommandId) => boolean
   registerHandler: (command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions) => () => void
 }
@@ -45,7 +46,7 @@ export function useCommandHandler(command: CommandId, handler: CommandHandler, o
   const enabled = options?.enabled !== false
 
   useEffect(() => {
-    return runtime.registerHandler(command, () => handlerRef.current(), { enabled })
+    return runtime.registerHandler(command, (args) => handlerRef.current(args), { enabled })
   }, [command, enabled, runtime])
 }
 

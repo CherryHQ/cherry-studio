@@ -1,9 +1,10 @@
-import { Badge, Button } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge, Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from '../shared/agentToolTypes'
 import { SkeletonValue } from '../shared/GenericTools'
@@ -25,7 +26,7 @@ interface NavigationProps {
 function Navigation({ isFirst, isLast, onPrevious, onNext }: NavigationProps) {
   const { t } = useTranslation()
   return (
-    <div className="flex items-center justify-between border-default-200 border-t pt-3">
+    <div className="border-default-200 flex items-center justify-between border-t pt-3">
       <Button variant="outline" disabled={isFirst} onClick={onPrevious} className="flex items-center">
         <ChevronLeft size={16} />
         {t('agent.askUserQuestion.previous')}
@@ -52,14 +53,14 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
         <Badge variant={answer ? 'secondary' : 'outline'} className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
         </Badge>
-        <div className="min-w-0 flex-1 text-default-700 text-sm">
+        <div className="text-default-700 min-w-0 flex-1 text-sm">
           <SkeletonValue value={question?.question} width="100%" />
         </div>
       </div>
       {answer && (
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-          <span className="text-primary text-sm">{answer}</span>
+          <span className="text-sm text-primary">{answer}</span>
         </div>
       )}
     </div>
@@ -79,7 +80,11 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
     const parsedOptimisticInput = parseAskUserQuestionToolInput(optimisticInput)
     const questions = parsedInput?.questions ?? parsedOptimisticInput?.questions ?? parsedOutput?.questions ?? []
-    const answers = parsedInput?.answers ?? parsedOutput?.answers ?? parsedOptimisticInput?.answers ?? {}
+    const answers = {
+      ...parsedOutput?.answers,
+      ...parsedInput?.answers,
+      ...parsedOptimisticInput?.answers
+    }
 
     if (!questions.length) {
       logger.debug('AskUserQuestion: no questions parsed', {
@@ -96,10 +101,13 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
-
-  if (!currentQuestion) return null
-
   const answeredCount = Object.keys(answers).length
+  // The composer owns unanswered live questions; terminal snapshots remain valid history records.
+  const isTransientWithoutAnswer =
+    answeredCount === 0 &&
+    (toolResponse.status === 'pending' || toolResponse.status === 'invoking' || toolResponse.status === 'streaming')
+
+  if (!currentQuestion || isTransientWithoutAnswer) return null
 
   const content = (
     <div className="flex flex-col gap-3">
@@ -122,15 +130,15 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
       <AgentToolDisclosureLabel
         label={
           <div className="flex items-center gap-2">
-            <span className="tool-icon flex h-4 w-4 shrink-0 items-center justify-center text-foreground-muted">
+            <span className="tool-icon flex h-4 w-4 shrink-0 items-center justify-center text-foreground-tertiary">
               <HelpCircle className="h-4 w-4" />
             </span>
-            <span className="text-foreground-secondary">{t('agent.askUserQuestion.title')}</span>
+            <span className="text-muted-foreground">{t('agent.askUserQuestion.title')}</span>
           </div>
         }
         trailing={
           answeredCount > 0 ? (
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-foreground-muted text-xs leading-4">
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs leading-4 text-foreground-tertiary">
               {answeredCount} {t('agent.askUserQuestion.answered')}
             </span>
           ) : undefined
@@ -139,12 +147,16 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     ),
     children: content,
     classNames: {
-      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary'
+      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-muted-foreground'
     }
   }
 
   return (
-    <AgentToolDisclosure className="w-full max-w-full rounded-none border-0 bg-transparent" item={toolContentItem} />
+    <AgentToolDisclosure
+      className="w-full max-w-full rounded-none border-0 bg-transparent"
+      item={toolContentItem}
+      stateId={toolResponse.toolCallId}
+    />
   )
 }
 

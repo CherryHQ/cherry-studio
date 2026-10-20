@@ -33,7 +33,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import { type FilePath, type FileUrlString, SafeExtSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString, SafeExtSchema } from '@shared/types/file'
 
 // ─── Danger extension policy ───
 
@@ -141,36 +141,70 @@ export function isDangerExt(ext: string | null | undefined): boolean {
 // ─── Path formatting ───
 
 /**
- * Cross-platform dirname on a plain string — no `node:path` dependency, so it
+ * Cross-platform dirname on an `AbsoluteFilePath` — no `node:path` dependency, so it
  * works in renderer bundles. Treats both `/` and `\` as separators.
  *
  * `sepIdx === 0` is the POSIX-root case (`/payload.exe`): degrade to `'/'` so
  * the safety wrap in `toSafeFileUrl` still strips the filename. Returning the
  * original string here would defeat the entire danger-ext policy.
+ *
+ * The Windows-drive-root case (`C:\payload.exe`) needs the same treatment:
+ * slicing off just the separator would leave a bare `C:`, which
+ * `AbsoluteFilePathSchema` rejects as non-absolute (it requires the trailing
+ * separator to recognize a drive letter as a root). Keep the separator so
+ * the result stays a valid, canonical drive root (`C:\`).
+ *
+ * The UNC share root (`\\server\share`) is the third such case: its parent
+ * would be `\\server`, which is not an absolute path at all (a UNC path needs
+ * both a host and a share). There is nothing shallower to degrade to, so the
+ * share root is its own dirname — `toSafeFileUrl`'s wrap still holds, since a
+ * share root is a directory and carries no filename to strip.
  */
-function dirnameSimple(absolutePath: string): string {
+function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
-  if (sepIdx > 0) return absolutePath.slice(0, sepIdx)
-  if (sepIdx === 0) return '/'
+  if (sepIdx > 0) {
+    const dir = absolutePath.slice(0, sepIdx)
+    if (/^\\\\[^\\]+$/.test(dir)) return absolutePath
+    return AbsoluteFilePathSchema.parse(/^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir)
+  }
+  if (sepIdx === 0) return AbsoluteFilePathSchema.parse('/')
   return absolutePath
 }
 
 /**
  * Encode an absolute filesystem path into a `file://` URL.
  *
- * - Unix:    `/foo/bar baz.pdf`     → `file:///foo/bar%20baz.pdf`
- * - Windows: `C:\foo\bar baz.pdf`   → `file:///C:/foo/bar%20baz.pdf`
+ * - Unix:    `/foo/bar baz.pdf`         → `file:///foo/bar%20baz.pdf`
+ * - POSIX:   `/foo/a\b.txt`             → `file:///foo/a%5Cb.txt`
+ * - Windows: `C:\foo\bar baz.pdf`       → `file:///C:/foo/bar%20baz.pdf`
+ * - UNC:     `\\server\share\baz.pdf`   → `file://server/share/baz.pdf`
  *
- * Backslashes are normalized to forward slashes; each path segment is URL-encoded
- * (special chars like space, `#`, `?` become `%20` / `%23` / `%3F`). The Windows
- * drive letter segment (`C:`) is preserved unencoded because `%3A` would break
- * UNC / drive resolution in `<img src>` contexts.
+ * `\` is a separator only for a Windows drive or UNC path, classified from the
+ * string before any slash folding. On every other absolute path it is a filename
+ * character and `encodeURIComponent` emits `%5C`. Space, `#`, and `?` become
+ * `%20`, `%23`, and `%3F`. The drive segment (`C:`) stays unencoded because
+ * `%3A` would break drive resolution in `<img src>` contexts.
  *
- * @param absolutePath Absolute filesystem path (Unix or Windows form).
+ * **UNC carries its server in the URL authority, not in the path.** After
+ * separator normalization a UNC path is `//server/share/…`, whose leading `//`
+ * already IS the authority marker — appending it to `file://` would emit
+ * `file:////server/share/…`: empty authority, server demoted to path text.
+ * That URL is not merely ugly, it is invalid: Node's
+ * `fileURLToPath(url, { windows: true })` rejects it with
+ * `ERR_INVALID_FILE_URL_PATH`, while `file://server/share/…` round-trips back
+ * to `\\server\share\…`. So a path already starting with `//` gets the `file:`
+ * scheme only.
+ *
+ * This also makes the function the exact inverse of `fileUrlToPath`, which
+ * decodes a `file://host/…` URL to the `//host/…` form.
+ *
+ * @param absolutePath Absolute filesystem path (Unix, Windows drive, or UNC form).
  * @returns `file://` URL suitable for `<img src>` / `<video src>` / `<embed>`.
  */
-export function toFileUrl(absolutePath: FilePath): FileUrlString {
-  let normalized: string = absolutePath.replace(/\\/g, '/')
+export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
+  const foldWindowsSeparators =
+    absolutePath.startsWith('\\\\') || absolutePath.startsWith('//') || /^[A-Za-z]:[/\\]/.test(absolutePath)
+  let normalized = foldWindowsSeparators ? absolutePath.replace(/\\/g, '/') : absolutePath
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = '/' + normalized
   }
@@ -178,7 +212,9 @@ export function toFileUrl(absolutePath: FilePath): FileUrlString {
     .split('/')
     .map((segment) => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
     .join('/')
-  return `file://${encoded}`
+  // `//server/share/…` — drop the separator pair so `server` becomes the URL
+  // authority rather than the first path segment of an empty authority.
+  return encoded.startsWith('//') ? `file://${encoded.slice(2)}` : `file://${encoded}`
 }
 
 /**
@@ -208,6 +244,23 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
 }
 
 /**
+ * Tolerant {@link fileUrlToPath} for display / best-effort call sites: returns
+ * `undefined` instead of throwing when the input is not a parseable `file:` URL.
+ *
+ * @param fileUrl `file://` URL, as a string or a parsed `URL`.
+ * @returns The decoded filesystem path, or `undefined` when the input is not a
+ *   `file:` URL or carries malformed percent-encoding (`file:///tmp/100%.png`,
+ *   which `new URL()` accepts but `decodeURIComponent` rejects).
+ */
+export function tryFileUrlToPath(fileUrl: string | URL): string | undefined {
+  try {
+    return fileUrlToPath(typeof fileUrl === 'string' ? new URL(fileUrl) : fileUrl)
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * `file://` URL with danger-file safety wrap.
  *
  * For `<img src>` / `<video src>` / `<embed>` synchronous rendering — if
@@ -216,13 +269,13 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
  * associations on hover / drag / double-click of the rendered element.
  *
  * **Scope**: HTML rendering contexts only. Do NOT compose this URL into
- * command-line arguments or subprocess args — use the raw `FilePath` from
+ * command-line arguments or subprocess args — use the raw `AbsoluteFilePath` from
  * File IPC `getPhysicalPath` for those cases.
  *
  * @param absolutePath Absolute filesystem path (from `getPhysicalPath` IPC).
  * @param ext File extension, with or without leading dot, or `null`.
  */
-export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileUrlString {
+export function toSafeFileUrl(absolutePath: AbsoluteFilePath, ext: string | null): FileUrlString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
-  return toFileUrl(effectivePath as FilePath)
+  return toFileUrl(effectivePath)
 }

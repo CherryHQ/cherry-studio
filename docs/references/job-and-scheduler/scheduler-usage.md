@@ -1,3 +1,11 @@
+---
+description: Decision tree for choosing JobManager, SchedulerService, BaseService.registerInterval, or a raw timer
+sources:
+  - src/main/core/scheduler/SchedulerService.ts
+  - src/main/core/job/JobManager.ts
+  - src/main/core/lifecycle/BaseService.ts
+---
+
 # Scheduler Usage — Decision Tree
 
 The project has three mechanisms for "fire a callback periodically / later". Picking the wrong one creates the problem the v2 unification was designed to fix: scattered ad-hoc timers with no observability and no central control.
@@ -17,7 +25,7 @@ Walk the questions in order. The first "yes" picks the mechanism.
 
 ### 1. Does the work need to survive process restart with state machine + retry + cancel?
 
-Yes → **JobManager**. Build a `JobHandler`, register it, then call `jobManager.registerJobSchedule({ type, trigger, jobInputTemplate, catchUpPolicy })`.
+Yes → **JobManager**. Build a `JobHandler`, register it, then call `application.get('JobManager').registerJobSchedule({ type, trigger, jobInputTemplate, catchUpPolicy })`.
 
 You get: persistent schedule row in `jobScheduleTable`; recovery on next process start; retry backoff; user-visible status; DataApi listing; renderer progress hooks. See [handler-authoring.md](./handler-authoring.md).
 
@@ -50,6 +58,8 @@ This is a **conscious design boundary**, not a deficiency. The rationale: Schedu
 
 ## Trigger lifetime semantics
 
+`SchedulerService.getNextRun(id)` returns the next automatic fire for every trigger kind. Cron delegates to Croner, once returns its configured epoch until the timer self-cleans, and interval returns the due time of the chained timeout. While an interval callback is still running, its next timeout cannot be installed yet; the query predicts the due time as `now + interval`, which becomes concrete when the callback settles.
+
 The three triggers (`cron` / `interval` / `once`) differ in how their entry survives across a callback. Both subtleties are observable from inside the callback.
 
 ### `once`: self-clean *before* invoke
@@ -67,19 +77,19 @@ If you need "fire once, then maybe fire again later" semantics this is the path.
 
 ### `interval`: re-arm safety check
 
-After each tick, SchedulerService re-checks that the schedule entry is still in its map *before* re-arming the next interval. Consequence: a callback can synchronously call `scheduler.unregisterSchedule(id)` and the loop will stop cleanly, without a final stray tick.
+After each tick, SchedulerService re-checks that the schedule entry is still in its map *before* re-arming the next interval. Consequence: a callback can synchronously call `scheduler.unregister(id)` and the loop will stop cleanly, without a final stray tick.
 
 ```typescript
 scheduler.registerSchedule('healthcheck.foo', { kind: 'interval', ms: 30_000 }, async () => {
   if (await everythingIsTerminal()) {
-    scheduler.unregisterSchedule('healthcheck.foo')
+    scheduler.unregister('healthcheck.foo')
     return // No further tick.
   }
   // ...
 })
 ```
 
-The check is on `map.has(id)`, not a flag — if you re-register the same id during the callback you re-arm the loop with the new trigger.
+The check compares the exact interval entry, not only `map.has(id)`. Unregistering stops the old loop; re-registering the same id transfers ownership to the new entry, so the old callback cannot re-arm or overwrite it when it settles.
 
 ## SchedulerService internal ID conventions
 

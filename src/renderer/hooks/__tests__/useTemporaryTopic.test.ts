@@ -1,7 +1,8 @@
-import { dataApiService } from '@data/DataApiService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
 
 import { useTemporaryTopic } from '../useTemporaryTopic'
 

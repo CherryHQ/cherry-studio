@@ -26,7 +26,9 @@ const KnowledgePageContent = () => {
       {selectedBase ? (
         <KnowledgePageDetailSection />
       ) : (
-        <main className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-background px-6 text-muted-foreground text-sm">
+        <main
+          data-ui="knowledge.content"
+          className="flex min-h-0 min-w-0 flex-1 items-center justify-center px-6 text-sm text-muted-foreground">
           {t('common.loading')}
         </main>
       )}
@@ -34,9 +36,14 @@ const KnowledgePageContent = () => {
   )
 }
 
-const KnowledgePage = () => {
+interface KnowledgePageProps {
+  baseId?: string
+  onBaseIdChange: (baseId?: string) => void
+}
+
+const KnowledgePage = ({ baseId, onBaseIdChange }: KnowledgePageProps) => {
   return (
-    <KnowledgePageProvider>
+    <KnowledgePageProvider baseId={baseId} onBaseIdChange={onBaseIdChange}>
       <KnowledgePageContent />
       <KnowledgePageDialogSection />
     </KnowledgePageProvider>

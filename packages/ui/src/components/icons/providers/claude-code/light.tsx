@@ -5,13 +5,7 @@ const ClaudeCodeLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="15.5 33.417 88 55.75"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
       <g clipPath={`url(#${iconId}-claudecodelight__a)`}>
         <path
           fill="#D97757"

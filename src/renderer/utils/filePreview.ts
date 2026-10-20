@@ -1,17 +1,36 @@
-import type { FilePath } from '@shared/types/file'
-import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath, createFilePathHandle, parseWindowsPath } from '@shared/utils/file'
 
 export const FILE_PREVIEW_ROUTE = '/app/file-preview'
 export const FILE_PREVIEW_REFRESH_KEY = 'filePreviewRefreshKey'
 
 export interface FilePreviewRouteSearch {
-  path: FilePath | undefined
+  path: AbsoluteFilePath | undefined
 }
 
 export interface FilePreviewTabTarget {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   title: string
   url: string
+}
+
+function normalizeUncFilePreviewPath(filePath: string): AbsoluteFilePath {
+  const nativePath = filePath.startsWith('//') ? `\\\\${filePath.slice(2)}` : filePath
+  const parsed = parseWindowsPath(nativePath)
+  if (!parsed.isAbsolute || !parsed.root.startsWith('\\\\')) throw new Error('Invalid UNC file preview path')
+
+  const segments: string[] = []
+  for (const segment of parsed.segments) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      segments.pop()
+      continue
+    }
+    segments.push(segment)
+  }
+
+  const suffix = segments.length > 0 ? `\\${segments.join('\\')}` : ''
+  return AbsoluteFilePathSchema.parse(`${parsed.root.replace(/\//g, '\\')}${suffix}`)
 }
 
 export function getFilePreviewRefreshKey(metadata: Record<string, unknown> | undefined): number {
@@ -19,8 +38,9 @@ export function getFilePreviewRefreshKey(metadata: Record<string, unknown> | und
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
 
-export function normalizeFilePreviewPath(filePath: string): FilePath {
-  const canonicalPath = canonicalizeAbsolutePath(filePath) as FilePath
+export function normalizeFilePreviewPath(filePath: string): AbsoluteFilePath {
+  if (filePath.startsWith('\\\\') || filePath.startsWith('//')) return normalizeUncFilePreviewPath(filePath)
+  const canonicalPath = canonicalizeFilePath(filePath)
   return createFilePathHandle(canonicalPath).path
 }
 

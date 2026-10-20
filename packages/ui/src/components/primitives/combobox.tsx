@@ -1,5 +1,9 @@
 'use client'
 
+import { cva, type VariantProps } from 'class-variance-authority'
+import { Check, ChevronDown, X } from 'lucide-react'
+import * as React from 'react'
+
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import {
   Command,
@@ -12,29 +16,26 @@ import {
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, X } from 'lucide-react'
-import * as React from 'react'
 
 // ==================== Variants ====================
 
 const comboboxTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm font-normal transition-colors outline-none',
     'bg-muted/20',
     'text-foreground'
   ),
   {
     variants: {
       state: {
-        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error: 'border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
-        disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
+        default: 'border-border focus-visible:border-ring',
+        error: 'border border-destructive!',
+        disabled: 'pointer-events-none cursor-not-allowed opacity-50'
       },
       size: {
-        sm: 'px-2 text-xs gap-1',
-        default: 'px-3 gap-2',
-        lg: 'px-4 gap-2'
+        sm: 'gap-1 px-2 text-xs',
+        default: 'gap-2 px-3',
+        lg: 'gap-2 px-4'
       }
     },
     defaultVariants: {
@@ -45,13 +46,13 @@ const comboboxTriggerVariants = cva(
 )
 
 const comboboxItemVariants = cva(
-  'relative flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors outline-none select-none',
+  'relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none select-none',
   {
     variants: {
       state: {
         default: 'hover:bg-accent data-[selected=true]:bg-accent',
-        selected: 'bg-success/10 text-success-foreground',
-        disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
+        selected: 'bg-primary/10 text-primary',
+        disabled: 'pointer-events-none cursor-not-allowed opacity-50'
       }
     },
     defaultVariants: {
@@ -71,6 +72,7 @@ const comboboxInputSizeClasses = {
 export type ComboboxOption<TExtra extends object = Record<never, never>> = {
   value: string
   label: string
+  group?: string
   disabled?: boolean
   icon?: React.ReactNode
   description?: string
@@ -78,8 +80,77 @@ export type ComboboxOption<TExtra extends object = Record<never, never>> = {
 
 export type ComboboxSearchPlacement = 'content' | 'trigger'
 
-export interface ComboboxProps<TExtra extends object = Record<never, never>>
-  extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
+interface ComboboxOptionListProps<TExtra extends object> {
+  emptyText: string
+  isSelected: (value: string) => boolean
+  manualFilterEnabled: boolean
+  multiple: boolean
+  onSelect: (value: string) => void
+  options: ComboboxOption<TExtra>[]
+  renderOptionContent: (option: ComboboxOption<TExtra>) => React.ReactNode
+  visibleOptions: ComboboxOption<TExtra>[]
+}
+
+function ComboboxOptionList<TExtra extends object>({
+  emptyText,
+  isSelected,
+  manualFilterEnabled,
+  multiple,
+  onSelect,
+  options,
+  renderOptionContent,
+  visibleOptions
+}: ComboboxOptionListProps<TExtra>) {
+  const renderOption = (option: ComboboxOption<TExtra>, fallbackToLabel: boolean) => (
+    <CommandItem
+      key={option.value}
+      value={fallbackToLabel ? option.value || option.label : option.value}
+      keywords={[option.label, option.description ?? '', option.group ?? '']}
+      disabled={option.disabled}
+      aria-checked={multiple ? isSelected(option.value) : undefined}
+      onSelect={() => onSelect(option.value)}
+      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
+      {renderOptionContent(option)}
+    </CommandItem>
+  )
+
+  const renderOptionGroups = (groupOptions: ComboboxOption<TExtra>[], fallbackToLabel: boolean) => {
+    const groups = new Map<string | undefined, ComboboxOption<TExtra>[]>()
+    for (const option of groupOptions) {
+      const optionsInGroup = groups.get(option.group) ?? []
+      optionsInGroup.push(option)
+      groups.set(option.group, optionsInGroup)
+    }
+
+    return Array.from(groups.entries()).map(([group, optionsInGroup], index) => (
+      <CommandGroup key={`${group ?? 'ungrouped'}:${index}`} heading={group}>
+        {optionsInGroup.map((option) => renderOption(option, fallbackToLabel))}
+      </CommandGroup>
+    ))
+  }
+
+  return (
+    <CommandList aria-multiselectable={multiple || undefined}>
+      {manualFilterEnabled ? (
+        visibleOptions.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
+        ) : (
+          renderOptionGroups(visibleOptions, true)
+        )
+      ) : (
+        <>
+          <CommandEmpty>{emptyText}</CommandEmpty>
+          {renderOptionGroups(options, false)}
+        </>
+      )}
+    </CommandList>
+  )
+}
+
+export interface ComboboxProps<TExtra extends object = Record<never, never>> extends Omit<
+  VariantProps<typeof comboboxTriggerVariants>,
+  'state'
+> {
   // Data source
   options: ComboboxOption<TExtra>[]
   value?: string | string[]
@@ -117,9 +188,11 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   portalContainer?: React.ComponentProps<typeof PopoverContent>['portalContainer']
   triggerStyle?: React.CSSProperties
   width?: string | number
+  'aria-label'?: React.AriaAttributes['aria-label']
 
   // Other
   name?: string
+  'aria-labelledby'?: React.AriaAttributes['aria-labelledby']
 }
 
 // ==================== Component ====================
@@ -151,14 +224,19 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   triggerStyle,
   width,
   size,
-  name
+  'aria-label': ariaLabel,
+  name,
+  'aria-labelledby': ariaLabelledBy
 }: ComboboxProps<TExtra>) {
   // ==================== State ====================
   const [internalOpen, setInternalOpen] = React.useState(false)
   const [internalValue, setInternalValue] = React.useState<string | string[]>(defaultValue ?? (multiple ? [] : ''))
   const [triggerSearch, setTriggerSearch] = React.useState('')
   const [contentSearch, setContentSearch] = React.useState('')
+  const [activeValue, setActiveValue] = React.useState('')
   const triggerInputRef = React.useRef<HTMLInputElement>(null)
+  const defaultValueLabelId = React.useId()
+  const defaultTriggerLabelledBy = ariaLabelledBy ? `${ariaLabelledBy} ${defaultValueLabelId}` : undefined
 
   const open = controlledOpen ?? internalOpen
   const setOpen = React.useCallback(
@@ -181,6 +259,16 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   }
 
   const selectedOption = !multiple ? options.find((opt) => opt.value === value) : undefined
+
+  // Seed cmdk's active (highlighted) descendant to the current selection each
+  // time the list opens. Without this, cmdk defaults the highlight to the first
+  // option, making it look selected even when another option is the real value.
+  React.useEffect(() => {
+    if (open && !multiple && typeof value === 'string') {
+      setActiveValue(value)
+    }
+  }, [open, multiple, value])
+
   const triggerSearchEnabled = searchable && searchPlacement === 'trigger' && !multiple
   const contentSearchEnabled = searchable && !triggerSearchEnabled
   const manualFilterEnabled = triggerSearchEnabled || (contentSearchEnabled && Boolean(filterOption))
@@ -196,7 +284,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         return filterOption(option, activeSearch)
       }
 
-      return [option.label, option.value, option.description]
+      return [option.label, option.value, option.description, option.group]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -361,13 +449,13 @@ export function Combobox<TExtra extends object = Record<never, never>>({
                 'bg-primary/10 text-primary',
                 'gap-1 px-2 py-0.5',
                 'inline-flex items-center rounded',
-                'text-success-foreground text-xs'
+                'text-xs'
               )}>
               {option.label}
               <button
                 type="button"
                 aria-label={getRemoveTagAriaLabel(option.label)}
-                className="inline-flex size-3 cursor-pointer items-center justify-center hover:text-success"
+                className="inline-flex size-3 cursor-pointer items-center justify-center opacity-70 hover:text-foreground hover:opacity-100"
                 onClick={(e) => handleRemoveTag(option.value, e)}
                 onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>
                 <X className="size-3" />
@@ -381,7 +469,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     const selectedOption = options.find((opt) => opt.value === value)
     if (selectedOption) {
       return (
-        <div className="flex items-center gap-2 flex-1 min-w-0 truncate">
+        <div className="flex min-w-0 flex-1 items-center gap-2 truncate">
           {selectedOption.icon}
           <span className="truncate">{selectedOption.label}</span>
         </div>
@@ -406,6 +494,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               value={triggerInputValue}
               placeholder={triggerInputPlaceholder}
               disabled={disabled}
+              aria-label={ariaLabel}
+              aria-labelledby={ariaLabelledBy}
               aria-expanded={open}
               aria-invalid={error}
               role="combobox"
@@ -419,8 +509,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               style={triggerStyle}
               className={cn(
                 'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
-                'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
-                error && 'border-destructive! focus-visible:ring-red-600/20',
+                'focus-visible:border-ring',
+                error && 'border-destructive!',
                 disabled && 'cursor-not-allowed opacity-50',
                 comboboxInputSizeClasses[inputSize],
                 className
@@ -429,7 +519,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           </PopoverTrigger>
           <ChevronDown
             className={cn(
-              'pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 shrink-0 opacity-50 transition-transform',
+              'pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50 transition-transform',
               open && 'rotate-180'
             )}
           />
@@ -446,6 +536,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         <div
           role="combobox"
           tabIndex={disabled ? -1 : 0}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
           aria-expanded={open}
           aria-invalid={error}
           aria-disabled={disabled}
@@ -478,11 +570,11 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     return (
       <>
         {option.icon && <span className="shrink-0">{option.icon}</span>}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="truncate">{option.label}</div>
-          {option.description && <div className="text-xs text-muted-foreground truncate">{option.description}</div>}
+          {option.description && <div className="truncate text-xs text-muted-foreground">{option.description}</div>}
         </div>
-        {isSelected(option.value) && <Check className="size-4 shrink-0 text-success" />}
+        {isSelected(option.value) && <Check className="size-4 shrink-0 text-primary" />}
       </>
     )
   }
@@ -491,6 +583,10 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const state = disabled ? 'disabled' : error ? 'error' : 'default'
   const triggerWidth = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
+  const popoverWidth =
+    typeof triggerWidth === 'string' && triggerWidth.trim().endsWith('%')
+      ? 'var(--radix-popover-trigger-width)'
+      : triggerWidth
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -506,18 +602,22 @@ export function Combobox<TExtra extends object = Record<never, never>>({
             disabled={disabled}
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}
+            aria-label={ariaLabel}
+            aria-labelledby={defaultTriggerLabelledBy}
             aria-expanded={open}
             aria-invalid={error}>
-            {renderTriggerContent()}
-            <ChevronDown className="size-4 opacity-50 shrink-0" />
+            <span id={defaultValueLabelId} className="contents">
+              {renderTriggerContent()}
+            </span>
+            <ChevronDown className="size-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
       )}
       <PopoverContent
-        className={cn('p-0 rounded-md', popoverClassName)}
+        className={cn('rounded-md p-0', popoverClassName)}
         align={popoverAlign}
         portalContainer={portalContainer}
-        style={{ width: triggerWidth }}
+        style={{ width: popoverWidth }}
         onOpenAutoFocus={(event) => {
           if (!triggerSearchEnabled) {
             return
@@ -526,7 +626,9 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           event.preventDefault()
           triggerInputRef.current?.focus()
         }}>
-        <Command shouldFilter={!manualFilterEnabled}>
+        <Command
+          shouldFilter={!manualFilterEnabled}
+          {...(!multiple ? { value: activeValue, onValueChange: setActiveValue } : {})}>
           {contentSearchEnabled && (
             <CommandInput
               placeholder={searchPlaceholder}
@@ -534,45 +636,19 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onValueChange={handleContentSearchChange}
             />
           )}
-          <CommandList>
-            {manualFilterEnabled ? (
-              visibleOptions.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
-              ) : (
-                <CommandGroup>
-                  {visibleOptions.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value || option.label}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )
-            ) : (
-              <>
-                <CommandEmpty>{emptyText}</CommandEmpty>
-                <CommandGroup>
-                  {options.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
+          <ComboboxOptionList
+            emptyText={emptyText}
+            isSelected={isSelected}
+            manualFilterEnabled={manualFilterEnabled}
+            multiple={multiple}
+            onSelect={handleSelect}
+            options={options}
+            renderOptionContent={renderOptionContent}
+            visibleOptions={visibleOptions}
+          />
         </Command>
       </PopoverContent>
-      {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(value) : (value as string)} />}
+      {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(value) : value} />}
     </Popover>
   )
 }

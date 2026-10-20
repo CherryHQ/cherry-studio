@@ -1,14 +1,15 @@
-import type { FileEntryId, FileHandle } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { FileEntryId, FileHandle } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { dispatchHandle } from '../dispatch'
 
 describe('dispatchHandle', () => {
   it('routes an entry handle to byEntryFn', async () => {
-    const handle: FileHandle = { kind: 'entry', entryId: 'e1' as FileEntryId }
+    const handle: FileHandle = { kind: 'entry', entryId: 'e1' }
     const byEntry = vi.fn(async (id: FileEntryId) => `entry:${id}`)
-    const byPath = vi.fn(async (p: FilePath) => `path:${p}`)
+    const byPath = vi.fn(async (p: AbsoluteFilePath) => `path:${p}`)
 
     const result = await dispatchHandle(handle, byEntry, byPath)
     expect(result).toBe('entry:e1')
@@ -17,9 +18,9 @@ describe('dispatchHandle', () => {
   })
 
   it('routes a path handle to byPathFn', async () => {
-    const handle: FileHandle = { kind: 'path', path: '/tmp/a.txt' as FilePath }
+    const handle: FileHandle = { kind: 'path', path: '/tmp/a.txt' as AbsoluteFilePath }
     const byEntry = vi.fn(async (id: FileEntryId) => `entry:${id}`)
-    const byPath = vi.fn(async (p: FilePath) => `path:${p}`)
+    const byPath = vi.fn(async (p: AbsoluteFilePath) => `path:${p}`)
 
     const result = await dispatchHandle(handle, byEntry, byPath)
     expect(result).toBe('path:/tmp/a.txt')

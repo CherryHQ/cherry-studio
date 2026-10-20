@@ -1,5 +1,6 @@
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
+import { gatewayModelIdFromAddress } from './gatewayModel'
 import { safeCreateUniqueModelId, stringValue } from './values'
 
 export const CLAUDE_DETAILED_MODEL_ROLES = [
@@ -51,6 +52,16 @@ export function stripClaudeOneMMarker(value: string): string {
   return value
 }
 
+/**
+ * Apply or remove the 1M context marker on a role model id. The marker is appended without a
+ * separating space (`model[1M]`, Claude Code's documented form): Claude Code strips only the
+ * bracket token, so a spaced marker leaves a trailing space in the model id it sends.
+ */
+export function setClaudeOneMMarker(value: string, enabled: boolean): string {
+  const base = stripClaudeOneMMarker(value).trim()
+  return enabled && base ? `${base}${ONE_M_MARKER}` : base
+}
+
 export function hasClaudeDetailedModels(config: Record<string, unknown>): boolean {
   const env = getEnv(config)
   return CLAUDE_DETAILED_MODEL_ROLES.some((role) => stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim())
@@ -73,13 +84,18 @@ export function stripClaudeDetailedModels(config: Record<string, unknown>): Reco
 
 export function getClaudeContextModelId(
   providerId: string,
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
+  gatewayModels?: Map<UniqueModelId, Model>
 ): UniqueModelId | undefined {
   const env = getEnv(config)
   for (const role of CLAUDE_DETAILED_MODEL_ROLES) {
     const modelId = stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim()
-    // env values are user-typed; a value createUniqueModelId rejects yields no context model.
-    if (modelId) return safeCreateUniqueModelId(providerId, modelId)
+    // Env values are user-typed; invalid direct ids and unknown gateway addresses yield no context model.
+    if (modelId) {
+      return gatewayModels
+        ? gatewayModelIdFromAddress(modelId, gatewayModels)
+        : safeCreateUniqueModelId(providerId, modelId)
+    }
   }
   return undefined
 }

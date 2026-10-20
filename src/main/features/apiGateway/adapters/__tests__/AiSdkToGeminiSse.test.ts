@@ -12,7 +12,7 @@ const toolCall = (toolName: string, input: unknown): UIMessageChunk => ({
   toolName,
   input
 })
-const finish = (finishReason: FinishReason = 'stop', usage?: Record<string, number>): UIMessageChunk => ({
+const finish = (finishReason: FinishReason = 'stop', usage?: Record<string, unknown>): UIMessageChunk => ({
   type: 'finish',
   finishReason,
   ...(usage ? { messageMetadata: usage } : {})
@@ -72,13 +72,58 @@ describe('AiSdkToGeminiSse (streaming)', () => {
     expect(frames[frames.length - 1].candidates[0].finishReason).toBe('MAX_TOKENS')
   })
 
-  it('projects usage onto the terminal frame', () => {
-    const frames = run([textDelta('x'), finish('stop', { promptTokens: 10, completionTokens: 20, thoughtsTokens: 5 })])
+  it('projects usage onto the terminal frame with candidatesTokenCount excluding thoughts', () => {
+    const frames = run([
+      textDelta('x'),
+      finish('stop', { stats: { inputTokens: 10, outputTokens: 20, outputTokenDetails: { reasoningTokens: 5 } } })
+    ])
+    expect(frames[frames.length - 1].usageMetadata).toEqual({
+      promptTokenCount: 10,
+      candidatesTokenCount: 15,
+      totalTokenCount: 30,
+      thoughtsTokenCount: 5
+    })
+  })
+
+  it('omits thoughtsTokenCount when the stats snapshot carries no reasoning tokens', () => {
+    const frames = run([textDelta('x'), finish('stop', { stats: { inputTokens: 10, outputTokens: 20 } })])
     expect(frames[frames.length - 1].usageMetadata).toEqual({
       promptTokenCount: 10,
       candidatesTokenCount: 20,
-      totalTokenCount: 30,
-      thoughtsTokenCount: 5
+      totalTokenCount: 30
+    })
+  })
+
+  it('reports cached prompt tokens via cachedContentTokenCount without changing the totals', () => {
+    const frames = run([
+      textDelta('x'),
+      finish('stop', {
+        stats: {
+          inputTokens: 30,
+          outputTokens: 20,
+          inputTokenDetails: { cacheReadTokens: 10 },
+          outputTokenDetails: { reasoningTokens: 5 }
+        }
+      })
+    ])
+    expect(frames[frames.length - 1].usageMetadata).toEqual({
+      promptTokenCount: 30,
+      candidatesTokenCount: 15,
+      totalTokenCount: 50,
+      thoughtsTokenCount: 5,
+      cachedContentTokenCount: 10
+    })
+  })
+
+  it('omits cachedContentTokenCount when no cache reads are projected', () => {
+    const frames = run([
+      textDelta('x'),
+      finish('stop', { stats: { inputTokens: 10, outputTokens: 20, inputTokenDetails: { cacheReadTokens: 0 } } })
+    ])
+    expect(frames[frames.length - 1].usageMetadata).toEqual({
+      promptTokenCount: 10,
+      candidatesTokenCount: 20,
+      totalTokenCount: 30
     })
   })
 
@@ -95,7 +140,7 @@ describe('AiSdkToGeminiSse.buildNonStreamingResponse', () => {
       textDelta('Hel'),
       textDelta('lo'),
       toolCall('search', { q: 'x' }),
-      finish('stop', { promptTokens: 3, completionTokens: 4 })
+      finish('stop', { stats: { inputTokens: 3, outputTokens: 4 } })
     ]) {
       adapter.transformChunk(chunk)
     }
@@ -108,6 +153,25 @@ describe('AiSdkToGeminiSse.buildNonStreamingResponse', () => {
     ])
     expect(response.candidates[0].finishReason).toBe('STOP')
     expect(response.usageMetadata).toMatchObject({ promptTokenCount: 3, candidatesTokenCount: 4, totalTokenCount: 7 })
+  })
+
+  it('keeps the Gemini usage invariant in the non-streaming response (total = prompt + candidates + thoughts)', () => {
+    const adapter = new AiSdkToGeminiSse({ model: 'deepseek:deepseek-chat' })
+    for (const chunk of [
+      reasoningDelta('thinking...'),
+      textDelta('Hello'),
+      finish('stop', { stats: { inputTokens: 3, outputTokens: 4, outputTokenDetails: { reasoningTokens: 2 } } })
+    ]) {
+      adapter.transformChunk(chunk)
+    }
+    adapter.finalizeEvents()
+
+    expect(adapter.buildNonStreamingResponse().usageMetadata).toEqual({
+      promptTokenCount: 3,
+      candidatesTokenCount: 2,
+      totalTokenCount: 7,
+      thoughtsTokenCount: 2
+    })
   })
 })
 

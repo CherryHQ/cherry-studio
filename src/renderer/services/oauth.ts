@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
+import { openExternalWebsite } from '@renderer/services/website'
 
 const logger = loggerService.withContext('oauth')
 
@@ -10,72 +10,198 @@ const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
 const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
 
-export const oauthWithSiliconFlow = async (setKey) => {
-  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
+const OAUTH_POPUP_TIMEOUT_MS = 10 * 60 * 1000
+const OAUTH_POPUP_CLOSE_POLL_MS = 500
+const OAUTH_POPUP_FEATURES =
+  'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
 
-  const popup = window.open(
-    authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+type SecretKeyOAuthPayload = [{ secretKey: string }, ...unknown[]]
 
-  const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
-    }
+interface AihubmixOAuthPayload {
+  key: 'cherry_studio_oauth_callback'
+  data?: unknown
+}
+
+interface NestedApiKeyOAuthPayload {
+  data: { apikey: string }
+}
+
+interface PopupMessageOAuthOptions<T> {
+  authUrl: string
+  popupName: string
+  matches: (data: unknown) => data is T
+  getKey: (data: T) => string | Promise<string>
+  setKey: (key: string) => void | Promise<void>
+  onError?: (error: unknown) => void
+}
+
+/** Owns the active popup flows so replacement and teardown stay lifecycle-safe. */
+class OAuthPopupFlowManager {
+  readonly #cleanups = new Map<string, () => void>()
+
+  retire(popupName: string): void {
+    this.#cleanups.get(popupName)?.()
   }
 
-  window.removeEventListener('message', messageHandler)
+  register(popupName: string, cleanup: () => void): void {
+    this.retire(popupName)
+    this.#cleanups.set(popupName, cleanup)
+  }
+
+  release(popupName: string, cleanup: () => void): void {
+    if (this.#cleanups.get(popupName) === cleanup) this.#cleanups.delete(popupName)
+  }
+}
+
+const oauthPopupFlowManager = new OAuthPopupFlowManager()
+
+function openNamedPopup(authUrl: string, popupName: string, features: string): Window | null {
+  const popup = window.open(authUrl, popupName, features)
+  // Only retire the current flow once its replacement actually opens.
+  if (popup) oauthPopupFlowManager.retire(popupName)
+  return popup
+}
+
+function isSecretKeyOAuthPayload(data: unknown): data is SecretKeyOAuthPayload {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    typeof data[0] === 'object' &&
+    data[0] !== null &&
+    typeof (data[0] as { secretKey?: unknown }).secretKey === 'string'
+  )
+}
+
+function isAihubmixOAuthPayload(data: unknown): data is AihubmixOAuthPayload {
+  return typeof data === 'object' && data !== null && (data as { key?: unknown }).key === 'cherry_studio_oauth_callback'
+}
+
+function isNestedApiKeyOAuthPayload(data: unknown): data is NestedApiKeyOAuthPayload {
+  if (typeof data !== 'object' || data === null) return false
+  const nestedData = (data as { data?: unknown }).data
+  return (
+    typeof nestedData === 'object' &&
+    nestedData !== null &&
+    typeof (nestedData as { apikey?: unknown }).apikey === 'string'
+  )
+}
+
+function startPopupMessageOAuth<T>({
+  authUrl,
+  popupName,
+  matches,
+  getKey,
+  setKey,
+  onError
+}: PopupMessageOAuthOptions<T>): void {
+  const popup = openNamedPopup(authUrl, popupName, OAUTH_POPUP_FEATURES)
+  if (!popup) return
+  const openedPopup = popup
+
+  const expectedOrigin = new URL(authUrl.trim()).origin
+  let active = true
+  let listening = true
+  let processingCallback = false
+
+  const stopListening = () => {
+    if (!listening) return
+    listening = false
+    window.removeEventListener('message', messageHandler)
+  }
+
+  const finish = () => {
+    if (!active) return
+    active = false
+    stopListening()
+    window.clearInterval(closePollId)
+    window.clearTimeout(timeoutId)
+    oauthPopupFlowManager.release(popupName, finish)
+  }
+
+  function messageHandler(event: MessageEvent): void {
+    const data: unknown = event.data
+    if (!active || event.source !== openedPopup || event.origin !== expectedOrigin || !matches(data)) return
+
+    // A recognized callback is terminal. Stop accepting duplicate messages,
+    // but let its async payload work finish even when the callback page closes.
+    processingCallback = true
+    stopListening()
+
+    void Promise.resolve()
+      .then(() => getKey(data))
+      .then(async (key) => {
+        if (!active) return
+        await setKey(key)
+        if (!active) return
+        openedPopup.close()
+        finish()
+      })
+      .catch((error) => {
+        if (!active) return
+        openedPopup.close()
+        onError?.(error)
+        finish()
+      })
+  }
+
+  const closePollId = window.setInterval(() => {
+    if (openedPopup.closed && !processingCallback) finish()
+  }, OAUTH_POPUP_CLOSE_POLL_MS)
+  const timeoutId = window.setTimeout(finish, OAUTH_POPUP_TIMEOUT_MS)
+
+  oauthPopupFlowManager.register(popupName, finish)
   window.addEventListener('message', messageHandler)
 }
 
-export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
+export const oauthWithSiliconFlow = async (setKey) => {
+  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
 
-  const popup = window.open(
+  startPopupMessageOAuth({
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+    popupName: 'oauth',
+    matches: isSecretKeyOAuthPayload,
+    getKey: (data) => data[0].secretKey,
+    setKey,
+    onError: (error) => logger.error('[oauthWithSiliconFlow] error', error as Error)
+  })
+}
 
-  const messageHandler = async (event) => {
-    const data = event.data
+export const oauthWithAihubmix = async (setKey) => {
+  const authUrl = `https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
 
-    if (data && data.key === 'cherry_studio_oauth_callback') {
-      const { iv, encryptedData } = data.data
-
-      try {
-        const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
-        const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
-        const { api_keys } = JSON.parse(decryptedData)
-        if (api_keys && api_keys.length > 0) {
-          setKey(api_keys[0].value)
-          popup?.close()
-          window.removeEventListener('message', messageHandler)
-        }
-      } catch (error) {
-        logger.error('[oauthWithAihubmix] error', error as Error)
-        popup?.close()
-        toast.error(i18n.t('settings.provider.oauth.error'))
+  startPopupMessageOAuth({
+    authUrl,
+    popupName: 'oauth',
+    matches: isAihubmixOAuthPayload,
+    getKey: async (data) => {
+      const callbackData = typeof data.data === 'object' && data.data !== null ? data.data : {}
+      const { iv, encryptedData } = callbackData as { iv?: unknown; encryptedData?: unknown }
+      if (typeof iv !== 'string' || typeof encryptedData !== 'string') {
+        throw new Error('Invalid OAuth callback payload')
       }
-    }
-  }
 
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+      const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
+      const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
+      const { api_keys } = JSON.parse(decryptedData)
+      const key = api_keys?.[0]?.value
+      if (typeof key !== 'string' || key.length === 0) {
+        throw new Error('No API key received')
+      }
+      return key
+    },
+    setKey,
+    onError: (error) => {
+      logger.error('[oauthWithAihubmix] error', error as Error)
+      toast.error(i18n.t('settings.provider.oauth.error'))
+    }
+  })
 }
 
 export const oauthWithPPIO = async (setKey) => {
   const redirectUri = 'cherrystudio://'
   const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
 
-  window.open(
-    authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
+  void openExternalWebsite(authUrl)
 
   if (!setKey) {
     logger.debug('[PPIO OAuth] No setKey callback provided, returning early')
@@ -145,203 +271,112 @@ export const oauthWithPPIO = async (setKey) => {
 export const oauthWith302AI = async (setKey) => {
   const authUrl = 'https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio'
 
-  const popup = window.open(
+  startPopupMessageOAuth({
     authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-
-  const messageHandler = (event) => {
-    if (event.data && event.data.data.apikey !== undefined) {
-      setKey(event.data.data.apikey)
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
-    }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+    popupName: 'oauth',
+    matches: isNestedApiKeyOAuthPayload,
+    getKey: (data) => data.data.apikey,
+    setKey,
+    onError: (error) => logger.error('[oauthWith302AI] error', error as Error)
+  })
 }
 
 export const oauthWithAiOnly = async (setKey) => {
   const authUrl = `https://maas.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`
 
-  const popup = window.open(
+  startPopupMessageOAuth({
     authUrl,
-    'login',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-
-  const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
-      popup?.close()
-      window.removeEventListener('message', messageHandler)
-    }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+    popupName: 'login',
+    matches: isSecretKeyOAuthPayload,
+    getKey: (data) => data[0].secretKey,
+    setKey,
+    onError: (error) => logger.error('[oauthWithAiOnly] error', error as Error)
+  })
 }
 
 export interface NewApiOAuthConfig {
   oauthServer: string
   apiHost?: string
+  requestId?: string
 }
 
-/**
- * CherryIN OAuth flow using Authorization Code with PKCE.
- *
- * PKCE, token exchange and API-key fetch all happen in the main process
- * (`OAuthRuntimeService`); the deep-link callback is routed by `ProtocolService`
- * directly to this renderer's webContents (captured at flow-start time), so we
- * just await a single point-to-point IPC event keyed by `state`.
- */
+/** CherryIN authorization and HTTP callback are handled in the main process. */
 export const oauthWithCherryIn = async (
   setKey: (key: string) => void | Promise<void>,
   config: NewApiOAuthConfig
 ): Promise<string> => {
-  const { oauthServer, apiHost } = config
-
-  const { authUrl, state } = await ipcApi.request('oauth.start_deep_link_flow', {
-    providerId: SystemProviderIds.cherryin,
-    oauthServer,
-    apiHost
+  const result = await ipcApi.request('cherryin.sign_in', {
+    requestId: config.requestId ?? crypto.randomUUID(),
+    oauthServer: config.oauthServer,
+    apiHost: config.apiHost
   })
+  if (!result.apiKeys) throw new Error('No API keys received')
+  await setKey(result.apiKeys)
+  return result.apiKeys
+}
 
-  logger.debug('Opening authorization URL')
-
-  window.open(
-    authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-
-  return new Promise<string>((resolve, reject) => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-    const removeListener = ipcApi.on('oauth.deep_link_result', async (result) => {
-      // Defensive: another concurrent CherryIN flow on the same window would
-      // hit the same listener; main only ever pushes for our state, but filter
-      // anyway to keep the contract explicit.
-      if (result.state !== state) return
-
-      cleanup()
-
-      if ('error' in result) {
-        logger.error(`OAuth error: ${result.error}`)
-        reject(new Error(result.error))
-        return
-      }
-
-      if (!result.apiKeys) {
-        reject(new Error('No API keys received'))
-        return
-      }
-
-      logger.debug('Successfully obtained API keys')
-      try {
-        await setKey(result.apiKeys)
-      } catch (err) {
-        reject(err)
-        return
-      }
-      resolve(result.apiKeys)
-    })
-
-    function cleanup(): void {
-      removeListener()
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-        timeoutId = null
-      }
-    }
-
-    timeoutId = setTimeout(
-      () => {
-        logger.warn('Flow timed out')
-        cleanup()
-        reject(new Error('OAuth flow timed out'))
-      },
-      10 * 60 * 1000
-    )
-  })
+export const oauthWithTokenDance = async (setKey) => {
+  try {
+    const apiKey = await ipcApi.request('oauth.tokendance.authorize_api_key')
+    setKey(apiKey)
+  } catch (error) {
+    logger.error('[oauthWithTokenDance] error', error as Error)
+    toast.error(i18n.t('settings.provider.oauth.error'))
+  }
 }
 
 export const providerCharge = async (provider: string) => {
   const lang = await getLanguageCode()
   const chargeUrlMap = {
     silicon: {
-      url: 'https://cloud.siliconflow.cn/expensebill',
-      width: 900,
-      height: 700
+      url: 'https://cloud.siliconflow.cn/expensebill'
     },
     aihubmix: {
-      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`,
-      width: 720,
-      height: 900
+      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`
     },
     ppio: {
-      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing',
-      width: 900,
-      height: 700
+      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing'
     },
     '302ai': {
-      url: 'https://dash.302.ai/charge',
-      width: 900,
-      height: 700
+      url: 'https://dash.302.ai/charge'
     },
     aionly: {
-      url: `https://maas.aiionly.com/recharge`,
-      width: 900,
-      height: 700
+      url: `https://maas.aiionly.com/recharge`
+    },
+    tokendance: {
+      url: 'https://tokendance.space/credits'
     }
   }
 
-  const { url, width, height } = chargeUrlMap[provider]
+  const { url } = chargeUrlMap[provider]
 
-  window.open(
-    url,
-    'oauth',
-    `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
-  )
+  await openExternalWebsite(url)
 }
 
 export const providerBills = async (provider: string) => {
   const lang = await getLanguageCode()
   const billsUrlMap = {
     silicon: {
-      url: 'https://cloud.siliconflow.cn/bills',
-      width: 900,
-      height: 700
+      url: 'https://cloud.siliconflow.cn/bills'
     },
     aihubmix: {
-      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`,
-      width: 900,
-      height: 700
+      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`
     },
     ppio: {
-      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details',
-      width: 900,
-      height: 700
+      url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details'
     },
     '302ai': {
-      url: 'https://dash.302.ai/charge',
-      width: 900,
-      height: 700
+      url: 'https://dash.302.ai/charge'
     },
     aionly: {
-      url: `https://maas.aiionly.com/billManagement`,
-      width: 900,
-      height: 700
+      url: `https://maas.aiionly.com/billManagement`
+    },
+    tokendance: {
+      url: 'https://tokendance.space/activity/requests'
     }
   }
 
-  const { url, width, height } = billsUrlMap[provider]
+  const { url } = billsUrlMap[provider]
 
-  window.open(
-    url,
-    'oauth',
-    `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
-  )
+  await openExternalWebsite(url)
 }

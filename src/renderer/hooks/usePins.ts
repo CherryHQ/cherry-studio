@@ -1,14 +1,15 @@
 /**
  * Generic hook for reading and toggling pins of a given entity type.
  *
- * DataApi does not auto-sync across windows, so consumers should call
- * `refetch` when opening a pin-aware surface that needs fresh state.
+ * Main publishes pin effects after committed writes; mounted readers
+ * conservatively refetch so every window observes the same pin order.
  */
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { EntityType } from '@shared/data/types/entityType'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('usePins')
 
@@ -42,6 +43,8 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
     error: queryError,
     refetch
   } = useQuery('/pins', { enabled, query: { entityType } })
+
+  useDataChange(enabled ? '/pins' : [], () => void refetch())
 
   const {
     trigger: createPin,

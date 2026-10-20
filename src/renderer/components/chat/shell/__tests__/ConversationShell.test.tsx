@@ -1,3 +1,7 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+
 import {
   RightPanel,
   type RightPanelCapability,
@@ -5,9 +9,6 @@ import {
   RightPanelShortcut
 } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
 
 import ConversationShell from '../ConversationShell'
 import { ConversationTopBarPortal, ConversationTopBarPortalHost } from '../ConversationTopBarPortal'
@@ -89,6 +90,7 @@ describe('ConversationShell', () => {
     expect(screen.getByTestId('chat-app-shell')).toContainElement(screen.getByTestId('center-overlay'))
     expect(screen.getByTestId('right-pane')).toBeInTheDocument()
     expect(shellProps.current?.centerContent).toBeTruthy()
+    expect(document.getElementById('conversation')).toHaveAttribute('data-ui', 'chat.view')
     expect(document.getElementById('conversation')).toHaveClass('message-style')
   })
 
@@ -127,6 +129,15 @@ describe('ConversationShell', () => {
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('')
     expect(topRightTool).toHaveClass('h-(--navbar-height)')
     expect(rightSpacer).toHaveClass('w-2')
+  })
+
+  it('inherits embedded height from its flex parent', () => {
+    const { container } = render(<ConversationShell center={<div />} />)
+    const shell = container.firstElementChild
+
+    // Parent-owned height prevents overflow-hidden ancestors from becoming hidden scroll containers.
+    expect(shell).toHaveClass('h-full', 'min-h-0')
+    expect(shell?.className).not.toContain('100vh')
   })
 
   it('fits detached content below the standalone window title bar', () => {
@@ -169,14 +180,7 @@ describe('ConversationShell', () => {
     const topRightTool = container.querySelector<HTMLElement>('[data-conversation-shell-topbar-right]')
     const rightSpacer = container.querySelector<HTMLElement>('[data-conversation-shell-right-spacer]')
     expect(topBarWrapper).toContainElement(topRightTool)
-    expect(topBarWrapper).toHaveClass(
-      'after:absolute',
-      'after:right-0',
-      'after:bottom-0',
-      'after:left-0',
-      'after:h-px',
-      'after:bg-border-subtle'
-    )
+    expect(topBarWrapper).not.toHaveClass('after:absolute', 'after:h-px', 'after:bg-border-subtle')
     expect(topBarWrapper).not.toHaveClass('pr-11', 'pr-[76px]', 'pr-[140px]', 'pr-[172px]')
     expect(topRightTool).toHaveClass('flex', 'shrink-0', 'gap-0.5')
     expect(topRightTool).not.toHaveClass('absolute')

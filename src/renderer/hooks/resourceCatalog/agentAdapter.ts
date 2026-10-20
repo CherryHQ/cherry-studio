@@ -1,7 +1,10 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback, useState } from 'react'
+
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { AGENTS_MAX_LIMIT, type CreateAgentDto, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import { useCallback } from 'react'
+import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
@@ -40,23 +43,25 @@ export const agentAdapter: ResourceAdapter<AgentDetail> = {
 
 /** List-level write hook — create only. */
 export function useAgentMutations() {
-  const { trigger: createTrigger } = useMutation('POST', '/agents', {
-    refresh: ['/agents']
-  })
+  const invalidate = useInvalidateCache()
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false)
 
   const createAgent = useCallback(
-    (dto: CreateAgentDto): Promise<AgentDetail> => createTrigger({ body: dto }),
-    [createTrigger]
+    async (dto: CreateAgentCommand): Promise<AgentDetail> => {
+      setIsCreatingAgent(true)
+      try {
+        return await createAgentAndRefresh(dto, () => invalidate('/agents'))
+      } finally {
+        setIsCreatingAgent(false)
+      }
+    },
+    [invalidate]
   )
 
-  return { createAgent }
+  return { createAgent, isCreatingAgent }
 }
 
-/**
- * Mutation hook scoped to a single agent id. PATCH accepts any `AgentBase`
- * subset (typed as `UpdateAgentDto`); the backend merges at the row level.
- * Plain DELETE removes the agent only; sessions remain as history.
- */
+/** Mutation hook scoped to a single agent id. */
 export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
 
@@ -66,15 +71,10 @@ export function useAgentMutationsById(id: string) {
     refresh: ({ args }) =>
       args?.body?.skillUpdates !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
   })
-  const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/agents', '/agents/*', '/pins']
-  })
-
   const updateAgent = useCallback(
     (dto: UpdateAgentDto): Promise<AgentDetail> => updateTrigger({ body: dto }),
     [updateTrigger]
   )
-  const deleteAgent = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
 
-  return { updateAgent, deleteAgent }
+  return { updateAgent }
 }

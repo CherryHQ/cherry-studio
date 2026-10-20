@@ -1,9 +1,10 @@
+import type { ReactNode, Ref } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode, Ref } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import { ModelEndpointTypeSelect } from './ModelEndpointTypeSelect'
@@ -16,6 +17,7 @@ interface ModelBasicFieldsProps {
   showRequiredIndicator?: boolean
   layout?: 'vertical' | 'horizontal'
   modelIdDisabled?: boolean
+  modelIdAutoFocus?: boolean
   modelIdInputRef?: Ref<HTMLInputElement>
   modelIdAction?: ReactNode
   modelIdError?: string
@@ -35,6 +37,7 @@ export function ModelBasicFields({
   showRequiredIndicator = false,
   layout = 'vertical',
   modelIdDisabled = false,
+  modelIdAutoFocus = false,
   modelIdInputRef,
   modelIdAction,
   modelIdError,
@@ -69,6 +72,7 @@ export function ModelBasicFields({
         help={modelIdError ? <div className={drawerClasses.errorText}>{modelIdError}</div> : null}>
         <div className={drawerClasses.valueRow}>
           <Input
+            autoFocus={modelIdAutoFocus}
             ref={modelIdInputRef}
             required
             spellCheck={false}

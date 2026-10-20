@@ -1,20 +1,45 @@
+import { app } from 'electron'
+
 import { application } from '@application'
-import type { TokenUsageData } from '@cherrystudio/analytics-client'
-import { AnalyticsClient } from '@cherrystudio/analytics-client'
+import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME } from '@shared/utils/constants'
-import { app } from 'electron'
 
 const logger = loggerService.withContext('AnalyticsService')
+
+// Distinct name so the SDK retry classifier treats it as non-retriable.
+class ConsentRevokedError extends Error {
+  constructor() {
+    super('Analytics consent revoked')
+    this.name = 'ConsentRevokedError'
+  }
+}
+
+function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSignal {
+  if (!second) return first
+  const anySignals = (AbortSignal as typeof AbortSignal & { any?: (s: AbortSignal[]) => AbortSignal }).any
+  if (typeof anySignals === 'function') return anySignals.call(AbortSignal, [first, second])
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  if (first.aborted || second.aborted) abort()
+  else {
+    first.addEventListener('abort', abort, { once: true })
+    second.addEventListener('abort', abort, { once: true })
+  }
+  return controller.signal
+}
 
 @Injectable('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
-  /** Latest desired running state — mirrors the `app.privacy.data_collection.enabled` preference. */
+  private revokeController: AbortController | null = null
+  private hasTrackedAppLaunch = false
+  /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
    * Converges the client's running state to `desiredEnabled`. It is the SOLE caller of
@@ -36,6 +61,15 @@ export class AnalyticsService extends BaseService implements Activatable {
     }
   })
 
+  private refreshDesiredEnabled(): void {
+    const preferenceService = application.get('PreferenceService')
+    this.desiredEnabled = isDataCollectionConsented(
+      preferenceService.get('app.privacy.data_collection.enabled'),
+      preferenceService.get('app.privacy.policy_version')
+    )
+    this.reconciler.request()
+  }
+
   protected async onInit() {
     // The reconciler is the sole driver of activate/deactivate (latest-wins): a re-enable that lands
     // while the async onDeactivate (`await client.destroy()`) is in flight must not be dropped by the
@@ -43,26 +77,41 @@ export class AnalyticsService extends BaseService implements Activatable {
     // that is NOT recreated on restart (`start()` re-runs `onInit`), so it is deliberately not
     // disposed — disposing it would permanently no-op `request()` after a stop→restart.
     const preferenceService = application.get('PreferenceService')
+    const refreshDesiredEnabled = () => this.refreshDesiredEnabled()
     this.registerDisposable(
-      preferenceService.subscribeChange('app.privacy.data_collection.enabled', (enabled: boolean) => {
-        this.desiredEnabled = enabled
-        this.reconciler.request()
-      })
+      preferenceService.subscribeChange('app.privacy.data_collection.enabled', refreshDesiredEnabled)
     )
+    this.registerDisposable(preferenceService.subscribeChange('app.privacy.policy_version', refreshDesiredEnabled))
   }
 
   protected async onReady() {
-    this.desiredEnabled = application.get('PreferenceService').get('app.privacy.data_collection.enabled')
-    this.reconciler.request()
+    this.refreshDesiredEnabled()
     await this.reconciler.flush()
   }
 
-  onActivate(): void {
+  async onActivate(): Promise<void> {
     const clientId = getClientId()
+    const { AnalyticsClient } = await import('@cherrystudio/analytics-client')
+
+    const revokeController = new AbortController()
+    this.revokeController = revokeController
+    const revokedFetch: typeof fetch = async (input, init) => {
+      if (revokeController.signal.aborted) throw new ConsentRevokedError()
+      try {
+        return await globalThis.fetch(input, {
+          ...init,
+          signal: linkSignals(revokeController.signal, init?.signal)
+        } as RequestInit)
+      } catch (error) {
+        if (revokeController.signal.aborted) throw new ConsentRevokedError()
+        throw error
+      }
+    }
 
     this.client = new AnalyticsClient({
       clientId,
       channel: 'cherry-studio',
+      fetch: revokedFetch,
       onError: (error) => logger.error('Analytics error:', error),
       headers: {
         'User-Agent': generateUserAgent(),
@@ -73,33 +122,44 @@ export class AnalyticsService extends BaseService implements Activatable {
       }
     })
 
-    // FIXME: trackAppLaunch is called on every activate.
-    // Original code called it once in onInit. When the user toggles the preference
-    // off then on at runtime, this produces an extra launch event.
-    // This is beyond the scope of the Activatable refactoring — keeping as-is.
-    this.client.trackAppLaunch({
-      version: app.getVersion(),
-      os: process.platform
-    })
+    if (!this.hasTrackedAppLaunch) {
+      this.client.trackAppLaunch({
+        version: app.getVersion(),
+        os: process.platform
+      })
+      this.hasTrackedAppLaunch = true
+    }
 
     logger.info('Analytics service activated')
   }
 
   async onDeactivate(): Promise<void> {
     if (this.client) {
-      await this.client.destroy()
+      if (!this.desiredEnabled) {
+        this.revokeController?.abort()
+        try {
+          const pending = this.client.getQueueSize()
+          logger.info('Analytics queue discarded after consent revocation', { pending })
+        } catch {
+          logger.info('Analytics queue discarded after consent revocation')
+        }
+        await this.client.destroy({ flush: false })
+      } else {
+        await this.client.destroy()
+      }
       this.client = null
     }
+    this.revokeController = null
     logger.info('Analytics service deactivated')
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.isActivated) return
+    if (!this.isActivated || !this.desiredEnabled || (data.input_tokens === 0 && data.output_tokens === 0)) return
     this.client!.trackTokenUsage(data)
   }
 
   public async trackAppUpdate(): Promise<void> {
-    if (!this.client || !application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
+    if (!this.client || !this.desiredEnabled) {
       return
     }
 

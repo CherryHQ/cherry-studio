@@ -1,11 +1,13 @@
 import fs from 'node:fs'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as z from 'zod'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PreparedTesseractContext } from '../../types'
 
@@ -30,7 +32,7 @@ vi.mock('@main/features/fileProcessing/utils/ocr', () => ({
 import { TesseractRuntimeService } from '../TesseractRuntimeService'
 
 type RuntimeWorkerStub = {
-  terminate: ReturnType<typeof vi.fn>
+  terminate: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 type RuntimeStateProbe = {
@@ -48,7 +50,7 @@ async function flushPromises(): Promise<void> {
   await Promise.resolve()
 }
 
-function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
+function createFileInfo(overrides: Partial<z.input<typeof FileInfoSchema>> = {}): FileInfo {
   return FileInfoSchema.parse({
     path: '/tmp/scan.png',
     name: 'scan',
@@ -59,7 +61,7 @@ function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
     createdAt: 1,
     modifiedAt: 1,
     ...overrides
-  }) as FileInfo
+  })
 }
 
 const cleanupCases = [
@@ -218,7 +220,10 @@ describe('TesseractRuntimeService', () => {
   })
 
   it('terminates a worker created after stop starts while createWorker is still pending', async () => {
-    let resolveWorker!: (worker: { recognize: ReturnType<typeof vi.fn>; terminate: ReturnType<typeof vi.fn> }) => void
+    let resolveWorker!: (worker: {
+      recognize: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      terminate: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }) => void
     const recognizeMock = vi.fn().mockResolvedValue({
       data: {
         text: 'hello'

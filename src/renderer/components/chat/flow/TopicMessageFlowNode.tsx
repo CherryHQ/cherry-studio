@@ -1,5 +1,10 @@
+import { Handle, type NodeProps, Position } from '@xyflow/react'
+import dayjs from 'dayjs'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
-import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -8,10 +13,6 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
-import { Handle, type NodeProps, Position } from '@xyflow/react'
-import dayjs from 'dayjs'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowNodeModel } from './types'
 
@@ -23,8 +24,8 @@ const bodyXsTypographyClassName = 'text-[length:var(--font-size-body-xs)] leadin
 const bodySmTypographyClassName = 'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]'
 
 const roleClassNames: Record<MessageRole, string> = {
-  user: 'border-success/35 bg-success-bg',
-  assistant: 'border-info/35 bg-info-bg',
+  user: 'border-success-border bg-success-subtle',
+  assistant: 'border-info-border bg-info-subtle',
   system: 'border-border bg-muted/45',
   // The virtual root is never rendered as a flow node; entry exists only to satisfy the
   // exhaustive Record<MessageRole> type.
@@ -34,8 +35,8 @@ const roleClassNames: Record<MessageRole, string> = {
 const statusDotClassNames: Record<MessageStatus, string> = {
   pending: 'bg-warning',
   success: 'bg-success',
-  error: 'bg-destructive',
-  paused: 'bg-foreground-muted'
+  error: 'bg-error',
+  paused: 'border border-border-strong bg-muted'
 }
 
 function getModelShortLabel(modelId?: string | null) {
@@ -52,22 +53,23 @@ function formatNodeTime(createdAt: string) {
   return value.isValid() ? value.format('MM/DD HH:mm') : createdAt || '-'
 }
 
-function useRoleLabel(role: MessageRole) {
+function useRoleLabel(role: MessageRole, isContextBoundary?: boolean) {
   const { t } = useTranslation()
 
+  if (isContextBoundary) return t('chat.message.new.context')
   if (role === 'user') return t('export.user')
   if (role === 'assistant') return t('export.assistant')
   return t('assistants.tag.system')
 }
 
-function useStatusLabel(status: MessageStatus, isInputDraft?: boolean) {
+function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
   const { t } = useTranslation()
 
-  if (isInputDraft) return t('chat.message.flow.status.awaiting_input')
+  if (isAwaitingInput) return t('chat.message.flow.status.awaiting_input')
   if (status === 'pending') return t('common.loading')
   if (status === 'success') return t('common.completed')
   if (status === 'error') return t('common.error')
-  return t('agent.task.status.paused')
+  return t('agent.tasks.status.paused')
 }
 
 interface TopicMessageFlowNodePreviewCardProps {
@@ -91,10 +93,16 @@ function TopicMessageFlowNodePreviewCard({
   const {
     data: message,
     error,
-    isLoading
+    isLoading,
+    mutate
   } = useQuery('/messages/:id', {
     enabled: open,
     params: { id: messageId }
+  })
+  useDataChange('/messages/:id', (effects) => {
+    if (open && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(messageId))) {
+      void mutate()
+    }
   })
   const uiMessage = useMemo(() => (message ? sharedMessageToUIMessage(message) : null), [message])
   const messageItems = useMemo(
@@ -113,7 +121,7 @@ function TopicMessageFlowNodePreviewCard({
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="mb-3 flex min-w-0 items-start justify-between gap-3 border-border-subtle border-b pb-2">
+      <div className="mb-3 flex min-w-0 items-start justify-between gap-3 border-b border-border-subtle pb-2">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className={cn(
@@ -123,12 +131,12 @@ function TopicMessageFlowNodePreviewCard({
             {roleLabel}
           </span>
           {modelLabel ? (
-            <span className={cn('truncate font-mono text-foreground-muted', bodyXsTypographyClassName)}>
+            <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
               {modelLabel}
             </span>
           ) : null}
         </div>
-        <div className={cn('shrink-0 text-right text-foreground-muted', bodyXsTypographyClassName)}>
+        <div className={cn('shrink-0 text-right text-foreground-tertiary', bodyXsTypographyClassName)}>
           <div>{statusLabel}</div>
           <time dateTime={message?.createdAt ?? undefined}>{timeLabel}</time>
         </div>
@@ -163,8 +171,9 @@ function TopicMessageFlowNodePreviewCard({
 }
 
 const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNodeModel>) => {
-  const roleLabel = useRoleLabel(data.role)
-  const statusLabel = useStatusLabel(data.status, data.isInputDraft)
+  const { t } = useTranslation()
+  const roleLabel = useRoleLabel(data.role, data.isContextBoundary)
+  const statusLabel = useStatusLabel(data.status, data.isAwaitingInput)
   const modelLabel = getModelShortLabel(data.modelId)
   const timeLabel = formatNodeTime(data.createdAt)
   const [open, setOpen] = useState(false)
@@ -220,18 +229,22 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
         <div
           className={cn(
             'group/topic-message-flow-node relative w-55 rounded-md border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow,opacity]',
-            'focus-within:ring-2 focus-within:ring-ring/35',
             roleClassNames[data.role],
-            data.isActive && 'border-primary shadow-sm ring-2 ring-primary/20',
-            selected && !data.isActive && 'ring-2 ring-ring/25',
+            data.isContextBoundary && 'border-border bg-muted/45',
+            data.isAwaitingInput && 'border-warning-border bg-warning-subtle',
+            data.isActive &&
+              (data.isAwaitingInput
+                ? 'shadow-sm ring-2 ring-warning/25'
+                : 'border-primary shadow-sm ring-2 ring-primary/20'),
+            selected && !data.isActive && (data.isAwaitingInput ? 'ring-2 ring-warning/25' : 'ring-2 ring-primary/25'),
             data.isInactiveBranch && 'opacity-55'
           )}
           data-active={data.isActive ? 'true' : 'false'}
           data-message-id={data.messageId}
           data-on-active-path={data.isOnActivePath ? 'true' : 'false'}
-          onMouseEnter={data.isInputDraft ? undefined : scheduleOpen}
-          onMouseLeave={data.isInputDraft ? undefined : scheduleClose}
-          onMouseMove={data.isInputDraft ? undefined : scheduleOpen}>
+          onMouseEnter={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleOpen}
+          onMouseLeave={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleClose}
+          onMouseMove={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleOpen}>
           <Handle className="opacity-0" isConnectable={false} position={Position.Top} type="target" />
 
           <div className="flex min-w-0 items-center gap-2">
@@ -244,7 +257,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
                 {roleLabel}
               </span>
               {modelLabel ? (
-                <span className={cn('truncate font-mono text-foreground-muted', bodyXsTypographyClassName)}>
+                <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
                   {modelLabel}
                 </span>
               ) : null}
@@ -252,16 +265,21 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
           </div>
 
           <p className={cn('mt-2 line-clamp-2 min-h-9 text-foreground', bodyXsTypographyClassName)}>
-            {data.preview || '-'}
+            {data.isContextBoundary ? t('chat.message.new.context') : data.preview || '-'}
           </p>
 
           <div
             className={cn(
-              'mt-2 flex items-center justify-between gap-2 text-foreground-muted',
+              'mt-2 flex items-center justify-between gap-2 text-foreground-tertiary',
               bodyXsTypographyClassName
             )}>
             <span className="flex min-w-0 items-center gap-1.5">
-              <span className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[data.status])} />
+              <span
+                className={cn(
+                  'size-1.5 shrink-0 rounded-full',
+                  data.isAwaitingInput ? 'bg-warning' : statusDotClassNames[data.status]
+                )}
+              />
               <span className="truncate">{statusLabel}</span>
             </span>
             <time className="shrink-0" dateTime={data.createdAt}>
@@ -280,7 +298,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
         onOpenAutoFocus={(event) => event.preventDefault()}
         side="right"
         sideOffset={10}>
-        {open && !data.isInputDraft ? (
+        {open && !data.isAwaitingInput && !data.isContextBoundary ? (
           <TopicMessageFlowNodePreviewCard
             messageId={data.messageId}
             modelLabel={modelLabel}

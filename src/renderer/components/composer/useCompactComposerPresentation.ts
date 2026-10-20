@@ -23,6 +23,10 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
   const measurementScheduledRef = useRef(false)
   const mountedRef = useRef(true)
   const wasEnabledRef = useRef(enabled)
+  // Mirrors the isCompact value the current render actually painted, so the
+  // editor ResizeObserver below can tell a width change caused by a
+  // presentation flip apart from an external layout change.
+  const renderedIsCompactRef = useRef(enabled)
 
   const requestMeasurement = useCallback(() => {
     if (!enabled || isComposing() || measurementScheduledRef.current) return
@@ -77,16 +81,58 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     if (!enabled) return
 
     const frame = frameRef.current
-    const editorElement = frame?.querySelector<HTMLElement>('.composer-tiptap')
     const inputbarElement = frame?.closest<HTMLElement>('[data-composer-inputbar]')
-    if (!editorElement || !inputbarElement) return
+    if (!frame || !inputbarElement) return
 
-    const mutationObserver = new MutationObserver(requestMeasurement)
-    mutationObserver.observe(editorElement, {
+    // Observe the frame rather than `.composer-tiptap`: Tiptap builds the
+    // editor in an effect, so that element does not exist yet on a composer
+    // that mounts already enabled. Watching the frame catches both the editor's
+    // insertion and its later content edits, and the measurement below reruns
+    // off the resulting revision bump.
+    const mutationObserver = new MutationObserver(() => {
+      attachEditorResizeObserver()
+      requestMeasurement()
+    })
+    mutationObserver.observe(frame, {
       characterData: true,
       childList: true,
       subtree: true
     })
+
+    // Focus affordances (the focus hint leaving the layout) resize the editor
+    // without touching the inputbar width or content, so watch the editor itself.
+    let observedEditorElement: HTMLElement | null = null
+    let lastEditorWidth = 0
+    let lastSeenRenderedCompact = true
+    let editorResizeObserver: ResizeObserver | null = null
+    const composerFrame: HTMLElement = frame
+
+    function attachEditorResizeObserver() {
+      if (typeof ResizeObserver === 'undefined') return
+      const editorElement = composerFrame.querySelector<HTMLElement>('.composer-tiptap')
+      if (!editorElement || editorElement === observedEditorElement) return
+
+      editorResizeObserver?.disconnect()
+      observedEditorElement = editorElement
+      lastEditorWidth = editorElement.getBoundingClientRect().width
+      lastSeenRenderedCompact = renderedIsCompactRef.current
+      editorResizeObserver = new ResizeObserver((entries) => {
+        const nextEditorWidth = entries[0]?.contentRect.width ?? editorElement.getBoundingClientRect().width
+        if (nextEditorWidth === lastEditorWidth) return
+
+        lastEditorWidth = nextEditorWidth
+        // Consume the editor resize a presentation flip causes; remeasuring
+        // that echo would cycle compact/regular while compact content overflows.
+        const renderedCompactNow = renderedIsCompactRef.current
+        const flipDrivenWidthChange = renderedCompactNow !== lastSeenRenderedCompact
+        lastSeenRenderedCompact = renderedCompactNow
+        if (flipDrivenWidthChange) return
+
+        requestMeasurement()
+      })
+      editorResizeObserver.observe(editorElement)
+    }
+    attachEditorResizeObserver()
 
     let lastInputbarWidth = inputbarElement.getBoundingClientRect().width
     const resizeObserver =
@@ -104,13 +150,16 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     return () => {
       mutationObserver.disconnect()
       resizeObserver?.disconnect()
+      editorResizeObserver?.disconnect()
     }
   }, [enabled, frameRef, requestMeasurement])
 
   const measurementPending = measurement.revision !== requestedRevision
+  const isCompact = enabled && (measurementPending || measurement.presentation === 'compact')
+  renderedIsCompactRef.current = isCompact
 
   return {
-    isCompact: enabled && (measurementPending || measurement.presentation === 'compact'),
+    isCompact,
     requestMeasurement
   }
 }

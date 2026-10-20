@@ -1,6 +1,7 @@
-import { AGENT_WORKSPACE_TYPE, AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { sql } from 'drizzle-orm'
 import { check, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
+import { AGENT_WORKSPACE_TYPE, AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 

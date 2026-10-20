@@ -1,3 +1,5 @@
+import { BrowserWindow, powerMonitor, powerSaveBlocker } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import {
@@ -10,8 +12,6 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
-import ElectronShutdownHandler from '@paymoapp/electron-shutdown-handler'
-import { BrowserWindow, powerMonitor, powerSaveBlocker } from 'electron'
 
 const logger = loggerService.withContext('PowerService')
 
@@ -92,9 +92,9 @@ export class PowerService extends BaseService {
     this.onPowerSourceChange = this._onPowerSourceChange.event
   }
 
-  protected onInit(): void {
+  protected async onInit(): Promise<void> {
     this.initPowerEvents()
-    this.initShutdownBarrier()
+    await this.initShutdownBarrier()
     this.initSleepPrevention()
     logger.info('PowerService initialized', { platform: process.platform })
   }
@@ -160,9 +160,9 @@ export class PowerService extends BaseService {
   // Shutdown barrier (bounded, cross-platform)
   // ==========================================================================
 
-  private initShutdownBarrier(): void {
+  private async initShutdownBarrier(): Promise<void> {
     if (isWin) {
-      this.initWindowsShutdownHandler()
+      await this.initWindowsShutdownHandler()
     } else if (isMac || isLinux) {
       this.initElectronShutdownHandler()
     }
@@ -225,8 +225,8 @@ export class PowerService extends BaseService {
       try {
         await this.executeShutdownHandlers()
       } finally {
-        // application.quit() maintains the app's _isQuitting bookkeeping (not bare app.quit()).
-        application.quit()
+        // System shutdown must not wait for a user-facing active-task confirmation.
+        application.quit('system-shutdown')
       }
     }
     powerMonitor.on('shutdown', shutdownListener)
@@ -234,8 +234,11 @@ export class PowerService extends BaseService {
     logger.info('Electron powerMonitor shutdown listener registered')
   }
 
-  private initWindowsShutdownHandler(): void {
+  private async initWindowsShutdownHandler(): Promise<void> {
     try {
+      // Windows application control may reject the native addon; keep startup available.
+      const { default: ElectronShutdownHandler } = await import('@paymoapp/electron-shutdown-handler')
+
       // The native addon hooks Windows shutdown messages (WM_QUERYENDSESSION) on a real
       // window handle (HWND). We deliberately create our OWN hidden window rather than
       // reuse the main window: the main window is a singleton that can be destroyed and
@@ -266,7 +269,7 @@ export class PowerService extends BaseService {
           // Release the block so Windows may proceed, then quit cleanly (mirrors the
           // macOS/Linux preventDefault → quit path; quit keeps _isQuitting bookkeeping).
           ElectronShutdownHandler.releaseShutdown()
-          application.quit()
+          application.quit('system-shutdown')
         }
       })
 

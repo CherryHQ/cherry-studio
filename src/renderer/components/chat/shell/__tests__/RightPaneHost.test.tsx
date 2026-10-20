@@ -1,25 +1,32 @@
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useAnimationControls } from 'motion/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  CHAT_CENTER_MIN_USABLE_WIDTH
+  CHAT_CENTER_MIN_USABLE_WIDTH,
+  getRightPaneWidthPolicy
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 280 }
+  const state = { width: 280, byKey: {} as Record<string, number>, windowByKey: {} as Record<string, number> }
 
   return {
     state,
     setWidth: vi.fn((width: number) => {
       state.width = width
+    }),
+    setByKey: vi.fn((key: string, width: number) => {
+      state.byKey[key] = width
+    }),
+    setWindowByKey: vi.fn((key: string, width: number) => {
+      state.windowByKey[key] = width
     })
   }
 })
@@ -42,7 +49,17 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: vi.fn(() => [persistCacheMock.state.width, persistCacheMock.setWidth])
+  useCache: vi.fn((key: string, initialValue: number) => [
+    persistCacheMock.state.windowByKey[key] ?? initialValue,
+    (width: number) => persistCacheMock.setWindowByKey(key, width)
+  ]),
+  usePersistCache: vi.fn((key: string) => [
+    persistCacheMock.state.byKey[key] ?? persistCacheMock.state.width,
+    (width: number) => {
+      persistCacheMock.setByKey(key, width)
+      persistCacheMock.setWidth(width)
+    }
+  ])
 }))
 
 type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
@@ -76,12 +93,129 @@ vi.mock('motion/react', () => ({
   useReducedMotion: () => motionTestState.reducedMotion
 }))
 
-function createDeferred() {
-  let resolve!: () => void
-  const promise = new Promise<void>((complete) => {
-    resolve = complete
+const LIST_POLICY = getRightPaneWidthPolicy('navigation-list')
+const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
+
+function mockMainRegionWidth(width: number) {
+  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.parentElement
   })
-  return { promise, resolve }
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return this.hasAttribute('data-main-region') ? new DOMRect(0, 0, width, 500) : new DOMRect()
+  })
+}
+
+function ActivityRightPaneHarness({
+  visible,
+  maximized = false,
+  onLayoutAnimationComplete
+}: {
+  visible: boolean
+  maximized?: boolean
+  onLayoutAnimationComplete?: (mode: 'closed' | 'docked' | 'maximized') => void
+}) {
+  return (
+    <Activity mode={visible ? 'visible' : 'hidden'}>
+      <PersistentRightPaneHost
+        open
+        maximized={maximized}
+        width={460}
+        onLayoutAnimationComplete={onLayoutAnimationComplete}>
+        <div>artifact pane</div>
+      </PersistentRightPaneHost>
+    </Activity>
+  )
+}
+
+/**
+ * ResizeObserver fake that only notifies observers actually watching the resized target, so a
+ * test fails when production forgets to observe a node it depends on.
+ */
+class TargetTrackingResizeObserver {
+  static instances: TargetTrackingResizeObserver[] = []
+  readonly targets = new Set<Element>()
+
+  constructor(readonly callback: () => void) {
+    TargetTrackingResizeObserver.instances.push(this)
+  }
+
+  observe(target: Element) {
+    this.targets.add(target)
+  }
+
+  unobserve(target: Element) {
+    this.targets.delete(target)
+  }
+
+  disconnect() {
+    this.targets.clear()
+  }
+}
+
+function installTargetTrackingResizeObserver() {
+  const original = globalThis.ResizeObserver
+  TargetTrackingResizeObserver.instances = []
+  globalThis.ResizeObserver = TargetTrackingResizeObserver as unknown as typeof ResizeObserver
+  restoreResizeObserver = () => {
+    globalThis.ResizeObserver = original
+    TargetTrackingResizeObserver.instances = []
+  }
+}
+
+/** Notifies only the observers that are watching `target`, mirroring a real resize. */
+function resizeTarget(target: Element) {
+  for (const observer of TargetTrackingResizeObserver.instances) {
+    if (observer.targets.has(target)) observer.callback()
+  }
+}
+
+/**
+ * Mirrors the shell nesting the composer really sits in — shell root > main region > center >
+ * dock frame — so a mutation watch has to descend to notice a composer arriving.
+ */
+function createShellRoot() {
+  const shell = document.createElement('div')
+  shell.setAttribute('data-chat-app-shell-root', '')
+  const region = document.createElement('div')
+  const center = document.createElement('div')
+  const composerHost = document.createElement('div')
+  const mount = document.createElement('div')
+  center.append(composerHost)
+  region.append(center, mount)
+  shell.append(region)
+  document.body.append(shell)
+  return { composerHost, mount, shell }
+}
+
+function createComposerSurface() {
+  const surface = document.createElement('div')
+  surface.setAttribute('data-composer-dock-surface', '')
+  return surface
+}
+
+let restoreResizeObserver: (() => void) | null = null
+
+/** Gives the absolutely positioned pane the containing block and rect jsdom never computes. */
+function prepareMeasuredPane(container: HTMLElement) {
+  const pane = container.querySelector<HTMLElement>('[data-right-pane]')
+  const region = pane?.parentElement
+  if (!pane || !region) throw new Error('pane not mounted')
+  Object.defineProperty(pane, 'offsetParent', { configurable: true, get: () => region })
+  stubRect(region, { top: 0, bottom: 800 })
+}
+
+function stubRect(element: HTMLElement, { top, bottom }: { top: number; bottom: number }) {
+  vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+    bottom,
+    height: bottom - top,
+    left: 0,
+    right: 0,
+    top,
+    width: 0,
+    x: 0,
+    y: top,
+    toJSON: () => ({})
+  })
 }
 
 describe('RightPaneHost', () => {
@@ -94,8 +228,14 @@ describe('RightPaneHost', () => {
   })
 
   afterEach(() => {
+    restoreResizeObserver?.()
+    restoreResizeObserver = null
     persistCacheMock.state.width = ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH
+    persistCacheMock.state.byKey = {}
+    persistCacheMock.state.windowByKey = {}
     persistCacheMock.setWidth.mockClear()
+    persistCacheMock.setByKey.mockClear()
+    persistCacheMock.setWindowByKey.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
@@ -111,6 +251,7 @@ describe('RightPaneHost', () => {
     const host = container.querySelector('[data-right-pane]')
 
     expect(host).toHaveClass('h-full', 'min-h-0', 'shrink-0', 'overflow-hidden')
+    expect(host?.getAttribute('data-ui')?.split(/\s+/)).toContain('part:conversation-navigation')
   })
 
   it('disables pointer events on the pane content while resizing', () => {
@@ -122,7 +263,7 @@ describe('RightPaneHost', () => {
     // as soon as the cursor crosses into an iframe. The content wrapper must carry
     // the pointer-events-none toggle (driven by the data-resizing group state) so
     // pointer events keep reaching the document-level listeners for the whole drag.
-    render(
+    const { container } = render(
       <PersistentRightPaneHost open resizable width={460}>
         <div>artifact pane</div>
       </PersistentRightPaneHost>
@@ -131,6 +272,9 @@ describe('RightPaneHost', () => {
     const contentWrapper = screen.getByText('artifact pane').parentElement
 
     expect(contentWrapper).toHaveClass('group-data-[resizing=true]/right-pane:pointer-events-none')
+    expect(container.querySelector('[data-right-pane]')?.getAttribute('data-ui')?.split(/\s+/)).toContain(
+      'part:conversation-inspector'
+    )
   })
 
   it('does not render a resize handle by default', () => {
@@ -146,20 +290,26 @@ describe('RightPaneHost', () => {
   it('uses the configured right pane default and minimum widths', () => {
     expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
     expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
-    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(460)
+    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(280)
     expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
-  it('caps its width when reserving space for the conversation center', () => {
+  it('lets the pane and the center share space instead of clamping the pane to zero', () => {
     const { container } = render(
-      <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
+      <PersistentRightPaneHost open width={460}>
         <div>artifact pane</div>
       </PersistentRightPaneHost>
     )
 
-    const host = container.querySelector('[data-right-pane]')
+    const spacer = container.querySelector('[data-right-pane-spacer]')
 
-    expect(host).toHaveStyle({ maxWidth: 'max(0px, calc(100% - 360px))' })
+    // Yield order: pane first (stored → 255 while the center keeps 360), then the
+    // center (360 → 200 with the pane pinned), then both proportionally — never 0.
+    expect(motionTestState.controls.set).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
+    )
+    // The spacer must share the exact expression or the pane would overlap the center.
+    expect(spacer).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
   })
 
   it('renders a left-edge resize handle when resizable', () => {
@@ -173,6 +323,174 @@ describe('RightPaneHost', () => {
 
     expect(handle).toBeInTheDocument()
     expect(handle).toHaveClass('left-0', 'cursor-col-resize')
+  })
+
+  it('reports a fixed reachable splitter range when both panes shrink proportionally', () => {
+    mockMainRegionWidth(400)
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    expect(handle).toHaveAttribute('aria-valuemin', '224')
+    expect(handle).toHaveAttribute('aria-valuemax', '224')
+    expect(handle).toHaveAttribute('aria-valuenow', '224')
+
+    fireEvent.keyDown(handle as HTMLElement, { key: 'End' })
+    fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowLeft' })
+    fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowRight' })
+
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+  })
+
+  it('lets an inspector grow beyond 720px while reserving usable center space', () => {
+    mockMainRegionWidth(2400)
+    render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable>
+          <div>Browser</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const handle = screen.getByRole('separator')
+    expect(handle).toHaveAttribute('aria-valuemax', '2040')
+    fireEvent.keyDown(handle, { key: 'End' })
+    expect(persistCacheMock.state.width).toBe(2040)
+  })
+
+  it('persists a list pane under its own key and lets it reach the list floor', () => {
+    mockMainRegionWidth(900)
+    persistCacheMock.state.byKey[LIST_POLICY.cacheKey] = 275
+    persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey] = 460
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost
+          open
+          resizable
+          minWidth={LIST_POLICY.minWidth}
+          maxWidth={LIST_POLICY.maxWidth}
+          cacheKey={LIST_POLICY.cacheKey}>
+          <div>list pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+    if (!handle) throw new Error('Expected resize handle')
+
+    // The artifact pane's 255 floor must not leak in: the list reports (and reaches) its own 200.
+    expect(handle).toHaveAttribute('aria-valuemin', String(LIST_POLICY.minWidth))
+    expect(handle).toHaveAttribute('aria-valuemax', String(LIST_POLICY.maxWidth))
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setByKey).toHaveBeenCalledWith(LIST_POLICY.cacheKey, LIST_POLICY.minWidth)
+    expect(persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey]).toBe(460)
+  })
+
+  it.each([
+    { policy: LIST_POLICY, windowKey: 'ui.window.chat.resource_pane.width' },
+    { policy: INSPECTOR_POLICY, windowKey: 'ui.window.chat.artifact_pane.width' }
+  ])('keeps detached $policy.cacheKey resizing local to its renderer window', ({ policy, windowKey }) => {
+    mockMainRegionWidth(900)
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <div data-main-region>
+          <PersistentRightPaneHost
+            open
+            resizable
+            minWidth={policy.minWidth}
+            maxWidth={policy.maxWidth}
+            cacheKey={policy.cacheKey}>
+            <div>pane</div>
+          </PersistentRightPaneHost>
+        </div>
+      </WindowFrameProvider>
+    )
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    if (!handle) throw new Error('Expected resize handle')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setWindowByKey).toHaveBeenCalledWith(windowKey, policy.minWidth)
+    expect(persistCacheMock.setByKey).not.toHaveBeenCalled()
+  })
+
+  it('builds the list pane spacer expression from the list floor', () => {
+    const { container } = render(
+      <PersistentRightPaneHost
+        open
+        resizable
+        width={275}
+        minWidth={LIST_POLICY.minWidth}
+        maxWidth={LIST_POLICY.maxWidth}
+        cacheKey={LIST_POLICY.cacheKey}>
+        <div>list pane</div>
+      </PersistentRightPaneHost>
+    )
+
+    // The reserved space must yield to the list's own 200 floor; leaving the artifact's 255
+    // here would let the pane paint wider than the space reserved for it and cover the center.
+    expect(container.querySelector('[data-right-pane-spacer]')).toHaveStyle({
+      maxWidth: 'max(min(280px, calc(100% - 360px)), min(200px, calc(100% * 200 / 400)))'
+    })
+  })
+
+  it('pins a list pane at its own floor in a narrow main region', () => {
+    mockMainRegionWidth(500)
+    persistCacheMock.state.byKey[LIST_POLICY.cacheKey] = 275
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost
+          open
+          resizable
+          minWidth={LIST_POLICY.minWidth}
+          maxWidth={LIST_POLICY.maxWidth}
+          cacheKey={LIST_POLICY.cacheKey}>
+          <div>list pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+    if (!handle) throw new Error('Expected resize handle')
+
+    // 500 - 360 leaves less than the floor, so 200 is all the pane can show or reach.
+    expect(handle).toHaveAttribute('aria-valuemax', '200')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+    fireEvent.keyDown(handle, { key: 'End' })
+
+    expect(persistCacheMock.setByKey).not.toHaveBeenCalled()
+  })
+
+  it('limits the splitter maximum and End key to the currently reachable width', () => {
+    mockMainRegionWidth(700)
+    persistCacheMock.state.width = 280
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+    if (!handle) throw new Error('Expected resize handle')
+
+    expect(handle).toHaveAttribute('aria-valuemin', '255')
+    expect(handle).toHaveAttribute('aria-valuemax', '340')
+    expect(handle).toHaveAttribute('aria-valuenow', '280')
+
+    fireEvent.keyDown(handle, { key: 'End' })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(340)
   })
 
   it('keeps the resize handle above pane content overlays', () => {
@@ -246,86 +564,260 @@ describe('RightPaneHost', () => {
     expect(lifecycle).toEqual(['mount'])
   })
 
-  it('wipes between the docked strip and full width without blanking the pane', async () => {
-    const controls = useAnimationControls() as unknown as {
-      set: ReturnType<typeof vi.fn>
-      start: ReturnType<typeof vi.fn>
-    }
-    const dockedStripClip = 'inset(0% 0% 0% calc(100% - 460px))'
-    const { container, rerender } = render(
+  it('exposes the covering composer height on the pane only while it spans full width', async () => {
+    const { composerHost, mount, shell } = createShellRoot()
+    const composer = createComposerSurface()
+    composerHost.append(composer)
+    stubRect(composer, { top: 700, bottom: 820 })
+
+    const Harness = ({ maximized }: { maximized: boolean }) => (
       <div className="relative">
-        <PersistentRightPaneHost open width={460}>
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
+          <div>pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const { container, rerender } = render(<Harness maximized={false} />, { container: mount })
+    prepareMeasuredPane(container)
+
+    const inset = () =>
+      container.querySelector<HTMLElement>('[data-right-pane] > div')?.style.getPropertyValue('--chat-composer-inset')
+    expect(inset()).toBe('')
+
+    rerender(<Harness maximized />)
+    // 800 - 700 of covered pane bottom, plus the gap the message list keeps.
+    await waitFor(() => expect(inset()).toBe('116px'))
+
+    rerender(<Harness maximized={false} />)
+    await waitFor(() => expect(inset()).toBe(''))
+    shell.remove()
+  })
+
+  it('re-observes the composer after a session switch replaces it', async () => {
+    installTargetTrackingResizeObserver()
+    const { composerHost, mount, shell } = createShellRoot()
+    const composer = createComposerSurface()
+    composerHost.append(composer)
+    stubRect(composer, { top: 700, bottom: 820 })
+
+    const Harness = ({ maximized }: { maximized: boolean }) => (
+      <div className="relative">
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
+          <div>pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const { container, rerender } = render(<Harness maximized={false} />, { container: mount })
+    prepareMeasuredPane(container)
+
+    const inset = () =>
+      container.querySelector<HTMLElement>('[data-right-pane] > div')?.style.getPropertyValue('--chat-composer-inset')
+    rerender(<Harness maximized />)
+    await waitFor(() => expect(inset()).toBe('116px'))
+
+    // The session key remounts the composer under a pane that stays maximized. The old node
+    // leaves the document, where it measures as a zero rect.
+    composer.remove()
+    stubRect(composer, { top: 0, bottom: 0 })
+    const replacement = createComposerSurface()
+    composerHost.append(replacement)
+    stubRect(replacement, { top: 600, bottom: 820 })
+    act(() => resizeTarget(composer))
+    await waitFor(() => expect(inset()).toBe('216px'))
+
+    // Only reaches the hook if the replacement is now observed in the old node's place.
+    stubRect(replacement, { top: 500, bottom: 820 })
+    act(() => resizeTarget(replacement))
+    await waitFor(() => expect(inset()).toBe('316px'))
+    shell.remove()
+  })
+
+  it('picks up a composer that mounts after the pane is already maximized', async () => {
+    installTargetTrackingResizeObserver()
+    const { composerHost, mount, shell } = createShellRoot()
+
+    const Harness = ({ maximized }: { maximized: boolean }) => (
+      <div className="relative">
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
+          <div>pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const { container, rerender } = render(<Harness maximized={false} />, { container: mount })
+    prepareMeasuredPane(container)
+
+    const inset = () =>
+      container.querySelector<HTMLElement>('[data-right-pane] > div')?.style.getPropertyValue('--chat-composer-inset')
+    rerender(<Harness maximized />)
+    await waitFor(() => expect(inset()).toBe(''))
+
+    // An empty center carries no composer; selecting a topic mounts one while the pane stays
+    // maximized. A DOM insertion resizes nothing, so only a mutation watch can notice it.
+    const composer = createComposerSurface()
+    stubRect(composer, { top: 640, bottom: 820 })
+    composerHost.append(composer)
+
+    await waitFor(() => expect(inset()).toBe('176px'))
+    shell.remove()
+  })
+
+  it('hands Motion the box width rather than wiping a clip across a fixed box', async () => {
+    const dockedWidth = 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))'
+    const Harness = ({ maximized }: { maximized: boolean }) => (
+      <div className="relative">
+        <PersistentRightPaneHost open maximized={maximized} width={460}>
           <div>artifact pane</div>
         </PersistentRightPaneHost>
       </div>
     )
-    controls.set.mockClear()
-    controls.start.mockClear()
+    const { container, rerender } = render(<Harness maximized={false} />)
+    const pane = () => container.querySelector<HTMLElement>('[data-right-pane]')
+    motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
+
+    rerender(<Harness maximized />)
+    await waitFor(() => expect(pane()).toHaveAttribute('data-right-pane-phase', 'maximized'))
+
+    expect(motionTestState.controls.start).toHaveBeenCalledWith(expect.objectContaining({ width: '100%' }))
+    // The old mechanism cropped a full-width box back to the docked strip; nothing may reinstate
+    // it, or the pane content would again lay out for full width behind that strip.
+    expect(motionTestState.controls.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ clipPath: expect.stringContaining('calc(100% -') })
+    )
+
+    motionTestState.controls.start.mockClear()
+    rerender(<Harness maximized={false} />)
+    await waitFor(() => expect(pane()).toHaveAttribute('data-right-pane-phase', 'docked'))
+
+    // The space-clamped expression, not the raw stored width: the box has to animate to the
+    // width it will actually occupy once docked.
+    expect(motionTestState.controls.start).toHaveBeenCalledWith(expect.objectContaining({ width: dockedWidth }))
+  })
+
+  it('restores the settled maximized visual state when Activity reconnects effects', () => {
+    const onLayoutAnimationComplete = vi.fn()
+    const { rerender } = render(
+      <ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+    motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
 
     rerender(
-      <div className="relative">
-        <PersistentRightPaneHost open maximized width={460}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
+      <ActivityRightPaneHarness visible={false} maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
     )
+    motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
+
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    expect(motionTestState.controls.set).toHaveBeenCalledTimes(1)
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1,
+      width: '100%'
+    })
+    expect(motionTestState.controls.start).not.toHaveBeenCalled()
+    expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
+  })
+
+  it('settles an interrupted maximize when Activity reconnects effects', async () => {
+    const onLayoutAnimationComplete = vi.fn()
+
+    const { container, rerender } = render(
+      <ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximizing')
+
+    rerender(
+      <ActivityRightPaneHarness visible={false} maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+    motionTestState.controls.set.mockClear()
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
     await waitFor(() =>
       expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
     )
-    // Maximize from docked starts the wipe at the strip the pane already occupies.
-    expect(controls.set).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
-    expect(controls.set).not.toHaveBeenCalledWith(expect.objectContaining({ clipPath: 'inset(0% 0% 0% 100%)' }))
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1,
+      width: '100%'
+    })
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('maximized')
 
-    controls.set.mockClear()
-    controls.start.mockClear()
+    // A settle left over from the interrupted phase would report a second completion here.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
 
-    rerender(
-      <div className="relative">
-        <PersistentRightPaneHost open width={460}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles an interrupted minimize when Activity reconnects effects', async () => {
+    const onLayoutAnimationComplete = vi.fn()
+
+    const { container, rerender } = render(
+      <ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
     )
+    rerender(<ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
+
+    rerender(<ActivityRightPaneHarness visible={false} onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+    motionTestState.controls.set.mockClear()
+    rerender(<ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
     await waitFor(() =>
       expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
     )
-    // Minimize wipes down to that same strip instead of collapsing to nothing.
-    expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1,
+      width: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))'
+    })
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('docked')
+
+    // A settle left over from the interrupted phase would report a second completion here.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
   })
 
-  it('starts the maximize wipe from the constrained docked width', async () => {
-    const { rerender } = render(
-      <div className="relative">
-        <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
+  it('settles to a target that changed while Activity effects were disconnected', async () => {
+    const onLayoutAnimationComplete = vi.fn()
+    const { container, rerender } = render(
+      <ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />
     )
+
+    rerender(<ActivityRightPaneHarness visible={false} onLayoutAnimationComplete={onLayoutAnimationComplete} />)
     motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
 
     rerender(
-      <div className="relative">
-        <PersistentRightPaneHost open maximized width={460} reservedCenterWidth={360}>
-          <div>artifact pane</div>
-        </PersistentRightPaneHost>
-      </div>
+      <ActivityRightPaneHarness visible={false} maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
     )
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
 
     await waitFor(() =>
-      expect(motionTestState.controls.set).toHaveBeenCalledWith({
-        clipPath: 'inset(0% 0% 0% calc(100% - min(460px, max(0px, calc(100% - 360px)))))',
-        opacity: 1
-      })
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
     )
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1,
+      width: '100%'
+    })
+    expect(motionTestState.controls.start).not.toHaveBeenCalled()
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('maximized')
   })
 
   it('ignores a stale maximize completion when minimizing before it finishes', async () => {
-    const firstAnimation = createDeferred()
-    const secondAnimation = createDeferred()
     const onLayoutAnimationComplete = vi.fn()
-    motionTestState.controls.start
-      .mockImplementationOnce(() => firstAnimation.promise)
-      .mockImplementationOnce(() => secondAnimation.promise)
 
     const { container, rerender } = render(
       <div className="relative">
@@ -356,13 +848,6 @@ describe('RightPaneHost', () => {
     expect(motionTestState.controls.stop).toHaveBeenCalled()
     expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
 
-    await act(async () => firstAnimation.resolve())
-
-    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
-    expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
-
-    await act(async () => secondAnimation.resolve())
-
     await waitFor(() =>
       expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
     )
@@ -391,7 +876,7 @@ describe('RightPaneHost', () => {
     expect(pane).toHaveAttribute('data-resizing', 'true')
 
     fireEvent.mouseMove(document, { clientX: 300 })
-    fireEvent.mouseMove(document, { clientX: 600 })
+    fireEvent.mouseMove(document, { clientX: 500 })
     fireEvent.mouseMove(document, { clientX: 20 })
 
     // No commits to the persisted cache while the drag is in progress — the
@@ -400,13 +885,41 @@ describe('RightPaneHost', () => {
 
     fireEvent.mouseUp(document)
 
-    // Exactly one commit, with the last mousemove's clamped width (800 - 20 = 780,
-    // clamped down to the max).
+    // Commit the final width once; inspector panes can grow beyond 720px.
     expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
-    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(ARTIFACT_RIGHT_PANE_MAX_WIDTH)
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(780)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
+  })
+
+  it('closes the pane instead of committing when the drag travels well past the minimum width', () => {
+    const onDragClose = vi.fn()
+    const { container } = render(
+      <PersistentRightPaneHost open resizable width={460} onDragClose={onDragClose}>
+        <div>artifact pane</div>
+      </PersistentRightPaneHost>
+    )
+    const pane = container.querySelector('[data-right-pane]')
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected right pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(340, 0, 460, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 340 })
+    // Just under the minimum width is a clamp, not a close.
+    fireEvent.mouseMove(document, { clientX: 560 })
+    expect(onDragClose).not.toHaveBeenCalled()
+    // Overshooting the minimum-width line by more than 80px closes: 800 - 630 = 170 < 255 - 80.
+    fireEvent.mouseMove(document, { clientX: 630 })
+
+    expect(onDragClose).toHaveBeenCalledTimes(1)
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+    expect(pane).not.toHaveAttribute('data-resizing')
+    expect(document.body.style.cursor).toBe('')
   })
 
   it('does not commit to the persisted cache before window blur ends the drag', () => {
@@ -457,7 +970,7 @@ describe('RightPaneHost', () => {
       window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
         rafCallbacks.push(callback)
         return nextRafId++
-      }) as typeof window.requestAnimationFrame
+      })
       window.cancelAnimationFrame = vi.fn()
     })
 

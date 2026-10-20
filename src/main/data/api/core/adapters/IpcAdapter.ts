@@ -1,10 +1,11 @@
+import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+
 import { loggerService } from '@logger'
 import type { Disposable } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
 import { DataApiError, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 
 import type { ApiServer } from '../ApiServer'
 
@@ -83,25 +84,6 @@ export class IpcAdapter implements Disposable {
       }
     })
 
-    // Subscription handlers (placeholder for future real-time features)
-    ipcMain.handle(IpcChannel.DataApi_Subscribe, async (event, path: string) => {
-      if (!this.isTrustedSender(event, 'subscribe')) {
-        throw new Error('Rejected DataApi subscription from untrusted sender')
-      }
-      logger.debug(`Data subscription request: ${path}`)
-      // TODO: Implement real-time subscriptions
-      return { success: true, subscriptionId: `sub_${Date.now()}` }
-    })
-
-    ipcMain.handle(IpcChannel.DataApi_Unsubscribe, async (event, subscriptionId: string) => {
-      if (!this.isTrustedSender(event, 'unsubscribe')) {
-        throw new Error('Rejected DataApi unsubscription from untrusted sender')
-      }
-      logger.debug(`Data unsubscription request: ${subscriptionId}`)
-      // TODO: Implement real-time subscriptions
-      return { success: true }
-    })
-
     this.initialized = true
   }
 
@@ -130,8 +112,6 @@ export class IpcAdapter implements Disposable {
     logger.debug('Removing IPC handlers...')
 
     ipcMain.removeHandler(IpcChannel.DataApi_Request)
-    ipcMain.removeHandler(IpcChannel.DataApi_Subscribe)
-    ipcMain.removeHandler(IpcChannel.DataApi_Unsubscribe)
 
     this.initialized = false
     logger.debug('IPC handlers removed')

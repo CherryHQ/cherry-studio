@@ -1,3 +1,11 @@
+---
+description: How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations
+sources:
+  - tests/helpers/db
+  - tests/__mocks__
+  - src/main/data/db
+---
+
 # Database Testing Guide
 
 This guide covers how to write tests that exercise the SQLite data layer in the
@@ -24,7 +32,7 @@ describe('MessageService', () => {
 
   it('persists a message', async () => {
     const msg = await messageService.create({ topicId: 't1', role: 'user', ... })
-    const [row] = await dbh.db
+    const [row] = dbh.db
       .select()
       .from(messageTable)
       .where(eq(messageTable.id, msg.id))
@@ -41,9 +49,8 @@ On the first test in a file the harness:
 2. Opens a better-sqlite3 file-backed database at `<tmp>/test.db` and hands the
    raw connection out as `dbh.sqlite`.
 3. Runs the production migrations (`migrations/sqlite-drizzle/`) and the
-   project's `CUSTOM_SQL_STATEMENTS` (FTS5 virtual tables, triggers). The
-   resulting schema is byte-for-byte identical to what the real app sees
-   after `DbService.onInit`.
+   project's `CUSTOM_SQL_STATEMENTS` (FTS5 virtual tables, triggers) through
+   the same `applyMigrations()` function used by `DbService.onInit`.
 4. Sets durable PRAGMAs (`foreign_keys = ON`, `synchronous = NORMAL`) once on
    the single persistent connection. better-sqlite3 keeps one connection open
    for the database's lifetime, so PRAGMAs set here persist — no replay needed.
@@ -97,7 +104,9 @@ export interface TestDatabaseOptions {
   preset-aware flows).
 
 ```typescript
-setupTestDatabase({ seeders: [presetProviderSeeder] })
+import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
+
+setupTestDatabase({ seeders: [new PresetProviderSeeder()] })
 ```
 
 ## Migration Recipes
@@ -150,7 +159,7 @@ setupTestDatabase({ seeders: [presetProviderSeeder] })
 + const created = await service.create(dto)
 +
 + expect(created.name).toBe('New Base')
-+ const [row] = await dbh.db.select().from(knowledgeBaseTable)
++ const [row] = dbh.db.select().from(knowledgeBaseTable)
 + expect(row.name).toBe('New Base')
 + expect(row.embeddingModelId).toBe('embed-model')
 ```
@@ -212,43 +221,16 @@ loads the real native module, so `pnpm test:main` first runs `pnpm rebuild:node`
 never load better-sqlite3, so their ABI is irrelevant.
 
 The Electron-app entry scripts (`dev`, `dev:watch`, `debug`, `start`) and
-packaging need the **Electron ABI** instead; each of those scripts prepends
-`pnpm rebuild:electron` (`--force`, so it reliably re-flips even when a test run
-left the module at the Node ABI). Switching between the app and the DB tests
-therefore flips the ABI, but each flip is a **cached restore** (~0.3s to
-Electron, ~2s to Node — not a recompile) and happens automatically:
-`pretest`/`pretest:main` before tests, the app scripts before the app.
+packaging need the **Electron ABI** instead; each app entry script prepends
+`pnpm rebuild:electron` with `--force`. Switching between the app and DB tests
+therefore flips the ABI automatically through `pretest`/`pretest:main` and the
+app entry scripts.
 
-If you use an interactive runner (`pnpm test:watch`, `pnpm test:coverage`, an
-IDE's Vitest) right after `pnpm dev`, flip back first with `pnpm rebuild:node`
-(or just run `pnpm test:main` once). CI is unaffected: each job installs fresh
-(Node ABI) and runs under system Node; the general-test job's `pretest:main` is
-a ~2s no-op there.
-
-**Alternatives considered — why not run the tests under Electron?** Running the
-`main` project inside Electron-as-Node (`ELECTRON_RUN_AS_NODE=1 electron …vitest`)
-would pin one ABI and delete the flip entirely, and it was prototyped and passed
-(real better-sqlite3 + `vec0` loaded at the Electron ABI, no segfault). It was
-still rejected — the flip is the cheaper problem:
-
-- **Plain-Node runners could no longer run `main`.** `pnpm test`, a bare
-  `vitest`, and the IDE's Vitest extension all run under system Node; with the
-  module pinned to the Electron ABI they would fail to load it. The split keeps
-  `main` runnable from every one of those.
-- **It needs a cross-platform wrapper.** Setting `ELECTRON_RUN_AS_NODE=1` and
-  pointing Electron at Vitest portably needs either a new `cross-env` dependency
-  or a bespoke runner script (an inline `VAR=1 electron …` does not work in
-  Windows `cmd`). The wrapper's very existence is the friction signal.
-- **CI pays a cold electron-rebuild every run.** CI runners are ephemeral, so
-  their cache is always cold; pinning the Electron ABI would rebuild
-  better-sqlite3 to it on every job. The split runs `main` on the `pnpm install`
-  default Node ABI, so CI never electron-rebuilds.
-
-The flip's old pain was manual flipping plus `electron-rebuild`'s silent skip
-without `--force`; both are fixed (`--force`, and the app scripts prepend the
-rebuild), leaving a sub-second cached restore. Measured proof it is a restore,
-not a recompile: after `rm -rf build`, the rebuild took 0.28s and produced zero
-`.o` object files (a real compile takes tens of seconds and leaves many).
+If you use an interactive runner (`pnpm test:watch`, `pnpm test:coverage`, a
+bare `vitest`, or an IDE's Vitest) right after `pnpm dev`, flip back first with
+`pnpm rebuild:node` (or run `pnpm test:main` once). Those commands do not all
+have a `pre*` hook. CI installs and tests under system Node, so it uses the Node
+ABI as well.
 
 ### FTS5 and NULL content
 

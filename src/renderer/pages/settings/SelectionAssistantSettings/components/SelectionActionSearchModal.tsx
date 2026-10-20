@@ -1,3 +1,11 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Globe } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   Button,
   Dialog,
@@ -18,18 +26,12 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { Globe } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
+const SEARCH_ENGINE_ICON_COLOR = 'var(--muted-foreground)'
 
 interface SearchEngineOption {
   label: string
@@ -75,25 +77,25 @@ export const DEFAULT_SEARCH_ENGINES: SearchEngineOption[] = [
     label: 'Google',
     value: 'Google',
     searchEngine: 'Google|https://www.google.com/search?q={{queryString}}',
-    icon: <LogoGoogle style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
+    icon: <LogoGoogle style={{ fontSize: '14px', color: SEARCH_ENGINE_ICON_COLOR }} />
   },
   {
     label: 'Baidu',
     value: 'Baidu',
     searchEngine: 'Baidu|https://www.baidu.com/s?wd={{queryString}}',
-    icon: <LogoBaidu style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
+    icon: <LogoBaidu style={{ fontSize: '14px', color: SEARCH_ENGINE_ICON_COLOR }} />
   },
   {
     label: 'Bing',
     value: 'Bing',
     searchEngine: 'Bing|https://www.bing.com/search?q={{queryString}}',
-    icon: <LogoBing style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
+    icon: <LogoBing style={{ fontSize: '14px', color: SEARCH_ENGINE_ICON_COLOR }} />
   },
   {
     label: '',
     value: 'custom',
     searchEngine: '',
-    icon: <Globe size={14} color="var(--color-foreground-secondary)" />
+    icon: <Globe size={14} color={SEARCH_ENGINE_ICON_COLOR} />
   }
 ]
 
@@ -198,7 +200,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
     const customUrl = form.getValues('customUrl')
     if (customUrl) {
       const testUrl = customUrl.replace('{{queryString}}', 'cherry studio')
-      void ipcApi.request('system.shell.open_website', testUrl)
+      void openExternalWebsite(testUrl)
     }
   }
 

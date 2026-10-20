@@ -1,27 +1,26 @@
 /**
- * Unit tests for lookupRegistryModel and buildRuntimeEndpointConfigs.
+ * Unit tests for lookupRegistryModel and buildPersistedEndpointConfigs.
  * Pure functions — no mocking required.
  */
 
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildRuntimeEndpointConfigs,
+  buildPersistedEndpointConfigs,
   endpointImpliedCapability,
   inferAdapterFamily,
   lookupRegistryModel
 } from '../registry-utils'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '../schemas/enums'
 import type { ModelConfig } from '../schemas/model'
-import type { RegistryEndpointConfig } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 
 function makeModel(id: string, overrides: Partial<ModelConfig> = {}): ModelConfig {
-  return { id, name: id, ...overrides } as ModelConfig
+  return { id, name: id, ...overrides }
 }
 
 function makeOverride(providerId: string, modelId: string, extra: Record<string, unknown> = {}): ProviderModelOverride {
-  return { providerId, modelId, ...extra } as ProviderModelOverride
+  return { providerId, modelId, ...extra }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,6 +28,29 @@ function makeOverride(providerId: string, modelId: string, extra: Record<string,
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('lookupRegistryModel', () => {
+  it('resolves an opaque API alias through its provider override without changing the wire ID', () => {
+    const result = lookupRegistryModel(
+      [makeModel('gpt-6-1-sol')],
+      [makeOverride('gateway', 'gpt-6-1-sol', { apiModelId: 'my-deployment' })],
+      'gateway',
+      'my-deployment'
+    )
+
+    expect(result.presetModel?.id).toBe('gpt-6-1-sol')
+    expect(result.registryOverride?.apiModelId).toBe('my-deployment')
+  })
+
+  it('does not give a missing model size the metadata of its larger sibling', () => {
+    const result = lookupRegistryModel(
+      [makeModel('gpt-oss-120b')],
+      [makeOverride('nvidia', 'gpt-oss-120b')],
+      'nvidia',
+      'nvidia/gpt-oss-20b'
+    )
+
+    expect(result).toEqual({ presetModel: null, registryOverride: null })
+  })
+
   it('exact match for both presetModel and override', () => {
     const models = [makeModel('gpt-4o')]
     const overrides = [makeOverride('openai', 'gpt-4o')]
@@ -118,68 +140,88 @@ describe('lookupRegistryModel', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// buildRuntimeEndpointConfigs
+// buildPersistedEndpointConfigs
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('buildRuntimeEndpointConfigs', () => {
+describe('buildPersistedEndpointConfigs', () => {
   it('undefined → null', () => {
-    expect(buildRuntimeEndpointConfigs(undefined)).toBeNull()
+    expect(buildPersistedEndpointConfigs(undefined)).toBeNull()
   })
 
   it('empty object → null', () => {
-    expect(buildRuntimeEndpointConfigs({})).toBeNull()
+    expect(buildPersistedEndpointConfigs({})).toBeNull()
   })
 
   it('baseUrl only', () => {
-    const result = buildRuntimeEndpointConfigs({
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result).not.toBeNull()
     expect(result!['openai-chat-completions'].baseUrl).toBe('https://api.openai.com/v1')
-    expect(result!['openai-chat-completions'].reasoningFormatType).toBeUndefined()
   })
 
-  it('reasoningFormat.type → reasoningFormatType', () => {
-    const result = buildRuntimeEndpointConfigs({
+  it('does not persist a reasoning profile by itself', () => {
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { reasoningFormat: { type: 'openai-chat' } }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
-    expect(result!['openai-chat-completions'].reasoningFormatType).toBe('openai-chat')
+    expect(result).toBeNull()
+  })
+
+  it('projects summary support from the main-only wire into the endpoint dialect', () => {
+    const result = buildPersistedEndpointConfigs({
+      'openai-responses': {
+        reasoningFormat: {
+          type: 'openai-responses',
+          wire: {
+            default: {
+              operations: [{ target: 'reasoningSummary', value: { source: 'assistant-summary' } }]
+            }
+          }
+        }
+      }
+    })
+
+    expect(result?.['openai-responses'].dialect).toEqual({ reasoningSummary: true })
   })
 
   it('all fields present', () => {
-    const urls = { default: 'https://api.example.com/models', embedding: 'https://api.example.com/embed' }
-    const result = buildRuntimeEndpointConfigs({
+    const urls = {
+      default: 'https://api.example.com/models',
+      embedding: 'https://api.example.com/embed',
+      image: 'https://api.example.com/images'
+    }
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': {
         baseUrl: 'https://api.example.com/v1',
         modelsApiUrls: urls,
-        reasoningFormat: { type: 'openai-responses' }
+        adapterFamily: 'openai'
       }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     const config = result!['openai-chat-completions']
     expect(config.baseUrl).toBe('https://api.example.com/v1')
     expect(config.modelsApiUrls).toEqual(urls)
-    expect(config.reasoningFormatType).toBe('openai-responses')
+    expect(config.adapterFamily).toBe('openai')
   })
 
   it('multiple endpoints mapped independently', () => {
-    const result = buildRuntimeEndpointConfigs({
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' },
-      'anthropic-messages': { reasoningFormat: { type: 'anthropic' } }
-    } as Record<string, RegistryEndpointConfig>)
+      'anthropic-messages': { adapterFamily: 'anthropic' }
+    })
 
     expect(Object.keys(result!)).toHaveLength(2)
     expect(result!['openai-chat-completions'].baseUrl).toBe('https://api.openai.com/v1')
-    expect(result!['anthropic-messages'].reasoningFormatType).toBe('anthropic')
+    expect(result!['anthropic-messages'].adapterFamily).toBe('anthropic')
   })
 
   it('empty endpoint config excluded', () => {
-    const result = buildRuntimeEndpointConfigs({
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': {},
       'anthropic-messages': { baseUrl: 'https://api.anthropic.com' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(Object.keys(result!)).toHaveLength(1)
     expect(result!['openai-chat-completions']).toBeUndefined()
@@ -187,27 +229,27 @@ describe('buildRuntimeEndpointConfigs', () => {
   })
 
   it('all empty endpoints → null', () => {
-    const result = buildRuntimeEndpointConfigs({
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': {},
       'anthropic-messages': {}
-    } as Record<string, RegistryEndpointConfig>)
+    })
     expect(result).toBeNull()
   })
 
   it('copies adapterFamily through to runtime config', () => {
-    const result = buildRuntimeEndpointConfigs({
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { baseUrl: 'https://x', adapterFamily: 'openai-compatible' },
       'anthropic-messages': { baseUrl: 'https://y', adapterFamily: 'anthropic' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result!['openai-chat-completions'].adapterFamily).toBe('openai-compatible')
     expect(result!['anthropic-messages'].adapterFamily).toBe('anthropic')
   })
 
   it('adapterFamily alone is enough to retain an endpoint config', () => {
-    const result = buildRuntimeEndpointConfigs({
+    const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { adapterFamily: 'openai-compatible' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result!['openai-chat-completions'].adapterFamily).toBe('openai-compatible')
     expect(result!['openai-chat-completions'].baseUrl).toBeUndefined()
@@ -256,9 +298,13 @@ describe('inferAdapterFamily', () => {
 describe('endpointImpliedCapability', () => {
   it('maps capability-exclusive endpoints to their capability', () => {
     expect(endpointImpliedCapability(ENDPOINT_TYPE.JINA_RERANK)).toBe(MODEL_CAPABILITY.RERANK)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION)).toBe(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION)).toBe(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
     expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)).toBe(MODEL_CAPABILITY.EMBEDDING)
     expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
     expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH)).toBe(MODEL_CAPABILITY.AUDIO_GENERATION)
+    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION)).toBe(MODEL_CAPABILITY.VIDEO_GENERATION)
   })
 
   it('returns undefined for general-purpose chat endpoints', () => {

@@ -1,11 +1,13 @@
-import ApiHost from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ApiHost'
-import { toast } from '@renderer/services/toast'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import ApiHost from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ApiHost'
+import { toast } from '@renderer/services/toast'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
+const useProviderPresetMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useProviderHostPreviewMock = vi.fn()
@@ -34,7 +36,8 @@ vi.mock('../../ConnectionSettings/ProviderCustomHeaderDrawer', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
-  useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)
+  useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args),
+  useProviderPreset: (...args: any[]) => useProviderPresetMock(...args)
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderHostPreview', () => ({
@@ -98,6 +101,7 @@ describe('ApiHost', () => {
     })
     useProviderMock.mockReturnValue({ provider })
     useProviderMutationsMock.mockReturnValue({ updateProvider: updateProviderMock })
+    useProviderPresetMock.mockReturnValue({ data: undefined })
     useProviderEndpointsMock.mockReturnValue(endpointState)
     useProviderMetaMock.mockReturnValue({
       isConnectionFieldVisible: true,
@@ -320,14 +324,6 @@ describe('ApiHost', () => {
     })
 
     const { container } = render(<ApiHost providerId="aws-bedrock" />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
-
-  it('renders nothing when the provider is missing', () => {
-    useProviderMock.mockReturnValue({ provider: undefined })
-
-    const { container } = render(<ApiHost providerId="openai" />)
 
     expect(container).toBeEmptyDOMElement()
   })

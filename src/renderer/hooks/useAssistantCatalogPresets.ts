@@ -1,9 +1,8 @@
-import { useCache } from '@data/hooks/useCache'
-import { loggerService } from '@logger'
+import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+
+import { useBundledCatalog } from './useBundledCatalog'
 
 export const ASSISTANT_CATALOG_MY_TAB = '__mine__'
 
@@ -30,8 +29,6 @@ export interface AssistantCatalogTab {
   count: number
 }
 
-const logger = loggerService.withContext('useAssistantCatalogPresets')
-
 const ORDERED_GROUP_ALIASES = [
   ['精选', 'Featured'],
   ['职业', 'Career'],
@@ -57,19 +54,15 @@ ORDERED_GROUP_ALIASES.forEach((aliases, index) => {
   aliases.forEach((alias) => orderedGroupRank.set(alias, index))
 })
 
-function toLogContext(error: unknown) {
-  return error instanceof Error ? error : { error: String(error) }
-}
-
 function normalizePresets(value: unknown): AssistantCatalogPreset[] {
   if (!Array.isArray(value)) return []
 
   return value.filter((preset): preset is AssistantCatalogPreset => {
     return Boolean(
       preset &&
-        typeof preset === 'object' &&
-        typeof (preset as AssistantCatalogPreset).id === 'string' &&
-        typeof (preset as AssistantCatalogPreset).name === 'string'
+      typeof preset === 'object' &&
+      typeof (preset as AssistantCatalogPreset).id === 'string' &&
+      typeof (preset as AssistantCatalogPreset).name === 'string'
     )
   })
 }
@@ -119,9 +112,11 @@ export function filterAssistantCatalogPresets(
     if (!getPresetGroups(preset).includes(activeTab)) return false
     if (!keyword) return true
 
-    return [preset.name, preset.description, preset.prompt]
-      .filter(Boolean)
-      .some((text) => text?.toLowerCase().includes(keyword))
+    return (
+      [preset.name, preset.description, preset.prompt]
+        .filter(Boolean)
+        .some((text) => text?.toLowerCase().includes(keyword)) || matchesPinyinInitials(preset.name, keyword)
+    )
   })
 }
 
@@ -148,56 +143,18 @@ export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPr
   return dto
 }
 
-async function readLocalPresets(language: string, resourcesPath: string) {
-  if (!resourcesPath) {
-    logger.warn('resourcesPath not ready yet, returning empty catalog')
-    return []
-  }
-
+async function loadCatalogPresets(resourcesPath: string, language: string) {
   const fileName = language === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
   const content = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
   return normalizePresets(JSON.parse(content))
 }
 
-async function loadCatalogPresets(language: string, resourcesPath: string) {
-  try {
-    return await readLocalPresets(language, resourcesPath)
-  } catch (error) {
-    // Intentional graceful degradation: the catalog is a bundled, browse-only resource, so a
-    // missing/corrupt file renders as an empty catalog (logged, not toasted) rather than failing.
-    logger.error('Failed to load local assistant presets', toLogContext(error))
-    return []
-  }
-}
-
 export function useAssistantCatalogPresets({ enabled = true }: { enabled?: boolean } = {}) {
-  const { i18n } = useTranslation()
-  const language = i18n?.language ?? 'en-US'
-  const [resourcesPath] = useCache('app.path.resources')
-  const [presets, setPresets] = useState<AssistantCatalogPreset[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-
-  useEffect(() => {
-    if (!enabled) return
-
-    let cancelled = false
-    setIsLoading(true)
-
-    void loadCatalogPresets(language, resourcesPath)
-      .then((loadedPresets) => {
-        if (!cancelled) setPresets(loadedPresets)
-      })
-      .catch((error) => {
-        logger.error('Unexpected failure while loading assistant presets', toLogContext(error))
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [enabled, language, resourcesPath])
+  const { isLoading, items: presets } = useBundledCatalog({
+    catalog: 'assistant presets',
+    enabled,
+    load: loadCatalogPresets
+  })
 
   return {
     isLoading,

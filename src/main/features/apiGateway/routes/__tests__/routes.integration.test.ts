@@ -11,26 +11,66 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockPreferenceGet, mockProcessMessage, mockGetModels } = vi.hoisted(() => ({
+const {
+  mockGetModels,
+  mockEstimateAnthropicRequestTokens,
+  mockIsInternalRequest,
+  mockGetCredentialScope,
+  scopedCredentials,
+  mockPreferenceGet,
+  mockProcessMessage,
+  mockResolveGatewayModelAddress
+} = vi.hoisted(() => ({
+  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+  mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
+  mockIsInternalRequest: vi.fn((headers: Headers) => {
+    const tokens = [headers.get('x-api-key'), headers.get('authorization'), headers.get('x-goog-api-key')]
+    if (tokens.some((value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key')) return true
+    return tokens.some((value) => scopedCredentials.has(value?.replace(/^Bearer /, '') ?? ''))
+  }),
+  mockGetCredentialScope: vi.fn((headers: Headers) =>
+    scopedCredentials.get(
+      headers.get('x-api-key') ??
+        headers.get('authorization')?.replace(/^Bearer /, '') ??
+        headers.get('x-goog-api-key') ??
+        ''
+    )
+  ),
+  scopedCredentials: new Map<string, { path: string; model: string }>(),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
   ),
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] }))
+  mockResolveGatewayModelAddress: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
+  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
+  const overrides = {
+    PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
+    ApiGatewayService: { isInternalRequest: mockIsInternalRequest, getCredentialScope: mockGetCredentialScope }
+  }
+  return mockApplicationFactory(overrides)
 })
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
   }
+}))
+
+// Route `detail.description` fields hold i18n *keys*; openapiDocs.ts resolves them
+// per request via `t()`. Stub `t` as `key::lang` (rather than a pure passthrough) so
+// the docs tests below can assert the requested language actually reached translation
+// — and so a key that never went through `t()` is visibly missing its `::lang` suffix
+// — without needing the real catalog. `getAppLanguage`/`SUPPORTED_LANGUAGES` back the
+// docs' default language + language-switcher list.
+vi.mock('@main/i18n', () => ({
+  t: (key: string, _params?: unknown, lang?: string) => (lang ? `${key}::${lang}` : key),
+  getAppLanguage: () => 'en-US',
+  SUPPORTED_LANGUAGES: ['en-US', 'zh-CN']
 }))
 
 // Heavy services are stubbed so building the app + exercising handlers never
@@ -41,7 +81,12 @@ vi.mock('../../proxyStream', () => ({
 }))
 
 vi.mock('../../utils/models', () => ({
-  getModels: mockGetModels
+  getModels: mockGetModels,
+  resolveGatewayModelAddress: mockResolveGatewayModelAddress
+}))
+
+vi.mock('../../tokens/estimateAnthropicRequestTokens', () => ({
+  estimateAnthropicRequestTokens: mockEstimateAnthropicRequestTokens
 }))
 
 // Knowledge routes use the v2 KB service (pulled in by buildApp); stubbed so
@@ -53,7 +98,6 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 import { buildApp } from '../../app'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
-
 function post(app: ReturnType<typeof buildApp>, path: string, body: unknown, headers: Record<string, string> = AUTH) {
   return app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
 }
@@ -66,11 +110,13 @@ async function read(res: Response): Promise<{ status: number; body: any }> {
 
 describe('API gateway routes (integration)', () => {
   let app: ReturnType<typeof buildApp>
+  let internalApp: ReturnType<typeof buildApp>
 
   beforeEach(() => {
     vi.clearAllMocks()
     mockPreferenceGet.mockReturnValue('test-key')
     app = buildApp()
+    internalApp = buildApp({ surface: 'internal' })
   })
 
   describe('public routes', () => {
@@ -85,6 +131,119 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.name).toBe('Cherry Studio API')
       expect(body.endpoints).toBeDefined()
+    })
+
+    it('OpenAPI spec advertises an absolute server URL from host/port', async () => {
+      // Scalar renders curl examples against `servers[0].url`; an absolute URL
+      // keeps the health-check example copyable (`curl http://.../health`)
+      // instead of a bare relative path (`curl /health`).
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
+
+      // A wildcard bind is not a dialable target, so the advertised URL must be the
+      // loopback the curl example can actually reach.
+      const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
+      expect(custom.body.servers).toEqual([{ url: 'http://127.0.0.1:8080' }])
+    })
+  })
+
+  describe('OpenAPI docs — per-language translation + switcher', () => {
+    it('GET /openapi/json (no ?lang=) translates against the app language', async () => {
+      const { status, body } = await read(await get(app, '/openapi/json', {}))
+      expect(status).toBe(200)
+      expect(body.info.description).toBe('apiGateway.docs.description::en-US')
+      const health = body.paths['/health'].get
+      expect(health.tags).toEqual(['Cherry Studio'])
+      expect(health.summary).toBe('Health')
+      expect(health.description).toBe('apiGateway.docs.operations.health::en-US')
+    })
+
+    it('groups endpoints by the upstream API they are compatible with, keeping canonical names', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(body.tags.map((tag: { name: string }) => tag.name)).toEqual([
+        'OpenAI API',
+        'Anthropic API',
+        'Gemini API',
+        'Cherry Studio'
+      ])
+      // Tag names and operation summaries are upstream identifiers: never translated,
+      // so generated clients keep stable module/method names. Only prose is localized.
+      expect(body.tags[0].description).toBe('apiGateway.docs.tags.openai::en-US')
+      expect(body.paths['/v1/chat/completions'].post.tags).toEqual(['OpenAI API'])
+      expect(body.paths['/v1/chat/completions'].post.summary).toBe('Chat Completions')
+      expect(body.paths['/v1/messages/'].post.tags).toEqual(['Anthropic API'])
+      expect(body.paths['/v1/messages/'].post.summary).toBe('Messages')
+    })
+
+    it('routes every documented operation through translation (no raw i18n key survives)', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=zh-CN', {}))
+      const operations = Object.values<any>(body.paths).flatMap((pathItem) => Object.values<any>(pathItem))
+      expect(operations.length).toBeGreaterThan(0)
+      for (const operation of operations) {
+        // The stubbed `t()` appends `::lang`; a description a route declared but
+        // openapiDocs.ts never resolved would show up here as a bare key.
+        expect(operation.description).toMatch(/^apiGateway\.docs\.operations\.[a-z_]+::zh-CN$/)
+      }
+    })
+
+    it('keeps the docs routes themselves out of the spec', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(Object.keys(body.paths)).not.toContain('/openapi')
+      expect(Object.keys(body.paths)).not.toContain('/openapi/json')
+    })
+
+    it('GET /openapi/json?lang=zh-CN translates against the requested language', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=zh-CN', {}))
+      expect(body.info.description).toBe('apiGateway.docs.description::zh-CN')
+      expect(body.paths['/health'].get.description).toBe('apiGateway.docs.operations.health::zh-CN')
+    })
+
+    it('GET /openapi/json?lang=not-a-real-language falls back to the app language', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=not-a-real-language', {}))
+      expect(body.info.description).toBe('apiGateway.docs.description::en-US')
+    })
+
+    it('GET /openapi renders the description through t() (not a raw key) and points Scalar at the translated spec', async () => {
+      const res = await get(app, '/openapi', {})
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/html')
+      const html = await res.text()
+      // The mocked `t()` embeds `::lang` on every call — the plain (untranslated) key never
+      // appears without it, so this proves the <meta description> went through translation.
+      expect(html).toContain('apiGateway.docs.description::en-US')
+      expect(html).not.toContain('apiGateway.docs.description"')
+
+      const configMatch = html.match(/data-configuration='(.+?)'/)
+      expect(configMatch).toBeTruthy()
+      const config = JSON.parse(configMatch![1])
+      expect(config.url).toBe('http://localhost/openapi/json?lang=en-US')
+      expect(config.localization).toEqual({ locale: 'en' })
+    })
+
+    it('pins the Scalar bundle and turns off its third-party "Ask AI" agent', async () => {
+      const html = await (await get(app, '/openapi', {})).text()
+      const config = JSON.parse(html.match(/data-configuration='(.+?)'/)![1])
+      // Unpinned, an upstream release can change defaults (1.63.0 enabled Ask AI on
+      // localhost) or break the toolbar the language switcher is inserted into.
+      expect(config.cdn).toMatch(/@scalar\/api-reference@\d+\.\d+\.\d+\//)
+      expect(config.version).toMatch(/^\d+\.\d+\.\d+$/)
+      // Ask AI uploads the OpenAPI document to api.scalar.com — off unless a user
+      // has been asked to accept that.
+      expect(config.agent).toEqual({ disabled: true })
+    })
+
+    it('GET /openapi renders a language dropdown offering every supported language, defaulting to the app language', async () => {
+      const html = await (await get(app, '/openapi', {})).text()
+      expect(html).toContain(`<option value="en-US" selected>English</option>`)
+      expect(html).toContain(`<option value="zh-CN">中文</option>`)
+    })
+
+    it('GET /openapi?lang=zh-CN renders Scalar chrome + the dropdown in the requested language', async () => {
+      const html = await (await get(app, '/openapi?lang=zh-CN', {})).text()
+      const config = JSON.parse(html.match(/data-configuration='(.+?)'/)![1])
+      expect(config.url).toBe('http://localhost/openapi/json?lang=zh-CN')
+      expect(config.localization).toEqual({ locale: 'zh-CN' })
+      expect(html).toContain(`<option value="zh-CN" selected>中文</option>`)
     })
   })
 
@@ -103,6 +262,25 @@ describe('API gateway routes (integration)', () => {
     it('rejects a /v1 request with an invalid Bearer token (403)', async () => {
       const { status } = await read(await get(app, '/v1/models', { authorization: 'Bearer wrong-key' }))
       expect(status).toBe(403)
+    })
+  })
+
+  describe('Anthropic token counting', () => {
+    it('resolves Cherry Cloud models as an internal request', async () => {
+      const response = await post(
+        internalApp,
+        '/v1/messages/count_tokens',
+        { model: 'cherryai-subscription:claude', messages: [{ role: 'user', content: 'hello' }] },
+        { ...AUTH, 'x-api-key': 'internal-agent-key' }
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ input_tokens: 42 })
+      expect(mockEstimateAnthropicRequestTokens).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'cherryai-subscription:claude' }),
+        expect.any(AbortSignal),
+        true
+      )
     })
   })
 
@@ -162,6 +340,36 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.ok).toBe(true)
       expect(mockProcessMessage).toHaveBeenCalledOnce()
+    })
+
+    it('ignores the internal Fast header from a public API-key client', async () => {
+      await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          { ...AUTH, 'x-cherry-fast-mode': 'true' }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: false }))
+    })
+
+    it('accepts Fast only from an internal consumer', async () => {
+      await read(
+        await post(
+          internalApp,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          {
+            ...AUTH,
+            'x-api-key': 'internal-agent-key',
+            'x-cherry-fast-mode': 'true'
+          }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: true }))
     })
 
     it('GET /v1/models returns the model list', async () => {
@@ -272,6 +480,17 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('normalizes an Antigravity custom model path to the gateway model address', async () => {
+      await read(
+        await post(app, '/v1beta/models/provider-a/models/models/gemini-flash:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'provider-a:models/gemini-flash',
+        streaming: true,
+        inputFormat: 'gemini'
+      })
+    })
+
     it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
       // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
       // normalization can't rewrite names ending in "flash"; the route must strip it.
@@ -280,6 +499,23 @@ describe('API gateway routes (integration)', () => {
       )
       expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
         modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true
+      })
+    })
+
+    it('routes a sentinel-suffixed model whose apiModelId itself contains "/models/"', async () => {
+      // Fireworks ids are `accounts/fireworks/models/<name>` (16 of them in the registry), so
+      // deciding the address protocol by looking for "/models/" misreads them as Antigravity
+      // paths and rejects a perfectly valid gemini-cli request.
+      await read(
+        await post(
+          app,
+          '/v1beta/models/fireworks:accounts/fireworks/models/deepseek-v4-flash@cherry:streamGenerateContent',
+          geminiBody
+        )
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'fireworks:accounts/fireworks/models/deepseek-v4-flash',
         streaming: true
       })
     })
@@ -306,19 +542,33 @@ describe('API gateway routes (integration)', () => {
       expect(mockProcessMessage).not.toHaveBeenCalled()
     })
 
-    // The text-only estimator would return a bogus ~3 with HTTP 200, suppressing gemini-cli's
-    // media fallback (it only falls back on a non-2xx) and badly undercounting context usage.
-    // Both media shapes matter: large uploads reach the CLI as fileData/fileUri via the Files API.
+    it('countTokens: resolves Cherry Cloud models as an internal request', async () => {
+      const response = await post(
+        internalApp,
+        '/v1beta/models/cherryai-subscription:gemini-2.5:countTokens',
+        geminiBody,
+        {
+          ...AUTH,
+          'x-api-key': 'internal-agent-key'
+        }
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockResolveGatewayModelAddress).toHaveBeenCalledWith('cherryai-subscription:gemini-2.5', true)
+    })
+
+    // Media is now counted (converted → shared walker, or the provider's remote count) rather
+    // than rejected — the estimate reflects what the provider actually receives.
     it.each([
       ['inlineData', { inlineData: { mimeType: 'image/png', data: 'AAAA' } }],
       ['fileData', { fileData: { mimeType: 'application/pdf', fileUri: 'gs://bucket/f.pdf' } }]
-    ])('countTokens with %s media → 400 so the CLI falls back to its own media count', async (_kind, mediaPart) => {
+    ])('countTokens with %s media → 200 with a token estimate', async (_kind, mediaPart) => {
       const mediaBody = { contents: [{ role: 'user', parts: [mediaPart] }] }
       const { status, body } = await read(
         await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', mediaBody)
       )
-      expect(status).toBe(400)
-      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
       expect(mockProcessMessage).not.toHaveBeenCalled()
     })
 
@@ -394,5 +644,129 @@ describe('API gateway routes (integration)', () => {
       expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
       expect(body.error.message).toBe('rate limited')
     })
+  })
+
+  describe('LAN exposure (non-loopback peer)', () => {
+    beforeEach(() => {
+      mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '0.0.0.0' : 'test-key'))
+    })
+
+    // srvx surfaces the socket peer as `request.ip`; forge it to act as a LAN client.
+    const fromLan = (request: Request): Request => {
+      Object.defineProperty(request, 'ip', { value: '192.168.1.50', configurable: true })
+      return request
+    }
+    const postFromLan = (path: string, body: unknown, headers: Record<string, string> = AUTH) =>
+      app.handle(
+        fromLan(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+      )
+    const getFromLan = (path: string, headers: Record<string, string> = AUTH) =>
+      app.handle(fromLan(new Request(`http://localhost${path}`, { method: 'GET', headers })))
+
+    it('blocks a LAN client from the generation routes', async () => {
+      const { status, body } = await read(await postFromLan('/v1/chat/completions', { model: 'openai:gpt-4o' }))
+      expect(status).toBe(403)
+      expect(body.error).toContain('not reachable over the LAN')
+    })
+
+    it('blocks a LAN client from the MCP proxy and knowledge routes', async () => {
+      expect((await read(await postFromLan('/v1/mcps/x/mcp', {}))).status).toBe(403)
+      expect((await read(await getFromLan('/v1/knowledge-bases'))).status).toBe(403)
+    })
+
+    it('keeps loopback callers served after LAN access is revoked on a live listener', async () => {
+      mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '127.0.0.1' : 'test-key'))
+
+      expect((await getFromLan('/v1/models')).status).toBe(403)
+      const localResponse = await post(app, '/v1/chat/completions', {
+        model: 'openai:gpt-4o',
+        messages: [{ role: 'user', content: 'Hello' }]
+      })
+      expect(localResponse.status).toBe(200)
+    })
+  })
+})
+
+describe('internal consumer authorization', () => {
+  it('accepts only internal keys on the internal listener and only the user key on the public one', async () => {
+    const send = (app: ReturnType<typeof buildApp>, authorization: string) =>
+      app.handle(
+        new Request('http://localhost/v1/chat/completions', {
+          method: 'POST',
+          headers: { authorization, 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'hi' }] })
+        })
+      )
+    const internal = buildApp({ surface: 'internal' })
+    const publicApp = buildApp()
+
+    expect((await send(internal, 'Bearer internal-agent-key')).status).toBe(200)
+    expect((await send(internal, 'Bearer test-key')).status).toBe(403)
+    expect((await send(publicApp, 'Bearer test-key')).status).toBe(200)
+    expect((await send(publicApp, 'Bearer internal-agent-key')).status).toBe(403)
+  })
+
+  it('accepts an internal key without the user-facing API key', async () => {
+    const app = buildApp({ surface: 'internal' })
+    const send = (authorization: string) =>
+      app.handle(
+        new Request('http://localhost/v1/chat/completions', {
+          method: 'POST',
+          headers: { authorization, 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'translate' }] })
+        })
+      )
+
+    expect((await send('Bearer internal-agent-key')).status).toBe(200)
+    expect((await send('Bearer unknown-key')).status).toBe(403)
+  })
+
+  it('limits a scoped credential to its path and model until revoked', async () => {
+    const app = buildApp({ surface: 'internal' })
+    const headers = { authorization: 'Bearer job-key', 'content-type': 'application/json' }
+    const chat = (model: string) =>
+      app.handle(
+        new Request('http://localhost/v1/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: 'translate' }] })
+        })
+      )
+    scopedCredentials.set('job-key', { path: '/v1/chat/completions', model: 'openai:gpt-4o' })
+
+    expect((await chat('openai:gpt-4o')).status).toBe(200)
+    expect((await chat('openai:gpt-4.1')).status).toBe(403)
+    expect((await app.handle(new Request('http://localhost/v1/models', { headers }))).status).toBe(403)
+    const messages = { model: 'openai:gpt-4o', max_tokens: 8, messages: [{ role: 'user', content: 'hi' }] }
+    const post = (path: string, body: unknown) =>
+      app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+    expect((await post('/v1/messages', messages)).status).toBe(403)
+    expect(
+      (
+        await post('/v1beta/models/openai:gpt-4o:generateContent', {
+          contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+        })
+      ).status
+    ).toBe(403)
+
+    scopedCredentials.delete('job-key')
+    expect((await chat('openai:gpt-4o')).status).toBe(403)
+  })
+
+  it('rejects an internal key presented only as a query parameter', async () => {
+    const app = buildApp({ surface: 'internal' })
+    const post = (path: string, body: unknown) =>
+      app.handle(
+        new Request(`http://localhost${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+      )
+
+    const gemini = { contents: [{ role: 'user', parts: [{ text: 'hi' }] }] }
+    const chat = { model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'hi' }] }
+    expect((await post('/v1beta/models/openai:gpt-4o:generateContent?key=internal-agent-key', gemini)).status).toBe(403)
+    expect((await post('/v1/chat/completions?access_token=internal-agent-key', chat)).status).toBe(403)
   })
 })

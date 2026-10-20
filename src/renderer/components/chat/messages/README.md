@@ -9,7 +9,7 @@ The goal is one reusable message UI implementation with page-specific data and c
 This directory owns message display only:
 
 - message list orchestration
-- virtual scrolling and scroll anchors
+- virtual scrolling, position restoration, and scroll ownership
 - message grouping and multi-message layout
 - message frame, header, content, footer, and actions
 - message block rendering
@@ -33,7 +33,7 @@ Page-only UI should stay in the page directory. If a component is only a Home or
 
 - `MessageList.tsx` and `MessageListProvider.tsx`: public list entry and context provider.
 - `types.ts`: stable contract for `state / actions / meta`.
-- `list/`: list behavior such as grouping, virtual list, anchors, selection, sibling navigation.
+- `list/`: list behavior such as grouping, virtual scrolling, selection, and sibling navigation.
 - `frame/`: message skeleton such as frame, header, content, editor, footer actions, tokens, attachments.
 - `blocks/`: message parts and content blocks.
 - `tools/`: tool call rendering, split by source or capability.
@@ -160,9 +160,8 @@ Public entry files should export shared contracts and shared UI. Avoid exporting
 For changes in this directory, prefer focused tests around the affected component family:
 
 ```bash
-pnpm exec vitest run \
-  src/renderer/src/components/chat/messages \
-  src/renderer/src/pages/home/__tests__/ChatContent.test.tsx
+pnpm test:renderer src/renderer/components/chat/messages \
+  src/renderer/pages/home/__tests__/ChatContent.test.tsx
 ```
 
 When touching blocks, markdown, stream collectors, or tool renderers, include their local tests as well.
@@ -170,7 +169,7 @@ When touching blocks, markdown, stream collectors, or tool renderers, include th
 Before handing off implementation work, run:
 
 ```bash
-npm run typecheck:web
+pnpm lint
 ```
 
 Run broader project validation when the change reaches outside the message-list vertical slice.

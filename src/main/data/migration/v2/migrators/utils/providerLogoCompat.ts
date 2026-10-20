@@ -65,7 +65,6 @@ const RECOGNIZED_STEMS: ReadonlySet<string> = new Set([
   'moonshot',
   'newapi',
   'nvidia',
-  'o3',
   'ocoolai',
   'ollama',
   'openai',

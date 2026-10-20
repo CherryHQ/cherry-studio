@@ -99,9 +99,6 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
         // 清除上下文这类消息也会被选中，所以需要跳过
         if (!checkbox) return
 
-        // 如果已经被记录为拖动选中，跳过
-        if (dragSelectedIds.current.has(id)) return
-
         const rect = el.getBoundingClientRect()
         const container = scrollContainerRef.current!
         const eTop = rect.top - container.getBoundingClientRect().top + container.scrollTop
@@ -112,8 +109,15 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
         // 检查消息是否在当前选择框内
         const isInSelectionBox = !(eRight < left || eLeft > right || eBottom < top || eTop > bottom)
 
+        if (!isInSelectionBox) {
+          if (dragSelectedIds.current.delete(id)) {
+            handleSelectMessage(id, false)
+          }
+          return
+        }
+
         // 只有在选择框内且未被选中的消息才需要处理
-        if (isInSelectionBox && !isAlreadySelected) {
+        if (!dragSelectedIds.current.has(id) && !isAlreadySelected) {
           handleSelectMessage(id, true)
           dragSelectedIds.current.add(id)
           el.classList.add('selection-highlight')
@@ -148,7 +152,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
   return (
     <div
-      className="pointer-events-none absolute z-100 border border-primary border-dashed bg-[rgba(0,114,245,0.1)]"
+      className="pointer-events-none absolute z-100 border border-dashed border-primary bg-[rgba(0,114,245,0.1)]"
       style={{
         left: Math.min(dragStart.x, dragCurrent.x),
         top: Math.min(dragStart.y, dragCurrent.y),

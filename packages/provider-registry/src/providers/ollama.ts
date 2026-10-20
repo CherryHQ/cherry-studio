@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'ollama',
   name: 'Ollama',
+  availableInEditions: ['global', 'cn'],
   authOptional: true,
   endpointConfigs: {
     'anthropic-messages': {
@@ -11,7 +12,8 @@ export default defineProvider({
     },
     'ollama-chat': {
       adapterFamily: 'ollama',
-      baseUrl: 'http://localhost:11434'
+      baseUrl: 'http://localhost:11434',
+      reasoningFormat: { type: 'ollama' }
     }
   },
   metadata: {

@@ -7,16 +7,17 @@
  * This file lives inside migration/v2/ so it is removed when migration is deleted.
  */
 
-import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
-import type { DbType } from '@data/db/types'
-import { loggerService } from '@logger'
-import Database from 'better-sqlite3'
-import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import fs from 'fs'
 import path from 'path'
 
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import type { DbType } from '@data/db/types'
+import { loggerService } from '@logger'
+
+import { MigrationDatabaseError } from './migrationErrors'
 import type { MigrationPaths } from './MigrationPaths'
 
 const logger = loggerService.withContext('MigrationDbService')
@@ -37,7 +38,12 @@ export class MigrationDbService {
   static create(paths: MigrationPaths): MigrationDbService {
     ensureDatabaseIntegrity(paths.databaseFile)
 
-    const sqlite = new Database(paths.databaseFile)
+    let sqlite: Database.Database
+    try {
+      sqlite = new Database(paths.databaseFile)
+    } catch (error) {
+      throw new MigrationDatabaseError('open', error)
+    }
     const db = drizzle({ client: sqlite, casing: 'snake_case' })
 
     try {
@@ -46,15 +52,34 @@ export class MigrationDbService {
       sqlite.pragma('synchronous = NORMAL')
       logger.info('WAL mode configured')
     } catch (error) {
-      logger.warn('Failed to configure WAL mode', error as Error)
+      closeSilently(sqlite)
+      throw new MigrationDatabaseError('wal', error)
     }
 
-    // Schema migrations
-    migrate(db, { migrationsFolder: paths.migrationsFolder })
+    // Validate migrations folder exists before attempting schema migration
+    if (!fs.existsSync(paths.migrationsFolder)) {
+      closeSilently(sqlite)
+      throw new Error(
+        `Migrations folder not found: ${paths.migrationsFolder}. ` +
+          'This usually means the application was not packaged correctly.'
+      )
+    }
+    logger.info('Migrations folder verified', { path: paths.migrationsFolder })
+
+    // Schema migrations + custom SQL (triggers, FTS, etc. — all idempotent). Shared with
+    // DbService so table-recreate migrations get the same out-of-transaction FK handling;
+    // it restores this connection's setting (ON by default) when it returns.
+    try {
+      applyMigrations(db, paths.migrationsFolder)
+    } catch (error) {
+      // Close the SQLite connection to avoid dangling handles, then re-throw with context.
+      closeSilently(sqlite)
+      throw new MigrationDatabaseError('schema', error)
+    }
 
     // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
     // connection makes this one PRAGMA hold for every statement until close() — no replay
-    // needed (migrate() restores FK = ON on its own connection, so this must run AFTER it).
+    // needed (applyMigrations restores FK = ON on its own connection, so this must run AFTER it).
     //
     // This lets bulk inserts carry not-yet-resolved references; integrity is then verified
     // after all migrators complete (MigrationEngine.verifyForeignKeys), with each migrator
@@ -62,11 +87,6 @@ export class MigrationDbService {
     // enforcement is restored implicitly: this migration connection is disposed via close()
     // when migration ends, and normal runtime uses DbService's own connection (foreign_keys = ON).
     sqlite.pragma('foreign_keys = OFF')
-
-    // Custom SQL (triggers, FTS, etc.) — all idempotent
-    for (const statement of CUSTOM_SQL_STATEMENTS) {
-      db.run(sql.raw(statement))
-    }
 
     logger.info('Migration database ready')
     return new MigrationDbService(db, sqlite)
@@ -83,6 +103,14 @@ export class MigrationDbService {
     } catch (error) {
       logger.warn('Failed to close migration database connection', error as Error)
     }
+  }
+}
+
+function closeSilently(sqlite: Database.Database): void {
+  try {
+    sqlite.close()
+  } catch {
+    // Preserve the database setup failure that triggered cleanup.
   }
 }
 

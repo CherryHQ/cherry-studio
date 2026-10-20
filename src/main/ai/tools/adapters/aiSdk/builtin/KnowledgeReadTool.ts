@@ -8,16 +8,18 @@
  *     match's line, offsets, and snippet — for a precise lookup when semantic search is too fuzzy.
  *
  * The model passes a `conceptId` + `baseId` from a `kb_search` hit (or a `kb_list` outline).
- * The effective knowledge base scope (the assistant's static binding when non-empty, else the
- * composer's per-turn selection — see `resolveKnowledgeBaseIds`) flows in via
+ * The effective knowledge base scope (the assistant's static binding narrowed by the composer's
+ * per-turn selection, or that selection alone when there is no binding — see
+ * `resolveKnowledgeBaseScope`) flows in via
  * `RequestContext.knowledgeBaseIds` and scopes which bases are reachable. Both modes live in the
  * shared `knowledgeLookup` core so the Claude Code MCP bridge runs
  * identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
-import { KB_READ_TOOL_NAME, kbGrepOutputSchema, kbReadInputSchema, kbReadOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
+
+import { KB_READ_TOOL_NAME, kbGrepOutputSchema, kbReadInputSchema, kbReadOutputSchema } from '@shared/ai/builtinTools'
 
 import {
   KNOWLEDGE_READ_DESCRIPTION,
@@ -38,7 +40,6 @@ const kbReadTool = tool({
   description: KNOWLEDGE_READ_DESCRIPTION,
   inputSchema: kbReadInputSchema,
   outputSchema: knowledgeReadResultSchema,
-  strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
     return readOrGrepConcept(input, request.knowledgeBaseIds ?? [])
@@ -51,7 +52,7 @@ export function createKbReadToolEntry(): ToolEntry {
     name: KB_READ_TOOL_NAME,
     namespace: 'kb',
     description: 'Read a knowledge base document by its Concept ID, or grep within it',
-    defer: 'always',
+    defer: 'never',
     tool: kbReadTool,
     applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
   }

@@ -1,9 +1,10 @@
+import { useTranslation } from 'react-i18next'
+
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import type { NotesSortType } from '@renderer/types/note'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useNotesSettings')
 
@@ -12,6 +13,7 @@ const NOTES_SETTINGS_PREFERENCE_KEYS = {
   fontFamily: 'feature.notes.font_family',
   fontSize: 'feature.notes.font_size',
   showTableOfContents: 'feature.notes.show_table_of_contents',
+  lineBreaks: 'feature.notes.line_breaks',
   defaultViewMode: 'feature.notes.default_view_mode',
   defaultEditMode: 'feature.notes.default_edit_mode',
   showTabStatus: 'feature.notes.show_tab_status',
@@ -24,6 +26,8 @@ export interface NotesSettings {
   fontFamily: 'default' | 'serif'
   fontSize: number
   showTableOfContents: boolean
+  /** Render single line breaks as new lines (Obsidian-style) instead of collapsing them */
+  lineBreaks: boolean
   defaultViewMode: 'edit' | 'read'
   defaultEditMode: Exclude<EditorView, 'read'>
   // Reserved for a tab-status display toggle; persisted now so v1 settings migrate losslessly.
@@ -39,6 +43,7 @@ export const useNotesSettings = () => {
     fontFamily: values.fontFamily as NotesSettings['fontFamily'],
     fontSize: values.fontSize,
     showTableOfContents: values.showTableOfContents,
+    lineBreaks: values.lineBreaks,
     defaultViewMode: values.defaultViewMode as NotesSettings['defaultViewMode'],
     defaultEditMode: values.defaultEditMode as NotesSettings['defaultEditMode'],
     showTabStatus: values.showTabStatus

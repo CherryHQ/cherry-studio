@@ -1,6 +1,7 @@
+import React from 'react'
+
 import { Flex } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import React from 'react'
 
 type DivProps = React.ComponentProps<'div'>
 type ShadowContainerStyle = React.CSSProperties & Record<string, string>
@@ -9,7 +10,7 @@ export const PreviewError = ({ className, ref, ...props }: DivProps) =>
   React.createElement('div', {
     ref,
     className: cn(
-      'overflow-auto whitespace-pre-wrap break-words rounded-[4px] border border-[#ff4d4f] p-4 text-[#ff4d4f]',
+      'overflow-auto rounded-[4px] border border-error p-4 break-words whitespace-pre-wrap text-error',
       className
     ),
     ...props
@@ -35,7 +36,7 @@ export const PreviewContainer = ({
 
 const shadowWhiteStyle: ShadowContainerStyle = {
   '--shadow-host-background-color': 'white',
-  '--shadow-host-border': '0.5px solid var(--color-background-subtle)',
+  '--shadow-host-border': '0.5px solid var(--background-subtle)',
   '--shadow-host-border-radius': '8px'
 }
 

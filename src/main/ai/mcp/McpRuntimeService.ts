@@ -1,71 +1,110 @@
-import crypto from 'node:crypto'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-
-import { application } from '@application'
-import { mcpServerService } from '@data/services/McpServerService'
-import { loggerService } from '@logger'
-import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
-import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
-import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv } from '@main/utils/commandResolver'
-import { defaultAppHeaders } from '@main/utils/http'
-import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
-import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { SSEClientTransport, SseError } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
-  StreamableHTTPClientTransport,
-  type StreamableHTTPClientTransportOptions,
-  StreamableHTTPError
-} from '@modelcontextprotocol/sdk/client/streamableHttp'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
-import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-// Import notification schemas from MCP SDK
-import {
-  CancelledNotificationSchema,
+  isInputRequiredResult,
+  SdkHttpError,
+  SseError,
+  UnauthorizedError,
+  type CacheMode,
+  type CallToolResult,
   type GetPromptResult,
-  LoggingMessageNotificationSchema,
-  PromptListChangedNotificationSchema,
-  ResourceListChangedNotificationSchema,
-  ResourceUpdatedNotificationSchema,
-  ToolListChangedNotificationSchema
-} from '@modelcontextprotocol/sdk/types.js'
-import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
-import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
-import type { McpServerLogEntry } from '@shared/types/mcp'
-import type { McpPrompt, McpResource } from '@shared/types/mcp'
-import { BuiltinMcpServerNames, isBuiltinMcpServer } from '@shared/utils/mcp'
-import { safeSerialize } from '@shared/utils/serialize'
-import { app, net } from 'electron'
-import { EventEmitter } from 'events'
+  type Progress,
+  type ServerCapabilities,
+  type Tool
+} from '@modelcontextprotocol/client'
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
+import {
+  ElicitRequestFormParamsSchema,
+  ElicitRequestSchema,
+  ElicitRequestURLParamsSchema,
+  ElicitResultSchema
+} from '@modelcontextprotocol/core'
+import { app } from 'electron'
 import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
+import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
+import { loggerService } from '@logger'
+import { createBuiltinMcpEndpoint, resolveBuiltinExternalMcpServer } from '@main/ai/mcp/servers/factory'
+import { TraceMethod, withSpanFunc } from '@main/ai/observability'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
+import { clampImageForModel } from '@main/utils/image'
+import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
+import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
+import type { InputFor, WindowId } from '@shared/ipc/types'
+import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
+import type { BuiltinMcpServerName } from '@shared/utils/mcp'
+import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
+import { safeSerialize } from '@shared/utils/serialize'
+
+import { createExternalMcpConnection } from './connections/ExternalMcpConnection'
+import { createInProcessMcpConnection } from './connections/InProcessMcpConnection'
+import type { McpConnection, McpConnectionEvents, McpInteractionContext } from './connections/McpConnection'
+import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './connections/McpConnection'
+import type { McpResourceObservationState } from './connections/McpConnection'
+import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
-import { CallBackServer } from './oauth/callback'
-import { McpOAuthClientProvider } from './oauth/provider'
+import { resolveMcpRequestOptions } from './mcpRequestOptions'
+import { mcpTransportKind } from './mcpTransportKind'
+import { McpOAuthCoordinator } from './oauth/McpOAuthCoordinator'
+import { deleteOAuthStorage, oauthServerUrlHash } from './oauth/storage'
+import { projectServerInstructions } from './serverInstructions'
 import { ServerLogBuffer } from './ServerLogBuffer'
-import type { GetResourceResponse, McpCallToolResponse } from './types'
 
-// Generic type for caching wrapped functions
-type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
-
-type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
-type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string }
+type CallToolArgs = {
+  serverId: string
+  name: string
+  args: unknown
+  callId?: string
+  /** Caller-isolation key (for example, topicId). */
+  scope?: string
+  signal?: AbortSignal
+  onProgress?: (progress: Progress) => void
+  interactionContext?: McpInteractionContext
+}
+type RuntimeCallToolArgs = Omit<CallToolArgs, 'serverId'> & { server: McpServer }
 type McpRuntimeState = McpRuntimeStatus['state']
 
-// IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
-// arguments forwarded to the MCP server (server-trusted by protocol), so only the wrapper fields
-// are validated; this rejects a malformed/typo'd renderer payload before it reaches the runtime.
+interface ActiveToolCall {
+  serverId: string
+  controller: AbortController
+}
+
+function toolCallKey(callId: string, scope?: string): string {
+  return scope ? `${scope}\u0000${callId}` : callId
+}
+
+function getAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new DOMException('MCP tool call aborted', 'AbortError')
+}
+
+async function waitForConnection<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return pending
+  let handleAbort: (() => void) | undefined
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        handleAbort = () => reject(getAbortReason(signal))
+        if (signal.aborted) return handleAbort()
+        signal.addEventListener('abort', handleAbort, { once: true })
+      })
+    ])
+  } finally {
+    if (handleAbort) signal.removeEventListener('abort', handleAbort)
+  }
+}
+
+// The shared SDK schema retains the legacy ID; modern URL requests no longer carry it.
+const InteractionElicitRequestSchema = ElicitRequestSchema.extend({
+  params: z.union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema.partial({ elicitationId: true })])
+})
+
 const NonEmptyStringSchema = z.string().min(1)
 export const McpCallToolPayloadSchema = z.object({
   serverId: z.string().min(1),
@@ -80,134 +119,138 @@ export const McpGetResourcePayloadSchema = z.object({
 export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
-const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
-
-export interface McpToolListChangedEvent {
-  serverId: string
-}
-
-// Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
-// so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
-// still letting users raise it further via `server.timeout`.
+const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
+const MCP_CONNECT_RETRY_BASE_MS = 10_000
+const MCP_CONNECT_MAX_ATTEMPTS = 5
 
-// Order in which to attempt the URL-based transports for a given server. We try the
-// user-configured type first (no behavior change for correctly configured servers) and,
-// if that fails with a transport-level protocol error, retry with the other transport.
-// This bridges legacy SSE servers and modern Streamable HTTP servers (which reject the
-// SSE GET handshake with 405) without the user having to know the difference.
-function getTransportCandidates(server: McpServer): McpServerType[] | null {
-  if (!server.baseUrl) return null
-  if (server.type === 'sse') return ['sse', 'streamableHttp']
-  if (server.type === 'streamableHttp') return ['streamableHttp', 'sse']
-  return null
+interface ConnectFailure {
+  error: unknown
+  attempts: number
+  retryAt: number
+  interactive: boolean
 }
 
-// A transport-level protocol error that indicates a *transport/protocol mismatch* (not an
-// auth, permission, or generic server error) and is worth retrying against the alternative
-// transport. The issue's 405 is the canonical signal: the SSE GET handshake is rejected
-// (server is actually Streamable HTTP) or the Streamable HTTP POST is rejected. A 404 on the
-// Streamable HTTP POST covers a legacy SSE server (no /mcp route) that was configured as
-// streamableHttp. We deliberately exclude 401/403/5xx so OAuth and real server errors surface
-// instead of being masked by a confusing fallback failure.
-function isTransportFallbackError(error: unknown): boolean {
-  if (error instanceof SseError) return error.code === 405
-  if (error instanceof StreamableHTTPError) return error.code === 405 || error.code === 404
-  return false
+function canAuthorizeInteractively(requestContext?: McpInteractionContext | null): boolean {
+  return requestContext === undefined || Boolean(requestContext?.windowId)
 }
 
-// Redact potentially sensitive fields in objects (headers, tokens, api keys)
-export function redactSensitive(input: any): any {
-  const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
-  const MAX_STRING = 300
+/** Delay before the next automatic connect; Infinity waits for restart or a config change. */
+export function connectRetryDelayMs(error: unknown, attempts: number): number {
+  if (attempts >= MCP_CONNECT_MAX_ATTEMPTS) return Infinity
+  for (let cause = error, depth = 0; cause && depth < 5; cause = (cause as Error).cause, depth++) {
+    if (UnauthorizedError.isInstance(cause)) return Infinity
+    const status = SseError.isInstance(cause) ? cause.code : SdkHttpError.isInstance(cause) ? cause.status : undefined
+    if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429) return Infinity
+  }
+  return MCP_CONNECT_RETRY_BASE_MS * 2 ** (attempts - 1)
+}
 
-  // Track visited objects so a circular graph (e.g. an Error with an assigned `cause`,
-  // or HTTP request<->response cross-references) can't drive unbounded recursion → stack
-  // overflow inside the logger. This runs on caught Errors and server-controlled payloads.
-  const redact = (val: any, seen: WeakSet<object>): any => {
-    if (val == null) return val
-    if (typeof val === 'string') {
-      return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
+interface PendingInteraction {
+  windowId: WindowId
+  validate?: (value: unknown) => boolean
+  resolve(response: McpInteractionResponse): void
+  reject(error: unknown): void
+  cleanup(): void
+}
+
+type McpInteractionResponse = InputFor<'mcp.interaction.respond'>
+type McpToolListChangedEvent = {
+  serverId: string
+  tools: Tool[]
+}
+
+export function redactSensitive(input: unknown): unknown {
+  const maxStringLength = 300
+
+  const redact = (value: unknown, seen: WeakSet<object>): unknown => {
+    if (value == null) return value
+    if (typeof value === 'string') {
+      const text = redactSecretText(value)
+      return text.length > maxStringLength
+        ? `${text.slice(0, maxStringLength)}…<${text.length - maxStringLength} more>`
+        : text
     }
-    if (typeof val === 'object') {
-      if (seen.has(val)) return '[Circular]'
-      seen.add(val)
-    }
-    if (Array.isArray(val)) return val.map((v) => redact(v, seen))
-    if (typeof val === 'object') {
-      const out: Record<string, any> = {}
-      for (const [k, v] of Object.entries(val)) {
-        if (SENSITIVE_KEYS.includes(k)) {
-          out[k] = '<redacted>'
-        } else {
-          out[k] = redact(v, seen)
-        }
-      }
-      return out
-    }
-    return val
+    if (typeof value !== 'object') return value
+    if (seen.has(value)) return '[Circular]'
+    seen.add(value)
+    if (Array.isArray(value)) return value.map((item) => redact(item, seen))
+
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        key === 'requestState' || isSensitiveKey(key) ? REDACTED : redact(item, seen)
+      ])
+    )
   }
 
   return redact(input, new WeakSet())
 }
 
-// Create a context-aware logger for a server
-function getServerLogger(server: McpServer, extra?: Record<string, any>) {
-  const base = {
-    serverName: server?.name,
-    serverId: server?.id,
-    baseUrl: server?.baseUrl,
-    type: server?.type || (server?.command ? 'stdio' : server?.baseUrl ? 'http' : 'inmemory')
-  }
-  return loggerService.withContext('McpRuntimeService', { ...base, ...extra })
+function getServerLogger(server: McpServer, extra?: Record<string, unknown>) {
+  return loggerService.withContext('McpRuntimeService', {
+    serverName: server.name,
+    serverId: server.id,
+    baseUrl: server.baseUrl,
+    type: server.type || (server.command ? 'stdio' : server.baseUrl ? 'http' : 'builtin'),
+    ...extra
+  })
 }
 
 /**
- * Higher-order function to add caching capability to any async function
- * @param fn The original function to be wrapped with caching
- * @param getCacheKey Function to generate a cache key from the function arguments
- * @param ttl Time to live for the cache entry in milliseconds
- * @param logPrefix Prefix for log messages
- * @returns The wrapped function with caching capability
+ * Shrink tool-result images to the model-bound edge cap before any consumer (Cherry chat, pi,
+ * Claude bridge) sees them. An unusable image degrades to a text block: the result lands
+ * in durable session history, so failing the call would strand the turn over one screenshot.
  */
-function withCache<T extends unknown[], R>(
-  fn: (...args: T) => Promise<R>,
-  getCacheKey: (...args: T) => string,
-  ttl: number,
-  logPrefix: string
-): CachedFunction<T, R> {
-  return async (...args: T): Promise<R> => {
-    const cacheKey = getCacheKey(...args)
-    const cacheService = application.get('CacheService')
-
-    if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
-      const cachedData = cacheService.get<R>(cacheKey)
-      if (cachedData) {
-        return cachedData
+async function clampToolResultImages(
+  response: CallToolResult,
+  serverLogger: ReturnType<typeof getServerLogger>
+): Promise<CallToolResult> {
+  const content = await Promise.all(
+    response.content.map(async (part) => {
+      if (part.type !== 'image' || !part.data) return part
+      try {
+        const clamped = await clampImageForModel(Buffer.from(part.data, 'base64'))
+        return clamped ? { ...part, data: Buffer.from(clamped).toString('base64') } : part
+      } catch (error) {
+        serverLogger.warn('Dropping unprocessable tool-result image', { mimeType: part.mimeType, error })
+        return { type: 'text' as const, text: `[image (${part.mimeType ?? 'unknown'}) could not be processed]` }
       }
-    }
-
-    const start = Date.now()
-    const result = await fn(...args)
-    cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
-    return result
-  }
+    })
+  )
+  return { ...response, content }
 }
 
 @Injectable('McpRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'McpPackageService'])
+@DependsOn(['WindowManager', 'McpPackageService', 'BrowserSessionService'])
 export class McpRuntimeService extends BaseService {
-  private clients: Map<string, Client> = new Map()
-  private pendingClients: Map<string, Promise<Client>> = new Map()
-  private activeToolCalls: Map<string, AbortController> = new Map()
+  private connections = new Map<string, McpConnection>()
+  private pendingConnections = new Map<string, Promise<McpConnection>>()
+  private pendingConnectionControllers = new Map<string, AbortController>()
+  private pendingConnectionClosures = new Map<string, Promise<void>>()
+  // Removal waits for initialization cleanup, but must not wait out a liveness probe.
+  private pendingProbes = new Map<string, Promise<McpConnection | undefined>>()
+  // Keyed by server key, so a config change starts fresh; restart/stop/remove clear it.
+  private connectFailures = new Map<string, ConnectFailure>()
+  private removedServerIds = new Set<string>()
+  private pendingRemovals = new Map<string, Promise<void>>()
+  private activeToolCalls = new Map<string, Set<ActiveToolCall>>()
+  private pendingInteractions = new Map<string, PendingInteraction>()
+  private desktopRequests = new Map<string, AbortController>()
   private serverLogs = new ServerLogBuffer(200)
+  private readonly oauthCoordinator = new McpOAuthCoordinator()
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
-
+  private readonly connectionGenerations = new Map<string, symbol>()
+  private readonly _onCatalogChanged = this.registerDisposable(
+    new Emitter<{ serverId: string; kind: 'prompts' | 'resources' }>()
+  )
+  readonly onCatalogChanged = this._onCatalogChanged.event
+  private readonly _onResourceUpdated = this.registerDisposable(new Emitter<{ serverId: string; uri: string }>())
+  readonly onResourceUpdated = this._onResourceUpdated.event
+  private readonly resourceObservers = new Map<string, () => Promise<void>>()
   private get mcpPackageService(): McpPackageService {
     return application.get('McpPackageService')
   }
@@ -218,11 +261,20 @@ export class McpRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.stopping = true
+    this.connectionGenerations.clear()
+    this.oauthCoordinator.close()
     this.abortActiveToolCalls()
-    await this.waitForPendingClients()
-    await this.closeAllClients()
-    this.pendingClients.clear()
-    this.clients.clear()
+    for (const controller of this.desktopRequests.values()) controller.abort()
+    this.cancelPendingInteractions()
+    for (const controller of this.pendingConnectionControllers.values()) controller.abort()
+    await Promise.all([...this.resourceObservers.values()].map((close) => close()))
+    await this.waitForPendingConnections()
+    await this.closeAllConnections()
+    this.pendingConnections.clear()
+    this.pendingConnectionControllers.clear()
+    this.pendingProbes.clear()
+    this.connectFailures.clear()
+    this.connections.clear()
     this.serverLogs.clear()
   }
 
@@ -230,52 +282,23 @@ export class McpRuntimeService extends BaseService {
     return mcpServerService.getById(serverId)
   }
 
-  public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+  public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown, authorizing?: boolean): void {
+    if (this.removedServerIds.has(serverId)) return
+
     const lastError =
       state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
-
     const cacheService = application.get('CacheService')
     const key = mcpStatusCacheKey(serverId)
-
-    // setShared dedups via isEqual, but lastCheckedAt changes every call, so without this
-    // guard every status touch (ping/list/prewarm hot paths) would broadcast IPC to all
-    // windows. lastCheckedAt has no UI consumer, so leaving it stale on no-op writes is safe.
     const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
-    if (current && current.state === state && current.lastError === lastError) {
+    if (current && current.state === state && current.lastError === lastError && current.authorizing === authorizing)
       return
-    }
 
-    const status: McpRuntimeStatus = {
+    cacheService.setShared(key, {
       state,
       lastCheckedAt: Date.now(),
-      ...(lastError !== undefined ? { lastError } : {})
-    }
-    cacheService.setShared(key, status)
-  }
-
-  /**
-   * Call a tool by its full ID (serverId__toolName format).
-   * Used by Hub server's runtime.
-   */
-  public async callToolById(toolId: string, params: unknown, callId?: string): Promise<McpCallToolResponse> {
-    const parts = toolId.split('__')
-    if (parts.length < 2) {
-      throw new Error(`Invalid tool ID format: ${toolId}`)
-    }
-
-    const serverId = parts[0]
-    const toolName = parts.slice(1).join('__')
-
-    const server = mcpServerService.getById(serverId)
-
-    logger.debug(`[callToolById] Calling tool ${toolName} on server ${server.name}`)
-
-    return this.callToolByServer({
-      server,
-      name: toolName,
-      args: params,
-      callId
-    })
+      ...(lastError !== undefined ? { lastError } : {}),
+      ...(authorizing ? { authorizing } : {})
+    } satisfies McpRuntimeStatus)
   }
 
   public getServerKey(server: McpServer): string {
@@ -298,583 +321,791 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  private emitServerLog(server: McpServer, entry: McpServerLogEntry) {
-    const serverKey = this.getServerKey(server)
-    this.serverLogs.append(serverKey, entry)
+  private emitServerLog(server: McpServer, entry: McpServerLogEntry): void {
+    this.serverLogs.append(this.getServerKey(server), entry)
     application
       .get('IpcApiService')
       .broadcastToType(WindowType.Main, 'mcp.server.log', { ...entry, serverId: server.id })
   }
 
   public async getServerLogs(serverId: string): Promise<McpServerLogEntry[]> {
-    const server = this.getServerById(serverId)
-    return this.serverLogs.get(this.getServerKey(server))
+    return this.serverLogs.get(this.getServerKey(this.getServerById(serverId)))
   }
 
-  public async withClient<T>(
-    serverId: string,
-    operation: (client: Client, server: McpServer) => Promise<T>
-  ): Promise<T> {
-    const server = this.getServerById(serverId)
-    const client = await this.getOrCreateClient(server)
-    return operation(client, server)
+  private connectionEvents(server: McpServer, generation: symbol): McpConnectionEvents {
+    const current = () => this.connectionGenerations.get(this.getServerKey(server)) === generation
+    return {
+      toolsChanged: (error, tools) => {
+        if (!current()) return
+        if (error) {
+          getServerLogger(server).warn('Failed to refresh changed tools', { error })
+          return
+        }
+        if (tools) this._onToolListChanged.fire({ serverId: server.id, tools })
+      },
+      promptsChanged: (error) => {
+        if (!current()) return
+        if (error) getServerLogger(server).warn('Failed to refresh changed prompts', { error })
+        else this._onCatalogChanged.fire({ serverId: server.id, kind: 'prompts' })
+      },
+      resourcesChanged: (error) => {
+        if (!current()) return
+        if (error) getServerLogger(server).warn('Failed to refresh changed resources', { error })
+        else this._onCatalogChanged.fire({ serverId: server.id, kind: 'resources' })
+      },
+      resourceUpdated: (uri) => {
+        if (current()) this._onResourceUpdated.fire({ serverId: server.id, uri })
+      },
+      log: (level, source, data) => {
+        if (!current()) return
+        const redacted = redactSensitive(data)
+        this.emitServerLog(server, {
+          timestamp: Date.now(),
+          level: level as McpServerLogEntry['level'],
+          message: safeSerialize(redacted) ?? 'No data',
+          data: redacted,
+          source: source || 'server'
+        })
+      }
+    }
   }
 
-  private async getOrCreateClient(server: McpServer): Promise<Client> {
-    if (this.stopping || this.isStopped || this.isDestroyed) {
-      throw new Error('MCP runtime is stopping')
+  private async createConnection(
+    server: McpServer,
+    requestContext?: McpInteractionContext | null,
+    signal?: AbortSignal
+  ): Promise<McpConnection> {
+    const connectTimeoutMs = Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
+    const generation = Symbol()
+    this.connectionGenerations.set(this.getServerKey(server), generation)
+    const events = this.connectionEvents(server, generation)
+
+    if (mcpTransportKind(server) === 'inMemory') {
+      return createInProcessMcpConnection({
+        appVersion: app.getVersion(),
+        endpoint: await createBuiltinMcpEndpoint(
+          server.name as BuiltinMcpServerName,
+          [...(server.args || [])],
+          server.env || {}
+        ),
+        events,
+        connectTimeoutMs
+      })
     }
 
+    return createExternalMcpConnection({
+      server: resolveBuiltinExternalMcpServer(server),
+      oauthCoordinator: this.oauthCoordinator,
+      allowInteractiveAuthorization: canAuthorizeInteractively(requestContext),
+      authorizationWindowId: requestContext?.windowId,
+      onAuthorizationStarted: () => this.setServerStatus(server.id, 'connecting', undefined, true),
+      signal,
+      appVersion: app.getVersion(),
+      events,
+      connectTimeoutMs,
+      log: {
+        info: (message, data) => getServerLogger(server).info(message, { data }),
+        warn: (message, data) => getServerLogger(server).warn(message, { data }),
+        stdio: (message) => {
+          this.emitServerLog(server, {
+            timestamp: Date.now(),
+            level: 'stderr',
+            message: redactSecretText(message),
+            source: 'stdio'
+          })
+        }
+      }
+    })
+  }
+
+  private async getOrCreateConnection(
+    server: McpServer,
+    requestContext?: McpInteractionContext | null,
+    signal?: AbortSignal
+  ): Promise<McpConnection> {
+    signal?.throwIfAborted()
+    if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
+    if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
     if (!server.isActive) {
       this.setServerStatus(server.id, 'disabled')
       throw new Error(`MCP server ${server.name} is disabled`)
     }
 
     const serverKey = this.getServerKey(server)
+    const pending = this.pendingConnections.get(serverKey)
+    if (pending) return waitForConnection(pending, signal)
 
-    // If there's a pending initialization, wait for it
-    const pendingClient = this.pendingClients.get(serverKey)
-    if (pendingClient) {
-      this.setServerStatus(server.id, 'connecting')
-      getServerLogger(server).silly(`Waiting for pending client initialization`)
-      return pendingClient
+    const existing = this.connections.get(serverKey)
+    const pendingProbe = this.pendingProbes.get(serverKey)
+    if (pendingProbe || existing) {
+      const reused = await waitForConnection(pendingProbe ?? this.probeConnection(server, serverKey, existing!), signal)
+      if (reused) return reused
     }
 
-    // Check if we already have a client for this server configuration
-    const existingClient = this.clients.get(serverKey)
-    if (existingClient) {
-      try {
-        // Check if the existing client is still connected
-        const pingResult = await existingClient.ping({
-          // add short timeout to prevent hanging
-          timeout: 1000
-        })
-        getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-        // If the ping fails, remove the client from the cache
-        // and create a new one
-        if (!pingResult) {
-          this.clients.delete(serverKey)
-        } else {
-          this.setServerStatus(server.id, 'connected')
-          return existingClient
-        }
-      } catch (error: any) {
-        getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
-        this.clients.delete(serverKey)
-      }
+    const closing = this.pendingConnectionClosures.get(serverKey)
+    if (closing) {
+      await waitForConnection(closing, signal)
+      return this.getOrCreateConnection(server, requestContext, signal)
     }
+
+    signal?.throwIfAborted()
+    if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
+    if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
+    const pendingAfterProbe = this.pendingConnections.get(serverKey)
+    if (pendingAfterProbe) return waitForConnection(pendingAfterProbe, signal)
+    const interactive = canAuthorizeInteractively(requestContext)
+    const failure = this.connectFailures.get(serverKey)
+    // A background attempt cannot open the browser, so it must not block a caller that can sign in.
+    const signInPending = failure && !failure.interactive && interactive && UnauthorizedError.isInstance(failure.error)
+    if (failure && Date.now() < failure.retryAt && !signInPending) throw failure.error
 
     this.setServerStatus(server.id, 'connecting')
-
-    const prepareHeaders = () => {
-      return {
-        ...defaultAppHeaders(),
-        ...server.headers
-      }
-    }
-
-    // Create a promise for the initialization process
-    const initPromise = (async () => {
+    const controller = new AbortController()
+    this.pendingConnectionControllers.set(serverKey, controller)
+    const initialize = (async () => {
       try {
-        // Create new client instance for each connection
-        const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
-
-        let args = [...(server.args || [])]
-
-        // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
-        const authProvider = new McpOAuthClientProvider({
-          serverUrlHash: crypto
-            .createHash('md5')
-            .update(server.baseUrl || '')
-            .digest('hex')
+        const connection = await this.createConnection(server, requestContext, controller.signal)
+        if (
+          controller.signal.aborted ||
+          this.stopping ||
+          this.isStopped ||
+          this.isDestroyed ||
+          this.removedServerIds.has(server.id)
+        ) {
+          await connection.close()
+          if (this.removedServerIds.has(server.id)) {
+            throw new Error(`MCP server ${server.name} was removed during connect`)
+          }
+          controller.signal.throwIfAborted()
+          throw new Error('MCP runtime is stopping')
+        }
+        this.connections.set(serverKey, connection)
+        this.setServerStatus(server.id, 'connected')
+        this.emitServerLog(server, {
+          timestamp: Date.now(),
+          level: 'info',
+          message: `Server connected (${connection.era})`,
+          source: 'client'
         })
-
-        const initTransport = async (
-          typeOverride?: McpServerType
-        ): Promise<StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport> => {
-          // Create appropriate transport based on configuration
-
-          // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
-          if (
-            isBuiltinMcpServer(server) &&
-            (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
-          ) {
-            const httpUrlMap: Record<string, string> = {
-              [BuiltinMcpServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
-              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp'
-            }
-            const httpUrl = httpUrlMap[server.name]
-            const options: StreamableHTTPClientTransportOptions = {
-              fetch: async (url, init) => {
-                return net.fetch(typeof url === 'string' ? url : url.toString(), init)
-              },
-              requestInit: {
-                headers: {
-                  ...defaultAppHeaders(),
-                  APP: 'Cherry Studio'
-                }
-              },
-              authProvider
-            }
-            getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
-            return new StreamableHTTPClientTransport(new URL(httpUrl), options)
-          }
-
-          if (isBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
-            getServerLogger(server).debug(`Using in-memory transport`)
-            const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-            // start the in-memory server with the given name and environment variables
-            const inMemoryServer = createInMemoryMcpServer(server.name, args, server.env || {})
-            try {
-              await inMemoryServer.connect(serverTransport)
-              getServerLogger(server).debug(`In-memory server started`)
-            } catch (error: any) {
-              getServerLogger(server).error(`Error starting in-memory server`, error as Error)
-              throw new Error(`Failed to start in-memory server: ${error.message}`)
-            }
-            // set the client transport to the client
-            return clientTransport
-          } else if (server.baseUrl) {
-            const urlBasedType: McpServerType = typeOverride ?? server.type ?? 'sse'
-            if (urlBasedType === 'streamableHttp') {
-              const options: StreamableHTTPClientTransportOptions = {
-                fetch: async (url, init) => {
-                  return net.fetch(typeof url === 'string' ? url : url.toString(), init)
-                },
-                requestInit: {
-                  headers: prepareHeaders()
-                },
-                authProvider
-              }
-              // redact headers before logging
-              getServerLogger(server).debug(`StreamableHTTPClientTransport options`, {
-                options: redactSensitive(options)
-              })
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
-            } else if (urlBasedType === 'sse') {
-              const options: SSEClientTransportOptions = {
-                eventSourceInit: {
-                  fetch: async (url, init) => {
-                    return net.fetch(typeof url === 'string' ? url : url.toString(), init)
-                  }
-                },
-                requestInit: {
-                  headers: prepareHeaders()
-                },
-                authProvider
-              }
-              return new SSEClientTransport(new URL(server.baseUrl), options)
-            } else {
-              throw new Error('Invalid server type')
-            }
-          } else if (server.command) {
-            let cmd = server.command
-            let effectiveCommand = server.command
-
-            // Build a local env for the transport instead of mutating `server.env`. getServerKey(server)
-            // serializes server.env, so mutating it here would shift the key after connect — connect-time
-            // logs (emitServerLog) and list-changed cache invalidations would then land under a key that
-            // getServerLogs / the caches (which see the un-mutated server) never query. Keep server.env
-            // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
-            const connectEnv: Record<string, string> = { ...server.env }
-
-            // Get login shell environment first - needed for command detection and server execution
-            // Note: getShellEnv() is memoized, so subsequent calls are fast
-            const loginShellEnv = await getShellEnv()
-
-            // For package servers, use resolved configuration with platform overrides and variable substitution
-            if (server.dxtPath) {
-              const resolvedConfig = this.mcpPackageService.getResolvedMcpConfig(server.dxtPath)
-              if (resolvedConfig) {
-                cmd = resolvedConfig.command
-                effectiveCommand = resolvedConfig.command
-                args = resolvedConfig.args
-                // Merge resolved environment variables with existing ones
-                Object.assign(connectEnv, resolvedConfig.env)
-                getServerLogger(server).debug(`Using resolved package config`, {
-                  command: cmd,
-                  args
-                })
-              } else {
-                getServerLogger(server).warn(`Failed to resolve package config, falling back to manifest values`)
-              }
-            }
-
-            if (effectiveCommand === 'npx') {
-              // First, check if npx is available in user's shell environment
-              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
-
-              if (npxPath) {
-                // Use system npx
-                cmd = npxPath
-                getServerLogger(server).debug(`Using system npx`, { command: cmd })
-              } else {
-                // System npx not found, try bundled bun as fallback
-                getServerLogger(server).debug(`System npx not found, checking for bundled bun`)
-
-                if (await isBinaryExists('bun')) {
-                  // Fall back to bundled bun
-                  cmd = await getBinaryPath('bun')
-                  getServerLogger(server).info(`Using bundled bun as fallback (npx not found in PATH)`, {
-                    command: cmd
-                  })
-
-                  // Transform args for bun x format
-                  if (args && args.length > 0) {
-                    if (!args.includes('-y')) {
-                      args.unshift('-y')
-                    }
-                    if (!args.includes('x')) {
-                      args.unshift('x')
-                    }
-                  }
-                } else {
-                  // Neither npx nor bun available
-                  throw new Error(
-                    'npx not found in PATH and bundled bun is not available. This may indicate an installation issue.\n' +
-                      'Please either:\n' +
-                      '1. Install Node.js (which includes npx) from https://nodejs.org\n' +
-                      '2. Run the MCP dependencies installer from Settings\n' +
-                      '3. Restart the application if you recently installed Node.js'
-                  )
-                }
-              }
-
-              if (server.registryUrl) {
-                connectEnv.NPM_CONFIG_REGISTRY = server.registryUrl
-
-                // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
-                if (server.name.includes('mcp-auto-install')) {
-                  const binPath = await getBinaryPath()
-                  await fs.mkdir(binPath, { recursive: true })
-                  connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
-                }
-              }
-            } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
-              // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
-
-              if (uvPath) {
-                // Use system uvx/uv
-                cmd = uvPath
-                getServerLogger(server).debug(`Using system ${effectiveCommand}`, { command: cmd })
-              } else {
-                // System command not found, try bundled version as fallback
-                getServerLogger(server).debug(`System ${effectiveCommand} not found, checking for bundled version`)
-
-                if (await isBinaryExists(effectiveCommand)) {
-                  // Fall back to bundled version
-                  cmd = await getBinaryPath(effectiveCommand)
-                  getServerLogger(server).info(`Using bundled ${effectiveCommand} as fallback (not found in PATH)`, {
-                    command: cmd
-                  })
-                } else {
-                  // Neither system nor bundled available
-                  throw new Error(
-                    `${effectiveCommand} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
-                      'Please either:\n' +
-                      '1. Install uv from https://github.com/astral-sh/uv\n' +
-                      '2. Run the MCP dependencies installer from Settings\n' +
-                      `3. Restart the application if you recently installed ${effectiveCommand}`
-                  )
-                }
-              }
-
-              if (server.registryUrl) {
-                connectEnv.UV_DEFAULT_INDEX = server.registryUrl
-                connectEnv.PIP_INDEX_URL = server.registryUrl
-              }
-            }
-
-            getServerLogger(server).debug(`Starting server`, { command: cmd, args })
-
-            // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
-            if (cmd.includes('bun')) {
-              removeEnvProxy(loginShellEnv)
-            }
-
-            const transportOptions: StdioServerParameters = {
-              command: cmd,
-              args,
-              env: {
-                ...loginShellEnv,
-                ...connectEnv
-              },
-              stderr: 'pipe'
-            }
-
-            // For package servers, set the working directory to the extracted path
-            if (server.dxtPath) {
-              transportOptions.cwd = server.dxtPath
-              getServerLogger(server).debug(`Setting working directory for package server`, {
-                cwd: server.dxtPath
-              })
-            }
-
-            const stdioTransport = new StdioClientTransport(transportOptions)
-            stdioTransport.stderr?.on('data', (data) => {
-              const msg = data.toString()
-              getServerLogger(server).debug(`Stdio stderr`, { data: msg })
-              this.emitServerLog(server, {
-                timestamp: Date.now(),
-                level: 'stderr',
-                message: msg.trim(),
-                source: 'stdio'
-              })
-            })
-            // StdioClientTransport does not expose stdout as a readable stream for raw logging
-            // (stdout is reserved for JSON-RPC). Avoid attaching a listener that would never fire.
-            return stdioTransport
-          } else {
-            throw new Error('Either baseUrl or command must be provided')
-          }
+        return connection
+      } catch (error) {
+        const cancelled = controller.signal.aborted && !UnauthorizedError.isInstance(controller.signal.reason)
+        if (!cancelled && !this.stopping && !this.removedServerIds.has(server.id)) {
+          this.recordConnectionFailure(server, error, interactive)
         }
-
-        const handleAuth = async (
-          client: Client,
-          transport: SSEClientTransport | StreamableHTTPClientTransport,
-          typeOverride?: McpServerType
-        ) => {
-          getServerLogger(server).debug(`Starting OAuth flow`)
-          // Create an event emitter for the OAuth callback
-          const events = new EventEmitter()
-
-          // Create a callback server
-          const callbackServer = new CallBackServer({
-            port: authProvider.config.callbackPort,
-            path: authProvider.config.callbackPath || '/oauth/callback',
-            events
-          })
-
-          // Set a timeout to close the callback server
-          const timeoutId = setTimeout(() => {
-            getServerLogger(server).warn(`OAuth flow timed out`)
-            void callbackServer.close()
-          }, 300000) // 5 minutes timeout
-
-          try {
-            // Wait for the authorization code
-            const authCode = await callbackServer.waitForAuthCode()
-            getServerLogger(server).debug(`Received auth code`)
-
-            // Complete the OAuth flow
-            await transport.finishAuth(authCode)
-
-            getServerLogger(server).debug(`OAuth flow completed`)
-
-            const newTransport = await initTransport(typeOverride)
-            // Try to connect again
-            await client.connect(newTransport)
-
-            getServerLogger(server).debug(`Successfully authenticated`)
-          } catch (oauthError) {
-            getServerLogger(server).error(`OAuth authentication failed`, oauthError as Error)
-            throw new Error(
-              `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
-            )
-          } finally {
-            // Clear the timeout and close the callback server
-            clearTimeout(timeoutId)
-            void callbackServer.close()
-          }
-        }
-
-        try {
-          // Bound the MCP `initialize` request so a non-responsive server fails fast via the
-          // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
-          // generous headroom is cheap) while still honoring larger `server.timeout` values
-          // that the user explicitly configured. transport.start() latency remains bounded
-          // by the underlying fetch / child_process, matching v1.8.4 behavior.
-          const connectOptions: RequestOptions = {
-            timeout: Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
-          }
-
-          const candidates = getTransportCandidates(server)
-          // When no fallback candidates exist (stdio / in-memory / built-in), connect with the
-          // configured transport exactly once. Otherwise iterate the candidate transports,
-          // retrying with the alternative transport on a transport-level protocol error.
-          const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
-          let connected = false
-          let lastError: unknown
-
-          for (let i = 0; i < transportTypes.length; i++) {
-            const candidateType = transportTypes[i]
-            const transport = await initTransport(candidateType)
-            try {
-              await client.connect(transport, connectOptions)
-              connected = true
-              break
-            } catch (error: any) {
-              if (
-                error instanceof Error &&
-                (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-              ) {
-                logger.debug(`Authentication required for server: ${server.name}`)
-                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport, candidateType)
-                connected = true
-                break
-              }
-              lastError = error
-              // Only fall back on a transport-level protocol error (e.g. SSE GET 405 → retry
-              // with Streamable HTTP). Do not fall back on timeouts, auth, or other failures.
-              if (!candidates || !isTransportFallbackError(error)) {
-                break
-              }
-              // No alternative transport left to try.
-              if (i === candidates.length - 1) {
-                break
-              }
-              const fallbackType = candidates[i + 1]
-              getServerLogger(server).warn(`Transport '${candidateType}' failed, falling back to '${fallbackType}'`, {
-                error: redactSensitive(error)
-              })
-              // Close the whole client (not just the transport) so the SDK resets its internal
-              // _transport before we retry. Reusing the client for the fallback mirrors the OAuth
-              // re-auth path, which relies on client.close() clearing _transport first.
-              await client.close().catch(() => undefined)
-            }
-          }
-
-          if (!connected) {
-            // Release the last (failed) transport/connection so it isn't leaked until GC.
-            await client.close().catch(() => undefined)
-            throw lastError ?? new Error('Failed to connect to MCP server')
-          }
-
-          this.emitServerLog(server, {
-            timestamp: Date.now(),
-            level: 'info',
-            message: 'Server connected',
-            source: 'client'
-          })
-
-          if (this.stopping || this.isStopped || this.isDestroyed) {
-            await client.close()
-            throw new Error('MCP runtime is stopping')
-          }
-
-          // Store the new client in the cache
-          this.clients.set(serverKey, client)
-          this.setServerStatus(server.id, 'connected')
-
-          // Set up notification handlers
-          this.setupNotificationHandlers(client, server)
-
-          // Clear existing cache to ensure fresh data
-          this.clearServerCache(server)
-
-          logger.debug(`Activated server: ${server.name}`)
-          this.emitServerLog(server, {
-            timestamp: Date.now(),
-            level: 'info',
-            message: 'Server activated',
-            source: 'client'
-          })
-          return client
-        } catch (error) {
-          this.setServerStatus(server.id, 'error', error)
-          getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
-          this.emitServerLog(server, {
-            timestamp: Date.now(),
-            level: 'error',
-            message: `Error activating server: ${(error as Error)?.message}`,
-            data: redactSensitive(error),
-            source: 'client'
-          })
-          throw error
-        }
-      } finally {
-        // Clean up the pending promise when done
-        this.pendingClients.delete(serverKey)
+        this.setServerStatus(server.id, 'error', error)
+        this.emitServerLog(server, {
+          timestamp: Date.now(),
+          level: 'error',
+          message: `Error activating server: ${error instanceof Error ? error.message : String(error)}`,
+          data: redactSensitive(error),
+          source: 'client'
+        })
+        throw error
       }
-    })()
+    })().finally(() => {
+      if (this.pendingConnections.get(serverKey) === initialize) this.pendingConnections.delete(serverKey)
+      if (this.pendingConnectionControllers.get(serverKey) === controller) {
+        this.pendingConnectionControllers.delete(serverKey)
+      }
+    })
 
-    // Store the pending promise
-    this.pendingClients.set(serverKey, initPromise)
-
-    return initPromise
+    this.pendingConnections.set(serverKey, initialize)
+    return waitForConnection(initialize, signal)
   }
 
-  /**
-   * Set up notification handlers for MCP client
-   */
-  private setupNotificationHandlers(client: Client, server: McpServer) {
+  private recordConnectionFailure(server: McpServer, error: unknown, interactive: boolean): void {
     const serverKey = this.getServerKey(server)
-    const cacheService = application.get('CacheService')
+    const attempts = (this.connectFailures.get(serverKey)?.attempts ?? 0) + 1
+    const retryAt = Date.now() + connectRetryDelayMs(error, attempts)
+    this.connectFailures.set(serverKey, { error, attempts, retryAt, interactive })
+    getServerLogger(server).warn('MCP connection retry gate updated', {
+      error,
+      attempts,
+      retryAt: Number.isFinite(retryAt) ? retryAt : undefined,
+      retryStopped: !Number.isFinite(retryAt)
+    })
+  }
 
+  private probeConnection(
+    server: McpServer,
+    serverKey: string,
+    existing: McpConnection
+  ): Promise<McpConnection | undefined> {
+    const pending = this.pendingProbes.get(serverKey)
+    if (pending) return pending
+    const assertCurrent = () => {
+      if (this.stopping || this.isStopped || this.isDestroyed) throw new Error('MCP runtime is stopping')
+      if (this.removedServerIds.has(server.id)) throw new Error(`MCP server ${server.name} has been removed`)
+      if (this.connections.get(serverKey) !== existing) throw new DOMException('MCP connection replaced', 'AbortError')
+    }
+    const probe = (async () => {
+      try {
+        await existing.health()
+      } catch (error) {
+        assertCurrent()
+        getServerLogger(server).warn('Existing MCP connection failed health check', { error })
+        this.recordConnectionFailure(server, error, false)
+        this.setServerStatus(server.id, 'error', error)
+        await this.closeConnection(serverKey, existing).catch((closeError) => {
+          getServerLogger(server).warn('Failed to close unhealthy MCP connection', { error: closeError })
+        })
+        throw error
+      }
+      assertCurrent()
+      this.connectFailures.delete(serverKey)
+      this.setServerStatus(server.id, 'connected')
+      return existing
+    })().finally(() => {
+      if (this.pendingProbes.get(serverKey) === probe) this.pendingProbes.delete(serverKey)
+    })
+    this.pendingProbes.set(serverKey, probe)
+    return probe
+  }
+
+  public async listTools(serverId: string, cacheMode: CacheMode = 'use'): Promise<Tool[]> {
+    const server = this.getServerById(serverId)
+    const connection = await this.getOrCreateConnection(server, null)
+    const tools = await connection.listTools(cacheMode)
+    if (this.connections.get(this.getServerKey(server)) !== connection)
+      throw new DOMException('MCP connection replaced', 'AbortError')
+    return tools
+  }
+
+  public async observeResource(serverId: string, uri: string, onState: (state: McpResourceObservationState) => void) {
+    const server = this.getServerById(serverId)
+    return (await this.getOrCreateConnection(server, null)).observeResource(uri, onState)
+  }
+
+  public async observeDesktopResource(
+    windowId: WindowId,
+    requestId: string,
+    serverId: string,
+    uri: string
+  ): Promise<void> {
+    const key = toolCallKey(requestId, windowId)
+    if (this.resourceObservers.has(key)) throw new Error('Duplicate MCP resource observation')
+    if (this.resourceObservers.size >= 256) throw new Error('MCP resource observation limit reached')
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) throw new Error('MCP resource observation requires an active window')
+    let ended = false
+    let lease: Awaited<ReturnType<McpRuntimeService['observeResource']>> | undefined
+    const send = (state: McpResourceObservationState | 'updated') => {
+      if (!ended)
+        application.get('IpcApiService').send(windowId, 'mcp.resource.changed', { requestId, serverId, uri, state })
+      if (state === 'closed') void close()
+    }
+    const subscription = this.onResourceUpdated((event) => {
+      if (event.serverId === serverId && event.uri === uri) send('updated')
+    })
+    const close = async () => {
+      ended = true
+      subscription.dispose()
+      window.removeListener('closed', onClose)
+      this.resourceObservers.delete(key)
+      await lease?.close()
+    }
+    const onClose = () => {
+      void close()
+    }
+    this.resourceObservers.set(key, close)
+    window.once('closed', onClose)
     try {
-      // Set up tools list changed notification handler
-      client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
-        logger.debug(`Tools list changed for server: ${server.name}`)
-        this._onToolListChanged.fire({ serverId: server.id })
-      })
-
-      // Set up resources list changed notification handler
-      client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
-        logger.debug(`Resources list changed for server: ${server.name}`)
-        // Clear resources cache
-        cacheService.delete(`mcp:list_resources:${serverKey}`)
-      })
-
-      // Set up prompts list changed notification handler
-      client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
-        logger.debug(`Prompts list changed for server: ${server.name}`)
-        // Clear prompts cache
-        cacheService.delete(`mcp:list_prompts:${serverKey}`)
-      })
-
-      // Set up resource updated notification handler
-      client.setNotificationHandler(ResourceUpdatedNotificationSchema, async () => {
-        logger.debug(`Resource updated for server: ${server.name}`)
-        // Clear resource-specific caches
-        this.clearResourceCaches(serverKey)
-      })
-
-      // Set up cancelled notification handler
-      client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
-        logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
-      })
-
-      // Set up logging message notification handler
-      client.setNotificationHandler(LoggingMessageNotificationSchema, async (notification) => {
-        const data = notification.params?.data
-        const message = safeSerialize(notification.params.data) ?? 'No data'
-        logger.debug(`Message from server ${server.name}: ${message}`)
-        if (data) {
-          this.emitServerLog(server, {
-            timestamp: Date.now(),
-            // FIXME: as McpServerLogEntry['level'] not type safe
-            level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
-            message,
-            data: redactSensitive(notification.params?.data),
-            source: notification.params?.logger || 'server'
-          })
-        }
-      })
-
-      getServerLogger(server).debug(`Set up notification handlers`)
+      lease = await this.observeResource(serverId, uri, send)
+      if (ended) await lease.close()
     } catch (error) {
-      getServerLogger(server).error(`Failed to set up notification handlers`, error as Error)
+      await close()
+      throw error
     }
   }
 
-  /**
-   * Clear resource-specific caches for a server
-   */
-  private clearResourceCaches(serverKey: string) {
-    application.get('CacheService').delete(`mcp:list_resources:${serverKey}`)
+  public observeDesktopCatalog(windowId: WindowId, requestId: string, serverId: string): void {
+    const key = toolCallKey(requestId, windowId)
+    if (this.resourceObservers.has(key) || this.resourceObservers.size >= 256)
+      throw new Error('MCP observation limit reached')
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) throw new Error('MCP catalog observation requires an active window')
+    const listener = this.onCatalogChanged((event) => {
+      if (event.serverId === serverId) application.get('IpcApiService').send(windowId, 'mcp.catalog.changed', event)
+    })
+    const close = async () => {
+      listener.dispose()
+      window.removeListener('closed', onClose)
+      this.resourceObservers.delete(key)
+    }
+    const onClose = () => {
+      void close()
+    }
+    this.resourceObservers.set(key, close)
+    window.once('closed', onClose)
   }
 
-  /**
-   * Clear all caches for a specific server
-   */
-  private clearServerCache(serverOrKey: McpServer | string) {
-    const serverKey = typeof serverOrKey === 'string' ? serverOrKey : this.getServerKey(serverOrKey)
-    const cacheService = application.get('CacheService')
-    cacheService.delete(`mcp:list_tool:${serverKey}`)
-    cacheService.delete(`mcp:list_prompts:${serverKey}`)
-    cacheService.delete(`mcp:list_resources:${serverKey}`)
-    logger.debug(`Cleared all caches for server`, { serverKey })
+  public getConnectedServerCapabilities(serverId: string): ServerCapabilities | undefined {
+    let server: McpServer
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      return undefined
+    }
+    return this.connections.get(this.getServerKey(server))?.serverCapabilities
+  }
+
+  public async getServerCapabilities(serverId: string): Promise<ServerCapabilities | undefined> {
+    return (await this.getOrCreateConnection(this.getServerById(serverId), null)).serverCapabilities
+  }
+
+  public getConnectedServerInstructions(serverId: string) {
+    let server: McpServer
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      return undefined
+    }
+    if (!server.isActive) return undefined
+    return projectServerInstructions(server, this.connections.get(this.getServerKey(server))?.instructions)
+  }
+
+  public async callToolById(
+    toolId: string,
+    params: unknown,
+    callId?: string,
+    interactionContext?: McpInteractionContext,
+    scope?: string,
+    signal?: AbortSignal
+  ): Promise<CallToolResult> {
+    const [serverId, ...toolNameParts] = toolId.split('__')
+    if (!serverId || toolNameParts.length === 0) throw new Error(`Invalid tool ID format: ${toolId}`)
+    return this.callTool({
+      serverId,
+      name: toolNameParts.join('__'),
+      args: params,
+      callId,
+      scope,
+      signal,
+      interactionContext
+    })
+  }
+
+  public async callTool(args: CallToolArgs): Promise<CallToolResult> {
+    return this.callToolByServer({ ...args, server: this.getServerById(args.serverId) })
+  }
+
+  public async callToolByServer({
+    server,
+    name,
+    args,
+    callId,
+    scope,
+    signal,
+    onProgress,
+    interactionContext
+  }: RuntimeCallToolArgs): Promise<CallToolResult> {
+    const toolCallId = callId || uuidv4()
+    const registrationKey = toolCallKey(toolCallId, scope)
+    const controller = new AbortController()
+    const effectiveSignal = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal
+    const activeCall = { serverId: server.id, controller }
+    const activeCalls = this.activeToolCalls.get(registrationKey) ?? new Set<ActiveToolCall>()
+    activeCalls.add(activeCall)
+    this.activeToolCalls.set(registrationKey, activeCalls)
+
+    const run = async (): Promise<CallToolResult> => {
+      try {
+        if (effectiveSignal.aborted) throw getAbortReason(effectiveSignal)
+
+        let normalizedArgs = args
+        if (typeof normalizedArgs === 'string') {
+          if (!normalizedArgs.trim()) normalizedArgs = {}
+          else {
+            try {
+              normalizedArgs = JSON.parse(normalizedArgs)
+            } catch (error) {
+              throw new Error(`Invalid JSON tool arguments for ${name}: ${(error as Error).message}`)
+            }
+          }
+        }
+
+        if (isMcpToolDisabledBySource(this.getLatestSourcePolicy(server), { name })) {
+          throw new Error(`MCP tool is disabled: ${name}`)
+        }
+
+        getServerLogger(server, { tool: name, callId: toolCallId }).debug('Calling tool', {
+          args: redactSensitive(normalizedArgs)
+        })
+        const host = this.resolveInteractionContext(server.id, { ...interactionContext, requestId: toolCallId })
+        const connection = await this.getOrCreateConnection(server, host ?? null, effectiveSignal)
+        const policy = resolveMcpRequestOptions(server)
+        const response = await connection.callTool(name, normalizedArgs, {
+          signal: effectiveSignal,
+          timeoutMs: policy.timeout,
+          resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+          maxTotalTimeoutMs: policy.maxTotalTimeout,
+          interactionContext: host,
+          onProgress: (progress, total) => {
+            const update: Progress = { progress, ...(total === undefined ? {} : { total }) }
+            application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.tool.call_progress', {
+              callId: toolCallId,
+              progress: progress / (total || 1)
+            })
+            try {
+              onProgress?.(update)
+            } catch (error) {
+              getServerLogger(server, { tool: name, callId: toolCallId }).warn('Progress listener threw', { error })
+            }
+          }
+        })
+        if (response.isError) return response
+        return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
+      } catch (error) {
+        if (isMcpCancellation(error, effectiveSignal)) {
+          getServerLogger(server, { tool: name, callId: toolCallId }).debug('Tool call aborted')
+        } else {
+          getServerLogger(server, { tool: name, callId: toolCallId }).error('Error calling tool', error as Error)
+        }
+        throw error
+      } finally {
+        const registered = this.activeToolCalls.get(registrationKey)
+        registered?.delete(activeCall)
+        if (registered?.size === 0) this.activeToolCalls.delete(registrationKey)
+      }
+    }
+
+    const tracedInput = {
+      server: { id: server.id, name: server.name, type: server.type, description: server.description },
+      name,
+      args
+    }
+    return withSpanFunc(
+      `${server.name}.${name}`,
+      'MCP',
+      // oxlint-disable-next-line no-unused-vars
+      (_recorded: typeof tracedInput) => run(),
+      [tracedInput]
+    )
+  }
+
+  public async forwardRequest(
+    serverId: string,
+    method: McpForwardMethod,
+    params: Record<string, unknown>,
+    options: Pick<McpForwardOptions, 'signal' | 'capabilities' | 'onProgress'>
+  ): Promise<McpForwardResult> {
+    const server = this.getServerById(serverId)
+    if (
+      method === 'tools/call' &&
+      isMcpToolDisabledBySource(this.getLatestSourcePolicy(server), { name: String(params.name) })
+    ) {
+      throw new Error(`MCP tool is disabled: ${String(params.name)}`)
+    }
+    const policy = resolveMcpRequestOptions(server)
+    const result = await (
+      await this.getOrCreateConnection(server, null, options.signal)
+    ).forwardRequest(method, params, {
+      ...options,
+      toolDefinition:
+        method === 'tools/call'
+          ? application
+              .get('McpCatalogService')
+              .listTools(server.id, { includeDisabled: true })
+              .find((tool) => tool.name === params.name)
+          : undefined,
+      timeoutMs: policy.timeout,
+      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+      maxTotalTimeoutMs: policy.maxTotalTimeout
+    })
+    if (method === 'tools/call' && !isInputRequiredResult(result) && 'content' in result) {
+      return clampToolResultImages(result as CallToolResult, getServerLogger(server))
+    }
+    return result
+  }
+
+  public async listPrompts(serverId: string, cacheMode: CacheMode = 'use'): Promise<McpPrompt[]> {
+    const server = this.getServerById(serverId)
+    try {
+      const prompts = await (await this.getOrCreateConnection(server, null)).listPrompts(cacheMode)
+      return prompts.map((prompt) => ({
+        ...prompt,
+        id: `p${nanoid()}`,
+        serverId: server.id,
+        serverName: server.name
+      }))
+    } catch (error) {
+      getServerLogger(server).error('Failed to list prompts', error as Error)
+      return []
+    }
+  }
+
+  @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
+  public async getPrompt({
+    serverId,
+    name,
+    args,
+    signal,
+    interactionContext
+  }: {
+    serverId: string
+    name: string
+    args?: Record<string, string>
+    signal?: AbortSignal
+    interactionContext?: McpInteractionContext
+  }): Promise<GetPromptResult> {
+    const server = this.getServerById(serverId)
+    const policy = resolveMcpRequestOptions(server)
+    const host = this.resolveInteractionContext(server.id, interactionContext)
+    return (await this.getOrCreateConnection(server, host ?? null, signal)).getPrompt(name, args, {
+      signal: signal ?? new AbortController().signal,
+      timeoutMs: policy.timeout,
+      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+      maxTotalTimeoutMs: policy.maxTotalTimeout,
+      interactionContext: host
+    })
+  }
+
+  public async listResourceTemplates(serverId: string, cacheMode: CacheMode = 'use') {
+    const server = this.getServerById(serverId)
+    const templates = await (await this.getOrCreateConnection(server, null)).listResourceTemplates(cacheMode)
+    return templates.map((template) => ({ ...template, serverId: server.id, serverName: server.name }))
+  }
+
+  public async listResources(serverId: string, cacheMode: CacheMode = 'use'): Promise<McpResource[]> {
+    const server = this.getServerById(serverId)
+    try {
+      const resources = await (await this.getOrCreateConnection(server, null)).listResources(cacheMode)
+      return resources.map((resource) => ({
+        ...resource,
+        serverId: server.id,
+        serverName: server.name
+      }))
+    } catch (error) {
+      getServerLogger(server).error('Failed to list resources', error as Error)
+      throw error
+    }
+  }
+
+  @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
+  public async getResource({
+    serverId,
+    uri,
+    signal,
+    interactionContext,
+    cacheMode = 'use'
+  }: {
+    serverId: string
+    uri: string
+    signal?: AbortSignal
+    interactionContext?: McpInteractionContext
+    cacheMode?: CacheMode
+  }): Promise<{ contents: McpResource[] }> {
+    const server = this.getServerById(serverId)
+    const policy = resolveMcpRequestOptions(server)
+    const host = this.resolveInteractionContext(server.id, interactionContext)
+    const result = await (
+      await this.getOrCreateConnection(server, host ?? null, signal)
+    ).readResource(uri, cacheMode, {
+      signal: signal ?? new AbortController().signal,
+      timeoutMs: policy.timeout,
+      resetTimeoutOnProgress: policy.resetTimeoutOnProgress,
+      maxTotalTimeoutMs: policy.maxTotalTimeout,
+      interactionContext: host
+    })
+    return {
+      contents: result.contents.map((content) => ({
+        ...content,
+        name: content.uri,
+        serverId: server.id,
+        serverName: server.name
+      }))
+    }
+  }
+
+  /** Abandons a pending browser authorization; the server stays in error until an explicit retry. */
+  public cancelAuthorization(serverId: string): void {
+    const reason = new UnauthorizedError(t('settings.mcp.oauth.cancelled'))
+    for (const [key, controller] of this.pendingConnectionControllers) {
+      if (this.isServerKeyForId(key, serverId)) controller.abort(reason)
+    }
+  }
+
+  public async getServerVersion(serverId: string, connect = true): Promise<string | null> {
+    try {
+      const server = this.getServerById(serverId)
+      if (!connect) return this.connections.get(this.getServerKey(server))?.serverVersion ?? null
+      return (await this.getOrCreateConnection(server)).serverVersion
+    } catch (error) {
+      logger.warn('Failed to read MCP server version', { serverId, error })
+      return null
+    }
+  }
+
+  public async abortTool(callId: string, scope?: string): Promise<boolean> {
+    const key = toolCallKey(callId, scope)
+    const activeCalls = this.activeToolCalls.get(key)
+    if (!activeCalls) return false
+    for (const active of activeCalls) active.controller.abort()
+    this.activeToolCalls.delete(key)
+    return true
+  }
+
+  public async runDesktopRequest<T>(
+    windowId: string,
+    requestId: string,
+    run: (signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    const key = toolCallKey(requestId, windowId)
+    if (this.desktopRequests.has(key)) throw new Error('Duplicate MCP request identifier')
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) throw new Error('MCP request window is unavailable')
+    const controller = new AbortController()
+    const onClose = () => controller.abort()
+    this.desktopRequests.set(key, controller)
+    window.once('closed', onClose)
+    try {
+      return await run(controller.signal)
+    } finally {
+      controller.abort()
+      window.removeListener('closed', onClose)
+      this.desktopRequests.delete(key)
+    }
+  }
+
+  public cancelDesktopRequest(windowId: string, requestId: string): void {
+    this.desktopRequests.get(toolCallKey(requestId, windowId))?.abort()
+    void this.resourceObservers.get(toolCallKey(requestId, windowId))?.()
+  }
+
+  private resolveInteractionContext(
+    serverId: string,
+    context?: McpInteractionContext
+  ): McpInteractionContext | undefined {
+    if (!context) return undefined
+    if (context.sessionId) {
+      const host = application.get('AgentSessionRuntimeService').getMcpInteractionHost(context.sessionId)
+      if (!host) return undefined
+      context = { ...context, ...host }
+    }
+    if (!context.windowId || !context.topicId || context.requestElicitation) return context
+    const host = context
+    const authorize = (kind: 'elicitation' | 'sampling' | 'roots', payload: unknown, signal: AbortSignal) =>
+      this.requestInteraction({
+        serverId,
+        windowId: host.windowId!,
+        topicId: host.topicId!,
+        sourceRequestId: host.requestId,
+        kind,
+        payload,
+        signal
+      })
+    return {
+      ...host,
+      requestElicitation: async (request, signal) => {
+        const response = await authorize('elicitation', request, signal)
+        return ElicitResultSchema.parse({
+          action: response.decision,
+          ...(response.decision === 'accept' && request.params.mode !== 'url' ? { content: response.value ?? {} } : {})
+        })
+      },
+      ...(host.model
+        ? ({
+            sample: async (request, signal) => {
+              const response = await authorize('sampling', request, signal)
+              if (response.decision !== 'accept') throw new Error(`MCP sampling ${response.decision}`)
+              return application
+                .get('AiService')
+                .generateMcpSampling(UniqueModelIdSchema.parse(host.model), request, signal)
+            }
+          } satisfies Partial<McpInteractionContext>)
+        : {}),
+      ...(host.roots
+        ? ({
+            requestRoots: async (roots, signal) => (await authorize('roots', { roots }, signal)).decision === 'accept'
+          } satisfies Partial<McpInteractionContext>)
+        : {})
+    }
+  }
+
+  public requestInteraction({
+    serverId,
+    sourceRequestId,
+    windowId,
+    topicId,
+    kind,
+    payload,
+    signal
+  }: {
+    serverId: string
+    sourceRequestId?: string
+    windowId: WindowId
+    topicId: string
+    kind: 'elicitation' | 'sampling' | 'roots'
+    payload: unknown
+    signal: AbortSignal
+  }): Promise<McpInteractionResponse> {
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window) {
+      return Promise.reject(new Error('MCP interaction rejected: the originating window is unavailable'))
+    }
+
+    const requestId = uuidv4()
+    const server = this.getServerById(serverId)
+    let validate: PendingInteraction['validate']
+    if (kind === 'elicitation') {
+      const request = InteractionElicitRequestSchema.parse(payload)
+      if (request.params.mode !== 'url') {
+        const validator = new CfWorkerJsonSchemaValidator().getValidator(request.params.requestedSchema)
+        validate = (value) => validator(value).valid
+      }
+    }
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const cleanup = () => {
+        signal.removeEventListener('abort', onAbort)
+        this.pendingInteractions.delete(requestId)
+        window.removeListener('closed', onWindowClosed)
+        application.get('IpcApiService').send(windowId, 'mcp.interaction.ended', { requestId })
+      }
+      const finish = (response: McpInteractionResponse) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(response)
+      }
+      const fail = (error: unknown) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error)
+      }
+      // The connection's request signal already carries the interaction deadline.
+      const onAbort = () => fail(signal.reason)
+      const onWindowClosed = () => fail(new Error('MCP interaction window closed'))
+
+      this.pendingInteractions.set(requestId, { windowId, validate, resolve: finish, reject: fail, cleanup })
+      if (signal.aborted) {
+        onAbort()
+        return
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+      window.once('closed', onWindowClosed)
+      application.get('IpcApiService').send(windowId, 'mcp.interaction.requested', {
+        serverId: server.id,
+        serverName: server.name,
+        sourceRequestId,
+        requestId,
+        topicId,
+        kind,
+        payload
+      })
+    })
+  }
+
+  public async respondInteraction(response: McpInteractionResponse, senderId: WindowId | null): Promise<boolean> {
+    const pending = this.pendingInteractions.get(response.requestId)
+    if (!pending || !senderId || pending.windowId !== senderId) return false
+    if (response.decision === 'accept' && pending.validate && !pending.validate(response.value)) {
+      throw new Error('MCP elicitation response does not satisfy the requested schema')
+    }
+    pending.resolve(response)
+    return true
   }
 
   private getLatestSourcePolicy(server: McpServer): McpServer {
@@ -885,138 +1116,89 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  private abortActiveToolCalls() {
-    for (const [callId, controller] of this.activeToolCalls) {
-      controller.abort()
-      logger.debug(`Aborted active tool call during MCP runtime stop`, { callId })
-    }
-    this.activeToolCalls.clear()
-  }
-
-  private async waitForPendingClients(): Promise<void> {
-    const pending = [...this.pendingClients.values()]
-    if (pending.length === 0) return
-    await Promise.allSettled(pending)
-  }
-
-  private async closeAllClients(): Promise<void> {
-    const serverKeys = [...this.clients.keys()]
-    const results = await Promise.allSettled(serverKeys.map((key) => this.closeClient(key)))
-    for (const result of results) {
-      if (result.status === 'rejected') {
-        logger.error(`Failed to close client`, result.reason as Error)
+  private abortActiveToolCalls(serverId?: string): void {
+    for (const [key, activeCalls] of this.activeToolCalls) {
+      for (const active of activeCalls) {
+        if (!serverId || active.serverId === serverId) {
+          active.controller.abort()
+          activeCalls.delete(active)
+        }
       }
+      if (activeCalls.size === 0) this.activeToolCalls.delete(key)
     }
   }
 
-  async closeClient(serverKey: string) {
-    const client = this.clients.get(serverKey)
-    if (client) {
-      // Remove the client from the cache
-      await client.close()
-      logger.debug(`Closed server`, { serverKey })
-      this.clients.delete(serverKey)
-      // Clear all caches for this server
-      this.clearServerCache(serverKey)
-      this.serverLogs.remove(serverKey)
-    } else {
-      logger.warn(`No client found for server`, { serverKey })
+  private cancelPendingInteractions(): void {
+    for (const pending of this.pendingInteractions.values()) {
+      pending.reject(new Error('MCP runtime stopped while waiting for interaction authorization'))
     }
   }
 
-  private async closeClientsForServer(serverId: string): Promise<void> {
-    // Settle any in-flight connects first. A pending client is not in `this.clients`
-    // yet, so closing only `this.clients` would leak it — worst case `removeServer`
-    // deletes the DB row while a connect is still in flight. Awaiting the pending
-    // promise lets a successful connect land in `this.clients` (so the loop below
-    // closes it); a failed connect just settles and is dropped.
-    const pendingKeys = Array.from(this.pendingClients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
-    await Promise.all(pendingKeys.map((key) => this.pendingClients.get(key)?.catch(() => undefined)))
-
-    const serverKeys = Array.from(this.clients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
-    await Promise.all(serverKeys.map((key) => this.closeClient(key)))
+  private async waitForPendingConnections(): Promise<void> {
+    await Promise.allSettled([...this.pendingConnections.values()])
   }
 
-  async stopServer(serverId: string) {
-    const server = this.getServerById(serverId)
-    getServerLogger(server).debug(`Stopping server`)
-    this.emitServerLog(server, {
-      timestamp: Date.now(),
-      level: 'info',
-      message: 'Stopping server',
-      source: 'client'
+  private async closeAllConnections(): Promise<void> {
+    const keys = new Set([...this.connections.keys(), ...this.pendingConnectionClosures.keys()])
+    await Promise.allSettled([...keys].map((key) => this.closeConnection(key)))
+  }
+
+  private async closeConnection(serverKey: string, expected?: McpConnection): Promise<void> {
+    const pending = this.pendingConnectionClosures.get(serverKey)
+    if (pending) return pending
+    const connection = this.connections.get(serverKey)
+    if (!connection || (expected && connection !== expected)) return
+    this.connections.delete(serverKey)
+    this.connectionGenerations.delete(serverKey)
+    const closing = Promise.resolve()
+      .then(async () => {
+        await connection.close()
+        this.serverLogs.remove(serverKey)
+      })
+      .finally(() => {
+        if (this.pendingConnectionClosures.get(serverKey) === closing) this.pendingConnectionClosures.delete(serverKey)
+      })
+    this.pendingConnectionClosures.set(serverKey, closing)
+    return closing
+  }
+
+  private async closeConnectionsForServer(serverId: string): Promise<void> {
+    this.abortActiveToolCalls(serverId)
+    for (const key of this.pendingProbes.keys()) {
+      if (this.isServerKeyForId(key, serverId)) this.pendingProbes.delete(key)
+    }
+    for (const key of this.connectFailures.keys()) {
+      if (this.isServerKeyForId(key, serverId)) this.connectFailures.delete(key)
+    }
+    const pendingKeys = [...this.pendingConnections.keys()].filter((key) => this.isServerKeyForId(key, serverId))
+    for (const key of pendingKeys) {
+      this.connectionGenerations.delete(key)
+      this.pendingConnectionControllers.get(key)?.abort()
+    }
+    const pendingConnections = pendingKeys.flatMap((key) => {
+      const pending = this.pendingConnections.get(key)
+      return pending ? [pending.catch(() => undefined)] : []
     })
-    try {
-      await this.closeClientsForServer(server.id)
-    } finally {
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'disabled')
-    }
+    await Promise.all(pendingConnections)
+    const keys = new Set([...this.connections.keys(), ...this.pendingConnectionClosures.keys()])
+    await Promise.all(
+      [...keys].filter((key) => this.isServerKeyForId(key, serverId)).map((key) => this.closeConnection(key))
+    )
   }
 
-  async removeServer(serverId: string) {
+  public async stopServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
-    try {
-      await this.closeClientsForServer(server.id)
-    } finally {
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'disabled')
-    }
-
-    // Cleanup OAuth token file for this server, but only if no other server
-    // entry still points at the same baseUrl (shared OAuth storage key is
-    // md5(baseUrl), so unlinking prematurely would break the remaining entry).
-    if (server.baseUrl) {
-      try {
-        const { items: remainingServers } = mcpServerService.list({})
-        const baseUrlStillInUse = remainingServers.some((s) => s.id !== server.id && s.baseUrl === server.baseUrl)
-        if (!baseUrlStillInUse) {
-          const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
-          const oauthFilePath = application.getPath('feature.mcp.oauth', `${serverUrlHash}_oauth.json`)
-          await fs.unlink(oauthFilePath)
-          getServerLogger(server).debug(`Cleaned up OAuth token file`)
-        } else {
-          getServerLogger(server).debug(`Skipped OAuth token cleanup; baseUrl still in use by another server`)
-        }
-      } catch (error) {
-        // Ignore ENOENT - file may not exist if server never used OAuth
-        if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error as Error)
-        }
-      }
-    }
-
-    // If this is a package server, cleanup its directory
-    if (server.dxtPath) {
-      try {
-        const cleaned = this.mcpPackageService.cleanupPackageServer(server.name)
-        if (cleaned) {
-          getServerLogger(server).debug(`Cleaned up package server directory`)
-        }
-      } catch (error) {
-        getServerLogger(server).error(`Failed to cleanup package server`, error as Error)
-      }
-    }
+    await this.closeConnectionsForServer(server.id)
+    application.get('McpCatalogService').clearSharedToolsCache(server.id)
+    this.setServerStatus(server.id, 'disabled')
   }
 
-  async restartServer(serverId: string) {
+  public async restartServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
-    getServerLogger(server).debug(`Restarting server`)
-    this.emitServerLog(server, {
-      timestamp: Date.now(),
-      level: 'info',
-      message: 'Restarting server',
-      source: 'client'
-    })
-    await this.closeClientsForServer(server.id)
-    // Clear caches before restarting to ensure fresh data. Drop the shared
-    // `mcp.tools.<serverId>` cache too: `McpCatalogService.listTools` is cache-only, so a
-    // restart that fails (e.g. a bad new config) must not leave the old config's tools
-    // visible to agents/chat. `refreshTools` repopulates it on success. (issue #16242)
-    this.clearServerCache(server)
+    await this.closeConnectionsForServer(server.id)
     application.get('McpCatalogService').clearSharedToolsCache(server.id)
     try {
-      await this.getOrCreateClient(server)
+      await this.getOrCreateConnection(server)
       await application.get('McpCatalogService').refreshTools(server.id)
     } catch (error) {
       this.setServerStatus(server.id, 'error', error)
@@ -1024,331 +1206,62 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  /**
-   * Check connectivity for an MCP server
-   */
-  public async checkMcpConnectivity(serverId: string): Promise<boolean> {
-    const server = this.getServerById(serverId)
-    getServerLogger(server).debug(`Checking connectivity`)
+  public async removeServer(serverId: string): Promise<void> {
+    const inFlight = this.pendingRemovals.get(serverId)
+    if (inFlight) return inFlight
+    const removal = this.doRemoveServer(serverId).finally(() => this.pendingRemovals.delete(serverId))
+    this.pendingRemovals.set(serverId, removal)
+    return removal
+  }
+
+  private serverRowMayExist(serverId: string): boolean {
     try {
-      const client = await this.getOrCreateClient(server)
-      // Attempt to list tools as a way to check connectivity
-      await client.listTools()
-      getServerLogger(server).debug(`Connectivity check successful`)
-      this.setServerStatus(server.id, 'connected')
-      this.emitServerLog(server, {
-        timestamp: Date.now(),
-        level: 'info',
-        message: 'Connectivity check successful',
-        source: 'connectivity'
-      })
-      return true
+      return mcpServerService.list({ id: serverId }).items.length > 0
     } catch (error) {
-      getServerLogger(server).error(`Connectivity check failed`, error as Error)
-      this.emitServerLog(server, {
-        timestamp: Date.now(),
-        level: 'error',
-        message: `Connectivity check failed: ${(error as Error).message}`,
-        data: redactSensitive(error),
-        source: 'connectivity'
-      })
-      // Close the client if connectivity check fails to ensure a clean state for the next attempt
-      const serverKey = this.getServerKey(server)
-      await this.closeClient(serverKey)
-      application.get('McpCatalogService').clearSharedToolsCache(server.id)
-      this.setServerStatus(server.id, 'error', error)
-      return false
+      logger.warn(
+        `Row-existence check failed for server ${serverId}; treating the row as still present`,
+        error as Error
+      )
+      return true
     }
   }
 
-  /**
-   * Call a tool on an MCP server
-   */
-  public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<McpCallToolResponse> {
+  private async doRemoveServer(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
-    return this.callToolByServer({ server, name, args, callId })
-  }
-
-  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
-    const toolCallId = callId || uuidv4()
-    const abortController = new AbortController()
-    this.activeToolCalls.set(toolCallId, abortController)
-
-    const callToolFunc = async ({ server, name, args }: RuntimeCallToolArgs) => {
+    this.removedServerIds.add(serverId)
+    let rowDeleted = false
+    try {
+      await this.closeConnectionsForServer(server.id)
+      mcpServerService.delete(serverId)
+      rowDeleted = true
+    } catch (error) {
+      if (this.serverRowMayExist(serverId)) this.removedServerIds.delete(serverId)
+      throw error
+    } finally {
       try {
-        getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
-          args: redactSensitive(args)
-        })
-        if (typeof args === 'string') {
-          if (args.trim() === '') {
-            args = {}
-          } else {
-            try {
-              args = JSON.parse(args)
-            } catch (e) {
-              // Fail fast instead of forwarding malformed JSON as a raw string — the MCP
-              // server expects an object/record, so a bare string yields opaque downstream errors.
-              throw new Error(`Invalid JSON tool arguments for ${name}: ${(e as Error).message}`)
-            }
-          }
-        }
-        const sourcePolicy = this.getLatestSourcePolicy(server)
-        if (isMcpToolDisabledBySource(sourcePolicy, { name })) {
-          throw new Error(`MCP tool is disabled: ${name}`)
-        }
-        const client = await this.getOrCreateClient(server)
-        const result = await client.callTool({ name, arguments: args }, undefined, {
-          onprogress: (process) => {
-            getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
-              ratio: process.progress / (process.total || 1)
-            })
-            application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.tool.call_progress', {
-              callId: toolCallId,
-              progress: process.progress / (process.total || 1)
-            })
-          },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
-          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          resetTimeoutOnProgress: server.longRunning,
-          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
-          signal: abortController.signal
-        })
-        return result as McpCallToolResponse
+        application.get('McpCatalogService').clearSharedToolsCache(server.id)
       } catch (error) {
-        getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
-        throw error
-      } finally {
-        this.activeToolCalls.delete(toolCallId)
+        getServerLogger(server).error('Post-removal tools cache cleanup failed', error as Error)
+      }
+      try {
+        if (rowDeleted) application.get('CacheService').deleteShared(mcpStatusCacheKey(server.id))
+        else this.setServerStatus(server.id, 'disabled')
+      } catch (error) {
+        getServerLogger(server).error('Post-removal status cleanup failed', error as Error)
       }
     }
 
-    const tracedInput = {
-      server: { id: server.id, name: server.name, type: server.type, description: server.description },
-      name,
-      args
-    }
-    return await withSpanFunc(
-      `${server.name}.${name}`,
-      `MCP`,
-      // oxlint-disable-next-line no-unused-vars
-      (_recorded: typeof tracedInput) => callToolFunc({ server, name, args }),
-      [tracedInput]
-    )
-  }
-
-  /**
-   * List prompts available on an MCP server
-   */
-  private async listPromptsImpl(server: McpServer): Promise<McpPrompt[]> {
-    const client = await this.getOrCreateClient(server)
-    getServerLogger(server).debug(`Listing prompts`)
-    try {
-      const { prompts } = await client.listPrompts()
-      return prompts.map((prompt: any) => ({
-        ...prompt,
-        id: `p${nanoid()}`,
-        serverId: server.id,
-        serverName: server.name
-      }))
-    } catch (error: unknown) {
-      // -32601 (method not found) means the server has no prompts capability — a stable
-      // empty result that is safe to cache. Any other error is transient; rethrow it so
-      // `withCache` does NOT cache an empty list for the full TTL (the public `listPrompts`
-      // catches it and returns `[]` to callers without poisoning the cache).
-      if ((error as { code?: number })?.code === -32601) {
-        return []
+    if (server.baseUrl) {
+      try {
+        const { items } = mcpServerService.list({})
+        if (!items.some((item) => item.id !== server.id && item.baseUrl === server.baseUrl)) {
+          await deleteOAuthStorage(oauthServerUrlHash(server.baseUrl), application.getPath('feature.mcp.oauth'))
+        }
+      } catch (error) {
+        getServerLogger(server).error('Failed to clean OAuth storage', error as Error)
       }
-      throw error
     }
-  }
 
-  /**
-   * List prompts available on an MCP server with caching
-   */
-  public async listPrompts(serverId: string): Promise<McpPrompt[]> {
-    const server = this.getServerById(serverId)
-    const cachedListPrompts = withCache<[McpServer], McpPrompt[]>(
-      this.listPromptsImpl.bind(this),
-      (server) => {
-        const serverKey = this.getServerKey(server)
-        return `mcp:list_prompts:${serverKey}`
-      },
-      60 * 60 * 1000, // 60 minutes TTL
-      `[MCP] Prompts from ${server.name}`
-    )
-    try {
-      return await cachedListPrompts(server)
-    } catch (error) {
-      getServerLogger(server).error(`Failed to list prompts`, error as Error)
-      return []
-    }
-  }
-
-  /**
-   * Get a specific prompt from an MCP server (implementation)
-   */
-  private async getPromptImpl(server: McpServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
-    logger.debug(`Getting prompt ${name} from server: ${server.name}`)
-    const client = await this.getOrCreateClient(server)
-    return await client.getPrompt({ name, arguments: args })
-  }
-
-  /**
-   * Get a specific prompt from an MCP server with caching
-   */
-  @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
-  public async getPrompt({
-    serverId,
-    name,
-    args
-  }: {
-    serverId: string
-    name: string
-    args?: Record<string, any>
-  }): Promise<GetPromptResult> {
-    const server = this.getServerById(serverId)
-    const cachedGetPrompt = withCache<[McpServer, string, Record<string, any> | undefined], GetPromptResult>(
-      this.getPromptImpl.bind(this),
-      (server, name, args) => {
-        const serverKey = this.getServerKey(server)
-        const argsKey = args ? JSON.stringify(args) : 'no-args'
-        return `mcp:get_prompt:${serverKey}:${name}:${argsKey}`
-      },
-      30 * 60 * 1000, // 30 minutes TTL
-      `[MCP] Prompt ${name} from ${server.name}`
-    )
-    return await cachedGetPrompt(server, name, args)
-  }
-
-  /**
-   * List resources available on an MCP server (implementation)
-   */
-  private async listResourcesImpl(server: McpServer): Promise<McpResource[]> {
-    const client = await this.getOrCreateClient(server)
-    logger.debug(`Listing resources for server: ${server.name}`)
-    try {
-      const result = await client.listResources()
-      const resources = result.resources || []
-      return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
-        ...resource,
-        serverId: server.id,
-        serverName: server.name
-      }))
-    } catch (error: any) {
-      // -32601 (method not found) is a stable empty result safe to cache; rethrow anything
-      // else so a transient failure isn't cached as an empty list for the full TTL.
-      if (error?.code === -32601) {
-        return []
-      }
-      throw error
-    }
-  }
-
-  /**
-   * List resources available on an MCP server with caching
-   */
-  public async listResources(serverId: string): Promise<McpResource[]> {
-    const server = this.getServerById(serverId)
-    const cachedListResources = withCache<[McpServer], McpResource[]>(
-      this.listResourcesImpl.bind(this),
-      (server) => {
-        const serverKey = this.getServerKey(server)
-        return `mcp:list_resources:${serverKey}`
-      },
-      60 * 60 * 1000, // 60 minutes TTL
-      `[MCP] Resources from ${server.name}`
-    )
-    try {
-      return await cachedListResources(server)
-    } catch (error) {
-      getServerLogger(server).error(`Failed to list resources`, error as Error)
-      return []
-    }
-  }
-
-  /**
-   * Get a specific resource from an MCP server (implementation)
-   */
-  private async getResourceImpl(server: McpServer, uri: string): Promise<GetResourceResponse> {
-    getServerLogger(server, { uri }).debug(`Getting resource`)
-    const client = await this.getOrCreateClient(server)
-    try {
-      const result = await client.readResource({ uri: uri })
-      const contents: McpResource[] = []
-      if (result.contents && result.contents.length > 0) {
-        result.contents.forEach((content: any) => {
-          contents.push({
-            ...content,
-            serverId: server.id,
-            serverName: server.name
-          })
-        })
-      }
-      return {
-        contents: contents
-      }
-    } catch (error: any) {
-      getServerLogger(server, { uri }).error(`Failed to get resource`, error as Error)
-      throw new Error(`Failed to get resource ${uri} from server: ${server.name}: ${error.message}`)
-    }
-  }
-
-  /**
-   * Get a specific resource from an MCP server with caching
-   */
-  @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
-  public async getResource({ serverId, uri }: { serverId: string; uri: string }): Promise<GetResourceResponse> {
-    const server = this.getServerById(serverId)
-    const cachedGetResource = withCache<[McpServer, string], GetResourceResponse>(
-      this.getResourceImpl.bind(this),
-      (server, uri) => {
-        const serverKey = this.getServerKey(server)
-        return `mcp:get_resource:${serverKey}:${uri}`
-      },
-      30 * 60 * 1000, // 30 minutes TTL
-      `[MCP] Resource ${uri} from ${server.name}`
-    )
-    return await cachedGetResource(server, uri)
-  }
-
-  // 实现 abortTool 方法
-  public async abortTool(callId: string) {
-    const activeToolCall = this.activeToolCalls.get(callId)
-    if (activeToolCall) {
-      activeToolCall.abort()
-      this.activeToolCalls.delete(callId)
-      logger.debug(`Aborted tool call`, { callId })
-      return true
-    } else {
-      logger.warn(`No active tool call found for callId`, { callId })
-      return false
-    }
-  }
-
-  /**
-   * Get the server version information
-   */
-  public async getServerVersion(serverId: string): Promise<string | null> {
-    const server = this.getServerById(serverId)
-    try {
-      getServerLogger(server).debug(`Getting server version`)
-      const client = await this.getOrCreateClient(server)
-
-      // Try to get server information which may include version
-      const serverInfo = client.getServerVersion()
-      getServerLogger(server).debug(`Server info`, redactSensitive(serverInfo))
-
-      if (serverInfo && serverInfo.version) {
-        getServerLogger(server).debug(`Server version`, { version: serverInfo.version })
-        return serverInfo.version
-      }
-
-      getServerLogger(server).warn(`No version information available`)
-      return null
-    } catch (error: any) {
-      getServerLogger(server).error(`Failed to get server version`, error as Error)
-      return null
-    }
+    if (server.dxtPath) this.mcpPackageService.cleanupPackageServer(server.name)
   }
 }

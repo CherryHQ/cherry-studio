@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Assistant } from '@renderer/types/assistant'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
-import { describe, expect, it } from 'vitest'
 
 describe('getEffectiveMcpMode', () => {
   it('returns mcpMode when explicitly set to auto', () => {
@@ -18,13 +19,16 @@ describe('getEffectiveMcpMode', () => {
     expect(getEffectiveMcpMode(assistant)).toBe('manual')
   })
 
-  it('falls back to disabled when settings has no mcpMode', () => {
+  // Fallback = the shared DEFAULT_MCP_MODE ('manual'): the same assistant must
+  // resolve the same mode in main's resolver, this helper, and the composer
+  // selector (runtime-test finding #6 — layers used to disagree).
+  it('falls back to the shared default when settings has no mcpMode', () => {
     const assistant = { settings: {} } as Partial<Assistant> as Assistant
-    expect(getEffectiveMcpMode(assistant)).toBe('disabled')
+    expect(getEffectiveMcpMode(assistant)).toBe('manual')
   })
 
-  it('falls back to disabled when settings is missing entirely', () => {
+  it('falls back to the shared default when settings is missing entirely', () => {
     const assistant = {} as Assistant
-    expect(getEffectiveMcpMode(assistant)).toBe('disabled')
+    expect(getEffectiveMcpMode(assistant)).toBe('manual')
   })
 })

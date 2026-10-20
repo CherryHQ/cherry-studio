@@ -2,14 +2,14 @@
  * Derive per-request capability flags + provider-builtin web search config
  * from (model, provider, assistant).
  *
- * Replaces the capability-detection half of the dead `parameterBuilder.ts`.
- * Read by `agentParams/features/*` to gate plugins like
- * `providerToolPlugin('webSearch' / 'urlContext')` and to let callers
- * set `streamOutput` / tool-use flags without duplicating these checks.
+ * Web tool routing is NOT decided here: `scope.webToolRoutes` (the finalized
+ * plan from `resolveWebToolRoutes`/`finalizeWebToolRoutes`) is the single
+ * source of truth that gates both the client tools and the server features.
+ * This module only materialises the server web-search plugin config for the
+ * side the plan already selected.
  */
 
 import { application } from '@application'
-import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -22,32 +22,42 @@ import {
   isGenerateImageModel,
   isGrokModel,
   isOpenAIModel,
-  isOpenRouterBuiltInWebSearchModel,
-  isPureGenerateImageModel,
   isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  isWebSearchModel
+  isSupportedThinkingTokenModel
 } from '@shared/utils/model'
-import { isAIGatewayProvider, isSupportUrlContextProvider } from '@shared/utils/provider'
+import { isAIGatewayProvider, type WebToolRoutes } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import type { KimiFormulaCredentials } from '../../../provider/custom/moonshotProvider'
 import { getAiSdkProviderId } from '../../../provider/factory'
 import type { AppProviderId } from '../../../types'
-import { buildProviderBuiltinWebSearchConfig } from '../../../utils/websearch'
+import { type AppWebSearchPluginConfig, buildProviderBuiltinWebSearchConfig } from '../../../utils/websearch'
 
 export interface ResolvedCapabilities {
   enableReasoning: boolean
-  enableWebSearch: boolean
-  enableUrlContext: boolean
   enableGenerateImage: boolean
   isSupportedToolUse: boolean
   streamOutput: boolean
-  webSearchPluginConfig?: WebSearchPluginConfig
+  webSearchPluginConfig?: AppWebSearchPluginConfig
 }
 
 export interface ResolveCapabilitiesOptions {
-  /** Caller-supplied external web search provider id. When set, disables built-in web search. */
-  webSearchProviderId?: string
+  /** The finalized web-tool plan; web routing itself lives on the request scope, not here. */
+  webToolRoutes?: WebToolRoutes
+  /**
+   * This request's resolved serving credential. Only needed by providers whose built-in search runs
+   * a real client-side call (Kimi's formula fiber) — passing the already-resolved one keeps key
+   * rotation single-shot and stays correct with several providers of the same preset.
+   */
+  serving?: KimiFormulaCredentials
+  /**
+   * The id the runtime actually instantiates. `config.ts` may override the registry's adapter family
+   * (moonshot and cherryin resolve to `openai-compatible` there but run under their own extension),
+   * and `providerToolPlugin` reads its config by THAT id — so the config has to be built under it,
+   * not under the registry's. Keying it off the adapter family handed the Kimi factory an empty
+   * config, i.e. an empty api key.
+   */
+  runtimeProviderId?: AppProviderId
 }
 
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
@@ -64,26 +74,11 @@ export function resolveCapabilities(
   assistant: Assistant,
   options: ResolveCapabilitiesOptions = {}
 ): ResolvedCapabilities {
-  // `isFixedReasoningModel` covers models where reasoning is always on regardless
-  // of user setting (e.g. OpenAI o1 / o3 — they reason by construction).
+  // This flag means the model exposes reasoning behavior, not that the persisted assistant setting
+  // enabled it. The request snapshot may legitimately be `none`, `default`, or a freshly selected
+  // effort that has not reached assistant persistence yet; the resolver/profile decides what emits.
   const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    isFixedReasoningModel(model)
-
-  const hasExternalSearch = !!options.webSearchProviderId
-  const enableWebSearch =
-    !hasExternalSearch &&
-    ((!!assistant.settings?.enableWebSearch && isWebSearchModel(model)) ||
-      isOpenRouterBuiltInWebSearchModel(model) ||
-      model.id.includes('sonar'))
-
-  // `assistant.enableUrlContext` is not yet on the shared `Assistant` schema, so it stays guarded.
-  const urlContextSupported =
-    isSupportUrlContextProvider(provider) &&
-    !isPureGenerateImageModel(model) &&
-    (isGeminiModel(model) || isAnthropicModel(model))
-  const enableUrlContext = urlContextSupported && false
+    isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
   // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
   // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),
@@ -94,29 +89,39 @@ export function resolveCapabilities(
 
   const streamOutput = assistant.settings?.streamOutput !== false
 
-  // Build provider-builtin web search config when enabled
-  let webSearchPluginConfig: WebSearchPluginConfig | undefined
-  if (enableWebSearch) {
+  // Build provider-builtin web search config when the plan routed search to the server side
+  let webSearchPluginConfig: AppWebSearchPluginConfig | undefined
+  if (options.webToolRoutes?.webSearch === 'server') {
     const preferenceService = application.get('PreferenceService')
     const webSearchConfig = {
       maxResults: preferenceService.get('chat.web_search.max_results'),
       excludeDomains: preferenceService.get('chat.web_search.exclude_domains')
     }
-    const aiSdkProviderId = getAiSdkProviderId(provider, model)
+    const aiSdkProviderId = options.runtimeProviderId ?? getAiSdkProviderId(provider, model)
     if (extensionRegistry.has(aiSdkProviderId)) {
-      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
+        aiSdkProviderId,
+        webSearchConfig,
+        model,
+        provider,
+        options.serving
+      )
     } else if (isAIGatewayProvider(provider) || provider.id === SystemProviderIds.gateway) {
       const gatewayProviderId = mapVertexAIGatewayModelToProviderId(model)
       if (gatewayProviderId) {
-        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(gatewayProviderId, webSearchConfig, model)
+        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
+          gatewayProviderId,
+          webSearchConfig,
+          model,
+          provider,
+          options.serving
+        )
       }
     }
   }
 
   return {
     enableReasoning,
-    enableWebSearch,
-    enableUrlContext,
     enableGenerateImage,
     isSupportedToolUse,
     streamOutput,

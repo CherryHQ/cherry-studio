@@ -1,7 +1,8 @@
+import { memo } from 'react'
+
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
-import { memo } from 'react'
 
 interface MessageImageCaptureHostProps {
   captureHostAttribute: string
@@ -21,7 +22,7 @@ const MessageImageCaptureHost = ({
   return (
     <div
       aria-hidden="true"
-      className="-left-[10000px] pointer-events-none fixed top-0 h-px w-[960px] overflow-hidden bg-background text-foreground"
+      className="pointer-events-none fixed top-0 -left-[10000px] h-px w-[960px] overflow-hidden bg-background text-foreground"
       data-testid={testId}
       inert
       {...{ [captureHostAttribute]: '' }}>

@@ -1,6 +1,7 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Filter, Search } from 'lucide-react'
 import type { RefObject } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { EntitySelectorSearch } from '../types'
 

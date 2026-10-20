@@ -22,14 +22,15 @@ import { convertToBase64 } from '@ai-sdk/provider-utils'
 const GATEWAY_GOOGLE_IMAGE_PROVIDER = 'gateway.google.image' as const
 
 /**
- * Gemini chat-image model under the gateway. Strips the optional `google/`
- * routing prefix, then matches gemini ids that carry an `image` segment.
- * Mirrors `isGoogleImageModel` in aihubmixImageModel.ts, narrowed to gemini
- * only — `imagen-*` is a real image model the gateway exposes natively.
+ * Gemini image models and Nano Banana aliases use the language API.
+ * Imagen remains on Gateway's native image route.
  */
 export function isGatewayGeminiImageModel(modelId: string): boolean {
   const normalized = modelId.replace(/^google\//i, '').toLowerCase()
-  return normalized.startsWith('gemini-') && normalized.includes('image')
+  return (
+    (normalized.startsWith('gemini-') && normalized.includes('image')) ||
+    /^(?:gemini-)?nano-banana(?:-|$)/.test(normalized)
+  )
 }
 
 /**
@@ -91,9 +92,12 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
       // Augment only the `google` namespace; keep every other caller option
       // (e.g. `gateway` routing: order/only/BYOK) intact, and deep-merge
       // imageConfig so an existing imageSize survives an added aspectRatio.
+      const { gateway: rawGateway, ...otherProviderOptions } = providerOptions ?? {}
+      const { imageResolution, ...gateway } = (rawGateway ?? {}) as Record<string, JSONValue>
       const existingGoogle = (providerOptions?.google ?? {}) as Record<string, JSONValue>
       const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, JSONValue>
       const imageConfig: Record<string, JSONValue> = {
+        ...(typeof imageResolution === 'string' && imageResolution !== 'auto' ? { imageSize: imageResolution } : {}),
         ...existingImageConfig,
         ...(aspectRatio ? { aspectRatio } : {})
       }
@@ -108,7 +112,11 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
         ...(seed != null ? { seed } : {}),
         ...(headers ? { headers } : {}),
         ...(abortSignal ? { abortSignal } : {}),
-        providerOptions: { ...providerOptions, google }
+        providerOptions: {
+          ...otherProviderOptions,
+          ...(Object.keys(gateway).length > 0 ? { gateway } : {}),
+          google
+        }
       })
 
       const images: string[] = []

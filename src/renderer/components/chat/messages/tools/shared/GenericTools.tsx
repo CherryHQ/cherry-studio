@@ -1,12 +1,13 @@
 // 通用工具组件 - 减少重复代码
 
+import { Ellipsis, TriangleAlert } from 'lucide-react'
+import { createContext, type ReactNode, use } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { McpToolResponseStatus } from '@renderer/types/mcpTool'
 import { formatFileSize } from '@renderer/utils/file'
-import { Ellipsis, TriangleAlert } from 'lucide-react'
-import { createContext, type ReactNode, use } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export {
   getReadableToolActivity,
@@ -194,7 +195,7 @@ export function ToolStatusIndicator({
 
   return (
     <Tooltip
-      content={<div className="max-w-96 whitespace-pre-wrap break-words">{errorText}</div>}
+      content={<div className="max-w-96 break-words whitespace-pre-wrap">{errorText}</div>}
       delay={300}
       classNames={{ placeholder: 'inline-flex' }}>
       <span>{indicator}</span>
@@ -204,17 +205,19 @@ export function ToolStatusIndicator({
 
 export type StatusColor = 'primary' | 'success' | 'warning' | 'error'
 
+const TOOL_STATUS_ERROR_COLOR = 'var(--muted-foreground)'
+
 function getStatusColor(color: StatusColor): string {
   switch (color) {
     case 'primary':
     case 'success':
-      return 'var(--color-primary)'
+      return 'var(--primary)'
     case 'warning':
-      return 'var(--color-warning, #faad14)'
+      return 'var(--warning)'
     case 'error':
-      return 'var(--color-foreground-secondary)'
+      return TOOL_STATUS_ERROR_COLOR
     default:
-      return 'var(--color-foreground)'
+      return 'var(--foreground)'
   }
 }
 
@@ -237,7 +240,7 @@ export function TruncatedIndicator({ originalLength }: { originalLength: number 
   const sizeStr = formatFileSize(originalLength)
 
   return (
-    <div className="mt-2 flex items-center gap-1 text-muted-foreground text-xs">
+    <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
       <Ellipsis size={14} />
       <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
         {t('message.tools.truncated', { defaultValue: sizeStr, size: sizeStr })}

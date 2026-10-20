@@ -1,160 +1,157 @@
 import type { SerializedError } from '@renderer/types/error'
+import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
+
+export type { ErrorCategory } from '@shared/utils/errorCategory'
 
 export interface ErrorClassification {
-  category:
-    | 'auth'
-    | 'model'
-    | 'quota'
-    | 'context_length'
-    | 'payload'
-    | 'network'
-    | 'proxy'
-    | 'stream'
-    | 'content'
-    | 'server'
-    | 'deprecated'
-    | 'knowledge'
-    | 'ocr'
-    | 'mcp'
-    | 'parse'
-    | 'unknown'
+  category: ErrorCategory
   i18nKey: string
   navTarget: string | null
 }
 
+/** Claude Code process exit surfaced by the main process; see `processExitDiagnostics`. */
+export interface ClaudeCodeExitInfo {
+  category: ErrorCategory
+  reference: string
+  exitCode?: number
+  exitSignal?: string
+}
+
+const PROVIDER_SETTINGS_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>([
+  'auth',
+  'bad_request',
+  'permission',
+  'model',
+  'quota',
+  'rate_limit',
+  'deprecated'
+])
+
+function navTargetFor(category: ErrorCategory, providerSuffix: string): string | null {
+  if (PROVIDER_SETTINGS_CATEGORIES.has(category)) return `/settings/provider${providerSuffix}`
+  switch (category) {
+    case 'region':
+    case 'network':
+    case 'proxy':
+      return '/settings/general'
+    case 'mcp':
+      return '/settings/mcp/servers'
+    case 'knowledge':
+      return '/app/knowledge'
+    default:
+      return null
+  }
+}
+
+/**
+ * The category the main process already derived from the subprocess's stderr. The renderer
+ * cannot re-derive it: the message crossing IPC is sanitized down to the exit status.
+ */
+export function getClaudeCodeExitCategory(error?: SerializedError): ErrorCategory | undefined {
+  const category = (error as Record<string, unknown> | undefined)?.claudeCodeExitCategory
+  return isErrorCategory(category) ? category : undefined
+}
+
+/** Display payload for a Claude Code exit; absent unless the reference that logs it survived. */
+export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitInfo | undefined {
+  const category = getClaudeCodeExitCategory(error)
+  const errorBag = error as Record<string, unknown> | undefined
+  const reference = errorBag?.diagnosticReference
+  if (!category || typeof reference !== 'string' || !reference) return undefined
+
+  return {
+    category,
+    reference,
+    ...(typeof errorBag?.processExitCode === 'number' ? { exitCode: errorBag.processExitCode } : {}),
+    ...(typeof errorBag?.processExitSignal === 'string' ? { exitSignal: errorBag.processExitSignal } : {})
+  }
+}
+
+/**
+ * Errors nested inside a serialized AI SDK wrapper. `serializeError` drops non-enumerable
+ * `message`/`stack` from them, so they are partial — only shape-tolerant readers may use them.
+ */
+function unwrapNestedErrors(error: SerializedError): SerializedError[] {
+  const nested = isSerializedAiSdkRetryError(error)
+    ? [error.lastError, ...error.errors]
+    : isSerializedAiSdkToolCallRepairError(error)
+      ? [error.originalError]
+      : []
+
+  return nested.filter(
+    (candidate): candidate is SerializedError =>
+      typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
+  )
+}
+
+/** `statusCode` or `status`, numeric or a numeric string. Unparseable values count as absent. */
+function readStructuredStatus(value: unknown): number | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const status = record.statusCode ?? record.status
+  const parsed = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
+  return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined
+}
+
+/**
+ * A status-less RetryError copies the terminal phrase. Return that attempt's HTTP 5xx;
+ * earlier attempts do not supply a status.
+ */
+export function getErrorHttpStatus(error: SerializedError): number | undefined {
+  const outer = readStructuredStatus(error)
+  if (outer !== undefined) return outer
+  if (!isSerializedAiSdkRetryError(error)) return undefined
+  const terminalStatus = readStructuredStatus(error.lastError)
+  return terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600 ? terminalStatus : undefined
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
-  if (!error) {
-    return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
+  const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
+  const classify = (category: ErrorCategory): ErrorClassification => ({
+    category,
+    i18nKey: `error.diagnosis.${category}`,
+    navTarget: navTargetFor(category, providerSuffix)
+  })
+
+  if (!error) return classify('unknown')
+
+  const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
+  if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)
+
+  const errorBag = error as Record<string, unknown>
+  if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
+    return classify(errorBag.providerErrorCategory)
   }
+  const numStatus = getErrorHttpStatus(error)
 
-  const status = (error as Record<string, unknown>).statusCode ?? (error as Record<string, unknown>).status
-  const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const msg = ((error.message as string) || '').toLowerCase()
-  const providerSuffix = providerId ? `?id=${providerId}` : ''
-
-  // Auth errors (401/403)
-  if (
-    numStatus === 401 ||
-    numStatus === 403 ||
-    msg.includes('invalid_api_key') ||
-    msg.includes('authentication') ||
-    msg.includes('unauthorized') ||
-    msg.includes('forbidden')
-  ) {
-    return { category: 'auth', i18nKey: 'error.diagnosis.auth', navTarget: `/settings/provider${providerSuffix}` }
-  }
-
-  // Model not found (404)
-  if (
-    numStatus === 404 ||
-    msg.includes('model_not_found') ||
-    msg.includes('model not found') ||
-    (msg.includes('model with id') && msg.includes('not found')) ||
-    msg.includes('model does not exist')
-  ) {
-    return { category: 'model', i18nKey: 'error.diagnosis.model', navTarget: `/settings/provider${providerSuffix}` }
-  }
-
-  // Quota / rate limit (429)
-  if (
-    numStatus === 429 ||
-    msg.includes('quota') ||
-    msg.includes('rate_limit') ||
-    msg.includes('rate limit') ||
-    msg.includes('insufficient_balance') ||
-    msg.includes('insufficient_quota')
-  ) {
-    return { category: 'quota', i18nKey: 'error.diagnosis.quota', navTarget: `/settings/provider${providerSuffix}` }
-  }
-
-  // Context length exceeded
-  if (
-    msg.includes('context_length_exceeded') ||
-    msg.includes('too many tokens') ||
-    msg.includes('maximum context length')
-  ) {
-    return { category: 'context_length', i18nKey: 'error.diagnosis.context_length', navTarget: null }
-  }
-
-  // Payload too large (413)
-  if (numStatus === 413 || msg.includes('payload too large') || msg.includes('request entity too large')) {
-    return { category: 'payload', i18nKey: 'error.diagnosis.payload', navTarget: null }
-  }
-
-  // Network errors
-  if (
-    msg.includes('econnrefused') ||
-    msg.includes('etimedout') ||
-    msg.includes('timeout') ||
-    msg.includes('network') ||
-    msg.includes('fetch failed') ||
-    msg.includes('enotfound')
-  ) {
-    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/system' }
-  }
-
-  // Proxy / SSL certificate errors
-  if (
-    msg.includes('proxy') ||
-    msg.includes('socks') ||
-    msg.includes('certificate') ||
-    msg.includes('self-signed') ||
-    msg.includes('unable_to_verify_leaf_signature')
-  ) {
-    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/system' }
-  }
-
-  // Stream interrupted
-  if (msg.includes('econnreset') || msg.includes('stream') || msg.includes('connection reset')) {
-    return { category: 'stream', i18nKey: 'error.diagnosis.stream', navTarget: null }
-  }
-
-  // Content filter (400 + safety keywords)
-  if (
-    numStatus === 400 &&
-    (msg.includes('content_filter') || msg.includes('safety') || msg.includes('content_policy'))
-  ) {
-    return { category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null }
-  }
-
-  // Server errors (5xx)
-  if (numStatus && numStatus >= 500) {
-    return { category: 'server', i18nKey: 'error.diagnosis.server', navTarget: null }
-  }
-
-  // Model deprecated / retired
-  if (msg.includes('deprecated') || msg.includes('retired') || msg.includes('sunset') || msg.includes('decommission')) {
-    return {
-      category: 'deprecated',
-      i18nKey: 'error.diagnosis.deprecated',
-      navTarget: `/settings/provider${providerSuffix}`
+  const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
+  let dataText = ''
+  if (errorBag.data !== undefined && errorBag.data !== null) {
+    try {
+      dataText = typeof errorBag.data === 'string' ? errorBag.data : JSON.stringify(errorBag.data)
+    } catch {
+      // Ignore non-serializable provider data.
     }
   }
 
-  // Knowledge base / embedding
-  if (msg.includes('embedding') || msg.includes('vectorize') || msg.includes('knowledge base')) {
-    return { category: 'knowledge', i18nKey: 'error.diagnosis.knowledge', navTarget: '/knowledge' }
-  }
+  const category = classifyErrorCategory({
+    text: [error.message ?? '', responseBodyText, dataText].filter(Boolean).join('\n'),
+    status: numStatus,
+    finishReason: String(errorBag.finishReason ?? '')
+  })
+  if (category !== 'unknown' && category !== 'bad_request') return classify(category)
 
-  // OCR errors
-  if (msg.includes('ocr') || msg.includes('engine not initialized') || msg.includes('recognition failed')) {
-    return { category: 'ocr', i18nKey: 'error.diagnosis.ocr', navTarget: null }
+  // Prefer a specific diagnosis over a generic request failure in another attempt.
+  let nestedRecovery: ErrorClassification | null = null
+  for (const nested of unwrapNestedErrors(error)) {
+    const nestedClassification = classifyError(nested, providerId)
+    if (nestedClassification.category !== 'unknown' && nestedClassification.category !== 'bad_request') {
+      return nestedClassification
+    }
+    if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
   }
+  if (nestedRecovery) return nestedRecovery
 
-  // MCP errors
-  if (msg.includes('mcp server') || msg.includes('mcp connection') || msg.includes('mcp error')) {
-    return { category: 'mcp', i18nKey: 'error.diagnosis.mcp', navTarget: '/settings/mcp/servers' }
-  }
-
-  // Response parse errors
-  if (
-    msg.includes('json') ||
-    msg.includes('unexpected token') ||
-    msg.includes('invalid response') ||
-    msg.includes('parse error')
-  ) {
-    return { category: 'parse', i18nKey: 'error.diagnosis.parse', navTarget: null }
-  }
-
-  return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
+  return classify(category)
 }

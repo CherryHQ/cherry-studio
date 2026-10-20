@@ -1,16 +1,18 @@
-import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
-import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import type { Provider } from '@shared/data/types/provider'
 import type { CSSProperties } from 'react'
+
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
+import { type ProviderAvatarDisplayContext, ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
+import type { Provider } from '@shared/data/types/provider'
 
 interface ProviderAvatarProps {
   provider: Pick<Provider, 'id' | 'name' | 'logo' | 'logoSrc'>
   size?: number
   className?: string
   style?: CSSProperties
+  displayContext?: ProviderAvatarDisplayContext
 }
 
-export function ProviderAvatar({ provider, size, className, style }: ProviderAvatarProps) {
+export function ProviderAvatar({ provider, size, className, style, displayContext }: ProviderAvatarProps) {
   // Existence is decided synchronously from the ref (meta catalog); only the
   // component itself loads async, so the branch below never flip-flops.
   const systemIconRef = resolveProviderIconRef(provider.id)
@@ -28,6 +30,7 @@ export function ProviderAvatar({ provider, size, className, style }: ProviderAva
         size={size}
         className={className}
         style={style}
+        displayContext={displayContext}
       />
     )
   }
@@ -41,6 +44,7 @@ export function ProviderAvatar({ provider, size, className, style }: ProviderAva
         size={size}
         className={className}
         style={style}
+        displayContext={displayContext}
       />
     )
   }
@@ -52,6 +56,7 @@ export function ProviderAvatar({ provider, size, className, style }: ProviderAva
       size={size}
       className={className}
       style={style}
+      displayContext={displayContext}
     />
   )
 }

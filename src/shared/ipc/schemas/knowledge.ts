@@ -1,5 +1,6 @@
+import * as z from 'zod'
+
 import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
-import { AbsolutePathSchema } from '@shared/data/types/file'
 import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
@@ -12,7 +13,7 @@ import {
   RestoreKnowledgeBaseResultSchema,
   RestoreKnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
-import * as z from 'zod'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 
@@ -79,7 +80,7 @@ export const knowledgeRequestSchemas = {
   // authority; accepting a separate baseId would make mismatched item/base pairs representable.
   'knowledge.get_file_path': defineRoute({
     input: z.strictObject({ itemId: z.string().trim().min(1) }),
-    output: AbsolutePathSchema
+    output: AbsoluteFilePathSchema
   }),
   'knowledge.list_item_chunks': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, itemId: z.string().trim().min(1) }),

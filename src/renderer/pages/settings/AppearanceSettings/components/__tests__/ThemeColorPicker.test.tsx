@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +14,14 @@ describe('ThemeColorPicker', () => {
   it('normalizes shorthand hex colors', () => {
     expect(normalizeHexColor('#abc')).toBe('#AABBCC')
     expect(normalizeHexColor('09f')).toBe('#0099FF')
+  })
+
+  it('limits the custom color border to keyboard-visible focus', () => {
+    render(<ThemeColorPicker value="#112233" presets={[]} onChange={vi.fn()} ariaLabel="Theme color" />)
+
+    const colorInput = screen.getByLabelText('Theme color')
+    expect(colorInput.parentElement).toHaveClass('has-[:focus-visible]:border-primary')
+    expect(colorInput.parentElement).not.toHaveClass('focus-within:border-primary')
   })
 
   it('reverts an invalid draft color on blur', () => {

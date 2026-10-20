@@ -1,8 +1,9 @@
+import { useCallback, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-import { useCallback, useState } from 'react'
 
 import { normalizeKnowledgeError } from '../utils/error'
 
@@ -31,7 +32,7 @@ const fetchEmbeddingDimensions = async (uniqueModelId: string): Promise<number> 
       return LOCAL_EMBEDDING_DIMENSIONS
     }
 
-    const { embeddings } = await ipcApi.request('ai.embed_many', {
+    const { embeddings } = await ipcApi.request('ai.embedding.embed_many', {
       uniqueModelId: parsedModelId,
       values: [EMBEDDING_DIMENSION_PROBE_TEXT]
     })

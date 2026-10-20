@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
 import { TopicType } from '@renderer/components/composer/tools/types'
-import { describe, expect, it, vi } from 'vitest'
 
 const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
   mockIsGenerateImageModel: vi.fn(),
@@ -19,10 +20,6 @@ vi.mock('@renderer/utils/assistant', () => ({
 
 vi.mock('@renderer/components/composer/tools/components/KnowledgeBaseButton', () => ({
   KnowledgeBaseToolRuntime: () => null
-}))
-
-vi.mock('@renderer/components/composer/tools/components/ThinkingButton', () => ({
-  ThinkingToolRuntime: () => null
 }))
 
 vi.mock('@renderer/components/composer/tools/components/QuickPhrasesButton', () => ({
@@ -66,8 +63,18 @@ describe('composer tool visibility', () => {
     })
 
     expect(tools.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['generate_image', 'knowledge_base', 'thinking'])
+      expect.arrayContaining(['web_search', 'generate_image', 'knowledge_base'])
     )
+  })
+
+  it('keeps dictation available without mounting assistant tools in an unlinked chat with a default model', () => {
+    const tools = getToolsForScope(TopicType.Chat, {
+      model: { id: 'default-model', providerId: 'provider-1', name: 'Default model' } as any
+    }).map((tool) => tool.key)
+
+    expect(tools).toContain('dictation')
+    expect(tools).not.toContain('web_search')
+    expect(tools).not.toContain('generate_image')
   })
 
   it('shows MCP status in chat and agent session scopes only', () => {
@@ -80,5 +87,23 @@ describe('composer tool visibility', () => {
     expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
+  })
+
+  it('makes knowledge selection discoverable in Agent Session scope', () => {
+    const tools = getToolsForScope(TopicType.Session, {
+      model: { id: 'agent-model', providerId: 'provider-1', name: 'Agent model' } as any,
+      session: { agentId: 'agent-1', knowledgeBaseIds: [] }
+    })
+
+    expect(tools.map((tool) => tool.key)).toContain('knowledge_base')
+  })
+
+  it('exposes shared dictation only in Chat, Agent Session, and Painting composers', () => {
+    const model = { id: 'model', providerId: 'provider', name: 'Model' } as any
+
+    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope('painting', { model }).map((tool) => tool.key)).toContain('dictation')
+    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('dictation')
   })
 })

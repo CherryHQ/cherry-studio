@@ -1,3 +1,10 @@
+import { Link } from '@tanstack/react-router'
+import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
@@ -13,15 +20,10 @@ import {
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
+import { openExternalWebsite } from '@renderer/services/website'
 import { isLinux, isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Link } from '@tanstack/react-router'
-import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import MacProcessTrustHintModal from './components/MacProcessTrustHintModal'
 import SelectionActionsList from './components/SelectionActionsList'
@@ -54,6 +56,13 @@ const SelectionAssistantSettings: FC = () => {
     hasLinuxInputDeviceAccess: boolean
     isLinuxCompositorCompatible: boolean
   } | null>(null)
+  const isLinuxWaylandDisplay = isLinux && !!linuxEnvInfo?.isLinuxWaylandDisplay
+  // The selection hook cannot run on this compositor, so every setting below would be dead.
+  const isCompositorIncompatible = isLinuxWaylandDisplay && !linuxEnvInfo?.isLinuxCompositorCompatible
+  // Only show the Wayland block when something is still wrong; a fully satisfied checklist is noise.
+  const showWaylandHint =
+    isLinuxWaylandDisplay &&
+    (isCompositorIncompatible || !linuxEnvInfo?.isLinuxXWaylandMode || !linuxEnvInfo?.hasLinuxInputDeviceAccess)
 
   // force disable selection assistant on non-windows systems
   useEffect(() => {
@@ -96,20 +105,18 @@ const SelectionAssistantSettings: FC = () => {
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
-          <span className="font-semibold text-[15px]">{t('selection.name')}</span>
+          <span className="text-[15px] font-semibold">{t('selection.name')}</span>
           <div className="flex items-center">
             <button
               type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:text-link-hover hover:underline"
-              onClick={() =>
-                ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
-              }>
+              className="cursor-pointer border-0 bg-transparent p-0 text-xs font-normal text-link hover:underline"
+              onClick={() => openExternalWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
               {'FAQ & ' + t('settings.about.feedback.button')}
             </button>
           </div>
         </SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-selection-assistant-enable-selection-assistant" className="scroll-mt-6">
           <SettingLabel>
             <SettingRowTitle>{t('selection.settings.enable.title')}</SettingRowTitle>
             {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
@@ -133,12 +140,12 @@ const SelectionAssistantSettings: FC = () => {
           </DemoContainer>
         )}
 
-        {selectionEnabled && isLinux && linuxEnvInfo?.isLinuxWaylandDisplay && (
+        {selectionEnabled && showWaylandHint && linuxEnvInfo && (
           <>
             <SettingDivider />
             <SettingLabel>
               <SettingRowTitle>
-                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--color-error-base)' }} />
+                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--error)' }} />
                 {t('selection.settings.linux.wayland_title')}
               </SettingRowTitle>
               {linuxEnvInfo.isLinuxCompositorCompatible ? (
@@ -149,12 +156,9 @@ const SelectionAssistantSettings: FC = () => {
                   </SettingDescription>
                   <ChecklistItem style={{ marginTop: 6 }}>
                     {linuxEnvInfo.isLinuxXWaylandMode ? (
-                      <CircleCheck
-                        size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
-                      />
+                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
                     )}
                     <span>
                       {t('selection.settings.linux.xwayland_label')}
@@ -165,12 +169,9 @@ const SelectionAssistantSettings: FC = () => {
                   </ChecklistItem>
                   <ChecklistItem>
                     {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
-                      <CircleCheck
-                        size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
-                      />
+                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
                     )}
                     <span>
                       {t('selection.settings.linux.input_group_label')}
@@ -188,7 +189,7 @@ const SelectionAssistantSettings: FC = () => {
         )}
       </SettingGroup>
 
-      {selectionEnabled && (
+      {selectionEnabled && !isCompositorIncompatible && (
         <>
           <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.toolbar.title')}</SettingTitle>
@@ -227,7 +228,7 @@ const SelectionAssistantSettings: FC = () => {
                   content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}
-                      <Link to="/settings/shortcut" style={{ color: 'var(--color-primary)' }}>
+                      <Link to="/settings/shortcut" style={{ color: 'var(--link)' }}>
                         {t('selection.settings.toolbar.trigger_mode.shortcut_link')}
                       </Link>
                     </div>
@@ -294,7 +295,6 @@ const SelectionAssistantSettings: FC = () => {
                 className="w-25"
                 min={20}
                 max={100}
-                inverted
                 value={[opacityValue]}
                 onValueChange={(value) => setOpacityValue(value[0])}
                 onValueCommit={(value) => setActionWindowOpacity(value[0])}
@@ -304,63 +304,60 @@ const SelectionAssistantSettings: FC = () => {
 
           <SelectionActionsList actionItems={actionItems} setActionItems={setActionItems} />
 
-          <SettingGroup theme={theme}>
-            <SettingTitle>{t('selection.settings.advanced.title')}</SettingTitle>
-            <SettingDivider />
-            <SettingRow>
-              <SettingLabel>
-                <SettingRowTitle>
-                  {t('selection.settings.advanced.filter_mode.title')}
-                  {isLinux && linuxEnvInfo?.isLinuxWaylandDisplay && (
-                    <span style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center' }}>
-                      （<TriangleAlert size={13} style={{ margin: '0 3px', color: 'var(--color-error-base)' }} />
-                      {t('selection.settings.linux.filter_warning_text')}）
-                    </span>
-                  )}
-                </SettingRowTitle>
-                <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
-              </SettingLabel>
-              <RadioGroup
-                value={filterMode ?? 'default'}
-                onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}
-                className="flex flex-wrap gap-3">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem size="sm" value="default" />
-                  <span>{t('selection.settings.advanced.filter_mode.default')}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem size="sm" value="whitelist" />
-                  <span>{t('selection.settings.advanced.filter_mode.whitelist')}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <RadioGroupItem size="sm" value="blacklist" />
-                  <span>{t('selection.settings.advanced.filter_mode.blacklist')}</span>
-                </label>
-              </RadioGroup>
-            </SettingRow>
+          {/* Wayland sessions report no program name, so filter mode never applies there. */}
+          {!isLinuxWaylandDisplay && (
+            <SettingGroup theme={theme}>
+              <SettingTitle>{t('selection.settings.advanced.title')}</SettingTitle>
+              <SettingDivider />
+              <SettingRow>
+                <SettingLabel>
+                  <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
+                  <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
+                </SettingLabel>
+                <RadioGroup
+                  value={filterMode ?? 'default'}
+                  onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}
+                  className="flex flex-wrap gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="default" />
+                    <span>{t('selection.settings.advanced.filter_mode.default')}</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="whitelist" />
+                    <span>{t('selection.settings.advanced.filter_mode.whitelist')}</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="blacklist" />
+                    <span>{t('selection.settings.advanced.filter_mode.blacklist')}</span>
+                  </label>
+                </RadioGroup>
+              </SettingRow>
 
-            {filterMode && filterMode !== 'default' && (
-              <>
-                <SettingDivider />
-                <SettingRow>
-                  <SettingLabel>
-                    <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
-                    <SettingDescription>{t('selection.settings.advanced.filter_list.description')}</SettingDescription>
-                  </SettingLabel>
-                  <Button onClick={() => setIsFilterListModalOpen(true)}>
-                    <Edit2 size={14} />
-                    {t('common.edit')}
-                  </Button>
-                </SettingRow>
-                <SelectionFilterListModal
-                  open={isFilterListModalOpen}
-                  onClose={() => setIsFilterListModalOpen(false)}
-                  filterList={filterList}
-                  onSave={setFilterList}
-                />
-              </>
-            )}
-          </SettingGroup>
+              {filterMode && filterMode !== 'default' && (
+                <>
+                  <SettingDivider />
+                  <SettingRow>
+                    <SettingLabel>
+                      <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
+                      <SettingDescription>
+                        {t('selection.settings.advanced.filter_list.description')}
+                      </SettingDescription>
+                    </SettingLabel>
+                    <Button onClick={() => setIsFilterListModalOpen(true)}>
+                      <Edit2 size={14} />
+                      {t('common.edit')}
+                    </Button>
+                  </SettingRow>
+                  <SelectionFilterListModal
+                    open={isFilterListModalOpen}
+                    onClose={() => setIsFilterListModalOpen(false)}
+                    filterList={filterList}
+                    onSave={setFilterList}
+                  />
+                </>
+              )}
+            </SettingGroup>
+          )}
         </>
       )}
 
@@ -377,10 +374,10 @@ const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'
   <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
 )
 const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.5 flex items-center text-foreground-muted text-xs', className)} {...props} />
+  <div className={cn('mb-0.5 flex items-center text-xs text-foreground-tertiary', className)} {...props} />
 )
 
 export default SelectionAssistantSettings

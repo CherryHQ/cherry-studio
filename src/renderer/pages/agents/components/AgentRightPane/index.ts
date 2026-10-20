@@ -1,2 +1,8 @@
-export type { AgentToolFlowOpenInput } from './AgentRightPane'
-export { AgentRightPane, useAgentRightPaneActions } from './AgentRightPane'
+export type { AgentFileNavigationRequest, AgentToolFlowOpenInput } from './AgentRightPane'
+export {
+  AgentRightPane,
+  AgentTaskProgressCapsule,
+  useAgentRightPaneActions,
+  useOptionalAgentFileNavigation,
+  useOptionalAgentRightPaneActions
+} from './AgentRightPane'

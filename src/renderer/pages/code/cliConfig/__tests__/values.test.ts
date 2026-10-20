@@ -1,5 +1,6 @@
-import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
+
+import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 
 import { cliProviderKeyName, safeCreateUniqueModelId } from '../values'
 

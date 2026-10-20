@@ -1,5 +1,6 @@
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
+
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
 
 import {
   type AgentFormState,
@@ -77,11 +78,25 @@ describe('buildInitialAgentFormState', () => {
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
   })
 
-  it('uses the legacy heartbeat defaults when configuration omits heartbeat keys', () => {
+  it('leaves heartbeat off when configuration omits heartbeat keys', () => {
     const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
 
-    expect(state.heartbeatEnabled).toBe(true)
+    expect(state.heartbeatEnabled).toBe(false)
     expect(state.heartbeatInterval).toBe(30)
+  })
+
+  it('clamps an out-of-range stored heartbeat interval the same way the main process does', () => {
+    // A stored 5000 would otherwise render in the form while the main-side
+    // sync schedules 1440 — form and schedule must agree.
+    expect(
+      buildInitialAgentFormState(createAgent({ configuration: { heartbeat_interval: 5000 } })).heartbeatInterval
+    ).toBe(1440)
+    expect(
+      buildInitialAgentFormState(createAgent({ configuration: { heartbeat_interval: 0.4 } })).heartbeatInterval
+    ).toBe(1)
+    expect(
+      buildInitialAgentFormState(createAgent({ configuration: { heartbeat_interval: -3 } })).heartbeatInterval
+    ).toBe(30)
   })
 })
 
@@ -110,7 +125,7 @@ describe('diffAgentSaveIntent', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, name: 'Renamed' }
 
-    expect(diffAgentSaveIntent(next, baseline, agent)).toEqual({
+    expect(diffAgentSaveIntent(next, baseline)).toEqual({
       kind: 'update',
       payload: { name: 'Renamed' }
     })
@@ -118,10 +133,20 @@ describe('diffAgentSaveIntent', () => {
 })
 
 describe('diffAgentUpdate', () => {
+  it('round-trips an edited heartbeat timeout without changing the interval or toggle', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { heartbeat_enabled: true } }))
+    expect(baseline.heartbeatTimeoutMinutes).toBe(2)
+    const next = applyAgentFormPatch(baseline, { heartbeatTimeoutMinutes: 10 })
+    const update = diffAgentUpdate(baseline, next)
+    expect(update?.dto).toEqual({ configuration: { heartbeat_timeout_minutes: 10 } })
+    const saved = buildInitialAgentFormState(createAgent({ configuration: update?.dto.configuration }))
+    expect(saved.heartbeatTimeoutMinutes).toBe(10)
+  })
+
   it('returns null when nothing changed', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent)
-    expect(diffAgentUpdate(baseline, baseline, agent)).toBeNull()
+    expect(diffAgentUpdate(baseline, baseline)).toBeNull()
   })
 
   it('includes only changed top-level keys in the PATCH payload', () => {
@@ -129,11 +154,29 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, name: 'Renamed', instructions: 'new prompt' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto).toEqual({
       name: 'Renamed',
       instructions: 'new prompt'
     })
+  })
+
+  it('emits knowledgeBaseIds when the bound knowledge bases change', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2'] }
+
+    const result = diffAgentUpdate(baseline, next)
+
+    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
+  })
+
+  it('does not emit knowledgeBaseIds when the bound knowledge base set is only reordered', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1', 'kb-2'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2', 'kb-1'] }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
   })
 
   it('includes skillUpdates when the enabled skill set changes', () => {
@@ -141,7 +184,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent, ['skill-1'])
     const next = { ...baseline, skillIds: ['skill-2'] }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
 
     expect(result?.dto).toEqual({
       skillUpdates: [
@@ -156,7 +199,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent, ['skill-1', 'skill-2'])
     const next = { ...baseline, skillIds: ['skill-2', 'skill-1'] }
 
-    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
   })
 
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {
@@ -173,29 +216,27 @@ describe('diffAgentUpdate', () => {
       smallModel: ''
     }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
 
     expect(result?.dto).toMatchObject({
       model: 'anthropic::claude-sonnet-4-6',
       planModel: 'anthropic::claude-haiku-4-6',
-      smallModel: undefined
+      // Clearing a tier emits null: the PATCH must reach the column as SQL
+      // NULL, not be dropped as an omitted field.
+      smallModel: null
     })
   })
 
-  it('merges configuration-subkey patches on top of the existing configuration without sending max_turns', () => {
+  it('emits only edited configuration keys', () => {
     const agent = createAgent({
-      configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
+      configuration: { avatar: '🤖', plugin_state: 'keep-me' }
     })
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, avatar: '🚀' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
-    // plugin_state must be preserved — the library form does not edit it, so
-    // it MUST NOT be stripped from the PATCH payload.
-    expect(result?.dto.configuration).toEqual({
-      avatar: '🚀',
-      plugin_state: 'keep-me'
-    })
+    const result = diffAgentUpdate(baseline, next)
+    // Main preserves plugin_state by merging this intent into the latest row.
+    expect(result?.dto.configuration).toEqual({ avatar: '🚀' })
   })
 
   it('round-trips env_vars through the textarea format', () => {
@@ -204,7 +245,7 @@ describe('diffAgentUpdate', () => {
     // User appends a line via the textarea control.
     const next = { ...baseline, envVarsText: 'A=1\nB=2' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       env_vars: {
         A: '1',
@@ -218,7 +259,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, envVarsText: 'TOKEN= abc \nEMPTY=  \nSPACED_KEY =value=with=equals' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       env_vars: {
         TOKEN: ' abc ',
@@ -233,9 +274,66 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, permissionMode: 'default' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       permission_mode: 'default'
     })
+  })
+})
+
+describe('agent reply language tri-state', () => {
+  it('maps persisted language values onto mode + draft', () => {
+    expect(buildInitialAgentFormState(createAgent())).toMatchObject({ languageMode: 'inherit', languageCustom: '' })
+    expect(buildInitialAgentFormState(createAgent({ configuration: { language: null } }))).toMatchObject({
+      languageMode: 'off',
+      languageCustom: ''
+    })
+    expect(buildInitialAgentFormState(createAgent({ configuration: { language: '  Thai ' } }))).toMatchObject({
+      languageMode: 'custom',
+      languageCustom: 'Thai'
+    })
+  })
+
+  it('keeps an invalid persisted label as a raw draft instead of silently dropping it', () => {
+    const state = buildInitialAgentFormState(createAgent({ configuration: { language: 'a\nb' } }))
+
+    expect(state).toMatchObject({ languageMode: 'custom', languageCustom: 'a\nb' })
+  })
+
+  it('emits the override string when switching inherit to custom', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const next = { ...baseline, languageMode: 'custom' as const, languageCustom: '日本語' }
+
+    expect(diffAgentUpdate(baseline, next)?.dto.configuration).toMatchObject({ language: '日本語' })
+  })
+
+  it('emits null when switching to no constraint so the opt-out persists', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { language: 'English' } }))
+    const next = { ...baseline, languageMode: 'off' as const }
+
+    expect(diffAgentUpdate(baseline, next)?.dto.configuration).toMatchObject({ language: null })
+  })
+
+  it('emits an explicit undefined key removal when switching back to inherit', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { language: null } }))
+    const next = { ...baseline, languageMode: 'inherit' as const }
+
+    const configuration = diffAgentUpdate(baseline, next)?.dto.configuration
+    expect(configuration && 'language' in configuration).toBe(true)
+    expect(configuration?.language).toBeUndefined()
+  })
+
+  it('emits nothing for an empty custom draft so invalid input never persists', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const next = { ...baseline, languageMode: 'custom' as const, languageCustom: '   ' }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
+  })
+
+  it('treats whitespace-equivalent custom drafts as unchanged', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { language: 'English' } }))
+    const next = { ...baseline, languageCustom: '  English  ' }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
   })
 })

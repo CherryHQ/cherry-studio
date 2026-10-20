@@ -1,8 +1,9 @@
-import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useMigrationProgress } from '../useMigrationProgress'
+import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
+
+import { useMigrationActions, useMigrationProgress } from '../useMigrationProgress'
 
 const cleanup = vi.fn()
 const invoke = vi.fn()
@@ -126,5 +127,34 @@ describe('useMigrationProgress', () => {
     })
 
     expect(result.current.progress.summary?.durationMs).toBe(3_250)
+  })
+
+  it('cleans up only its own progress listener on unmount', async () => {
+    const { unmount } = renderHook(() => useMigrationProgress())
+    await waitFor(() => expect(progressHandler).toBeDefined())
+
+    unmount()
+
+    expect(cleanup).toHaveBeenCalledOnce()
+    expect(removeAllListeners).not.toHaveBeenCalled()
+  })
+
+  it('maps save diagnostics to its IPC channel and exact payload', async () => {
+    const { result } = renderHook(() => useMigrationActions())
+
+    await result.current.saveDiagnostics('Save diagnostic bundle', '2026-07-23')
+
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.SaveDiagnosticBundle, {
+      dialogTitle: 'Save diagnostic bundle',
+      logDate: '2026-07-23'
+    })
+  })
+
+  it('maps reveal diagnostics to its IPC channel without a payload', async () => {
+    const { result } = renderHook(() => useMigrationActions())
+
+    await result.current.showDiagnosticBundleInFolder()
+
+    expect(invoke).toHaveBeenCalledWith(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
   })
 })

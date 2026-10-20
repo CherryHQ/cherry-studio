@@ -41,6 +41,22 @@ describe('sanitizeFilename', () => {
     expect(result.length).toBe(255)
   })
 
+  it('trims trailing whitespace exposed by truncation', () => {
+    // A space sits exactly at the 255-char cut: pre-fix left it as the final
+    // character, producing a Windows-illegal name ending in whitespace.
+    const name = 'x'.repeat(254) + ' ' + 'y'.repeat(50)
+    const result = sanitizeFilename(name)
+    expect(result).toBe('x'.repeat(254))
+    expect(result.endsWith(' ')).toBe(false)
+  })
+
+  it('trims trailing dot exposed by truncation', () => {
+    const name = 'x'.repeat(254) + '.' + 'y'.repeat(50)
+    const result = sanitizeFilename(name)
+    expect(result).toBe('x'.repeat(254))
+    expect(result.endsWith('.')).toBe(false)
+  })
+
   it('returns "untitled" when every character was sanitised away', () => {
     expect(sanitizeFilename('...')).toBe('untitled')
     expect(sanitizeFilename('   ')).toBe('untitled')

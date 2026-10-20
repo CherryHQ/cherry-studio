@@ -1,6 +1,7 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
 import i18n from '@renderer/i18n/resolver'
 import type { Provider, SystemProvider } from '@renderer/types/provider'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { includeKeywords, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
@@ -54,6 +55,13 @@ describe('match', () => {
       expect(includeKeywords('Hello World', 'HELLO')).toBe(true)
       expect(includeKeywords('Hello World', 'hello   world')).toBe(true)
       expect(includeKeywords('Hello\nWorld', 'hello world')).toBe(true)
+    })
+
+    it('matches Chinese initials and Latin tokens together without dropping any keyword', () => {
+      expect(includeKeywords('API 知识库', 'ZSK api')).toBe(true)
+      expect(includeKeywords('API 知识库', ['api', 'zsk'])).toBe(true)
+      expect(includeKeywords('API 知识库', 'zsk missing')).toBe(false)
+      expect(includeKeywords('API 知识库', 'api zk')).toBe(false)
     })
 
     it('should return false if any keyword is not included', () => {

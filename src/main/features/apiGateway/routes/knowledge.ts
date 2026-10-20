@@ -1,9 +1,11 @@
+import { Elysia } from 'elysia'
+
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
-import { Elysia } from 'elysia'
 
+import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import {
   KnowledgeBaseIdParamSchema,
   KnowledgeBaseResponseSchema,
@@ -21,6 +23,8 @@ const logger = loggerService.withContext('KnowledgeRoutes')
  * Redux, no renderer required. Handlers return success values (validated by the
  * `response` schemas) and throw for failures; the global `onError` shapes errors
  * (including `DataApiError` → the matching HTTP status).
+ *
+ * `detail.tags`/`summary` hold i18n *keys*, not translated text — see chat.ts.
  */
 export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .get(
@@ -40,13 +44,17 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
     {
       query: PaginationQuerySchema,
       response: { 200: ListKnowledgeBasesResponseSchema },
-      detail: { tags: ['Knowledge'], summary: 'List all knowledge bases' }
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'List Knowledge Bases',
+        description: DOC_DESCRIPTIONS.list_knowledge_bases
+      }
     }
   )
   .post(
     '/search',
     async ({ body }) => {
-      const { query, knowledge_base_ids, document_count = 5 } = body
+      const { query, knowledge_base_ids, document_count } = body
 
       // Resolve target bases: the requested ids (must exist) or every base.
       let targetBases: { id: string; name: string }[]
@@ -134,11 +142,19 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
     {
       body: KnowledgeSearchSchema,
       response: { 200: SearchKnowledgeResponseSchema },
-      detail: { tags: ['Knowledge'], summary: 'Search knowledge bases' }
+      detail: {
+        tags: [DOC_TAGS.cherry],
+        summary: 'Search Knowledge Bases',
+        description: DOC_DESCRIPTIONS.search_knowledge_bases
+      }
     }
   )
   .get('/:id', ({ params }) => knowledgeBaseService.getById(params.id), {
     params: KnowledgeBaseIdParamSchema,
     response: { 200: KnowledgeBaseResponseSchema },
-    detail: { tags: ['Knowledge'], summary: 'Get a knowledge base by ID' }
+    detail: {
+      tags: [DOC_TAGS.cherry],
+      summary: 'Get Knowledge Base',
+      description: DOC_DESCRIPTIONS.get_knowledge_base
+    }
   })

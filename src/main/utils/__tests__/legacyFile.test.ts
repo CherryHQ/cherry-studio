@@ -3,10 +3,11 @@ import * as fsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FILE_TYPE } from '@shared/types/file'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { FILE_TYPE } from '@shared/types/file'
 
 import { readTextFileWithAutoEncoding, resolveAndValidatePath } from '../legacyFile'
 import { getAllFiles, getFileType, isPathInside, untildify } from '../legacyFile'
@@ -222,7 +223,7 @@ describe('file', () => {
       const buffer = Buffer.from(iconv.encode(content, 'GB18030'))
 
       // 模拟文件读取和编码检测
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer as unknown as string)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)
@@ -234,7 +235,7 @@ describe('file', () => {
       const buffer = Buffer.from(iconv.encode(content, 'UTF-8'))
 
       // 模拟文件读取
-      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer as unknown as string)
+      vi.spyOn(fsPromises, 'readFile').mockResolvedValue(buffer)
       vi.spyOn(chardet, 'detectFile').mockResolvedValue('GB18030')
 
       const result = await readTextFileWithAutoEncoding(mockFilePath)

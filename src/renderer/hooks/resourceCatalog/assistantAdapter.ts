@@ -1,17 +1,21 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import {
   ASSISTANTS_MAX_LIMIT,
   type CreateAssistantDto,
+  type DeleteAssistantResult,
+  type ImportAssistantDto,
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
 /**
- * Server-backed list hook. `search` / `tagIds` are forwarded to
+ * Server-backed list hook. `search` / `groupId` are forwarded to
  * `GET /assistants` query params and evaluated in SQL (see
  * `AssistantService.list`) so no client-side chain-filtering is needed.
  */
@@ -21,7 +25,7 @@ function useAssistantList(query?: ResourceListQuery): ResourceListResult<Assista
     query: {
       limit: query?.limit ?? ASSISTANTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {}),
-      ...(query?.tagIds && query.tagIds.length > 0 ? { tagIds: query.tagIds } : {})
+      ...(query?.groupId ? { groupId: query.groupId } : {})
     }
   })
 
@@ -52,64 +56,77 @@ export function useAssistantMutations() {
   const { trigger: createTrigger } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
+  const { trigger: duplicateTrigger } = useMutation('POST', '/assistants/:id/duplicate', {
+    refresh: ['/assistants', '/prompts', '/prompt-bindings']
+  })
 
   const createAssistant = useCallback(
     (dto: CreateAssistantDto): Promise<Assistant> => createTrigger({ body: dto }),
     [createTrigger]
   )
 
-  /**
-   * Duplicate an assistant by re-POSTing its full state (plus a "(副本)" suffix)
-   * in a single request. Tag bindings are carried via `tagIds` in the create DTO
-   * so the backend lands them in the same transaction as the assistant row —
-   * no half-success state, no follow-up tag-bind call.
-   */
   const duplicateAssistant = useCallback(
     async (source: Assistant): Promise<Assistant> => {
       const duplicateName = t('library.duplicate_name', { name: source.name })
-      const tagId = source.tags[0]?.id
 
-      return createTrigger({
-        body: {
-          name: duplicateName,
-          prompt: source.prompt,
-          emoji: source.emoji,
-          description: source.description,
-          modelId: source.modelId,
-          settings: source.settings,
-          mcpServerIds: source.mcpServerIds,
-          knowledgeBaseIds: source.knowledgeBaseIds,
-          tagIds: tagId ? [tagId] : []
-        }
+      return duplicateTrigger({
+        params: { id: source.id },
+        body: { name: duplicateName }
       })
     },
-    [createTrigger, t]
+    [duplicateTrigger, t]
   )
 
   return { createAssistant, duplicateAssistant }
 }
 
 /**
+ * Legacy import is a dedicated mutation because the server resolves/creates
+ * the optional group and inserts the assistant in one transaction.
+ */
+export function useImportAssistantMutation() {
+  const { trigger } = useMutation('POST', '/assistants:import', {
+    refresh: ['/assistants', '/groups']
+  })
+
+  const importAssistant = useCallback(
+    (dto: ImportAssistantDto): Promise<Assistant> => trigger({ body: dto }),
+    [trigger]
+  )
+
+  return { importAssistant }
+}
+
+/**
  * Mutation hook scoped to a single assistant id — no read, use alongside list data.
- * PATCH accepts `tagIds` (alongside other fields); the backend diff-syncs the
- * `entity_tag` junction inside the assistant-row transaction so callers never
- * observe the assistant in a desynced state.
+ * PATCH accepts `groupId` alongside the other assistant fields.
  */
 export function useAssistantMutationsById(id: string) {
   const path = `/assistants/${id}` as const
+  const invalidate = useInvalidateCache()
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
     refresh: ['/assistants', '/assistants/*']
-  })
-  const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/assistants', '/assistants/*', '/pins']
   })
 
   const updateAssistant = useCallback(
     (dto: UpdateAssistantDto): Promise<Assistant> => updateTrigger({ body: dto }),
     [updateTrigger]
   )
-  const deleteAssistant = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
+  const deleteAssistant = useCallback(
+    async (options: { deleteTopics?: boolean; permanent?: boolean } = {}): Promise<DeleteAssistantResult> => {
+      const deleteTopics = options.deleteTopics === true
+      const result = await ipcApi.request(
+        options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
+        { assistantId: id, deleteTopics }
+      )
+      await invalidate(
+        deleteTopics ? ['/assistants', '/assistants/*', '/pins', '/topics'] : ['/assistants', '/assistants/*', '/pins']
+      )
+      return result
+    },
+    [id, invalidate]
+  )
 
   return { updateAssistant, deleteAssistant }
 }

@@ -1,14 +1,22 @@
+import { spawn } from 'child_process'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import { execFileSync, spawn } from 'child_process'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
+import { getBundledGitDir } from './bundledGit'
 
 const logger = loggerService.withContext('ShellEnv')
 
 // Give shells enough time to source profile files, but fail fast when they hang.
 const SHELL_ENV_TIMEOUT_MS = 15_000
+
+/** Read PATH using Windows-compatible, case-insensitive environment-key semantics. */
+export function getPathFromEnvironment(env: Record<string, string | undefined>): string | undefined {
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
+  return pathKey ? env[pathKey] : undefined
+}
 
 /**
  * Ensures Cherry-managed tool directories are appended to the user's PATH while
@@ -17,15 +25,18 @@ const SHELL_ENV_TIMEOUT_MS = 15_000
 const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const pathSeparator = isWin ? ';' : ':'
   const cherryToolDirs = getBinarySearchDirs()
+  // Bundled MinGit as a last-resort git: appended after the managed tool dirs so
+  // it lands at the very tail, letting any spawned process (agent, CLI) resolve a
+  // bare `git` with no system git — while system/mise/PATH git always win ahead.
+  const bundledGitDir = getBundledGitDir()
+  const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
 
   // Existing segments first, tool dirs appended — dedup keeps an already-present
   // tool dir at its original position instead of moving it to the tail.
-  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...cherryToolDirs]).join(
-    pathSeparator
-  )
+  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...tailDirs]).join(pathSeparator)
 
   if (pathKeys.length > 0) {
     pathKeys.forEach((key) => {
@@ -47,26 +58,6 @@ const applyBinaryExecutionEnv = (env: Record<string, string>) => {
 }
 
 /**
- * Run `reg query <keyPath> /v <valueName>` and return the string data, or null on failure.
- */
-function queryRegValue(keyPath: string, valueName: string): string | null {
-  try {
-    const out = execFileSync('reg', ['query', keyPath, '/v', valueName], {
-      encoding: 'utf-8',
-      timeout: 5000,
-      windowsHide: true
-    })
-    // Output format:
-    //   HKEY_LOCAL_MACHINE\...\Environment
-    //       Path    REG_EXPAND_SZ    C:\Windows;...
-    const match = out.match(/REG_(?:EXPAND_)?SZ\s+(.*)/i)
-    return match ? match[1].trim() : null
-  } catch {
-    return null
-  }
-}
-
-/**
  * Replace `%VAR%` references with values from `env` (case-insensitive lookup).
  */
 function expandWindowsEnvVars(value: string, env: Record<string, string>): string {
@@ -81,16 +72,33 @@ function expandWindowsEnvVars(value: string, env: Record<string, string>): strin
  * embedded `%VAR%` references so callers get a ready-to-use PATH string.
  * Returns null when both registry reads fail.
  */
-function readWindowsRegistryPath(env: Record<string, string>): string | null {
-  const systemPath = queryRegValue('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', 'Path')
-  const userPath = queryRegValue('HKCU\\Environment', 'Path')
+async function readWindowsRegistryPath(env: Record<string, string>): Promise<string | null> {
+  try {
+    const { HKEY, RegistryValueType, enumerateValuesSafe } = await import('registry-js')
+    const readPathValue = (hive: (typeof HKEY)[keyof typeof HKEY], subkey: string): string | null => {
+      const pathValue = enumerateValuesSafe(hive, subkey).find(
+        (value) =>
+          value.name.toLowerCase() === 'path' &&
+          (value.type === RegistryValueType.REG_SZ || value.type === RegistryValueType.REG_EXPAND_SZ)
+      )
+      return typeof pathValue?.data === 'string' ? pathValue.data : null
+    }
 
-  if (!systemPath && !userPath) {
+    const systemPath = readPathValue(
+      HKEY.HKEY_LOCAL_MACHINE,
+      'SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
+    )
+    const userPath = readPathValue(HKEY.HKEY_CURRENT_USER, 'Environment')
+
+    if (!systemPath && !userPath) {
+      return null
+    }
+
+    const combined = [systemPath, userPath].filter(Boolean).join(';')
+    return expandWindowsEnvVars(combined, env)
+  } catch {
     return null
   }
-
-  const combined = [systemPath, userPath].filter(Boolean).join(';')
-  return expandWindowsEnvVars(combined, env)
 }
 
 /**
@@ -98,13 +106,13 @@ function readWindowsRegistryPath(env: Record<string, string>): string | null {
  * PATH with the current registry value. This avoids the stale PATH problem
  * where `cmd.exe /c set` only inherits the Electron parent process's env.
  */
-function getWindowsEnvironment(): Record<string, string> {
+async function getWindowsEnvironment(): Promise<Record<string, string>> {
   const env: Record<string, string> = {}
   for (const key in process.env) {
     env[key] = process.env[key] || ''
   }
 
-  const registryPath = readWindowsRegistryPath(env)
+  const registryPath = await readWindowsRegistryPath(env)
   if (registryPath) {
     const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
     for (const key of pathKeys) {
@@ -118,17 +126,15 @@ function getWindowsEnvironment(): Record<string, string> {
     logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
   }
 
-  appendCherryToolDirsToPath(env)
-  applyBinaryExecutionEnv(env)
   return env
 }
 
 /**
  * Spawns a login shell in the user's home directory to capture its environment variables.
  *
- * We explicitly run a login + interactive shell so it sources the same init files that a user
- * would typically rely on inside their terminal. Many CLIs export PATH or other variables from
- * these scripts; capturing them keeps spawned processes aligned with the user’s expectations.
+ * We explicitly run a login, non-interactive shell. This loads login profiles such as macOS
+ * `~/.zprofile` (where Homebrew commonly installs its PATH) without executing interactive prompt,
+ * theme, or terminal plugin setup from `~/.zshrc`.
  *
  * Timeout handling is important because profile scripts might block forever (e.g. misconfigured
  * `read` or prompts). We proactively kill the shell and surface an error in that case so that
@@ -136,12 +142,13 @@ function getWindowsEnvironment(): Record<string, string> {
  * @returns {Promise<Object>} A promise that resolves with an object containing
  * the environment variables, or rejects with an error.
  */
-function getLoginShellEnvironment(): Promise<Record<string, string>> {
+function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, string>> {
+  signal?.throwIfAborted()
   // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
   // the (potentially stale) parent process env. Instead, read the current PATH
   // straight from the Windows registry.
   if (isWin) {
-    return Promise.resolve(getWindowsEnvironment())
+    return getWindowsEnvironment()
   }
 
   return new Promise((resolve, reject) => {
@@ -169,7 +176,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       }
     }
 
-    const commandArgs = ['-ilc', 'env']
+    const commandArgs = ['-lc', 'env']
 
     logger.debug(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
@@ -202,6 +209,8 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     }
 
     const child = spawn(shellPath, commandArgs, {
+      signal,
+      killSignal: 'SIGKILL',
       cwd: homeDirectory, // Run the command in the user's home directory
       detached: false, // Stay attached so we can clean up reliably
       stdio: ['ignore', 'pipe', 'pipe'], // stdin, stdout, stderr
@@ -217,7 +226,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         ' '
       )}. CWD: ${homeDirectory}`
       logger.error(errorMessage)
-      child.kill()
+      child.kill('SIGKILL')
       rejectOnce(new Error(errorMessage))
     }, SHELL_ENV_TIMEOUT_MS)
 
@@ -277,9 +286,6 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         logger.warn(`Raw output from shell:\n${output}`)
       }
 
-      appendCherryToolDirsToPath(env)
-      applyBinaryExecutionEnv(env)
-
       resolveOnce(env)
     })
   })
@@ -293,13 +299,10 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
     return await getLoginShellEnvironment()
   } catch (error) {
     logger.error('Failed to get shell environment, falling back to process.env', { error })
-    // Fallback to current process environment with cherry studio bin path
     const fallbackEnv: Record<string, string> = {}
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
-    appendCherryToolDirsToPath(fallbackEnv)
-    applyBinaryExecutionEnv(fallbackEnv)
     return fallbackEnv
   }
 }
@@ -336,9 +339,20 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
-export async function getShellEnv(): Promise<Record<string, string>> {
-  const env = cachedEnv ?? (await loadShellEnv())
+export async function getRawShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
+  signal?.throwIfAborted()
+  // A cancellable cold query owns its shell; aborting it must not poison the shared app cache.
+  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal) : loadShellEnv()))
+  signal?.throwIfAborted()
+  cachedEnv ??= env
   return { ...env }
+}
+
+export async function getShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
+  const env = await getRawShellEnv(signal)
+  appendCherryToolDirsToPath(env)
+  applyBinaryExecutionEnv(env)
+  return env
 }
 
 /**
@@ -359,8 +373,11 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
     // (e.g. a tool install completing mid-flight). Acceptable because downstream
     // lookups hit the filesystem live; logged so the reuse is observable.
     logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
-    return { ...(await inflight) }
+    const env = { ...(await inflight) }
+    appendCherryToolDirsToPath(env)
+    applyBinaryExecutionEnv(env)
+    return env
   }
   cachedEnv = null
-  return { ...(await loadShellEnv()) }
+  return getShellEnv()
 }

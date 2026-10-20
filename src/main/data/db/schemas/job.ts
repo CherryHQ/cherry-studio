@@ -1,7 +1,8 @@
-import type { CatchUpPolicy, Trigger } from '@shared/data/api/schemas/jobs'
-import type { JobError } from '@shared/data/api/schemas/jobs'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
+import type { CatchUpPolicy, Trigger } from '@shared/data/api/schemas/jobs'
+import type { JobError } from '@shared/data/api/schemas/jobs'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
@@ -78,6 +79,9 @@ export const jobTable = sqliteTable(
     error: text({ mode: 'json' }).$type<JobError>(),
     parentId: text(),
     cancelRequested: integer({ mode: 'boolean' }).notNull().default(false),
+    // Set once at the first cancel request while the job is active, never moved.
+    // Read models use it as the cancel time; finishedAt keeps transition time.
+    cancelRequestedAt: integer(),
     metadata: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
     timeoutMs: integer(),
     ...createUpdateTimestamps

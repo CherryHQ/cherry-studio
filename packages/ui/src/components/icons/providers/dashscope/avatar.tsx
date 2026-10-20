@@ -10,7 +10,7 @@ export function DashscopeAvatar({ size = 32, shape = 'circle', className }: Omit
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <DashscopeLight style={{ width: size * 0.7, height: size * 0.7 }} />
+        <DashscopeLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

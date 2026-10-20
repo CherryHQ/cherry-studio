@@ -1,8 +1,9 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { Wrench } from 'lucide-react'
 import type { FC } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
 
 const ToolsCallingIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>> = (props) => {
   const { t } = useTranslation()
@@ -15,7 +16,7 @@ const ToolsCallingIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElem
           size={15}
           className={props.className}
           style={{
-            color: 'var(--color-primary)',
+            color: 'var(--primary)',
             marginRight: 6,
             ...props.style
           }}

@@ -5,5 +5,8 @@ export type ApiGatewayConfig = {
   apiKey: string | null
 }
 
-/** Result of an API-gateway start/stop/restart IPC call. */
+/** Result of an API-gateway start/restart IPC call. */
 export type ApiGatewayStatusResult = { success: true } | { success: false; error: string }
+
+export type ApiGatewayStopOutcome = 'stopped'
+export type ApiGatewayStopResult = { success: true; outcome: ApiGatewayStopOutcome } | { success: false; error: string }

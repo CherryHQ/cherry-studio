@@ -1,35 +1,36 @@
-import { useQuery } from '@data/hooks/useDataApi'
-import type {
-  MessageListActions,
-  MessageListState,
-  MessageStreamingLayers
-} from '@renderer/components/chat/messages/types'
-import { useExternalApps } from '@renderer/hooks/useExternalApps'
-import { ipcApi } from '@renderer/ipc'
-import { popup } from '@renderer/services/popup'
-import type { FileMetadata } from '@renderer/types/file'
-import type { McpTool } from '@renderer/types/tool'
-import { buildEditorUrl } from '@renderer/utils/editor'
-import { parseFileTypes } from '@renderer/utils/file'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
-import type { FileHandle } from '@shared/data/types/file'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import type { FilePath } from '@shared/types/file'
-import { createFileEntryHandle, createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
+import type {
+  MessageListActions,
+  MessageListState,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
+import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import type { McpTool } from '@renderer/types/tool'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { FileHandle } from '@shared/data/types/file'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { getFileTypeByExt, isFilePathHandle } from '@shared/utils/file'
+
 import { useAttachment } from './useAttachment'
 import { type MessagePlatformActions, useMessagePlatformActions } from './useMessagePlatformActions'
 
+const logger = loggerService.withContext('useMessageLeafCapabilities')
+
 type MessageLeafActions = Pick<
   MessageListActions,
-  'previewFile' | 'openFile' | 'subscribeToolProgress' | 'openExternalUrl' | 'openInExternalApp'
+  'previewFile' | 'openFile' | 'subscribeToolProgress' | 'openExternalUrl'
 > &
   MessagePlatformActions
-type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved' | 'externalCodeEditors'>
+type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved'>
 
 interface MessageLeafCapabilitiesParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -56,17 +57,16 @@ function isMcpToolPart(part: CherryMessagePart): boolean {
   return tool?.type === 'mcp'
 }
 
-function fileMetadataToHandle(file: FileMetadata): FileHandle {
-  if (file.path) {
-    try {
-      return createFilePathHandle(file.path as FilePath)
-    } catch {
-      // Fall back to the entry id for legacy FileMetadata whose path is not an
-      // absolute filesystem path. The IPC schema is still the authority.
-    }
-  }
+/** Ask Main where an entry lives; a path handle already carries its own answer. */
+async function resolveHandlePath(handle: FileHandle): Promise<AbsoluteFilePath | undefined> {
+  if (isFilePathHandle(handle)) return handle.path
 
-  return createFileEntryHandle(file.id)
+  try {
+    return await window.api.file.getPhysicalPath({ id: handle.entryId })
+  } catch (error) {
+    logger.warn('resolveHandlePath: no physical path for entry', { entryId: handle.entryId, error })
+    return undefined
+  }
 }
 
 /**
@@ -80,7 +80,10 @@ function fileMetadataToHandle(file: FileMetadata): FileHandle {
  * `origin_name` here. Keep this local while `FileMetadata` / sent file parts do
  * not carry a stable pasted-source field.
  */
-function formatMessageAttachmentFileName(file: FileMetadata, t: TFunction): string {
+function formatMessageAttachmentFileName(
+  file: Pick<FileMetadata, 'origin_name' | 'ext' | 'created_at'>,
+  t: TFunction
+): string {
   if (!file.origin_name) {
     return ''
   }
@@ -121,28 +124,21 @@ export function useMessageLeafCapabilities({
     return streamingLayers.liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
   }, [historyHasMcpToolParts, partsByMessageId, streamingLayers])
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
-  const { data: externalApps } = useExternalApps()
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
-  const externalCodeEditors = useMemo(
-    () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],
-    [externalApps]
-  )
 
   const previewFile = useCallback<NonNullable<MessageListActions['previewFile']>>(
-    async (file) => {
-      const fileType = parseFileTypes(file.type)
-      if (fileType === null) {
-        void popup.error({ content: t('files.preview.error'), centered: true })
-        return
-      }
-
-      if (fileType === 'text') {
-        await preview(file.path, formatMessageAttachmentFileName(file, t), fileType, file.ext)
-        return
+    async (target) => {
+      if (getFileTypeByExt(target.ext) === FILE_TYPE.TEXT) {
+        // Main owns path resolution; the inline text preview reads the path it hands back.
+        const path = await resolveHandlePath(target.handle)
+        if (path) {
+          await preview(path, target.name, FILE_TYPE.TEXT, target.ext)
+          return
+        }
       }
 
       try {
-        await safeOpen(fileMetadataToHandle(file))
+        await safeOpen(target.handle)
       } catch {
         void popup.error({ content: t('files.preview.error'), centered: true })
       }
@@ -151,17 +147,12 @@ export function useMessageLeafCapabilities({
   )
 
   const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>(
-    (file) => {
-      return {
-        displayName: formatMessageAttachmentFileName(file, t),
-        previewUrl: file.path ? toSafeFileUrl(file.path as FilePath, file.ext || null) : undefined
-      }
-    },
+    (file) => ({ displayName: formatMessageAttachmentFileName(file, t) }),
     [t]
   )
 
-  const openFile = useCallback<NonNullable<MessageListActions['openFile']>>((file) => {
-    return safeOpen(fileMetadataToHandle(file))
+  const openFile = useCallback<NonNullable<MessageListActions['openFile']>>((target) => {
+    return safeOpen(target.handle)
   }, [])
 
   const subscribeToolProgress = useCallback<NonNullable<MessageListActions['subscribeToolProgress']>>(
@@ -176,10 +167,6 @@ export function useMessageLeafCapabilities({
     },
     []
   )
-
-  const openInExternalApp = useCallback<NonNullable<MessageListActions['openInExternalApp']>>((app, path) => {
-    window.open(buildEditorUrl(app, path))
-  }, [])
 
   const openExternalUrl = useCallback<NonNullable<MessageListActions['openExternalUrl']>>((url) => {
     window.open(url, '_blank', 'noopener,noreferrer')
@@ -201,22 +188,10 @@ export function useMessageLeafCapabilities({
       openFile,
       subscribeToolProgress,
       openExternalUrl,
-      openInExternalApp,
       ...platformActions,
       getFileView,
-      isToolAutoApproved,
-      externalCodeEditors
+      isToolAutoApproved
     }),
-    [
-      externalCodeEditors,
-      getFileView,
-      isToolAutoApproved,
-      openExternalUrl,
-      openFile,
-      openInExternalApp,
-      platformActions,
-      previewFile,
-      subscribeToolProgress
-    ]
+    [getFileView, isToolAutoApproved, openExternalUrl, openFile, platformActions, previewFile, subscribeToolProgress]
   )
 }

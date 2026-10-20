@@ -1,16 +1,23 @@
+import type { FC, ReactNode } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import { NavbarHeader } from '@renderer/components/Navbar'
-import type { FC } from 'react'
 
 interface HeaderNavbarProps {
+  conversationControls?: ReactNode
   showSidebarControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
 }
 
-const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sidebarOpen, onSidebarToggle }) => {
+const HeaderNavbar: FC<HeaderNavbarProps> = ({
+  conversationControls,
+  showSidebarControls = true,
+  sidebarOpen,
+  onSidebarToggle
+}) => {
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
 
@@ -25,7 +32,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
               tooltipPlacement="bottom"
             />
           )}
-          <ConversationTopBarPortalHost />
+          <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
         </div>
       </div>
     </NavbarHeader>

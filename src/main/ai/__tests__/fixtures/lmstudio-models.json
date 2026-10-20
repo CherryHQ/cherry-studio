@@ -1,0 +1,40 @@
+{
+  "models": [
+    {
+      "type": "llm",
+      "publisher": "lmstudio-community",
+      "key": "qwen2.5-0.5b-instruct",
+      "display_name": "Qwen2.5 0.5B Instruct",
+      "architecture": "qwen2",
+      "quantization": {
+        "name": "Q8_0",
+        "bits_per_weight": 8
+      },
+      "size_bytes": 531068224,
+      "params_string": "0.5B",
+      "loaded_instances": [],
+      "max_context_length": 32768,
+      "format": "gguf",
+      "capabilities": {
+        "vision": false,
+        "trained_for_tool_use": true
+      },
+      "description": null
+    },
+    {
+      "type": "embedding",
+      "publisher": "nomic-ai",
+      "key": "text-embedding-nomic-embed-text-v1.5",
+      "display_name": "Nomic Embed Text v1.5",
+      "quantization": {
+        "name": "Q4_K_M",
+        "bits_per_weight": 4
+      },
+      "size_bytes": 84106624,
+      "params_string": null,
+      "loaded_instances": [],
+      "max_context_length": 2048,
+      "format": "gguf"
+    }
+  ]
+}

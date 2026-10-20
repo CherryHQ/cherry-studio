@@ -1,4 +1,9 @@
 import { useChat } from '@ai-sdk/react'
+import { ChevronDown, Loader2 } from 'lucide-react'
+import type { FC } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -12,12 +17,9 @@ import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { ChevronDown, Loader2 } from 'lucide-react'
-import type { FC } from 'react'
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
+import { ResultReadAloudButton } from './ResultReadAloudButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -33,17 +35,24 @@ const logger = loggerService.withContext('ActionGeneral')
 const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 interface Props {
   action: SelectionActionItem
+  sourceEntityId: string
   scrollToBottom?: () => void
 }
 
-const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
+const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
 
-  const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
-  const chosenAssistantId = chosenAssistant?.id
-  const waitingForConfiguredAssistant = Boolean(action.assistantId) && !chosenAssistantId
+  const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const { assistant: chosenAssistant, isLoading: isChosenLoading } = useAssistant(action.assistantId ?? '')
+  const shouldUseFallback = action.isBuiltIn && !action.assistantId && !!quickAssistantId
+  const { assistant: fallbackAssistant, isLoading: isFallbackLoading } = useAssistant(
+    shouldUseFallback ? quickAssistantId : ''
+  )
+  const chosenAssistantId = chosenAssistant?.id ?? fallbackAssistant?.id
+  const waitingForConfiguredAssistant =
+    (Boolean(action.assistantId) && isChosenLoading) || (shouldUseFallback && isFallbackLoading)
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
   const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
@@ -70,7 +79,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         }
 
         if (action.prompt.includes('{{text}}')) {
-          userContent = action.prompt.replaceAll('{{text}}', action.selectedText!)
+          userContent = action.prompt.replaceAll('{{text}}', () => action.selectedText!)
           break
         }
 
@@ -81,6 +90,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
+  const [requestStartedAt, setRequestStartedAt] = useState('')
 
   const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
     // Once the temporary topic id arrives, the chat reinitializes with it.
@@ -113,8 +123,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => liveAssistants.at(-1), [liveAssistants])
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
-    () =>
-      latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
+    () => (latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts } : {}),
     [latestAssistantUIMsg]
   )
 
@@ -125,12 +134,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         ...latestAssistantUIMsg,
         metadata: {
           ...latestAssistantUIMsg.metadata,
+          createdAt: latestAssistantUIMsg.metadata?.createdAt ?? requestStartedAt,
           status: isPending ? 'pending' : 'success'
         }
       },
       { assistantId: chosenAssistantId, topicId: temporaryTopicId ?? '' }
     )
-  }, [chosenAssistantId, latestAssistantUIMsg, isPending, temporaryTopicId])
+  }, [chosenAssistantId, latestAssistantUIMsg, isPending, requestStartedAt, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -144,6 +154,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
     logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
+    setRequestStartedAt(new Date().toISOString())
     setIsPreparing(true)
     // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
     // No body fields are read by IpcChatTransport for this codepath.
@@ -177,7 +188,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           <button
             type="button"
             onClick={() => setShowOriginal(!showOriginal)}
-            className="flex cursor-pointer items-center justify-between text-foreground-secondary text-xs transition-colors hover:text-primary">
+            className="flex cursor-pointer items-center justify-between text-xs text-muted-foreground transition-colors hover:text-foreground">
             <span>
               {showOriginal ? t('selection.action.window.original_hide') : t('selection.action.window.original_show')}
             </span>
@@ -185,7 +196,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </button>
         </div>
         {showOriginal && (
-          <div className="mt-2 mb-3 w-full whitespace-pre-wrap break-words rounded bg-muted p-2 text-foreground-secondary text-xs">
+          <div className="mt-2 mb-3 w-full rounded bg-muted p-2 text-xs break-words whitespace-pre-wrap text-muted-foreground">
             {action.selectedText}
             <div className="flex justify-end">
               <CopyButton
@@ -210,13 +221,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           )}
         </div>
         {error && (
-          <div className="mt-3 mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+          <div className="mt-3 mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
             {error}
           </div>
         )}
       </div>
       <div className="min-h-3" />
-      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content}>
+        {!isStreaming && !isPreparing && !error && content.trim() && (
+          <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+        )}
+      </WindowFooter>
     </>
   )
 })

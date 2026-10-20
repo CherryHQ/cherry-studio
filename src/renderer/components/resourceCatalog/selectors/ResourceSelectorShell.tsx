@@ -1,4 +1,18 @@
-import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { Pin, Plus, SquarePen } from 'lucide-react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  memo,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+
+import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
@@ -12,31 +26,21 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
-import { Pin, Plus, SquarePen } from 'lucide-react'
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 export type ResourceSelectorShellItem = {
   id: string
   name: string
   emoji?: string
   description?: string
-  tag?: string
+  groupId?: string
+  groupName?: string
   disabled?: boolean
   editDisabled?: boolean
   pinDisabled?: boolean
 }
 
-export type ResourceSelectorShellTag = string | { name: string; color?: string }
+export type ResourceSelectorShellGroup = { id: string; name: string }
 
 export type ResourceSelectorShellLabels = {
   searchPlaceholder: string
@@ -47,7 +51,7 @@ export type ResourceSelectorShellLabels = {
   emptyText: string
   /** Heading rendered above the pinned group in the list. */
   pinnedTitle: string
-  tagFilter?: string
+  groupFilter?: string
 }
 
 type ResourceSelectorShellEmptyState = {
@@ -75,7 +79,7 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   items: T[]
   fallbackIcon?: ReactNode
 
-  tags?: ResourceSelectorShellTag[]
+  groups?: ResourceSelectorShellGroup[]
 
   pinnedIds: readonly string[]
   onTogglePin: (id: string) => void | Promise<void>
@@ -172,46 +176,119 @@ function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): s
   return []
 }
 
-// Neutral fallback for tags that carry no color of their own. The library layer
-// owns the real tag palette and passes per-tag colors in; this generic shell only
-// needs a token-neutral default. CustomTag concatenates an alpha suffix onto the
-// value, so it must be a hex string rather than a CSS variable.
-const DEFAULT_RESOURCE_TAG_COLOR = '#6b7280'
 const DEFAULT_MIN_LIST_HEIGHT = 144
 
-function normalizeTag(tag: ResourceSelectorShellTag) {
-  return typeof tag === 'string' ? { name: tag, color: undefined } : tag
-}
-
-function ResourceTagChip({
-  tag,
-  color,
-  active = true,
-  onClick
-}: {
-  tag: string
-  color?: string
-  active?: boolean
-  onClick?: () => void
-}) {
+function ResourceGroupChip({ name, active = true, onClick }: { name: string; active?: boolean; onClick?: () => void }) {
   const chip = (
-    <CustomTag
-      size={10}
-      color={color ?? DEFAULT_RESOURCE_TAG_COLOR}
-      inactive={!active}
-      className={cn('h-full max-w-24 items-center overflow-hidden transition-colors', onClick && 'cursor-pointer')}>
-      <span className="min-w-0 truncate">{tag}</span>
-    </CustomTag>
+    <span
+      className={cn(
+        'inline-flex h-4 max-w-24 items-center overflow-hidden rounded-sm bg-secondary px-1.5 text-[10px] text-muted-foreground transition-opacity',
+        !active && 'opacity-50',
+        onClick && 'cursor-pointer'
+      )}>
+      <span className="min-w-0 truncate">{name}</span>
+    </span>
   )
 
   if (!onClick) return chip
 
   return (
-    <button type="button" aria-pressed={active} aria-label={tag} className="inline-flex h-4 p-0" onClick={onClick}>
+    <button type="button" aria-pressed={active} aria-label={name} className="inline-flex h-4 p-0" onClick={onClick}>
       {chip}
     </button>
   )
 }
+
+type ResourceSelectorOptionRowProps<T extends ResourceSelectorShellItem> = {
+  item: T
+  flatIndex: number
+  selected: boolean
+  focused: boolean
+  multiEnabled: boolean
+  fallbackIcon?: ReactNode
+  listboxId: string
+  onFocus: (index: number) => void
+  onSelect: (item: T) => void
+  renderEditAction: (item: T) => ReactNode
+  renderPinAction: (item: T) => ReactNode
+}
+
+function ResourceSelectorOptionRowComponent<T extends ResourceSelectorShellItem>({
+  item,
+  flatIndex,
+  selected,
+  focused,
+  multiEnabled,
+  fallbackIcon,
+  listboxId,
+  onFocus,
+  onSelect,
+  renderEditAction,
+  renderPinAction
+}: ResourceSelectorOptionRowProps<T>) {
+  const leading = item.emoji ? (
+    <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">{item.emoji}</span>
+  ) : fallbackIcon ? (
+    <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
+  ) : null
+
+  const trailing = item.groupName ? (
+    <div
+      className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
+      data-resource-selector-group={item.id}>
+      <ResourceGroupChip name={item.groupName} />
+    </div>
+  ) : null
+
+  return (
+    <div className="py-0.5">
+      <ModelSelectorRow
+        selected={selected}
+        focused={focused}
+        disabled={item.disabled}
+        showSelectedIndicator={!multiEnabled && selected}
+        checkbox={
+          multiEnabled ? (
+            <Checkbox
+              checked={selected}
+              tabIndex={-1}
+              aria-hidden="true"
+              className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
+            />
+          ) : null
+        }
+        leading={leading}
+        trailing={trailing}
+        actions={
+          <>
+            {renderEditAction(item)}
+            {renderPinAction(item)}
+          </>
+        }
+        onSelect={() => onSelect(item)}
+        rootProps={{
+          onMouseEnter: () => {
+            if (item.disabled) return
+            onFocus(flatIndex)
+          },
+          className: 'pr-0.5',
+          'data-option-row': item.id
+        }}
+        optionProps={{
+          id: `${listboxId}-opt-${item.id}`,
+          'aria-disabled': item.disabled || undefined,
+          'data-option-id': item.id,
+          'data-active': focused || undefined
+        }}>
+        <span className="min-w-0 truncate" data-resource-selector-name={item.id}>
+          {item.name}
+        </span>
+      </ModelSelectorRow>
+    </div>
+  )
+}
+
+const ResourceSelectorOptionRow = memo(ResourceSelectorOptionRowComponent) as typeof ResourceSelectorOptionRowComponent
 
 export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props: ResourceSelectorShellProps<T>) {
   const {
@@ -220,7 +297,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     onOpenChange: onOpenChangeProp,
     items,
     fallbackIcon,
-    tags,
+    groups,
     pinnedIds,
     onTogglePin,
     isPinActionDisabled = false,
@@ -275,7 +352,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   )
 
   const [searchValue, setSearchValue] = useState('')
-  const [selectedTagName, setSelectedTagName] = useState<string | null>(null)
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -298,7 +375,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const wasOpenRef = useRef(false)
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      void onOpenRef.current?.()
+      onOpenRef.current?.()
     }
     wasOpenRef.current = open
   }, [open])
@@ -317,20 +394,20 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const selectedSet = useMemo(() => new Set(valueIds), [valueIds])
-  const tagOptions = useMemo(() => (tags ?? []).map(normalizeTag), [tags])
-  const tagColorByName = useMemo(() => new Map(tagOptions.map((tag) => [tag.name, tag.color])), [tagOptions])
+  const groupOptions = groups ?? []
+  const activeGroupId = groupOptions.some((group) => group.id === selectedGroupId) ? selectedGroupId : null
 
   const { pinnedItems, unpinnedItems } = useMemo(() => {
     let filtered = items
-    if (selectedTagName) {
-      filtered = filtered.filter((item) => item.tag === selectedTagName)
+    if (activeGroupId) {
+      filtered = filtered.filter((item) => item.groupId === activeGroupId)
     }
 
     const query = searchValue.trim().toLowerCase()
     if (query) {
       filtered = filtered.filter(
         (item) =>
-          item.name.toLowerCase().includes(query) ||
+          matchesSearchText(item.name, query) ||
           (item.description ? item.description.toLowerCase().includes(query) : false)
       )
     }
@@ -339,7 +416,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
     const pinnedOrdered = pinnedIds.map((id) => pinned.find((item) => item.id === id)).filter(Boolean) as T[]
     return { pinnedItems: pinnedOrdered, unpinnedItems: unpinned }
-  }, [items, pinnedIds, pinnedSet, searchValue, selectedTagName])
+  }, [activeGroupId, items, pinnedIds, pinnedSet, searchValue])
 
   const sections = useMemo<ResourceSelectorSection<T>[]>(() => {
     const nextSections: ResourceSelectorSection<T>[] = []
@@ -393,9 +470,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         if (isItemType) {
           const byId = new Map<string, T>(items.map((item) => [item.id, item]))
           const mapped = ids.map((id) => byId.get(id)).filter(Boolean) as T[]
-          ;(props.onChange as (value: T[]) => void)(mapped)
+          props.onChange(mapped)
         } else {
-          ;(props.onChange as (value: string[]) => void)(ids)
+          props.onChange(ids)
         }
         return
       }
@@ -403,9 +480,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const id = ids[0] ?? null
       if (isItemType) {
         const item = id ? (items.find((candidate) => candidate.id === id) ?? null) : null
-        ;(props.onChange as (value: T | null) => void)(item)
+        props.onChange(item)
       } else {
-        ;(props.onChange as (value: string | null) => void)(id)
+        props.onChange(id)
       }
     },
     [isItemType, isMulti, items, props.onChange]
@@ -553,6 +630,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     [closeBeforeAction, labels.edit, onEditItem]
   )
 
+  const handleRowFocus = useCallback((index: number) => {
+    pendingActiveScrollBlockRef.current = null
+    setActiveIndex(index)
+  }, [])
+
   const multiToggleLabel = 'multiToggleLabel' in props ? props.multiToggleLabel : null
   const multiToggleHint = 'multiToggleHint' in props ? props.multiToggleHint : undefined
 
@@ -565,27 +647,28 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       const firstId = valueIds[0]
       if (isItemType) {
         const firstItem = items.find((item) => item.id === firstId) ?? null
-        ;(props.onChange as (value: T[]) => void)(firstItem ? [firstItem] : [])
+        props.onChange(firstItem ? [firstItem] : [])
       } else {
-        ;(props.onChange as (value: string[]) => void)([firstId])
+        props.onChange([firstId])
       }
     },
     [isItemType, isMulti, items, props.onChange, valueIds]
   )
 
   const filterContent =
-    tagOptions.length > 0 ? (
+    groupOptions.length > 0 ? (
       <>
-        {labels.tagFilter ? <span className="mr-1 text-[10px] text-muted-foreground">{labels.tagFilter}</span> : null}
-        {tagOptions.map((tag) => {
-          const active = selectedTagName === tag.name
+        {groupOptions.length > 0 && labels.groupFilter ? (
+          <span className="mr-1 text-[10px] text-muted-foreground">{labels.groupFilter}</span>
+        ) : null}
+        {groupOptions.map((group) => {
+          const active = activeGroupId === group.id
           return (
-            <ResourceTagChip
-              key={tag.name}
-              tag={tag.name}
-              color={tag.color}
+            <ResourceGroupChip
+              key={group.id}
+              name={group.name}
               active={active}
-              onClick={() => setSelectedTagName((prev) => (prev === tag.name ? null : tag.name))}
+              onClick={() => setSelectedGroupId((previousId) => (previousId === group.id ? null : group.id))}
             />
           )
         })}
@@ -599,75 +682,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         onClick: () => closeBeforeAction(onCreateNew)
       }
     : undefined
-
-  const renderOptionRow = (item: T, flatIndex: number) => {
-    const isSelected = selectedSet.has(item.id)
-    const isActive = flatIndex === activeIndex
-    const editAction = renderEditAction(item)
-    const pinAction = renderPinAction(item)
-
-    const leading = item.emoji ? (
-      <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">{item.emoji}</span>
-    ) : fallbackIcon ? (
-      <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
-    ) : null
-
-    const trailing = item.tag ? (
-      <div
-        className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
-        data-resource-selector-tags={item.id}>
-        <ResourceTagChip tag={item.tag} color={tagColorByName.get(item.tag)} />
-      </div>
-    ) : null
-
-    return (
-      <div key={item.id} className="py-0.5">
-        <ModelSelectorRow
-          selected={isSelected}
-          focused={isActive}
-          disabled={item.disabled}
-          showSelectedIndicator={!multiEnabled && isSelected}
-          checkbox={
-            multiEnabled ? (
-              <Checkbox
-                checked={isSelected}
-                tabIndex={-1}
-                aria-hidden="true"
-                className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
-              />
-            ) : null
-          }
-          leading={leading}
-          trailing={trailing}
-          actions={
-            <>
-              {editAction}
-              {pinAction}
-            </>
-          }
-          onSelect={() => handleSelectItem(item)}
-          rootProps={{
-            onMouseEnter: () => {
-              if (item.disabled) return
-              pendingActiveScrollBlockRef.current = null
-              setActiveIndex(flatIndex)
-            },
-            className: 'pr-0.5',
-            'data-option-row': item.id
-          }}
-          optionProps={{
-            id: `${listboxId}-opt-${item.id}`,
-            'aria-disabled': item.disabled || undefined,
-            'data-option-id': item.id,
-            'data-active': isActive || undefined
-          }}>
-          <span className="min-w-0 truncate" data-resource-selector-name={item.id}>
-            {item.name}
-          </span>
-        </ModelSelectorRow>
-      </div>
-    )
-  }
 
   const listContent = loading ? null : flatItems.length === 0 ? (
     <EmptyState
@@ -687,7 +701,25 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
               {section.header}
             </div>
           ) : null}
-          {section.items.map((item, itemIndex) => renderOptionRow(item, offset + itemIndex))}
+          {section.items.map((item, itemIndex) => {
+            const flatIndex = offset + itemIndex
+            return (
+              <ResourceSelectorOptionRow
+                key={item.id}
+                item={item}
+                flatIndex={flatIndex}
+                selected={selectedSet.has(item.id)}
+                focused={flatIndex === activeIndex}
+                multiEnabled={multiEnabled}
+                fallbackIcon={fallbackIcon}
+                listboxId={listboxId}
+                onFocus={handleRowFocus}
+                onSelect={handleSelectItem}
+                renderEditAction={renderEditAction}
+                renderPinAction={renderPinAction}
+              />
+            )
+          })}
         </div>
       )
     })

@@ -1,7 +1,8 @@
 import { buildParamsSchema } from '@cherrystudio/provider-registry'
-import type { FileMetadata } from '@renderer/types/file'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
+import { getFileTypeByExt } from '@shared/utils/file'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
 import { generatePainting } from './generatePainting'
@@ -64,6 +65,23 @@ export async function canonicalGenerate<T extends PaintingData>(
   // the generic MISSING_REQUIRED_FIELDS / PROMPT_REQUIRED throws below.
   options.preValidate?.(painting)
 
+  // Only image files count as inputs — the composer can also carry non-image
+  // attachments (e.g. a pasted-text `.txt`), which must never be treated/sent as an image.
+  const inputImageFiles = (painting.inputFiles ?? []).filter(
+    (entry) => getFileTypeByExt(entry.ext ?? '') === FILE_TYPE.IMAGE
+  )
+  const mode = options.mode ?? (inputImageFiles.length > 0 ? 'edit' : 'generate')
+  const maxInputImages = options.support?.modes?.[mode]?.maxInputImages
+  if (maxInputImages !== undefined && inputImageFiles.length > maxInputImages) {
+    throw createPaintingGenerateError('INPUT_IMAGE_LIMIT_EXCEEDED')
+  }
+  // Edit-only modes (anything but the text→image `generate` mode) can't run without an
+  // input image. Enforce here — on the authoritative prefetched mode + the real input
+  // files — so the model never receives invalid input, independent of transient UI state.
+  if (mode !== 'generate' && inputImageFiles.length === 0) {
+    throw createPaintingGenerateError('EDIT_IMAGE_REQUIRED')
+  }
+
   await checkProviderEnabled(provider)
   const modelId = painting.model
   if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
@@ -106,11 +124,10 @@ export async function canonicalGenerate<T extends PaintingData>(
   // 4. Pre-fetch attached image bytes (encoded as `data:` URLs for the IPC),
   //    carried separately from `paramValues` — they're encoded files, not form
   //    params. The vendor image-model adapter picks the right edit endpoint.
-  const inputFiles = painting.inputFiles ?? []
   const inputImages =
-    inputFiles.length > 0
+    inputImageFiles.length > 0
       ? await Promise.all(
-          inputFiles.map(async (entry) => {
+          inputImageFiles.map(async (entry) => {
             const onDiskName = `${entry.id}${entry.ext ? `.${entry.ext}` : ''}`
             const { data, mime } = await window.api.file.binaryImage(onDiskName)
             return bytesToDataUrl(new Uint8Array(data), mime)

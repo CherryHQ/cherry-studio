@@ -1,11 +1,15 @@
-import { fileEntryTable } from '@data/db/schemas/file'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { FileEntryStats } from '@shared/data/api/schemas/files'
-import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { v4 as uuidv4 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { paintingTable } from '@data/db/schemas/painting'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { FileEntryStats } from '@shared/data/api/schemas/files'
+import { ContentHashSchema, type FileEntryId } from '@shared/data/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -13,7 +17,6 @@ vi.mock('@application', async () => {
 })
 
 const { fileHandlers } = await import('../files')
-const { fileRefService } = await import('@data/services/FileRefService')
 
 describe('fileHandlers (DataApi)', () => {
   const dbh = setupTestDatabase()
@@ -37,6 +40,21 @@ describe('fileHandlers (DataApi)', () => {
       updatedAt: now,
       ...overrides
     })
+  }
+
+  // Give an entry a persistent (painting) ref so the ref endpoints report it.
+  // Returns the painting sourceId for source-key filtered queries.
+  async function seedPaintingRef(fileEntryId: FileEntryId): Promise<string> {
+    const paintingId = uuidv4()
+    await dbh.db.insert(paintingTable).values({
+      id: paintingId,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: paintingId
+    })
+    await dbh.db.insert(paintingFileRefTable).values({ fileEntryId, sourceId: paintingId, role: 'output' })
+    return paintingId
   }
 
   describe('GET /files/entries', () => {
@@ -111,6 +129,39 @@ describe('fileHandlers (DataApi)', () => {
     })
   })
 
+  describe('GET /files/entries/by-content-hash', () => {
+    it('validates a tagged hash and returns active internal exact matches oldest-first', async () => {
+      const hash = ContentHashSchema.parse('xxh3-64:9555e8555c62dcfd')
+      const now = Date.now()
+      await Promise.all([
+        seedEntry('019606a0-0000-7000-8000-000000000a31', { contentHash: hash, createdAt: now }),
+        seedEntry('019606a0-0000-7000-8000-000000000a30', { contentHash: hash, createdAt: now - 1 }),
+        seedEntry('019606a0-0000-7000-8000-000000000a32', {
+          contentHash: hash,
+          deletedAt: now,
+          createdAt: now - 2
+        }),
+        seedEntry('019606a0-0000-7000-8000-000000000a33', {
+          origin: 'external',
+          size: null,
+          externalPath: '/tmp/content-hash.txt',
+          contentHash: null,
+          createdAt: now - 3
+        })
+      ])
+
+      const handler = fileHandlers['/files/entries/by-content-hash']
+      await expect(handler.GET({ query: { contentHash: '9555e8555c62dcfd' } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+      await expect(handler.GET({ query: { contentHash: hash } })).resolves.toMatchObject([
+        { id: '019606a0-0000-7000-8000-000000000a30' },
+        { id: '019606a0-0000-7000-8000-000000000a31' }
+      ])
+    })
+  })
+
   describe('GET /files/entries/stats', () => {
     it('returns pure SQL sidebar counts', async () => {
       const now = Date.now()
@@ -126,7 +177,7 @@ describe('fileHandlers (DataApi)', () => {
         seedEntry('019606a0-0000-7000-8000-000000000aa3', { deletedAt: now })
       ])
 
-      const result = (await fileHandlers['/files/entries/stats'].GET({} as never)) as unknown as FileEntryStats
+      const result = (await fileHandlers['/files/entries/stats'].GET({})) as unknown as FileEntryStats
       expect(result.activeTotal).toBe(2)
       expect(result.trashTotal).toBe(1)
       expect(result.extCounts).toEqual(
@@ -143,8 +194,8 @@ describe('fileHandlers (DataApi)', () => {
       const id = '019606a0-0000-7000-8000-000000000b01'
       await seedEntry(id)
       const entry = (await fileHandlers['/files/entries/:id'].GET({
-        params: { id: id as FileEntryId }
-      } as never)) as { id: string }
+        params: { id }
+      })) as { id: string }
       expect(entry.id).toBe(id)
     })
 
@@ -155,7 +206,7 @@ describe('fileHandlers (DataApi)', () => {
       // see NOT_FOUND. Pin both the code and the resource shape so a future
       // "throw a generic error" regression is caught at the schema boundary.
       const missing = '019606a0-0000-7000-8000-0000000000ff' as FileEntryId
-      const promise = fileHandlers['/files/entries/:id'].GET({ params: { id: missing } } as never)
+      const promise = fileHandlers['/files/entries/:id'].GET({ params: { id: missing } })
       await expect(promise).rejects.toBeInstanceOf(DataApiError)
       await expect(promise).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
@@ -168,9 +219,10 @@ describe('fileHandlers (DataApi)', () => {
       // parse, a malformed id reaches the DB layer and surfaces as either an
       // opaque NOT_FOUND or an internal error. `fileEntry.ts:99-104` requires
       // handlers to validate at the boundary; this test pins that contract.
-      await expect(
-        fileHandlers['/files/entries/:id'].GET({ params: { id: 'not-a-uuid' } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(fileHandlers['/files/entries/:id'].GET({ params: { id: 'not-a-uuid' } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
     })
   })
 
@@ -180,14 +232,12 @@ describe('fileHandlers (DataApi)', () => {
       const idB = '019606a0-0000-7000-8000-000000000c02' as FileEntryId
       await seedEntry(idA)
       await seedEntry(idB)
-      fileRefService.createManyTempSessionRefs([
-        { fileEntryId: idA, sourceId: 's1', role: 'pending' },
-        { fileEntryId: idA, sourceId: 's2', role: 'pending' }
-      ])
+      await seedPaintingRef(idA)
+      await seedPaintingRef(idA)
 
       const result = (await fileHandlers['/files/entries/ref-counts'].GET({
         query: { entryIds: [idA, idB] }
-      } as never)) as Array<{ entryId: string; refCount: number }>
+      })) as Array<{ entryId: string; refCount: number }>
       expect(result.find((r) => r.entryId === idA)?.refCount).toBe(2)
       expect(result.find((r) => r.entryId === idB)?.refCount).toBe(0)
     })
@@ -196,7 +246,7 @@ describe('fileHandlers (DataApi)', () => {
       await expect(
         fileHandlers['/files/entries/ref-counts'].GET({
           query: { entryIds: ['not-a-uuid'] }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
     })
 
@@ -205,9 +255,10 @@ describe('fileHandlers (DataApi)', () => {
       // fan-out into many service round-trips (the service still chunks
       // for SQLite, but it does so once per chunk).
       const ids = Array.from({ length: 501 }, (_, i) => `019606a0-0000-7000-8000-${String(i).padStart(12, '0')}`)
-      await expect(
-        fileHandlers['/files/entries/ref-counts'].GET({ query: { entryIds: ids } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(fileHandlers['/files/entries/ref-counts'].GET({ query: { entryIds: ids } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
     })
   })
 
@@ -215,10 +266,10 @@ describe('fileHandlers (DataApi)', () => {
     it('returns refs for the entry', async () => {
       const id = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       await seedEntry(id)
-      fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's1', role: 'pending' })
+      await seedPaintingRef(id)
       const refs = (await fileHandlers['/files/entries/:id/refs'].GET({
         params: { id }
-      } as never)) as Array<{ fileEntryId: string }>
+      })) as Array<{ fileEntryId: string }>
       expect(refs.length).toBe(1)
       expect(refs[0].fileEntryId).toBe(id)
     })
@@ -228,13 +279,9 @@ describe('fileHandlers (DataApi)', () => {
     it('returns refs filtered by source key', async () => {
       const id = '019606a0-0000-7000-8000-000000000e01' as FileEntryId
       await seedEntry(id)
-      fileRefService.createTempSessionRef({
-        fileEntryId: id,
-        sourceId: 'session-Z',
-        role: 'pending'
-      })
+      const paintingId = await seedPaintingRef(id)
       const refs = (await fileHandlers['/files/refs'].GET({
-        query: { sourceType: 'temp_session', sourceId: 'session-Z' }
+        query: { sourceType: 'painting', sourceId: paintingId }
       } as never)) as unknown[]
       expect(refs.length).toBe(1)
     })
@@ -253,7 +300,7 @@ describe('fileHandlers (DataApi)', () => {
     it('rejects an empty sourceId with ZodError', async () => {
       await expect(
         fileHandlers['/files/refs'].GET({
-          query: { sourceType: 'temp_session', sourceId: '' }
+          query: { sourceType: 'painting', sourceId: '' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
     })

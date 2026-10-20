@@ -1,5 +1,6 @@
-import { wireName } from '@cherrystudio/provider-registry'
 import type { JSONValue } from 'ai'
+
+import { wireName } from '@cherrystudio/provider-registry'
 
 import type { WireProfile, WireRegistration } from './wireProfile'
 

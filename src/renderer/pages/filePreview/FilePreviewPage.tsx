@@ -1,13 +1,14 @@
+import { FileX2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { useCurrentTab } from '@renderer/hooks/tab'
 import { getFilePreviewRefreshKey } from '@renderer/utils/filePreview'
-import type { FilePath } from '@shared/types/file'
-import { FileX2 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 interface FilePreviewPageProps {
-  filePath?: FilePath
+  filePath?: AbsoluteFilePath
 }
 
 export function FilePreviewPage({ filePath }: FilePreviewPageProps) {

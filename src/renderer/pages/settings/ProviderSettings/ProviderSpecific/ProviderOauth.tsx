@@ -1,15 +1,15 @@
+import { CircleDollarSign, ReceiptText } from 'lucide-react'
+import type { FC } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+
 import { Button, RowFlex } from '@cherrystudio/ui'
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
 import { providerBills, providerCharge } from '@renderer/services/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
-import { CircleDollarSign, ReceiptText } from 'lucide-react'
-import type { FC } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
 
 interface Props {
   providerId: string
@@ -28,12 +28,8 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
 
   if (!provider) return null
 
-  let providerWebsite =
-    PROVIDER_URLS[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
-  if (provider.id === 'ppio') {
-    providerWebsite = 'ppio.com'
-  }
   const officialWebsite = provider.websites?.official
+  const providerWebsite = officialWebsite?.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || provider.name
 
   const serviceDescription = (
     <Trans
@@ -56,7 +52,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
               {Icon ? (
                 <Icon.Avatar size={40} />
               ) : (
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted font-bold text-[18px]">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-[18px] font-bold">
                   {provider.name[0]}
                 </div>
               )}
@@ -79,21 +75,21 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (
-        <div className="flex size-15 shrink-0 items-center justify-center rounded-full bg-muted font-bold text-[24px]">
+        <div className="flex size-15 shrink-0 items-center justify-center rounded-full bg-muted text-[24px] font-bold">
           {provider.name[0]}
         </div>
       )}
       <RowFlex className="gap-2.5">
         <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerCharge(provider.id)}>
-          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
+          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.charge')}
         </Button>
         <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerBills(provider.id)}>
-          <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
+          <ReceiptText aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.bills')}
         </Button>
       </RowFlex>
-      <div className="flex items-center gap-1.5 text-[13px] text-foreground-secondary leading-[1.35]">
+      <div className="flex items-center gap-1.5 text-[13px] leading-[1.35] text-muted-foreground">
         {serviceDescription}
       </div>
     </div>

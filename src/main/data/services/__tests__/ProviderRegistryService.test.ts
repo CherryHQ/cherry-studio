@@ -3,13 +3,18 @@
  * Uses setupTestDatabase() per CLAUDE.md testing guidelines.
  */
 
+import { readFileSync } from 'node:fs'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { computeLanguageCost, createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -129,7 +134,13 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { providerRegistryService } = await import('../ProviderRegistryService')
+const {
+  createCustomModel,
+  mergePresetModel,
+  projectRuntimeReasoning,
+  providerRegistryService,
+  resolveReasoningProfileFromRegistry
+} = await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -149,7 +160,7 @@ function setupRegistryData() {
         maxOutputTokens: 4096
       }
     ]
-  } as ReturnType<typeof readModelRegistry>)
+  })
 
   mockReadProviderModels.mockReturnValue({
     version: '1.0',
@@ -159,7 +170,7 @@ function setupRegistryData() {
         modelId: 'gpt-4o'
       }
     ]
-  } as ReturnType<typeof readProviderModelRegistry>)
+  })
 
   mockReadProviders.mockReturnValue({
     version: '1.0',
@@ -179,9 +190,71 @@ function setupRegistryData() {
   } as ReturnType<typeof readProviderRegistry>)
 }
 
+function setupMoonshotRegistryData() {
+  mockReadModels.mockReturnValue({
+    version: '1.0',
+    models: [{ id: 'kimi-k2-7-code', name: 'Kimi K2.7 Code', capabilities: ['reasoning'] }]
+  })
+
+  mockReadProviderModels.mockReturnValue({
+    version: '1.0',
+    overrides: [
+      {
+        providerId: 'moonshot',
+        modelId: 'kimi-k2-7-code',
+        apiModelId: 'kimi-k2.7-code',
+        parameterSupport: {
+          temperature: { supported: false },
+          topP: { supported: false }
+        }
+      }
+    ]
+  })
+
+  mockReadProviders.mockReturnValue({
+    version: '1.0',
+    providers: [
+      {
+        id: 'moonshot',
+        name: 'Moonshot AI',
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://api.moonshot.cn/v1' }
+        },
+        defaultChatEndpoint: 'openai-chat-completions'
+      }
+    ]
+  } as ReturnType<typeof readProviderRegistry>)
+}
+
 function clearServiceCache() {
   providerRegistryService.clearCache()
 }
+
+it('keeps cached tokens free for the generated Gateway Flash offer', () => {
+  const models = JSON.parse(
+    readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+  ) as ReturnType<typeof readModelRegistry>
+  const offers = JSON.parse(
+    readFileSync(
+      new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+      'utf8'
+    )
+  ) as ReturnType<typeof readProviderModelRegistry>
+  const preset = models.models.find((model) => model.id === 'minimax-m3-1-flash')
+  const offer = offers.overrides.find(
+    (row) => row.providerId === 'gateway' && row.apiModelId === 'minimax/minimax-m3.1-flash'
+  )
+  if (!preset || !offer) throw new Error('Missing generated Gateway Flash offer')
+  const model = mergePresetModel(preset, offer, 'gateway')
+  const pricing = createAiUsagePricingSnapshot(model.pricing)
+  if (!pricing) throw new Error('Missing Gateway Flash pricing')
+  expect(
+    computeLanguageCost(
+      { inputTokens: 100_000, outputTokens: 0, inputTokenDetails: { cacheReadTokens: 100_000 } },
+      pricing
+    )?.cost
+  ).toBe(0)
+})
 
 describe('ProviderRegistryService', () => {
   const dbh = setupTestDatabase()
@@ -190,6 +263,56 @@ describe('ProviderRegistryService', () => {
     vi.clearAllMocks()
     clearServiceCache()
     MockMainDbServiceUtils.setDb(dbh.db)
+  })
+
+  describe('createCustomModel', () => {
+    it('does not infer image capability from an unknown model id', () => {
+      const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
+
+      expect(model.capabilities).toEqual([])
+      expect(model.inputModalities).toBeUndefined()
+      expect(model.outputModalities).toBeUndefined()
+    })
+  })
+
+  describe('getProviderPreset', () => {
+    it('returns only the requested registry fields', () => {
+      setupRegistryData()
+      const preset = providerRegistryService.getProviderPreset('openai', ['endpointConfigs'])
+
+      expect(preset.endpointConfigs?.['openai-chat-completions']?.baseUrl).toBe('https://api.openai.com/v1')
+      expect(preset).not.toHaveProperty('models')
+    })
+
+    it('resolves a custom provider through presetProviderId and preserves its model identities', () => {
+      setupRegistryData()
+      const preset = providerRegistryService.getProviderPreset(
+        'my-openai-clone',
+        ['endpointConfigs', 'models'],
+        'openai'
+      )
+
+      expect(preset.endpointConfigs?.['openai-chat-completions']?.baseUrl).toBe('https://api.openai.com/v1')
+      expect(preset.models?.map((model) => model.id)).toEqual(['my-openai-clone::gpt-4o'])
+      expect(preset.models?.[0].providerId).toBe('my-openai-clone')
+    })
+
+    it('uses explicit empty semantics when the requested preset data is unavailable', () => {
+      setupRegistryData()
+
+      expect(
+        providerRegistryService.getProviderPreset('does-not-exist', ['endpointConfigs', 'models'], 'also-missing')
+      ).toEqual({ endpointConfigs: null, models: [] })
+    })
+
+    it('treats an explicit null preset id as authoritative custom provenance', () => {
+      setupRegistryData()
+
+      expect(providerRegistryService.getProviderPreset('openai', ['endpointConfigs', 'models'], null)).toEqual({
+        endpointConfigs: null,
+        models: []
+      })
+    })
   })
 
   describe('registry load failure', () => {
@@ -212,9 +335,44 @@ describe('ProviderRegistryService', () => {
     })
   })
 
+  describe('provider-model ownership', () => {
+    it('applies Moonshot sampling constraints only through a persisted Moonshot preset identity', async () => {
+      setupMoonshotRegistryData()
+      await dbh.db.insert(userProviderTable).values([
+        {
+          providerId: 'moonshot-clone',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot Clone',
+          orderKey: 'a0'
+        },
+        {
+          providerId: 'generic-relay',
+          presetProviderId: null,
+          name: 'Generic Relay',
+          orderKey: 'a1'
+        }
+      ])
+
+      const linked = providerRegistryService.lookupModel('moonshot-clone', 'kimi-k2.7-code')
+      const unrelated = providerRegistryService.lookupModel('generic-relay', 'kimi-k2.7-code')
+
+      expect(linked.registryOverride?.parameterSupport).toMatchObject({
+        temperature: { supported: false },
+        topP: { supported: false }
+      })
+      expect(unrelated.registryOverride).toBeNull()
+    })
+  })
+
   describe('cache reuse', () => {
     it('should only read models.json once across multiple calls', async () => {
       setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        presetProviderId: 'openai',
+        name: 'OpenAI',
+        orderKey: 'a0'
+      })
 
       providerRegistryService.resolveModels('openai', ['gpt-4o'])
       providerRegistryService.resolveModels('openai', ['gpt-4o'])
@@ -224,6 +382,16 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('resolveModels', () => {
+    beforeEach(async () => {
+      await dbh.db.insert(userProviderTable).values([
+        { providerId: 'openai', presetProviderId: 'openai', name: 'OpenAI', orderKey: 'a0' },
+        { providerId: 'tokenhub', presetProviderId: 'tokenhub', name: 'TokenHub', orderKey: 'a1' },
+        { providerId: 'dashscope', presetProviderId: 'dashscope', name: 'DashScope', orderKey: 'a2' },
+        { providerId: 'aws-bedrock', presetProviderId: 'aws-bedrock', name: 'AWS Bedrock', orderKey: 'a3' },
+        { providerId: 'ovms', presetProviderId: 'ovms', name: 'OVMS', orderKey: 'a4' }
+      ])
+    })
+
     it('should merge raw models with registry data including capabilities and limits', async () => {
       setupRegistryData()
 
@@ -237,13 +405,197 @@ describe('ProviderRegistryService', () => {
       expect(models[0].maxOutputTokens).toBe(4096)
     })
 
+    it('merges parameter support and provider pricing overrides into the runtime baseline', () => {
+      const model = mergePresetModel(
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          parameterSupport: {
+            temperature: { supported: true },
+            topP: { supported: true },
+            topK: { supported: false },
+            frequencyPenalty: true,
+            presencePenalty: true,
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          },
+          pricing: {
+            input: { perMillionTokens: 5 },
+            output: { perMillionTokens: 15 },
+            inputTokenTiers: [
+              {
+                minInputTokens: 272001,
+                input: { perMillionTokens: 10 },
+                output: { perMillionTokens: 30 }
+              }
+            ]
+          }
+        },
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4o',
+          parameterSupport: { temperature: { supported: false } },
+          pricing: { output: { perMillionTokens: 12 } }
+        },
+        'openai'
+      )
+
+      expect(model.parameterSupport).toMatchObject({
+        temperature: { supported: false },
+        topP: { supported: true },
+        maxTokens: true
+      })
+      expect(model.pricing).toMatchObject({
+        input: { perMillionTokens: 5 },
+        output: { perMillionTokens: 12 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { perMillionTokens: 10 },
+            output: { perMillionTokens: 30 }
+          }
+        ]
+      })
+    })
+
+    it('resolves provider-specific input limits within the provider context window', () => {
+      const model = mergePresetModel(
+        {
+          id: 'gpt-6-astra',
+          name: 'GPT-6 Astra',
+          contextWindow: 1_050_000,
+          maxInputTokens: 922_000,
+          maxOutputTokens: 128_000
+        },
+        {
+          providerId: 'openai-codex',
+          modelId: 'gpt-6-astra',
+          limits: { contextWindow: 272_000, maxInputTokens: 144_000 }
+        },
+        'openai-codex'
+      )
+
+      expect(model).toMatchObject({
+        contextWindow: 272_000,
+        maxInputTokens: 144_000,
+        maxOutputTokens: 128_000
+      })
+    })
+
+    it('projects service tier choices to renderer models without exposing native wire configuration', () => {
+      const model = mergePresetModel({ id: 'gpt-oss-120b', name: 'GPT OSS 120B' }, null, 'groq', undefined, undefined, {
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex'],
+        wire: {
+          delivery: { type: 'provider-option', key: 'serviceTier' },
+          values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
+        }
+      } as any)
+
+      expect(model.requestControls?.serviceTier).toEqual({
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex']
+      })
+      expect(model.requestControls?.serviceTier).not.toHaveProperty('wire')
+    })
+
+    it('uses a persisted presetProviderId for lookup and catalog models while keeping runtime identities', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-openai-models',
+        presetProviderId: 'openai',
+        name: 'Custom OpenAI',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const resolved = providerRegistryService.resolveModels('custom-openai-models', ['gpt-4o'])
+      const catalog = providerRegistryService.listProviderRegistryModels({ providerId: 'custom-openai-models' })
+
+      expect(resolved[0]).toMatchObject({
+        id: 'custom-openai-models::gpt-4o',
+        providerId: 'custom-openai-models',
+        presetModelId: 'gpt-4o'
+      })
+      expect(catalog[0]).toMatchObject({
+        id: 'custom-openai-models::gpt-4o',
+        providerId: 'custom-openai-models',
+        presetModelId: 'gpt-4o'
+      })
+    })
+
+    it('does not apply provider-specific registry data when a custom row collides with a registry id', async () => {
+      setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        presetProviderId: null,
+        name: 'User OpenAI Relay',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const lookup = providerRegistryService.lookupModel('openai', 'gpt-4o')
+      const catalog = providerRegistryService.listProviderRegistryModels({
+        providerId: 'openai',
+        presetProviderId: null
+      })
+
+      expect(lookup.presetModel?.id).toBe('gpt-4o')
+      expect(lookup.registryOverride).toBeNull()
+      expect(catalog).toEqual([])
+    })
+
     it('should handle models not in registry', async () => {
       setupRegistryData()
 
-      const models = providerRegistryService.resolveModels('openai', ['custom-model'])
+      const models = providerRegistryService.resolveModels('openai', ['custom-model', 'qwen1.5-1.8b-chat'])
 
-      expect(models).toHaveLength(1)
-      expect(models[0].name).toBe('custom-model')
+      expect(models).toHaveLength(2)
+      // An unmatched id is prettified for display (split on `-`, title-cased) instead of shown raw.
+      expect(models[0].name).toBe('Custom Model')
+      // …but the raw id is preserved as the wire apiModelId.
+      expect(models[0].apiModelId).toBe('custom-model')
+      expect(models[1].name).toBe('Qwen1.5 1.8b Chat')
+      expect(models[1].apiModelId).toBe('qwen1.5-1.8b-chat')
+    })
+
+    it('does not infer controls when a preset model fails the reasoning membership gate', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          {
+            id: 'qwen3-coder',
+            name: 'Qwen3 Coder',
+            capabilities: ['function-call']
+          }
+        ]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openai', modelId: 'qwen3-coder' }]
+      })
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                adapterFamily: 'openai-compatible',
+                reasoningFormat: { type: 'openai-chat' }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [model] = providerRegistryService.resolveModels('openai', ['qwen3-coder'])
+
+      expect(model.reasoning).toBeUndefined()
+      expect(model.capabilities).not.toContain('reasoning')
     })
 
     it('should deduplicate by modelId', async () => {
@@ -256,10 +608,11 @@ describe('ProviderRegistryService', () => {
 
     it('should fall back to registry defaults when provider is not found in the DB', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
+      expect(result.reasoningProfile.format).toBe('openai-chat')
       expect(result.presetModel?.id).toBe('gpt-4o')
     })
 
@@ -273,7 +626,7 @@ describe('ProviderRegistryService', () => {
 
       expect(() => providerRegistryService.resolveModels('openai', ['gpt-4o'])).toThrow('database offline')
 
-      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning config', error)
+      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning profile', error)
       providerSpy.mockRestore()
     })
 
@@ -289,7 +642,7 @@ describe('ProviderRegistryService', () => {
             reasoning: {}
           }
         ]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValueOnce({
         version: '1.0',
         overrides: [
@@ -299,7 +652,7 @@ describe('ProviderRegistryService', () => {
             replaceWith: Symbol('invalid-replacement') as unknown as string
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValueOnce({
         version: '1.0',
         providers: [
@@ -308,7 +661,7 @@ describe('ProviderRegistryService', () => {
             name: 'OpenAI',
             metadata: {},
             endpointConfigs: {
-              'openai-chat-completions': { reasoningFormatType: 'openai-chat' }
+              'openai-chat-completions': { reasoningFormat: { type: 'openai-chat' } }
             },
             defaultChatEndpoint: 'openai-chat-completions'
           }
@@ -331,8 +684,10 @@ describe('ProviderRegistryService', () => {
       const models = providerRegistryService.resolveModels('openai', ['gpt-4o:free'])
 
       expect(models).toHaveLength(1)
-      // Must carry the registry display name, not the raw model ID
-      expect(models[0].name).toBe('GPT-4o')
+      // Carries the registry display name, with the `:free` variant appended so it stays distinguishable
+      // from the bare `gpt-4o` row; the raw id is preserved as the wire apiModelId.
+      expect(models[0].name).toBe('GPT-4o (free)')
+      expect(models[0].apiModelId).toBe('gpt-4o:free')
     })
 
     it('should resolve model with aggregator prefix via normalize fallback (aihubmix-gpt-4o → gpt-4o)', async () => {
@@ -346,12 +701,12 @@ describe('ProviderRegistryService', () => {
       expect(models[0].name).toBe('GPT-4o')
     })
 
-    it('preserves the exact apiModelId identity for same-canonical variants (keeps canonical presetModelId)', async () => {
+    it('preserves provider display names and exact apiModelId identities for same-canonical variants', async () => {
       // A provider serving one canonical model under several apiModelIds (tokenhub's dated 原厂直供 variants).
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', capabilities: ['function-call'] }]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
@@ -363,7 +718,7 @@ describe('ProviderRegistryService', () => {
             name: 'DeepSeek-V4-Flash 原厂直供'
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -378,10 +733,104 @@ describe('ProviderRegistryService', () => {
       } as ReturnType<typeof readProviderRegistry>)
 
       const [dated] = providerRegistryService.resolveModels('tokenhub', ['deepseek-v4-flash-202605'])
+      const catalog = providerRegistryService.listProviderRegistryModels({ providerId: 'tokenhub' })
+
+      expect(
+        catalog.map((model) => ({
+          apiModelId: model.apiModelId,
+          name: model.name
+        }))
+      ).toEqual([
+        { apiModelId: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+        { apiModelId: 'deepseek-v4-flash-202605', name: 'DeepSeek-V4-Flash 原厂直供' }
+      ])
       // unique id rebuilt from the apiModelId (NOT collapsed to the canonical tokenhub::deepseek-v4-flash)
       expect(dated.id).toBe(createUniqueModelId('tokenhub', 'deepseek-v4-flash-202605'))
       expect(dated.apiModelId).toBe('deepseek-v4-flash-202605')
+      expect(dated.name).toBe('DeepSeek-V4-Flash 原厂直供')
       expect(dated.presetModelId).toBe('deepseek-v4-flash') // canonical preset preserved for metadata
+    })
+
+    it('distinguishes fuzzy-matched siblings by name while keeping each raw id as the wire apiModelId', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          { id: 'minimax-m2-1', name: 'MiniMax M2.1', capabilities: ['function-call'] },
+          { id: 'qwen-plus', name: 'Qwen-Plus', capabilities: ['function-call'] }
+        ]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          { providerId: 'dashscope', modelId: 'minimax-m2-1', apiModelId: 'MiniMax-M2.1' },
+          { providerId: 'dashscope', modelId: 'qwen-plus' }
+        ]
+      })
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'dashscope',
+            name: 'Bailian',
+            endpointConfigs: {
+              'openai-chat-completions': { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/' }
+            },
+            defaultChatEndpoint: 'openai-chat-completions',
+            metadata: { website: { official: 'https://www.aliyun.com/product/bailian' } }
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [self, vendor, dotted, dated] = providerRegistryService.resolveModels('dashscope', [
+        'MiniMax-M2.1',
+        'MiniMax/MiniMax-M2.1',
+        'MiniMax.MiniMax-M2.1',
+        'qwen-plus-2025-12-01'
+      ])
+
+      // exact apiModelId match → curated name verbatim
+      expect(self.name).toBe('MiniMax M2.1')
+      expect(self.apiModelId).toBe('MiniMax-M2.1')
+      // fuzzy match via slash vendor prefix → distinguished, raw id preserved for routing
+      expect(vendor.name).toBe('MiniMax: MiniMax M2.1')
+      expect(vendor.apiModelId).toBe('MiniMax/MiniMax-M2.1')
+      expect(vendor.id).toBe(createUniqueModelId('dashscope', 'MiniMax/MiniMax-M2.1'))
+      // a dotted vendor prefix normalizes away just like the slash form, so it must decorate too —
+      // otherwise this collapses onto the bare sibling's name despite being a distinct SKU
+      expect(dotted.name).toBe('MiniMax: MiniMax M2.1')
+      expect(dotted.apiModelId).toBe('MiniMax.MiniMax-M2.1')
+      expect(dotted.id).toBe(createUniqueModelId('dashscope', 'MiniMax.MiniMax-M2.1'))
+      // fuzzy match via dated snapshot → date appended, raw id preserved
+      expect(dated.name).toBe('Qwen-Plus (2025-12-01)')
+      expect(dated.apiModelId).toBe('qwen-plus-2025-12-01')
+    })
+
+    it('decorates a multi-segment Bedrock ARN prefix and its revision', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', capabilities: ['function-call'] }]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'aws-bedrock', modelId: 'claude-sonnet-4-5' }]
+      })
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'aws-bedrock',
+            name: 'AWS Bedrock',
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://bedrock.example/v1/' } },
+            defaultChatEndpoint: 'openai-chat-completions',
+            metadata: { website: { official: 'https://aws.amazon.com/bedrock/' } }
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [regional] = providerRegistryService.resolveModels('aws-bedrock', ['us.anthropic.claude-sonnet-4-5-v1:0'])
+
+      expect(regional.name).toBe('us.anthropic: Claude Sonnet 4.5 (v1:0)')
+      expect(regional.apiModelId).toBe('us.anthropic.claude-sonnet-4-5-v1:0')
     })
 
     it('getImageGenerationSupport returns the model block when present', async () => {
@@ -393,10 +842,8 @@ describe('ProviderRegistryService', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'sd-1-5', name: 'SD 1.5', imageGeneration: block }]
-      } as ReturnType<typeof readModelRegistry>)
-      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
-        typeof readProviderModelRegistry
-      >)
+      })
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -412,11 +859,33 @@ describe('ProviderRegistryService', () => {
       expect(result).toEqual(block)
     })
 
+    it('getImageGenerationSupport resolves a custom provider through its persisted presetProviderId', async () => {
+      const block = { modes: { generate: { supports: {} } } }
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'image-model', name: 'Image Model', imageGeneration: block }]
+      })
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openai', modelId: 'image-model' }]
+      })
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [{ id: 'openai', name: 'OpenAI', defaultChatEndpoint: null, metadata: {} }]
+      } as ReturnType<typeof readProviderRegistry>)
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-openai-image',
+        presetProviderId: 'openai',
+        name: 'Custom OpenAI Image',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      expect(providerRegistryService.getImageGenerationSupport('custom-openai-image', 'image-model')).toEqual(block)
+    })
+
     it('getImageGenerationSupport returns null when the model is unknown', async () => {
-      mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
-      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
-        typeof readProviderModelRegistry
-      >)
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] })
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -473,7 +942,7 @@ describe('ProviderRegistryService', () => {
             disabled: true
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -504,11 +973,37 @@ describe('ProviderRegistryService', () => {
       ])
     })
 
+    it('lists the seven Radeon Cloud provider-registry models', () => {
+      const readGeneratedRegistry = <T>(filename: string): T =>
+        JSON.parse(
+          readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
+        ) as T
+      mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
+      mockReadProviderModels.mockReturnValue(
+        readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
+      )
+      mockReadProviders.mockReturnValue(
+        readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json')
+      )
+
+      const models = providerRegistryService.listProviderRegistryModels({ providerId: 'radeon-cloud' })
+
+      expect(models.map(({ presetModelId, apiModelId }) => [presetModelId, apiModelId])).toEqual([
+        ['deepseek-v4-flash', 'DeepSeek-V4-Flash'],
+        ['deepseek-v4-pro', 'DeepSeek-V4-Pro'],
+        ['glm-5-1', 'GLM-5.1'],
+        ['glm-5-2', 'GLM-5.2'],
+        ['gpt-oss-120b', 'gpt-oss-120b'],
+        ['kimi-k2-6', 'Kimi-K2.6'],
+        ['qwen3-6-35b-a3b', 'Qwen3.6-35B-A3B']
+      ])
+    })
+
     it('a standalone override (no models.json entry) only carries image-generation capability when it declares capabilities.force', async () => {
       // Regression: a vendor-exclusive override (e.g. Ollama's x/z-image-turbo) that sets
       // imageGeneration but omits `capabilities` synthesizes with capabilities: [] — invisible to
       // the Paintings model filter, which requires the image-generation capability.
-      mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
@@ -530,7 +1025,7 @@ describe('ProviderRegistryService', () => {
             imageGeneration: { modes: { generate: { supports: {} } } }
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [{ id: 'ollama', name: 'Ollama', defaultChatEndpoint: null, metadata: {} }]
@@ -565,7 +1060,7 @@ describe('ProviderRegistryService', () => {
             capabilities: ['image-generation']
           }
         ]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
@@ -575,7 +1070,7 @@ describe('ProviderRegistryService', () => {
             apiModelId: 'Qwen/Qwen-Image'
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -595,8 +1090,9 @@ describe('ProviderRegistryService', () => {
       expect(result.registryOverride?.apiModelId).toBe('Qwen/Qwen-Image')
     })
 
-    it('should prefer persisted provider endpoint config over registry reasoning defaults', async () => {
+    it('should ignore a legacy persisted reasoningFormatType field', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
         presetProviderId: 'openai',
@@ -607,16 +1103,50 @@ describe('ProviderRegistryService', () => {
             baseUrl: 'https://proxy.example/v1',
             reasoningFormatType: 'openai-responses'
           }
-        },
+        } as never,
         orderKey: generateOrderKeyBetween(null, null)
       })
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
-      expect(result.reasoningFormatTypes).toMatchObject({
-        'openai-chat-completions': 'openai-responses'
-      })
+      expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+  })
+})
+
+describe('projectRuntimeReasoning summary options', () => {
+  const effortSupport = { controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }] }
+
+  // The renderer must not offer a knob the endpoint rejects — Ark 400s on `reasoning.summary`.
+  it('offers summary verbosity only where the wire carries it', () => {
+    const withSummary = projectRuntimeReasoning(effortSupport, {
+      effort: {
+        operations: [
+          { target: 'reasoningEffort', value: { source: 'effort' } },
+          { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
+        ]
+      }
+    })
+    const withoutSummary = projectRuntimeReasoning(effortSupport, {
+      effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+    })
+
+    expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(withoutSummary.summaryOptions).toBeUndefined()
+  })
+
+  it('lets an endpoint override enable or disable the Responses summary wire', () => {
+    const enabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      reasoningSummary: true
+    })
+    const disabled = resolveReasoningProfileFromRegistry({
+      endpointType: 'openai-responses',
+      format: { type: 'openai-responses', wire: enabled.wire },
+      reasoningSummary: false
+    })
+
+    expect(projectRuntimeReasoning(effortSupport, enabled.wire).summaryOptions).toEqual(['auto', 'concise', 'detailed'])
+    expect(projectRuntimeReasoning(effortSupport, disabled.wire).summaryOptions).toBeUndefined()
   })
 })

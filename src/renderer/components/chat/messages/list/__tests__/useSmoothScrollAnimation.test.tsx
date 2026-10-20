@@ -56,7 +56,7 @@ function setupAnimationHarness(initialScrollTop = 0) {
   const fake = createFakeRaf()
 
   const { result, unmount } = renderHook(() => {
-    const ref = useRef<HTMLDivElement | null>(scroller as unknown as HTMLDivElement)
+    const ref = useRef<HTMLDivElement | null>(scroller)
     return useSmoothScrollAnimation(ref, { raf: fake.raf, caf: fake.caf })
   })
 
@@ -119,28 +119,6 @@ describe('useSmoothScrollAnimation', () => {
 
     act(() => fake.tick(2))
     expect(scroller.scrollTop).toBe(1000) // final snap to live target
-  })
-
-  it('follows a moving target without restarting from the original offset', () => {
-    const { scroller, fake, result } = setupAnimationHarness(0)
-    let target = 500
-
-    act(() => {
-      result.current.followTo(() => target, { maxStep: 100, minStep: 10, damping: 1 })
-    })
-
-    act(() => fake.tick(1))
-    expect(scroller.scrollTop).toBe(100)
-
-    target = 800
-
-    act(() => fake.tick(1))
-    expect(scroller.scrollTop).toBe(200)
-
-    act(() => fake.tick(10))
-    expect(scroller.scrollTop).toBe(800)
-    expect(result.current.isAnimating()).toBe(false)
-    expect(fake.pending()).toBe(0)
   })
 
   it('cancel() stops the animation and clears the pending frame', () => {

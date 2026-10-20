@@ -1,9 +1,10 @@
+import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { streamDispatchService } from './StreamDispatchService'
 
@@ -42,14 +43,20 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             trigger: 'regenerate-message',
             topicId,
             parentAnchorId: mergedBody.parentAnchorId ?? '',
-            mentionedModelIds: mergedBody.mentionedModels
+            mentionedModelIds: mergedBody.mentionedModels,
+            reasoningEffort: mergedBody.reasoningEffort,
+            serviceTier: mergedBody.serviceTier,
+            ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
         : {
             trigger: 'submit-message',
             topicId,
             parentAnchorId: mergedBody.parentAnchorId,
             userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
-            mentionedModelIds: mergedBody.mentionedModels
+            mentionedModelIds: mergedBody.mentionedModels,
+            reasoningEffort: mergedBody.reasoningEffort,
+            serviceTier: mergedBody.serviceTier,
+            ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
 
     streamDispatchService.dispatch(topicId, ipcRequest)
@@ -63,7 +70,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const topicId = options.chatId
     logger.info('reconnectToStream called', { topicId })
 
-    const result = await ipcApi.request('ai.stream_attach', { topicId })
+    const result = await ipcApi.request('ai.stream.attach', { topicId })
     logger.info('reconnectToStream result', { topicId, status: result.status })
 
     if (result.status === 'not-found') return null
@@ -164,7 +171,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             }
             errorStream(result.error)
           }),
-          ipcApi.on('ai.stream_chunk', (data) => {
+          ipcApi.on('ai.stream.chunk', (data) => {
             if (data.topicId !== topicId || isStreamClosed) return
             if (executionId && data.executionId !== executionId) return
             if (!executionId && data.executionId) return
@@ -174,7 +181,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         )
 
         unsubscribers.push(
-          ipcApi.on('ai.stream_done', (data) => {
+          ipcApi.on('ai.stream.done', (data) => {
             if (!matchesStream(data)) return
             if (executionId && data.executionId !== executionId) return
             if (!executionId && isPerExecutionOnly(data)) return
@@ -183,7 +190,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         )
 
         unsubscribers.push(
-          ipcApi.on('ai.stream_error', (data) => {
+          ipcApi.on('ai.stream.error', (data) => {
             if (!matchesStream(data)) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
@@ -192,7 +199,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         if (abortSignal) {
           if (abortSignal.aborted) {
             ipcApi
-              .request('ai.stream_abort', { topicId })
+              .request('ai.stream.abort', { topicId })
               .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
             return
@@ -201,7 +208,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           const onAbort = () => {
             logger.info('Stream abort requested', { topicId })
             ipcApi
-              .request('ai.stream_abort', { topicId })
+              .request('ai.stream.abort', { topicId })
               .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
           }
@@ -215,7 +222,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           // Unmount / disposal: only detach this subscriber. Main keeps
           // generating and persists the result; abort is a separate IPC.
           ipcApi
-            .request('ai.stream_detach', { topicId })
+            .request('ai.stream.detach', { topicId })
             .catch((e) => logger.warn('streamDetach failed', { topicId, e }))
           cleanup()
         }

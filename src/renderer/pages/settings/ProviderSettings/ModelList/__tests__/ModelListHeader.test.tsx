@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MODEL_LIST_CAPABILITY_FILTERS, type ModelListCapabilityCounts } from '../modelListDerivedState'
 import ModelListHeader from '../ModelListHeader'
+
+const emptyTypeCounts = MODEL_LIST_CAPABILITY_FILTERS.reduce<ModelListCapabilityCounts>((acc, key) => {
+  acc[key] = 0
+  return acc
+}, {} as ModelListCapabilityCounts)
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -24,10 +30,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 const baseProps = {
-  isBusy: false,
+  providerId: 'openai',
   hasNoModels: false,
   searchText: '',
   setSearchText: vi.fn(),
+  selectedTypeFilter: 'all' as const,
+  setSelectedTypeFilter: vi.fn(),
+  typeCounts: emptyTypeCounts,
   groupsExpanded: true,
   onToggleGroupsExpanded: vi.fn()
 }
@@ -52,12 +61,14 @@ describe('ModelListHeader', () => {
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
   })
 
-  it('toggles all model groups from the header action', () => {
-    render(<ModelListHeader {...baseProps} />)
+  it('disables billing and filtering together when the provider has no models', () => {
+    const { rerender } = render(<ModelListHeader {...baseProps} hasNoModels />)
+    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.provider.billing.title' })).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
-
-    expect(baseProps.onToggleGroupsExpanded).toHaveBeenCalledTimes(1)
+    rerender(<ModelListHeader {...baseProps} />)
+    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'settings.provider.billing.title' })).toBeEnabled()
   })
 
   it('renders provider documentation links when websites are available', () => {
@@ -107,10 +118,17 @@ describe('ModelListHeader', () => {
     expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
   })
 
-  it('does not render the capability filter button', () => {
-    render(<ModelListHeader {...baseProps} />)
+  it('toggles the model-type filter row from the filter button', () => {
+    render(<ModelListHeader {...baseProps} typeCounts={{ ...emptyTypeCounts, all: 3, text: 2 }} />)
 
-    expect(screen.queryByRole('button', { name: 'settings.models.filter.label' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.models.filter.clear' })).not.toBeInTheDocument()
+    const filterButton = screen.getByRole('button', { name: 'settings.models.filter.label' })
+    expect(filterButton).toBeInTheDocument()
+    // The type-filter row is hidden until the button is toggled.
+    expect(screen.queryByRole('tab', { name: 'models.type.text' })).not.toBeInTheDocument()
+
+    fireEvent.click(filterButton)
+
+    expect(screen.getByRole('tab', { name: 'models.all' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'models.type.text' })).toBeInTheDocument()
   })
 })

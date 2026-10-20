@@ -23,6 +23,7 @@ import deepseek from './deepseek'
 import elevenlabs from './elevenlabs'
 import google from './google'
 import ideogram from './ideogram'
+import iflytek from './iflytek'
 import inception from './inception'
 import intern from './intern'
 import jina from './jina'
@@ -45,6 +46,7 @@ import reka from './reka'
 import runway from './runway'
 import sensetime from './sensetime'
 import sentence_transformers from './sentence-transformers'
+import sourceful from './sourceful'
 import stability from './stability'
 import stepfun from './stepfun'
 import streamlake from './streamlake'
@@ -82,6 +84,7 @@ export const CREATORS: Creator[] = [
   elevenlabs,
   google,
   ideogram,
+  iflytek,
   inception,
   intern,
   jina,
@@ -107,6 +110,7 @@ export const CREATORS: Creator[] = [
   stability,
   stepfun,
   streamlake,
+  sourceful,
   suno,
   tencent,
   upstage,

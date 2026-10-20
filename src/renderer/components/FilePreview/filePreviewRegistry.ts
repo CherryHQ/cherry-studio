@@ -1,13 +1,11 @@
+import { previewFormats } from '@cherrystudio/file-preview/react'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { normalizeExt } from '@shared/utils/file'
 
 import { htmlFilePreviewPlugin } from './plugins/html/htmlFilePreviewPlugin'
-import { imageFilePreviewPlugin } from './plugins/image/imageFilePreviewPlugin'
 import { markdownFilePreviewPlugin } from './plugins/markdown/markdownFilePreviewPlugin'
-import { pdfFilePreviewPlugin } from './plugins/pdf/pdfFilePreviewPlugin'
-import { powerPointFilePreviewPlugin } from './plugins/powerpoint/powerPointFilePreviewPlugin'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import { wordFilePreviewPlugin } from './plugins/word/wordFilePreviewPlugin'
+import { videoFilePreviewPlugin } from './plugins/video/videoFilePreviewPlugin'
 import type { FilePreviewPlugin } from './types'
 
 export interface FilePreviewRegistry {
@@ -43,12 +41,15 @@ export function resolveExtensionPlugin(filePath: string, registry: FilePreviewRe
 
 export const filePreviewRegistry = createFilePreviewRegistry({
   extensionPlugins: [
+    ...previewFormats.map((format) => ({ ...format, load: () => import('./ElectronFilePreview') })),
     htmlFilePreviewPlugin,
-    imageFilePreviewPlugin,
     markdownFilePreviewPlugin,
-    pdfFilePreviewPlugin,
-    powerPointFilePreviewPlugin,
     textFilePreviewPlugin,
-    wordFilePreviewPlugin
+    videoFilePreviewPlugin
   ]
 })
+
+/** Whether the plugin that would render `filePath` declares `supportsSelectionReference`. */
+export function canProduceSelectionReference(filePath: string): boolean {
+  return resolveExtensionPlugin(filePath, filePreviewRegistry)?.supportsSelectionReference === true
+}

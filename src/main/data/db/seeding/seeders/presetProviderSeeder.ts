@@ -1,41 +1,32 @@
-import { application } from '@application'
+import { asc, desc, eq, ne } from 'drizzle-orm'
+
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
+import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+import { loggerService } from '@logger'
 import type { AuthConfig } from '@shared/data/types/provider'
 
 import type { DbType, ISeeder } from '../../types'
 
+const logger = loggerService.withContext('PresetProviderSeeder')
+const SEEDER_REVISION = 1
+const LEGACY_INVALID_ORDER_KEY = 'zz'
+
 /**
- * Registry entries for vertexai/azure-openai are skeletons (no defaultChatEndpoint,
- * no endpointConfigs) — they need an explicit seed value here.
+ * Seed rows are DELTA rows: registry-owned connection config
+ * (endpointConfigs, defaultChatEndpoint) is NOT persisted —
+ * it resolves from the registry at read time (#17096), so registry updates
+ * reach existing installs without reconciliation. Only user-editable
+ * scaffolding is seeded: identity, display name, and the auth shell below.
  *
  * Per the v2 invariant in `ProviderSettings/utils/provider.ts` ("Azure/Vertex/Bedrock
  * reuse other vendors' endpoint protocols, so authType is the only reliable
- * discriminator"), we deliberately do NOT introduce dedicated endpoint types like
- * `azure-openai-chat-completions` / `vertex-generate-content`. Vendor URL routing is
- * driven by `authType` (`iam-azure` → AI SDK `createAzure`, `iam-gcp` → Vertex SDK).
- *
- * `defaultChatEndpoint` here only feeds the reasoning endpoint resolution inside
- * `ProviderRegistryService.mergePresetModel`, i.e. it picks the reasoning format
- * (`openai-chat`, `gemini`, `anthropic`, ...). So the seed must match each
- * provider's wire-format reasoning shape:
- *   - Vertex AI runs Gemini models → `google-generate-content` (gemini thinking)
- *   - Azure OpenAI runs OpenAI models → `openai-chat-completions` (openai effort)
+ * discriminator"), vendor URL routing for those providers is driven by
+ * `authType` (`iam-azure` → AI SDK `createAzure`, `iam-gcp` → Vertex SDK).
  */
-function getSeedDefaultChatEndpoint(providerId: string, presetDefault: ProtoProviderConfig['defaultChatEndpoint']) {
-  if (providerId === 'vertexai') {
-    return ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
-  }
-
-  if (providerId === 'azure-openai') {
-    return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-  }
-
-  return presetDefault ?? null
-}
-
 function getSeedAuthConfig(providerId: string): AuthConfig | null {
   if (providerId === 'vertexai') {
     return { type: 'iam-gcp', project: '', location: '' }
@@ -53,24 +44,11 @@ function getSeedAuthConfig(providerId: string): AuthConfig | null {
 }
 
 function toDbRow(p: ProtoProviderConfig) {
-  const apiFeatures = p.apiFeatures
-    ? {
-        arrayContent: p.apiFeatures.arrayContent,
-        streamOptions: p.apiFeatures.streamOptions,
-        developerRole: p.apiFeatures.developerRole,
-        serviceTier: p.apiFeatures.serviceTier,
-        verbosity: p.apiFeatures.verbosity
-      }
-    : null
-
   return {
     providerId: p.id,
     presetProviderId: p.presetProviderId ?? p.id,
     name: p.name,
-    endpointConfigs: buildRuntimeEndpointConfigs(p.endpointConfigs),
-    defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),
-    authConfig: getSeedAuthConfig(p.id),
-    apiFeatures
+    authConfig: getSeedAuthConfig(p.id)
   }
 }
 
@@ -82,17 +60,13 @@ export class PresetProviderSeeder implements ISeeder {
 
   private getLoader(): RegistryLoader {
     if (!this._loader) {
-      this._loader = new RegistryLoader({
-        models: application.getPath('feature.provider_registry.data', 'models.json'),
-        providers: application.getPath('feature.provider_registry.data', 'providers.json'),
-        providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
-      })
+      this._loader = new RegistryLoader(resolveRegistryPaths())
     }
     return this._loader
   }
 
   get version(): string {
-    return this.getLoader().getProvidersVersion()
+    return `${this.getLoader().getProvidersVersion()}:${SEEDER_REVISION}`
   }
 
   run(db: DbType): void {
@@ -103,10 +77,42 @@ export class PresetProviderSeeder implements ISeeder {
       throw new Error('PresetProviderSeeder: failed to load registry providers', { cause: error })
     }
 
-    if (rawProviders.length === 0) return
-
     const rows = rawProviders.map(toDbRow)
 
-    db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
+    db.transaction((tx) => {
+      const invalidProviders = tx
+        .select({ providerId: userProviderTable.providerId })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.orderKey, LEGACY_INVALID_ORDER_KEY))
+        .orderBy(asc(userProviderTable.providerId))
+        .all()
+
+      if (invalidProviders.length > 0) {
+        const [lastValidProvider] = tx
+          .select({ orderKey: userProviderTable.orderKey })
+          .from(userProviderTable)
+          .where(ne(userProviderTable.orderKey, LEGACY_INVALID_ORDER_KEY))
+          .orderBy(desc(userProviderTable.orderKey))
+          .limit(1)
+          .all()
+        const repairedKeys = generateOrderKeySequenceBetween(
+          lastValidProvider?.orderKey ?? null,
+          null,
+          invalidProviders.length
+        )
+
+        invalidProviders.forEach((provider, index) => {
+          tx.update(userProviderTable)
+            .set({ orderKey: repairedKeys[index] })
+            .where(eq(userProviderTable.providerId, provider.providerId))
+            .run()
+        })
+        logger.warn('Repaired legacy provider order keys', { count: invalidProviders.length })
+      }
+
+      if (rows.length > 0) {
+        providerService.batchUpsertTx(tx, rows)
+      }
+    })
   }
 }

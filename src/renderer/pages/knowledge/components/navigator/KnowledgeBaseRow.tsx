@@ -1,15 +1,18 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
-import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
+import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
+import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
+
 import type { KnowledgeBaseRowProps } from './types'
 
 const KnowledgeBaseRow = ({
+  dragProps,
   base,
   groups,
   selected,
@@ -17,7 +20,9 @@ const KnowledgeBaseRow = ({
   onMoveBase,
   onRenameBase,
   onCreateGroup,
-  onDeleteBase
+  onDeleteBase,
+  onToggleSidebar,
+  sidebarPinned
 }: KnowledgeBaseRowProps) => {
   const { t } = useTranslation()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -105,6 +110,13 @@ const KnowledgeBaseRow = ({
       })
     }
 
+    items.push({
+      type: 'item',
+      id: 'toggle-sidebar',
+      label: t(sidebarPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+      icon: <SidebarShortcutIcon pinned={sidebarPinned} className="size-3.5" />,
+      onSelect: () => onToggleSidebar(base)
+    })
     items.push({ type: 'separator' })
     items.push({
       type: 'item',
@@ -116,22 +128,34 @@ const KnowledgeBaseRow = ({
     })
 
     return items
-  }, [availableGroups, canMoveToUngrouped, handleCreateGroup, handleMoveBase, handleRenameBase, handleRequestDelete, t])
+  }, [
+    availableGroups,
+    base,
+    canMoveToUngrouped,
+    handleCreateGroup,
+    handleMoveBase,
+    handleRenameBase,
+    handleRequestDelete,
+    onToggleSidebar,
+    sidebarPinned,
+    t
+  ])
 
   return (
     <>
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
           className={cn(
-            'group/row flex w-full items-center gap-1 rounded-md px-2.5 py-1.5 transition-colors',
-            selected ? 'bg-secondary' : 'hover:bg-accent'
+            'group/row flex h-8 w-full items-center gap-1 rounded-md px-2.5 transition-colors',
+            selected ? 'bg-muted text-foreground' : 'hover:bg-muted'
           )}>
           <Button
             type="button"
             variant="ghost"
+            {...dragProps}
             onClick={() => onSelectBase(base.id)}
             className="flex min-h-0 min-w-0 flex-1 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
-            <div className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
+            <div className="min-w-0 truncate text-sm leading-5 font-normal text-foreground">{base.name}</div>
           </Button>
           <KnowledgeRowActionsMenu items={contextMenuItems} />
         </div>

@@ -5,10 +5,10 @@
  * 将返回的 ToolFactoryPatch（tools / providerOptions）合并到 params。
  */
 
+import { definePlugin } from '../'
 import { mergeProviderOptions } from '../../options'
 import { extensionRegistry } from '../../providers'
 import type { ToolCapability } from '../../providers/types/toolFactory'
-import { definePlugin } from '../'
 export const providerToolPlugin = (capability: ToolCapability, config: Record<string, any> = {}) =>
   definePlugin({
     name: capability,

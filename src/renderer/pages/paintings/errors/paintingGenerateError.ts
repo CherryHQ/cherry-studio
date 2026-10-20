@@ -34,6 +34,7 @@ export function translatePaintingGenerateError(error: Error): string {
     IMAGE_REQUIRED: 'paintings.image_file_required',
     IMAGE_RETRY_REQUIRED: 'paintings.image_file_retry',
     EDIT_IMAGE_REQUIRED: 'paintings.edit.image_required',
+    INPUT_IMAGE_LIMIT_EXCEEDED: 'paintings.input_image_limit_exceeded',
     MISSING_REQUIRED_FIELDS: 'error.missing_required_fields',
     IMAGE_HANDLE_REQUIRED: 'paintings.image_handle_required',
     REQ_ERROR_TOKEN: 'paintings.req_error_token',

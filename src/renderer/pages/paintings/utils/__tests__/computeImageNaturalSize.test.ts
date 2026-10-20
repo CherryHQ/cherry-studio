@@ -8,7 +8,7 @@ vi.mock('@renderer/utils/image', () => ({
 const { computeImageNaturalSize } = await import('../computeImageNaturalSize')
 
 describe('computeImageNaturalSize', () => {
-  let close: ReturnType<typeof vi.fn>
+  let close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   const stubBitmap = (width: number, height: number) => {
     close = vi.fn()

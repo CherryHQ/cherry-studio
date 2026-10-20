@@ -1,5 +1,6 @@
-import { Checkbox, Input, Label } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+
+import { Checkbox, Input, Label } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Label> = {
   title: 'Components/Primitives/Label',

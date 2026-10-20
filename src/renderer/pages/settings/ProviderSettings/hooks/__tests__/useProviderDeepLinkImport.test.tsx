@@ -1,7 +1,8 @@
-import { toast } from '@renderer/services/toast'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { useProviderDeepLinkImport } from '../useProviderDeepLinkImport'
 

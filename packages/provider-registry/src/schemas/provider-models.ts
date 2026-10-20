@@ -8,21 +8,45 @@
 import * as z from 'zod'
 
 import { ModelIdSchema, ProviderIdSchema, VersionSchema } from './common'
+import { ENDPOINT_TYPE } from './enums'
+import { looseArray } from './forwardCompat'
 import {
   ImageGenerationSupportSchema,
   ModalitySchema,
   ModelCapabilityTypeSchema,
-  ModelPricingSchema,
   ParameterSupportSchema,
+  PartialModelPricingSchema,
   ReasoningSupportSchema
 } from './model'
-import { EndpointTypeSchema } from './provider'
+import { EndpointTypeSchema, ServiceTierOptionsSchema } from './provider'
+import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const CapabilityOverrideSchema = z.object({
-  add: z.array(ModelCapabilityTypeSchema).optional(), // Add capabilities
-  remove: z.array(ModelCapabilityTypeSchema).optional(), // Remove capabilities
-  force: z.array(ModelCapabilityTypeSchema).optional() // Force set capabilities (ignore base config)
+  add: looseArray(ModelCapabilityTypeSchema).optional(), // Add capabilities
+  remove: looseArray(ModelCapabilityTypeSchema).optional(), // Remove capabilities
+  force: looseArray(ModelCapabilityTypeSchema).optional() // Force set capabilities (ignore base config)
 })
+
+const ReasoningEndpointTypeSchema = z.enum([
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT,
+  ENDPOINT_TYPE.OLLAMA_GENERATE,
+  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
+])
+
+export const ProviderModelReasoningContractSchema = z
+  .object({
+    /** Provider/endpoint-specific support. Declared controls replace intrinsic model controls. */
+    support: ReasoningSupportSchema.optional(),
+    /** Exact provider/endpoint wire behavior. */
+    wire: ReasoningWireProfileSchema.optional()
+  })
+  .refine((contract) => contract.support || contract.wire, {
+    message: 'provider-model reasoning contract must declare support or wire'
+  })
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider-Model Override Schema
@@ -56,16 +80,25 @@ export const ProviderModelOverrideSchema = z.object({
       maxInputTokens: z.number().optional()
     })
     .optional(),
-  pricing: ModelPricingSchema.partial().optional(),
-  reasoning: ReasoningSupportSchema.optional(),
+  pricing: PartialModelPricingSchema.optional(),
+  /** Exact reasoning behavior keyed by the endpoint used for this provider-model pair. */
+  reasoningContracts: z.partialRecord(ReasoningEndpointTypeSchema, ProviderModelReasoningContractSchema).optional(),
+  /** Whether this exact provider-model pair supports the provider's Fast transport. */
+  supportsFastMode: z.boolean().optional(),
+  /** Model-specific option overrides for endpoint-owned request controls. */
+  requestControls: z
+    .object({
+      serviceTier: z.object({ options: ServiceTierOptionsSchema }).optional()
+    })
+    .optional(),
   parameterSupport: ParameterSupportSchema.partial().optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)
-  endpointTypes: z.array(EndpointTypeSchema).optional(),
+  endpointTypes: looseArray(EndpointTypeSchema).optional(),
 
   // Modality overrides (when provider supports different modalities than base model)
-  inputModalities: z.array(ModalitySchema).optional(),
-  outputModalities: z.array(ModalitySchema).optional(),
+  inputModalities: looseArray(ModalitySchema).optional(),
+  outputModalities: looseArray(ModalitySchema).optional(),
 
   // Standalone model fields — used when the modelId has NO entry in models.json
   // (vendor-exclusive models like ModelScope's `Tongyi-MAI/Z-Image-Turbo`, PPIO's
@@ -93,10 +126,11 @@ export const ProviderModelOverrideSchema = z.object({
 // Container schema for JSON files
 export const ProviderModelListSchema = z.object({
   version: VersionSchema,
-  overrides: z.array(ProviderModelOverrideSchema)
+  overrides: looseArray(ProviderModelOverrideSchema)
 })
 
 // Type exports
 export type CapabilityOverride = z.infer<typeof CapabilityOverrideSchema>
+export type ProviderModelReasoningContract = z.infer<typeof ProviderModelReasoningContractSchema>
 export type ProviderModelOverride = z.infer<typeof ProviderModelOverrideSchema>
 export type ProviderModelList = z.infer<typeof ProviderModelListSchema>

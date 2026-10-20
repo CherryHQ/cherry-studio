@@ -1,5 +1,6 @@
-import { FILE_TYPE, type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { describe, expect, it, vi } from 'vitest'
+
+import { FILE_TYPE, FileInfoSchema } from '@shared/types/file'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 import { prepareContext } from '../prepare'
@@ -13,7 +14,7 @@ const imageFile = FileInfoSchema.parse({
   type: FILE_TYPE.IMAGE,
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 describe('Tesseract prepareContext', () => {
   it('parses migrated langs arrays from processor options', () => {

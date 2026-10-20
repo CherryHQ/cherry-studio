@@ -1,7 +1,8 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 // ---------------------------------------------------------------------------
 // MenuItem
@@ -13,7 +14,7 @@ const menuItemVariants = cva(
     'border border-transparent',
     'transition-all duration-150',
     'outline-none select-none',
-    'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+    'focus-visible:bg-accent',
     'disabled:pointer-events-none disabled:opacity-40',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0'
   ),

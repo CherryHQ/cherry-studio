@@ -1,29 +1,33 @@
 const SESSION_TOPIC_PREFIX = 'agent-session:'
 
-export const buildAgentSessionTopicId = (sessionId: string): string => {
-  return `${SESSION_TOPIC_PREFIX}${sessionId}`
+export const buildAgentFileWorkspaceKey = (workspaceId?: string | null, workspacePath?: string): string => {
+  return `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }
 
-export const isAgentSessionTopicId = (topicId: string): boolean => {
-  return topicId.startsWith(SESSION_TOPIC_PREFIX)
+export const buildAgentSessionTopicId = (sessionId: string): string => {
+  return `${SESSION_TOPIC_PREFIX}${sessionId}`
 }
 
 export const extractAgentSessionIdFromTopicId = (topicId: string): string => {
   return topicId.replace(SESSION_TOPIC_PREFIX, '')
 }
 
+import dingtalkIcon from '@renderer/assets/images/channel/dingtalk.ico'
 import discordIcon from '@renderer/assets/images/channel/discord.svg'
 import feishuIcon from '@renderer/assets/images/channel/feishu.jpeg'
 import qqIcon from '@renderer/assets/images/channel/qq.svg'
 import slackIcon from '@renderer/assets/images/channel/slack.svg'
 import telegramIcon from '@renderer/assets/images/channel/telegram.png'
 import wechatIcon from '@renderer/assets/images/channel/wechat.png'
+import wecomIcon from '@renderer/assets/images/channel/wecom.png'
 
 const CHANNEL_TYPE_ICONS: Record<string, string> = {
   telegram: telegramIcon,
   feishu: feishuIcon,
   qq: qqIcon,
   wechat: wechatIcon,
+  wecom: wecomIcon,
+  dingtalk: dingtalkIcon,
   discord: discordIcon,
   slack: slackIcon
 }
