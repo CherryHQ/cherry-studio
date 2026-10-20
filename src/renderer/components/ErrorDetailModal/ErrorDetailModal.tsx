@@ -61,6 +61,7 @@ import {
 } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+import { isDiagnosticReportEligible } from './isDiagnosticReportEligible'
 
 const logger = loggerService.withContext('ErrorDetailContent')
 
@@ -632,6 +633,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   ])
 
   const canReport = Boolean(onOpenDiagnosticReport && (diagnosticReport || errorContext))
+  const showDiagnosticReportAction = canReport && isDiagnosticReportEligible(shownError)
 
   const showDetails = () => {
     setDetailsOpen(true)
@@ -730,9 +732,9 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
           onClick={checkForUpdate}>
           {t(updateCheckLabelKey(appUpdateState))}
         </Button>
-        {subject || canReport ? (
+        {subject || showDiagnosticReportAction ? (
           <>
-            {canReport ? (
+            {showDiagnosticReportAction ? (
               <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
                 <FileUp size={14} />
                 {t('error.diagnostic_report.action')}
