@@ -881,6 +881,41 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
   })
 
+  it('pre-fills the scheduled task starter prompt without sending it, and drops it once sent', async () => {
+    agentPageMocks.agents = []
+    const taskSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-task-chat',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    agentPageMocks.routeSearch = { intent: 'task', sessionId: taskSession.id }
+    activeSessionMocks.session = taskSession
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: { sessionId: 'session-task-chat' },
+        replace: true
+      })
+    )
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-task-chat')
+    expect(agentPageMocks.composerLaunchOptions).toMatchObject({
+      initialDraft: { text: 'settings.scheduledTasks.chatDraft', tokens: [] }
+    })
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+
+    agentPageMocks.routeSearch = { sessionId: 'session-task-chat' }
+    act(() => {
+      agentPageMocks.composerLaunchOptions.onSent()
+    })
+
+    await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
+  })
+
   it('consumes a prepared Skill intent once and creates a composer token from the installed Skill', async () => {
     agentPageMocks.agents = []
     const skillSession = {
