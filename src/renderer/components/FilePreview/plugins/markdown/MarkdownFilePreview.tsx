@@ -12,6 +12,7 @@ import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { toFileUrl } from '@shared/utils/file'
 
 import type { FilePreviewPluginProps } from '../../types'
 import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
@@ -33,7 +34,7 @@ function MarkdownPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -84,10 +85,21 @@ function MarkdownPreviewEmpty() {
 }
 
 interface MarkdownPreviewContentProps {
+  filePath: AbsoluteFilePath
   hideFrontmatter: boolean
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
+}
+
+function resolveMarkdownImageSrc(filePath: AbsoluteFilePath, src: string): string | null {
+  if (!src || src.trim() !== src || /^[/?#]|^[a-z][a-z0-9+.-]*:|[\\\p{Cc}]|%2f|%5c/iu.test(src)) return src
+
+  try {
+    return new URL(src, toFileUrl(filePath)).href
+  } catch {
+    return null
+  }
 }
 
 function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
@@ -104,12 +116,14 @@ function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string |
 }
 
 function MarkdownPreviewContent({
+  filePath,
   hideFrontmatter,
   loadState,
   markdownId,
   mode
 }: MarkdownPreviewContentProps): ReactNode {
   const navigation = useOptionalFilePreviewNavigation()
+  const resolveImageSrc = useCallback((src: string) => resolveMarkdownImageSrc(filePath, src), [filePath])
   const openFilePath = useCallback(
     (path: string) => {
       if (!navigation) return
@@ -147,7 +161,11 @@ function MarkdownPreviewContent({
     </div>
   )
 
-  return navigation ? <MarkdownHostProvider openFilePath={openFilePath}>{markdown}</MarkdownHostProvider> : markdown
+  return (
+    <MarkdownHostProvider resolveImageSrc={resolveImageSrc} openFilePath={navigation ? openFilePath : undefined}>
+      {markdown}
+    </MarkdownHostProvider>
+  )
 }
 
 export default function MarkdownFilePreview({ filePath, metadata, refreshKey, type = 'file' }: FilePreviewPluginProps) {
@@ -189,6 +207,7 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
       ) : null}
       <FilePreviewLayout.Content>
         <MarkdownPreviewContent
+          filePath={filePath}
           hideFrontmatter={type === 'artifact'}
           loadState={loadState}
           markdownId={markdownId}

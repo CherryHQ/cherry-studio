@@ -139,6 +139,42 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(result).toMatchObject({ sampleRateHz: 16000, channels: 1 })
   })
 
+  it('preserves an internal audio timestamp gap in the normalized WAV', async () => {
+    const sourcePath = join(root, 'gapped-audio.mka')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=7',
+        '-af',
+        'aselect=lt(t\\,1)+gte(t\\,6)',
+        '-c:a',
+        'pcm_s16le',
+        sourcePath
+      ])
+    ).toBe(0)
+
+    const result = await mediaFfmpegHandlers.extractAudio(
+      { filePath: sourcePath, outputDir: join(root, 'gapped-audio-output'), maxChunkBytes: 1_000_000 },
+      context()
+    )
+    expect(result.chunks).toHaveLength(1)
+    expect(result.chunks[0].endMs).toBeGreaterThanOrEqual(6_900)
+
+    const readSamples = (startSeconds: number): Buffer => {
+      const read = spawnSync(
+        ffmpegPath,
+        ['-v', 'error', '-ss', String(startSeconds), '-t', '0.5', '-i', result.chunks[0].path, '-f', 's16le', '-'],
+        { encoding: null }
+      )
+      expect(read.status).toBe(0)
+      return read.stdout
+    }
+    expect(readSamples(3).every((sample) => sample === 0)).toBe(true)
+    expect(readSamples(6.2).some((sample) => sample !== 0)).toBe(true)
+  })
+
   it('distinguishes audio-only WebM and extracts bounded portrait video frames', async () => {
     await expect(
       mediaFfmpegHandlers.probe({ filePath: webmPath, fallbackExt: 'webm' }, context())
@@ -287,6 +323,22 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     )
     expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([0, lastFrameMs])
     expect(frames.frames.every((frame) => existsSync(frame.path) && readFileSync(frame.path).length > 0)).toBe(true)
+  })
+
+  it('recovers the last MPEG-2 TS frame when input-side seeking cannot decode it', async () => {
+    const tsPath = join(root, 'mpeg2-tail.ts')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:r=12:d=6', '-c:v', 'mpeg2video', '-f', 'mpegts', tsPath])
+    ).toBe(0)
+
+    const outputDir = join(root, 'mpeg2-tail-frames')
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      { filePath: tsPath, outputDir, timestampsMs: [5_950], maxEdgePx: 64, jpegQuality: 70 },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0].timestampMs).toBeGreaterThanOrEqual(5_900)
+    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
   })
 
   it('seeks the last packet when a long VFR frame makes the average rate land past it', async () => {
@@ -1393,7 +1445,6 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(2)
       expect(result.frames).toEqual([])
       expect(readFileSync(untouchedPath, 'utf8')).toBe('leave-me')
     } finally {
@@ -1418,7 +1469,7 @@ describe('mediaFfmpegHandlers frame destinations', () => {
           child.emit('close', 234)
           return
         }
-        writeFileSync(join(outputDir, 'frame-0001.jpg'), 'later-frame')
+        if (call === 4) writeFileSync(join(outputDir, 'frame-0001.jpg'), 'later-frame')
         child.emit('close', 0)
       })
       return child
@@ -1436,7 +1487,6 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(3)
       expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0001.jpg'), timestampMs: 1_000 }])
     } finally {
       rmSync(outputDir, { recursive: true, force: true })

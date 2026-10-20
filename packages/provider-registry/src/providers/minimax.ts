@@ -3,8 +3,8 @@ import { openaiCompatible } from './types'
 
 export const minimaxOverrides = [
   {
-    modelId: 'minimax-m3-1-flash-preview',
-    apiModelId: 'MiniMax-M3.1-Flash-Preview',
+    modelId: 'minimax-m3-1-flash',
+    apiModelId: 'MiniMax-M3.1-Flash',
     endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
     reasoningContracts: {
       'anthropic-messages': {
