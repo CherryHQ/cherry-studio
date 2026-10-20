@@ -31,6 +31,8 @@
   "apiGateway.docs.tags.cherry": "Τα δικά του endpoints του Cherry Studio: βάσεις γνώσης, πληροφορίες υπηρεσίας και έλεγχος υγείας.",
   "apiGateway.docs.tags.gemini": "Endpoints συμβατά με Gemini, διαθέσιμα κάτω από το `/v1beta` όπως και στο αρχικό API.",
   "apiGateway.docs.tags.openai": "Endpoints συμβατά με OpenAI. Στρέψτε το base URL ενός OpenAI SDK σε αυτή την πύλη για να τα χρησιμοποιήσετε.",
+  "api_gateway.errors.internal_bind_permission_denied": "Το λειτουργικό σύστημα αρνήθηκε στον εσωτερικό Διακομιστή API την ακρόαση στη διεύθυνση {{address}}, ζητούμενη θύρα TCP {{port}} (EACCES). Δοκιμάστε ξανά το αίτημα. Αν αποτύχει πάλι, ζητήστε από τον διαχειριστή συστήματος να ελέγξει περιορισμούς ακρόασης στο loopback.",
+  "api_gateway.errors.public_bind_permission_denied": "Το λειτουργικό σύστημα αρνήθηκε στον Διακομιστή API την ακρόαση στη διεύθυνση {{address}}, θύρα TCP {{port}} (EACCES). Στις Ρυθμίσεις → Διακομιστής API, επιλέξτε άλλη Θύρα, βγείτε από το πεδίο για αποθήκευση και πατήστε Εκκίνηση. Ενημερώστε το τελικό σημείο στους πελάτες.",
   "appMenu.about": "Σχετικά",
   "appMenu.close": "Κλείσιμο Παραθύρου",
   "appMenu.copy": "Αντιγραφή",

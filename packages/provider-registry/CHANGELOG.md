@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.2.3
+
+### Patch Changes
+
+- [#21999](https://github.com/CherryHQ/cherry-studio/pull/21999) [`5967cf3`](https://github.com/CherryHQ/cherry-studio/commit/5967cf357a4f619b6e01b4c21d8e0d024400989c) Thanks [@SaladDay](https://github.com/SaladDay)! - Rename MiniMax-M3.1-Flash-Preview to MiniMax-M3.1-Flash, preserve documented temperature support for MiniMax-M3 and MiniMax-M3.1-Flash, and refresh catalog content versions.
+
 ## 0.2.2
 
 ### Patch Changes
