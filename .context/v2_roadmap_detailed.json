@@ -1,95 +1,83 @@
 {
-  "generated_at": "2026-10-19T17:46:18.935957+00:00",
-  "date": "2026-10-19",
+  "generated_at": "2026-10-20T17:00:00.000000+00:00",
+  "date": "2026-10-20",
   "v2_branch_status": {
+    "current_release": "v2.1.7",
     "open_prs": 0,
-    "note": "No open PRs targeting the v2 branch as of this run"
+    "note": "v2 branch has no open PRs. All active development is trunk-based on main. v2.1.7 released 2026-10-19.",
+    "merged_prs_30d_total": 559,
+    "velocity_prs_per_day": 18.6
   },
   "v2_tagged_open_issues": [
-    {
-      "number": 21667,
-      "title": "Agent requests remain blocked when pi-ai image history exceeds 20 MiB",
-      "labels": [
-        "bug",
-        "p2",
-        "windows",
-        "v2",
-        "agent"
-      ]
-    },
-    {
-      "number": 21418,
-      "title": "Restore triggers app auto-restart — data cannot be restored (v6→v7 incompatible)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "data",
-        "v2"
-      ]
-    },
-    {
-      "number": 21085,
-      "title": "File/KB scopes inline large tool schemas and can overflow context",
-      "labels": [
-        "bug",
-        "p1",
-        "rag",
-        "assistant",
-        "performance",
-        "v2",
-        "chat"
-      ]
-    },
-    {
-      "number": 20941,
-      "title": "Work and Agent conversations terminate with an empty no-response",
-      "labels": [
-        "bug",
-        "p1",
-        "v2",
-        "agent",
-        "chat"
-      ]
-    },
-    {
-      "number": 20940,
-      "title": "Responses API stream events fail TypeValidation and abort chat",
-      "labels": [
-        "bug",
-        "p1",
-        "models",
-        "v2",
-        "chat"
-      ]
-    },
-    {
-      "number": 20937,
-      "title": "DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC)",
-      "labels": [
-        "bug",
-        "p1",
-        "windows",
-        "v2",
-        "agent"
-      ]
-    }
+    {"number": 10910, "title": "[Feature]: Add I18nService in main", "labels": ["feature", "v2"]},
+    {"number": 13578, "title": "[Bug]: cherry studio quit unexpectedly", "labels": ["bug", "performance", "v2"]},
+    {"number": 20940, "title": "[Bug]: Responses API stream TypeValidation abort (P1)", "labels": ["bug", "p1", "models", "v2", "chat"]},
+    {"number": 20941, "title": "[Bug]: Work/Agent turns terminate empty (P1)", "labels": ["bug", "p1", "v2", "agent", "chat"]},
+    {"number": 21085, "title": "[Bug]: File/KB inline large tool schemas overflow (P1)", "labels": ["bug", "p1", "rag", "v2", "performance"]},
+    {"number": 21418, "title": "[Bug]: Restore triggers auto-restart EPERM (P1, Windows)", "labels": ["bug", "p1", "windows", "data", "v2"]}
   ],
   "active_feature_branches_in_prs": [
-    "feature/agent-behavior",
-    "feature/agent-runtime-background-subagent",
-    "feature/agent-behavior-design",
-    "feature/agent-runtime-pi-upgrade",
-    "feat/unified-notification-center",
-    "feat/skill-marketplace",
-    "feature/agent-runtime-goal",
-    "feature/agent-runtime-subagent",
-    "feature/agent-runtime-todo-ask-user",
-    "orca/video-stack-20261016 (media/agent/chat/settings)",
-    "orca/media-frame-analysis",
-    "codex/task-dashboard-runtime",
-    "codex/generated-attachments",
-    "codex/voice-renderer-foundation"
+    {
+      "stack": "orca/video-stack (SiinXu)",
+      "prs": [21838, 21839, 21840, 21841, 21842, 21851],
+      "status": "In Review",
+      "description": "Full video/audio analysis stack — frame sampling, model routing, agent integration, media preprocessing"
+    },
+    {
+      "stack": "codex/external-knowledge-feishu (AtomsH4)",
+      "prs": [20742, 20800, 20856, 20903, 20998],
+      "status": "Draft — 5 chained PRs",
+      "description": "External knowledge management — Feishu Wiki integration with sync lifecycle"
+    },
+    {
+      "stack": "feature/agent-behavior (MyPrototypeWhat)",
+      "prs": [21995, 22014],
+      "status": "In Review",
+      "description": "Harness-neutral agent behavior abstraction for Pi agent runtime"
+    },
+    {
+      "stack": "codex/user-shared-memory (WhiteZeek)",
+      "prs": [22068, 22088],
+      "status": "Draft",
+      "description": "Cross-agent user shared memory with desktop UI controls"
+    },
+    {
+      "stack": "fix/subagent-resume (tommyzhang100504)",
+      "prs": [21933, 21934],
+      "status": "In Review",
+      "description": "Subagent resume routing and rendering fixes"
+    },
+    {
+      "stack": "spec/web-core (1lck)",
+      "prs": [22062, 22052, 21006],
+      "status": "Spec/Draft",
+      "description": "Web-core architecture: desktop UI as web application with sandbox isolation"
+    }
   ],
-  "summary": "v2 branch shows no open PRs. P1 v2-tagged bugs are active blockers for the v2 release line. Feature work is progressing across agent-runtime, video/media, skill-marketplace, and notification branches."
+  "summary": {
+    "open_prs_main": 71,
+    "open_prs_feature_stacks": 29,
+    "draft_prs": 17,
+    "contributors_with_open_prs": 15,
+    "top_contributors_open_prs": {
+      "NatsUIJM": 16,
+      "SiinXu": 12,
+      "DeJeune": 11,
+      "ggbdpq": 7,
+      "lianshuang-photo": 6,
+      "AtomsH4": 6
+    },
+    "recently_shipped": [
+      "feat(local-model): run local chat models on macOS with agents (#21882)",
+      "feat(remote-access): expose desktop Assistants to paired clients (#21676)",
+      "feat(agent-sessions): allow pinned sessions drag ordering (#21948)",
+      "feat(voice): full streaming voice suite (PCM, Qwen3 ASR, dictation) — 5 PRs by DeJeune",
+      "feat(web-search): add DeepSeek Search & Fetch provider (#21909)"
+    ],
+    "next_milestones": [
+      "v2.1.8: subagent-resume routing fix, provider sampling fixes, tab-bar fixes",
+      "v2.2.x: video analysis stack (orca/video-stack), agent behavior harness",
+      "v2.3.x: external knowledge / Feishu Wiki, user shared memory, web-core spec"
+    ]
+  }
 }

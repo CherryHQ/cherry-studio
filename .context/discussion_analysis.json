@@ -1,86 +1,91 @@
 {
-  "generated_at": "2026-10-19T17:46:04.675387+00:00",
-  "date": "2026-10-19",
-  "note": "GraphQL discussions API not available via MCP tools; derived from issue discussions and help-wanted labels",
+  "generated_at": "2026-10-20T17:00:00.000000+00:00",
+  "date": "2026-10-20",
+  "note": "GitHub Discussions not directly fetched (GraphQL endpoint scoped). Analysis based on high-engagement open issues as proxy.",
   "help_wanted_discussion_issues": [
     {
-      "number": 21708,
-      "title": "Using built-in browser to access internal HTTPS services",
-      "label": "discussion mcp"
+      "number": 22026,
+      "title": "[Discussion]: Data stored via WebDAV before v2.0 cannot be restored",
+      "labels": ["p1", "help wanted", "data", "backup", "discussion"],
+      "updated_at": "2026-10-20",
+      "comments": 1,
+      "sentiment": "urgent — data loss risk for WebDAV upgrade users"
     },
     {
-      "number": 21663,
-      "title": "数据库自动备份与独立恢复模式设计",
-      "label": "discussion backup"
-    },
-    {
-      "number": 21447,
-      "title": "How do I delete an Agent?",
-      "label": "discussion"
-    },
-    {
-      "number": 21391,
-      "title": "[Discussion]:",
-      "label": "discussion"
-    },
-    {
-      "number": 21388,
-      "title": "nutstore/webdav backup and restore",
-      "label": "discussion backup"
-    },
-    {
-      "number": 21368,
-      "title": "How to make cherry automatically connect to codex",
-      "label": "discussion"
-    },
-    {
-      "number": 21362,
-      "title": "Unable to use some models in Qwen token plan",
-      "label": "discussion"
-    },
-    {
-      "number": 21257,
-      "title": "Drawing feature: reference images in Agent cannot be displayed",
-      "label": "discussion"
-    },
-    {
-      "number": 21177,
-      "title": "Time Machine data loss — cannot start after replacement",
-      "label": "discussion"
-    },
-    {
-      "number": 21590,
-      "title": "MCP Tool Results Cannot Be Returned to Model",
-      "label": "discussion"
+      "number": 18589,
+      "title": "[Discussion]: Too much reverse optimization",
+      "labels": ["help wanted", "discussion", "ui-ux"],
+      "updated_at": "2026-10-20",
+      "comments": 3,
+      "sentiment": "community feedback on UX regression concerns in v2"
     }
   ],
-  "trending_topics": [
-    "agent",
-    "backup/restore",
-    "mcp",
-    "provider connectivity",
-    "data corruption"
-  ],
+  "trending_topics": {
+    "voice_features": {
+      "description": "Active voice feature development this week — streaming TTS, ASR, dictation",
+      "merged_prs_this_week": ["feat(voice): add mouse-hold dictation (#22063)", "feat(voice): stream Apple system speech PCM (#21969)", "feat(voice): stream Qwen3 dictation (#21964)", "feat(local-asr): add Qwen3 1.7B complete transcription (#21928)"],
+      "status": "shipping"
+    },
+    "agent_reliability": {
+      "description": "Persistent P1 agent failures — autocompact thrashing, process start failures, empty response termination",
+      "open_p1_count": 14,
+      "trending_issues": [21905, 21898, 20941, 20692],
+      "status": "critical"
+    },
+    "knowledge_base_linux": {
+      "description": "sqlite-vec now shipping on Linux x64 — fixes KB embedding on Linux",
+      "merged_pr": "#22056 fix(knowledge): ship a baseline sqlite-vec build on Linux x64",
+      "status": "just fixed"
+    },
+    "webdav_data_migration": {
+      "description": "Data stored via WebDAV before v2 cannot be restored — P1 data loss risk",
+      "issue": "#22026",
+      "status": "open"
+    },
+    "video_analysis_stack": {
+      "description": "SiinXu's orca/video-stack: 5 open PRs for video preprocessing and agent integration",
+      "open_prs": [21838, 21839, 21840, 21841, 21842],
+      "status": "in review"
+    }
+  },
   "top_feature_requests": [
     {
-      "number": 21926,
-      "title": "Multi-agent orchestration (Grok Bot style)",
-      "comments": 0
+      "number": 21882,
+      "title": "feat(local-model): run local chat models on macOS including agents",
+      "status": "merged",
+      "merged_date": "~2026-10-19",
+      "author": "1lck"
     },
     {
-      "number": 21913,
-      "title": "Rename Settings→Tools→Prompts to Quick Prompts",
-      "comments": 2
+      "number": 22013,
+      "title": "feat(download): add browser download manager with segmented transfers",
+      "status": "open_pr",
+      "author": "angri450"
     },
     {
-      "number": 21659,
-      "title": "Use desktop Assistants from Mobile over remote access",
-      "comments": 4
+      "number": 21676,
+      "title": "feat(remote-access): expose desktop Assistants to paired clients",
+      "status": "merged",
+      "merged_date": "~2026-10-19",
+      "author": "zhangjiadi225"
     },
     {
-      "number": 21202,
-      "title": "Skills: symlink/reference registration support",
-      "comments": 5
+      "number": 19115,
+      "title": "[Feature]: 桌面端 v2 Agent 模式：新增长期记忆可视化管理与交互界面",
+      "status": "open_issue",
+      "labels": ["feature", "assistant"]
+    },
+    {
+      "number": 15377,
+      "title": "[Feature]: Multi-Window / Split-Screen for Agents and Assistants",
+      "status": "open_issue",
+      "labels": ["feature", "ui-ux"]
+    },
+    {
+      "number": 15173,
+      "title": "[Feature]: Agent 模式复用 CLI 子进程，避免重复注入 skill system-reminder 浪费 token",
+      "status": "open_issue",
+      "labels": ["feature", "performance"]
     }
   ]
 }
