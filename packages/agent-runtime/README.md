@@ -14,6 +14,11 @@ parent and survives child continuation; it is not an assignment ID or completion
 without an accessible context omits `child`. Snapshots expose `subagents`, and `subagent.upsert`
 updates one relationship. Open an available child separately to observe its output or use its input.
 
+`InputState.response` links a logical input to its evidenced terminal response. Several inputs
+may share that item; a response may be failed, aborted or truncated, so its presence alone is not
+success. Missing outcome remains unknown. References follow the source's current-view identity
+and coverage rules; the host retains native correlation separately when it needs restart recovery.
+
 `ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
 bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
 queue or execution lifecycle. Adapters maintain source identity before publishing events.
