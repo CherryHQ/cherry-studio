@@ -1,11 +1,24 @@
-import { SpeechInputKind, TranscriptionInputKind } from '@shared/ai/voice'
+import { isSpeechModelId } from '@shared/ai/localVoice'
+import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind } from '@shared/ai/voice'
 
 import type { SpeechExecution, SpeechRequest, TranscriptionExecution, TranscriptionRequest } from './executionTypes'
 import { getSpeechOperations, getTranscriptionOperations } from './localAdapters'
+import { completeSpeechExecution } from './sdkOperations'
+import { generateModelSpeech } from './speechModels'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
 export function startSpeech(request: SpeechRequest, signal?: AbortSignal): SpeechExecution {
   signal?.throwIfAborted()
+  if (!isSpeechModelId(request.modelId)) {
+    if (request.input.kind !== SpeechInputKind.Text || request.output !== SpeechOutputKind.Audio)
+      throw new VoiceRuntimeError('unsupported')
+    const text = request.input.text
+    const options = { ...request.options }
+    return completeSpeechExecution(
+      (executionSignal) => generateModelSpeech(request.modelId, text, options, executionSignal),
+      signal
+    )
+  }
   const operation = getSpeechOperations(request.modelId).find(
     (operation) => operation.input === request.input.kind && operation.output === request.output
   )

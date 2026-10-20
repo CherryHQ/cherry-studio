@@ -1,6 +1,7 @@
 import { generateSpeech, type SpeechOptions, type SpeechResult } from '@cherrystudio/ai-core'
 import { DEFAULT_SPEECH_SPEED, isSpeechModelId } from '@shared/ai/localVoice'
 import type { SpeechModelId, VoiceModelDescriptor } from '@shared/ai/speech'
+import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 
@@ -17,6 +18,7 @@ export function listSpeechModels(): VoiceModelDescriptor[] {
     inputModalities: ['text'],
     outputModalities: ['audio'],
     supportsStreaming: false,
+    voiceCapabilities: { speech: [{ input: SpeechInputKind.Text, output: SpeechOutputKind.Audio }] },
     localeSelection: null,
     resourceOperations: []
   }))
@@ -78,8 +80,6 @@ export async function generateModelSpeech(
   signal: AbortSignal
 ): Promise<SpeechResult & { playbackRate?: number }> {
   signal.throwIfAborted()
-  if (isSpeechModelId(modelId))
-    return generateSpeech(local.createLocalSpeechModel(modelId, options), text, options, signal)
   if (!getProviderSpeechVoices(modelId).includes(options.voice)) throw new VoiceRuntimeError('voice_unavailable')
   const resolved = await resolveProviderSpeechModel(modelId, signal)
   const result = await generateSpeech(

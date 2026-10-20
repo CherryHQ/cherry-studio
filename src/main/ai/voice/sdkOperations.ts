@@ -1,11 +1,17 @@
 import type { SpeechModelV3, TranscriptionModelV3 } from '@ai-sdk/provider'
 import { NoTranscriptGeneratedError } from 'ai'
 
-import { generateSpeech, transcribe, type SpeechOptions, type TranscriptionOptions } from '@cherrystudio/ai-core'
+import {
+  generateSpeech,
+  transcribe,
+  type SpeechOptions,
+  type SpeechResult,
+  type TranscriptionOptions
+} from '@cherrystudio/ai-core'
 import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 
-import type { SpeechOperation, TranscriptRevision, TranscriptionOperation } from '../executionTypes'
-import { VoiceCleanupError, VoiceRuntimeError } from '../VoiceRuntimeError'
+import type { SpeechOperation, TranscriptRevision, TranscriptionOperation } from './executionTypes'
+import { VoiceCleanupError, VoiceRuntimeError } from './VoiceRuntimeError'
 
 function completeExecution<T>(work: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal) {
   const controller = new AbortController()
@@ -39,6 +45,22 @@ function completeExecution<T>(work: (signal: AbortSignal) => Promise<T>, signal?
   }
 }
 
+export function completeSpeechExecution(
+  work: (signal: AbortSignal) => Promise<SpeechResult & { playbackRate?: number }>,
+  signal?: AbortSignal
+) {
+  const task = completeExecution(
+    async (executionSignal) => ({
+      kind: SpeechOutputKind.Audio,
+      ...(await work(executionSignal))
+    }),
+    signal
+  )
+  const completed = task.completed.then(() => undefined)
+  void completed.catch(() => undefined)
+  return { ...task, output: task.completed, completed }
+}
+
 export function completeSpeechOperation(
   createModel: (options: SpeechOptions) => SpeechModelV3
 ): Extract<SpeechOperation, { input: typeof SpeechInputKind.Text; output: typeof SpeechOutputKind.Audio }> {
@@ -48,13 +70,10 @@ export function completeSpeechOperation(
     start: (input, options, signal) => {
       const frozenOptions = { ...options }
       const text = input.text
-      const task = completeExecution(async (executionSignal) => {
-        const result = await generateSpeech(createModel(frozenOptions), text, frozenOptions, executionSignal)
-        return { kind: SpeechOutputKind.Audio, ...result }
-      }, signal)
-      const completed = task.completed.then(() => undefined)
-      void completed.catch(() => undefined)
-      return { ...task, output: task.completed, completed }
+      return completeSpeechExecution(
+        (executionSignal) => generateSpeech(createModel(frozenOptions), text, frozenOptions, executionSignal),
+        signal
+      )
     }
   }
 }

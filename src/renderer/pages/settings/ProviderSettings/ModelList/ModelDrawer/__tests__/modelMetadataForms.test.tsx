@@ -181,6 +181,39 @@ describe('model metadata persistence', () => {
       expect(supports({ ...disabled, ...update.mock.lastCall![0].body })).toBe(true)
     }
   )
+  it.each([undefined, ['text'] as const])(
+    'preserves capability-only image support when enabling audio with modalities %j',
+    async (inputModalities) => {
+      const user = userEvent.setup()
+      const original = ModelSchema.parse({
+        ...model,
+        capabilities: ['image-recognition', 'function-call'],
+        inputModalities
+      })
+      render(<EditModelDrawer providerId={provider.id} model={original} open onClose={vi.fn()} />)
+      expect(groupButton('Input Modalities', 'Image')).toHaveAttribute('aria-pressed', 'true')
+      await user.click(groupButton('Input Modalities', 'Audio'))
+      await waitFor(() =>
+        expect(update).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            body: { inputModalities: [...(inputModalities ?? []), 'image', 'audio'], capabilities: ['function-call'] }
+          })
+        )
+      )
+      const updated = { ...original, ...update.mock.lastCall![0].body }
+      expect(isVisionModel(updated)).toBe(true)
+      expect(isAudioModel(updated)).toBe(true)
+      await user.click(groupButton('Input Modalities', 'Image'))
+      await waitFor(() =>
+        expect(update).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            body: { inputModalities: [...(inputModalities ?? []), 'audio'], capabilities: ['function-call'] }
+          })
+        )
+      )
+      expect(isVisionModel({ ...updated, ...update.mock.lastCall![0].body })).toBe(false)
+    }
+  )
   it('clears output modalities without changing input modalities, capabilities or endpoints', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId={provider.id} model={model} open onClose={vi.fn()} />)

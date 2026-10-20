@@ -2,7 +2,7 @@
 
 Model definitions expose typed operation tables; `execution.ts` selects an operation
 and the model catalog derives `voiceCapabilities` from those same tables.
-`sdkOperations` wraps SDK models with independently observable results and cleanup.
+`../sdkOperations` wraps local and cloud SDK models with independently observable results and cleanup.
 `VoiceCleanupError` preserves the public failure reason while keeping failed cleanup
 visible through `closed` and `cancel()`; the owning session retains that failed handle.
 

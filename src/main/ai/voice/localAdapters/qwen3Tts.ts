@@ -21,11 +21,11 @@ import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
 import type { SpeechExecution, SpeechSource, SpeechRequest } from '../executionTypes'
+import { completeSpeechOperation } from '../sdkOperations'
 import type { LocalVoiceStatus, SpeechModelDefinition } from '../voiceModelTypes'
 import { mlxVoiceSupport } from '../voicePlatform'
 import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { withScratch } from './scratch'
-import { completeSpeechOperation } from './sdkOperations'
 
 const LANGUAGES: Record<string, string> = {
   'zh-CN': 'chinese',

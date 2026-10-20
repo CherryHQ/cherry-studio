@@ -14,6 +14,7 @@ import {
   WINDOWS_TTS_MODEL_ID
 } from '@shared/ai/localVoice'
 
+import { completeSpeechOperation, completeTranscriptionOperation } from '../sdkOperations'
 import type { TranscriptionModelDefinition, SpeechModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import { getVoiceEnvironment, type VoiceEnvironment } from '../voicePlatform'
@@ -21,7 +22,6 @@ import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { decodeVoiceRecording } from './recordingDecoder'
 import { withScratch } from './scratch'
-import { completeSpeechOperation, completeTranscriptionOperation } from './sdkOperations'
 import { nativeClient, normalizeFailure } from './systemSpeech'
 
 function supportsWindows(): boolean {

@@ -11,13 +11,13 @@ import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voic
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
 import type { TranscriptionOperation } from '../executionTypes'
+import { completeTranscriptionOperation } from '../sdkOperations'
 import type { TranscriptionModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import { mlxVoiceSupport } from '../voicePlatform'
 import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
 import { decodeVoiceRecording } from './recordingDecoder'
-import { completeTranscriptionOperation } from './sdkOperations'
 
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
 const logger = loggerService.withContext('Qwen3AsrAdapter')

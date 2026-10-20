@@ -444,6 +444,7 @@ describe('VoiceSettings', () => {
         ...models,
         {
           id: 'local-voice::qwen3-asr-1.7b',
+          capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION],
           name: 'Qwen3-ASR 1.7B (8-bit)',
           localeSelection: null,
           resourceOperations: [VoiceResourceOperation.Download]

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { MODALITY, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY, type Modality, type ModelCapability } from '@shared/data/types/model'
 
 import { toggleModelValue } from './helpers'
 import type { ModelMetadata } from './types'
@@ -27,14 +27,22 @@ const MODALITY_OPTIONS = [
   { value: MODALITY.VIDEO, label: 'models.type.video' }
 ] as const
 
-const INPUT_RECOGNITION_CAPABILITIES: readonly ModelCapability[] = [
-  MODEL_CAPABILITY.IMAGE_RECOGNITION,
-  MODEL_CAPABILITY.AUDIO_RECOGNITION,
-  MODEL_CAPABILITY.VIDEO_RECOGNITION
+const INPUT_RECOGNITION_OPTIONS: readonly { capability: ModelCapability; modality: Modality }[] = [
+  { capability: MODEL_CAPABILITY.IMAGE_RECOGNITION, modality: MODALITY.IMAGE },
+  { capability: MODEL_CAPABILITY.AUDIO_RECOGNITION, modality: MODALITY.AUDIO },
+  { capability: MODEL_CAPABILITY.VIDEO_RECOGNITION, modality: MODALITY.VIDEO }
 ]
 
 export function ModelMetadataControls({ value, onChange }: ModelMetadataControlsProps) {
   const { t } = useTranslation()
+  const inputModalities = [
+    ...new Set([
+      ...(value.inputModalities ?? []),
+      ...INPUT_RECOGNITION_OPTIONS.filter((option) => value.capabilities.includes(option.capability)).map(
+        (option) => option.modality
+      )
+    ])
+  ]
 
   return (
     <div className="space-y-4">
@@ -55,6 +63,7 @@ export function ModelMetadataControls({ value, onChange }: ModelMetadataControls
         </div>
       </div>
       {(['inputModalities', 'outputModalities'] as const).map((field) => {
+        const modalities = field === 'inputModalities' ? inputModalities : value.outputModalities
         const label = t(
           field === 'inputModalities'
             ? 'settings.models.add.input_modalities.label'
@@ -69,15 +78,16 @@ export function ModelMetadataControls({ value, onChange }: ModelMetadataControls
                   key={option.value}
                   type="button"
                   size="sm"
-                  variant={value[field]?.includes(option.value) ? 'secondary' : 'outline'}
-                  aria-pressed={value[field]?.includes(option.value) ?? false}
+                  variant={modalities?.includes(option.value) ? 'secondary' : 'outline'}
+                  aria-pressed={modalities?.includes(option.value) ?? false}
                   onClick={() =>
                     onChange({
-                      [field]: toggleModelValue(value[field], option.value),
+                      [field]: toggleModelValue(modalities, option.value),
                       ...(field === 'inputModalities'
                         ? {
                             capabilities: value.capabilities.filter(
-                              (capability) => !INPUT_RECOGNITION_CAPABILITIES.includes(capability)
+                              (capability) =>
+                                !INPUT_RECOGNITION_OPTIONS.some((option) => option.capability === capability)
                             )
                           }
                         : {})
