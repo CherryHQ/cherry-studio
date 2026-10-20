@@ -47,13 +47,14 @@ import { listBrowserToolPolicies } from './browserToolPolicy'
 
 export { CHERRY_MCP_SERVER }
 
-export type BuiltinToolApproval = 'auto' | 'required'
+export type BuiltinToolApproval = 'auto' | 'required' | 'delegation'
 export type BuiltinToolBypassApproval = 'lift' | 'enforce'
 
 export interface BuiltinToolPolicyEntry {
   readonly serverName: string
   readonly toolName: string
-  /** `auto`: Cherry pre-approves the tool; `required`: every interactive call asks unless bypassed. */
+  /** `auto`: pre-approved; `required`: asks unless bypassed.
+   * `delegation`: interactive-only, with approval following the session permission mode. */
   readonly approval: BuiltinToolApproval
   /** Whether Full Access lifts a `required` approval. */
   readonly bypassApproval: BuiltinToolBypassApproval
@@ -90,8 +91,8 @@ const BUILTIN_TOOL_POLICIES = {
   cherrySessionRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_READ_TOOL_NAME, 'auto'),
   cherryAgentList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'agent_list', 'auto'),
   cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
-  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'required', 'enforce'),
-  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'required', 'enforce'),
+  cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'delegation'),
+  cherrySessionSend: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEND_TOOL_NAME, 'delegation'),
   cherryCliList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_LIST_TOOL_NAME, 'auto'),
   cherryCliSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_SEARCH_TOOL_NAME, 'auto'),
   cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),

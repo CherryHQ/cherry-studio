@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
@@ -132,7 +132,8 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.284",
-    "@cherrystudio/computer-use": "0.1.7",
+    "@cherrystudio/computer-use": "0.1.9",
+    "@cherrystudio/mlx-asr": "github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr",
     "@cherrystudio/mlx-tts": "github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts",
     "@cherrystudio/remote-protocol": "workspace:*",
     "@cherrystudio/remote-transport": "workspace:*",
@@ -433,7 +434,7 @@
     "iconv-lite": "^0.6.3",
     "ignore": "^7.0.5",
     "ipaddr.js": "^2.2.0",
-    "isbinaryfile": "5.0.4",
+    "isbinaryfile": "5.0.7",
     "jaison": "^2.0.2",
     "js-base64": "3.7.7",
     "json-schema": "0.4.0",
