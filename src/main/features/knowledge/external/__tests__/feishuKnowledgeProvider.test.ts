@@ -11,6 +11,8 @@ import {
   revokeUserToken
 } from '../feishuKnowledgeProvider'
 
+const authorization = { appId: 'cli_test', appSecret: 'app-secret-sentinel', accessToken: 'access-token-sentinel' }
+
 function response(body: unknown, options: { status?: number; headers?: Record<string, string>; empty?: boolean } = {}) {
   const status = options.status ?? 200
   return {
@@ -22,7 +24,9 @@ function response(body: unknown, options: { status?: number; headers?: Record<st
 }
 
 describe('feishuKnowledgeProvider', () => {
-  beforeEach(() => vi.mocked(net.fetch).mockReset())
+  beforeEach(() => {
+    vi.mocked(net.fetch).mockReset()
+  })
   afterEach(() => vi.restoreAllMocks())
 
   it('starts device authorization with all required user scopes', async () => {
@@ -132,7 +136,7 @@ describe('feishuKnowledgeProvider', () => {
       })
     )
 
-    await expect(getUserIdentity('access-token-sentinel')).resolves.toEqual({
+    await expect(getUserIdentity(authorization)).resolves.toEqual({
       accountUserId: 'user_account',
       accountOpenId: 'ou_account',
       accountUnionId: 'on_union',
@@ -153,7 +157,7 @@ describe('feishuKnowledgeProvider', () => {
       })
     )
 
-    await expect(getUserIdentity('access-token')).rejects.toMatchObject({
+    await expect(getUserIdentity(authorization)).rejects.toMatchObject({
       code: 'identity-unverifiable',
       terminal: true
     })
@@ -172,7 +176,7 @@ describe('feishuKnowledgeProvider', () => {
       response({ code: 99991663, msg: 'rate limit' }, { status: 429, headers: { 'Retry-After': '3' } })
     )
 
-    const error = await getUserIdentity('access-token').catch((cause: unknown) => cause)
+    const error = await getUserIdentity(authorization).catch((cause: unknown) => cause)
 
     expect(error).toMatchObject({ code: 'transient', terminal: false, retryAfterMs: 3000 })
   })
@@ -180,7 +184,7 @@ describe('feishuKnowledgeProvider', () => {
   it('keeps non-JSON service failures retryable', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(response('gateway unavailable', { status: 503 }))
 
-    const error = await getUserIdentity('access-token').catch((cause: unknown) => cause)
+    const error = await getUserIdentity(authorization).catch((cause: unknown) => cause)
 
     expect(error).toMatchObject({ code: 'transient', terminal: false })
   })
@@ -197,7 +201,7 @@ describe('feishuKnowledgeProvider', () => {
         })
       })
     })
-    const request = getUserIdentity('access-token').catch((cause: unknown) => cause)
+    const request = getUserIdentity(authorization).catch((cause: unknown) => cause)
     await vi.waitFor(() => expect(net.fetch).toHaveBeenCalledOnce())
 
     timeoutController.abort(new DOMException('request timeout', 'TimeoutError'))
@@ -217,7 +221,7 @@ describe('feishuKnowledgeProvider', () => {
           init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
         })
     )
-    const request = getUserIdentity('access-token', caller.signal).catch((cause: unknown) => cause)
+    const request = getUserIdentity(authorization, caller.signal).catch((cause: unknown) => cause)
     await vi.waitFor(() => expect(net.fetch).toHaveBeenCalledOnce())
     const cancellation = new DOMException('caller cancelled', 'AbortError')
 

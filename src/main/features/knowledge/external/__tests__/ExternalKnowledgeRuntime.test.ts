@@ -19,6 +19,7 @@ import {
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
   getUserIdentity,
+  type FeishuUserAuthorization,
   type FeishuUserIdentity,
   type FeishuUserTokenSet
 } from '../feishuKnowledgeProvider'
@@ -166,7 +167,7 @@ function createProvider(overrides: Record<string, unknown> = {}) {
     beginDeviceAuthorization: vi.fn(),
     exchangeDeviceAuthorization: vi.fn(),
     refreshUserToken: vi.fn(),
-    getUserIdentity: vi.fn(async (accessToken: string) => {
+    getUserIdentity: vi.fn(async ({ accessToken }: FeishuUserAuthorization) => {
       const id = accessToken.replace(/^access-/, '')
       return {
         accountUserId: `user_${id}`,

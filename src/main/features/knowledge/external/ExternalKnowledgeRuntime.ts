@@ -26,6 +26,7 @@ import {
   revokeUserToken,
   type FeishuApplicationCredentials,
   type FeishuDeviceAuthorization,
+  type FeishuUserAuthorization,
   type FeishuUserIdentity,
   type FeishuUserTokenSet
 } from './feishuKnowledgeProvider'
@@ -73,7 +74,7 @@ type Provider = {
     refreshToken: string,
     signal?: AbortSignal
   ): Promise<FeishuUserTokenSet>
-  getUserIdentity(accessToken: string, signal?: AbortSignal): Promise<FeishuUserIdentity>
+  getUserIdentity(authorization: FeishuUserAuthorization, signal?: AbortSignal): Promise<FeishuUserIdentity>
   revokeUserToken(credentials: FeishuApplicationCredentials, refreshToken: string, signal?: AbortSignal): Promise<void>
 }
 
@@ -643,7 +644,7 @@ export class ExternalKnowledgeRuntime {
           generation: session.generation
         })
         const identity = await this.runCredentialRequest(state, session.generation, signal, () =>
-          this.provider.getUserIdentity(token.accessToken, signal)
+          this.provider.getUserIdentity({ ...session.credentials, accessToken: token.accessToken }, signal)
         )
         this.assertCredentialGeneration(state, session.generation)
         const connection = this.requireConnection(session.connectionId)
@@ -858,8 +859,9 @@ export class ExternalKnowledgeRuntime {
     generation: number,
     signal: AbortSignal
   ): Promise<ExternalKnowledgeConnection> {
+    const credential = await this.readCredential(connection, { state, generation })
     const identity = await this.runCredentialRequest(state, generation, signal, () =>
-      this.provider.getUserIdentity(accessToken, signal)
+      this.provider.getUserIdentity({ appId: credential.appId, appSecret: credential.appSecret, accessToken }, signal)
     )
     this.assertCredentialGeneration(state, generation)
     if (connection.accountUserId !== null && this.identityChanged(connection, identity)) {
