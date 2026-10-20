@@ -17,7 +17,6 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import { AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY } from '@shared/ai/agentSessionBackgroundTasks'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -880,13 +879,13 @@ export class ChannelMessageHandler {
     const topicId = buildAgentSessionTopicId(session.id)
     // Same retention rule as the scheduled fire: a settle with this request's background work still
     // pending owes this chat the work's result, stashed with the live task ids as its claim debt.
+    // The debt is read from the runtime's outbound ledger rather than the membership snapshot: a
+    // snapshot that has already drained holds no ids even though this run's task still owes a summary,
+    // and an empty debt reads as discharged -- no recipients stashed, and the receive-only turn that
+    // answers the chat never carries it.
     const retainForWake = () => {
       if (!application.get('AgentSessionRuntimeService').hasPendingBackgroundWork(session.id)) return
-      const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(session.id))
-      const owedTaskIds = new Set((tasks ?? []).map((task) => task.id))
-      // Occupancy outlives membership: the work can still be active while its snapshot has already
-      // drained to empty. An empty debt reads as already discharged, so retaining then would let the
-      // next wake — whatever work it belongs to — claim this chat and post its private output here.
+      const owedTaskIds = application.get('AgentSessionRuntimeService').listPublishedBackgroundTaskIds(session.id)
       if (owedTaskIds.size === 0) return
       application.get('AiStreamManager').stashWakeChannelListeners(topicId, [channelListener], owedTaskIds)
     }

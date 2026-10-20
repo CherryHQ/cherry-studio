@@ -498,6 +498,12 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
   /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
   private readonly inFlightBackgroundFlowFlushes = new Map<Promise<void>, string>()
+  /**
+   * Every background task id this session's live connection has published. Membership is a REPLACE
+   * snapshot, so it is the only place a drained-away task id survives — which is what a retaining
+   * caller needs when its terminal lands after the drain.
+   */
+  private readonly outboundBackgroundTaskIds = new Map<string, Set<string>>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -2376,6 +2382,31 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
+    this.rememberBackgroundTaskIds(entry.sessionId, tasks)
+  }
+
+  /**
+   * Union each published membership into the session's outbound-task ledger. Membership is a REPLACE
+   * snapshot: it holds exactly the tasks the driver still has, so a snapshot that has already drained
+   * says nothing about what this connection produced. Retaining a chat against background work
+   * needs the second fact, and the terminal edge it reads at can arrive after the drain.
+   */
+  private rememberBackgroundTaskIds(sessionId: string, tasks: AgentSessionBackgroundTasks): void {
+    let ids = this.outboundBackgroundTaskIds.get(sessionId)
+    if (!ids) {
+      ids = new Set<string>()
+      this.outboundBackgroundTaskIds.set(sessionId, ids)
+    }
+    for (const task of tasks) ids.add(task.id)
+  }
+
+  /**
+   * Task ids this session's live connection has published. Callers deciding whether detached work
+   * still owes them a delivery read this instead of the membership snapshot, which the driver may
+   * have drained to empty by the time their terminal edge runs.
+   */
+  listPublishedBackgroundTaskIds(sessionId: string): ReadonlySet<string> {
+    return new Set(this.outboundBackgroundTaskIds.get(sessionId) ?? [])
   }
 
   /**
@@ -2867,6 +2898,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const cache = application.get('CacheService')
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
+    // The ledger is per connection exactly like the level it mirrors.
+    this.outboundBackgroundTaskIds.delete(entry.sessionId)
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -3869,6 +3902,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // The background-task level is per CLI process, so the closing process's set must not outlive it.
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
+    this.outboundBackgroundTaskIds.delete(entry.sessionId)
 
     const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
     const connection = this.closeConnection(entry, false)

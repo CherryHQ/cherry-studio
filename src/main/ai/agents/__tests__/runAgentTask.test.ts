@@ -25,6 +25,7 @@ const {
   mockBindTaskSessionReuse,
   mockIsSessionBusy,
   mockHasPendingBackgroundWork,
+  mockListPublishedBackgroundTaskIds,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
   mockAssertAgentStorageDirectory,
@@ -44,6 +45,7 @@ const {
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
     mockHasPendingBackgroundWork: vi.fn(() => false),
+    mockListPublishedBackgroundTaskIds: vi.fn((): ReadonlySet<string> => new Set()),
     mockUpdateJobScheduleTx: vi.fn(),
     mockSyncJobScheduleTimerById: vi.fn(),
     mockAssertAgentStorageDirectory: vi.fn(),
@@ -67,7 +69,8 @@ vi.mock('@application', async () => {
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: {
       isSessionBusy: mockIsSessionBusy,
-      hasPendingBackgroundWork: mockHasPendingBackgroundWork
+      hasPendingBackgroundWork: mockHasPendingBackgroundWork,
+      listPublishedBackgroundTaskIds: mockListPublishedBackgroundTaskIds
     },
     // An untrusted agent directory pauses its heartbeat schedule.
     JobManager: {
@@ -257,6 +260,7 @@ describe('runAgentTask', () => {
     mockBindTaskSessionReuse.mockReset().mockReturnValue(true)
     mockIsSessionBusy.mockReset().mockReturnValue(false)
     mockHasPendingBackgroundWork.mockReset().mockReturnValue(false)
+    mockListPublishedBackgroundTaskIds.mockReset().mockReturnValue(new Set())
     vi.mocked(readHeartbeat).mockReset()
     mockAssertAgentStorageDirectory.mockReset().mockResolvedValue(undefined)
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
@@ -847,13 +851,9 @@ describe('runAgentTask', () => {
           }
         : undefined) as never)
     mockHasPendingBackgroundWork.mockReturnValue(true)
-    // The driver's live background set at settle time: the fire records these ids as the stash's
-    // debt, so the wake claims by ITS OWN tasks draining — not by the session-wide list emptying.
-    application
-      .get('CacheService')
-      .setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY('sess-new'), [
-        { id: 'task-a', type: 'task', description: 'review' }
-      ])
+    // The runtime's outbound ledger at settle time: the fire records these ids as the stash's debt,
+    // so the wake claims by ITS OWN tasks draining — not by the session-wide list emptying.
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-a']))
 
     const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
@@ -866,6 +866,47 @@ describe('runAgentTask', () => {
     expect(String(topicId)).toContain('session')
     expect(stashed.map((listener: { id: string }) => listener.id)).toEqual(['channel:ch1:chat-1:unthreaded'])
     expect(owesTaskIds).toEqual(new Set(['task-a']))
+  })
+
+  // The debt must survive membership disappearing. The driver publishes empty membership ahead of
+  // its terminal edge, so the last task can leave the snapshot before this settle runs. Reading the
+  // snapshot then yields an empty debt — which reads as discharged — so no recipients are stashed and
+  // the receive-only turn that answers the chats never carries them: the task's summary is stranded.
+  it('stashes the retained listeners when membership drained before the settle', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValueOnce([
+      { id: 'ch1', type: 'telegram', agentId: 'a1', isActive: true }
+    ] as never)
+    mockGetAdapter.mockImplementation(((channelId: string) =>
+      channelId === 'ch1'
+        ? {
+            channelId: 'ch1',
+            connected: true,
+            notifyChatIds: ['chat-1'],
+            sendMessage: vi.fn(async () => {}),
+            onTextUpdate: vi.fn(async () => {}),
+            onStreamComplete: vi.fn(async () => false)
+          }
+        : undefined) as never)
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockListPublishedBackgroundTaskIds.mockReturnValue(new Set(['task-a']))
+    // The membership snapshot has already drained: nothing is listed at the settle edge.
+    application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY('sess-new'), [])
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    await Promise.all(captured.listeners.map((listener) => Promise.resolve(listener.onDone?.({ status: 'success' }))))
+    await expect(promise).resolves.toEqual({ result: 'Completed' })
+
+    expect(mockListPublishedBackgroundTaskIds).toHaveBeenCalledWith('sess-new')
+    expect(mockStashWakeChannelListeners).toHaveBeenCalledWith(
+      expect.any(String),
+      [expect.objectContaining({ id: 'channel:ch1:chat-1:unthreaded' })],
+      new Set(['task-a'])
+    )
   })
 
   // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly

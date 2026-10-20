@@ -45,7 +45,6 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY } from '@shared/ai/agentSessionBackgroundTasks'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -297,12 +296,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
           for (const listener of channelListeners) listener.enableErrorDelivery()
         })
       // Bind the recipients to this fire's outstanding obligation explicitly: only the fire knows
-      // its background work still owes the chats a delivery. The live task set rides along as the
-      // stash's claim debt, so a concurrent fire's task can neither delay nor steal the claim.
-      const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(session.id))
-      const owedTaskIds = new Set((tasks ?? []).map((task) => task.id))
-      // Occupancy outlives membership: an empty debt reads as already discharged, so retaining then
-      // would hand these recipients to the next wake regardless of which work it belongs to.
+      // its background work still owes the chats a delivery. The debt comes from the runtime's
+      // outbound ledger rather than the membership snapshot: the last task can leave the snapshot
+      // before this settle runs, and an empty debt reads as discharged -- leaving the summary of a
+      // task that still owes it with no route to the subscribed chats.
+      const owedTaskIds = application.get('AgentSessionRuntimeService').listPublishedBackgroundTaskIds(session.id)
       if (owedTaskIds.size > 0) {
         application.get('AiStreamManager').stashWakeChannelListeners(topicId, channelListeners, owedTaskIds)
       }
