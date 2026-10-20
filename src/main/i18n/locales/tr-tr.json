@@ -31,6 +31,8 @@
   "apiGateway.docs.tags.cherry": "Cherry Studio'nun kendi uç noktaları: bilgi tabanları, hizmet bilgileri ve sistem durumu denetimi.",
   "apiGateway.docs.tags.gemini": "Kaynak API'de olduğu gibi `/v1beta` altında sunulan Gemini uyumlu uç noktalar.",
   "apiGateway.docs.tags.openai": "OpenAI uyumlu uç noktalar. Bunları kullanmak için bir OpenAI SDK'yı bu ağ geçidinin temel URL'sine yönlendirin.",
+  "api_gateway.errors.internal_bind_permission_denied": "İşletim sistemi dahili API Ağ Geçidinin {{address}}, istenen TCP bağlantı noktası {{port}} üzerinde dinlemesine izin vermedi (EACCES). İsteği yeniden deneyin. Yine başarısız olursa sistem yöneticinizden geri döngü dinleyicilerine yönelik kısıtlamaları kontrol etmesini isteyin.",
+  "api_gateway.errors.public_bind_permission_denied": "İşletim sistemi API Ağ Geçidinin {{address}}, TCP bağlantı noktası {{port}} üzerinde dinlemesine izin vermedi (EACCES). Ayarlar → API Ağ Geçidi altında farklı bir Bağlantı Noktası seçin, kaydetmek için alandan çıkın ve Başlat’a tıklayın. İstemcilerdeki uç noktayı güncelleyin.",
   "appMenu.about": "Hakkında",
   "appMenu.close": "Pencereyi Kapat",
   "appMenu.copy": "Kopyala",
