@@ -48,7 +48,7 @@ import {
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
@@ -481,6 +481,19 @@ function listSessionDeliveries(
   return { content: [{ type: 'text', text: JSON.stringify({ deliveries }) }] }
 }
 
+function resolveWorkspaceForNewSession(
+  ctx: AutonomyToolsContext,
+  targetAgentId: string | undefined
+): AgentSessionWorkspaceSource {
+  if (!targetAgentId || targetAgentId === ctx.agentId) return ctx.workspaceSource
+  // Match a human opening the target Agent: continue that Agent's own last workspace.
+  const latest = agentSessionService.getLatestActive({ agentId: targetAgentId })
+  if (!latest) return ctx.workspaceSource
+  return latest.workspace.type === AGENT_WORKSPACE_TYPE.USER
+    ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: latest.workspaceId }
+    : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+}
+
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
   const content = args.message.trim()
   const title = args.title?.trim() ?? ''
@@ -499,7 +512,7 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
     sessionName: title,
-    workspace: ctx.workspaceSource,
+    workspace: resolveWorkspaceForNewSession(ctx, targetAgentId),
     content,
     ...(targetAgentId ? { targetAgentId } : {})
   })
@@ -1159,7 +1172,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     SESSION_CREATE_TOOL_NAME,
     {
       description:
-        'Create a Session and send its first message. Omit target_agent_id for this Agent; it inherits the workspace policy.',
+        "Create a Session and send its first message. Omit target_agent_id for this Agent; it inherits the current workspace. With target_agent_id, the Session uses that Agent's own most recent workspace, falling back to the current workspace when the Agent has no Session.",
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))
