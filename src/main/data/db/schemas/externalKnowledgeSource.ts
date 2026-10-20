@@ -37,7 +37,6 @@ export const externalKnowledgeSourceTable = sqliteTable(
     lastStartedAt: integer(),
     lastFinishedAt: integer(),
     lastOutcome: text().$type<ExternalKnowledgeSyncOutcome>(),
-    lastScannedCount: integer(),
     lastIndexedCount: integer(),
     lastUnchangedCount: integer(),
     lastSkippedCount: integer(),
@@ -88,8 +87,7 @@ export const externalKnowledgeSourceTable = sqliteTable(
     ),
     check(
       'external_knowledge_source_counts_check',
-      sql`(${t.lastScannedCount} IS NULL OR ${t.lastScannedCount} >= 0)
-          AND (${t.lastIndexedCount} IS NULL OR ${t.lastIndexedCount} >= 0)
+      sql`(${t.lastIndexedCount} IS NULL OR ${t.lastIndexedCount} >= 0)
           AND (${t.lastUnchangedCount} IS NULL OR ${t.lastUnchangedCount} >= 0)
           AND (${t.lastSkippedCount} IS NULL OR ${t.lastSkippedCount} >= 0)
           AND (${t.lastWarningCount} IS NULL OR ${t.lastWarningCount} >= 0)`
