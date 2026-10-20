@@ -90,7 +90,10 @@ export function decideApproval(
   const rewritten = host.rewrittenArgs === undefined ? {} : { args: host.rewrittenArgs }
   const autoAllowed = host.autoApproved && !host.approvalRequired
   // Plan mode is read-only whatever the permission mode: what would ask in `default` is blocked too.
-  if (plan?.active && (host.category === 'edit' || (!autoAllowed && requiresApproval('default', call.tool, host))))
+  if (
+    planActive(mode, plan) &&
+    (host.category === 'edit' || (!autoAllowed && requiresApproval('default', call.tool, host)))
+  )
     return { kind: 'block', reason: PLAN_BLOCK }
   if (mode === 'bypassPermissions' && !host.nonBypassable) return { kind: 'allow', ...rewritten }
   if (autoAllowed || !requiresApproval(mode, call.tool, host)) return { kind: 'allow', ...rewritten }
