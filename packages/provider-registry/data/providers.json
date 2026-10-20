@@ -865,6 +865,29 @@
       "name": "LiteLLM"
     },
     {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "superbot - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.superbot.gg/v1",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "superbot",
+      "metadata": {
+        "website": {
+          "apiKey": "https://superbot.gg/api?utm_source=cherry-studio&utm_medium=registry&utm_campaign=default-slots",
+          "docs": "https://superbot.gg/api?utm_source=cherry-studio&utm_medium=registry&utm_campaign=default-slots",
+          "official": "https://superbot.gg/?utm_source=cherry-studio&utm_medium=registry&utm_campaign=default-slots"
+        }
+      },
+      "name": "superbot"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",

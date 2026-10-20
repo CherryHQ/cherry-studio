@@ -143,6 +143,7 @@ import { meta as smitheryMeta } from './smithery/meta'
 import { meta as sophnetMeta } from './sophnet/meta'
 import { meta as stabilityMeta } from './stability/meta'
 import { meta as stepMeta } from './step/meta'
+import { meta as superbotMeta } from './superbot/meta'
 import { meta as streamlakeMeta } from './streamlake/meta'
 import { meta as sunoMeta } from './suno/meta'
 import { meta as tavilyMeta } from './tavily/meta'
@@ -309,6 +310,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   sophnet: sophnetMeta,
   stability: stabilityMeta,
   step: stepMeta,
+  superbot: superbotMeta,
   streamlake: streamlakeMeta,
   suno: sunoMeta,
   tavily: tavilyMeta,
