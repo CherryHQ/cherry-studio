@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "データソースの追加に失敗しました",
   "knowledge.data_source.add_dialog.title": "データソースを追加",
-  "knowledge.data_source.add_dialog.too_many_sources": "一度に追加できるソースは最大で {{count}} 個までです。選択を減らして、もう一度お試しください。",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "サポートされていないファイル {{count}} 個をスキップしました",
   "knowledge.data_source.add_dialog.url.description": "ウェブページのURLを入力してください：",
   "knowledge.data_source.add_dialog.url.help": "ページのテキストは自動的に取得され、チャンク化され、インデックスされます",

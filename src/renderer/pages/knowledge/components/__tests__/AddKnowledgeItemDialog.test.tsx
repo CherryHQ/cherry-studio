@@ -275,7 +275,6 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.sources.url': '链接',
       'knowledge.data_source.add_dialog.submit.error': '添加数据源失败',
       'knowledge.data_source.add_dialog.title': '添加数据源',
-      'knowledge.data_source.add_dialog.too_many_sources': `单次最多添加 ${options?.count ?? 0} 个数据源，请减少选择后重试`,
       'knowledge.data_source.add_dialog.unsupported_files_skipped': `已跳过 ${options?.count ?? 0} 个不支持的文件`,
       'chat.save.knowledge.error.file_partial_failed': `${options?.count ?? 0} file(s) could not be saved`,
       'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
@@ -444,30 +443,20 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.warning).toHaveBeenCalledWith('1 file(s) could not be saved')
     })
 
-    it('warns and skips submit when the pick exceeds the per-batch limit', async () => {
-      const tooMany = Array.from({ length: 21 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
-      mockFileSelect.mockResolvedValueOnce(tooMany)
+    it('submits a large pick as one detect call so conflicts cover the whole selection', async () => {
+      const picked = Array.from({ length: 150 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
+      mockFileSelect.mockResolvedValueOnce(picked)
       const onOpenChange = vi.fn()
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(toast.warning).toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
-      })
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
-      await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
       })
-    })
-
-    it('submits a batch sitting exactly at the per-batch limit', async () => {
-      const atLimit = Array.from({ length: 20 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
-      mockFileSelect.mockResolvedValueOnce(atLimit)
-      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
-
-      await waitFor(() => {
-        expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
-      })
-      expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toHaveLength(20)
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+      const [items, strategy] = mockSubmitKnowledgeItems.mock.calls[0]
+      expect(strategy).toBe('detect')
+      expect(items).toHaveLength(150)
+      expect(items[149]).toEqual({ type: 'file', data: { source: '/picked/doc-149.pdf', path: '/picked/doc-149.pdf' } })
       expect(toast.warning).not.toHaveBeenCalled()
     })
 
@@ -579,19 +568,23 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockReadExternal).toHaveBeenCalledWith('/notes/Meeting notes.md')
     })
 
-    it('shows an inline error and skips submit when more notes than the limit are selected', async () => {
+    it('submits every selected note in one call when more than 20 are selected', async () => {
       setPendingAddSource('note')
       mockReadExternal.mockResolvedValue('body')
-      const notes = Array.from({ length: 21 }, (_, index) => createNoteNode(`Note ${index}`, `/notes/Note ${index}.md`))
+      const notes = Array.from({ length: 25 }, (_, index) => createNoteNode(`Note ${index}`, `/notes/Note ${index}.md`))
       mockProjectNotesTree.mockReturnValue(notes)
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
       fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
-      const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent('单次最多添加 20 个数据源，请减少选择后重试')
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+      })
+      const [items, strategy] = mockSubmitKnowledgeItems.mock.calls[0]
+      expect(strategy).toBe('detect')
+      expect(items).toHaveLength(25)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     it('surfaces a note tree load error instead of the empty state', () => {

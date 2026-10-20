@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "URL",
   "knowledge.data_source.add_dialog.submit.error": "Fehler beim Hinzufügen der Datenquelle",
   "knowledge.data_source.add_dialog.title": "Datenquelle hinzufügen",
-  "knowledge.data_source.add_dialog.too_many_sources": "Sie können maximal {{count}} Quellen gleichzeitig hinzufügen. Reduzieren Sie Ihre Auswahl und versuchen Sie es erneut.",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "{{count}} nicht unterstützte Datei(en) übersprungen",
   "knowledge.data_source.add_dialog.url.description": "Geben Sie die URL einer Webseite ein:",
   "knowledge.data_source.add_dialog.url.help": "Der Seitentext wird automatisch abgerufen, in Blöcke unterteilt und indiziert.",

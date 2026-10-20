@@ -1767,7 +1767,6 @@
   "knowledge.data_source.add_dialog.sources.url": "链接",
   "knowledge.data_source.add_dialog.submit.error": "添加数据源失败",
   "knowledge.data_source.add_dialog.title": "添加数据源",
-  "knowledge.data_source.add_dialog.too_many_sources": "单次最多添加 {{count}} 个数据源，请减少选择后重试",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
   "knowledge.data_source.add_dialog.url.description": "输入网页链接：",
   "knowledge.data_source.add_dialog.url.help": "将自动抓取页面文本并分块索引",
