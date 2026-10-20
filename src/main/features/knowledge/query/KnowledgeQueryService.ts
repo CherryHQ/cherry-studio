@@ -141,6 +141,13 @@ export class KnowledgeQueryService {
   getFilePath(itemId: string): AbsoluteFilePath {
     const item = knowledgeItemService.getById(itemId)
 
+    if (item.type === 'external' && item.status !== 'completed') {
+      throw DataApiErrorFactory.invalidOperation(
+        'getFilePath',
+        `External item '${itemId}' is not available for preview`
+      )
+    }
+
     if (item.type === 'file' || item.type === 'external') {
       return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
     }

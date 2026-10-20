@@ -112,7 +112,12 @@ export class KnowledgeService extends BaseService {
     assertBaseAvailable: this.assertExternalKnowledgeBaseAvailable
   })
   private readonly externalKnowledgeSourceLifecycle = new ExternalKnowledgeSourceLifecycle(
-    this.externalKnowledgeSyncAdmission
+    this.externalKnowledgeSyncAdmission,
+    {
+      knowledgeLockManager: this.knowledgeLockManager,
+      assertBaseAvailable: this.assertExternalKnowledgeBaseAvailable,
+      isDisconnecting: (sourceId) => this.externalKnowledgeDisconnect.isDisconnecting(sourceId)
+    }
   )
   private readonly externalKnowledgeDisconnect = new ExternalKnowledgeDisconnect(this.knowledgeLockManager)
   private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)

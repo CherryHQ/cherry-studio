@@ -35,6 +35,7 @@ vi.mock('@application', async () => {
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 
 const { ExternalKnowledgeDisconnect } = await import('../ExternalKnowledgeDisconnect')
+const { ExternalKnowledgeSourceLifecycle } = await import('../ExternalKnowledgeSourceLifecycle')
 
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
 const CONNECTION_ID = '0198f3f2-7d10-7abc-8def-123456789abc'
@@ -199,6 +200,59 @@ describe('ExternalKnowledgeDisconnect', () => {
         .run()
       return { id: DELETION_JOB_ID, snapshot: {}, finished: Promise.resolve({}) }
     })
+  })
+
+  it('preserves an in-flight disconnect while reauthorization commits', async () => {
+    const disconnect = new ExternalKnowledgeDisconnect(new KeyedMutex())
+    const lifecycle = new ExternalKnowledgeSourceLifecycle(
+      { requestSyncForTrigger: vi.fn() },
+      {
+        isDisconnecting: (id) => disconnect.isDisconnecting(id)
+      }
+    )
+    let finish!: () => void
+    const cancelled = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    cancelMock.mockImplementationOnce(async () => {
+      await cancelled
+      dbh.db.update(jobTable).set({ status: 'cancelled', finishedAt: 200 }).where(eq(jobTable.id, ACTIVE_JOB_ID)).run()
+      return { outcome: 'cancelled' }
+    })
+    const pending = disconnect.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })
+    await vi.waitFor(() => expect(dbh.db.select().from(externalKnowledgeSourceTable).get()?.state).toBe('paused'))
+    dbh.db
+      .update(externalKnowledgeConnectionTable)
+      .set({ authorizationStatus: 'reauthorization-required' })
+      .where(eq(externalKnowledgeConnectionTable.id, CONNECTION_ID))
+      .run()
+    const commit = lifecycle.commitReauthorization(CONNECTION_ID, {
+      expectedCredentialReference: 'cred_example',
+      candidateCredentialReference: 'replacement',
+      appId: 'cli_example',
+      appCredentialSource: 'personal-agent',
+      applicationName: null,
+      identity: {
+        accountUserId: 'user-1',
+        accountOpenId: 'open-1',
+        accountUnionId: null,
+        tenantKey: 'tenant-1',
+        displayName: 'User',
+        avatarUrl: null,
+        grantedScopes: ['wiki:node:read']
+      }
+    })
+    commit.afterCommit()
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({ state: 'paused', revision: 4 })
+    await expect(
+      lifecycle.updateSchedulePolicy({ sourceId: SOURCE_ID, policy: { kind: 'daily', time: '09:00', timezone: 'UTC' } })
+    ).rejects.toMatchObject({ code: ErrorCode.CONCURRENT_MODIFICATION })
+    finish()
+    await pending
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([])
+    expect(dbh.db.select().from(jobScheduleTable).all()).toEqual([])
+    expect(disconnect.isDisconnecting(SOURCE_ID)).toBe(false)
   })
 
   it('keeps completed local content ownerless while deleting the source and every document record', async () => {

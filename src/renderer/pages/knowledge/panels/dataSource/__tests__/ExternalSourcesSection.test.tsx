@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { Activity, useState } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
@@ -19,7 +19,7 @@ afterEach(async () => {
 const mockQuery = vi.fn()
 const mockDocuments = vi.fn()
 const mockRequest = vi.fn()
-const mockOpenExternal = vi.fn(async () => undefined)
+const mockOpenExternal = vi.fn(async (): Promise<void> => undefined)
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockQuery(...args),
@@ -955,6 +955,98 @@ describe('ExternalSourcesSection', () => {
       }
     }
   )
+
+  it.each(['unmount', 'hide-and-show'] as const)(
+    'cancels a late reconnect response after %s without opening authorization',
+    async (cleanupMode) => {
+      const user = userEvent.setup()
+      mockQuery.mockImplementation((path: string) => ({
+        data:
+          path === '/external-knowledge-connections'
+            ? [{ ...connection, authorizationStatus: 'reauthorization-required' }]
+            : [{ ...source, state: 'paused', activeJobId: null }],
+        refetch: vi.fn()
+      }))
+      let finish!: (value: unknown) => void
+      mockRequest.mockImplementation((route) =>
+        route === 'knowledge.feishu.connection.reconnect'
+          ? new Promise((resolve) => {
+              finish = resolve
+            })
+          : Promise.resolve(undefined)
+      )
+      const view = render(
+        <Activity mode="visible">
+          <SourcesHarness />
+        </Activity>
+      )
+      await openSourceSettings(user)
+      await user.click(screen.getByRole('button', { name: 'Manual sync' }))
+      if (cleanupMode === 'unmount') view.unmount()
+      else {
+        view.rerender(
+          <Activity mode="hidden">
+            <SourcesHarness />
+          </Activity>
+        )
+        view.rerender(
+          <Activity mode="visible">
+            <SourcesHarness />
+          </Activity>
+        )
+      }
+      await act(async () =>
+        finish({
+          authorizationSessionId: 'late-session',
+          verificationUri: 'https://feishu.example/verify',
+          userCode: 'LATE'
+        })
+      )
+      expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.cancel', {
+        authorizationSessionId: 'late-session'
+      })
+      expect(mockOpenExternal).not.toHaveBeenCalled()
+      expect(mockRequest.mock.calls.some(([route]) => route === 'knowledge.feishu.authorization.complete')).toBe(false)
+      expect(screen.queryByRole('dialog', { name: 'Reconnect' })).not.toBeInTheDocument()
+    }
+  )
+
+  it('does not complete authorization when the browser launch returns after cleanup', async () => {
+    const user = userEvent.setup()
+    mockQuery.mockImplementation((path: string) => ({
+      data:
+        path === '/external-knowledge-connections'
+          ? [{ ...connection, authorizationStatus: 'reauthorization-required' }]
+          : [{ ...source, state: 'paused', activeJobId: null }],
+      refetch: vi.fn()
+    }))
+    mockRequest.mockImplementation(async (route) =>
+      route === 'knowledge.feishu.connection.reconnect'
+        ? {
+            authorizationSessionId: 'started-session',
+            verificationUri: 'https://feishu.example/verify',
+            userCode: 'CODE'
+          }
+        : undefined
+    )
+    let opened!: () => void
+    mockOpenExternal.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          opened = resolve
+        })
+    )
+    const view = render(<SourcesHarness />)
+    await openSourceSettings(user)
+    await user.click(screen.getByRole('button', { name: 'Manual sync' }))
+    await screen.findByRole('dialog', { name: 'Reconnect' })
+    view.unmount()
+    await act(async () => opened())
+    expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.cancel', {
+      authorizationSessionId: 'started-session'
+    })
+    expect(mockRequest.mock.calls.some(([route]) => route === 'knowledge.feishu.authorization.complete')).toBe(false)
+  })
 
   it('lets users replace custom app credentials while keeping the source connection', async () => {
     const user = userEvent.setup()

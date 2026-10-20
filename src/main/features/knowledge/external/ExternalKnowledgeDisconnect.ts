@@ -21,7 +21,13 @@ export type DisconnectExternalKnowledgeSourceCommand = {
 }
 
 export class ExternalKnowledgeDisconnect {
+  private readonly pendingSourceIds = new Set<string>()
+
   constructor(private readonly knowledgeLockManager: KeyedMutex) {}
+
+  isDisconnecting(sourceId: string): boolean {
+    return this.pendingSourceIds.has(sourceId)
+  }
 
   async prepareExternalSourcesForBaseDeletion(baseId: string): Promise<string[]> {
     const sources = externalKnowledgeSourceService.listByBaseId(baseId)
@@ -47,6 +53,18 @@ export class ExternalKnowledgeDisconnect {
   }
 
   async disconnect(input: DisconnectExternalKnowledgeSourceCommand): Promise<void> {
+    if (this.isDisconnecting(input.sourceId)) {
+      throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeSource', input.sourceId)
+    }
+    this.pendingSourceIds.add(input.sourceId)
+    try {
+      await this.performDisconnect(input)
+    } finally {
+      this.pendingSourceIds.delete(input.sourceId)
+    }
+  }
+
+  private async performDisconnect(input: DisconnectExternalKnowledgeSourceCommand): Promise<void> {
     const source = externalKnowledgeSourceService.getById(input.sourceId)
     if (!source) throw DataApiErrorFactory.notFound('ExternalKnowledgeSource', input.sourceId)
 

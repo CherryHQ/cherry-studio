@@ -71,6 +71,11 @@ direct Docx URL must resolve to the same Docx object token. Missing,
 ill-typed, contradictory, duplicate, or wrong-parent data fails as an invalid
 provider response.
 
+Wiki URLs retain a node scope even when the selected node has no parent. Both
+preview and synchronization include that node and its visible descendants; whole-space
+scope is available only through explicit space selection. Untitled nodes use their
+remote object token as a stable title.
+
 Wiki preview includes the selected node and every visible descendant across all
 pages. Unsupported intermediate nodes remain traversal parents. A cross-space
 shortcut is visible and skipped, but is never followed outside the selected
@@ -212,7 +217,8 @@ Every provider call passes through the existing credential-scoped runtime lane.
 Token refresh and identity validation remain single-flight, and generation
 fences, abort signals, shutdown drain, Retry-After, and backoff remain owned by
 that runtime. Each HTTP call is the retry unit, so a later page failure does not
-replay earlier successful pages.
+replay earlier successful pages. Token freshness is checked after each admission
+wait, including retries, so long traversals can refresh without restarting the scan.
 
 The runtime uses conservative intervals derived from the official endpoint
 limits:

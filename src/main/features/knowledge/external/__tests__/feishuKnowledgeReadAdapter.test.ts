@@ -67,6 +67,8 @@ function operations(value: FeishuWikiNode = node()): FeishuKnowledgeReadOperatio
 describe('parseFeishuKnowledgeUrl', () => {
   it.each([
     ['https://acme.feishu.cn/wiki/wikcnRoot', { kind: 'wiki', token: 'wikcnRoot' }],
+    ['https://acme.feishu.cn/wiki/wikcnNode?next=%2e#foo/../bar', { kind: 'wiki', token: 'wikcnNode' }],
+    ['https://acme.feishu.cn/wiki/wikcnNode#%2e', { kind: 'wiki', token: 'wikcnNode' }],
     ['https://acme.feishu.cn/wiki/wikcnNode?from=space', { kind: 'wiki', token: 'wikcnNode' }],
     ['https://acme.feishu.cn/docx/doxcnDocument#heading', { kind: 'docx', token: 'doxcnDocument' }]
   ] as const)('recognizes supported China Feishu URLs and extracts only the trusted token', (url, expected) => {
@@ -88,7 +90,7 @@ describe('parseFeishuKnowledgeUrl', () => {
 })
 
 describe('resolveFeishuKnowledgeScope', () => {
-  it('resolves a Wiki root into a space scope and a safe selected descriptor', async () => {
+  it('resolves a Wiki root into its own node scope and a safe selected descriptor', async () => {
     const result = await resolveFeishuKnowledgeScope(
       { connection: connection(), url: 'https://acme.feishu.cn/wiki/wikcnRoot?secret=query' },
       operations(node({ parentNodeToken: null, nodeToken: 'wikcnRoot' }))
@@ -100,7 +102,7 @@ describe('resolveFeishuKnowledgeScope', () => {
       account: { userId: 'user-1', displayName: 'Ada' },
       tenantId: 'tenant-1',
       spaceId: 'space-1',
-      scope: { kind: 'space' },
+      scope: { kind: 'node', nodeId: 'wikcnRoot' },
       selected: {
         nodeId: 'wikcnRoot',
         remoteObjectId: 'doc-1',
@@ -502,6 +504,24 @@ describe('previewFeishuKnowledgeSpace', () => {
 })
 
 describe('scanFeishuKnowledgeSource', () => {
+  it('scans exactly the previewed root subtree when a sibling root exists', async () => {
+    const root = node({ nodeToken: 'rootA', objToken: 'docA', parentNodeToken: null, hasChild: false })
+    const sibling = node({ nodeToken: 'rootB', objToken: 'docB', parentNodeToken: null, hasChild: false })
+    const provider = operations(root)
+    vi.mocked(provider.listChildNodes).mockResolvedValue({ nodes: [root, sibling] })
+    const resolved = await resolveFeishuKnowledgeScope(
+      { connection: connection(), url: 'https://acme.feishu.cn/wiki/rootA' },
+      provider
+    )
+    const preview = await previewFeishuKnowledgeScope(
+      { connection: connection(), url: 'https://acme.feishu.cn/wiki/rootA' },
+      provider
+    )
+    const scan = await scanFeishuKnowledgeSource(resolved.resolution, provider)
+    expect(scan.canonicalReferences.map((item) => item.descriptor.remoteObjectId)).toEqual(['docA'])
+    expect(preview.references.map((item) => item.descriptor.remoteObjectId)).toEqual(['docA'])
+  })
+
   it('enumerates every paginated space root before traversing their descendants', async () => {
     const firstRoot = node({ nodeToken: 'root-a', objToken: 'doc-a', parentNodeToken: null, hasChild: true })
     const secondRoot = node({ nodeToken: 'root-b', objToken: 'doc-b', parentNodeToken: null })

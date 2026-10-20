@@ -76,7 +76,8 @@ function invalidScopeUrl(): never {
 }
 
 export function parseFeishuKnowledgeUrl(value: string): FeishuKnowledgeUrl {
-  if (value.toLowerCase().includes('/../') || /%2e/i.test(value)) invalidScopeUrl()
+  const rawPath = value.split(/[?#]/, 1)[0]
+  if (rawPath.includes('/../') || /%2e/i.test(rawPath)) invalidScopeUrl()
   let url: URL
   try {
     url = new URL(value)
@@ -149,9 +150,7 @@ export async function resolveFeishuKnowledgeScope(
   const scope =
     recognized.kind === 'docx'
       ? { kind: 'document' as const, nodeId: node.nodeToken, remoteObjectId: node.objToken }
-      : node.parentNodeToken === null
-        ? { kind: 'space' as const }
-        : { kind: 'node' as const, nodeId: node.nodeToken }
+      : { kind: 'node' as const, nodeId: node.nodeToken }
   return {
     resolution: {
       provider: 'feishu',

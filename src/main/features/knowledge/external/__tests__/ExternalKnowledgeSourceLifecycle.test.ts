@@ -8,6 +8,7 @@ import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 
 const SCHEDULE_ID = '33333333-3333-4333-8333-333333333333'
 
@@ -152,6 +153,40 @@ describe('ExternalKnowledgeSourceLifecycle', () => {
       return result.changes > 0
     })
     requestSyncForTriggerMock.mockResolvedValue(undefined)
+  })
+
+  it('cannot recreate a schedule after base teardown has removed its source', async () => {
+    seedSource({ scheduleId: SCHEDULE_ID })
+    const lock = new KeyedMutex()
+    const coordinated = new ExternalKnowledgeSourceLifecycle(
+      { requestSyncForTrigger: requestSyncForTriggerMock },
+      { knowledgeLockManager: lock }
+    )
+    let release!: () => void
+    const storeDeletion = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let removed!: () => void
+    const scheduleRemoved = new Promise<void>((resolve) => {
+      removed = resolve
+    })
+    const deleting = lock.runExclusive(BASE_ID, async () => {
+      await unregisterScheduleMock(SCHEDULE_ID)
+      removed()
+      await storeDeletion
+      dbh.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, BASE_ID)).run()
+    })
+    await scheduleRemoved
+    const update = coordinated.updateSchedulePolicy({
+      sourceId: SOURCE_ID,
+      policy: { kind: 'daily', time: '10:00', timezone: 'UTC' }
+    })
+    const rejected = expect(update).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    release()
+    await deleting
+    await rejected
+    expect(dbh.db.select().from(jobScheduleTable).all()).toEqual([])
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toEqual([])
   })
 
   it('keeps the default manual-only policy without creating a schedule', async () => {

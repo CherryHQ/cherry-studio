@@ -236,11 +236,7 @@ function parseRetryAfter(value: string | null): number | undefined {
   return Number.isNaN(timestamp) ? undefined : Math.max(0, timestamp - Date.now())
 }
 
-function classifyError(
-  response: Response,
-  body: Record<string, unknown>,
-  classifyMissingScope = false
-): FeishuProviderError {
+function classifyError(response: Response, body: Record<string, unknown>): FeishuProviderError {
   const oauthError = typeof body.error === 'string' ? body.error : undefined
   const providerCode = typeof body.code === 'number' ? body.code : undefined
   const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'))
@@ -265,7 +261,7 @@ function classifyError(
   if (oauthError === 'access_denied') return failure('authorization-denied', true)
   if (oauthError === 'expired_token') return failure('authorization-expired', true)
   if (oauthError === 'invalid_scope') return failure('app-scope-missing', true)
-  if (classifyMissingScope && (providerCode === 99991672 || providerCode === 99991676 || providerCode === 99991679)) {
+  if (providerCode === 99991672 || providerCode === 99991676 || providerCode === 99991679) {
     return failure('app-scope-missing', true)
   }
   if (providerCode === 131005) return failure('scope-not-found', false)
@@ -274,7 +270,7 @@ function classifyError(
   if (providerCode === 2889906 || providerCode === 2889914) {
     return failure('scope-not-found', false)
   }
-  if (oauthError === 'invalid_grant' || response.status === 401) {
+  if (oauthError === 'invalid_grant' || providerCode === 20005 || response.status === 401) {
     return failure('reauthorization-required', true)
   }
   if (providerCode === 99991663 || response.status === 429 || response.status >= 500) {
@@ -286,7 +282,7 @@ function classifyError(
 async function request(
   url: string,
   init: RequestInit,
-  options: { allowEmpty?: boolean; classifyMissingScope?: boolean } = {}
+  options: { allowEmpty?: boolean } = {}
 ): Promise<Record<string, unknown> | null> {
   const callerSignal = init.signal ?? undefined
   const timeoutSignal = AbortSignal.timeout(FEISHU_REQUEST_TIMEOUT_MS)
@@ -307,37 +303,33 @@ async function request(
   try {
     parsedBody = JSON.parse(text)
   } catch {
-    if (!response.ok) throw classifyError(response, {}, options.classifyMissingScope)
+    if (!response.ok) throw classifyError(response, {})
     throw new FeishuProviderError('invalid-response', false)
   }
 
   if (parsedBody === null || typeof parsedBody !== 'object' || Array.isArray(parsedBody)) {
-    if (!response.ok) throw classifyError(response, {}, options.classifyMissingScope)
+    if (!response.ok) throw classifyError(response, {})
     throw new FeishuProviderError('invalid-response', false)
   }
   const body = parsedBody as Record<string, unknown>
 
   if (!response.ok || (typeof body.code === 'number' && body.code !== 0)) {
-    throw classifyError(response, body, options.classifyMissingScope)
+    throw classifyError(response, body)
   }
   return body
 }
 
-function createReadClient(authorization: FeishuUserAuthorization, signal?: AbortSignal, classifyMissingScope = false) {
+function createReadClient(authorization: FeishuUserAuthorization, signal?: AbortSignal) {
   // Generated SDK methods drop per-call signals; bind cancellation to this request's transport.
   const httpInstance = axios.create({
     adapter: async (config) => ({
-      data: await request(
-        axios.getUri(config),
-        {
-          method: config.method,
-          headers: Object.fromEntries(
-            Object.entries(config.headers.toJSON()).map(([key, value]) => [key, String(value)])
-          ),
-          signal
-        },
-        { classifyMissingScope }
-      ),
+      data: await request(axios.getUri(config), {
+        method: config.method,
+        headers: Object.fromEntries(
+          Object.entries(config.headers.toJSON()).map(([key, value]) => [key, String(value)])
+        ),
+        signal
+      }),
       status: 200,
       statusText: 'OK',
       headers: {},
@@ -489,7 +481,7 @@ export async function listWikiSpaces(
   pageToken?: string,
   signal?: AbortSignal
 ): Promise<FeishuWikiSpacePage> {
-  const { client, options } = createReadClient(authorization, signal, true)
+  const { client, options } = createReadClient(authorization, signal)
   const parsed = wikiSpacePageResponseSchema.safeParse(
     await client.wiki.v2.space.list({ params: { page_size: 50, page_token: pageToken } }, options)
   )
@@ -514,7 +506,7 @@ function normalizeWikiNode(node: z.infer<typeof wikiNodeSchema>): FeishuWikiNode
     nodeType: node.node_type,
     originNodeToken: node.origin_node_token || null,
     originSpaceId: node.origin_space_id || null,
-    title: node.title,
+    title: node.title || node.obj_token,
     hasChild: node.has_child,
     objEditTime: node.obj_edit_time === null || node.obj_edit_time === undefined ? null : String(node.obj_edit_time)
   }

@@ -89,6 +89,15 @@ describe('feishuKnowledgeProvider', () => {
     expect(logs).not.toContain(authorization.appSecret)
   })
 
+  it.each(['node', 'children'] as const)('classifies missing application scopes on Wiki SDK reads', async (kind) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ code: 99991672, msg: 'missing permissions' }))
+    await expect(
+      kind === 'node'
+        ? getWikiNode(authorization, { token: 'wiki-node', objType: 'wiki' })
+        : listWikiChildNodes(authorization, 'space-id', undefined)
+    ).rejects.toMatchObject({ code: 'app-scope-missing', terminal: true })
+  })
+
   it('starts device authorization with all required user scopes', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(
       response({
@@ -309,7 +318,7 @@ describe('feishuKnowledgeProvider', () => {
     )
   })
 
-  it('accepts an origin Wiki node with empty optional metadata', async () => {
+  it('normalizes an untitled Wiki document without rejecting empty optional metadata', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(
       response({
         code: 0,
@@ -339,7 +348,7 @@ describe('feishuKnowledgeProvider', () => {
       nodeType: 'origin',
       originNodeToken: null,
       originSpaceId: null,
-      title: '',
+      title: 'doxcnDocument',
       hasChild: false,
       objEditTime: null
     })

@@ -480,6 +480,66 @@ describe('ExternalKnowledgeRuntime', () => {
     expect(waits).toEqual([600])
   })
 
+  it('refreshes an expiring token after page admission waits without deadlocking the credential lane', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one')
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    let now = 1_000
+    const waits: number[] = []
+    const pageRequestTimes: number[] = []
+    const tokens: string[] = []
+    const provider = createProvider({
+      refreshUserToken: vi.fn(async () => ({
+        accessToken: 'new-token',
+        refreshToken: 'new-refresh',
+        expiresIn: 7200,
+        refreshTokenExpiresIn: 604800,
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+      })),
+      getWikiNode: vi.fn(async () => ({
+        spaceId: 'space-1',
+        nodeToken: 'root',
+        objToken: 'doc-root',
+        objType: 'docx',
+        parentNodeToken: null,
+        nodeType: 'origin',
+        originNodeToken: null,
+        originSpaceId: null,
+        title: 'Root',
+        hasChild: true,
+        objEditTime: '42'
+      })),
+      listWikiChildNodes: vi.fn(async (authorization: FeishuUserAuthorization) => {
+        tokens.push(authorization.accessToken)
+        pageRequestTimes.push(now)
+        return pageRequestTimes.length === 1 ? { nodes: [], nextPageToken: 'page-2' } : { nodes: [] }
+      })
+    })
+    const runtime = new ExternalKnowledgeRuntime({
+      connections,
+      credentials,
+      provider,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        waits.push(milliseconds)
+        now += milliseconds + 3_600_000
+      }
+    })
+    await runtime.start()
+
+    await expect(runtime.previewFeishuScope(value.id, 'https://acme.feishu.cn/wiki/root')).resolves.toMatchObject({
+      visibleNodeCount: 1,
+      supportedDocxCount: 1
+    })
+    expect(tokens).toEqual(['access-one', 'new-token'])
+    expect(connections.getById(value.id)?.authorizationStatus).toBe('connected')
+    expect(credentials.rotateCalls).toBe(1)
+    expect(waits).toEqual([600])
+    await runtime.stop()
+  })
+
   it('retries only the failing provider call instead of replaying completed traversal work', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
@@ -3256,6 +3316,42 @@ describe('ExternalKnowledgeRuntime', () => {
 
 describe('ExternalKnowledgeRuntime interrupted initial authorization', () => {
   setupTestDatabase()
+
+  it('invalidates a persisted connection when the SDK receives HTTP 200 with invalid-token code 20005', async () => {
+    const credentials = new MemoryCredentials()
+    const created = externalKnowledgeConnectionService.create({
+      appId: 'cli_one',
+      appCredentialSource: 'custom-app',
+      credentialReference: 'ref-one'
+    })
+    externalKnowledgeConnectionService.markConnected(created.id, {
+      accountUserId: 'user_one',
+      accountOpenId: 'ou_one',
+      accountUnionId: null,
+      tenantKey: 'tenant_one',
+      displayName: 'User',
+      avatarUrl: null,
+      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+    })
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValue(Response.json({ code: 20005, msg: 'invalid access token' }))
+    const runtime = new ExternalKnowledgeRuntime({ credentials, now: () => 1_000 })
+    await runtime.start()
+    try {
+      await expect(runtime.runAuthorizedRequest(created.id, async () => 'unreachable')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      expect(externalKnowledgeConnectionService.getById(created.id)?.authorizationStatus).toBe(
+        'reauthorization-required'
+      )
+      await expect(runtime.acquireAccessToken(created.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+    } finally {
+      await runtime.stop()
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
 
   it('binds the first identity through replacement reconnect after startup reconciliation', async () => {
     const credentials = new MemoryCredentials()

@@ -8,6 +8,7 @@ import {
   encodeExternalKnowledgeDailySchedule,
   externalKnowledgeSourceService
 } from '@data/services/ExternalKnowledgeSourceService'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { isTerminalStatus } from '@shared/data/api/schemas/jobs'
 import type {
@@ -28,6 +29,9 @@ type SyncRequester = {
 }
 
 type LifecycleDependencies = {
+  knowledgeLockManager: KeyedMutex
+  assertBaseAvailable(baseId: string): void
+  isDisconnecting(sourceId: string): boolean
   waitForRetry(signal: AbortSignal): Promise<void>
 }
 
@@ -38,8 +42,8 @@ type ConnectionSourceStateChange = {
   scheduleIds: string[]
 }
 
-const defaultDependencies: LifecycleDependencies = {
-  waitForRetry: (signal) =>
+const defaultDependencies = {
+  waitForRetry: (signal: AbortSignal) =>
     new Promise<void>((resolve, reject) => {
       const onAbort = () => {
         clearTimeout(handle)
@@ -65,12 +69,37 @@ function scheduleTemplate(source: ExternalKnowledgeSource, sourceRevision = sour
 }
 
 export class ExternalKnowledgeSourceLifecycle {
+  private readonly dependencies: LifecycleDependencies
   constructor(
     private readonly syncRequester: SyncRequester,
-    private readonly dependencies: LifecycleDependencies = defaultDependencies
-  ) {}
+    dependencies: Partial<LifecycleDependencies> = {}
+  ) {
+    this.dependencies = {
+      ...defaultDependencies,
+      knowledgeLockManager: new KeyedMutex(),
+      assertBaseAvailable: () => {},
+      isDisconnecting: () => false,
+      ...dependencies
+    }
+  }
 
   async updateSchedulePolicy(input: {
+    sourceId: string
+    policy: ExternalKnowledgeSchedulePolicy
+  }): Promise<ExternalKnowledgeSource> {
+    const source = externalKnowledgeSourceService.getById(input.sourceId)
+    if (!source) throw DataApiErrorFactory.notFound('ExternalKnowledgeSource', input.sourceId)
+    this.dependencies.assertBaseAvailable(source.baseId)
+    return await this.dependencies.knowledgeLockManager.runExclusive(source.baseId, async () => {
+      this.dependencies.assertBaseAvailable(source.baseId)
+      if (this.dependencies.isDisconnecting(input.sourceId)) {
+        throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeSource', input.sourceId)
+      }
+      return await this.updateScheduleWithinLock(input)
+    })
+  }
+
+  private async updateScheduleWithinLock(input: {
     sourceId: string
     policy: ExternalKnowledgeSchedulePolicy
   }): Promise<ExternalKnowledgeSource> {
@@ -228,6 +257,9 @@ export class ExternalKnowledgeSourceLifecycle {
     sourceId: string,
     state: ExternalKnowledgeSourceState
   ): Promise<ExternalKnowledgeSource> {
+    if (this.dependencies.isDisconnecting(sourceId)) {
+      throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeSource', sourceId)
+    }
     const scheduleId = application.get('DbService').withWriteTx((tx) => {
       const source = externalKnowledgeSourceService.getByIdTx(tx, sourceId)
       if (!source) throw DataApiErrorFactory.notFound('ExternalKnowledgeSource', sourceId)
@@ -271,6 +303,7 @@ export class ExternalKnowledgeSourceLifecycle {
     const changedSourceIds: string[] = []
     const scheduleIds: string[] = []
     for (const source of externalKnowledgeSourceService.listByConnectionIdTx(tx, connectionId)) {
+      if (this.dependencies.isDisconnecting(source.id)) continue
       const nextRevision = source.state === state ? source.revision : source.revision + 1
       if (source.scheduleId) {
         const updated = application.get('JobManager').updateJobScheduleTx(tx, source.scheduleId, {

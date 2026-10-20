@@ -188,7 +188,9 @@ schedules in one synchronous main-database transaction. Successful
 reauthorization likewise commits the Connection replacement, Source revision
 and state changes, and schedule eligibility atomically. Timer synchronization
 and read-model notifications run only after commit, and reauthorization does
-not enqueue an immediate synchronization.
+not enqueue an immediate synchronization. Sources with an in-flight disconnect
+are excluded from authorization-driven state changes; schedule mutations share
+the base deletion mutex and admission fence.
 
 Connection removal has a durable-delete-first contract. The runtime first runs
 a no-side-effect Source-reference preflight, closes admission for that
@@ -224,7 +226,10 @@ mark the old owner deleting, and enqueue cleanup atomically. A successful sync
 means prior content is hidden and its cleanup Job is durably accepted; physical
 artifact deletion may finish later. Stage failure preserves the deleting row as
 the durable artifact locator and attempts cleanup admission separately. A failed
-or cancelled scan never treats unseen documents as deleted.
+or cancelled scan never treats unseen documents as deleted. Unchanged revisions
+or content hashes skip indexing only for completed local owners, checked under
+the mutation lock; failed owners rebuild through the same staged publication path.
+External preview paths are returned only for completed items.
 
 ## External Connection Authorization
 
@@ -306,8 +311,9 @@ Explicit validation invalidates the generation's successful validation cache;
 concurrent validation calls share one request. Ordinary provider work reuses a
 successful generation-level validation. Token acquisition, identity validation,
 and the provider operation share a terminal-error boundary: HTTP 401,
-`invalid_grant`, and missing required scopes require reauthorization; transient
+`invalid_grant`, invalid-token code `20005`, and missing required scopes require reauthorization; transient
 timeouts and caller or lifecycle cancellation do not change authorization state.
+Paginated reads refresh expiring tokens after each request admission wait, including retries.
 Stale generations cannot publish success or failure. Startup calls share one
 reconciliation flight; shutdown closes admission, aborts work, and waits for
 startup and tracked operations before clearing runtime state.
@@ -537,7 +543,7 @@ an active-owned descendant.
 
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
-If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery and the beginning of each external Source sync scan committed `deleting` roots and re-enqueue cleanup jobs best-effort when already-durable cleanup was interrupted or failed. Recovery groups roots by base and admits at most 500 roots per transaction and Job so one failure does not stop other batches.
+If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery and the beginning of each external Source sync scan committed `deleting` roots and re-enqueue cleanup jobs best-effort when already-durable cleanup was interrupted or failed. All cleanup admissions contain at most 500 roots per Job. Source withdrawal keeps every cleanup batch in its single transaction; recovery groups roots by base and uses one transaction per batch so one failure does not stop other batches.
 An external sync excludes its in-process active staging ids from recovery; the
 committed deleting rows become recoverable again after completion or process
 failure.

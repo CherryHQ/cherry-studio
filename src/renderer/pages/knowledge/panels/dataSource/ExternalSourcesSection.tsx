@@ -271,12 +271,17 @@ const ExternalSourcesSection = ({
   const [configError, setConfigError] = useState<string | null>(null)
   const [authSession, setAuthSession] = useState<{ id: string; uri: string; code: string } | null>(null)
   const authSessionId = useRef<string | null>(null)
+  const authorizationAttempt = useRef(0)
   useEffect(() => {
+    setBusyId(null)
+    setAuthSession(null)
     return () => {
+      authorizationAttempt.current += 1
       if (authSessionId.current) {
         void ipcApi.request('knowledge.feishu.authorization.cancel', {
           authorizationSessionId: authSessionId.current
         })
+        authSessionId.current = null
       }
     }
   }, [])
@@ -378,6 +383,8 @@ const ExternalSourcesSection = ({
     }
   }
   const cancelAuthorization = () => {
+    authorizationAttempt.current += 1
+    setBusyId(null)
     if (authSessionId.current) {
       void ipcApi.request('knowledge.feishu.authorization.cancel', {
         authorizationSessionId: authSessionId.current
@@ -391,6 +398,8 @@ const ExternalSourcesSection = ({
     credentials?: InputFor<'knowledge.feishu.connection.reconnect'>['credentials']
   ): Promise<boolean> => {
     if (isBusy) return false
+    const attempt = ++authorizationAttempt.current
+    const isCurrent = () => authorizationAttempt.current === attempt
     setBusyId(connection.id)
     let startedId: string | null = null
     try {
@@ -399,21 +408,29 @@ const ExternalSourcesSection = ({
         connectionId: connection.id,
         ...(credentials ? { credentials } : {})
       })
+      if (!isCurrent()) {
+        await ipcApi.request('knowledge.feishu.authorization.cancel', {
+          authorizationSessionId: started.authorizationSessionId
+        })
+        return false
+      }
       setEditConnectionId(null)
       setAppSecret('')
       startedId = started.authorizationSessionId
       authSessionId.current = started.authorizationSessionId
       setAuthSession({ id: started.authorizationSessionId, uri: started.verificationUri, code: started.userCode })
       await window.api.shell.openExternal(started.verificationUri)
+      if (!isCurrent()) return false
       await ipcApi.request('knowledge.feishu.authorization.complete', {
         authorizationSessionId: started.authorizationSessionId
       })
-      if (authSessionId.current !== started.authorizationSessionId) return false
+      if (!isCurrent() || authSessionId.current !== started.authorizationSessionId) return false
       authSessionId.current = null
       setAuthSession(null)
       refresh()
       return true
     } catch (cause) {
+      if (!isCurrent()) return false
       if (!startedId || authSessionId.current === startedId) {
         const message = formatErrorMessageWithPrefix(cause, t('knowledge.external.sources.reconnect_error'))
         if (credentials && !startedId) setConfigError(message)
@@ -428,7 +445,7 @@ const ExternalSourcesSection = ({
       setAuthSession(null)
       return false
     } finally {
-      setBusyId(null)
+      if (isCurrent()) setBusyId(null)
     }
   }
 
