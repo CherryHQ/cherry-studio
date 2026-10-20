@@ -11,7 +11,7 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
-import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const mocks = vi.hoisted(() => ({
@@ -36,9 +36,10 @@ const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as con
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
-  approval: 'required',
   mountedServers: WITHOUT_HOST_TOOLS
-}).map(toMcpRuntimeName)
+})
+  .filter(({ approval }) => approval !== 'auto')
+  .map(toMcpRuntimeName)
 const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
   .filter((entry) => !WITHOUT_HOST_TOOLS.has(entry.serverName))
   .map(toMcpRuntimeName)
@@ -298,33 +299,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('skill-install', () => {
-    const install = 'mcp__skills__install_skill'
-
-    it('denies headless installation outside bypass', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: install, interaction: { currentTurn: 'headless', userResponse: 'stream' } })
-      )
-      expect(decision?.ruleId).toBe('skill-install')
-    })
-
-    it('lifts the headless deny under bypassPermissions (explicit unattended opt-in)', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: install,
-            permissionMode: 'bypassPermissions',
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-    })
-
-    it('does not gate interactive installation (canUseTool handles it)', async () => {
-      await expect(evaluate(makeCtx({ toolName: install }))).resolves.toBeUndefined()
-    })
-  })
-
   describe('interactive-headless + ask-user-question', () => {
     it('denies interactive tools with no responder in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
@@ -499,20 +473,38 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('non-bypassable-approval', () => {
-    const sessionSend = toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME)
+  describe.each([SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME])('delegation approval: %s', (name) => {
+    const toolName = toCherryBuiltinRuntimeName(name)
 
-    it('requires live approval under bypassPermissions', async () => {
-      await expect(
-        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions' }))
-      ).resolves.toMatchObject({ effect: 'ask', ruleId: 'non-bypassable-approval' })
+    it.each(['auto', 'bypassPermissions'] as const)(
+      'does not ask in an interactive %s turn',
+      async (permissionMode) => {
+        await expect(evaluate(makeCtx({ toolName, permissionMode }))).resolves.toBeUndefined()
+        await expect(evaluate(makeCtx({ toolName, permissionMode, isDisabled: () => true }))).resolves.toMatchObject({
+          effect: 'deny',
+          ruleId: 'disabled-tool'
+        })
+      }
+    )
+
+    it.each(['default', 'acceptEdits', 'plan'] as const)('asks in %s', async (permissionMode) => {
+      await expect(evaluate(makeCtx({ toolName, permissionMode }))).resolves.toMatchObject({ effect: 'ask' })
     })
 
-    it('denies an unattended delegation under bypassPermissions', async () => {
-      await expect(
-        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
-      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'non-bypassable-approval' })
-    })
+    it.each(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'] as const)(
+      'denies unattended delegation in %s',
+      async (permissionMode) => {
+        for (const interaction of [
+          HEADLESS,
+          { ...HEADLESS, userResponse: 'stream' },
+          { ...INTERACTIVE, userResponse: 'unavailable' }
+        ] as const) {
+          await expect(evaluate(makeCtx({ toolName, permissionMode, interaction }))).resolves.toMatchObject({
+            effect: 'deny'
+          })
+        }
+      }
+    )
   })
 
   describe('user-data-sqlite-write', () => {

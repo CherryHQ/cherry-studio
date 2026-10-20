@@ -83,6 +83,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [keepIntermediateAssistantText, setKeepIntermediateAssistantText] = usePreference(
     'chat.message.keep_intermediate_text'
   )
+  const [userMessageDefaultExpanded, setUserMessageDefaultExpanded] = usePreference(
+    'chat.message.user_content.default_expanded'
+  )
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
@@ -365,6 +368,15 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               onCheckedChange={setKeepIntermediateAssistantText}
               label={t('settings.messages.keep_intermediate_text.label')}
               hint={t('settings.messages.keep_intermediate_text.hint')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-user-message-default-expanded" className="scroll-mt-6">
+            <SettingSwitch
+              checked={userMessageDefaultExpanded}
+              onCheckedChange={setUserMessageDefaultExpanded}
+              label={t('settings.messages.user_content.default_expanded.label')}
+              hint={t('settings.messages.user_content.default_expanded.hint')}
             />
           </SettingRow>
           <SettingDivider />

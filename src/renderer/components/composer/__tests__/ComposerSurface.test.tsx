@@ -1,14 +1,19 @@
-import { mockToast } from '@test-mocks/renderer/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Editor } from '@tiptap/core'
+import { Mapping } from '@tiptap/pm/transform'
 import type * as TiptapReact from '@tiptap/react'
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
+import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
+import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { voiceTargetManager } from '@renderer/services/voice'
+import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
+import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   createComposerClipboardFragment,
@@ -17,9 +22,11 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 
 import { ComposerContextProvider, ComposerLayerActiveProvider } from '../ComposerContext'
-import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
+import { serializeComposerDocument } from '../composerDraft'
 import type * as ComposerPreset from '../composerPreset'
+import DeferredComposerSurface from '../ComposerSurface'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
+import type * as PasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
@@ -28,14 +35,17 @@ const mocks = vi.hoisted(() => ({
   currentView: undefined as any,
   stabilizeEditor: false,
   simulateDeferredEditorStyle: false,
+  editorAbsent: false,
   actions: undefined as ComposerSurfaceActions | undefined,
   editorClientHeight: 28,
   deferredEditorMinHeight: 46,
   editorContentLineCount: 1,
   editorViewComposing: false,
   editorViewDom: undefined as HTMLElement | undefined,
+  viewState: undefined as any,
   editorScrollHeight: 28,
   insertContent: vi.fn(),
+  insertContentAt: vi.fn(),
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
   deleteSelection: vi.fn(),
@@ -53,9 +63,10 @@ const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
+  pasteHandlerOptions: undefined as any,
+  editorIsFocused: false,
+  docTextContent: '',
   fileDragDropOptions: undefined as any,
-  setTimeoutTimer: vi.fn(),
-  timeoutCleanups: [] as Array<() => void>,
   preferences: {
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
@@ -75,10 +86,6 @@ const mocks = vi.hoisted(() => ({
   translate: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key),
   transaction: undefined as any
 }))
-
-function clearMockTimers() {
-  mocks.timeoutCleanups.splice(0).forEach((cleanup) => cleanup())
-}
 
 function getMockEditorMinHeight(node: HTMLElement) {
   if (!mocks.simulateDeferredEditorStyle) return mocks.editorClientHeight
@@ -178,9 +185,16 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
   useRichTextEditorKernel: (options: any) => {
     mocks.editorOptions = options
+    // The real kernel answers null before the view exists (SSR guard); the runtime assigns the
+    // ref from this return value, so `true` simulates the mount-frame window where the guard's
+    // editor branch is unreachable.
+    if (mocks.editorAbsent) return null
     const editor = {
       isDestroyed: false,
       isEditable: true,
+      get isFocused() {
+        return mocks.editorIsFocused
+      },
       getJSON: mocks.getJSON,
       commands: {
         focus: mocks.focus,
@@ -188,17 +202,27 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         setHardBreak: mocks.setHardBreak,
         setNodeSelection: mocks.setNodeSelection
       },
-      chain: () => ({
-        focus: () => ({
+      chain: () => {
+        const chain: Record<string, (...args: unknown[]) => any> = {
+          insertContent: (...args: unknown[]) => {
+            mocks.insertContent(...args)
+            return { run: mocks.chainRun }
+          },
+          insertContentAt: (...args: unknown[]) => {
+            mocks.insertContentAt(...args)
+            return { run: mocks.chainRun }
+          },
+          insertComposerToken: (...args: unknown[]) => {
+            mocks.insertComposerToken(...args)
+            return chain
+          },
+          setMeta: (...args: unknown[]) => {
+            mocks.setMeta(...args)
+            return chain
+          },
           deleteRange: (...args: unknown[]) => {
             mocks.deleteRange(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
+            return chain
           },
           setNodeSelection: (...args: unknown[]) => {
             mocks.setNodeSelection(...args)
@@ -212,38 +236,20 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             mocks.deleteSelection()
             return { run: mocks.chainRun }
           },
-          setMeta: (...args: unknown[]) => {
-            mocks.setMeta(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
-          },
-          insertContent: (...args: unknown[]) => {
-            mocks.insertContent(...args)
-            return { run: mocks.chainRun }
-          },
-          insertComposerToken: (...args: unknown[]) => {
-            mocks.insertComposerToken(...args)
-            return {
-              insertContent: (...contentArgs: unknown[]) => {
-                mocks.insertContent(...contentArgs)
-                return { run: mocks.chainRun }
-              },
-              run: mocks.chainRun
-            }
-          }
-        })
-      }),
+          run: mocks.chainRun
+        }
+        chain.focus = () => chain
+        return chain
+      },
       view: {
         get composing() {
           return mocks.editorViewComposing
         },
         get dom() {
           return mocks.editorViewDom
+        },
+        get state() {
+          return mocks.viewState
         },
         dispatch: mocks.dispatch
       },
@@ -259,6 +265,9 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             get size() {
               return mocks.docContentSize
             }
+          },
+          get textContent() {
+            return mocks.docTextContent
           },
           descendants: mocks.docDescendants,
           textBetween: mocks.docTextBetween
@@ -306,12 +315,6 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [mocks.preferences[key]]
 }))
 
-vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({
-    setTimeoutTimer: mocks.setTimeoutTimer
-  })
-}))
-
 vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
   useFileDragDrop: (options: any) => {
     mocks.fileDragDropOptions = options
@@ -327,12 +330,18 @@ vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
 }))
 
 vi.mock('@renderer/components/composer/paste/usePasteHandler', () => ({
-  usePasteHandler: () => ({
-    handlePaste: mocks.pasteHandler
-  })
+  usePasteHandler: (options: any) => {
+    mocks.pasteHandlerOptions = options
+    return {
+      handlePaste: mocks.pasteHandler
+    }
+  }
 }))
 
-vi.mock('@renderer/components/composer/paste/pasteHandling', () => ({
+// Only the default export's side-effecting registration is mocked; the paste-routing predicates
+// stay real so a delegation test exercises the actual decision, not a stand-in for it.
+vi.mock('@renderer/components/composer/paste/pasteHandling', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   default: {
     init: vi.fn(),
     registerHandler: vi.fn(),
@@ -450,7 +459,6 @@ describe('ComposerSurface', () => {
   let hasFocusSpy: ReturnType<typeof vi.spyOn> | undefined
 
   beforeEach(() => {
-    clearMockTimers()
     // jsdom reports an unfocused document, which would short-circuit every focus-restore path.
     hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     mocks.editorOptions = undefined
@@ -458,12 +466,14 @@ describe('ComposerSurface', () => {
     mocks.currentView = undefined
     mocks.stabilizeEditor = false
     mocks.simulateDeferredEditorStyle = false
+    mocks.editorAbsent = false
     mocks.actions = undefined
     mocks.editorClientHeight = 28
     mocks.deferredEditorMinHeight = 46
     mocks.editorContentLineCount = 1
     mocks.editorViewComposing = false
     mocks.editorViewDom = document.createElement('div')
+    mocks.viewState = { doc: { textBetween: mocks.docTextBetween } }
     mocks.editorScrollHeight = 28
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
@@ -486,14 +496,11 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
+    mocks.pasteHandlerOptions = undefined
+    mocks.editorIsFocused = false
+    mocks.docTextContent = ''
+    mocks.insertContentAt.mockReset()
     mocks.fileDragDropOptions = undefined
-    mocks.setTimeoutTimer.mockReset()
-    mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
-      const timer = setTimeout(callback, delay)
-      const cleanup = () => clearTimeout(timer)
-      mocks.timeoutCleanups.push(cleanup)
-      return cleanup
-    })
     mocks.preferences = {
       'chat.input.send_message_shortcut': 'Enter'
     }
@@ -511,6 +518,9 @@ describe('ComposerSurface', () => {
     mocks.pinnedLauncherIds = []
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
+      getMeta: () => undefined,
+      mapping: new Mapping(),
+      steps: [],
       doc: {},
       delete: vi.fn(() => mocks.transaction),
       setNodeMarkup: vi.fn(() => mocks.transaction),
@@ -521,6 +531,9 @@ describe('ComposerSurface', () => {
       value: {
         fs: {
           readText: mocks.fsReadText
+        },
+        file: {
+          getPathForFile: vi.fn().mockReturnValue('')
         }
       }
     })
@@ -539,7 +552,69 @@ describe('ComposerSurface', () => {
     expect(mocks.focus).toHaveBeenCalledWith('end')
   })
 
+  it('keeps fallback dictation literal when the rich composer mounts', async () => {
+    function DeferredHarness() {
+      const [text, setText] = useState('')
+      return (
+        <DeferredComposerSurface
+          {...baseProps}
+          text={text}
+          onTextChange={setText}
+          voiceTarget={{ targetId: 'deferred-dictation', sourceEntityId: 'topic' }}
+        />
+      )
+    }
+    const view = render(<DeferredHarness />)
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('')
+    voiceTargetManager.markCurrent('deferred-dictation')
+    act(() => {
+      expect(voiceTargetManager.insertIntoCurrent('echo ${HOME}\nnext line', 'user_recovery')).toBe('inserted')
+    })
+    await screen.findByTestId('composer-editor')
+    expect(serializeComposerDocument(mocks.editorOptions.content)).toEqual({
+      text: 'echo ${HOME}\nnext line',
+      tokens: []
+    })
+    view.unmount()
+  })
+
+  it('makes the keyboard-focused rich composer toolbar the current voice target', async () => {
+    const manager = new VoiceTargetManager()
+    for (const targetId of ['previous-composer', 'composer']) {
+      manager.bind({
+        targetId,
+        owner: window,
+        sourceEntityId: `${targetId}-topic`,
+        captureReplaceRange: () => ({ from: 0, to: 0 }),
+        replaceRange: () => true
+      })
+    }
+    manager.markCurrent('previous-composer')
+    render(
+      <ComposerSurface
+        {...baseProps}
+        onVoiceTargetInteraction={() => {
+          manager.markCurrent('composer')
+        }}
+        renderLeftControls={() => (
+          <>
+            <ToolbarButton>Previous toolbar control</ToolbarButton>
+            <ToolbarButton>Dictate locally</ToolbarButton>
+          </>
+        )}
+      />
+    )
+    screen.getByRole('button', { name: 'Previous toolbar control' }).focus()
+    manager.markCurrent('previous-composer')
+
+    await userEvent.setup().tab()
+
+    expect(screen.getByRole('button', { name: 'Dictate locally' })).toHaveFocus()
+    expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
+  })
+
   it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
+    mocks.stabilizeEditor = true
     const viewDom = mocks.editorViewDom!
     document.body.appendChild(viewDom)
     class FakeClipboardEvent extends Event {
@@ -549,6 +624,7 @@ describe('ComposerSurface', () => {
         this.clipboardData = init.clipboardData
       }
     }
+    const originalClipboardEvent = globalThis.ClipboardEvent
     vi.stubGlobal('ClipboardEvent', FakeClipboardEvent)
     const onView = vi.fn()
     const onDocument = vi.fn()
@@ -569,7 +645,7 @@ describe('ComposerSurface', () => {
 
     document.removeEventListener('paste', onDocument)
     viewDom.remove()
-    vi.unstubAllGlobals()
+    vi.stubGlobal('ClipboardEvent', originalClipboardEvent)
   })
 
   it('restores the caret the fallback left behind instead of collapsing to the end', () => {
@@ -702,7 +778,6 @@ describe('ComposerSurface', () => {
   })
 
   afterEach(() => {
-    clearMockTimers()
     hasFocusSpy?.mockRestore()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
@@ -951,7 +1026,7 @@ describe('ComposerSurface', () => {
     })
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
@@ -980,13 +1055,13 @@ describe('ComposerSurface', () => {
     })
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
 
     compactRowScrollWidth = 240
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1003,7 +1078,7 @@ describe('ComposerSurface', () => {
 
     mocks.editorScrollHeight = 28
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1020,16 +1095,16 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
       mocks.editorContentLineCount = 2
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
 
     act(() => {
       mocks.editorContentLineCount = 1
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact'))
@@ -1061,13 +1136,13 @@ describe('ComposerSurface', () => {
     mocks.editorScrollHeight = 52
     mocks.editorViewComposing = true
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     expect(inputbar).toHaveAttribute('data-composer-presentation', 'compact')
 
     mocks.editorViewComposing = false
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
@@ -1081,23 +1156,21 @@ describe('ComposerSurface', () => {
     expect(editor).not.toHaveClass('flex')
   })
 
-  it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
+  it('uses the available height and only fixes height when expanded', async () => {
     render(<Harness />)
 
     const editorContent = screen.getByTestId('editor-content')
     const editor = screen.getByTestId('composer-editor')
     const editorContainer = editorContent.parentElement
     const inputbar = document.getElementById('inputbar')
-    const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
+    const expandedHeight = `${window.innerHeight}px`
     const stableEditorElementStyle = editor.getAttribute('data-editor-style')
 
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
-    expect(editorContainer).not.toHaveStyle({ height: 'max(220px, 50vh)' })
+    expect(editorContainer).not.toHaveStyle({ height: `${window.innerHeight}px` })
     expect(editorContent).not.toHaveStyle({ height: '100%' })
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('max(220px, 40vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe(`${window.innerHeight}px`)
     expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('auto')
-    expect(editor.className).toContain('max-h-[max(220px,40vh)]')
-    expect(editor.className).not.toContain('max-h-[max(220px,50vh)]')
     expect(editor.className).not.toContain('max-h-[500px]')
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
@@ -1105,11 +1178,10 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(editorContainer).toHaveStyle({ height: expandedHeight, overflow: 'hidden' }))
     fireEvent.transitionEnd(editorContainer as HTMLElement, { propertyName: 'height' })
 
-    expect(editorContainer).toHaveStyle({ height: 'max(220px, 50vh)', overflow: 'hidden' })
+    expect(editorContainer).toHaveStyle({ height: `${window.innerHeight}px`, overflow: 'hidden' })
     expect(editorContent).toHaveStyle({ height: '100%' })
-    expect(screen.getByTestId('composer-editor').className).toContain('max-h-[max(220px,50vh)]')
     expect(screen.getByTestId('composer-editor').className).toContain('h-full')
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('max(220px, 50vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe(`${window.innerHeight}px`)
     expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toBe(stableEditorElementStyle)
     expect(inputbar).toHaveClass('expanded')
@@ -1121,7 +1193,7 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
     expect(editorContent).not.toHaveStyle({ height: '100%' })
-    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('max(220px, 40vh)')
+    expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe(`${window.innerHeight}px`)
     expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('auto')
     expect(inputbar).not.toHaveClass('expanded')
   })
@@ -1141,7 +1213,7 @@ describe('ComposerSurface', () => {
     expect(resizeHandle.closest('#inputbar')).toBe(inputbar)
     expect(resizeHandle).toHaveAttribute('aria-orientation', 'horizontal')
     expect(resizeHandle).toHaveAttribute('aria-valuemin', '46')
-    expect(resizeHandle).toHaveAttribute('aria-valuemax', `${Math.max(220, Math.round(window.innerHeight * 0.5))}`)
+    expect(resizeHandle).toHaveAttribute('aria-valuemax', `${window.innerHeight}`)
     expect(expandButton.closest('#inputbar')).toBe(inputbar)
     expect(expandButton.parentElement).toBe(corner)
 
@@ -1166,7 +1238,6 @@ describe('ComposerSurface', () => {
 
     expect(editorContainer).toHaveStyle({ height: '146px', transitionDuration: '0ms' })
     expect(editorContent).toHaveStyle({ height: '100%' })
-    expect(screen.getByTestId('composer-editor').className).toContain('max-h-[max(220px,50vh)]')
     expect(editorContent.style.getPropertyValue('--composer-editor-max-height')).toBe('146px')
     expect(editorContent.style.getPropertyValue('--composer-editor-height')).toBe('100%')
     expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
@@ -1192,7 +1263,7 @@ describe('ComposerSurface', () => {
 
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
-    const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
+    const expandedHeight = `${window.innerHeight}px`
 
     fireEvent.mouseDown(resizeHandle, { clientY: 200 })
     fireEvent.mouseMove(document, { clientY: -1000 })
@@ -1206,7 +1277,7 @@ describe('ComposerSurface', () => {
     render(<Harness />)
 
     const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
-    const expandedHeight = Math.max(220, Math.round(window.innerHeight * 0.5))
+    const expandedHeight = window.innerHeight
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
     await waitFor(() => expect(editorContainer).toHaveStyle({ height: `${expandedHeight}px` }))
@@ -1224,7 +1295,7 @@ describe('ComposerSurface', () => {
 
     const editorContent = screen.getByTestId('editor-content')
     const editorContainer = editorContent.parentElement as HTMLElement
-    const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
+    const expandedHeight = `${window.innerHeight}px`
 
     fireEvent.mouseDown(screen.getByRole('separator', { name: 'chat.input.resize_height' }), { clientY: 200 })
     fireEvent.mouseMove(document, { clientY: 100 })
@@ -1239,7 +1310,7 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(editorContainer).toHaveStyle({ height: expandedHeight }))
     fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
 
-    expect(editorContainer).toHaveStyle({ height: 'max(220px, 50vh)' })
+    expect(editorContainer).toHaveStyle({ height: `${window.innerHeight}px` })
 
     let handled = false
     act(() => {
@@ -1265,7 +1336,7 @@ describe('ComposerSurface', () => {
 
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
-    const expandedHeight = Math.max(220, Math.round(window.innerHeight * 0.5))
+    const expandedHeight = window.innerHeight
 
     resizeHandle.focus()
     expect(resizeHandle).toHaveFocus()
@@ -1401,7 +1472,7 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.actions).toBeDefined())
     act(() => {
-      mocks.editorOptions?.onUpdate({ editor: mocks.editorInstance })
+      mocks.editorOptions?.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
     })
 
     const liveDraft = mocks.actions?.getDraft()
@@ -1597,7 +1668,7 @@ describe('ComposerSurface', () => {
     )
   })
 
-  it('truncates external text updates at the maximum text length', async () => {
+  it('preserves external text updates beyond the former input limit', async () => {
     const onTextChange = vi.fn()
 
     render(
@@ -1612,10 +1683,10 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => expect(mocks.actions).toBeDefined())
     act(() => {
-      mocks.actions?.onTextChange('a'.repeat(40001))
+      mocks.actions?.onTextChange('a'.repeat(250000) + 'tail')
     })
 
-    expect(onTextChange).toHaveBeenCalledWith('a'.repeat(40000))
+    expect(onTextChange).toHaveBeenCalledWith('a'.repeat(250000) + 'tail')
   })
 
   it('exposes a focus action for external composer targeting', async () => {
@@ -1751,45 +1822,103 @@ describe('ComposerSurface', () => {
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
   })
 
-  it('blocks typed input after the composer reaches the maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
+  describe('IME input notifications', () => {
+    let listener: ReturnType<typeof vi.fn<(event?: QuickPanelInputEvent) => void>>
 
-    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    beforeEach(async () => {
+      mocks.stabilizeEditor = true
+      let inputAdapter: QuickPanelInputAdapter | undefined
+      render(
+        <ComposerSurface
+          {...baseProps}
+          renderLeftControls={(adapter) => {
+            inputAdapter = adapter
+            return null
+          }}
+        />
+      )
+      await waitFor(() => expect(inputAdapter).toBeDefined())
+      listener = vi.fn<(event?: QuickPanelInputEvent) => void>()
+      inputAdapter!.subscribeInput!(listener)
+      vi.useFakeTimers()
+    })
 
-    expect(
-      mocks.editorOptions.editorProps.handleTextInput({ state: { doc: { textBetween: vi.fn(() => '') } } }, 1, 1, 'b')
-    ).toBe(true)
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('notifies input listeners once an IME composition ends without another edit', () => {
+      mocks.editorViewComposing = true
+      act(() => {
+        mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
+      })
+      expect(listener).toHaveBeenCalledWith({ isComposing: true, cause: 'user-input' })
+      listener.mockClear()
+
+      mocks.editorViewComposing = false
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        vi.advanceTimersByTime(39)
+      })
+      expect(listener).not.toHaveBeenCalled()
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
+
+    it('waits for a restarted composition to end before notifying finalized input', () => {
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知' })
+        mocks.editorViewComposing = true
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionstart()
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).not.toHaveBeenCalled()
+
+      act(() => {
+        mocks.editorViewComposing = false
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
+
+    it('does not repeat an input notification already emitted by the composition flush', () => {
+      act(() => {
+        mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+        mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: mocks.editorInstance })
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+
+      act(() => {
+        vi.advanceTimersByTime(40)
+      })
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ isComposing: false, cause: 'user-input' })
+    })
   })
 
-  it('truncates typed input to the remaining maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(39999)} />)
+  it('allows typing, replacement and newlines beyond the former input limit', async () => {
+    const draft = 'a'.repeat(250000)
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({ extensions: createComposerEditorPreset() })
+    mocks.stabilizeEditor = true
+    mocks.editorInstance = editor
 
-    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    try {
+      render(<ComposerSurface {...baseProps} text={draft} />)
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+      editor.setOptions({ editorProps: mocks.editorOptions.editorProps })
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1)
 
-    const transaction = {
-      insertText: vi.fn(() => transaction)
+      expect(mocks.editorOptions.editorProps.handleTextInput(editor.view, 1, 1, 'bc')).toBe(false)
+      expect(mocks.editorOptions.editorProps.handleTextInput(editor.view, 1, 2, 'replacement')).toBe(false)
+      fireEvent.keyDown(editor.view.dom, { key: 'Enter', shiftKey: true })
+      expect(editor.getText({ blockSeparator: '\n' })).toBe(draft + '\n')
+    } finally {
+      editor.destroy()
     }
-    const view = {
-      state: {
-        doc: { textBetween: vi.fn(() => '') },
-        tr: transaction
-      },
-      dispatch: vi.fn()
-    }
-
-    expect(mocks.editorOptions.editorProps.handleTextInput(view, 1, 1, 'bc')).toBe(true)
-    expect(transaction.insertText).toHaveBeenCalledWith('b', 1, 1)
-    expect(view.dispatch).toHaveBeenCalledWith(transaction)
-  })
-
-  it('allows typed replacement when the composer stays within the maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
-
-    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
-
-    expect(
-      mocks.editorOptions.editorProps.handleTextInput({ state: { doc: { textBetween: vi.fn(() => 'a') } } }, 1, 2, 'b')
-    ).toBe(false)
   })
 
   it('opens the QuickPanel root from the slash suggestion bridge', async () => {
@@ -3052,6 +3181,7 @@ describe('ComposerSurface', () => {
   })
 
   it('syncs external managed file and skill tokens into the editor document', async () => {
+    mocks.stabilizeEditor = true
     const fileToken = {
       id: 'file:file-1',
       kind: 'file' as const,
@@ -3111,6 +3241,51 @@ describe('ComposerSurface', () => {
 
     expect(mocks.transaction.delete).toHaveBeenCalledWith(3, 4)
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
+  })
+
+  it('activates the original mounted file token with the current preview action', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md',
+      payload: {
+        id: 'file-1',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/tmp/notes.md'
+      }
+    }
+    const outcomes: string[] = []
+    const selectFile = vi.fn(() => {
+      outcomes.push('select')
+    })
+    const confirmLeave = vi.fn((input: { displayName: string; previewPath: string }) => {
+      outcomes.push(`confirm:${input.displayName}:${input.previewPath}`)
+    })
+    const nodeViewProps = { selected: false, nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } } }
+    const view = render(
+      <ComposerSurface {...baseProps} previewInputFile={selectFile} tokens={[fileToken]} managedTokenKinds={['file']} />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    const retainedRenderToken = mocks.editorPresetOptions.renderToken
+    render(<>{retainedRenderToken(fileToken, nodeViewProps)}</>)
+    const chip = screen.getByRole('button', { name: 'notes.md' })
+
+    view.rerender(
+      <ComposerSurface
+        {...baseProps}
+        previewInputFile={confirmLeave}
+        tokens={[fileToken]}
+        managedTokenKinds={['file']}
+      />
+    )
+    expect(chip.isConnected).toBe(true)
+
+    fireEvent.click(chip)
+
+    expect(outcomes).toEqual(['confirm:notes.md:/tmp/notes.md'])
+    expect(selectFile).not.toHaveBeenCalled()
   })
 
   it('renders image file tokens as chips with icon-sized thumbnails inside the editable composer', async () => {
@@ -3205,7 +3380,7 @@ describe('ComposerSurface', () => {
     expect(fileUpdater([pastedFile])).toEqual([])
   })
 
-  it('refuses to replace the pasted text token when the file exceeds the input limit', async () => {
+  it('expands the complete pasted text file beyond the former input limit', async () => {
     const pastedFile = {
       id: 'file-2',
       name: 'pasted_text.txt',
@@ -3221,33 +3396,39 @@ describe('ComposerSurface', () => {
     }
     const setFiles = vi.fn()
 
-    // Silently truncating here would drop the tail of the file the moment the
-    // token is replaced — the refusal must keep the token and the file intact.
-    mocks.fsReadText.mockResolvedValue('x'.repeat(COMPOSER_INPUT_MAX_LENGTH + 1))
-    mocks.getJSON.mockReturnValue({
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'composerToken', attrs: pastedToken }] }]
+    const fileText = 'x'.repeat(250000) + 'file tail'
+    mocks.fsReadText.mockResolvedValue(fileText)
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({
+      extensions: createComposerEditorPreset(),
+      content: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'composerToken', attrs: pastedToken }] }]
+      }
     })
+    mocks.stabilizeEditor = true
+    mocks.editorInstance = editor
 
-    render(<ComposerSurface {...baseProps} tokens={[pastedToken]} managedTokenKinds={['file']} setFiles={setFiles} />)
+    try {
+      render(<ComposerSurface {...baseProps} tokens={[pastedToken]} managedTokenKinds={['file']} setFiles={setFiles} />)
+      await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+      render(
+        <>
+          {mocks.editorPresetOptions.renderToken(pastedToken, {
+            selected: false,
+            nodeViewProps: { getPos: () => 1, node: { nodeSize: 1 } }
+          })}
+        </>
+      )
 
-    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
-    render(
-      <>
-        {mocks.editorPresetOptions.renderToken(pastedToken, {
-          selected: false,
-          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
-        })}
-      </>
-    )
+      fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/pasted_text.txt'))
-    expect(mocks.deleteRange).not.toHaveBeenCalled()
-    expect(mocks.insertContent).not.toHaveBeenCalled()
-    expect(setFiles).not.toHaveBeenCalled()
-    expect(mockToast.error).toHaveBeenCalledWith('chat.input.paste_text_too_long')
+      await waitFor(() => expect(editor.getText()).toBe(fileText))
+      const fileUpdater = setFiles.mock.calls[0]?.[0] as (files: (typeof pastedFile)[]) => (typeof pastedFile)[]
+      expect(fileUpdater([pastedFile])).toEqual([])
+    } finally {
+      editor.destroy()
+    }
   })
 
   it('does not notify token changes when only text changes', async () => {
@@ -3266,6 +3447,7 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorOptions.onUpdate({
+        transaction: mocks.transaction,
         editor: {
           getJSON: () => ({
             type: 'doc',
@@ -3326,12 +3508,12 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor() })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor() })
     })
     onTokensChange.mockClear()
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('hello ') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('hello ') })
     })
 
     expect(onTokensChange).toHaveBeenCalledWith([
@@ -3382,12 +3564,12 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('${city}') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('${city}') })
     })
     onTokensChange.mockClear()
 
     act(() => {
-      mocks.editorOptions.onUpdate({ editor: createEditor('上海') })
+      mocks.editorOptions.onUpdate({ transaction: mocks.transaction, editor: createEditor('上海') })
     })
 
     expect(onTokensChange).toHaveBeenCalledWith([
@@ -3424,6 +3606,133 @@ describe('ComposerSurface', () => {
     expect(handled).toBe(false)
     expect(setFiles).not.toHaveBeenCalled()
     expect(event.preventDefault).not.toHaveBeenCalled()
+  })
+
+  it('does not detach a file whose chip is still in the draft when the caret is not behind it', async () => {
+    // Two file chips and nothing else is what dropping two files leaves behind: each chip insert
+    // appends a separator space, so the draft's text is whitespace and the node before the caret
+    // is that space rather than a chip. The chip is still rendered, so detaching its attachment
+    // would orphan it — visible in the composer, absent from every send.
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} filesCount={2} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'composerToken', attrs: { id: 'file:f-1', kind: 'file', label: 'a.png' } },
+            { type: 'text', text: ' ' },
+            { type: 'composerToken', attrs: { id: 'file:f-2', kind: 'file', label: 'b.png' } },
+            { type: 'text', text: ' ' }
+          ]
+        }
+      ]
+    })
+    mocks.selection = {
+      empty: true,
+      from: 4,
+      to: 4,
+      node: null,
+      $from: { nodeBefore: { type: { name: 'text' } } }
+    }
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
+  it('does not detach an attachment when the draft holds prose and no chip at all', async () => {
+    // The painting composer attaches uploads it never renders a chip for, so "files attached with
+    // nothing in the document" is a state it produces on purpose. Measuring emptiness on chips
+    // alone reads that draft as empty and detaches the attachment, leaving Backspace to delete
+    // nothing — the character the keystroke was aimed at survives and the image disappears.
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'make it blue' }] }]
+    })
+    mocks.selection = {
+      empty: true,
+      from: 11,
+      to: 11,
+      node: null,
+      $from: { nodeBefore: { type: { name: 'text' } } }
+    }
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
+  it('keeps an attachment when a mount-frame Backspace arrives while the draft holds prose', async () => {
+    // The view answers keys before the passive effect assigns editorRef (tiptap renders
+    // synchronously, the ref lands after commit). The merge base put the prose term ahead of
+    // the `!editor` disjunct, so a draft restored with text must not lose its attachment to a
+    // keystroke from that window.
+    const setFiles = vi.fn()
+    mocks.editorAbsent = true
+    render(<ComposerSurface {...baseProps} text="make it blue" filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(handled).toBe(false)
+  })
+
+  it('detaches an attachment on a mount-frame Backspace when the draft holds no prose', async () => {
+    // The other direction of the same window: with nothing to delete, the keystroke falls
+    // through to the attachment, exactly as it does once the editor exists.
+    const setFiles = vi.fn()
+    mocks.editorAbsent = true
+    render(<ComposerSurface {...baseProps} text="" filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(setFiles).toHaveBeenCalledWith(expect.any(Function))
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(handled).toBe(true)
   })
 
   it('opens the QuickPanel root when slash follows whitespace', async () => {
@@ -4036,6 +4345,52 @@ describe('ComposerSurface', () => {
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
   })
 
+  it.each(['private MIME', 'session cache'])('restores a 70,000-line draft and link token from %s', async (source) => {
+    const text = 'x\n'.repeat(70000)
+    const token = {
+      id: 'link-token-large-paste',
+      kind: 'link' as const,
+      label: 'example.com/docs',
+      promptText: 'https://example.com/docs'
+    }
+    const plainText = text + token.promptText
+    const fragment = createComposerClipboardFragment([
+      { type: 'text', text },
+      { type: 'token', token, fallbackText: token.promptText }
+    ])
+    if (source === 'session cache') await primeComposerClipboardSessionCache(plainText, fragment)
+    mocks.preferences['chat.input.paste_long_text_as_file'] = false
+    render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({ element: null, extensions: createComposerEditorPreset() })
+
+    try {
+      act(() => {
+        mocks.editorOptions.handlePaste(
+          { dom: Object.assign(document.createElement('div'), { editor }) },
+          {
+            preventDefault: () => undefined,
+            clipboardData: {
+              files: [],
+              getData: (type: string) => {
+                if (type === 'text/plain') return plainText
+                if (type === COMPOSER_CLIPBOARD_FRAGMENT_MIME && source === 'private MIME') return fragment
+                return ''
+              }
+            }
+          }
+        )
+      })
+      expect(editor.getText({ blockSeparator: '\n' })).toBe(plainText)
+      const link = editor.state.doc.firstChild?.lastChild
+      expect(link?.type.name).toBe('composerToken')
+      expect(link?.attrs).toMatchObject(token)
+    } finally {
+      editor.destroy()
+    }
+  })
+
   it('matches the session cache across Windows clipboard line ending round-trips', async () => {
     const resolveSkillMarker = vi.fn((marker: string) =>
       marker === 'pdf'
@@ -4147,6 +4502,61 @@ describe('ComposerSurface', () => {
       editor.destroy()
     }
   })
+
+  it.each([false, true])(
+    'attaches a copied file without replacing draft text (selected token: %s)',
+    async (selected) => {
+      const file: FileMetadata = {
+        id: 'model-file',
+        name: 'model.onnx',
+        origin_name: 'model.onnx',
+        path: '/tmp/model.onnx',
+        ext: '.onnx',
+        type: FILE_TYPE.OTHER,
+        size: 4,
+        created_at: '2026-10-12T00:00:00.000Z',
+        count: 1
+      }
+      vi.mocked(window.api.file.getPathForFile).mockReturnValue(file.path)
+      window.api.file.get = vi.fn().mockResolvedValue(file)
+      if (selected) {
+        mocks.selection = {
+          empty: false,
+          from: 1,
+          to: 2,
+          node: {
+            type: { name: 'composerToken' },
+            attrs: { id: 'prompt-variable:0:city', kind: 'promptVariable', label: '${city}', promptText: '${city}' }
+          },
+          $from: { nodeBefore: null }
+        }
+      }
+      let files: ComposerAttachment[] = []
+      const { handlePaste } = await vi.importActual<typeof PasteHandling>('../paste/pasteHandling')
+      mocks.pasteHandler.mockImplementation((event) =>
+        handlePaste(event, ['*'], (updater) => {
+          files = updater(files)
+        })
+      )
+      render(<ComposerSurface {...baseProps} supportedExts={['*']} text="Existing draft" />)
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          getData: (type: string) =>
+            type === 'text/plain' ? file.name : type === 'text/html' ? `<b>${file.name}</b>` : '',
+          files: [new File(['onnx'], file.name)]
+        }
+      }
+      mocks.editorOptions.handlePaste(mocks.currentView, event)
+
+      await waitFor(() => expect(files).toHaveLength(1))
+      expect(files[0]).toMatchObject({ path: file.path, origin_name: file.name })
+      expect(mocks.insertContent).not.toHaveBeenCalled()
+      expect(mocks.dispatch).not.toHaveBeenCalled()
+    }
+  )
 
   it('suppresses composer suggestions when pasting scoped shell command text', async () => {
     const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
@@ -4529,7 +4939,7 @@ describe('ComposerSurface', () => {
     expect(mocks.pasteHandler).not.toHaveBeenCalled()
   })
 
-  it('prefers a supported clipboard image over long text when the input is full', async () => {
+  it('prefers a supported clipboard image over long text in a large draft', async () => {
     render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} supportedExts={['.png', '.txt']} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
@@ -4605,24 +5015,36 @@ describe('ComposerSurface', () => {
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
   })
 
-  it('truncates pasted text to the remaining maximum text length', async () => {
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(39999)} />)
-
+  it('preserves large pasted text and selection replacement in the real editor', async () => {
+    const draft = 'a'.repeat(40000)
+    const pastedText = '正文'.repeat(125000) + '\ntail'
+    render(<ComposerSurface {...baseProps} text={draft} supportedExts={['.txt']} />)
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'chat.input.resize_height' }), { key: 'Home' })
+    expect(screen.getByRole('button', { name: 'chat.input.restore' })).toBeInTheDocument()
+    const editor = new Editor({
+      extensions: createComposerEditorPreset(mocks.editorPresetOptions),
+      content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: draft }] }] },
+      editorProps: { handlePaste: mocks.editorOptions.handlePaste }
+    })
 
-    const event = {
-      preventDefault: vi.fn(),
-      clipboardData: {
-        getData: vi.fn((type: string) => (type === 'text/plain' ? 'bb' : ''))
-      }
+    try {
+      editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+      fireEvent.paste(editor.view.dom, {
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? pastedText : ''), files: [] }
+      })
+      expect(editor.getText({ blockSeparator: '\n' })).toBe(draft + pastedText)
+      expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
+
+      editor.commands.selectAll()
+      fireEvent.paste(editor.view.dom, {
+        clipboardData: { getData: (type: string) => (type === 'text/plain' ? 'replacement' : ''), files: [] }
+      })
+      expect(editor.getText()).toBe('replacement')
+    } finally {
+      editor.destroy()
     }
-
-    const handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
-
-    expect(handled).toBe(true)
-    expect(event.preventDefault).toHaveBeenCalled()
-    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'b' }])
-    expect(mocks.pasteHandler).not.toHaveBeenCalled()
   })
 
   it('does not reapply serialized skill prompt text as visible editor content', async () => {
@@ -4657,6 +5079,7 @@ describe('ComposerSurface', () => {
 
     act(() => {
       mocks.editorOptions.onUpdate({
+        transaction: mocks.transaction,
         editor: {
           getJSON: () => tokenDocument,
           state: {
@@ -5135,24 +5558,6 @@ describe('ComposerSurface', () => {
     })
 
     expect(mocks.focus).not.toHaveBeenCalled()
-  })
-
-  it('blocks a newline that would exceed the maximum composer length', async () => {
-    mocks.preferences['chat.input.send_message_shortcut'] = 'Ctrl+Enter'
-    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
-
-    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
-
-    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true })
-    const view = {
-      state: {
-        doc: { textBetween: vi.fn(() => '') },
-        selection: { from: 40001, to: 40001 }
-      }
-    }
-
-    expect(mocks.editorOptions.editorProps.handleKeyDown(view, event)).toBe(true)
-    expect(event.defaultPrevented).toBe(true)
   })
 
   it('uses the latest send-message shortcut from preference updates', async () => {

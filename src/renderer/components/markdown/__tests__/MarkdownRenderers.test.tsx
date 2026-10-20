@@ -3,6 +3,7 @@ import type { Element } from 'hast'
 import type { ComponentType, ImgHTMLAttributes, PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { MarkdownHostProvider } from '../MarkdownHostProvider'
 import { useMarkdownComponents } from '../MarkdownRenderers'
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -126,23 +127,54 @@ describe('MarkdownRenderers', () => {
     expect(fallback).toHaveStyle({ width: '240px', height: '120px' })
   })
 
-  it('keeps code actions available for ordinary fenced code blocks', () => {
+  it('names an unresolved relative image without issuing an image load', () => {
     render(
-      <Renderer name="code" className="language-javascript">
-        {'const value = 1\n'}
-      </Renderer>
+      <MarkdownHostProvider resolveImageSrc={() => null}>
+        <Renderer name="img" src="images/missing.png" alt=" " />
+      </MarkdownHostProvider>
     )
-
-    expect(screen.getByRole('button', { name: 'Code actions' })).toBeInTheDocument()
+    const placeholder = screen.getByRole('img', { name: 'images/missing.png' })
+    expect(placeholder).toHaveTextContent('images/missing.png')
+    expect(placeholder.tagName).toBe('SPAN')
   })
 
-  it('keeps code actions available for Mermaid previews', () => {
+  it('does not carry a failed image across different effective sources', () => {
+    const view = render(
+      <MarkdownHostProvider resolveImageSrc={() => 'file:///tmp/first/images/x.png'}>
+        <Renderer name="img" src="images/x.png" alt="diagram" />
+      </MarkdownHostProvider>
+    )
+    fireEvent.error(screen.getByRole('img', { name: 'diagram' }))
+    expect(screen.getByRole('img', { name: 'diagram' }).tagName).toBe('SPAN')
+    view.rerender(
+      <MarkdownHostProvider resolveImageSrc={() => 'file:///tmp/second/images/x.png'}>
+        <Renderer name="img" src="images/x.png" alt="diagram" />
+      </MarkdownHostProvider>
+    )
+    expect(screen.getByRole('img', { name: 'diagram' })).toHaveAttribute('src', 'file:///tmp/second/images/x.png')
+  })
+
+  it('retains the empty-alt failure behavior for images the resolver leaves unchanged', () => {
+    const { container } = render(
+      <MarkdownHostProvider resolveImageSrc={(src) => src}>
+        <Renderer name="img" src="https://example.com/missing.png" alt="" />
+      </MarkdownHostProvider>
+    )
+    fireEvent.error(container.querySelector('img')!)
+    expect(container.querySelector('img')).toBeNull()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(container.textContent).toBe('')
+  })
+
+  it('preserves text nested in animation spans in inline code', () => {
     render(
-      <Renderer name="code" className="language-mermaid">
-        {'graph TD; A-->B\n'}
+      <Renderer name="code">
+        <span>live</span>
+        <span> code</span>
       </Renderer>
     )
-
-    expect(screen.getByRole('button', { name: 'Code actions' })).toBeInTheDocument()
+    expect(screen.getByText('live')).toBeVisible()
+    expect(screen.getByText('code')).toBeVisible()
+    expect(document.body).not.toHaveTextContent('[object Object]')
   })
 })

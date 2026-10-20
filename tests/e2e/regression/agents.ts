@@ -4,24 +4,42 @@ import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+import type { BuiltinAssistantAgentIdentity } from '../../../scripts/e2e/regression/builtinAgents'
+import { resolveBuiltinAssistantAgent } from '../../../scripts/e2e/regression/builtinAgents'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
+import type { OffsetPaginationResponse } from '../../../src/shared/data/api/types'
 import { selectVisibleModel } from './models'
 import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
 
-export async function selectAgent(page: Page, name: string): Promise<void> {
-  await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  await expect(agentView).toBeVisible({ timeout: 30_000 })
-  const agent = agentView.getByText(name, { exact: true }).first()
-  await expect(agent).toBeVisible()
-  await agent.click({ noWaitAfter: true })
-}
+export async function startBuiltinAssistantTask(page: Page): Promise<void> {
+  const { status, data } = await page.evaluate(async () => {
+    const { status, data } = await window.api.dataApi.request({
+      id: `regression-builtin-assistant-${crypto.randomUUID()}`,
+      method: 'GET',
+      path: '/agents',
+      params: { page: 1, limit: 500 }
+    })
+    return { status, data }
+  })
+  if (status !== 200) throw new Error(`GET /agents failed (status ${status})`)
+  if (!data) throw new Error('GET /agents returned no data')
 
-export async function startNewAgentTask(page: Page, name: string): Promise<void> {
-  await selectAgent(page, name)
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  const agentHeader = agentView.getByRole('button', { name, exact: true }).first()
+  const list = data as unknown as OffsetPaginationResponse<BuiltinAssistantAgentIdentity>
+  const resolved = resolveBuiltinAssistantAgent(list)
+  const sameNameCount = list.items.filter((agent) => agent.name === resolved.name).length
+  if (sameNameCount > 1) {
+    throw new Error(
+      `Cannot locate built-in assistant agent ID: display name ${resolved.name} is shared by ${sameNameCount} agents`
+    )
+  }
+
+  await selectSidebarApp(page, 'Work')
+  const agentView = page.locator('[data-ui="agent.view"]:visible')
+  await expect(agentView).toBeVisible({ timeout: 30_000 })
+  const agentHeader = agentView.getByRole('button', { name: resolved.name, exact: true })
+  await expect(agentHeader, `Expected one header for built-in assistant agent ${resolved.id}`).toHaveCount(1)
+  await agentHeader.click({ noWaitAfter: true })
   await agentHeader.hover()
   const newTask = agentHeader.locator('..').getByRole('button', { name: 'New task', exact: true })
   await expect(newTask).toBeVisible()
@@ -65,7 +83,10 @@ export async function createAgent(
 }
 
 export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {
-  const current = page.getByRole('button', { name: new RegExp(`No work directory|${app.workspaceName}`), exact: true })
+  const agentView = page.locator('[data-ui~="agent.view"]:visible')
+  const current = agentView.getByRole('button', {
+    name: new RegExp(`^(?:Select work directory|No work directory|${app.workspaceName})$`)
+  })
   if ((await current.textContent())?.includes(app.workspaceName)) return
   await current.click()
   const existing = page.getByText(app.workspaceName, { exact: true })
@@ -75,7 +96,7 @@ export async function selectAgentWorkspace(app: RegressionApp, page: Page): Prom
     await page.getByText('Add new work directory', { exact: true }).click()
     chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
   }
-  await expect(page.getByRole('button', { name: app.workspaceName, exact: true })).toBeVisible({ timeout: 30_000 })
+  await expect(agentView.getByRole('button', { name: app.workspaceName, exact: true })).toBeVisible({ timeout: 30_000 })
 }
 
 export async function runAgentFileTask(

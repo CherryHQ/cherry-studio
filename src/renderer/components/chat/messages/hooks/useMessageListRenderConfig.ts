@@ -10,6 +10,7 @@ export function useMessageListRenderConfig() {
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
+  const [userMessageDefaultExpanded] = usePreference('chat.message.user_content.default_expanded')
   const [codeFancyBlock] = usePreference('chat.code.fancy_block')
   const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
   const [keepIntermediateAssistantText] = usePreference('chat.message.keep_intermediate_text')
@@ -30,6 +31,7 @@ export function useMessageListRenderConfig() {
       messageFont,
       fontSize,
       renderInputMessageAsMarkdown,
+      userMessageDefaultExpanded,
       codeFancyBlock,
       thoughtAutoCollapse,
       collapseCompletedToolHistory: true,
@@ -53,6 +55,7 @@ export function useMessageListRenderConfig() {
       multiModelMessageStyle,
       narrowMode,
       renderInputMessageAsMarkdown,
+      userMessageDefaultExpanded,
       showEstimatedTokens,
       showMessageOutline,
       thoughtAutoCollapse,

@@ -1,7 +1,7 @@
-import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker'
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
 import { jsonSchema, type JSONSchema7 } from 'ai'
 
-const jsonSchemaValidator = new CfWorkerJsonSchemaValidator({ draft: '2020-12', shortcircuit: false })
+const jsonSchemaValidator = new CfWorkerJsonSchemaValidator({ shortcircuit: false })
 
 export function createMcpJsonSchemaValidator<T = unknown>(schema: JSONSchema7) {
   const validate = jsonSchemaValidator.getValidator(schema as never)

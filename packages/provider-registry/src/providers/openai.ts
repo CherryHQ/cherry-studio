@@ -20,11 +20,12 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModels,
-      modelIds: ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna']
+      modelIds: ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-1-sol']
     }
   ],
   metadata: {
     website: {
+      billing: 'https://platform.openai.com/settings/organization/billing/overview',
       apiKey: 'https://platform.openai.com/api-keys',
       docs: 'https://platform.openai.com/docs',
       models: 'https://platform.openai.com/docs/models',
