@@ -32,13 +32,7 @@ import {
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import {
-  finalizeWebToolRoutes,
-  isAnthropicProvider,
-  isGeminiProvider,
-  resolveWebToolRoutes,
-  type WebToolRoutes
-} from '@shared/utils/provider'
+import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -99,6 +93,41 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 ])
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
+/**
+ * Wire protocols whose reasoning parts are signed and must round-trip into the next
+ * request (Anthropic thinking-block signatures, Gemini thought signatures).
+ */
+const SIGNED_REASONING_PROTOCOLS: readonly EndpointType[] = [
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+]
+
+/**
+ * Runtime adapters that speak a signed-reasoning protocol even when the resolved
+ * endpoint type doesn't show it (model-id-based flips, e.g. Azure/Vertex Claude on an
+ * OpenAI-typed endpoint).
+ */
+const SIGNED_REASONING_ADAPTERS: ReadonlySet<string> = new Set([
+  'anthropic',
+  'azure-anthropic',
+  'google-vertex-anthropic',
+  'google',
+  'google-vertex'
+])
+
+/**
+ * Whether history reasoning must be preserved for this request. Keyed off the RESOLVED
+ * endpoint protocol and runtime adapter — never provider identity — so Vertex, Bedrock,
+ * Azure, and multi-backend gateway routes (AiHubMix, …) stay exempt whichever provider
+ * row fronts them.
+ */
+function requiresSignedReasoningRoundTrip(endpointType: EndpointType | undefined, runtimeProviderId: string): boolean {
+  return (
+    (endpointType != null && SIGNED_REASONING_PROTOCOLS.includes(endpointType)) ||
+    SIGNED_REASONING_ADAPTERS.has(runtimeProviderId)
+  )
+}
+
 export interface BuildAgentParamsInput {
   request: AiChatRequest & {
     system?: string
@@ -132,7 +161,7 @@ export interface BuiltAgentParams {
   /** Attachment routing inputs for `prepareChatMessages` (chat path). */
   nativeFileSupport: NativeFileSupport
   fileAttachments: FileAttachmentRef[]
-  /** Strip historical reasoning parts before conversion (never for signed-reasoning providers). */
+  /** Strip historical reasoning parts before conversion (never when the resolved protocol/adapter signs reasoning). */
   stripHistoryReasoning: boolean
 }
 
@@ -298,14 +327,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : undefined
 
   // Stripping historical chain-of-thought is a per-model opt-out, chat-only (caller-owned
-  // histories are excluded), and never applied to providers that require signed reasoning
-  // round-trips (Anthropic thinking blocks, Gemini thought signatures).
+  // histories are excluded), and never applied when the resolved protocol/adapter requires
+  // signed reasoning round-trips (Anthropic thinking blocks, Gemini thought signatures).
   const stripHistoryReasoning =
     request.callOverrides == null &&
     request.contextOwner !== 'caller' &&
     !(model.includeReasoningInContext ?? true) &&
-    !isAnthropicProvider(provider) &&
-    !isGeminiProvider(provider)
+    !requiresSignedReasoningRoundTrip(endpointType, runtimeProviderId)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),

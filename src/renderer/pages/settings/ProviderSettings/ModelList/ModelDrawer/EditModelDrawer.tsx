@@ -9,7 +9,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
-import { type EndpointType, type Model } from '@shared/data/types/model'
+import { type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isReasoningModel } from '@shared/utils/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
@@ -503,7 +503,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 </div>
               </div>
 
-              {isReasoningModel(model) && (
+              {(isReasoningModel(model) || classification.capabilities.has(MODEL_CAPABILITY.REASONING)) && (
                 <div className={drawerClasses.switchCard}>
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-1.5">

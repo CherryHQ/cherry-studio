@@ -2175,6 +2175,114 @@ describe('buildAgentParams — Responses instructions delivery', () => {
   })
 })
 
+describe('buildAgentParams stripHistoryReasoning gate', () => {
+  const buildFor = async (
+    provider: Parameters<typeof buildAgentParams>[0]['provider'],
+    model: Parameters<typeof buildAgentParams>[0]['model'],
+    runtimeProviderId: string
+  ) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: runtimeProviderId, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const result = await buildAgentParams({ request: { conversation: CONVERSATION }, signal: undefined, provider, model })
+    return result.stripHistoryReasoning
+  }
+
+  it('strips for a plain OpenAI-compatible route when the model opts out', async () => {
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai' } }
+    })
+    const model = makeModel({ includeReasoningInContext: false })
+
+    await expect(buildFor(provider, model, 'openai-chat')).resolves.toBe(true)
+  })
+
+  it('never strips by default (includeReasoningInContext unset)', async () => {
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai' } }
+    })
+
+    await expect(buildFor(provider, makeModel(), 'openai-chat')).resolves.toBe(false)
+  })
+
+  it('exempts Vertex Gemini — resolved protocol signs reasoning even though provider identity is not "gemini"', async () => {
+    const provider = makeProvider({
+      id: 'vertex',
+      authType: 'iam-gcp',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' } }
+    })
+    const model = makeModel({
+      id: 'vertex::gemini-3-pro',
+      providerId: 'vertex',
+      apiModelId: 'gemini-3-pro',
+      includeReasoningInContext: false
+    })
+
+    await expect(buildFor(provider, model, 'google-vertex')).resolves.toBe(false)
+  })
+
+  it('exempts Azure Claude — runtime adapter flips to azure-anthropic on an OpenAI-typed endpoint', async () => {
+    const provider = makeProvider({
+      id: 'azure-openai',
+      authType: 'iam-azure',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'azure' } }
+    })
+    const model = makeModel({
+      id: 'azure-openai::claude-sonnet-4-5',
+      providerId: 'azure-openai',
+      apiModelId: 'claude-sonnet-4-5',
+      includeReasoningInContext: false
+    })
+
+    await expect(buildFor(provider, model, 'azure-anthropic')).resolves.toBe(false)
+  })
+
+  it('exempts gateway-routed Claude — AiHubMix resolves the anthropic-messages protocol per model', async () => {
+    const provider = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'aihubmix' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'aihubmix' }
+      }
+    })
+    const model = makeModel({
+      id: 'aihubmix::claude-sonnet-4-5',
+      providerId: 'aihubmix',
+      apiModelId: 'claude-sonnet-4-5',
+      includeReasoningInContext: false
+    })
+
+    await expect(buildFor(provider, model, 'aihubmix')).resolves.toBe(false)
+  })
+
+  it('strips for a gateway model served on an OpenAI-compatible protocol', async () => {
+    const provider = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'aihubmix' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'aihubmix' }
+      }
+    })
+    const model = makeModel({
+      id: 'aihubmix::gpt-4o',
+      providerId: 'aihubmix',
+      apiModelId: 'gpt-4o',
+      includeReasoningInContext: false
+    })
+
+    await expect(buildFor(provider, model, 'aihubmix')).resolves.toBe(true)
+  })
+})
+
 /**
  * Covers the first-class per-request override merge that replaced the old
  * `createGatewayOverrideFeature` plugin: assistant-less precedence, capability

@@ -4979,7 +4979,7 @@
   "settings.models.filter.scroll_left": "Scroll model types left",
   "settings.models.filter.scroll_right": "Scroll model types right",
   "settings.models.include_reasoning_in_context.label": "Include Reasoning in Context",
-  "settings.models.include_reasoning_in_context.tooltip": "Send prior chain-of-thought to the model. Turn off to reduce token usage (providers that require signed reasoning round-trips, like Claude and Gemini, always keep reasoning)",
+  "settings.models.include_reasoning_in_context.tooltip": "Send prior chain-of-thought to the model. Turn off to reduce token usage. Reasoning is always kept when the model's API requires signed reasoning round-trips (Anthropic or Gemini native endpoints, including Vertex, Bedrock, and gateway routes)",
   "settings.models.list_title": "Models",
   "settings.models.manage.add_listed.label": "Add all models",
   "settings.models.manage.add_partial_failure": "Partial success: {{added}} model(s) added, {{failed}} failed",
