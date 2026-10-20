@@ -16,6 +16,7 @@ import {
   type Epoch,
   inputDone,
   type JobRecord,
+  latestStart,
   modelContext,
   nextItem,
   type Owner,
@@ -126,7 +127,10 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       turns: {
         start: (id, input, key) => enter(scope, () => start(host, thread(id), input, key)),
         retract: (id, key) => enter(scope, () => retract(host, thread(id), key)),
-        stop: (id) => enter(scope, () => stopRun(host, thread(id)))
+        stop: (id, _cause, turn) =>
+          enter(scope, () =>
+            turn === undefined || latestStart(thread(id)) === turn ? stopRun(host, thread(id)) : undefined
+          )
       },
       helpers: {
         message: (child, input, key, run) =>

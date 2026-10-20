@@ -106,6 +106,34 @@ export const turnCases: readonly ContractCase[] = [
       check(!assistantTexts(after).includes('never'), 'a stopped run must make no further model request')
     }
   },
+  // Catches a stop naming a turn that reaches a later one (H2): a stop the host repeats would abort the turn a person
+  // started after it.
+  {
+    name: 'a stop naming a turn stops that turn and never a later one',
+    covers: ['turns.stop', 'tools.register'],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      const h = await open((p) => p.tools.register(hold.tool))
+      const t = await h.createThread()
+      h.script(t, [callTool('hold', { id: 'first' }), callTool('hold', { id: 'second' }), reply('second done')])
+      await h.sendUser(t, 'first')
+      await hold.started('first')
+      const turn = (await read(h, t)).history.find((entry) => entry.kind === 'user')?.id
+      check(turn !== undefined, "the person's message must be in history")
+      await h.withCall(t, (p) => p.turns.stop(t, 'user', turn))
+      check((await read(h, t)).live.runEnd?.outcome === 'aborted', 'a stop naming the running turn must stop it')
+      await h.sendUser(t, 'second')
+      await hold.started('second')
+      await h.withCall(t, (p) => p.turns.stop(t, 'user', turn))
+      hold.release('second')
+      await h.settle()
+      check(
+        (await read(h, t)).live.runEnd?.outcome === 'completed',
+        'a stop naming an earlier turn must leave a later turn running'
+      )
+    }
+  },
   // Catches waits that resolve at a turn boundary inside the run (Durable's generation handover after a tool round), letting the driver decide on a running run (H5).
   {
     name: 'waits resolve only when the run ends',

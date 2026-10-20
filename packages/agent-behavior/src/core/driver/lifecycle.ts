@@ -90,19 +90,31 @@ export function decideOnOpen(
   return { ops, effects, result: null }
 }
 
-/** `entries.userStop` (R5): the stop is recorded before the turn stops, so suppression survives a restart. */
-export const decideUserStop = (facts: ConversationFacts, inputs: CallInputs, requestKey: string): Step<null> => ({
-  ops: [
-    {
-      type: 'append-record',
-      thread: facts.thread,
-      record: { type: 'turn-stop', value: { cause: 'user', at: inputs.now } },
-      key: keys.turnStop(requestKey)
-    }
-  ],
-  effects: [{ type: 'stop-turn', thread: facts.thread, cause: 'user' }],
-  result: null
-})
+/**
+ * `entries.userStop` (R5): the stop is recorded before the turn stops, so suppression survives a restart. It names the
+ * turn last begun before its record (H2), so a repeated request, after a crash too, stops that turn and never a later
+ * one; with no turn begun there is nothing to stop.
+ */
+export function decideUserStop(facts: ConversationFacts, inputs: CallInputs, requestKey: string): Step<null> {
+  const key = keys.turnStop(requestKey)
+  let turn: ItemId | undefined
+  for (const entry of facts.history) {
+    if (entry.kind === 'record' && entry.key === key) break
+    if (startsTurn(entry)) turn = entry.id
+  }
+  return {
+    ops: [
+      {
+        type: 'append-record',
+        thread: facts.thread,
+        record: { type: 'turn-stop', value: { cause: 'user', at: inputs.now } },
+        key
+      }
+    ],
+    effects: turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause: 'user', turn }],
+    result: null
+  }
+}
 
 /**
  * The host changed the permission mode (D37): only an armed goal that plan mode may have held still has rounds to

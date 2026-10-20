@@ -46,31 +46,39 @@ export interface Ledger {
 export type StartResult = 'started' | 'queued' | 'busy'
 export type RetractResult = 'withdrawn' | 'already-started' | 'settled' | 'not-found'
 /**
- * H2. Give the agent a turn, take back one that has not started, stop the current one.
+ * H2. Give the agent a turn, take back one that has not started, stop the current one or only the one a stop names.
  *
  * @harness coding-agent `start` sends the input with a turn trigger and deduplicates by scanning history for
  * `data.key`; a `start` while a run settles answers 'busy' and records nothing, like any `start` while a run is active,
  * so nothing continues the settling run: the caller starts again once `Waits.untilIdle` resolves at `agent_settled`.
- * `retract` withdraws the reservation; `stop` aborts the session.
+ * `retract` withdraws the reservation; `stop` aborts the session, with `turn` only while the session's latest run began
+ * with that entry.
  * @harness durable `submit({ type: 'input', whenBusy: 'reject', entry: { kind, data: { ...data, key } }, requestId: key })`:
  * `ConversationBusy` is 'busy'; an idle conversation with inbox items queues the input behind them; `retract` aborts the
  * submission; `stop` is `conversation(id).abort()`, except before resume (H12), where it is
  * `Harness.abortTask(pi.live.run.taskId)` plus `abortSubmission` for each queued input, neither of which enables
- * scheduling.
- * @harness fake A per-thread inbox in front of the scripted model, with Durable's admission rules.
+ * scheduling; with `turn`, it first checks that the latest run, `pi.live.run` or else the last one, began with that
+ * entry.
+ * @harness fake A per-thread inbox in front of the scripted model, with Durable's admission rules; `stop` with `turn`
+ * acts only while the thread's latest run began with that entry.
  * @keys The key is the request id: the same key returns the original admission and never adds a second input; a
- * 'busy' answer records nothing, so the key stays usable; a withdrawn key is spent.
- * @waits `stop` resolves once the conversation is idle. Before resume (H12) it ends the run a restart interrupted as
- * aborted before any resumed work and may resolve as soon as that mark is durable; until resume the stopped run and its
- * foreground children may still appear active in the facts, so `onOpen` must not decide on facts read after its own
- * stop.
+ * 'busy' answer records nothing, so the key stays usable; a withdrawn key is spent. `stop` takes no key: `turn` names
+ * the run it may stop, so repeating a stop never reaches a later turn.
+ * @waits `stop` resolves once the conversation is idle, or at once when its `turn` is no longer the latest run. Before
+ * resume (H12) it ends the run a restart interrupted as aborted before any resumed work and may resolve as soon as that
+ * mark is durable; until resume the stopped run and its foreground children may still appear active in the facts, so
+ * `onOpen` must not decide on facts read after its own stop.
  */
 export interface Turns {
   /** 'started' when idle; 'queued' behind inbox items a failed run left; 'busy', recording nothing, while a run is active. */
   start(thread: ThreadId, input: TurnInput, key: Key): Promise<StartResult>
   retract(thread: ThreadId, key: Key): Promise<RetractResult>
-  /** Aborts the active run, and the foreground children its tool calls own, and withdraws queued input. */
-  stop(thread: ThreadId, cause: StopCause): Promise<void>
+  /**
+   * Aborts the active run, and the foreground children its tool calls own, and withdraws queued input. With `turn`,
+   * only while the conversation's latest run, active or ended, is the one that began with entry `turn`; once a later
+   * run has begun it does nothing.
+   */
+  stop(thread: ThreadId, cause: StopCause, turn?: ItemId): Promise<void>
 }
 
 export type MessageResult = { readonly run: number; readonly status: 'started' | 'queued' | 'withdrawn' }

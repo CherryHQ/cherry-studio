@@ -41,7 +41,7 @@ async function execute(
   const { ports, host } = context
   switch (effect.type) {
     case 'stop-turn':
-      return ports.turns.stop(effect.thread, effect.cause)
+      return ports.turns.stop(effect.thread, effect.cause, effect.turn)
     case 'stop-child':
       return ports.helpers.stop(effect.child, effect.run)
     case 'emit':

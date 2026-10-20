@@ -194,6 +194,9 @@ export function appendInput(state: FakeState, thread: ThreadState, key: string):
 }
 
 export const isIdle = (thread: ThreadState): boolean => thread.active === undefined && thread.inbox.length === 0
+/** The entry the thread's latest run began with: the first one that run wrote, its input (H2). */
+export const latestStart = (thread: ThreadState): ItemId | undefined =>
+  thread.entries.find(({ run }) => run === thread.runs)?.entry.id
 /** The input submitted under `key` ran to the end of its run, was withdrawn, or was never recorded (a 'busy' start). */
 export function inputDone(thread: ThreadState, key: string): boolean {
   const state = thread.submissions.get(key)?.state
