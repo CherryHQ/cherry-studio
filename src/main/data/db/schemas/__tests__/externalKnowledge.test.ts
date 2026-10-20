@@ -24,6 +24,7 @@ describe('External Knowledge relational schema', () => {
     dbh.db
       .insert(knowledgeBaseTable)
       .values({
+        orderKey: 'a0',
         id,
         name: `Base ${id}`,
         dimensions: null,
