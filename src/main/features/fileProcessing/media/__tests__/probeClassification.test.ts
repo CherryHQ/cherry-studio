@@ -4,6 +4,7 @@ import {
   classifyFfprobeResult,
   planFrameTimestamps,
   relativeInputSeekMs,
+  relativeOutputSeekMs,
   sniffEbmlDocType,
   videoTailProbePoint,
   videoTailReadInterval
@@ -71,12 +72,18 @@ describe('planFrameTimestamps', () => {
 })
 
 describe('video tail packet seek', () => {
+  it('converts an ordinary format-relative seek to the video timeline', () => {
+    expect(relativeOutputSeekMs(1_000, 1.460111, 1.483333)).toBe(976)
+    expect(relativeOutputSeekMs(0, 1.460111, 1.483333)).toBe(0)
+    expect(relativeOutputSeekMs(1_000, 1.5, 1.5)).toBe(1_000)
+  })
+
   it('locates the video end and seeks relative to the format start', () => {
     const vfr = videoTailProbePoint({
       format: { duration: '1.002', start_time: '0' },
       streams: [{ codec_type: 'video', start_time: '0', duration: '1.002' }]
     })
-    expect(vfr).toEqual({ endSeconds: 1.002, formatStartTimeSeconds: 0 })
+    expect(vfr).toEqual({ endSeconds: 1.002, formatStartTimeSeconds: 0, videoStartTimeSeconds: 0 })
     expect(videoTailReadInterval(1.002)).toBe('1.001000%1.003000')
     expect(relativeInputSeekMs(0.002, 0)).toBe(2)
 
@@ -88,14 +95,14 @@ describe('video tail packet seek', () => {
       ],
       format: { duration: '4', start_time: '0' }
     })
-    expect(staggered).toEqual({ endSeconds: 3.5, formatStartTimeSeconds: 0 })
+    expect(staggered).toEqual({ endSeconds: 3.5, formatStartTimeSeconds: 0, videoStartTimeSeconds: 1.5 })
     expect(relativeInputSeekMs(3.4, staggered?.formatStartTimeSeconds ?? Number.NaN)).toBe(3_400)
 
     const shifted = videoTailProbePoint({
       streams: [{ codec_type: 'video', start_time: '1.5', duration: '2.0' }],
       format: { duration: '2.0', start_time: '1.5' }
     })
-    expect(shifted).toEqual({ endSeconds: 3.5, formatStartTimeSeconds: 1.5 })
+    expect(shifted).toEqual({ endSeconds: 3.5, formatStartTimeSeconds: 1.5, videoStartTimeSeconds: 1.5 })
     expect(relativeInputSeekMs(3.4, 1.5)).toBe(1_900)
   })
 
@@ -108,7 +115,7 @@ describe('video tail packet seek', () => {
           { codec_type: 'audio', duration: '4' }
         ]
       })
-    ).toEqual({ endSeconds: 1, formatStartTimeSeconds: 0 })
+    ).toEqual({ endSeconds: 1, formatStartTimeSeconds: 0, videoStartTimeSeconds: 0 })
     expect(
       videoTailProbePoint({
         format: { duration: '4' },
@@ -125,12 +132,12 @@ describe('video tail packet seek', () => {
         format: { duration: '4', start_time: '0.2' },
         streams: [{ codec_type: 'video', start_time: '1.5' }]
       })
-    ).toEqual({ endSeconds: 4.2, formatStartTimeSeconds: 0.2 })
+    ).toEqual({ endSeconds: 4.2, formatStartTimeSeconds: 0.2, videoStartTimeSeconds: 1.5 })
     expect(
       videoTailProbePoint({
         format: { duration: '4', start_time: '1' },
         streams: [{ codec_type: 'video', start_time: '0' }]
       })
-    ).toEqual({ endSeconds: 5, formatStartTimeSeconds: 1 })
+    ).toEqual({ endSeconds: 5, formatStartTimeSeconds: 1, videoStartTimeSeconds: 0 })
   })
 })
