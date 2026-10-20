@@ -28,7 +28,10 @@ export class SegmentFailedError extends Error {
   }
 }
 
-export type DownloadRunResult = 'completed' | 'paused'
+/** Abort reason used when the user cancels, so settlement does not record a pause. */
+export const DOWNLOAD_CANCELLED = 'download-cancelled'
+
+export type DownloadRunResult = 'completed' | 'paused' | 'cancelled'
 
 export interface DownloadTaskOptions {
   task: DownloadTaskRecord
@@ -112,6 +115,7 @@ export class DownloadTask {
         )
         if (signal.aborted) {
           this.flush()
+          if (signal.reason === DOWNLOAD_CANCELLED) return 'cancelled'
           this.options.store.setState(task.id, 'paused')
           return 'paused'
         }
@@ -231,11 +235,16 @@ export class DownloadTask {
           this.pendingBytes += value.length
           this.maybeFlush()
         }
+      } catch (error) {
+        // Aborting a pending read rejects it before the settlement check below;
+        // the abort is not a transfer failure.
+        if (!signal.aborted) throw error
       } finally {
         reader.releaseLock()
       }
       if (signal.aborted) {
         this.flush()
+        if (signal.reason === DOWNLOAD_CANCELLED) return 'cancelled'
         store.setState(task.id, 'paused')
         return 'paused'
       }

@@ -12,7 +12,7 @@ import { uniquifyFileName } from './downloadPath'
 import { fileNameFromUrl, resolveDownloadPath, sanitizeDownloadFileName } from './downloadPath'
 import type { DownloadConflictPolicy } from './downloadPath'
 import { DownloadStore, type DownloadTaskRecord } from './downloadStore'
-import { DownloadTask } from './DownloadTask'
+import { DOWNLOAD_CANCELLED, DownloadTask } from './DownloadTask'
 import { probeDownload } from './probe'
 import { planSegments, MAX_SEGMENT_CONNECTIONS } from './segmentedDownload'
 import { SpeedMeter } from './speedMeter'
@@ -105,7 +105,12 @@ export class DownloadManagerService extends BaseService {
       if (task.filePath) this.reserved.add(task.filePath)
     }
     if (!application.get('PreferenceService').get(PREF.autoResume)) return
-    for (const task of this.store.listResumable()) this.enqueue(task.id)
+    for (const task of this.store.listResumable()) {
+      // `runTask` only starts queued rows, so a restored task must be re-queued
+      // explicitly rather than carrying its pre-restart state into the queue.
+      this.store.setState(task.id, 'queued')
+      this.enqueue(task.id)
+    }
     this.pump()
   }
 
@@ -275,8 +280,15 @@ export class DownloadManagerService extends BaseService {
 
   /** Aborts the transfer; the task stays resumable at its recorded offsets. */
   pause(taskId: string): void {
-    this.running.get(taskId)?.abort()
-    if (!this.running.has(taskId)) this.store.setState(taskId, 'paused')
+    const controller = this.running.get(taskId)
+    if (controller) {
+      controller.abort()
+      return
+    }
+    // A paused entry must leave the queue, otherwise the next pump starts it
+    // while the persisted state still says paused.
+    this.dequeue(taskId)
+    this.store.setState(taskId, 'paused')
   }
 
   resume(taskId: string): void {
@@ -288,7 +300,10 @@ export class DownloadManagerService extends BaseService {
   }
 
   cancel(taskId: string): void {
-    this.running.get(taskId)?.abort()
+    // The reason distinguishes a user cancel from a pause when the runner
+    // settles; without it the abort path overwrites `cancelled` with `paused`.
+    this.running.get(taskId)?.abort(DOWNLOAD_CANCELLED)
+    this.dequeue(taskId)
     const entry = this.store.get(taskId)
     if (entry?.task.filePath) this.reserved.delete(entry.task.filePath)
     this.store.setState(taskId, 'cancelled')
@@ -340,6 +355,11 @@ export class DownloadManagerService extends BaseService {
     this.queue.push(taskId)
   }
 
+  private dequeue(taskId: string): void {
+    const index = this.queue.indexOf(taskId)
+    if (index >= 0) this.queue.splice(index, 1)
+  }
+
   private pump(): void {
     const max = clamp(application.get('PreferenceService').get(PREF.maxTasks), 1, 10)
     while (this.active < max && this.queue.length > 0) {
@@ -350,7 +370,9 @@ export class DownloadManagerService extends BaseService {
 
   private async runTask(taskId: string): Promise<void> {
     const entry = this.store.get(taskId)
-    if (!entry || entry.task.state === 'completed' || entry.task.state === 'cancelled') return
+    // Only an explicitly queued row may run: a pause or cancel that raced the
+    // queue must not start a transfer without a matching resume.
+    if (!entry || entry.task.state !== 'queued') return
 
     const controller = new AbortController()
     this.running.set(taskId, controller)

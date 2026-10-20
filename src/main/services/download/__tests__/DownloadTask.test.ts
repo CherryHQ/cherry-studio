@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DownloadStore } from '../downloadStore'
 import { DownloadTask, ValidatorChangedError } from '../DownloadTask'
@@ -213,6 +213,56 @@ describe('DownloadTask', () => {
     expect(ranges.length).toBeGreaterThan(0)
     expect((await fs.readFile(filePath)).equals(CONTENT)).toBe(true)
     expect(store.get(task.id)?.task.state).toBe('completed')
+  })
+
+  it('records a pause when an aborted single-stream read rejects', async () => {
+    const fileName = 'single.bin'
+    const filePath = join(dir, fileName)
+    const tempPath = `${filePath}.crdownload`
+    const { task, segments } = store.create({
+      url: `${baseUrl}/single`,
+      finalUrl: `${baseUrl}/single`,
+      fileName,
+      filePath,
+      tempPath,
+      totalBytes: 0,
+      connections: 1,
+      source: 'manual',
+      supportsRanges: false,
+      ranges: [{ index: 0, start: 0, end: 0 }]
+    })
+
+    const controller = new AbortController()
+    const fetchImpl: FetchLike = async (_url, init) =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          async start(stream) {
+            stream.enqueue(new Uint8Array([1, 2, 3]))
+            await new Promise<void>((_resolve, reject) => {
+              const onAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+              if (init?.signal?.aborted) return onAbort()
+              init?.signal?.addEventListener('abort', onAbort, { once: true })
+            })
+            stream.close()
+          }
+        }),
+        { status: 200 }
+      )
+    const runner = new DownloadTask({
+      task,
+      segments,
+      probe: { finalUrl: task.url, totalBytes: 0, supportsRanges: false },
+      store,
+      fetchImpl,
+      progressFlushBytes: 1
+    })
+
+    const run = runner.run(controller.signal)
+    await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('downloading'))
+    controller.abort()
+
+    await expect(run).resolves.toBe('paused')
+    expect(store.get(task.id)?.task.state).toBe('paused')
   })
 
   it('fails the task when the remote file changed under a running range request', async () => {
