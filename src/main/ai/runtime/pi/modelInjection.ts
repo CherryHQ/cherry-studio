@@ -7,7 +7,7 @@
  * never placed in the `registerProvider` config — the config carries only a
  * non-secret placeholder so keys that start with `$`/`!` never hit pi's config
  * interpolation semantics. The driver injects the real key at runtime via
- * `AuthStorage.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
+ * `ModelRuntime.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
  */
 
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
@@ -15,10 +15,11 @@ import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-cod
 import { application } from '@application'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { getExtraHeaders } from '@main/ai/utils/provider'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { isPiGatewayCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
@@ -43,8 +44,11 @@ import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGatew
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
+import { projectPiReasoningCompat } from './piReasoningCompat'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
+
+type PiChatModelConfig = Extract<ProviderModelConfig, { reasoning: boolean }>
 import { loadPiAiStreamFns, withTransportStream } from './piTransportStream'
 
 /**
@@ -86,7 +90,7 @@ interface PiProviderInjectionBase {
   /** Resolved Pi wire family; duplicated from providerConfig because that SDK field is optional in its public type. */
   api: PiApi
   /** Config for `pi.registerProvider(providerName, config)`. `apiKey` is the placeholder. */
-  providerConfig: ProviderConfig
+  providerConfig: ProviderConfig & { models?: PiChatModelConfig[] }
   /** The real Cherry API key — inject via `AuthStorage.setRuntimeApiKey`, never into the config. */
   apiKey: string
   /** The pi model id to select for the session (Cherry's `apiModelId`). */
@@ -139,9 +143,8 @@ function resolvePiEndpoint(provider: Provider, model: Model) {
 }
 
 /**
- * Pure mapping: build the pi provider injection from an already-resolved Cherry
- * `Provider`, `Model`, and API key. Kept free of service/IO so it is unit
- * testable in isolation.
+ * Build the pi provider injection from a Cherry `Provider`, `Model`, and API key,
+ * resolving reasoning metadata from the registry.
  *
  * @throws PiUnsupportedProviderError when the provider's endpoint has no pi mapping.
  */
@@ -176,7 +179,7 @@ export function buildPiProviderInjection(
   const modelId = getRawModelId(model)
   const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
 
-  const providerConfig: ProviderConfig = {
+  const providerConfig: PiProviderInjection['providerConfig'] = {
     name: provider.name,
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
@@ -204,7 +207,13 @@ export function buildPiProviderInjection(
           apiModelId: modelId,
           modelName: model.name ?? model.id,
           aliases: [...new Set([model.id, modelId])],
-          pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)
+          pricingSnapshot: createAiUsageCaptureContext({
+            providerId: provider.id,
+            modelId: parseUniqueModelId(model.id).modelId,
+            pricing: model.pricing,
+            billing: provider.settings?.billing,
+            invocationStartedAt: null
+          }).pricingSnapshot
         }
       ]
     },
@@ -228,8 +237,13 @@ function toPiHeaders(headers: Record<string, string> | undefined): Record<string
 }
 
 /** Whether this provider declares that Pi must use Cherry's local Gateway route. */
-export function usesPiGateway(provider: Provider): boolean {
-  return requiresAgentGateway(provider.id)
+export function usesPiGateway(provider: Provider, model: Model): boolean {
+  const endpoint = resolvePiEndpoint(provider, model).endpointType
+  const api =
+    isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)
+      ? undefined
+      : mapEndpointToPiApi(endpoint, endpoint ? provider.endpointConfigs?.[endpoint]?.adapterFamily : undefined)
+  return requiresAgentGateway(provider.id) || api === undefined
 }
 
 /** Build a Pi route targeting Cherry's local Gateway while preserving the model's wire protocol. */
@@ -242,21 +256,25 @@ export function buildPiGatewayInjection(
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined
-  const api = mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
-  if (!api) throw new PiUnsupportedProviderError(provider.id)
+  const api =
+    isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)
+      ? undefined
+      : mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
+  if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
+  const gatewayApi = api && api !== 'azure-openai-responses' ? api : 'openai-completions'
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
-  const modelConfig = buildPiModelConfig(provider, model, modelId, api, resolvedEndpoint.endpointType)
+  const modelConfig = buildPiModelConfig(provider, model, modelId, gatewayApi, resolvedEndpoint.endpointType)
   const headers = Object.keys(gateway.usageHeaders).length ? gateway.usageHeaders : undefined
 
   return {
     providerName: provider.id,
-    api,
+    api: gatewayApi,
     providerConfig: {
       name: provider.name,
-      baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
+      baseUrl: formatPiBaseUrl(gateway.baseUrl, gatewayApi),
       apiKey: PI_PLACEHOLDER_API_KEY,
-      api,
+      api: gatewayApi,
       ...(headers ? { headers } : {}),
       models: [modelConfig]
     },
@@ -328,7 +346,7 @@ export async function resolvePiProviderInjectionForSession(
   model: Model,
   enabledApiKeys?: readonly ApiKeyEntry[]
 ): Promise<PiProviderInjection> {
-  if (!usesPiGateway(provider)) {
+  if (!usesPiGateway(provider, model)) {
     const injection = resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
     const headers = injection.providerConfig.headers
     if (
@@ -340,6 +358,7 @@ export async function resolvePiProviderInjectionForSession(
     return injection
   }
 
+  if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
   const gateway = await resolveApiGatewayRuntime(sessionId)
   return buildPiGatewayInjection(provider, model, gateway)
 }
@@ -354,15 +373,8 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
 
-  // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
-  if (usesPiGateway(provider)) {
-    const resolvedEndpoint = resolvePiEndpoint(provider, model)
-    const adapterFamily = resolvedEndpoint.endpointType
-      ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
-      : undefined
-    if (!mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)) {
-      throw new PiUnsupportedProviderError(providerId)
-    }
+  if (usesPiGateway(provider, model)) {
+    if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(providerId)
     return
   }
 
@@ -405,11 +417,11 @@ const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 
  * like Kimi K3, whose vocabulary is low/high/max (#20029). A model declaring no concrete tier gets
  * no map: its toggle is expressed by the wire, and an all-`null` ladder would disable thinking.
  */
-function buildThinkingLevelMap(model: Model): ProviderModelConfig['thinkingLevelMap'] | undefined {
+function buildThinkingLevelMap(model: Model): PiChatModelConfig['thinkingLevelMap'] | undefined {
   const declared = model.reasoning?.selectableEfforts ?? []
   if (!declared.some((effort) => effort !== 'none' && effort !== 'auto')) return undefined
 
-  const map: NonNullable<ProviderModelConfig['thinkingLevelMap']> = {}
+  const map: NonNullable<PiChatModelConfig['thinkingLevelMap']> = {}
   for (const level of PI_THINKING_LEVELS) {
     const effort = level === 'off' ? 'none' : level
     map[level] = declared.includes(effort) ? effort : null
@@ -423,7 +435,7 @@ function buildPiModelConfig(
   id: string,
   api: PiApi,
   endpointType: EndpointType | undefined
-): ProviderModelConfig {
+): PiChatModelConfig {
   const input: ('text' | 'image')[] = ['text']
   const supportsImage =
     model.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ||
@@ -432,6 +444,19 @@ function buildPiModelConfig(
     input.push('image')
   }
   const thinkingLevelMap = buildThinkingLevelMap(model)
+  const reasoningCompat =
+    api === 'anthropic-messages'
+      ? projectPiReasoningCompat(providerRegistryService.resolveReasoningProfile(provider, model, endpointType))
+      : {}
+  const compat = {
+    // Cherry's endpoint capability overrides pi's URL-based developer-role inference.
+    ...(api === 'openai-completions' || api === 'openai-responses'
+      ? { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole }
+      : {}),
+    // CherryIN can omit the signature delta on thinking blocks that must be replayed.
+    ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { allowEmptySignature: true } : {}),
+    ...reasoningCompat
+  }
 
   return {
     id,
@@ -445,14 +470,6 @@ function buildPiModelConfig(
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: resolveAgentContextWindow(model),
     maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
-    // Cherry's provider capability is the source of truth; pi otherwise infers
-    // developer-role support from the endpoint URL.
-    ...(api === 'openai-completions' || api === 'openai-responses'
-      ? { compat: { supportsDeveloperRole: resolveEndpointDialect(provider, endpointType).developerRole } }
-      : {}),
-    // CherryIN requires replaying its thinking block even when the compatible endpoint omits a signature delta.
-    ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
-    // thinkingLevelMap intentionally omitted: Cherry does not wire pi
-    // thinking-level control in v1 (see capability matrix).
+    ...(Object.keys(compat).length > 0 ? { compat } : {})
   }
 }

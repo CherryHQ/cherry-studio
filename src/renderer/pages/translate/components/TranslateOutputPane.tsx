@@ -1,9 +1,11 @@
-import { Check, Copy, NotebookPen } from 'lucide-react'
+import { Check, Copy, NotebookPen, Volume2 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { defaultMarkdownPlugins, Scrollbar, StreamingMarkdown, withMath } from '@cherrystudio/ui'
+import { Button, Scrollbar } from '@cherrystudio/ui'
+import { AppMarkdown } from '@renderer/components/markdown'
+import { readTextAloud } from '@renderer/services/voice'
 
 import IconButton from './IconButton'
 
@@ -29,7 +31,18 @@ const TranslateOutputPane = ({
   onScroll
 }: Props) => {
   const { t } = useTranslation()
-  const markdownPlugins = useMemo(() => ({ ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) }), [])
+  const readButtonRef = useRef<HTMLButtonElement>(null)
+  const currentResultRef = useRef({ translatedContent, translating })
+  currentResultRef.current = { translatedContent, translating }
+  const playbackRef = useRef<AbortController | undefined>(undefined)
+  useLayoutEffect(() => () => playbackRef.current?.abort(), [translatedContent, translating])
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   return (
     <div data-ui="translate.output" className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -45,15 +58,7 @@ const TranslateOutputPane = ({
             </div>
           ) : translatedContent ? (
             enableMarkdown ? (
-              // The shared streaming component memoizes completed blocks, so
-              // long documents render live without a per-frame full reparse.
-              <StreamingMarkdown
-                id="translate-output"
-                plugins={markdownPlugins}
-                animated={translating ? undefined : false}
-                parseIncompleteMarkdown={translating}>
-                {translatedContent}
-              </StreamingMarkdown>
+              <AppMarkdown isStreaming={translating}>{translatedContent}</AppMarkdown>
             ) : (
               <div className="wrap-break-word whitespace-pre-wrap text-foreground">{translatedContent}</div>
             )
@@ -67,12 +72,39 @@ const TranslateOutputPane = ({
       </div>
       <div className="flex shrink-0 items-center px-3 py-4">
         {translatedContent && <span className="text-foreground-tertiary text-xs">{translatedContent.length}</span>}
+        <Button
+          ref={readButtonRef}
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('chat.message.read_aloud.label')}
+          disabled={translating || !translatedContent.trim()}
+          className="ml-auto"
+          onClick={() => {
+            playbackRef.current?.abort()
+            const controller = new AbortController()
+            playbackRef.current = controller
+            void readTextAloud({
+              text: translatedContent,
+              mode: 'document',
+              sourceLabel: 'document',
+              sourceEntityId: 'translate-page-result',
+              signal: controller.signal,
+              isCurrent: () =>
+                mountedRef.current &&
+                !currentResultRef.current.translating &&
+                currentResultRef.current.translatedContent === translatedContent,
+              focusOnClose: () => readButtonRef.current?.focus()
+            })
+          }}>
+          <Volume2 className="size-4" />
+        </Button>
         <IconButton
           size="sm"
           onClick={onExportToNotes}
           disabled={!translatedContent.trim()}
           aria-label={t('notes.save')}
-          className="ml-auto">
+          className="ml-1">
           <NotebookPen size={14} />
         </IconButton>
       </div>

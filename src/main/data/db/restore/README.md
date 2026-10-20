@@ -3,6 +3,8 @@
 Offline-merge + preboot-promotion primitives for the backup restore flow.
 The backup pipeline imports backup rows into a detached `work.sqlite` (a `VACUUM INTO` copy of live), stages file resources, writes a `staged` journal, and relaunches; the preboot promotion gate then swaps `work.sqlite` in by atomic rename during the zero-connection window. The live DB is never written during a restore.
 
+Before Sentry initialization or asynchronous preboot work, active restores redirect Chromium's `sessionData` to a temporary directory under `feature.backup.restore.session`. This prevents session initialization from opening `Local Storage` while promotion replaces it. The isolated launch consumes the terminal journal and relaunches without bootstrapping; the next normal launch cleans up the temporary session and opens the restored profile. An unresolved journal stops the isolated launch rather than triggering an automatic relaunch loop.
+
 **No barrel** — consumers deep-import specific files (same convention as `src/main/core/preboot/`).
 
 ## Modules
@@ -30,6 +32,7 @@ staged ──gate passed──▶ promoting ──▶ completed (work promoted, 
 - `promoting` — set by the preboot gate; `step` is the write-ahead marker (see `PROMOTION_STEP_ORDER`; ordering comparisons MUST use `indexOf` on that table, never string comparison).
 - Markers are recovery hints, not ground truth: around the commit boundary the gate decides from filesystem reality (`work` / `live` / `aside` existence) — a landed commit rename with a lagging or unwritable marker resumes forward, an interrupted revert (cleared aside) finishes the revert.
 - Terminal states (`completed` / `failed` / `expired`) remain durable through the stranded-DB safety check, then the preboot gate logs and removes them before database boot continues.
+- A rejected promoted DB is parked as `restore-staging/<restoreId>/failed.sqlite` until rollback completes, then removed with the staging tree. Historical `work-failed-<UUID>.sqlite` files in the userData root are included in orphaned-data cleanup only when no restore journal remains; deletion rechecks the journal and excludes directories and symbolic links.
 
 ## Ownership
 

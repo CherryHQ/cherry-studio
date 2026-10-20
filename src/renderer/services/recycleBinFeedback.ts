@@ -1,10 +1,19 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getErrorMessage } from '@renderer/utils/error'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
 const logger = loggerService.withContext('recycleBinFeedback')
+
+/** Every archived item lands in the same Archive page, so the way back to it is identical for all of them. */
+function viewArchiveAction() {
+  return {
+    label: i18n.t('recycle_bin.view_archive'),
+    onClick: () => openSettingsTab('/settings/archive')
+  }
+}
 
 export function showRecycleBinUndo(input: {
   itemName: string
@@ -16,6 +25,7 @@ export function showRecycleBinUndo(input: {
     title: input.title ?? i18n.t('recycle_bin.moved', { name: input.itemName }),
     description: input.description,
     timeout: input.description ? 10000 : 5000,
+    secondaryAction: viewArchiveAction(),
     action: {
       label: i18n.t('common.undo'),
       onClick: async () => {
@@ -133,6 +143,7 @@ export function showRecycleBinBatchUndo(input: { itemCount: number; onUndo: () =
   toast.success({
     title: i18n.t('recycle_bin.moved_count', { count: input.itemCount }),
     timeout: 5000,
+    secondaryAction: viewArchiveAction(),
     action: {
       label: i18n.t('common.undo'),
       onClick: async () => {

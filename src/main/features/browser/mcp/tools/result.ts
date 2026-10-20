@@ -19,7 +19,8 @@ export async function browserResult(
       tabId,
       session,
       signal: targetSignal,
-      pointer
+      pointer,
+      focusInput
     } = await controller.getSession(target.privateMode, target.tabId)
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
     return await session.run(
@@ -30,7 +31,7 @@ export async function browserResult(
           result = {
             ok: true,
             navigated: false,
-            ...(await action(session, { deadline: Date.now() + 30_000, signal, pointer }))
+            ...(await action(session, { deadline: Date.now() + 30_000, signal, pointer, focusInput }))
           }
         } catch (error) {
           pointer?.hide()

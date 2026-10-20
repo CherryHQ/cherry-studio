@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.2",
+    "version": "2.1.7",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -66,6 +66,7 @@
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
+      "/settings/computer-use",
       "/settings/data",
       "/settings/dependencies",
       "/settings/device-connections",
@@ -76,6 +77,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/profile",
       "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
@@ -85,8 +87,10 @@
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
+      "/settings/subscription",
       "/settings/system",
       "/settings/usage",
+      "/settings/voice",
       "/settings/websearch",
       "/app/mini-app/$appId",
       "/app/paintings/$",
@@ -496,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "2707d81b155c6c98",
-    "count": 64,
+    "version": "1b44511badb438e6",
+    "count": 66,
     "entries": [
       {
         "id": "cherryin",
@@ -592,6 +596,10 @@
         "name": "LM Studio"
       },
       {
+        "id": "litellm",
+        "name": "LiteLLM"
+      },
+      {
         "id": "anthropic",
         "name": "Anthropic"
       },
@@ -657,7 +665,7 @@
       },
       {
         "id": "doubao",
-        "name": "doubao"
+        "name": "Doubao"
       },
       {
         "id": "minimax",
@@ -744,6 +752,10 @@
         "name": "Cerebras AI"
       },
       {
+        "id": "comfyui",
+        "name": "ComfyUI"
+      },
+      {
         "id": "mimo",
         "name": "Xiaomi MiMo"
       },
@@ -814,6 +826,11 @@
       "label": "Română"
     },
     {
+      "value": "th-TH",
+      "flag": "🇹🇭",
+      "label": "ภาษาไทย"
+    },
+    {
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
@@ -830,6 +847,8 @@
       "feishu",
       "qq",
       "wechat",
+      "wecom",
+      "dingtalk",
       "discord",
       "slack"
     ],
