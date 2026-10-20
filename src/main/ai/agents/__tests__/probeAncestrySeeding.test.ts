@@ -9,14 +9,18 @@ import { WINDOWS_DETACHED_TASK_RUNNER } from '../backgroundTasks'
 
 const TABLE_HEADER = '"ProcessId","ParentProcessId","CreationDate"'
 /** Realistic creation order: the runner, then its shell, then the shell's child, then its child. */
-const T_RUNNER = '20261017000000.000000+480'
-const T_SHELL = '20261017000001.000000+480'
-const T_MID = '20261017000002.000000+480'
-const T_WORKER = '20261017000003.000000+480'
-/** A pid taken over after its first occupant exited is stamped later than anything it forks. */
-const T_REUSED = '20261017000009.000000+480'
+const T_RUNNER = '639281447000000000'
+const T_SHELL = '639281447100000000'
+const T_MID = '639281447200000000'
+const T_WORKER = '639281447300000000'
+/**
+ * A pid taken over after its first occupant exited is stamped later than anything it forks. These
+ * two are the real `09:59:59`/`10:00:00` pair as PowerShell reports it: in the identity query's
+ * culture text the later child sorts first, so only ticks can order them.
+ */
+const T_REUSED = '639281447990000000' // 2026-10-21 09:59:59 local
 /** The stranger's own child, forked after it took the pid over. */
-const T_REUSED_CHILD = '20261017000010.000000+480'
+const T_REUSED_CHILD = '639281448000000000' // 2026-10-21 10:00:00 local
 
 /**
  * A fake-table probe standing in for `powershell.exe`, placed on the runner's PATH. The spawn-time

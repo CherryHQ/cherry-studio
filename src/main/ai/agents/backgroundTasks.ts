@@ -433,6 +433,13 @@ let keeper = null
 let jobActive = false
 let started = false
 let jobNonce = 0
+// A creation stamp is FILETIME ticks, never the CSV text form: "9:59:59" sorts after "10:00:00"
+// there, which would read a replacement's later child as an earlier one.
+const createdTicks = (created) => {
+  const ticks = Number(created)
+  return Number.isFinite(ticks) ? ticks : NaN
+}
+const createdBefore = (earlier, later) => createdTicks(earlier) < createdTicks(later)
 const jobSleep = (ms) => {
   try {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
@@ -494,7 +501,7 @@ const start = () => {
           process.pid +
           ' or ProcessId=' +
           task.pid +
-          '" | Select-Object ProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
+          '" | Select-Object ProcessId,@{n="CreationDate";e={[string]$_.CreationDate.ToUniversalTime().Ticks}} | ConvertTo-Csv -NoTypeInformation'
       ],
       { encoding: 'utf8', timeout: 5000, windowsHide: true }
     )
@@ -541,7 +548,7 @@ const start = () => {
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
+          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,@{n="CreationDate";e={[string]$_.CreationDate.ToUniversalTime().Ticks}} | ConvertTo-Csv -NoTypeInformation'
         ],
         { encoding: 'utf8', timeout: 5000, windowsHide: true }
       )
@@ -590,8 +597,8 @@ const start = () => {
         const parent = byPid.get(row.ppid)
         if (!parent) keep.add(row.pid)
         else if (row.ppid === shellPid) {
-          if (parent.created === stamps.shellCreatedAt || row.created < parent.created) keep.add(row.pid)
-        } else if (known.get(row.ppid) === parent.created || row.created < parent.created) keep.add(row.pid)
+          if (parent.created === stamps.shellCreatedAt || createdBefore(row.created, parent.created)) keep.add(row.pid)
+        } else if (known.get(row.ppid) === parent.created || createdBefore(row.created, parent.created)) keep.add(row.pid)
       }
     }
     let grew = true
@@ -1398,7 +1405,7 @@ async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
           '-NoProfile',
           '-NonInteractive',
           '-Command',
-          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
+          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,@{n="CreationDate";e={[string]$_.CreationDate.ToUniversalTime().Ticks}} | ConvertTo-Csv -NoTypeInformation'
         ],
         { timeout: 5_000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 },
         (error, stdout) => {
@@ -1432,6 +1439,23 @@ async function readWindowsProcessTable(): Promise<WindowsProcessRow[] | null> {
  * it has since forked; the rows it parents count as this task's orphans only when they were
  * created before the replacement took over.
  */
+/**
+ * A creation stamp as a chronology. The identity queries project `CreationDate` as FILETIME ticks
+ * because the CSV form is culture text, whose lexical order is not chronological: `9:59:59` sorts
+ * after `10:00:00` there. Anything that is not ticks has no chronology at all.
+ */
+function createdTicks(created: string): number | undefined {
+  const ticks = Number(created)
+  return Number.isFinite(ticks) ? ticks : undefined
+}
+
+/** Whether `earlier` provably predates `later`; two unparseable stamps prove nothing. */
+function createdBefore(earlier: string, later: string): boolean {
+  const from = createdTicks(earlier)
+  const to = createdTicks(later)
+  return from !== undefined && to !== undefined && from < to
+}
+
 function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoot[]): Set<number> {
   const byPid = new Map(rows.map((row) => [row.pid, row]))
   const rootPids = new Set(roots.map((root) => root.pid))
@@ -1446,7 +1470,7 @@ function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoo
   for (const row of rows) {
     if (verified.has(row.pid) || !rootPids.has(row.ppid)) continue
     const occupant = byPid.get(row.ppid)
-    if (occupant && !verified.has(occupant.pid) && row.created >= occupant.created) continue
+    if (occupant && !verified.has(occupant.pid) && !createdBefore(row.created, occupant.created)) continue
     work.add(row.pid)
   }
   for (let grew = true; grew;) {

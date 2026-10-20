@@ -33,8 +33,15 @@ import {
 
 const nodeBin = `"${process.execPath}"`
 const TABLE_HEADER = '"ProcessId","ParentProcessId","CreationDate"'
-/** The creation stamp the fake identity query reports for the runner and the shell it spawned. */
-const SPAWN_STAMP = '20261017000000.000000+480'
+/**
+ * Creation stamps as the identity queries emit them: FILETIME ticks from
+ * `CreationDate.ToUniversalTime().Ticks`, not the culture-formatted CSV text. The pair around
+ * 10:00:00 is the ordering hazard this guards: read as text, `9:59:59` sorts after `10:00:00`.
+ */
+const SPAWN_STAMP = '639281447900000000' // 2026-10-21 09:59:50 local
+const ORPHAN_STAMP = '639281447950000000' // 2026-10-21 09:59:55 local
+const REUSED_STAMP = '639281447990000000' // 2026-10-21 09:59:59 local
+const REUSED_CHILD_STAMP = '639281448000000000' // 2026-10-21 10:00:00 local
 
 // The suite simulates the Windows process table on a POSIX host: the stand-in probe is a shell
 // script, which a real Windows runner cannot execute, so the simulation itself only runs where
@@ -75,8 +82,8 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
         : [
             '  shell_pid=$(printf \'%s\' "$*" | sed -n "s/.*ProcessId=[0-9][0-9]* or ProcessId=\\([0-9][0-9]*\\).*/\\1/p")',
             '  printf \'"ProcessId","CreationDate"\\n\'',
-            '  printf \'"%s","20261017000000.000000+480"\\n\' "$PPID"',
-            '  if [ -n "$shell_pid" ]; then printf \'"%s","20261017000000.000000+480"\\n\' "$shell_pid"; fi'
+            `  printf '"%s","${SPAWN_STAMP}"\\n' "$PPID"`,
+            `  if [ -n "$shell_pid" ]; then printf '"%s","${SPAWN_STAMP}"\\n' "$shell_pid"; fi`
           ]),
       '  ;;',
       // The job keeper: it reports itself ready once the membership is held, then republishes the
@@ -320,9 +327,9 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await writeFakeRows(
       [
         TABLE_HEADER,
-        `"${shellPid}","4","20261017000010.000000+480"`,
-        `"8888","${shellPid}","20261017000011.000000+480"`,
-        `"999999","${shellPid}","20261017000005.000000+480"`
+        `"${shellPid}","4","${REUSED_STAMP}"`,
+        `"8888","${shellPid}","${REUSED_CHILD_STAMP}"`,
+        `"999999","${shellPid}","${ORPHAN_STAMP}"`
       ].join('\n') + '\n'
     )
 
@@ -368,8 +375,8 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await writeFakeRows(
       [
         TABLE_HEADER,
-        `"7777","${shellPid}","20261017000011.000000+480"`,
-        `"4444","7777","20261017000012.000000+480"`,
+        `"7777","${shellPid}","${REUSED_STAMP}"`,
+        `"4444","7777","${REUSED_CHILD_STAMP}"`,
         `"999999","${shellPid}","${SPAWN_STAMP}"`
       ].join('\n') + '\n'
     )
@@ -409,9 +416,9 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await writeFakeRows(
       [
         TABLE_HEADER,
-        `"${shellPid}","4","20261017000010.000000+480"`,
-        `"8888","${shellPid}","20261017000011.000000+480"`,
-        `"999999","${shellPid}","20261017000005.000000+480"`
+        `"${shellPid}","4","${REUSED_STAMP}"`,
+        `"8888","${shellPid}","${REUSED_CHILD_STAMP}"`,
+        `"999999","${shellPid}","${ORPHAN_STAMP}"`
       ].join('\n') + '\n'
     )
 
@@ -429,6 +436,70 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
       },
       { timeout: 10_000, interval: 200 }
     )
+    expect(await readKnownPids()).not.toContain(8_888)
+  }, 20_000)
+
+  it('does not order culture-formatted stamps lexically in the stop walk', async () => {
+    // Windows reports `CreationDate` as culture text, where `10:00:00 AM` sorts before `9:59:59 AM`.
+    // A replacement that took the shell's pid at 9:59:59 and forked a child at 10:00:00 must not
+    // read that child as older than the occupant: it is the replacement's, not this task's work.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER, { withStamps: false })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(
+      [
+        TABLE_HEADER,
+        `"${shellPid}","4","10/21/2026 9:59:59 AM"`,
+        `"8888","${shellPid}","10/21/2026 10:00:00 AM"`,
+        `"999999","${shellPid}","10/21/2026 9:59:55 AM"`
+      ].join('\n') + '\n'
+    )
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      requested.push(args[1] as string[])
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const withheld = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    // Culture text carries no chronology: the replacement's child may never be adopted as work.
+    expect(requested.flat()).not.toContain('8888')
+    // The occupant cannot be tied to the task, so termination stays unproven.
+    expect(withheld?.status).toBe('running')
+    expect(onExit).not.toHaveBeenCalled()
+  }, 20_000)
+
+  it('does not order culture-formatted stamps lexically when extending ancestry', async () => {
+    // The same hazard inside the runner: its ancestry walk must not read the replacement's
+    // 10:00:00 AM child as earlier than the 9:59:59 AM occupant and persist it as verified work.
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(
+      [TABLE_HEADER, `"${shellPid}","4","10/21/2026 9:59:59 AM"`, `"8888","${shellPid}","10/21/2026 10:00:00 AM"`].join(
+        '\n'
+      ) + '\n'
+    )
+
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+
+    // Several polls' worth of time: a lexical comparison would have admitted it on the first one.
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
     expect(await readKnownPids()).not.toContain(8_888)
   }, 20_000)
 
@@ -450,10 +521,10 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // `999999` is the task's orphan worker, created before the replacement took the pid.
     const replacementRows = [
       TABLE_HEADER,
-      `"${shellPid}","4","20261017000010.000000+480"`,
-      `"8888","${shellPid}","20261017000011.000000+480"`
+      `"${shellPid}","4","${REUSED_STAMP}"`,
+      `"8888","${shellPid}","${REUSED_CHILD_STAMP}"`
     ]
-    await writeFakeRows(`${[...replacementRows, `"999999","${shellPid}","20261017000005.000000+480"`].join('\n')}\n`)
+    await writeFakeRows(`${[...replacementRows, `"999999","${shellPid}","${ORPHAN_STAMP}"`].join('\n')}\n`)
 
     const requested: string[][] = []
     taskkillMock.mockImplementation((...args: unknown[]) => {
@@ -611,11 +682,8 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     const shellPid = await waitForShellPid(record.id)
     // The recorded runner pid now names an unrelated occupant; the task's own orphan still runs.
     await writeFakeRows(
-      [
-        TABLE_HEADER,
-        `"${record.pid}","4","20261017000010.000000+480"`,
-        `"999999","${shellPid}","20261017000005.000000+480"`
-      ].join('\n') + '\n'
+      [TABLE_HEADER, `"${record.pid}","4","${REUSED_STAMP}"`, `"999999","${shellPid}","${ORPHAN_STAMP}"`].join('\n') +
+        '\n'
     )
     const requested: string[][] = []
     taskkillMock.mockImplementation((...args: unknown[]) => {
