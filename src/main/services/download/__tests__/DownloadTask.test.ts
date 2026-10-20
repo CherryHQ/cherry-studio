@@ -1,4 +1,4 @@
-import { mkdtempSync, promises as fs, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, promises as fs, rmSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -175,6 +175,42 @@ describe('DownloadTask', () => {
     })
     await expect(second.run(new AbortController().signal)).resolves.toBe('completed')
 
+    expect((await fs.readFile(filePath)).equals(CONTENT)).toBe(true)
+    expect(store.get(task.id)?.task.state).toBe('completed')
+  })
+
+  it('re-downloads instead of trusting offsets when the temporary file is gone', async () => {
+    const { task, segments, filePath, tempPath } = createTask(2)
+    // Crash window: every byte was recorded, then the rename ran and the temp
+    // file disappeared before complete() persisted the final state.
+    store.saveProgress(
+      task.id,
+      CONTENT.length,
+      segments.map((segment) => ({ index: segment.idx, received: segment.end - segment.start }))
+    )
+    store.setState(task.id, 'paused')
+    expect(existsSync(tempPath)).toBe(false)
+
+    const ranges: string[] = []
+    const countingFetch: FetchLike = async (url, init) => {
+      ranges.push(new Headers(init?.headers).get('range') ?? '')
+      return fetch(url, init)
+    }
+    const paused = store.get(task.id)!
+
+    const runner = new DownloadTask({
+      task: paused.task,
+      segments: paused.segments,
+      probe: { finalUrl: task.url, totalBytes: CONTENT.length, supportsRanges: true, etag: '"v1"' },
+      store,
+      fetchImpl: countingFetch,
+      retryDelayMs: 0,
+      progressFlushBytes: 1
+    })
+
+    await expect(runner.run(new AbortController().signal)).resolves.toBe('completed')
+
+    expect(ranges.length).toBeGreaterThan(0)
     expect((await fs.readFile(filePath)).equals(CONTENT)).toBe(true)
     expect(store.get(task.id)?.task.state).toBe('completed')
   })

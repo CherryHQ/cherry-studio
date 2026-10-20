@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { promises as fs, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
 import { app, dialog, session, shell } from 'electron'
@@ -91,11 +91,47 @@ export class DownloadManagerService extends BaseService {
   /** Requeues unfinished work; a crash during probing restarts from the probe. */
   private restore(): void {
     for (const task of this.store.listResumable()) {
+      if (task.state === 'merging') {
+        this.reconcileFinalization(task)
+        continue
+      }
       if (task.state !== 'paused' && task.state !== 'queued') this.store.setState(task.id, 'paused')
+    }
+    // Unfinished tasks own their destination across restarts. `resolveDownloadPath`
+    // only sees files on disk, and an interrupted task usually has nothing but a
+    // `.crdownload`, so without this a new download of the same name would claim
+    // the same final and temporary paths and two writers would share one file.
+    for (const task of this.store.listResumable()) {
+      if (task.filePath) this.reserved.add(task.filePath)
     }
     if (!application.get('PreferenceService').get(PREF.autoResume)) return
     for (const task of this.store.listResumable()) this.enqueue(task.id)
     this.pump()
+  }
+
+  /**
+   * A crash between `rename()` and `complete()` leaves the row in `merging` with
+   * no temporary file. If the destination already holds the payload the task is
+   * done; otherwise the recorded offsets describe bytes that no longer exist and
+   * must be discarded before any resume.
+   */
+  private reconcileFinalization(task: DownloadTaskRecord): void {
+    const temp = statSync(task.tempPath, { throwIfNoEntry: false })
+    if (temp) {
+      // The rename never ran: the bytes are still in the temporary file.
+      this.store.setState(task.id, 'paused')
+      return
+    }
+    const destination = statSync(task.filePath, { throwIfNoEntry: false })
+    if (destination && (task.totalBytes === 0 || destination.size === task.totalBytes)) {
+      // A single-stream task may not know the length up front; the file size is
+      // then the only truthful total.
+      this.store.complete(task.id, task.filePath, task.totalBytes || destination.size)
+      return
+    }
+    logger.warn('Finalized download has no usable payload; restarting from zero', { taskId: task.id })
+    this.store.resetOffsets(task.id)
+    this.store.setState(task.id, 'paused')
   }
 
   list(): DownloadTaskRecord[] {
@@ -217,12 +253,24 @@ export class DownloadManagerService extends BaseService {
     }
     for (let attempt = 0; attempt < 10_000; attempt++) {
       const candidate = await resolveDownloadPath(dir, uniquifyFileName(fileName, attempt), policy)
-      if (!this.reserved.has(candidate)) {
+      if (!(await this.pathTaken(candidate))) {
         this.reserved.add(candidate)
         return candidate
       }
     }
     throw new Error('could not reserve a free file name')
+  }
+
+  /**
+   * A path is taken when another task reserved it, or when a stale
+   * `.crdownload` still holds the name even though no task row points at it.
+   */
+  private async pathTaken(candidate: string): Promise<boolean> {
+    if (this.reserved.has(candidate)) return true
+    return fs.stat(`${candidate}.crdownload`).then(
+      () => true,
+      () => false
+    )
   }
 
   /** Aborts the transfer; the task stays resumable at its recorded offsets. */
@@ -328,7 +376,10 @@ export class DownloadManagerService extends BaseService {
         }
       })
       const result = await runner.run(controller.signal)
-      if (result === 'completed') logger.info('Download completed', { taskId, bytes: task.totalBytes })
+      if (result === 'completed') {
+        this.reserved.delete(task.filePath)
+        logger.info('Download completed', { taskId, bytes: task.totalBytes })
+      }
     } catch (error) {
       if (!controller.signal.aborted) {
         const message = errorMessage(error)
