@@ -1070,7 +1070,24 @@ export class ClaudeCodeStreamAdapter {
 
     const messageId = message.message.id ?? ''
     for (const block of content) {
-      if (block.type === 'thinking') this.recordReasoningText(ctx, messageId, block.thinking)
+      if (block.type === 'thinking') {
+        // A fallback snapshot arrives whole after a failed stream, so this reasoning may never
+        // have streamed. Emit it once before the text copy below can be suppressed as a duplicate.
+        if (!this.wasReasoningStreamed(ctx, messageId, block.thinking)) {
+          const reasoningPartId = generateId()
+          const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
+          ctx.sink.enqueue({
+            type: 'reasoning-start',
+            id: reasoningPartId,
+            ...(providerMetadata ? { providerMetadata } : {})
+          })
+          if (block.thinking) {
+            ctx.sink.enqueue({ type: 'reasoning-delta', id: reasoningPartId, delta: block.thinking })
+          }
+          ctx.sink.enqueue({ type: 'reasoning-end', id: reasoningPartId })
+        }
+        this.recordReasoningText(ctx, messageId, block.thinking)
+      }
     }
 
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
@@ -1100,6 +1117,16 @@ export class ClaudeCodeStreamAdapter {
       ctx.reasoningTextsByMessageId.set(messageId, texts)
     }
     texts.add(normalized)
+  }
+
+  /** Was this reasoning already streamed for the message (or an idless stream) and closed into the text set? */
+  private wasReasoningStreamed(ctx: StreamContext, messageId: string, reasoning: string | undefined): boolean {
+    const normalized = reasoning?.trim()
+    if (!normalized) return false
+    return Boolean(
+      ctx.reasoningTextsByMessageId.get(messageId)?.has(normalized) ||
+      (messageId && ctx.reasoningTextsByMessageId.get('')?.has(normalized))
+    )
   }
 
   private isReasoningCopy(ctx: StreamContext, messageId: string, text: string): boolean {

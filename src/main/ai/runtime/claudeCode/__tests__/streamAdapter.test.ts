@@ -638,6 +638,47 @@ describe('ClaudeCodeStreamAdapter', () => {
       )
 
       expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+    })
+
+    it('preserves snapshot reasoning after a failed stream falls back to a whole nonstreaming response', () => {
+      const { adapter, parts } = createAdapter()
+
+      // The streaming attempt dies after `message_start`; the SDK retries non-streaming and
+      // delivers the full assistant snapshot with the same message id and no deltas.
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+
+      // Exactly one copy of the reasoning survives, as reasoning content; the text copy is dropped.
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
+    it('does not re-emit snapshot reasoning that already streamed and closed for the same message', () => {
+      const { adapter, parts } = createAdapter()
+
+      streamReasoning(adapter, monologue)
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+      const deltas = parts.filter((part) => part.type === 'text-delta').map((part: any) => part.delta)
+      expect(deltas.join('')).toBe('Here is the answer.')
     })
 
     it('keeps text that differs from the reasoning, belongs to another message, or has a parent tool', () => {
