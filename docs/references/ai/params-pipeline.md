@@ -44,6 +44,8 @@ Callers (chat, agent session, translate, prompt-only) shape their own
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
 
+Persistent desktop chat may carry a main-only `userMemoryContext` grant. The pipeline validates it against the live topic owner and Assistant opt-in before loading shared facts. Eligible requests receive a fresh memory section; function-calling requests also expose `user_memory`, which participates in web-tool routing signals. Temporary, auxiliary, headless, and caller-owned requests receive no grant. Tools recheck access at execution time; see [Memory Feature Overview](../memory/overview.md).
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`

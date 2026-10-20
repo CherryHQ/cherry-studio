@@ -1,6 +1,8 @@
 ---
 description: Comparison of the three memory mechanisms in Cherry Studio — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature
 sources:
+  - src/main/ai/assistantMemory.ts
+  - src/main/ai/tools/adapters/aiSdk/builtin/UserMemoryTool.ts
   - src/main/ai/agents/userMemory.ts
   - src/main/ai/agents/memoryFiles.ts
   - src/main/ai/agents/memoryFactsView.ts
@@ -19,18 +21,18 @@ Cherry Studio provides three distinct memory mechanisms. They differ in who they
 
 | Memory Type | Applies To | Persistence | Storage Location | Cross-Session | Cross-Agent |
 |---|---|---|---|---|---|
-| Agent File Memory | Agent | File read/write (`SOUL.md` / `USER.md` / `FACT.md` / `JOURNAL.jsonl`) | Agent data directory (`{agentData}/memory/`) | Yes | Agent-local files: no; user-level tier: yes |
+| File Memory | Agent; opted-in Assistant (shared tier only) | File read/write (`SOUL.md` / `USER.md` / `FACT.md` / `JOURNAL.jsonl`) | Agent data directory (`{agentData}/memory/`) | Yes | Agent-local files: no; user-level tier: yes |
 | Knowledge Base | Assistant + Agent | Indexed retrieval (ingestion + vector/query) | Knowledge base directory | Yes | Yes |
 | MCP Memory | Agent | MCP protocol (`@cherry/memory` built-in server) | MCP server (`memory.json` knowledge graph) | Yes | Depends on server impl |
 
 ## About "Global Memory"
 
-Cherry Studio v1.x had a fourth mechanism, **Global Memory**: a Settings toggle (`feature.memory.enabled`) that made the model auto-extract durable facts from assistant chats and recall them in later assistant sessions. It was **removed in v2** ([#14250](https://github.com/CherryHQ/cherry-studio/issues/14250)) because its setup was complex and its quality did not justify the overhead. That assistant-chat extraction pipeline remains removed. Desktop Agents now have a separate file-based user-level tier described below; it requires no embedding model or database memory table.
+Cherry Studio v1.x had a fourth mechanism, **Global Memory**: a Settings toggle (`feature.memory.enabled`) that made the model auto-extract durable facts from assistant chats and recall them in later assistant sessions. It was **removed in v2** ([#14250](https://github.com/CherryHQ/cherry-studio/issues/14250)) because its setup was complex and its quality did not justify the overhead. That assistant-chat extraction pipeline remains removed. Desktop Agents and opted-in Assistants now use a separate file-based user-level tier described below; it requires no embedding model or database memory table.
 
 If you relied on Global Memory in v1:
 
 - For Agents, use **Agent File Memory** — it serves the same remember-about-the-user role via `USER.md`, scoped per agent.
-- For Assistants, put durable facts into the assistant's prompt, or curate them in a **Knowledge Base** until a successor feature lands.
+- For Assistants, the shared file tier is available through an explicit settings opt-in (runtime support; UI control pending). Assistant prompts and **Knowledge Base** remain separate context sources.
 
 ## Details
 
@@ -44,7 +46,7 @@ If you relied on Global Memory in v1:
 - Loaded into the system prompt at session start; updated by the agent autonomously via `mcp__agent-memory__memory` (FACT/JOURNAL) and Read/Edit tools (SOUL/USER).
 - Scoped to a single agent. See `src/main/ai/agents/prompt.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
 
-### Shared user-level Agent memory (desktop only)
+### Shared user memory (desktop only)
 
 - `application.getPath('user.memory')` resolves to `{userData}/Data/Memory`. `USER_FACT.md` stores current durable user facts; `USER_JOURNAL.jsonl` contains timestamped `{ ts, tags, text }` events. Initialization creates missing empty files without promoting or changing existing Agent files.
 - The same memory tool accepts `scope: 'agent' | 'user'`, defaulting to `agent`. `read` returns `{ content, revision }`. User-level `update` requires `expectedRevision`; a stale revision fails with `MEMORY_CONFLICT`. Re-read and reconcile before retrying. An empty content string clears user facts. Agent-scope calls retain their previous behavior.
@@ -64,6 +66,14 @@ If you relied on Global Memory in v1:
 
 - The built-in `@cherry/memory` MCP server (`src/main/ai/mcp/servers/memory.ts`) exposes a `memory.json` knowledge-graph (entities / relations / observations).
 - Agents call it through MCP tools; persistence and sharing depend on the server implementation.
+
+### Ordinary Assistant access
+
+Ordinary Assistants opt in with `settings.userMemoryEnabled: true` in their existing settings JSON; omitted or false keeps memory disabled. This runtime layer does not yet add a form control. The shared files and Settings page are the same ones used by Agents; no Assistant-local `USER.md` or Agent workspace memory is exposed.
+
+Only non-headless persistent desktop chat dispatch grants access. Temporary chats, channel/Agent dispatch, and auxiliary requests do not receive that grant. The main process validates the topic/Assistant association and the live setting before loading facts, and again whenever a memory operation resolves its directory. Reassigning or deleting the topic, deleting the Assistant, or disabling the setting rejects subsequent operations.
+
+Each eligible request adds a fresh `User-Level Facts` section without persisting that section as a chat message. The built-in `user_memory` tool supports read, revision-checked update, append, and journal search. Updates and appends require the existing tool approval flow; reads and searches do not. Models without function calling, and requests with tools disabled, can receive facts but cannot write through the tool. Clearing facts withdraws future snapshots, not content already present in historical conversations or an in-flight request. No filesystem MCP configuration is required.
 
 ## Choosing
 

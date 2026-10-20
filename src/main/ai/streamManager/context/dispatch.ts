@@ -131,6 +131,9 @@ export async function dispatchStreamRequest(
   }
   for (const model of prepared.models) {
     model.request.interactionWindowId = req.interactionWindowId
+    if (provider === persistentChatContextProvider && !req.headless && model.request.assistantId) {
+      model.request.userMemoryContext = { assistantId: model.request.assistantId, topicId: req.topicId }
+    }
   }
 
   // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an

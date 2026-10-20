@@ -26,6 +26,7 @@ export interface RequestContext {
 
   /** Source of static config like `assistant.knowledgeBaseIds`. */
   readonly assistant?: Assistant
+  readonly userMemoryContext?: { assistantId: string; topicId: string }
 
   readonly abortSignal?: AbortSignal
   readonly computerUseTask?: ComputerUseTask

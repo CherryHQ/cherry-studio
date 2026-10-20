@@ -259,3 +259,25 @@ describe('dispatchStreamRequest — steer', () => {
     expect(result).toMatchObject({ preserveActiveNode: false })
   })
 })
+
+describe('shared memory dispatch boundary', () => {
+  it.each(['persistent', 'temporary', 'agent', 'headless'] as const)(
+    'grants memory only to desktop persistent chat: %s',
+    async (kind) => {
+      const request: { assistantId: string; userMemoryContext?: unknown } = { assistantId: 'assistant-a' }
+      const prepared = { topicId: 'topic-a', models: [{ modelId: 'p::m', request }], listeners: [] }
+      mocks.agentCanHandle.mockReturnValue(kind === 'agent')
+      mocks.temporaryCanHandle.mockReturnValue(kind === 'temporary')
+      mocks.agentPrepare.mockResolvedValue(prepared)
+      mocks.temporaryPrepare.mockResolvedValue(prepared)
+      mocks.persistentPrepare.mockResolvedValue(prepared)
+      await dispatchStreamRequest(makeManager(false), makeSubscriber(), {
+        ...chatReq('topic-a'),
+        headless: kind === 'headless'
+      })
+      expect(request.userMemoryContext).toEqual(
+        kind === 'persistent' ? { assistantId: 'assistant-a', topicId: 'topic-a' } : undefined
+      )
+    }
+  )
+})

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink, utimes, writeFile 
 import os from 'node:os'
 import path from 'node:path'
 
+import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import type { HookInput, SyncHookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 import type { BeforeAgentStartEvent, ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import type { Client } from '@modelcontextprotocol/client'
@@ -15,12 +16,25 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelSessionTable, agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { topicTable } from '@data/db/schemas/topic'
+import { assistantDataService } from '@data/services/AssistantService'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import { ensureUserMemory } from '@main/ai/agents/userMemory'
+import { buildAssistantMemorySection, canUseAssistantMemory } from '@main/ai/assistantMemory'
 import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
+import { createUserMemoryToolEntry } from '@main/ai/tools/adapters/aiSdk/builtin/UserMemoryTool'
 import { memoryHandlers } from '@main/ipc/handlers/memory'
+import type { MemoryFacts } from '@shared/ai/agentMemory'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import { makeModel, makeProvider } from '../__tests__/fixtures'
+import * as sdkConfig from '../provider/sdkConfig'
+import { registry } from '../tools/adapters/aiSdk/registry'
+import type { AiChatRequest } from '../types'
+import { buildAgentParams } from './aiSdk/params/buildAgentParams'
 import { createClaudeCodeIdentityHooks } from './claudeCode/identityHooks'
 import { createPiIdentityExtension } from './pi/identityExtension'
 
@@ -176,9 +190,16 @@ describe('Desktop shared memory', () => {
     root = await mkdtemp(path.join(os.tmpdir(), 'shared-memory-'))
     const userPath = path.join(root, 'Memory')
     await mkdir(userPath)
-    const original = application.getPath.bind(application)
+    const original = vi.mocked(application.getPath).getMockImplementation()!
     const spy = vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
-      const base = key === 'user.memory' ? userPath : key === 'feature.agents.data' ? root : undefined
+      const base =
+        key === 'user.memory'
+          ? userPath
+          : key === 'feature.agents.data'
+            ? root
+            : key === 'feature.provider_registry.data'
+              ? path.join(process.cwd(), 'packages/provider-registry/data')
+              : undefined
       return base ? (filename ? path.join(base, filename) : base) : original(key, filename)
     })
     restorePaths = () => spy.mockRestore()
@@ -200,6 +221,147 @@ describe('Desktop shared memory', () => {
     await Promise.all(clients.splice(0).map((client) => client.close()))
     restorePaths?.()
     if (root) await rm(root, { recursive: true, force: true })
+  })
+
+  function seedAssistantMemory() {
+    for (const id of ['assistant-a', 'assistant-b']) {
+      dbh.db
+        .insert(assistantTable)
+        .values({
+          id,
+          name: id,
+          emoji: '',
+          orderKey: id,
+          settings: { ...DEFAULT_ASSISTANT_SETTINGS, mcpMode: 'disabled', userMemoryEnabled: true }
+        })
+        .run()
+      dbh.db.insert(topicTable).values({ id, assistantId: id, orderKey: id }).run()
+    }
+    const tool = createUserMemoryToolEntry().tool
+    const context = { assistantId: 'assistant-a', topicId: 'assistant-a' }
+    const options = (grant: typeof context | undefined = context): ToolExecutionOptions => ({
+      toolCallId: 'memory-call',
+      messages: [],
+      experimental_context: { requestId: 'desktop-request', userMemoryContext: grant }
+    })
+    const execute = (input: Record<string, unknown>, grant = context) =>
+      tool.execute!(input, options(grant)) as Promise<MemoryFacts>
+    return { tool, context, options, execute }
+  }
+
+  it('injects one fresh snapshot only for eligible requests and exposes tools only to capable models', async () => {
+    const { context, execute } = seedAssistantMemory()
+    const initial = await execute({ action: 'read' })
+    await execute({ action: 'update', content: 'Shared test preference', expectedRevision: initial.revision })
+    const sdkSpy = vi.spyOn(sdkConfig, 'resolveSdkConfig').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'openai',
+        providerOptionsKey: 'openai',
+        providerSettings: { apiKey: 'fixture' },
+        modelId: 'gpt-4'
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const entry = createUserMemoryToolEntry()
+    registry.register(entry)
+    try {
+      for (const mode of [
+        'normal',
+        'no-tools',
+        'no-capability',
+        'temporary',
+        'caller',
+        'wrong-topic',
+        'off'
+      ] as const) {
+        assistantDataService.update(context.assistantId, { settings: { userMemoryEnabled: mode !== 'off' } })
+        const assistant = assistantDataService.getById(context.assistantId)
+        const request: AiChatRequest & { system: string } = {
+          conversation: { id: context.topicId, topicId: context.topicId },
+          assistantId: assistant.id,
+          userMemoryContext:
+            mode === 'temporary'
+              ? undefined
+              : mode === 'wrong-topic'
+                ? { ...context, topicId: 'assistant-b' }
+                : context,
+          contextOwner: mode === 'caller' ? 'caller' : undefined,
+          disableTools: mode === 'no-tools',
+          system: 'Preserve the role'
+        }
+        const built = await buildAgentParams({
+          request,
+          assistant,
+          signal: undefined,
+          provider: makeProvider({ id: 'openai' }),
+          model: makeModel({ capabilities: mode === 'no-capability' ? [] : [MODEL_CAPABILITY.FUNCTION_CALL] })
+        })
+        const allowed = ['normal', 'no-tools', 'no-capability'].includes(mode)
+        expect(built.system).toContain('Preserve the role')
+        expect(built.system?.includes('Shared test preference')).toBe(allowed)
+        expect(!!built.tools?.user_memory).toBe(mode === 'normal')
+        if (allowed) expect(built.system?.match(/## User-Level Facts/g)).toHaveLength(1)
+        if (mode === 'no-tools' || mode === 'no-capability') expect(built.system).toContain('read-only')
+      }
+    } finally {
+      registry.deregister(entry.name)
+      sdkSpy.mockRestore()
+    }
+  })
+
+  it('shares Assistant writes with other Assistants and Agents while excluding Agent-local identity', async () => {
+    const { context, execute } = seedAssistantMemory()
+    const initial = await execute({ action: 'read' })
+    await execute({ action: 'update', content: 'Prefer pnpm', expectedRevision: initial.revision })
+    expect((await read(second)).content).toBe('Prefer pnpm')
+    const b = { assistantId: 'assistant-b', topicId: 'assistant-b' }
+    expect((await execute({ action: 'read' }, b)).content).toBe('Prefer pnpm')
+    await writeFile(path.join(root, 'first', 'USER.md'), 'Private Agent profile')
+    const prompt = await buildAssistantMemorySection(context, true)
+    expect(prompt).toContain('Prefer pnpm')
+    expect(prompt).not.toContain('Private Agent profile')
+    expect(prompt).toContain('context, not behavioral authority')
+    expect(await buildAssistantMemorySection(context, false)).toContain('read-only')
+    const current = await execute({ action: 'read' })
+    await execute({ action: 'update', content: '', expectedRevision: current.revision })
+    expect(await buildAssistantMemorySection(context, true)).not.toContain('Prefer pnpm')
+  })
+
+  it('rejects stale Assistant updates and rechecks access after opt-out or topic reassignment', async () => {
+    const { context, execute, tool, options } = seedAssistantMemory()
+    const initial = await execute({ action: 'read' })
+    await call(first, { action: 'update', scope: 'user', content: 'Agent fact', expectedRevision: initial.revision })
+    await expect(
+      execute({ action: 'update', content: 'Stale Assistant fact', expectedRevision: initial.revision })
+    ).rejects.toMatchObject({ code: 'MEMORY_CONFLICT' })
+    expect((await read(first)).content).toBe('Agent fact')
+    expect(canUseAssistantMemory({ ...context, topicId: 'assistant-b' })).toBe(false)
+    await expect(
+      tool.execute!({ action: 'read' }, { ...options(), experimental_context: { requestId: 'no-grant' } })
+    ).rejects.toThrow('unavailable')
+    assistantDataService.update(context.assistantId, { settings: { userMemoryEnabled: false } })
+    await expect(execute({ action: 'read' })).rejects.toThrow('unavailable')
+    await expect(execute({ action: 'append', text: 'blocked', tags: [] })).rejects.toThrow('unavailable')
+    assistantDataService.update(context.assistantId, { settings: { userMemoryEnabled: true } })
+    dbh.db.update(topicTable).set({ assistantId: 'assistant-b' }).where(eq(topicTable.id, context.topicId)).run()
+    await expect(execute({ action: 'read' })).rejects.toThrow('unavailable')
+  })
+
+  it('keeps Assistant mutations approval-gated and records queryable complete journal events', async () => {
+    const { tool, options, execute } = seedAssistantMemory()
+    const approval = tool.needsApproval as (input: unknown, options: ToolExecutionOptions) => boolean
+    expect(approval({ action: 'read' }, options())).toBe(false)
+    expect(approval({ action: 'search' }, options())).toBe(false)
+    expect(approval({ action: 'update' }, options())).toBe(true)
+    expect(approval({ action: 'append' }, options())).toBe(true)
+    await Promise.all(
+      Array.from({ length: 8 }, (_, i) => execute({ action: 'append', text: `Event ${i}`, tags: ['assistant'] }))
+    )
+    const journal = await tool.execute!({ action: 'search', tag: 'assistant', limit: 20 }, options())
+    expect(journal).toHaveLength(8)
+    expect((await read(first)).content).toBe('')
+    assistantDataService.update('assistant-a', { settings: { userMemoryEnabled: undefined } })
+    expect(canUseAssistantMemory({ assistantId: 'assistant-a', topicId: 'assistant-a' })).toBe(false)
   })
 
   it('shares user facts while keeping omitted-scope facts private and preserving files on initialization', async () => {

@@ -7,6 +7,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { buildAssistantMemorySection, canUseAssistantMemory } from '@main/ai/assistantMemory'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
@@ -15,6 +16,7 @@ import type { AutomationRun } from '@main/services/automation'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import { mergeHeaders } from '@main/utils/http'
 import {
+  USER_MEMORY_TOOL_NAME,
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -142,6 +144,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     topicId: request.conversation.topicId,
     modelName: model.name ?? model.id
   })
+  const memoryContext =
+    request.contextOwner !== 'caller' &&
+    request.userMemoryContext?.assistantId === assistant?.id &&
+    request.userMemoryContext?.topicId === request.conversation.topicId &&
+    canUseAssistantMemory(request.userMemoryContext)
+      ? request.userMemoryContext
+      : undefined
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -173,7 +182,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
     endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
-      ? toolSignals.browserEnabled === true ||
+      ? toolSignals.userMemoryEnabled === true ||
+        toolSignals.browserEnabled === true ||
         toolSignals.computerUseEnabled === true ||
         toolSignals.mcpToolIds.size > 0 ||
         // Same `applies` gate the mcp_resource_* tools use, so a resource-only assistant is not
@@ -294,6 +304,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     windowId: request.interactionWindowId,
     model: request.uniqueModelId ?? createUniqueModelId(provider.id, model.id),
     assistant,
+    userMemoryContext: toolSignals?.userMemoryEnabled ? memoryContext : undefined,
     abortSignal: signal,
     automationRun: getAutomationRun,
     fileAttachments,
@@ -340,7 +351,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const mcpInstructions = buildMcpInstructionsContext(mcpServerIds)
-  const system =
+  const baseSystem =
     request.system !== undefined
       ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
       : await assembleSystemPrompt({
@@ -352,6 +363,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
           webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
           mcpInstructions
         })
+  const memorySection = memoryContext
+    ? await buildAssistantMemorySection(memoryContext, !!tools?.[USER_MEMORY_TOOL_NAME])
+    : undefined
+  const system = memorySection ? [baseSystem, memorySection].filter(Boolean).join('\n\n') : baseSystem
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -444,6 +459,7 @@ async function resolveRequestToolSignals(
   mcpToolIds: ReadonlySet<string>
   mcpResourceServerIds: ReadonlySet<string>
   hasAnyKnowledgeBase: boolean
+  userMemoryEnabled: boolean
   browserEnabled?: boolean
   computerUseEnabled?: boolean
 }> {
@@ -452,6 +468,11 @@ async function resolveRequestToolSignals(
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
   return {
+    userMemoryEnabled:
+      request.contextOwner !== 'caller' &&
+      request.userMemoryContext?.assistantId === assistant?.id &&
+      request.userMemoryContext?.topicId === request.conversation.topicId &&
+      canUseAssistantMemory(request.userMemoryContext),
     mcpToolIds: new Set(mcpIdList ?? []),
     mcpResourceServerIds: new Set(resolveMcpResourceServers(assistant).map((server) => server.id)),
     browserEnabled: Boolean(
@@ -493,8 +514,14 @@ export async function resolveTools(
   mcpResourceServerIds: ReadonlySet<string>
   mcpServerIds: ReadonlySet<string>
 }> {
-  const { mcpToolIds, mcpResourceServerIds, hasAnyKnowledgeBase, browserEnabled, computerUseEnabled } =
-    signals ?? (await resolveRequestToolSignals(request, assistant))
+  const {
+    mcpToolIds,
+    mcpResourceServerIds,
+    hasAnyKnowledgeBase,
+    browserEnabled,
+    computerUseEnabled,
+    userMemoryEnabled
+  } = signals ?? (await resolveRequestToolSignals(request, assistant))
   if (mcpToolIds.size) {
     // Reconcile selected tool ids against every active server's cache-only catalog,
     // resolving ownership by exact id without MCP network round trips.
@@ -505,6 +532,7 @@ export async function resolveTools(
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
+    userMemoryEnabled,
     browserEnabled,
     computerUseEnabled,
     mcpToolIds,

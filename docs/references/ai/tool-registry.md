@@ -52,8 +52,7 @@ its separate runtime naming contract.
 
 ## Built-in tools
 
-`src/main/ai/tools/adapters/aiSdk/builtin/` currently registers **eleven**
-entries:
+`src/main/ai/tools/adapters/aiSdk/builtin/` registers the following tools:
 
 | Namespace | Tools | Current gate |
 |---|---|---|
@@ -62,6 +61,7 @@ entries:
 | `file` | `read_file` | First-party conversation attachments exist |
 | `fs` | `fs_read` | Persisted/offloaded tool output can be read back |
 | `mcp_resource` | `mcp_resource_list`, `mcp_resource_read` | An in-scope MCP resource server exists |
+| `memory` | `user_memory` | Persistent desktop chat grant and live Assistant opt-in; mutations require approval |
 | `image` | `generate_image` | Assistant opt-in plus a configured painting model |
 
 Registration happens in `builtin/registerBuiltinTools.ts` (`registerBuiltinTools`). Each
