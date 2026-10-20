@@ -300,9 +300,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       // its background work still owes the chats a delivery. The live task set rides along as the
       // stash's claim debt, so a concurrent fire's task can neither delay nor steal the claim.
       const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(session.id))
-      application
-        .get('AiStreamManager')
-        .stashWakeChannelListeners(topicId, channelListeners, new Set((tasks ?? []).map((task) => task.id)))
+      const owedTaskIds = new Set((tasks ?? []).map((task) => task.id))
+      // Occupancy outlives membership: an empty debt reads as already discharged, so retaining then
+      // would hand these recipients to the next wake regardless of which work it belongs to.
+      if (owedTaskIds.size > 0) {
+        application.get('AiStreamManager').stashWakeChannelListeners(topicId, channelListeners, owedTaskIds)
+      }
     }
     settle()
   }

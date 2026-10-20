@@ -315,6 +315,35 @@ describe('ChannelMessageHandler', () => {
     )
   })
 
+  // Occupancy and membership are separate facts: the work can still be active while the membership
+  // snapshot has already drained to empty. Retaining then records an EMPTY debt, which
+  // `stashedWakeRecipientsDischarged` treats as already discharged — so the next wake, whatever work
+  // it belongs to, claims these recipients and posts its private desktop output to the external chat.
+  it('does not retain the chat against a debt of no task at all', async () => {
+    const adapter = createMockAdapter()
+    mockHasPendingBackgroundWork.mockReturnValue(true)
+    mockStartAgentSessionRun.mockImplementationOnce(async ({ listeners }: any) => {
+      // The membership snapshot never names a task: the work is still active but nothing is listed.
+      application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY('session-1'), [])
+      for (const listener of listeners) {
+        listener.onChunk({ type: 'text-delta', delta: 'On it.' })
+        await listener.onDone({ status: 'success' })
+      }
+      return { mode: 'started' }
+    })
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-9',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'start it in the background'
+    })
+
+    // The chat was served normally; it just is not retained against an obligation no task owes.
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-9', 'On it.', undefined)
+    expect(mockStashWakeChannelListeners).not.toHaveBeenCalled()
+  })
+
   // A desktop follow-up queued during the inbound turn inherits the turn's ordinary listeners via
   // `startRuntimeTurn`. The completion sentinel belongs to THIS request: if it survived, the
   // follow-up's terminal would run its retention callback again and bind the external chat to the

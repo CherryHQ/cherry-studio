@@ -883,9 +883,12 @@ export class ChannelMessageHandler {
     const retainForWake = () => {
       if (!application.get('AgentSessionRuntimeService').hasPendingBackgroundWork(session.id)) return
       const tasks = application.get('CacheService').getShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(session.id))
-      application
-        .get('AiStreamManager')
-        .stashWakeChannelListeners(topicId, [channelListener], new Set((tasks ?? []).map((task) => task.id)))
+      const owedTaskIds = new Set((tasks ?? []).map((task) => task.id))
+      // Occupancy outlives membership: the work can still be active while its snapshot has already
+      // drained to empty. An empty debt reads as already discharged, so retaining then would let the
+      // next wake — whatever work it belongs to — claim this chat and post its private output here.
+      if (owedTaskIds.size === 0) return
+      application.get('AiStreamManager').stashWakeChannelListeners(topicId, [channelListener], owedTaskIds)
     }
     // `startRuntimeTurn` carries ordinary listeners into a queued successor, so a desktop follow-up
     // must not inherit this request's sentinel — its terminal would retain the external chat against
