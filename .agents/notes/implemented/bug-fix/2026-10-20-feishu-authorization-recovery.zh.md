@@ -14,6 +14,8 @@ Status: implemented
 
 两个飞书传输层都在传输错误边界内读取响应体，然后再解析 JSON。知识库响应体读取失败仍归为瞬态错误，使用现有的有界重试。注册请求超时在注册截止时间内重试；其他网络失败保留现有的请求失败行为。调用方取消与 JSON/schema 错误保持区分，不暴露原始传输错误详情。
 
+HTTP 200 响应携带飞书错误码 `20005` 时，走与 HTTP 401 相同的终止错误路径，使授权失效。传输成功不代表令牌仍然可用。
+
 ## 考虑过的替代方案
 
 删除并重建 Connection 会丢弃可恢复的无身份状态。只要用户 ID 缺失就跳过账户校验，可能替换已建立的账户。将所有响应错误都设为可重试，会混淆提供商数据格式错误与传输失败，并扩大现有注册重试策略。
@@ -27,3 +29,5 @@ Status: implemented
 - Regression — `ExternalKnowledgeRuntime.test.ts`：真实 SQLite 的启动协调和替换重连保留 Connection ID，持久化首次身份和凭据；真实 SDK 的响应体读取失败可重试并成功完成首次授权。
 - Regression — `ExternalKnowledgeRuntime.test.ts`：任一残留授权标记都阻止无身份恢复；已有的账户不匹配、过期引用、取消及代次测试继续覆盖保护行为。
 - Regression — `feishuKnowledgeProvider.test.ts` 和 `feishuAppRegistration.test.ts`：响应体失败、超时、取消、注册截止时间及无效响应均保持各自的结果分类。
+
+- Regression — `ExternalKnowledgeRuntime.test.ts`：真实 SDK 传输收到 `20005` 后，真实 SQLite 中的 Connection 变为需要重新授权，并拒绝后续令牌获取。
