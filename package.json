@@ -124,6 +124,7 @@
     "test:ui": "vitest --ui",
     "test:update": "pnpm test:renderer --update",
     "test:watch": "vitest",
+    "test:web-core:browser": "pnpm --filter @cherrystudio/web-core test:browser",
     "test:web-search": "vitest run --project web-search",
     "typecheck": "pnpm check --all --group types",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
