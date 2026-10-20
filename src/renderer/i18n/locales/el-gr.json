@@ -4663,6 +4663,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "Συνδέσου με το flomo για να συλλαμβάνεις γρήγορα σημειώσεις και ιδέες μέσω AI. Απαιτείται έγκριση λογαριασμού flomo.",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
   "settings.mcp.builtinServersDescriptions.memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
+  "settings.mcp.builtinServersDescriptions.multi_mail": "Συνδεθείτε στο Multi Mail για αναζήτηση, ανάγνωση, σύνταξη, αποστολή και οργάνωση email σε γραμματοκιβώτια Gmail, Outlook.com, Microsoft 365, iCloud και Fastmail ταυτόχρονα. Απαιτείται εξουσιοδότηση λογαριασμού Lumman.",
   "settings.mcp.builtinServersDescriptions.no": "Χωρίς περιγραφή",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Απαιτεί την εφαρμογή Nowledge Mem να εκτελείται τοπικά. Διατηρεί συνομιλίες με AI, εργαλεία, σημειώσεις, πράκτορες και αρχεία σε ιδιωτική μνήμη στον υπολογιστή σας. Κάντε λήψη από https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",

@@ -4663,6 +4663,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "Conectează-te la flomo pentru a captura rapid notițe și idei prin AI. Necesită autorizarea contului flomo.",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "Instalează automat serviciul MCP (beta)",
   "settings.mcp.builtinServersDescriptions.memory": "Implementare de memorie persistentă bazată pe un graf de cunoștințe local. Aceasta permite modelului să rețină informații legate de utilizator între conversații diferite. Necesită configurarea variabilei de mediu MEMORY_FILE_PATH.",
+  "settings.mcp.builtinServersDescriptions.multi_mail": "Conectați-vă la Multi Mail pentru a căuta, citi, redacta, trimite și organiza e-mailurile din căsuțele Gmail, Outlook.com, Microsoft 365, iCloud și Fastmail deodată. Necesită autorizarea unui cont Lumman.",
   "settings.mcp.builtinServersDescriptions.no": "Fără descriere",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Necesită aplicația Nowledge Mem rulând local. Păstrează chat-urile AI, instrumentele, notițele, agenții și fișierele în memoria privată de pe computerul tău. Descarcă de la https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Execută cod Python într-un mediu sandbox securizat. Rulează Python cu Pyodide, suportând majoritatea bibliotecilor standard și pachetelor de calcul științific",

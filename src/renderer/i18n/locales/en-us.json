@@ -4663,6 +4663,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "Connect to flomo to quickly capture notes and ideas via AI. Requires flomo account authorization.",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "Automatically install MCP service (beta)",
   "settings.mcp.builtinServersDescriptions.memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
+  "settings.mcp.builtinServersDescriptions.multi_mail": "Connect to Multi Mail to search, read, draft, send and organize mail across Gmail, Outlook.com, Microsoft 365, iCloud and Fastmail mailboxes at once. Requires Lumman account authorization.",
   "settings.mcp.builtinServersDescriptions.no": "No description",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Requires Nowledge Mem app running locally. Keeps AI chats, tools, notes, agents, and files in private memory on your computer. Download from https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
