@@ -23,8 +23,8 @@ export type Entries = {
   /** The host changed the permission mode: an armed goal that plan mode held still may start rounds again. */
   permissionModeChanged(ports: BoundPorts, thread: ThreadId): Promise<void>
   /**
-   * D18, D27: a person stops subagent `child` (the stop control, or a child thread's interrupt); a foreground child is
-   * part of its parent's turn, so that turn stops instead.
+   * D18, D27: a person stops subagent `child` (the stop control, or a child thread's interrupt); a running foreground
+   * child is part of its parent's turn, so that turn stops instead. A finished child is `'not-running'`.
    */
   stopSubagent(ports: BoundPorts, child: ThreadId, requestKey: string): Promise<SubagentStop>
 }
@@ -66,7 +66,7 @@ export function entries(host: HostPorts): Entries {
       if (lineage.kind !== 'subagent') return 'not-running'
       const inputs = await gatherInputs(context, lineage.parent)
       const executed = await step(context, lineage.parent, (facts): Step<SubagentStop> => {
-        if (interruptRoute(facts.history, child) === 'stop-parent-turn')
+        if (interruptRoute(facts, child) === 'stop-parent-turn')
           return { ...decideUserStop(facts, inputs, requestKey), result: 'stopped-turn' }
         const stopped = decideUserStopSubagent(facts, child)
         return { ...stopped, result: stopped.result ? 'stopped-child' : 'not-running' }

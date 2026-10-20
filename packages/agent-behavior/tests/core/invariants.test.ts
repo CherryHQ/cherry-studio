@@ -316,7 +316,7 @@ describe('purity (AC7)', () => {
     ({ f, i }) => reportTarget(f, i)
   )
   add('runStopping', [runEntry(run('a', { stoppedBy: 'model' }))], (h) => runStopping(h, 'a' as never, 1))
-  add('interruptRoute', [runEntry(run('a'))], (h) => interruptRoute(h, 'a' as never))
+  add('interruptRoute', facts([runEntry(run('a'))], live), (f: ConversationFacts) => interruptRoute(f, 'a' as never))
   add('unadmittedRoundItems', facts(drive(5).history, { live: { idle: false } }), (f) => unadmittedRoundItems(f))
   const repeated = callTo('read', { path: 'x' })
   add('repeatBlock', { goalRound: true, plan: undefined, callWindow: [repeated, repeated, repeated] }, (f) =>
