@@ -18,6 +18,7 @@ import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 import {
   ListKnowledgeBasesQuerySchema,
   ListKnowledgeItemsQuerySchema,
+  ReorderKnowledgeBaseSchema,
   UpdateKnowledgeBaseSchema
 } from '@shared/data/api/schemas/knowledges'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -37,6 +38,12 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateKnowledgeBaseSchema.parse(body)
       return knowledgeBaseService.update(params.id, parsed)
+    }
+  },
+
+  '/knowledge-bases/:id/order': {
+    PATCH: async ({ params, body }) => {
+      knowledgeBaseService.reorder(params.id, ReorderKnowledgeBaseSchema.parse(body))
     }
   },
 

@@ -626,6 +626,39 @@ describe('AiUsageRecordService', () => {
     })
   })
 
+  it.each([
+    { imageCount: 1, price: 0.04, multiplier: 1, amount: 0.04 },
+    { imageCount: 3, price: 0.04, multiplier: 2, amount: 0.24 },
+    { imageCount: 3, price: 0, multiplier: 1, amount: 0 },
+    { imageCount: 0, price: 0.04, multiplier: 1, amount: 0 }
+  ])(
+    'prices $imageCount images at $price with multiplier $multiplier without token usage',
+    ({ imageCount, price, multiplier, amount }) => {
+      const pricing = {
+        input: { perMillionTokens: null, currency: 'CNY' as const },
+        output: { perMillionTokens: null, currency: 'CNY' as const },
+        perImage: { price, unit: 'image' as const }
+      }
+      const captured = context({
+        pricingSnapshot: undefined,
+        pricing,
+        billing: { defaultMultiplier: multiplier, scheduleEnabled: false, timeZone: 'UTC', periods: [] }
+      })
+      pricing.perImage.price = 99
+      aiUsageRecordService.recordInvocation(
+        invocation({ context: captured, modality: 'image', imageCount, usage: undefined })
+      )
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        imageCount,
+        totalTokens: null,
+        cost: amount,
+        costCurrency: 'CNY',
+        costSource: 'computed',
+        costBreakdown: { image: amount }
+      })
+    }
+  )
+
   it('does not invent a currency for tiered pricing without an explicit currency', () => {
     expect(
       createAiUsagePricingSnapshot(
