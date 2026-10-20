@@ -85,7 +85,10 @@ export class AgentSessionDeliveryService extends BaseService {
 
   accept(input: AcceptSessionDeliveryInput): AgentSessionMessageEntity {
     this.assertWritesAvailable()
-    const message = agentSessionMessageService.acceptSessionDelivery(input)
+    const message = agentSessionMessageService.acceptSessionDelivery({
+      ...input,
+      senderMessageId: application.get('AgentSessionRuntimeService').getExecutionHead(input.senderSessionId)
+    })
     this.kick(message.sessionId)
     return message
   }
@@ -95,7 +98,10 @@ export class AgentSessionDeliveryService extends BaseService {
     message: AgentSessionMessageEntity
   } {
     this.assertWritesAvailable()
-    const created = agentSessionMessageService.createSessionWithDelivery(input)
+    const created = agentSessionMessageService.createSessionWithDelivery({
+      ...input,
+      senderMessageId: application.get('AgentSessionRuntimeService').getExecutionHead(input.senderSessionId)
+    })
     this.kick(created.message.sessionId)
     return created
   }

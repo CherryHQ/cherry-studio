@@ -17,10 +17,14 @@ export const agentSessionContextTable = sqliteTable(
     // The intended identity can survive a failed native create or an unflushed Pi file.
     intendedThreadId: text(),
     nativeThreadId: text(),
+    anchorMessageId: text(),
+    headMessageId: text(),
+    checkpointMapping: text({ mode: 'json' }).$type<Record<string, unknown>>(),
     ...createUpdateTimestamps
   },
   (t) => [
     index('agent_session_context_backend_idx').on(t.backendId),
+    uniqueIndex('agent_session_context_anchor_uniq').on(t.sessionId, t.anchorMessageId),
     uniqueIndex('agent_session_context_native_uniq').on(t.sessionId, t.backendId, t.nativeThreadId),
     uniqueIndex('agent_session_context_intent_uniq').on(t.sessionId, t.backendId, t.intendedThreadId)
   ]

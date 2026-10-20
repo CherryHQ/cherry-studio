@@ -144,7 +144,7 @@
   "agent.edit_resend.error.invalid_target": "Questo messaggio non può essere modificato e reinviato.",
   "agent.edit_resend.label": "Modifica e reinvia",
   "agent.edit_resend.save": "Salva e reinvia",
-  "agent.edit_resend.warning": "Sostituisce questo messaggio e tutti quelli successivi. Le modifiche ai file non verranno annullate.",
+  "agent.edit_resend.warning": "Crea un nuovo ramo e conserva i messaggi originali. Le modifiche ai file non verranno annullate.",
   "agent.heartbeat.action_failed": "Impossibile salvare o avviare il controllo periodico. Controlla i registri e riprova.",
   "agent.heartbeat.conflict": "Le attività sono state modificate al di fuori di questo editor. Copia le tue modifiche prima di ricaricare.",
   "agent.heartbeat.description": "L'agente verifica queste attività a ogni controllo periodico. Ogni esecuzione con attività da svolgere usa il modello selezionato.",

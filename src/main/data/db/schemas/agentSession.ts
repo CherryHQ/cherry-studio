@@ -26,6 +26,7 @@ export const agentSessionTable = sqliteTable(
       .unique()
       .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
     traceId: text(),
+    activeNodeId: text(),
     ...orderKeyColumns,
     // Dedicated conversation activity time. Name, owner, workspace and order
     // changes must not move this column.
