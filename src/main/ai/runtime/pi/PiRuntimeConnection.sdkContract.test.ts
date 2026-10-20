@@ -2,12 +2,12 @@ import { mkdir, mkdtemp, rm, copyFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import {
-  AuthStorage,
   createAgentSession,
   createBashToolDefinition,
   DefaultResourceLoader,
-  ModelRegistry,
+  ModelRuntime,
   SessionManager,
   SettingsManager,
   type ToolDefinition
@@ -39,13 +39,15 @@ async function createSession(excludeTools?: string[]) {
     noContextFiles: true
   })
   await resourceLoader.reload()
-  const authStorage = AuthStorage.inMemory()
-  const modelRegistry = ModelRegistry.inMemory(authStorage)
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(),
+    modelsPath: null,
+    refreshOnCreate: false
+  })
   const managedBash = createBashToolDefinition(cwd, { spawnHook: (context) => context }) as ToolDefinition
   const { session } = await createAgentSession({
     cwd,
-    authStorage,
-    modelRegistry,
+    modelRuntime,
     settingsManager,
     resourceLoader,
     sessionManager: SessionManager.inMemory(cwd),

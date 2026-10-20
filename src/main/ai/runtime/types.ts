@@ -116,6 +116,8 @@ export type AgentRuntimeEvent =
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
         model: string
+        /** Present only when the driver froze pricing at the provider invocation boundary. */
+        pricingSnapshot?: AiUsagePricingSnapshot | null
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
         usage?: {
@@ -146,7 +148,7 @@ export type AgentRuntimeEvent =
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
-  | { type: 'compaction-error'; error: string }
+  | { type: 'compaction-error'; error: string; aborted?: boolean }
   /** The SDK is backing off before retrying a failed API request (`system/api_retry`). Ephemeral
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
@@ -242,6 +244,8 @@ export interface AgentRuntimeConnection {
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
+  recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /**
    * Per-driver session prerequisite check: throws if the session can't be
@@ -271,6 +275,11 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
     keptResumeTokens: ReadonlySet<string>,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }>
+  /**
+   * Diagnostic events (API errors, retries, failing tools, hook errors) from the tail of this runtime's
+   * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.
+   */
+  readTranscriptEvidence?(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined>
 }
 
 export interface OrphanSessionReclaimOptions {

@@ -5,7 +5,7 @@ import { createAgentChannel, deleteAgentChannel, updateAgentChannel } from '@mai
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { channelErrorCodes } from '@shared/ipc/errors/channel'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { channelRequestSchemas } from '@shared/ipc/schemas/channel'
+import { channelRequestSchemas } from '@shared/ipc/schemas/channel'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 async function exposeChannelError<T>(operation: () => T | Promise<T>): Promise<T> {
@@ -28,6 +28,12 @@ async function exposeChannelError<T>(operation: () => T | Promise<T>): Promise<T
  * log queries delegate to ChannelManager. The channel.* events are emitted by the adapters / ChannelManager.
  */
 export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
+  'channel.registration.begin': async ({ channelId, requestId }, { senderId }) =>
+    application.get('ChannelManager').registration.begin(senderId, channelId, requestId),
+  'channel.registration.poll': async ({ requestId }, { senderId }) =>
+    application.get('ChannelManager').registration.poll(senderId, requestId),
+  'channel.registration.cancel': async ({ requestId }, { senderId }) =>
+    application.get('ChannelManager').registration.cancel(senderId, requestId),
   'channel.create': async (input) => exposeChannelError(() => createAgentChannel(input)),
   'channel.update': async ({ channelId, updates }) => exposeChannelError(() => updateAgentChannel(channelId, updates)),
   'channel.delete': async ({ channelId }) => {
@@ -42,7 +48,10 @@ export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
     try {
       const raw = await fs.promises.readFile(tokenPath, 'utf8')
       const parsed = JSON.parse(raw)
-      return { exists: true, userId: parsed.userId as string | undefined }
+      return channelRequestSchemas['channel.wechat.has_credentials'].output.parse({
+        exists: true,
+        userId: parsed.userId
+      })
     } catch {
       return { exists: false }
     }

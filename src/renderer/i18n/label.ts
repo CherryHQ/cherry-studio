@@ -50,6 +50,7 @@ const providerKeyMap = {
   infini: 'provider.infini',
   jina: 'provider.jina',
   lanyun: 'provider.lanyun',
+  litellm: 'provider.litellm',
   lmstudio: 'provider.lmstudio',
   minimax: 'provider.minimax',
   mistral: 'provider.mistral',
@@ -95,7 +96,8 @@ const providerKeyMap = {
   'moonshot-global': 'provider.moonshot-global',
   zai: 'provider.zai',
   'local-embedding': 'provider.local-embedding',
-  opencode: 'provider.opencode'
+  opencode: 'provider.opencode',
+  comfyui: 'provider.comfyui'
 } as const
 
 /**
