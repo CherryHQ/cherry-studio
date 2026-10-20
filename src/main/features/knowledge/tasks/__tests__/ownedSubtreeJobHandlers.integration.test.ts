@@ -6,6 +6,7 @@ import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowl
 import { externalKnowledgeDocumentTable } from '@data/db/schemas/externalKnowledgeDocument'
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext } from '@main/core/job/types'
 import type * as FsUtils from '@main/utils/file'
@@ -13,6 +14,7 @@ import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 
 import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
 import type * as PathStorage from '../../pathStorage'
+import { loadVisibleItems } from '../../query/visibility'
 
 const {
   deleteKnowledgeItemFilesBestEffortMock,
@@ -50,7 +52,8 @@ vi.mock('../../pathStorage', async () => ({
   ...(await vi.importActual<typeof PathStorage>('../../pathStorage')),
   deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
   probeKnowledgeFile: probeKnowledgeFileMock,
-  probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
+  probeKnowledgeSourcePath: probeKnowledgeSourcePathMock,
+  writeFileIntoKnowledgeBaseAt: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('../prepareItem', () => ({ prepareKnowledgeItem: prepareKnowledgeItemMock }))
@@ -102,7 +105,7 @@ describe('owned subtree job handler admission', () => {
     deleteMaterialsMock.mockRejectedValue(ARTIFACT_SENTINEL)
     deleteKnowledgeItemFilesBestEffortMock.mockRejectedValue(ARTIFACT_SENTINEL)
     prepareKnowledgeItemMock.mockRejectedValue(new Error('scan started'))
-    fetchKnowledgeWebPageMock.mockResolvedValue({ title: 'Updated', markdown: '# Updated' })
+    fetchKnowledgeWebPageMock.mockReset().mockResolvedValue({ title: 'Updated', markdown: '# Updated' })
     probeKnowledgeFileMock.mockResolvedValue('readable')
     probeKnowledgeSourcePathMock.mockResolvedValue('readable')
     listMock.mockResolvedValue([])
@@ -222,7 +225,7 @@ describe('owned subtree job handler admission', () => {
     const runExclusive = lock.runExclusive.bind(lock)
     vi.spyOn(lock, 'runExclusive').mockImplementation(async (key, task) =>
       runExclusive(key, async () => {
-        await seedActiveOwner()
+        if (!dbh.db.select().from(externalKnowledgeDocumentTable).get()) await seedActiveOwner()
         return await task()
       })
     )
@@ -238,6 +241,54 @@ describe('owned subtree job handler admission', () => {
     expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteKnowledgeItemFilesBestEffortMock).not.toHaveBeenCalled()
     expect(scheduler.scheduleItem).not.toHaveBeenCalled()
+  })
+
+  it('keeps a newer completed reindex visible when an older bulk acquisition fails late', async () => {
+    for (const [id, name] of [
+      [URL_ITEM_ID, 'a'],
+      [EXTERNAL_ITEM_ID, 'b']
+    ]) {
+      dbh.db
+        .insert(knowledgeItemTable)
+        .values({
+          id,
+          baseId: BASE_ID,
+          groupId: null,
+          type: 'url',
+          data: {
+            source: `https://example.com/${name}`,
+            url: `https://example.com/${name}`,
+            relativePath: KnowledgeRelativePathSchema.parse(`raw/${name}.md`)
+          },
+          status: 'completed'
+        })
+        .run()
+    }
+    let finishB!: (value: { title: string; markdown: string }) => void
+    const slowB = new Promise<{ title: string; markdown: string }>((resolve) => {
+      finishB = resolve
+    })
+    fetchKnowledgeWebPageMock
+      .mockImplementationOnce(async () => {
+        throw new Error('old acquisition failed')
+      })
+      .mockImplementationOnce(() => slowB)
+      .mockResolvedValue({ title: 'New A', markdown: '# New A' })
+    deleteMaterialsMock.mockResolvedValue(undefined)
+    vi.mocked(scheduler.scheduleItem).mockImplementation(async (_base, id) => {
+      knowledgeItemService.updateStatus(id, 'completed')
+    })
+    const handler = createReindexSubtreeJobHandler(new KeyedMutex(), scheduler)
+    const oldCtx = { ...createCtx({ baseId: BASE_ID, rootItemIds: [URL_ITEM_ID, EXTERNAL_ITEM_ID] }), jobId: 'old' }
+    const oldRun = handler.execute(oldCtx)
+    const oldFailure = expect(oldRun).rejects.toThrow('old acquisition failed')
+    await vi.waitFor(() => expect(fetchKnowledgeWebPageMock.mock.calls.length).toBe(2))
+    await handler.execute({ ...createCtx({ baseId: BASE_ID, rootItemIds: [URL_ITEM_ID] }), jobId: 'new' })
+    expect(knowledgeItemService.getById(URL_ITEM_ID)?.status).toBe('completed')
+    finishB({ title: 'B', markdown: '# B' })
+    await oldFailure
+    expect(knowledgeItemService.getById(URL_ITEM_ID)).toMatchObject({ status: 'completed', error: null })
+    expect(loadVisibleItems(BASE_ID, [URL_ITEM_ID]).has(URL_ITEM_ID)).toBe(true)
   })
 
   it('reindex still allows an ownerless static external leaf', async () => {

@@ -605,6 +605,39 @@ describe('ExternalKnowledgeSyncService', () => {
     ])
   })
 
+  it.each(['revision', 'hash', 'before-lock'] as const)(
+    'rebuilds a failed local owner even when remote %s is unchanged',
+    async (mode) => {
+      seedActiveDocument()
+      const fail = () =>
+        dbh.db
+          .update(knowledgeItemTable)
+          .set({ status: 'failed', error: 'reindex interrupted' })
+          .where(eq(knowledgeItemTable.id, OLD_ITEM_ID))
+          .run()
+      const lock = new KeyedMutex()
+      if (mode === 'before-lock') {
+        const runExclusive = lock.runExclusive.bind(lock)
+        vi.spyOn(lock, 'runExclusive').mockImplementationOnce((key, operation) => {
+          fail()
+          return runExclusive(key, operation)
+        })
+      } else fail()
+      const input = syncInput()
+      if (mode === 'hash') input.reference = reference({ remoteRevision: 'revision-2' })
+      const service = createService('old body', {}, undefined, undefined, lock)
+      await expect(service.syncDocument(input)).resolves.toEqual({ outcome: 'indexed', warnings: [] })
+      expect(dbh.db.select().from(externalKnowledgeDocumentTable).get()).toMatchObject({
+        availability: 'active',
+        knowledgeItemId: STAGED_ITEM_ID
+      })
+      expect(
+        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, STAGED_ITEM_ID)).get()
+      ).toMatchObject({ status: 'completed' })
+      expect(materials.has(STAGED_ITEM_ID)).toBe(true)
+    }
+  )
+
   it('returns unchanged without reading the body or staging artifacts when a non-null remote revision matches', async () => {
     const oldRelativePath = seedActiveDocument()
     const forbidden = async (): Promise<never> => {
