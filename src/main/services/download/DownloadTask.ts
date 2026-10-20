@@ -84,11 +84,22 @@ export class DownloadTask {
       return this.runSingleStream(signal)
     }
 
+    let createdTemp = false
     const handle = await fs.open(task.tempPath, 'r+').catch(async () => {
-      const created = await fs.open(task.tempPath, 'w+')
-      return created
+      createdTemp = true
+      return fs.open(task.tempPath, 'w+')
     })
     try {
+      // Recorded offsets describe bytes in the temporary file. If that file had
+      // to be recreated, those bytes are gone (a cancel removed it, or a crash
+      // landed between rename and complete): reusing the offsets would skip every
+      // request and rename a sparse file of zeros over the destination.
+      if (createdTemp && this.totalReceived() > 0) {
+        logger.warn('Temporary file is missing; discarding recorded offsets', { taskId: task.id })
+        this.received.fill(0)
+        this.pendingBytes = 0
+        this.options.store.resetOffsets(task.id)
+      }
       await handle.truncate(task.totalBytes)
       this.options.store.setState(task.id, 'downloading')
 

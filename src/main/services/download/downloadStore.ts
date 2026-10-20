@@ -152,6 +152,18 @@ export class DownloadStore {
       .run()
   }
 
+  /**
+   * Forgets recorded progress because the temporary file no longer holds those
+   * bytes: the task restarts from zero instead of trusting offsets that point
+   * into missing or truncated storage.
+   */
+  resetOffsets(taskId: string): void {
+    this.db.transaction((tx) => {
+      tx.update(downloadSegmentTable).set({ received: 0 }).where(eq(downloadSegmentTable.taskId, taskId)).run()
+      tx.update(downloadTaskTable).set({ receivedBytes: 0 }).where(eq(downloadTaskTable.id, taskId)).run()
+    })
+  }
+
   /** One transaction per flush keeps the task total and segment offsets in step. */
   saveProgress(taskId: string, receivedBytes: number, segments: readonly { index: number; received: number }[]): void {
     this.db.transaction((tx) => {
