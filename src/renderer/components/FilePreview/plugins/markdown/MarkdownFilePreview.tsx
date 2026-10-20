@@ -99,7 +99,6 @@ function MarkdownPreviewPlainFallback() {
 
 interface MarkdownPreviewContentProps {
   filePath: AbsoluteFilePath
-  hideFrontmatter: boolean
   chunks: MarkdownChunk[]
   loadState: MarkdownFileLoadState
   markdownId: string
@@ -132,7 +131,6 @@ function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string |
 
 function MarkdownPreviewContent({
   filePath,
-  hideFrontmatter,
   chunks,
   loadState,
   markdownId,
@@ -254,7 +252,6 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
       <FilePreviewLayout.Content composerInset={!viewerOwnsScroll}>
         <MarkdownPreviewContent
           filePath={filePath}
-          hideFrontmatter={type === 'artifact'}
           chunks={chunks}
           loadState={loadState}
           markdownId={markdownId}
