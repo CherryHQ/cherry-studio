@@ -2,13 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
-import { allocateAttachmentBudget, allocateInlineCaps, resolveAttachmentBudgetContextWindow } from '../attachmentBudget'
+import {
+  allocateAttachmentBudget,
+  allocateInlineCaps,
+  buildFallbackOllamaNumCtxSnapshots,
+  resolveAttachmentBudgetContextWindow
+} from '../attachmentBudget'
 
 vi.mock('node:os', () => ({
-  default: { freemem: () => 8 * 1024 ** 3, totalmem: () => 16 * 1024 ** 3 }
+  default: { freemem: () => 8 * 1024 ** 3, totalmem: () => 16 * 1024 ** 3, homedir: () => 'C:\\Users\\test' }
 }))
 
 const { mockGetProviderById, mockGetModelByKey } = vi.hoisted(() => ({
@@ -307,5 +312,138 @@ describe('resolveAttachmentBudgetContextWindow', () => {
         fallbackModelIds: [fallbackUniqueId]
       })
     ).toBe(131_072)
+  })
+
+  // The gate this guards: without the resolved PDF check, a fallback retry
+  // execution would later reject (it cannot take the file part) still shrank
+  // the primary's attachment pool to its window.
+  it('ignores pdf-ineligible fallbacks when the request needs native pdf input', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({ id: 'openai::gpt-4', providerId: 'openai', contextWindow: 131_072 })
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    const fallbackProvider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 8_192
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        primaryHasTools: false,
+        requiredNativeFileSupport: { image: false, pdf: true, audio: false, video: false }
+      })
+    ).toBe(131_072)
+  })
+
+  it('still constrains the budget with a pdf-eligible small fallback', () => {
+    const primaryProvider = makeProvider({ id: 'openai', presetProviderId: 'openai' })
+    const primaryModel = makeModel({ id: 'openai::gpt-4', providerId: 'openai', contextWindow: 131_072 })
+    const fallbackUniqueId = createUniqueModelId('google', 'gemini-2.5-flash')
+    const fallbackProvider = makeProvider({
+      id: 'google',
+      presetProviderId: 'google',
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+    })
+    const fallbackModel = makeModel({
+      id: fallbackUniqueId,
+      providerId: 'google',
+      apiModelId: 'gemini-2.5-flash',
+      contextWindow: 8_192,
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'google') return fallbackProvider
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'google' && modelId === 'gemini-2.5-flash') return fallbackModel
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+
+    expect(
+      resolveAttachmentBudgetContextWindow({
+        provider: primaryProvider,
+        model: primaryModel,
+        fallbackModelIds: [fallbackUniqueId],
+        primaryHasTools: false,
+        requiredNativeFileSupport: { image: false, pdf: true, audio: false, video: false }
+      })
+    ).toBe(8_192)
+  })
+})
+
+describe('buildFallbackOllamaNumCtxSnapshots', () => {
+  beforeEach(() => {
+    mockGetProviderById.mockReset()
+    mockGetModelByKey.mockReset()
+  })
+
+  /** The Ollama fallback fixtures the window tests above use. */
+  function mockOllamaFallback(): UniqueModelId {
+    const fallbackUniqueId = createUniqueModelId('ollama', 'qwen3')
+    mockGetProviderById.mockImplementation((providerId: string) => {
+      if (providerId === 'ollama') {
+        return makeProvider({
+          id: 'ollama',
+          presetProviderId: 'ollama',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+        })
+      }
+      throw new Error(`unknown provider ${providerId}`)
+    })
+    mockGetModelByKey.mockImplementation((providerId: string, modelId: string) => {
+      if (providerId === 'ollama' && modelId === 'qwen3') {
+        return makeModel({ id: fallbackUniqueId, providerId: 'ollama', apiModelId: 'qwen3', contextWindow: 131_072 })
+      }
+      throw new Error(`unknown model ${providerId}/${modelId}`)
+    })
+    return fallbackUniqueId
+  }
+
+  it('skips a pdf-ineligible ollama fallback when the request needs native pdf input', () => {
+    const fallbackUniqueId = mockOllamaFallback()
+
+    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], {
+      primaryHasTools: false,
+      requiredNativeFileSupport: { image: false, pdf: true, audio: false, video: false }
+    })
+
+    // The relay adapter resolves `openai-compatible`, outside the first-party
+    // PDF set: retry would reject it after resolution, so nothing is frozen.
+    expect([...snapshots.keys()]).toEqual([])
+  })
+
+  it('freezes the memory-capped window for a dispatchable ollama fallback', () => {
+    const fallbackUniqueId = mockOllamaFallback()
+
+    const snapshots = buildFallbackOllamaNumCtxSnapshots([fallbackUniqueId], {
+      primaryHasTools: false,
+      requiredNativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    expect([...snapshots]).toEqual([
+      [fallbackUniqueId, { uniqueModelId: fallbackUniqueId, trainedContextWindow: 131_072, numCtx: 32_768 }]
+    ])
   })
 })

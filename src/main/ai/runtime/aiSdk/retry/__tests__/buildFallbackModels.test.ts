@@ -1,7 +1,8 @@
+import type { UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type { RetryPolicy } from '../retryPolicy'
@@ -23,6 +24,11 @@ vi.mock('@cherrystudio/ai-core', () => ({
 const buildAgentParams = vi.fn()
 vi.mock('../../params/buildAgentParams', () => ({
   buildAgentParams: (...a: unknown[]) => buildAgentParams(...a)
+}))
+
+/** Deterministic one-token-per-char counter: the capacity gate reads as char math. */
+vi.mock('@main/ai/tokens/profiles', () => ({
+  getTextTokenizer: async () => ({ id: 'chars', count: (text: string) => text.length })
 }))
 
 const { buildFallbackModels } = await import('../buildFallbackModels')
@@ -251,7 +257,7 @@ describe('buildFallbackModels', () => {
   it('gates native PDF support after resolving fallback provider parameters', async () => {
     getByKey.mockReturnValue(makeModel({ id: 'anthropic::pdf', providerId: 'anthropic' }))
     stubBuildAgentParams('pdf-model')
-    buildAgentParams.mockResolvedValueOnce({
+    buildAgentParams.mockResolvedValue({
       sdkConfig: { providerId: 'anthropic', providerSettings: {}, modelId: 'pdf-model' },
       plugins: [],
       options: {},
@@ -266,6 +272,117 @@ describe('buildFallbackModels', () => {
 
     expect(await resolve()).toBeNull()
     expect(resolveLanguageModel).not.toHaveBeenCalled()
+  })
+
+  describe('dispatch gates', () => {
+    /** First-party Anthropic routing: the resolved PDF check accepts its models. */
+    const pdfEligibleProvider = makeProvider({
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+    })
+
+    /** buildAgentParams stub whose request context freezes a sanitized Ollama window. */
+    function stubOllamaFallback(numCtx: number) {
+      buildAgentParams.mockResolvedValue({
+        sdkConfig: { providerId: 'ollama', providerSettings: {}, modelId: 'tiny-x' },
+        credentialReceipt: { attribution: 'matched' as const, id: 'fallback-key', masked: 'sk-f****back' },
+        plugins: [],
+        options: {
+          context: { ollamaNumCtx: { uniqueModelId: 'ollama::tiny', trainedContextWindow: 131_072, numCtx } }
+        },
+        nativeFileSupport: ALL_NATIVE_SUPPORT,
+        hookParts: []
+      })
+    }
+
+    function uiReplay(system: string) {
+      return {
+        kind: 'ui' as const,
+        messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }] as UIMessage[],
+        mediaCapabilities: { image: true, video: true, audio: true },
+        system,
+        tools: undefined,
+        maxOutputTokens: undefined
+      }
+    }
+
+    it('gates PDF-ineligible fallbacks before resolving their parameters', async () => {
+      // A relay provider resolves `openai-compatible`, which is outside the
+      // first-party PDF set — the gate must skip before `buildAgentParams`.
+      getByKey.mockReturnValue(makeModel({ id: 'anthropic::relay', providerId: 'anthropic' }))
+
+      const [resolve] = buildFallbackModels({
+        ...baseArgs,
+        primaryUniqueModelId: 'openai::gpt-4',
+        requiredNativeFileSupport: { ...NO_NATIVE_SUPPORT, pdf: true },
+        retryPolicy: policy(['anthropic::relay'])
+      })
+
+      expect(await resolve()).toBeNull()
+      expect(buildAgentParams).not.toHaveBeenCalled()
+    })
+
+    it('skips a fallback whose retained prompt exceeds its effective window', async () => {
+      getByProviderId.mockReturnValue(makeProvider({ id: 'ollama' }))
+      getByKey.mockReturnValue(
+        makeModel({ id: 'ollama::tiny', providerId: 'ollama', apiModelId: 'tiny-x', contextWindow: 131_072 })
+      )
+      stubOllamaFallback(32_768)
+
+      const [resolve] = buildFallbackModels({
+        ...baseArgs,
+        primaryUniqueModelId: 'openai::gpt-4',
+        requiredNativeFileSupport: { ...NO_NATIVE_SUPPORT },
+        retryPolicy: policy(['ollama::tiny']),
+        primaryReplay: uiReplay('x'.repeat(40_000))
+      })
+
+      // 40,000 billed tokens against a 32,768-token window (29,491 usable after
+      // the input-safety ratio) — the fallback can never take the replayed call.
+      expect(await resolve()).toBeNull()
+      expect(resolveLanguageModel).not.toHaveBeenCalled()
+    })
+
+    it('keeps a fallback whose effective window holds the retained prompt', async () => {
+      getByProviderId.mockReturnValue(pdfEligibleProvider)
+      getByKey.mockReturnValue(
+        makeModel({
+          id: 'anthropic::claude',
+          providerId: 'anthropic',
+          apiModelId: 'claude-x',
+          name: 'Claude',
+          contextWindow: 131_072,
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        })
+      )
+      stubBuildAgentParams('claude-x')
+
+      const [resolve] = buildFallbackModels({
+        ...baseArgs,
+        primaryUniqueModelId: 'openai::gpt-4',
+        requiredNativeFileSupport: { ...NO_NATIVE_SUPPORT, pdf: true },
+        retryPolicy: policy(['anthropic::claude']),
+        primaryReplay: uiReplay('x'.repeat(20_000))
+      })
+
+      expect(await resolve()).not.toBeNull()
+    })
+
+    it('stays open when the fallback declares no context window', async () => {
+      getByKey.mockReturnValue(makeModel({ id: 'anthropic::unknown-window', providerId: 'anthropic' }))
+      stubBuildAgentParams('unknown-window')
+
+      const [resolve] = buildFallbackModels({
+        ...baseArgs,
+        primaryUniqueModelId: 'openai::gpt-4',
+        requiredNativeFileSupport: { ...NO_NATIVE_SUPPORT },
+        retryPolicy: policy(['anthropic::unknown-window']),
+        primaryReplay: uiReplay('x'.repeat(2_000_000))
+      })
+
+      expect(await resolve()).not.toBeNull()
+    })
   })
 
   it('rejects unexpected and abort errors instead of hiding them', async () => {

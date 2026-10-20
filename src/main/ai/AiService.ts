@@ -759,6 +759,16 @@ export class AiService extends BaseService {
           primaryUniqueModelId: model.id,
           primaryHasTools,
           requiredNativeFileSupport,
+          // The prepared prompt ai-retry replays to a fallback; its capacity gate
+          // skips fallbacks whose effective window cannot hold it.
+          primaryReplay: {
+            kind: 'ui',
+            messages: preparedMessages,
+            mediaCapabilities,
+            system,
+            tools,
+            maxOutputTokens: options.maxOutputTokens
+          },
           extraFeatures,
           retryPolicy,
           fallbackOllamaSnapshots,
@@ -956,6 +966,15 @@ export class AiService extends BaseService {
           primaryUniqueModelId: model.id,
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
+          // The converted prompt ai-retry replays to a fallback; its capacity
+          // gate skips fallbacks whose effective window cannot hold it.
+          primaryReplay: {
+            kind: 'model',
+            messages: messages ?? [],
+            system,
+            tools,
+            maxOutputTokens: options.maxOutputTokens
+          },
           extraFeatures,
           retryPolicy,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>

@@ -135,7 +135,12 @@ function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProvid
   return NATIVE_FILE_PROVIDER_IDS.has(aiSdkProviderId)
 }
 
-function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
+/**
+ * Whether (provider, model) accepts a native PDF user-message file part.
+ * Callable with the routing ids `buildAgentParams` derives, so budget/eligibility
+ * gates can apply the same resolved check as `resolveNativeFileSupport`.
+ */
+export function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: AppProviderId): boolean {
   if (!isFirstPartyFileProvider(provider, aiSdkProviderId)) return false
   if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
     return isOpenAILLMModel(model)

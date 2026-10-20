@@ -1990,6 +1990,8 @@ describe('AiService tool approval', () => {
         primaryUniqueModelId: 'test-provider::test-model',
         primaryHasTools: true,
         requiredNativeFileSupport: { image: true, pdf: false, audio: false, video: false },
+        // The converted history drives the dispatch-time capacity gate.
+        primaryReplay: expect.objectContaining({ kind: 'model' }),
         retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 })
       })
     )
@@ -1998,6 +2000,41 @@ describe('AiService tool approval', () => {
     )
     expect(mockCreateAgent).toHaveBeenCalledWith(
       expect.objectContaining({ agentSettings: expect.objectContaining({ maxRetries: 0 }) })
+    )
+    mockCreateRetryableWrap.mockReturnValue(undefined)
+  })
+
+  it('threads the prepared prompt into streamText fallbacks for the capacity gate', async () => {
+    const service = createService()
+    mockCreateRetryableWrap.mockReturnValue((model: unknown) => model)
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: { search: {} },
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    })
+
+    await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      messages: [{ id: 'm1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(mockBuildFallbackModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryHasTools: true,
+        // The PREPARED history (attachment text inlined) drives the gate.
+        primaryReplay: expect.objectContaining({ kind: 'ui' })
+      })
     )
     mockCreateRetryableWrap.mockReturnValue(undefined)
   })
