@@ -107,13 +107,13 @@ export function suppressed(history: readonly HistoryEntry[]): boolean {
 /** A result starts a turn unless the user stopped that run or it was cut off by a restart (S18). */
 export const wakes = (result: PendingResult): boolean => result.stoppedBy !== 'user' && result.outcome !== 'interrupted'
 
-/** D27: a background child's interrupt is a user stop of that child; a foreground child's stops the parent's turn. */
-export function interruptRoute(
-  history: readonly HistoryEntry[],
-  child: ThreadId
-): 'stop-subagent' | 'stop-parent-turn' | undefined {
-  const ledger = readSubagents(history).find((candidate) => candidate.child === child)
-  if (!ledger) return undefined
+/**
+ * D27: a live background child's interrupt is a user stop of that child; a live foreground child's stops the parent's
+ * turn. A finished child routes nowhere: the parent's current turn may be a later one it has no part in.
+ */
+export function interruptRoute(facts: Facts, child: ThreadId): 'stop-subagent' | 'stop-parent-turn' | undefined {
+  const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
+  if (!ledger || !isLive(facts, ledger.latest)) return undefined
   return ledger.latest.background ? 'stop-subagent' : 'stop-parent-turn'
 }
 

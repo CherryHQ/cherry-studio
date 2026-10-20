@@ -492,4 +492,32 @@ describe('stopSubagent entry', () => {
     expect(latest.get(CHILD)).toMatchObject({ stoppedBy: 'user', outcome: 'stopped' })
     expect(latest.get('thread-3' as ThreadId)).toMatchObject({ status: 'finished', outcome: 'aborted' })
   })
+
+  // Catches a finished foreground child routed to its parent (D27): its record still says foreground, so stopping it
+  // aborted a later, unrelated turn of the parent.
+  it('answers not-running for a finished foreground child and leaves the parent turn running', async () => {
+    const hold = holds()
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [reply('child done')] : [])
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', SPAWN),
+      reply('first done'),
+      callTool('hold', { id: 'second' }),
+      reply('second done')
+    ])
+    await w.fake.sendUser(t, 'first')
+    await w.fake.settle()
+    await w.fake.sendUser(t, 'second')
+    await hold.started('second')
+    const stopped = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
+    hold.release('second')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect(stopped).toBe('not-running')
+    expect(facts.live.runEnd?.outcome).toBe('completed')
+    expect(records(facts, 'turn-stop')).toEqual([])
+  })
 })
