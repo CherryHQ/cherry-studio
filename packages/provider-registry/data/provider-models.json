@@ -1990,6 +1990,23 @@
       "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
     },
     {
+      "apiModelId": "auto-cheapest",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-cheapest",
+      "name": "Auto Cheapest",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
       "apiModelId": "auto-coding",
       "capabilities": {
         "force": ["function-call", "structured-output"]
@@ -2001,6 +2018,40 @@
       },
       "modelId": "auto-coding",
       "name": "Auto Coding",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-consistent",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-consistent",
+      "name": "Auto Consistent",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-fastest",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-fastest",
+      "name": "Auto Fastest",
       "outputModalities": ["text"],
       "ownedBy": "aistupidlevel",
       "providerId": "aistupidlevel",
@@ -2035,6 +2086,23 @@
       },
       "modelId": "auto-reasoning",
       "name": "Auto Reasoning",
+      "outputModalities": ["text"],
+      "ownedBy": "aistupidlevel",
+      "providerId": "aistupidlevel",
+      "reason": "Routing mode owned by AI Stupid Level; routes only among tool-calling models"
+    },
+    {
+      "apiModelId": "auto-split",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "auto-split",
+      "name": "Auto Split (account traffic split)",
       "outputModalities": ["text"],
       "ownedBy": "aistupidlevel",
       "providerId": "aistupidlevel",
@@ -41825,5 +41893,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "98241a0204b80fc6"
+  "version": "396a376f21e1f0ae"
 }

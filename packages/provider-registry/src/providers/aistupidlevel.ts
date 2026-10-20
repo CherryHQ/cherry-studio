@@ -19,7 +19,10 @@ const NON_TEXT_CAPABILITIES: NonNullable<ProviderModelOverride['capabilities']>[
   'file-search'
 ]
 
-/** Routing modes: provider-owned ids. Every mode routes among tool-calling models. */
+/**
+ * Routing modes: provider-owned ids, every mode `/v1/models` lists. Every mode routes among
+ * tool-calling models.
+ */
 const ROUTING_MODES: Array<[id: string, name: string]> = [
   ['auto-coding', 'Auto Coding'],
   ['auto-reasoning', 'Auto Reasoning'],
@@ -31,6 +34,10 @@ const ROUTING_MODES: Array<[id: string, name: string]> = [
   ['auto-value-reasoning', 'Auto Value Reasoning'],
   ['auto-value-tooling', 'Auto Value Tool Use'],
   ['auto-fastest-quality', 'Auto Fastest Quality'],
+  ['auto-fastest', 'Auto Fastest'],
+  ['auto-cheapest', 'Auto Cheapest'],
+  ['auto-consistent', 'Auto Consistent'],
+  ['auto-split', 'Auto Split (account traffic split)'],
   ['auto', 'Auto (account strategy)']
 ]
 
