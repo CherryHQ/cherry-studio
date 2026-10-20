@@ -95,6 +95,11 @@ const BAN_MCP_SDK_V1 = {
     'MCP SDK v1 is only a type peer of the Claude Agent SDK. Use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
 }
 
+const BAN_WEB_SEARCH_INTERNALS = {
+  group: ['**/packages/web-search/src/**', '@cherrystudio/web-search/src/**', '@cherrystudio/web-search/dist/**'],
+  message: 'Use the public @cherrystudio/web-search entries instead of importing package internals.'
+}
+
 // File preview is a portable package: host-app modules are off-limits to its source.
 const FILE_PREVIEW_HOST_IMPORTS = [
   '@renderer',
@@ -979,6 +984,7 @@ export default defineConfig([
         {
           patterns: [
             BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
             {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
               allowTypeImports: true,
@@ -996,7 +1002,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
         }
       ]
     }
@@ -1008,7 +1014,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
         }
       ]
     }
@@ -1026,7 +1032,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR]
         }
       ]
     }
@@ -1041,7 +1047,7 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
+        { patterns: [BAN_WEB_SEARCH_INTERNALS, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
       ],
       'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
     }
@@ -1053,7 +1059,45 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
+        }
+      ]
+    }
+  },
+  {
+    files: ['packages/web-search/src/**/*.ts'],
+    ignores: ['packages/web-search/src/**/__tests__/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_MCP_SDK_V1,
+            {
+              group: [
+                'node:*',
+                'electron',
+                'electron/**',
+                'react',
+                'react-native',
+                'react-native/**',
+                'expo',
+                'expo-*',
+                '@application',
+                '@logger',
+                '@main/**',
+                '@renderer/**',
+                '@shared/**',
+                '@data/**',
+                '@test-mocks/**',
+                '**/src/main/**',
+                '**/src/renderer/**',
+                '**/src/shared/**',
+                '**/src/backend/**'
+              ],
+              message: 'Web search protocols must use portable dependencies and host-injected transport.'
+            }
+          ]
         }
       ]
     }
@@ -1066,6 +1110,7 @@ export default defineConfig([
         {
           patterns: [
             BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
             {
               group: FILE_PREVIEW_HOST_IMPORTS,
               message: 'File preview must use its portable source and host callbacks.'
@@ -1094,6 +1139,7 @@ export default defineConfig([
         {
           patterns: [
             BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
             {
               group: [
                 ...FILE_PREVIEW_HOST_IMPORTS,

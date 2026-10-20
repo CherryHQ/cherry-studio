@@ -1035,6 +1035,7 @@ function AgentPromptField({
 }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const [polishing, setPolishing] = useState(false)
   const instructions = form.watch('instructions')
   const name = form.watch('name')
   const processedInstructions = usePromptProcessor({
@@ -1077,10 +1078,12 @@ function AgentPromptField({
               emptyValueSystemPrompt={AGENT_PROMPT}
               existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
               onChange={handlePromptActionChange}
+              onRunningChange={setPolishing}
             />
           }
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+          disabled={polishing}
         />
       )}
     />

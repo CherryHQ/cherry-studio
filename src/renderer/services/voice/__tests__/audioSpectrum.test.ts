@@ -52,12 +52,12 @@ describe('audio spectrum ownership', () => {
     expect(context.source.connections).toEqual(new Set([context.destination, spectrum.analyser]))
     await spectrum.resume()
     expect(context.state).toBe('running')
-    spectrum.dispose()
+    await spectrum.dispose()
     expect(context.state).toBe('closed')
     expect(context.source.connections.size).toBe(0)
   })
 
-  it('analyses the borrowed microphone without monitoring or stopping its recording tracks', () => {
+  it('analyses the borrowed microphone without monitoring or stopping its recording tracks', async () => {
     vi.stubGlobal('AudioContext', AudioContextDouble)
     const track = { readyState: 'live' }
     const stream = { getTracks: () => [track] } as unknown as MediaStream
@@ -65,7 +65,7 @@ describe('audio spectrum ownership', () => {
     const context = AudioContextDouble.instances[0]
 
     expect(context.source.connections).toEqual(new Set([spectrum.analyser]))
-    spectrum.dispose()
+    await spectrum.dispose()
     expect(track.readyState).toBe('live')
     expect(context.state).toBe('closed')
   })

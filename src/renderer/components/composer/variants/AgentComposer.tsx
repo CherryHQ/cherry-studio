@@ -2,7 +2,7 @@ import { ScanLine, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Alert, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
@@ -862,6 +862,7 @@ const AgentComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const releaseFollowupEditRef = useRef<() => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -884,6 +885,7 @@ const AgentComposerInner = ({
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const workspaceWarning = resolvedWorkspaceWarning ?? undefined
+  const compaction = useAgentSessionCompaction(sessionId)
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
@@ -967,6 +969,7 @@ const AgentComposerInner = ({
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
+      releaseFollowupEditRef.current()
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(nextDraftTokens)
@@ -1550,6 +1553,7 @@ const AgentComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
+    releaseFollowupEditRef.current()
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1591,6 +1595,9 @@ const AgentComposerInner = ({
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    takeForEdit: takeFollowupForEdit,
+    releaseEdit,
+    beginSend,
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
@@ -1599,6 +1606,10 @@ const AgentComposerInner = ({
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload
   })
+  releaseFollowupEditRef.current = releaseEdit
+  const followupScopeRef = useLatest(
+    launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId
+  )
 
   useEffect(() => {
     if (launchOptions?.editing) return
@@ -1607,8 +1618,21 @@ const AgentComposerInner = ({
       .catch((error) => logger.warn('Failed to publish pending input count', { error }))
   }, [launchOptions?.editing, queuedFollowups.length, sessionId])
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
-  // state and the managed file/knowledge/skill selections before dropping it from the queue.
+  const captureOutgoingFollowup = useCallback(
+    (taken: FollowupQueueItem) => {
+      const draft = actionsRef.current.getDraft()
+      const payload = buildQueuedPayload(draft)
+      if (payload === null) {
+        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
+        return null
+      }
+      return { draft, payload }
+    },
+    [actionsRef, buildQueuedPayload, files]
+  )
+
+  // After takeForEdit removes the queued item, keep live tokens and managed selections aligned
+  // with the restored draft so subsequent edits retain its tools.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
@@ -1870,6 +1894,15 @@ const AgentComposerInner = ({
           onPause={abortAgentSession}
           queueContent={
             <>
+              {compaction.status === 'failed' && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="mb-2"
+                  message={t('chat.compaction.failed')}
+                  description={compaction.error}
+                />
+              )}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}
@@ -1880,14 +1913,29 @@ const AgentComposerInner = ({
                     if (!item) return
                     // Only drop the item once the send actually succeeds; a failed manual
                     // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                    const sent = await sendQueuedPayload(item.payload)
-                    if (sent) removeFollowup(id)
+                    const release = beginSend(id)
+                    if (!release) return
+                    const dispatchScope = followupScopeRef.current
+                    try {
+                      const sent = await sendQueuedPayload(item.payload)
+                      if (sent && followupScopeRef.current === dispatchScope) removeFollowup(id)
+                    } finally {
+                      release()
+                    }
                   }}
                   onEdit={(id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    restoreFollowupDraft(item)
-                    removeFollowup(id)
+                    if (directSendInFlightRef.current) return
+                    if (launchOptions?.editing) {
+                      releaseEdit()
+                      const item = queuedFollowups.find((entry) => entry.id === id)
+                      if (!item) return
+                      restoreFollowupDraft(item)
+                      removeFollowup(id)
+                      return
+                    }
+                    const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+                    if (!incoming) return
+                    restoreFollowupDraft(incoming)
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
