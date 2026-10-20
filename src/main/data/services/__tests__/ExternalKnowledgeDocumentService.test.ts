@@ -102,9 +102,6 @@ describe('ExternalKnowledgeDocumentService', () => {
           id: '0198f3f2-7d1a-7abc-8def-123456789ab5',
           sourceId: SOURCE_ID,
           remoteObjectId: 'doc-1',
-          canonicalNodeId: 'node-1',
-          parentNodeId: null,
-          relativeBreadcrumb: ['Document 1'],
           title: 'Document 1',
           originalUrl: 'https://example.feishu.cn/wiki/node-1',
           remoteRevision: '1',
@@ -118,9 +115,6 @@ describe('ExternalKnowledgeDocumentService', () => {
           id: '0198f3f2-7d1a-7abc-8def-123456789ab6',
           sourceId: SOURCE_ID,
           remoteObjectId: 'doc-2',
-          canonicalNodeId: 'node-2',
-          parentNodeId: null,
-          relativeBreadcrumb: ['Document 2'],
           title: 'Document 2',
           originalUrl: 'https://example.feishu.cn/wiki/node-2',
           remoteRevision: '2',
@@ -248,9 +242,6 @@ describe('ExternalKnowledgeDocumentService', () => {
       .run()
     const input = {
       remoteObjectId: 'doc-3',
-      canonicalNodeId: 'node-3',
-      parentNodeId: null,
-      relativeBreadcrumb: ['Document 3'],
       title: 'Document 3',
       originalUrl: 'https://example.feishu.cn/wiki/node-3',
       remoteRevision: '1',
@@ -289,9 +280,6 @@ describe('ExternalKnowledgeDocumentService', () => {
     expect(() =>
       externalKnowledgeDocumentService.createActiveTx(dbh.db, syncFence, {
         remoteObjectId: 'doc-invalid',
-        canonicalNodeId: 'node-invalid',
-        parentNodeId: null,
-        relativeBreadcrumb: ['Invalid'],
         title: 'Invalid',
         originalUrl: 'https://example.feishu.cn/wiki/node-invalid',
         remoteRevision: '1',
@@ -312,9 +300,6 @@ describe('ExternalKnowledgeDocumentService', () => {
       remoteRevision: '1'
     }
     const metadata = {
-      canonicalNodeId: 'node-1-moved',
-      parentNodeId: 'parent-1',
-      relativeBreadcrumb: ['Moved', 'Document 1'],
       title: 'Document 1 moved',
       originalUrl: 'https://example.feishu.cn/wiki/node-1-moved',
       remoteRevision: '2',
@@ -365,16 +350,12 @@ describe('ExternalKnowledgeDocumentService', () => {
 
     expect(
       externalKnowledgeDocumentService.updateSyncWarningTx(dbh.db, syncFence, documentId, expected, {
-        canonicalNodeId: 'node-1-moved',
-        parentNodeId: 'parent-1',
-        relativeBreadcrumb: ['Moved', 'Document 1'],
         title: 'Document 1 moved',
         originalUrl: 'https://example.feishu.cn/wiki/node-1-moved',
         lastSeenAt: 300,
         currentWarning: 'transient'
       })
     ).toMatchObject({
-      canonicalNodeId: 'node-1-moved',
       title: 'Document 1 moved',
       remoteRevision: '1',
       contentHash: 'hash-1',
@@ -387,9 +368,6 @@ describe('ExternalKnowledgeDocumentService', () => {
     seedOwnership()
     const documentId = '0198f3f2-7d1a-7abc-8def-123456789ab5'
     const widerMetadata = {
-      canonicalNodeId: 'node-1-moved',
-      parentNodeId: 'parent-1',
-      relativeBreadcrumb: ['Moved', 'Document 1'],
       title: 'Document 1 moved',
       originalUrl: 'https://example.feishu.cn/wiki/node-1-moved',
       lastSeenAt: 300,
@@ -408,7 +386,6 @@ describe('ExternalKnowledgeDocumentService', () => {
     )
 
     expect(externalKnowledgeDocumentService.getById(documentId)).toMatchObject({
-      canonicalNodeId: 'node-1-moved',
       currentWarning: 'transient',
       remoteRevision: '1',
       contentHash: 'hash-1',
@@ -469,9 +446,6 @@ describe('ExternalKnowledgeDocumentService', () => {
 
   it('requires every nullable sync metadata field to be explicit', () => {
     expectTypeOf<ExternalKnowledgeDocumentSyncMetadata>().toEqualTypeOf<{
-      canonicalNodeId: string
-      parentNodeId: string | null
-      relativeBreadcrumb: string[]
       title: string
       originalUrl: string
       remoteRevision: string | null
@@ -499,9 +473,6 @@ describe('ExternalKnowledgeDocumentService', () => {
         expect(item).not.toBeNull()
         const document = externalKnowledgeDocumentService.createActiveTx(tx, syncFence, {
           remoteObjectId: 'doc-rollback',
-          canonicalNodeId: 'node-rollback',
-          parentNodeId: null,
-          relativeBreadcrumb: ['Rolled back document'],
           title: 'Rolled back document',
           originalUrl: 'https://example.feishu.cn/wiki/node-rollback',
           remoteRevision: '1',

@@ -218,9 +218,6 @@ describe('ExternalKnowledgeSyncService', () => {
         id: OLD_DOCUMENT_ID,
         sourceId: SOURCE_ID,
         remoteObjectId: 'doc-1',
-        canonicalNodeId: 'node-1',
-        parentNodeId: null,
-        relativeBreadcrumb: ['Engineering', 'Architecture'],
         title: 'Architecture',
         originalUrl: 'https://example.feishu.cn/wiki/node-1',
         remoteRevision: 'revision-1',
@@ -244,9 +241,6 @@ describe('ExternalKnowledgeSyncService', () => {
         id: OLD_DOCUMENT_ID,
         sourceId: SOURCE_ID,
         remoteObjectId: 'doc-1',
-        canonicalNodeId: 'node-1',
-        parentNodeId: null,
-        relativeBreadcrumb: ['Engineering', 'Architecture'],
         title: 'Architecture',
         originalUrl: 'https://example.feishu.cn/wiki/node-1',
         remoteRevision: 'revision-0',
@@ -672,7 +666,7 @@ describe('ExternalKnowledgeSyncService', () => {
     ])
   })
 
-  it('updates canonical path metadata without replacing the matching-revision item', async () => {
+  it('updates a moved document URL without replacing the matching-revision item', async () => {
     const oldRelativePath = seedActiveDocument()
     const forbidden = async (): Promise<never> => {
       throw new Error('path-only sync must not stage content')
@@ -702,9 +696,6 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual([
       expect.objectContaining({
         knowledgeItemId: OLD_ITEM_ID,
-        canonicalNodeId: 'node-2',
-        parentNodeId: 'parent-2',
-        relativeBreadcrumb: ['Platform', 'Architecture'],
         originalUrl: 'https://example.feishu.cn/wiki/node-2',
         contentHash: OLD_CONTENT_HASH
       })
@@ -1405,7 +1396,6 @@ describe('ExternalKnowledgeSyncService', () => {
         knowledgeItemId: OLD_ITEM_ID,
         contentHash: OLD_CONTENT_HASH,
         remoteRevision: 'revision-1',
-        canonicalNodeId: 'node-2',
         currentWarning: 'transient'
       })
     ])
@@ -1741,9 +1731,6 @@ describe('ExternalKnowledgeSyncService', () => {
         id: SECOND_OLD_DOCUMENT_ID,
         sourceId: SOURCE_ID,
         remoteObjectId: 'doc-2',
-        canonicalNodeId: 'node-2',
-        parentNodeId: null,
-        relativeBreadcrumb: ['Engineering', 'Second document'],
         title: 'Second document',
         originalUrl: 'https://example.feishu.cn/wiki/node-2',
         remoteRevision: 'revision-1',

@@ -200,9 +200,6 @@ function syncMetadata(
   input: Pick<SyncExternalKnowledgeDocumentInput, 'reference' | 'observedAt'>
 ): ExternalKnowledgeDocumentSyncMetadata {
   return {
-    canonicalNodeId: input.reference.descriptor.nodeId,
-    parentNodeId: input.reference.descriptor.parentNodeId,
-    relativeBreadcrumb: input.reference.descriptor.relativeBreadcrumb,
     title: input.reference.descriptor.title,
     originalUrl: input.reference.descriptor.originalUrl,
     remoteRevision: input.reference.descriptor.remoteRevision,
@@ -216,9 +213,6 @@ function syncWarningMetadata(
   currentWarning: string
 ): ExternalKnowledgeDocumentWarningMetadata {
   return {
-    canonicalNodeId: input.reference.descriptor.nodeId,
-    parentNodeId: input.reference.descriptor.parentNodeId,
-    relativeBreadcrumb: input.reference.descriptor.relativeBreadcrumb,
     title: input.reference.descriptor.title,
     originalUrl: input.reference.descriptor.originalUrl,
     lastSeenAt: input.observedAt,
