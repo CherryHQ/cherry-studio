@@ -80,3 +80,13 @@ it('refuses a runner launched from a different checkout even when it also uses d
   execFileSync.mockReturnValue('node /tmp/other-checkout/node_modules/dotenv-cli/cli.js')
   expect(() => assertOwnedProcess(owner, owner.runnerPid, 'runner')).toThrow('Refusing to terminate stale runner')
 })
+
+it('checks the recorded CDP port rather than another workspace on the default port', () => {
+  const record = { ...owner, cdpPort: 19322 }
+  execFileSync.mockImplementation((file, args) => {
+    if (file === 'ps') return 'electron /tmp/regression-target --remote-debugging-port=19322'
+    return args.includes('-iTCP:19322') ? '42001' : '99000'
+  })
+  expect(() => assertOwnedProcess(record, 42001, 'electron')).not.toThrow()
+  expect(() => assertOwnedProcess(record, 99000, 'electron')).toThrow('no longer owns CDP port 19322')
+})

@@ -9,6 +9,15 @@ Cross-platform validation of development branches and release installers uses a 
 process through CDP. `pnpm test:e2e` runs the existing smoke suite described below;
 `pnpm test:e2e:regression` runs the regression scenarios.
 
+## Agentic desktop pilot
+
+The [agentic pilot](agentic/README.md) runs five local macOS desktop flows with
+natural-language actions and explicit assertions through tester-army/e2e. Use
+`pnpm test:e2e:agentic`; its dependencies and reports are isolated from Playwright
+smoke and hosted regression runs.
+The independent [Agentic Electron E2E workflow](../../.github/workflows/e2e-agentic.yml)
+checks the tooling on pull requests and offers manual macOS desktop runs.
+
 ## Directory structure
 
 ```text
@@ -25,6 +34,7 @@ tests/e2e/
 │   │   └── index.ts
 │   ├── appLaunch.test.ts
 │   └── composerFocus.test.ts
+├── agentic/                  # Standalone tester-army/e2e desktop pilot
 └── regression/               # Controller-owned critical-path suite
     ├── README.md
     ├── fixture.ts

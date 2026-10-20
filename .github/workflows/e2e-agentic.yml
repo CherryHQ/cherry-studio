@@ -1,0 +1,157 @@
+name: Agentic Electron E2E
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/e2e-agentic.yml"
+      - "tests/e2e/agentic/**"
+      - "scripts/e2e/regression/**"
+      - "tests/helpers/http/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".node-version"
+      - "tsconfig.e2e.json"
+  workflow_dispatch:
+    inputs:
+      case:
+        description: "Desktop flow (acceptance requires all)"
+        type: choice
+        default: all
+        options: [all, startup, settings, notes, chat, chatRecovery]
+      mode:
+        description: "Run once, or verify cold/warm, wrong response, missing key, and cancellation"
+        type: choice
+        default: run
+        options: [run, acceptance]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agentic-e2e-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Agentic tooling checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            tests/e2e/agentic/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir tests/e2e/agentic install --frozen-lockfile
+      - name: Lint workflow
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color .github/workflows/e2e-agentic.yml
+      - name: Check types and harness contracts
+        run: |
+          pnpm --dir tests/e2e/agentic typecheck
+          pnpm typecheck:e2e
+          pnpm --dir tests/e2e/agentic test:connection
+          pnpm --dir tests/e2e/agentic test:ci
+          pnpm exec vitest run --project scripts scripts/e2e/regression/__tests__/process.test.ts scripts/e2e/regression/__tests__/launch.test.ts scripts/e2e/regression/__tests__/lifecycle.test.ts
+      - name: Lint and format agentic tooling
+        run: |
+          pnpm exec eslint --no-ignore tests/e2e/agentic/*.ts
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const ts = require('typescript')
+          const config = ts.parseConfigFileTextToJson('.oxlintrc.json', fs.readFileSync('.oxlintrc.json', 'utf8')).config
+          config.ignorePatterns = []
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'agentic-oxlint.json'), JSON.stringify(config))
+          NODE
+          pnpm exec oxlint --config "$RUNNER_TEMP/agentic-oxlint.json" --no-ignore --deny-warnings tests/e2e/agentic/*.ts
+          pnpm exec oxfmt --check tests/e2e/agentic/*.ts tests/e2e/agentic/package.json .github/workflows/e2e-agentic.yml
+
+  desktop:
+    name: Manual macOS desktop flows
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      E2E_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            tests/e2e/agentic/pnpm-lock.yaml
+      - name: Native build prerequisites
+        run: brew install python-setuptools
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir tests/e2e/agentic install --frozen-lockfile
+      - name: Identify action cache
+        id: cache-key
+        env:
+          PROVIDER_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          TEST_CASE: ${{ inputs.case }}
+          TOOLCHAIN_HASH: ${{ hashFiles('.node-version', 'pnpm-lock.yaml', 'tests/e2e/agentic/pnpm-lock.yaml', 'tests/e2e/agentic/*.ts', 'tests/e2e/agentic/patches/*', 'scripts/e2e/regression/lifecycle.ts', 'scripts/e2e/regression/process.ts') }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const { createHash } = require('node:crypto')
+          const profile = createHash('sha256').update(JSON.stringify([process.env.PROVIDER_URL, process.env.MODEL])).digest('hex').slice(0, 16)
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `prefix=agentic-v1-${process.env.RUNNER_OS}-${process.env.RUNNER_ARCH}-${process.env.TOOLCHAIN_HASH}-${profile}-${process.env.TEST_CASE}-\n`)
+          NODE
+      - name: Restore verified action recordings
+        if: inputs.mode == 'run'
+        uses: actions/cache/restore@v6
+        with:
+          path: tests/e2e/agentic/.e2e/cache
+          key: ${{ steps.cache-key.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ steps.cache-key.outputs.prefix }}
+      - name: Run desktop tests and enforce verdict
+        id: test
+        timeout-minutes: 50
+        env:
+          TEST_MODE: ${{ inputs.mode }}
+          TEST_CASE: ${{ inputs.case }}
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+        run: >-
+          pnpm --dir tests/e2e/agentic run ci
+          --mode "$TEST_MODE" --case "$TEST_CASE"
+          --output "$RUNNER_TEMP/agentic-e2e"
+      - name: Upload sanitized reports and screenshots
+        id: report
+        if: always() && steps.test.outputs.publishable == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: agentic-e2e-macos-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agentic-e2e/artifact
+          retention-days: 14
+          if-no-files-found: error
+      - name: Link report artifact
+        if: always() && steps.report.outputs.artifact-url != ''
+        env:
+          ARTIFACT_URL: ${{ steps.report.outputs.artifact-url }}
+        run: printf '\n[Download the full report](%s)\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save verified action recordings
+        if: success() && steps.test.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          path: tests/e2e/agentic/.e2e/cache
+          key: ${{ steps.cache-key.outputs.prefix }}${{ github.run_id }}-${{ github.run_attempt }}
