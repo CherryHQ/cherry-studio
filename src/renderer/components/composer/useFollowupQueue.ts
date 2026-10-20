@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { cacheService } from '@data/CacheService'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 
 import type { ComposerSerializedDraft } from './tokens'
 
@@ -16,12 +16,24 @@ export interface FollowupQueueItem {
 /** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
 const QUEUE_TTL = 24 * 60 * 60 * 1000
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
+const drainedKeyFor = (scopeKey: string) => `followup-queue-drained.${scopeKey}`
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
+const EMPTY_QUEUE: FollowupQueueItem[] = []
+
+interface CompletionState {
+  completedAt: number | undefined
+  consumed: boolean
+  pendingIds: string[]
+}
+
+const EMPTY_COMPLETION: CompletionState = { completedAt: undefined, consumed: false, pendingIds: [] }
+const loadCompletion = (scopeKey: string): CompletionState =>
+  cacheService.getCasual<CompletionState>(drainedKeyFor(scopeKey)) ?? EMPTY_COMPLETION
 
 /** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
   const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
-  return Array.isArray(cached) ? cached : []
+  return Array.isArray(cached) ? cached : EMPTY_QUEUE
 }
 
 function loadPaused(scopeKey: string): boolean {
@@ -31,19 +43,19 @@ function loadPaused(scopeKey: string): boolean {
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
   scopeKey: string
-  /** `done`-and-unacknowledged edge from `useTopicStreamStatus` — the live→idle drain trigger. */
-  isFulfilled: boolean
-  /** Acknowledge the completion so the drain fires once per turn. */
-  markSeen: () => void
+  /** Stream completion is independent of the conversation list read receipt. */
+  status: TopicStreamStatus | undefined
+  lastCompletedAt: number | null
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
-  /** Called when auto-drain fails and leaves the queued item in place. */
+  /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void
 }
 
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
+  sendId: (id: string) => Promise<boolean>
   removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
   takeForEdit(
@@ -51,7 +63,6 @@ export interface FollowupQueueController {
     captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
   ): FollowupQueueItem | null
   releaseEdit(): void
-  beginSend(id: string): (() => void) | null
   paused: boolean
   setPaused: (paused: boolean) => void
 }
@@ -64,102 +75,100 @@ export interface FollowupQueueController {
  */
 export function useFollowupQueue({
   scopeKey,
-  isFulfilled,
-  markSeen,
+  status,
+  lastCompletedAt,
   onDrain,
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
-  const [items, setItems] = useState<FollowupQueueItem[]>(() => loadQueue(scopeKey))
-  const [paused, setPausedState] = useState(() => loadPaused(scopeKey))
-
-  // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
-  const pausedRef = useRef(paused)
-  const scopeKeyRef = useRef(scopeKey)
-  const itemsRef = useRef(items)
-  const takenRef = useRef<{ item: FollowupQueueItem; slot: number } | null>(null)
-  const admissionsRef = useRef(new Set<string>())
+  const readState = useCallback(
+    () => ({
+      scopeKey,
+      items: loadQueue(scopeKey),
+      paused: loadPaused(scopeKey),
+      completion: loadCompletion(scopeKey)
+    }),
+    [scopeKey]
+  )
+  const [state, setState] = useState(readState)
+  const takenRef = useRef<{
+    scopeKey: string
+    item: FollowupQueueItem
+    slot: number
+    precedingIds: string[]
+  } | null>(null)
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
 
-  const persist = useCallback((next: FollowupQueueItem[]) => {
-    cacheService.setCasual(keyFor(scopeKeyRef.current), next, QUEUE_TTL)
-  }, [])
+  const reconcileEdit = useCallback(
+    (items: FollowupQueueItem[]) => {
+      const taken = takenRef.current
+      if (!taken || taken.scopeKey !== scopeKey) return
+      const ids = new Set(items.map((item) => item.id))
+      taken.slot -= taken.precedingIds.filter((id) => !ids.has(id)).length
+      taken.precedingIds = items.slice(0, taken.slot).map((item) => item.id)
+    },
+    [scopeKey]
+  )
 
-  // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
+  // The casual cache owns the queue across mounts, including sends finishing after a topic switch.
   useEffect(() => {
-    if (scopeKeyRef.current === scopeKey) return
-    scopeKeyRef.current = scopeKey
-    takenRef.current = null
-    admissionsRef.current = new Set()
-    itemsRef.current = loadQueue(scopeKey)
-    setItems(itemsRef.current)
-    pausedRef.current = loadPaused(scopeKey)
-    setPausedState(pausedRef.current)
-  }, [scopeKey])
+    if (takenRef.current?.scopeKey !== scopeKey) takenRef.current = null
+    const reload = () => {
+      const next = readState()
+      reconcileEdit(next.items)
+      setState((current) =>
+        current.scopeKey === next.scopeKey &&
+        current.items === next.items &&
+        current.paused === next.paused &&
+        current.completion === next.completion
+          ? current
+          : next
+      )
+    }
+    const unsubscribeQueue = cacheService.subscribe(keyFor(scopeKey), reload)
+    const unsubscribePaused = cacheService.subscribe(pausedKeyFor(scopeKey), reload)
+    const unsubscribeCompletion = cacheService.subscribe(drainedKeyFor(scopeKey), reload)
+    reload()
+    return () => {
+      unsubscribeQueue()
+      unsubscribePaused()
+      unsubscribeCompletion()
+    }
+  }, [readState, reconcileEdit, scopeKey])
 
-  const setPaused = useCallback((nextPaused: boolean) => {
-    cacheService.setCasual(pausedKeyFor(scopeKeyRef.current), nextPaused)
-    pausedRef.current = nextPaused
-    setPausedState(nextPaused)
-  }, [])
-
+  const persist = useCallback(
+    (next: FollowupQueueItem[]) => cacheService.setCasual(keyFor(scopeKey), next, QUEUE_TTL),
+    [scopeKey]
+  )
+  const setPaused = useCallback((paused: boolean) => cacheService.setCasual(pausedKeyFor(scopeKey), paused), [scopeKey])
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      const next = [...itemsRef.current, { id: crypto.randomUUID(), draft, payload }]
-      itemsRef.current = next
-      setItems(next)
-      persist(next)
+      persist([...loadQueue(scopeKey), { id: crypto.randomUUID(), draft, payload }])
     },
-    [persist]
+    [persist, scopeKey]
   )
-
   const removeId = useCallback(
     (id: string) => {
-      const index = itemsRef.current.findIndex((item) => item.id === id)
-      if (takenRef.current?.item.id === id) takenRef.current = null
-      if (index < 0) return
-      if (takenRef.current && index < takenRef.current.slot) takenRef.current.slot -= 1
-      const next = itemsRef.current.filter((item) => item.id !== id)
-      itemsRef.current = next
-      setItems(next)
-      persist(next)
+      if (takenRef.current?.scopeKey === scopeKey && takenRef.current.item.id === id) takenRef.current = null
+      const current = loadQueue(scopeKey)
+      if (current.some((item) => item.id === id)) persist(current.filter((item) => item.id !== id))
     },
-    [persist]
-  )
-
-  const reorder = useCallback(
-    (nextItems: FollowupQueueItem[]) => {
-      itemsRef.current = nextItems
-      setItems(nextItems)
-      persist(nextItems)
-    },
-    [persist]
+    [persist, scopeKey]
   )
 
   const releaseEdit = useCallback(() => {
-    takenRef.current = null
-  }, [])
-
-  const beginSend = useCallback((id: string) => {
-    const admissions = admissionsRef.current
-    if (admissions.has(id) || !itemsRef.current.some((item) => item.id === id)) return null
-    admissions.add(id)
-    let released = false
-    return () => {
-      if (released) return
-      released = true
-      admissions.delete(id)
-    }
-  }, [])
+    if (takenRef.current?.scopeKey === scopeKey) takenRef.current = null
+  }, [scopeKey])
 
   const takeForEdit = useCallback<FollowupQueueController['takeForEdit']>(
     (id, captureOutgoing) => {
-      const current = itemsRef.current
-      if (takenRef.current?.item.id === id || admissionsRef.current.has(id)) return null
+      const current = loadQueue(scopeKey)
+      reconcileEdit(current)
+      const taken = takenRef.current?.scopeKey === scopeKey ? takenRef.current : null
+      if (taken?.item.id === id || loadCompletion(scopeKey).pendingIds.includes(id)) return null
       if (!current.some((item) => item.id === id)) return null
-      const taken = takenRef.current
       const next = [...current]
       if (taken) {
         const outgoing = captureOutgoing(taken.item)
@@ -168,35 +177,81 @@ export function useFollowupQueue({
       }
       const slot = next.findIndex((item) => item.id === id)
       const [incoming] = next.splice(slot, 1)
-      takenRef.current = { item: incoming, slot }
-      itemsRef.current = next
-      setItems(next)
+      takenRef.current = { scopeKey, item: incoming, slot, precedingIds: next.slice(0, slot).map((item) => item.id) }
       persist(next)
       return incoming
     },
-    [persist]
+    [persist, reconcileEdit, scopeKey]
   )
 
-  // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
-  // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
-  useEffect(() => {
-    if (!isFulfilled || pausedRef.current) return
-    const head = itemsRef.current[0]
-    if (!head) return
-    const release = beginSend(head.id)
-    if (!release) return
-    const dispatchScope = scopeKeyRef.current
-    markSeen()
-    const reportDrainFailure = () => onDrainFailedRef.current?.()
-    void onDrainRef
-      .current(head.payload)
-      .then((sent) => {
-        if (sent && scopeKeyRef.current === dispatchScope) removeId(head.id)
-        else if (!sent) reportDrainFailure()
-      }, reportDrainFailure)
-      .finally(release)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Stable admission does not introduce a completion trigger.
-  }, [isFulfilled, paused, markSeen, removeId])
+  const sendItem = useCallback(
+    async (id: string, completedAt?: number): Promise<boolean> => {
+      const item = loadQueue(scopeKey).find((entry) => entry.id === id)
+      const drained = loadCompletion(scopeKey)
+      if (!item || drained.pendingIds.includes(id)) return false
 
-  return { items, enqueue, removeId, reorder, takeForEdit, releaseEdit, beginSend, paused, setPaused }
+      // Every send owns its dispatch-time completion, including peers on the same completed turn.
+      // Keep item exclusion and pending sends in one observable record, without an in-flight TTL.
+      cacheService.setCasual(drainedKeyFor(scopeKey), {
+        completedAt: completedAt ?? drained.completedAt,
+        consumed: completedAt == null || completedAt === drained.completedAt ? drained.consumed : false,
+        pendingIds: [...drained.pendingIds, id]
+      })
+      const reportFailure = onDrainFailedRef.current
+      let sent = false
+      try {
+        try {
+          sent = await onDrainRef.current(item.payload)
+        } catch {
+          // Both rejected sends and explicit failures retain the draft for retry.
+        }
+        if (sent) {
+          removeId(id)
+        } else {
+          setPaused(true)
+          reportFailure?.()
+        }
+        return sent
+      } finally {
+        const current = loadCompletion(scopeKey)
+        const pendingIds = current.pendingIds.filter((pendingId) => pendingId !== id)
+        // A failure cannot undo a successful peer, and an older send cannot consume a newer turn.
+        // Publish settlement even when the queue write was suppressed because the item was removed.
+        cacheService.setCasual(
+          drainedKeyFor(scopeKey),
+          {
+            completedAt: current.completedAt,
+            consumed: current.consumed || (sent && completedAt != null && current.completedAt === completedAt),
+            pendingIds
+          },
+          pendingIds.length > 0 ? undefined : QUEUE_TTL
+        )
+      }
+    },
+    [scopeKey, removeId, setPaused]
+  )
+  const sendId = useCallback(
+    (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),
+    [sendItem, status, lastCompletedAt]
+  )
+
+  useEffect(() => {
+    if (state.scopeKey !== scopeKey || state.paused || status !== 'done' || lastCompletedAt == null) return
+    const head = state.items[0]
+    const drained = loadCompletion(scopeKey)
+    if (!head || drained.pendingIds.length > 0 || (drained.consumed && drained.completedAt === lastCompletedAt)) return
+    void sendItem(head.id, lastCompletedAt)
+  }, [scopeKey, status, lastCompletedAt, state, sendItem])
+
+  return {
+    items: state.items,
+    enqueue,
+    sendId,
+    removeId,
+    reorder: persist,
+    takeForEdit,
+    releaseEdit,
+    paused: state.paused,
+    setPaused
+  }
 }

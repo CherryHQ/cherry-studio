@@ -2,6 +2,10 @@
 
 This directory contains end-to-end (E2E) tests for the Cherry Studio Electron application using Playwright.
 
+## On-demand QA
+
+The [on-demand controller](../../scripts/e2e/ondemand/README.md) dispatches one JSON plan or reviewed code scenario to a selected Windows/macOS runner. It uses its own versioned result and does not require registration in the regression manifest. See [on-demand scenarios](ondemand/README.md) for the JSON smoke and scenario ownership.
+
 ## Critical-path regression
 
 Cross-platform validation of development branches and release installers uses a separate
