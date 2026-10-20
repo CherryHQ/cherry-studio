@@ -116,7 +116,7 @@ export function interruptRoute(facts: Facts, child: ThreadId): 'stop-subagent' |
   return ledger.latest.background ? 'stop-subagent' : 'stop-parent-turn'
 }
 
-/** What `Delegation.status` of agent-runtime holds; adapters set it from `delegationStatus` (guardrail 4, D40). */
+/** This package's own completion status of a child run; agent-runtime's `Subagent` carries none. */
 export type DelegationStatus = 'active' | 'completed' | 'unknown'
 /** One child run maps to one delegation: active while its record says running, completed once it ended. */
 export const delegationStatus = (record: SubagentRunRecord): DelegationStatus =>
