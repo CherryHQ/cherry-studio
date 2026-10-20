@@ -2405,6 +2405,7 @@
   "message.tools.error": "发生错误",
   "message.tools.groupHeader": "{{count}} 个工具调用",
   "message.tools.invoking": "开始处理",
+  "message.tools.killed": "已强制终止",
   "message.tools.labels.bash": "执行任务",
   "message.tools.labels.edit": "编辑",
   "message.tools.labels.exitPlanMode": "退出计划模式",

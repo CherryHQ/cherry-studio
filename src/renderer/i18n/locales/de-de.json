@@ -2405,6 +2405,7 @@
   "message.tools.error": "Fehler aufgetreten",
   "message.tools.groupHeader": "{{count}} Toolaufrufe",
   "message.tools.invoking": "Wird aufgerufen",
+  "message.tools.killed": "Erzwungen beendet",
   "message.tools.labels.bash": "Bash",
   "message.tools.labels.edit": "Bearbeiten",
   "message.tools.labels.exitPlanMode": "ExitPlanModus",

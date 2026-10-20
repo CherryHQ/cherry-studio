@@ -2405,6 +2405,7 @@
   "message.tools.error": "Đã xảy ra lỗi",
   "message.tools.groupHeader": "{{count}} lệnh gọi công cụ",
   "message.tools.invoking": "Đang gọi",
+  "message.tools.killed": "Đã buộc dừng",
   "message.tools.labels.bash": "Bash",
   "message.tools.labels.edit": "Chỉnh sửa",
   "message.tools.labels.exitPlanMode": "ThoátChếĐộKếHoạch",

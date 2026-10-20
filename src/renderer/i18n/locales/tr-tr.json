@@ -2405,6 +2405,7 @@
   "message.tools.error": "Hata oluştu",
   "message.tools.groupHeader": "{{count}} araç çağrısı",
   "message.tools.invoking": "Başlatılıyor",
+  "message.tools.killed": "Sonlandırıldı",
   "message.tools.labels.bash": "Görevi çalıştır",
   "message.tools.labels.edit": "Düzenle",
   "message.tools.labels.exitPlanMode": "ExitPlanMode",

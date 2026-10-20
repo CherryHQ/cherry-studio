@@ -2405,6 +2405,7 @@
   "message.tools.error": "Произошла ошибка",
   "message.tools.groupHeader": "{{count}} вызовов инструментов",
   "message.tools.invoking": "Вызов",
+  "message.tools.killed": "Принудительно остановлено",
   "message.tools.labels.bash": "Баш",
   "message.tools.labels.edit": "Редактировать",
   "message.tools.labels.exitPlanMode": "РежимВыходаПлана",

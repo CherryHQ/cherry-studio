@@ -2405,6 +2405,7 @@
   "message.tools.error": "發生錯誤",
   "message.tools.groupHeader": "{{count}} 次工具呼叫",
   "message.tools.invoking": "呼叫中",
+  "message.tools.killed": "已強制終止",
   "message.tools.labels.bash": "執行任務",
   "message.tools.labels.edit": "編輯",
   "message.tools.labels.exitPlanMode": "退出計畫模式",

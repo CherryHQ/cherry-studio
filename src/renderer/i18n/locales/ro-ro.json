@@ -2405,6 +2405,7 @@
   "message.tools.error": "A apărut o eroare",
   "message.tools.groupHeader": "{{count}} apeluri de instrumente",
   "message.tools.invoking": "Se invocă",
+  "message.tools.killed": "Oprit forțat",
   "message.tools.labels.bash": "Bash",
   "message.tools.labels.edit": "Editare",
   "message.tools.labels.exitPlanMode": "ExitPlanMode",

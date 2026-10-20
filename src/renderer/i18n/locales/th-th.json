@@ -2405,6 +2405,7 @@
   "message.tools.error": "เกิดข้อผิดพลาด",
   "message.tools.groupHeader": "เรียกใช้เครื่องมือ {{count}} ครั้ง",
   "message.tools.invoking": "กำลังเริ่ม",
+  "message.tools.killed": "ถูกฆ่า",
   "message.tools.labels.bash": "รันงาน",
   "message.tools.labels.edit": "แก้ไข",
   "message.tools.labels.exitPlanMode": "ExitPlanMode",

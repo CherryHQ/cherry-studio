@@ -2405,6 +2405,7 @@
   "message.tools.error": "Προέκυψε σφάλμα",
   "message.tools.groupHeader": "{{count}} κλήσεις εργαλείων",
   "message.tools.invoking": "κλήση σε εξέλιξη",
+  "message.tools.killed": "Τερματίστηκε",
   "message.tools.labels.bash": "Μπας",
   "message.tools.labels.edit": "Επεξεργασία",
   "message.tools.labels.exitPlanMode": "ΛειτουργίαΈξοδουΣχεδίου",
