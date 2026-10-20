@@ -155,6 +155,38 @@ export class PiProjection {
   }
 
   private event(event: AgentSessionEvent): void {
+    if (event.type === 'input_settled') {
+      const reason = event.aborted ? 'aborted' : event.message.stopReason
+      const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')
+      for (const inputId of event.inputIds) {
+        this.recordInput({
+          inputId: runtimeId(inputId),
+          facts: [],
+          response: this.itemRef(this.id(event.message)),
+          outcome: completed
+            ? 'completed'
+            : reason === 'aborted'
+              ? 'aborted'
+              : reason === 'error'
+                ? 'failed'
+                : 'unanswered',
+          ...(!completed && {
+            error: {
+              operation: 'input',
+              code:
+                reason === 'length'
+                  ? 'output-truncated'
+                  : reason === 'error'
+                    ? 'model-error'
+                    : reason === 'aborted'
+                      ? 'aborted'
+                      : 'no-final-answer',
+              message: event.message.errorMessage ?? `Pi response ended: ${reason}`
+            }
+          })
+        })
+      }
+    }
     if (event.type === 'input_placed') {
       const inputId = runtimeId<'input'>(event.inputId)
       this.inputIds.set(event.message, inputId)

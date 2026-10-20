@@ -10,7 +10,14 @@ import {
   Type,
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
-import { configure, createRegistry, defineExtension, defineTool, MemoryStorage } from '@earendil-works/pi-durable'
+import {
+  configure,
+  createRegistry,
+  defineExtension,
+  defineTool,
+  MemoryStorage,
+  StorageRequestError
+} from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
@@ -122,6 +129,13 @@ describe('Pi Durable runtime contract', () => {
     await expect
       .poll(async () => confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
       .toMatchObject({ found: true, input: { outcome: 'completed' } })
+    const settled = confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))
+    if (!settled.found) throw new Error('Missing input')
+    const response = current(right)?.items.find((item) => item.ref.id === settled.input.response?.id)
+    expect(response).toMatchObject({
+      type: 'message',
+      parts: [{ type: 'text', text: 'a sufficiently long streaming answer' }]
+    })
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   })
 
@@ -154,9 +168,27 @@ describe('Pi Durable runtime contract', () => {
     })
     expect(confirmed(await session.lookupInput({ by: 'deduplication-key', key: 'queue-key' }))).toMatchObject({
       found: true,
-      input: { outcome: 'unanswered' }
+      input: { outcome: 'aborted' }
     })
     expect(await session.interrupt!()).toEqual({ status: 'confirmed', value: { effect: 'native-scope-idle' } })
+  })
+
+  it('preserves a truncated native answer without reporting successful input completion', async () => {
+    const { runtime, faux } = await setup()
+    faux.setResponses([fauxAssistantMessage('cut off', { stopReason: 'length' })])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(handle)
+    const receipt = await handle.input.submit(draft('long answer'))
+    if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Missing receipt')
+    await expect
+      .poll(async () => confirmed(await handle.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
+      .toMatchObject({
+        found: true,
+        input: { outcome: 'unanswered', response: { session: handle.thread }, error: { code: 'output-truncated' } }
+      })
+    expect(
+      events.filter((event) => event.type === 'input.changed').some((event) => event.input.outcome === 'completed')
+    ).toBe(false)
   })
 
   it('preserves an admission receipt when the subsequent native status read fails', async () => {
@@ -172,7 +204,89 @@ describe('Pi Durable runtime contract', () => {
     expect(result).toMatchObject({
       status: 'acknowledged',
       nativeInput: { session: session.thread },
-      facts: ['accepted']
+      facts: expect.arrayContaining(['accepted'])
+    })
+  })
+
+  it('retains input correlation through a recoverable status read failure and eventual completion', async () => {
+    class UnavailableStatusStorage extends MemoryStorage {
+      private unavailable = true
+
+      override async submission(...args: Parameters<MemoryStorage['submission']>) {
+        if (this.unavailable) {
+          this.unavailable = false
+          throw new StorageRequestError('status read unavailable')
+        }
+        return super.submission(...args)
+      }
+    }
+    const { runtime, faux } = await setup(async () => new UnavailableStatusStorage())
+    const finish = gate()
+    onTestFinished(() => finish.resolve())
+    faux.setResponses([
+      async () => {
+        await finish.promise
+        return fauxAssistantMessage('answer')
+      }
+    ])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(handle)
+    expect(await handle.input.submit(draft('recoverable'))).toMatchObject({ status: 'acknowledged' })
+    const latest = () => events.filter((event) => event.type === 'input.changed').at(-1)?.input
+    await expect.poll(latest).toMatchObject({ inputId: 'recoverable', facts: expect.arrayContaining(['accepted']) })
+    expect(latest()?.outcome).toBeUndefined()
+    finish.resolve()
+    await expect.poll(latest).toMatchObject({
+      inputId: 'recoverable',
+      outcome: 'completed',
+      response: { session: handle.thread }
+    })
+  })
+
+  it('shares a native final answer across the original input and steering after a tool', async () => {
+    const { runtime, faux, registry } = await setup()
+    const executing = gate()
+    const finish = gate()
+    onTestFinished(() => finish.resolve())
+    registry.install(
+      defineExtension({
+        name: 'hold',
+        tools: [
+          defineTool({
+            name: 'hold',
+            description: 'Hold the tool boundary',
+            parameters: Type.Object({}),
+            async execute() {
+              executing.resolve()
+              await finish.promise
+              return { output: [{ type: 'text', text: 'tool finished' }] }
+            }
+          })
+        ]
+      })
+    )
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall('hold', {}), { stopReason: 'toolUse' }),
+      fauxAssistantMessage('answer using both inputs')
+    ])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(handle)
+    await handle.input.submit({ ...draft('root'), deduplicationKey: 'root' })
+    await executing.promise
+    await handle.input.submit({ ...draft('steering', 'steer'), deduplicationKey: 'steering' })
+    finish.resolve()
+    const lookup = async (key: string) => {
+      const result = confirmed(await handle.lookupInput({ by: 'deduplication-key', key }))
+      if (!result.found) throw new Error('Missing input')
+      return result.input
+    }
+    await expect.poll(() => lookup('steering')).toMatchObject({ outcome: 'completed' })
+    const root = await lookup('root')
+    const steering = await lookup('steering')
+    expect(root).toMatchObject({ outcome: 'completed', response: steering.response })
+    expect(current(events)?.items.find((item) => item.ref.id === root.response?.id)).toMatchObject({
+      type: 'message',
+      parts: [{ type: 'text', text: 'answer using both inputs' }]
     })
   })
 

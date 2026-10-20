@@ -7,9 +7,10 @@ import {
   fauxProvider,
   fauxToolCall,
   InMemoryCredentialStore,
+  Type,
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
-import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
+import { defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
 import { expect, it, onTestFinished } from 'vitest'
 
 import {
@@ -150,6 +151,10 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
   expect(states.filter((state) => state.inputId === 'later')).toEqual([{ inputId: 'later', facts: ['queued'] }])
   expect(states.some((state) => state.inputId === 'rejected')).toBe(false)
   expect(states.some((state) => state.outcome === 'completed')).toBe(false)
+  expect(states.findLast((state) => state.inputId === 'start')).toMatchObject({
+    outcome: 'aborted',
+    response: { session: handle.thread }
+  })
 })
 
 it('rejects a loader returning a different native identity', async () => {
@@ -163,7 +168,7 @@ it('rejects a loader returning a different native identity', async () => {
   })
 })
 
-it('correlates identical transformed inputs with their native entries without assigning an answer to one input', async () => {
+it('correlates identical transformed inputs and shares one response across batched steering', async () => {
   const { runtime, options, faux } = await setup()
   const started = gate()
   const finish = gate()
@@ -210,10 +215,13 @@ it('correlates identical transformed inputs with their native entries without as
   expect(users.every((item) => item.type === 'message' && item.parts[0]?.text === 'same')).toBe(true)
   expect(after[0].inputs).toEqual(
     expect.arrayContaining(
-      ['root', 'steer-1', 'steer-2', 'follow'].map((inputId) => ({
-        inputId,
-        facts: [inputId === 'root' ? 'dispatch-started' : 'queued', 'placed']
-      }))
+      ['root', 'steer-1', 'steer-2', 'follow'].map((inputId) =>
+        expect.objectContaining({
+          inputId,
+          facts: [inputId === 'root' ? 'dispatch-started' : 'queued', 'placed'],
+          outcome: 'completed'
+        })
+      )
     )
   )
   expect(after[0].items.filter((item) => item.type === 'message' && item.role === 'assistant')).toEqual(
@@ -222,6 +230,18 @@ it('correlates identical transformed inputs with their native entries without as
   for (const item of after[0].items) {
     if (item.type === 'message' && item.role === 'assistant') expect(item.inputId).toBeUndefined()
   }
+  const snapshot = after[0]
+  const responseText = (id: string) => {
+    const state = snapshot.inputs.find((value) => value.inputId === id)
+    const response = snapshot.items.find((item) => item.ref.id === state?.response?.id)
+    return response && response.type === 'message' ? response.parts[0]?.text : undefined
+  }
+  expect(['root', 'steer-1', 'steer-2', 'follow'].map(responseText)).toEqual([
+    'initial answer',
+    'shared steering answer',
+    'shared steering answer',
+    'follow-up answer'
+  ])
   const placed = nativeEvents.filter((event) => event.type === 'input-placed')
   expect(placed.map((event) => event.inputId)).toEqual(['root', 'steer-1', 'steer-2', 'follow'])
   expect(new Set(placed.map((event) => event.entryId)).size).toBe(4)
@@ -230,6 +250,20 @@ it('correlates identical transformed inputs with their native entries without as
       type: 'message',
       message: { role: 'user', content: [{ type: 'text', text: 'same' }] }
     })
+  }
+  const settled = nativeEvents.filter((event) => event.type === 'input-settled')
+  expect(settled.map((event) => event.inputIds)).toEqual([['root'], ['steer-1', 'steer-2'], ['follow']])
+  for (const event of settled) {
+    expect(manager.getEntry(event.entryId)).toMatchObject({
+      type: 'message',
+      message: { role: 'assistant', stopReason: 'stop' }
+    })
+    expect(event).toMatchObject({ stopReason: 'stop', aborted: false })
+    expect(
+      nativeEvents
+        .slice(0, nativeEvents.indexOf(event))
+        .some((prior) => prior.type === 'session-append' && prior.entries.some((entry) => entry.id === event.entryId))
+    ).toBe(true)
   }
 })
 
@@ -267,7 +301,79 @@ it('keeps a locally handled command failure after its later admission acknowledg
   ])
 })
 
-it.each(['error', 'length'] as const)(
+it('attributes a final answer to the original input and steering delivered after a tool call', async () => {
+  const { runtime, options, faux } = await setup()
+  const executing = gate()
+  const finish = gate()
+  onTestFinished(() => finish.resolve())
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('hold', {}), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('answer using both inputs')
+  ])
+  const handle = confirmed(
+    await runtime.create({
+      ...options,
+      tools: [
+        defineTool({
+          name: 'hold',
+          label: 'Hold',
+          description: 'Hold the tool boundary',
+          parameters: Type.Object({}),
+          execute: async () => {
+            executing.resolve()
+            await finish.promise
+            return { content: [{ type: 'text', text: 'tool finished' }], details: {} }
+          }
+        })
+      ]
+    })
+  )
+  const events = await observe(handle)
+  await handle.input.submit(input('root'))
+  await executing.promise
+  await handle.input.submit(input('steering', 'steer'))
+  expect(events.filter((event) => event.type === 'input.changed').some((event) => event.input.outcome)).toBe(false)
+  finish.resolve()
+  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  const snapshotEvents = await observe(handle)
+  await expect.poll(() => snapshotEvents[0]?.type).toBe('snapshot')
+  const snapshot = snapshotEvents[0]
+  if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
+  expect(snapshot.inputs).toHaveLength(2)
+  expect(snapshot.inputs.every((state) => state.outcome === 'completed')).toBe(true)
+  expect(snapshot.inputs[0].response).toEqual(snapshot.inputs[1].response)
+  expect(snapshot.items.find((item) => item.ref.id === snapshot.inputs[0].response?.id)).toMatchObject({
+    type: 'message',
+    parts: [{ type: 'text', text: 'answer using both inputs' }]
+  })
+})
+
+it('does not change an answered input when a queued follow-up fails', async () => {
+  const { runtime, options, faux } = await setup()
+  const started = gate()
+  const finish = gate()
+  onTestFinished(() => finish.resolve())
+  faux.setResponses([
+    async () => {
+      started.resolve()
+      await finish.promise
+      return fauxAssistantMessage('root answer')
+    },
+    fauxAssistantMessage('follow-up failed', { stopReason: 'error', errorMessage: 'unsupported model' })
+  ])
+  const handle = confirmed(await runtime.create({ ...options, settings: { retry: { enabled: false } } }))
+  const events = await observe(handle)
+  await handle.input.submit(input('root'))
+  await started.promise
+  await handle.input.submit(input('follow', 'follow-up'))
+  finish.resolve()
+  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  const states = events.filter((event) => event.type === 'input.changed')
+  expect(states.findLast((event) => event.input.inputId === 'root')?.input.outcome).toBe('completed')
+  expect(states.findLast((event) => event.input.inputId === 'follow')?.input.outcome).toBe('failed')
+})
+
+it.each(['error', 'length', 'toolUse'] as const)(
   'does not treat native settlement after %s as input success',
   async (stopReason) => {
     const { runtime, options, faux } = await setup()
@@ -283,7 +389,15 @@ it.each(['error', 'length'] as const)(
     await handle.input.submit(input('work'))
     await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
     const states = events.filter((event) => event.type === 'input.changed').map((event) => event.input)
-    expect(states.at(-1)).toMatchObject({ inputId: 'work', facts: ['dispatch-started', 'placed'] })
+    expect(states.at(-1)).toMatchObject({
+      inputId: 'work',
+      facts: ['dispatch-started', 'placed'],
+      outcome: stopReason === 'error' ? 'failed' : 'unanswered',
+      response: { session: handle.thread },
+      error: {
+        code: stopReason === 'error' ? 'model-error' : stopReason === 'length' ? 'output-truncated' : 'no-final-answer'
+      }
+    })
     expect(states.some((state) => state.outcome === 'completed')).toBe(false)
     expect(events).toEqual(
       expect.arrayContaining([
@@ -295,6 +409,33 @@ it.each(['error', 'length'] as const)(
     )
   }
 )
+
+it('keeps a retrying input pending and attributes only the successful final response', async () => {
+  const { runtime, options, faux } = await setup()
+  const retry = gate()
+  const finish = gate()
+  onTestFinished(() => finish.resolve())
+  faux.setResponses([
+    fauxAssistantMessage('temporary failure', { stopReason: 'error', errorMessage: '429 rate limit exceeded' }),
+    async () => {
+      retry.resolve()
+      await finish.promise
+      return fauxAssistantMessage('recovered answer')
+    }
+  ])
+  const handle = confirmed(
+    await runtime.create({ ...options, settings: { retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 } } })
+  )
+  const events = await observe(handle)
+  await handle.input.submit(input('retry me'))
+  await retry.promise
+  expect(events.filter((event) => event.type === 'input.changed').every((event) => !event.input.outcome)).toBe(true)
+  finish.resolve()
+  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  const states = events.filter((event) => event.type === 'input.changed')
+  expect(states.at(-1)?.input).toMatchObject({ outcome: 'completed', response: { session: handle.thread } })
+  expect(states.some((event) => event.input.outcome === 'failed')).toBe(false)
+})
 
 it('reopens native files after shutdown without requiring the Cherry model bridge', async () => {
   const { runtime, options, faux } = await setup()
@@ -451,8 +592,16 @@ it('continues an observed child through its owner, keeps one relationship, and r
   await expect.poll(() => childSnapshot[0]?.type).toBe('snapshot')
   if (childSnapshot[0].type !== 'snapshot') throw new Error('Missing child snapshot')
   expect(childSnapshot[0].inputs).toEqual([
-    { inputId: 'continue', facts: expect.arrayContaining(['dispatch-started', 'placed']) },
-    { inputId: 'add detail', facts: expect.arrayContaining(['queued', 'placed']) }
+    expect.objectContaining({
+      inputId: 'continue',
+      facts: expect.arrayContaining(['dispatch-started', 'placed']),
+      outcome: 'completed'
+    }),
+    expect.objectContaining({
+      inputId: 'add detail',
+      facts: expect.arrayContaining(['queued', 'placed']),
+      outcome: 'completed'
+    })
   ])
   const placed = childNativeEvents.filter((event) => event.type === 'input-placed')
   expect(placed.map((event) => event.inputId)).toEqual(['continue', 'add detail'])

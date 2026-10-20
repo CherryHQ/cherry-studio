@@ -54,6 +54,8 @@ export type InputState = (
 ) & {
   readonly facts: readonly InputFact[]
   readonly outcome?: 'completed' | 'failed' | 'aborted' | 'unanswered'
+  /** Evidenced terminal response, which may be shared by several inputs or contain a failure. */
+  readonly response?: ItemRef
   readonly error?: RuntimeError
 }
 export type InputQuery =

@@ -82,10 +82,18 @@ Hidden child custom messages remain hidden. Local handling emits `locally-handle
 native command failure also records `failed`, and a later admission receipt preserves it.
 
 The token is neither a deduplication key nor persisted in the native transcript. A host needing
-restart correlation must save the observed input/entry association. Assistant answers do not
-receive a guessed single input ID: several steering messages can contribute to one answer.
-General model terminal attribution remains incomplete; idle, abort, and truncated output do not
-turn an input into a successful completion.
+restart correlation must save the observed input/entry association. The native patch snapshots
+unanswered placed inputs at request preparation. A final normal reply settles that batch; tool
+and explicit boundary continuations retain it, and errors settle only after native retries and
+recovery stop. Queued or subsequently placed inputs are excluded from the preceding response.
+
+`input_settled` reports the batch, actual assistant entry/message, and abort flag. The builder
+forwards `input-settled` with typed `stopReason`, native entry ID, input IDs, and optional error.
+The common projection links each input's `response` to the observed item. Several inputs may
+share it; assistant messages do not receive a guessed single `inputId`. Normal final replies map
+to `completed`, errors to `failed`, and interruption to `aborted`. Truncation and settlement
+without a final answer map to `unanswered` with diagnostic codes. Native response completion
+does not prove semantic task success or literal consumption of every input by a context hook.
 
 ## Compaction
 

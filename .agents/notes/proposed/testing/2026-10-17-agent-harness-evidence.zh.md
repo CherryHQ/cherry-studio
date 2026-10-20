@@ -97,7 +97,7 @@ InputId 需要实际接纳证据。Pi 缺乏通用持久化 ExecutionId，适配
 
 `SessionManager.open(path)` 会为缺失路径创建新上下文，也可能初始化空文件。公共 `open(existingRef)` 不能直接映射到它。应核对加载后的原生身份与预期一致，不匹配时拒绝打开。单独使用 `existsSync` 仍存在检查和加载之间的竞态。严格只读打开还涉及空文件初始化；若需要这项保证，应推动原生 strict-open，而非复制会话解析器。[SessionManager](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/session-manager.ts)
 
-未打补丁的 1.3.0 `PromptOptions` 不提供调用方输入关联 token，`_steeringMessages` 与 `_followUpMessages` 保存文本。结合输入变换和批量消费，这意味着无法依靠文本或顺序建立通用输入到输出映射。这是固定基线的源码核对；后文的 [P0 验证](2026-10-17-agent-harness-evidence.md#p0-input-correlation-check--2026-10-19)覆盖 Cherry 的原生关联补丁。完整模型终态归属仍是[实现方案](../architecture/2026-10-17-agent-runtime-contract.md#desktop-integration-implementation-plan)中的门槛。[Pi AgentSession 源码](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts)、[Cherry 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)
+未打补丁的 1.3.0 `PromptOptions` 不提供调用方输入关联 token，`_steeringMessages` 与 `_followUpMessages` 保存文本。结合输入变换和批量消费，这意味着无法依靠文本或顺序建立通用输入到输出映射。这是固定基线的源码核对；后文的 [P0 验证](2026-10-17-agent-harness-evidence.md#p0-input-correlation-check--2026-10-19)覆盖 Cherry 的原生关联补丁。下方的终态归属验证补齐了[实现方案](../architecture/2026-10-17-agent-runtime-contract.md#desktop-integration-implementation-plan)中的 P0 包级证据，不代表宿主接入完成。[Pi AgentSession 源码](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts)、[Cherry 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)
 
 ### DSH
 
@@ -372,6 +372,23 @@ pnpm test:main \
 ```
 
 Pi 工作区的 `npm run check`、Cherry Pi 包的类型检查／构建，以及 `pnpm typecheck:node --incremental false` 均通过。这些测试使用确定性原生／本地提供商；它们不代表 P0 模型终态映射已完成，不持久化宿主输入关联，也不建立桌面、在线提供商或崩溃恢复验收。
+
+#### P0 终态归属验证 — 2026-10-20
+
+现有 Pi 1.3.0 依赖补丁现已发出 `input_settled`：原生请求准备时保存尚未回答且已放置的输入集合，最终回答或终态收束时返回其实际 assistant entry。工具／边界续接和原生重试会保留该集合。适配器转发强类型停止／中止证据，并暴露可选的 `InputState.response`；多个输入可以共享该引用。排队输入在实际放置并建立归属前保持未决。本次补丁通过 Cherry 的公共适配器验证；它不是上游发布版本，也不表示在关联的 Pi 工作区新跑了一轮源码测试。
+
+Durable 通过 `SubmissionRecord.answer` 提供相同关联。源码核对和新增的真实 Harness 回归表明，原生 `done` 包含截断回答，因此适配器读取引用的 assistant 后才映射终态。正常最终回答成为 `completed`，截断成为带 `output-truncated` 的 `unanswered`，已知失败／中止证据保持区分。被动读取不会恢复调度。响应引用遵循 current-view 身份规则；宿主重启关联仍属于 P1。
+
+验证通过 **15 个明确选择的文件、158 项测试**：Pi 包 54 项、Durable 适配器 8 项、公共观察 6 项，以及前一节 P0 验证所列主进程桥接测试 90 项。新增断言覆盖变换／批量 steering、两种 harness 工具调用后的共享回答、重试期间不提前报失败、中止与未送达输入的区别、截断、没有最终回答、后续 follow-up 失败、终态事件前原生 entry 已可读取、可恢复的状态读取失败不丢失输入关联，以及由所有者管理的 child 续接。实现前的首轮回归因缺少终态／响应事实而失败。
+
+```sh
+pnpm --filter @cherrystudio/agent-runtime-pi exec vitest run \
+  tests/runtime.test.ts tests/nativeSession.test.ts tests/subagentDelivery.test.ts tests/goalState.test.ts
+pnpm --filter @cherrystudio/agent-runtime-pi-durable exec vitest run tests/runtime.test.ts
+pnpm --filter @cherrystudio/agent-runtime exec vitest run tests/observation.test.ts
+```
+
+三个包的类型检查、`pnpm typecheck:node --incremental false` 和变更文件的 Oxlint／ESLint 均通过。依赖补丁安装期间运行了包构建。这建立了 P0 的包级 AC2／AC7 证据，不代表桌面渲染、宿主持久化、在线提供商或进程崩溃验收。文档在后续接入层完成前保持 proposed。
 
 #### 剩余缺口
 
