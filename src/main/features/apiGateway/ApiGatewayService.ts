@@ -1,6 +1,7 @@
 import { hostname, networkInterfaces } from 'node:os'
 
 import { Mutex } from 'async-mutex'
+import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -13,7 +14,7 @@ import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiG
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
-import { mapGatewayBindError } from './bindError'
+import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
 import { isValidToken } from './middleware/auth'
 import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
@@ -373,8 +374,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private async startInternalGateway(): Promise<ApiGateway> {
     const { ApiGateway } = await import('./server')
     const endpoint = { host: INTERNAL_GATEWAY_HOST, port: 0 }
-    const gateway = new ApiGateway(endpoint, 'internal')
-    await gateway.start().catch((error: unknown) => {
+    const gateway = await retry(
+      async () => {
+        const candidate = new ApiGateway(endpoint, 'internal')
+        await candidate.start()
+        return candidate
+      },
+      { retries: 2, shouldRetry: isGatewayBindPermissionError }
+    ).catch((error: unknown) => {
       const mapped = mapGatewayBindError(error, endpoint, 'internal')
       if (mapped !== error) logger.error('Internal API gateway listen failed', error as Error)
       throw mapped

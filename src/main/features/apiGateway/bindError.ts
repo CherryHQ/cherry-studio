@@ -1,13 +1,22 @@
 import { t } from '@main/i18n'
 
+export function isGatewayBindPermissionError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === 'EACCES' &&
+    'syscall' in error &&
+    error.syscall === 'listen'
+  )
+}
+
 export function mapGatewayBindError(
   error: unknown,
   endpoint: { host: string; port: number },
   listener: 'public' | 'internal'
 ): unknown {
-  if (!(error instanceof Error)) return error
+  if (!isGatewayBindPermissionError(error)) return error
   const bindError = error as NodeJS.ErrnoException & { address?: string; port?: number }
-  if (bindError.code !== 'EACCES' || bindError.syscall !== 'listen') return error
 
   const address = typeof bindError.address === 'string' ? bindError.address : endpoint.host
   const port = typeof bindError.port === 'number' ? bindError.port : endpoint.port

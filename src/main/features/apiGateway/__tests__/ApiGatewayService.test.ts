@@ -164,6 +164,42 @@ async function startInternalGateway(service: ApiGatewayService) {
 const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
 describe('ApiGatewayService internal gateway', () => {
+  it('shares bounded permission retries across consumers and returns usable credentials after recovery', async () => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('denied'), { code: 'EACCES', syscall: 'listen' })
+    mockStart.mockRejectedValueOnce(original).mockRejectedValueOnce(original).mockResolvedValueOnce(undefined)
+    const config = service.getCurrentConfig()
+    const [internal, scoped] = await Promise.all([
+      service.ensureInternalGateway(),
+      service.createScopedCredential(CHAT_SCOPE)
+    ])
+
+    expect(mockStart).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(ApiGateway).mock.calls).toEqual(
+      Array.from({ length: 3 }, () => [{ host: '127.0.0.1', port: 0 }, 'internal'])
+    )
+    expect(scoped.baseUrl).toBe(internal.baseUrl)
+    expect(service.getInternalGatewayOrigin()).toBe(internal.baseUrl)
+    expect(service.isInternalRequest(new Headers({ 'x-api-key': internal.apiKey }))).toBe(true)
+    expect(service.getCredentialScope(new Headers({ 'x-api-key': scoped.apiKey }))).toEqual(CHAT_SCOPE)
+    expect(service.getCurrentConfig()).toEqual(config)
+    expect(service.isActivated).toBe(false)
+  })
+
+  it.each([
+    { code: 'EADDRINUSE', syscall: 'listen' },
+    { code: 'EACCES', syscall: 'open' },
+    { code: 'EAFNOSUPPORT', syscall: 'listen' }
+  ])('does not automatically retry unrelated failures: $code / $syscall', async (fields) => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('failed'), fields)
+    mockStart.mockRejectedValue(original)
+
+    await expect(service.ensureInternalGateway()).rejects.toBe(original)
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(service.getInternalGatewayOrigin()).toBeUndefined()
+  })
+
   it('reports internal permission recovery to concurrent consumers and allows a later retry without public changes', async () => {
     const service = new ApiGatewayService()
     const original = Object.assign(new Error('denied'), {
@@ -172,7 +208,7 @@ describe('ApiGatewayService internal gateway', () => {
       address: '::1',
       port: 49152
     })
-    mockStart.mockRejectedValueOnce(original)
+    mockStart.mockRejectedValueOnce(original).mockRejectedValueOnce(original).mockRejectedValueOnce(original)
     const config = service.getCurrentConfig()
     const results = await Promise.allSettled([
       service.ensureInternalGateway(),
@@ -187,7 +223,7 @@ describe('ApiGatewayService internal gateway', () => {
         expect(result.reason.cause).toBe(original)
       }
     }
-    expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(mockStart).toHaveBeenCalledTimes(3)
     expect(service.getInternalGatewayOrigin()).toBeUndefined()
     expect(service.getCurrentConfig()).toEqual(config)
     expect(mockSetShared).not.toHaveBeenCalled()

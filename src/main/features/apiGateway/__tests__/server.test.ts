@@ -1,6 +1,8 @@
 import { createServer, type ListenOptions, Server } from 'node:net'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 /**
  * Server lifecycle tests for `ApiGateway` (start/stop) against the real
@@ -40,16 +42,65 @@ vi.mock('../app', async () => {
   return { buildApp: () => new Elysia({ adapter: node() }).get('/health', () => 'ok') }
 })
 
+import { ApiGatewayService } from '../ApiGatewayService'
 import { mapGatewayBindError } from '../bindError'
 import { ApiGateway } from '../server'
 
 describe('ApiGateway server lifecycle', () => {
   let gateway: ApiGateway | null = null
+  let service: ApiGatewayService | null = null
+
+  beforeEach(() => BaseService.resetInstances())
 
   afterEach(async () => {
+    await service?._doStop()
+    service = null
     await gateway?.stop().catch(() => {})
     gateway = null
     vi.restoreAllMocks()
+  })
+
+  it.each([1, 3])('releases real listeners after %i controlled internal IPv6 refusals', async (refusals) => {
+    const listen = Server.prototype.listen
+    const refusedPorts: number[] = []
+    vi.spyOn(Server.prototype, 'listen').mockImplementation(function (
+      this: Server,
+      ...args: Parameters<Server['listen']>
+    ) {
+      const options = args[0] as ListenOptions
+      if (options.host === '::1' && refusedPorts.length < refusals) {
+        refusedPorts.push(options.port!)
+        const error = Object.assign(new Error('controlled IPv6 listen refusal'), {
+          code: 'EACCES',
+          syscall: 'listen',
+          address: '::1',
+          port: options.port
+        })
+        queueMicrotask(() => this.emit('error', error))
+        return this
+      }
+      return Reflect.apply(listen, this, args)
+    })
+    service = new ApiGatewayService()
+    if (refusals === 3) {
+      await expect(service.ensureInternalGateway()).rejects.toMatchObject({
+        message: expect.stringContaining('internal API Gateway'),
+        cause: expect.objectContaining({ code: 'EACCES', address: '::1' })
+      })
+      expect(service.getInternalGatewayOrigin()).toBeUndefined()
+    } else {
+      const { baseUrl } = await service.ensureInternalGateway()
+      expect(await (await fetch(`${baseUrl}/health`)).text()).toBe('ok')
+    }
+    expect(refusedPorts).toHaveLength(refusals)
+    await service._doStop()
+    vi.restoreAllMocks()
+    for (const port of new Set(refusedPorts)) {
+      gateway = new ApiGateway({ host: '127.0.0.1', port })
+      await gateway.start()
+      expect(await (await fetch(`http://127.0.0.1:${port}/health`)).text()).toBe('ok')
+      await gateway.stop()
+    }
   })
 
   it('preserves real OS EACCES fields, releases failed listeners, and permits a fresh allowed start', async (context) => {
