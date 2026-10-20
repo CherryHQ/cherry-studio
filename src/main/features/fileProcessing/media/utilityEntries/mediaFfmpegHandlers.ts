@@ -400,6 +400,9 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
         '-y',
         '-i',
         filePath,
+        // Source tags are stored in the WAV header and can exceed the fixed budget.
+        '-map_metadata',
+        '-1',
         '-vn',
         '-af',
         'aresample=16000:async=1',
