@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/simplification/2026-10-20-external-knowledge-persistence.md
-2026-10-20-external-knowledge-persistence.md: aef2e7910853ade9832950ca701747a5c4c38a09
-2026-10-20-external-knowledge-persistence.zh.md: 4e95bbcb12e158602cd1e2d9a87c6800cc9f6518
+2026-10-20-external-knowledge-persistence.md: e0c532c3e0b97ebf4e11abdc70f814d44479a977
+2026-10-20-external-knowledge-persistence.zh.md: fd5507d0484f37fc930529192d63f4aa20827162

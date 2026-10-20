@@ -65,10 +65,20 @@ That architecture remains a separate Spec: select the real provider, validate it
 - AC4 — Same-space duplicate sources remain rejected, warnings and last-result UI retain their behavior, local snapshots remain reindexable, and disconnect can still preserve completed local copies (verification: main/renderer tests and targeted Electron validation; owner: lifecycle and UI layers)
 - AC5 — The final implementation updates affected reference documentation and the bilingual note together, records actual scoped verification, and contains no unrelated provider, authentication or retrieval changes (verification: docs gates and per-layer change scope; owner: final integration layer)
 
+## Implementation evidence
+
+Phase A is implemented across the existing domain, adapter, synchronization, lifecycle and UI layers in PRs #20742, #20800, #20856, #20903 and #20998. Phase B remains deferred.
+
+- AC1: shared contracts and 24 adapter traversal tests passed. Persisted metadata writers were removed; traversal descriptors and job-output scan counts remain.
+- AC2: the populated migration test failed against the old schema and passed with appended migration `0030_external_knowledge_persistence`. Retained values, ownership, task/schedule references, foreign keys, integrity and repeated migration execution are verified. Fresh-database tests passed.
+- AC3: synchronization and lifecycle tests passed, including unchanged-content shortcuts, publication fences, staged recovery and disconnect behavior. Job settlement tests now assert real SQLite state through the production migration harness.
+- AC4: the final targeted run passed 204 main tests across 8 files and 135 renderer tests across 4 files. Workspace Electron displayed the latest result and document warning from isolated fixture data. Keep-local disconnect removed Source/Document rows while retaining the completed item and Markdown snapshot, without foreign-key violations. Reindex coverage is automated; no live embedding request was made.
+- AC5: reference docs, per-layer change scopes, scoped lint/formatting, node/web typechecks, migration-chain checks and documentation checks passed. Read-only DataApi endpoints project reduced shared entities; repository searches found no field-level backup/export consumer. Untracked integrations are not covered.
+
 ## Risks
 
 Removing columns can cause SQLite table recreation; incorrectly rebuilt foreign keys may delete or orphan dependent records. Use the existing migration runner and production-chain fixtures, and inspect every regenerated index and constraint.
 
 DataApi returns whole entities today. Repository searches establish the absence of known field consumers, not a guarantee about untracked external integrations. The implementation must inspect all exposed endpoints and identify any published compatibility promise before changing their shapes.
 
-This Spec contains no implementation or functional test result. Exact-head human Approval is required before implementation, and every final acceptance criterion needs evidence from the completed stack.
+Implementation proceeded on the user’s explicit phase A instruction. No exact-head GitHub Approval has been recorded; this note remains proposed and the implementation PRs remain draft. Live Feishu authorization and network synchronization have not been accepted.
