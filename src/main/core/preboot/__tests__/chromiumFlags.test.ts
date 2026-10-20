@@ -26,6 +26,7 @@ interface PlatformFlags {
 
 const disableHardwareAccelerationMock = vi.fn()
 const appendSwitchMock = vi.fn()
+const hasSwitchMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 
 function stubElectron() {
@@ -34,7 +35,8 @@ function stubElectron() {
     app: {
       disableHardwareAcceleration: disableHardwareAccelerationMock,
       commandLine: {
-        appendSwitch: appendSwitchMock
+        appendSwitch: appendSwitchMock,
+        hasSwitch: hasSwitchMock
       }
     }
   }))
@@ -73,6 +75,7 @@ beforeEach(() => {
   vi.resetModules()
   disableHardwareAccelerationMock.mockReset()
   appendSwitchMock.mockReset()
+  hasSwitchMock.mockReset().mockReturnValue(false)
   bootConfigGetMock.mockReset()
 })
 
@@ -175,6 +178,58 @@ describe('configureChromiumFlags', () => {
       expect(appendSwitchMock).not.toHaveBeenCalledWith('class', 'CherryStudio')
       expect(appendSwitchMock).not.toHaveBeenCalledWith('name', 'CherryStudio')
       expect(appendSwitchMock).not.toHaveBeenCalledWith('enable-features', 'GlobalShortcutsPortal')
+    })
+  })
+
+  describe('Linux key storage backend', () => {
+    function stubDesktop(desktop: string, session = '') {
+      vi.stubEnv('XDG_CURRENT_DESKTOP', desktop)
+      vi.stubEnv('DESKTOP_SESSION', session)
+      vi.stubEnv('KDE_FULL_SESSION', '')
+    }
+
+    async function configure(flags: PlatformFlags) {
+      stubConstants(flags)
+      stubElectron()
+      stubBootConfig()
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+    }
+
+    it('selects libsecret on desktops Chromium does not recognise (Hyprland)', async () => {
+      stubDesktop('Hyprland')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).toHaveBeenCalledWith('password-store', 'gnome-libsecret')
+    })
+
+    it('leaves KDE sessions to KWallet', async () => {
+      stubDesktop('KDE')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
+    })
+
+    it('detects KDE from DESKTOP_SESSION when XDG_CURRENT_DESKTOP is empty', async () => {
+      stubDesktop('', 'plasma-kde')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
+    })
+
+    it('respects a user-supplied --password-store', async () => {
+      stubDesktop('Hyprland')
+      hasSwitchMock.mockImplementation((name: string) => name === 'password-store')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
+    })
+
+    it('does nothing outside Linux', async () => {
+      stubDesktop('Hyprland')
+      await configure({ isLinux: false, isWin: true })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
     })
   })
 

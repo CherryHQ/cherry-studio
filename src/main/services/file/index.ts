@@ -90,3 +90,5 @@ export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).
 export { listDirectory, listDirectoryEntries } from './tree/search'
+
+export { FileIntakeService, FileIntakeError, type FileIntakeOwner } from './FileIntakeService'

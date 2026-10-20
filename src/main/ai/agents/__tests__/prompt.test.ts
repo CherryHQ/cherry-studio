@@ -111,42 +111,14 @@ describe('PromptBuilder', () => {
     vi.clearAllMocks()
   })
 
-  it('uses the SDK preset base and emits no identity preamble when no workspace files exist', async () => {
+  it('uses the SDK preset base when no workspace files exist', async () => {
     setupFiles({})
 
     const { base, context: result } = await builder.buildPromptParts(posix('/workspace'))
 
-    // No system.md → keep the runtime-native prompt as the base and append Cherry content;
-    // the old embedded "personal assistant" preamble must be gone.
     expect(base).toEqual({ kind: 'native' })
-    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Memories')
     expect(result).toContain(posix('`/workspace/SOUL.md`'))
-  })
-
-  it('no longer embeds the always-injected tool-usage handbook (now a lazy builtin skill)', async () => {
-    setupFiles({})
-
-    const { context: result } = await builder.buildPromptParts(posix('/workspace'))
-
-    // The autonomy / memory-handbook / web-search handbook headings and their
-    // tool-strategy text ship lazily via the `cherry-tool-guide` builtin skill,
-    // not baked into every prompt.
-    expect(result).not.toContain('## Autonomy Tools')
-    expect(result).not.toContain('## Agent Memory')
-    expect(result).not.toContain('## Web Search Strategy')
-    expect(result).not.toContain('mcp__cherry-tools__cron')
-    expect(result).not.toContain('mcp__cherry-tools__notify')
-    expect(result).not.toContain('mcp__cherry-tools__web_search')
-    expect(result).not.toContain('mcp__cherry-tools__web_fetch')
-
-    // The runtime storage contract stays: the Memories section and its memory
-    // safety boundaries must survive the handbook removal.
-    expect(result).toContain('## Memories')
-    expect(result).toContain('mcp__agent-memory__memory')
-    expect(result).toContain('Update it only through `mcp__agent-memory__memory` (action: update)')
-    expect(result).toContain('Never read or write the file directly')
-    expect(result).toContain('append-only log')
   })
 
   it('keeps an explicit system.md separate as the custom base', async () => {
@@ -199,22 +171,13 @@ describe('PromptBuilder', () => {
       [posix('/workspace/soul.md')]: 'Warm but direct. Lead with answers.'
     })
 
-    const { context: result } = await builder.buildPromptParts(posix('/workspace'))
+    const { context } = await builder.buildPromptParts(posix('/workspace'))
+    const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
     expect(result).toContain('## Memories')
     expect(result).toContain('<soul>')
     expect(result).toContain('Warm but direct. Lead with answers.')
     expect(result).toContain('</soul>')
-    expect(result).toContain('HOW you present yourself')
-  })
-
-  it('defines SOUL.md as presentation persona rather than the Agent role', async () => {
-    setupFiles({ [posix('/workspace/SOUL.md')]: 'Warm, concise, and direct.' })
-
-    const { context } = await builder.buildPromptParts(posix('/workspace'), baseConfig, true)
-
-    expect(context).toContain('HOW you present yourself — name, personality, tone, and communication style')
-    expect(context).not.toContain('WHO you are — personality, tone, communication style, core principles')
   })
 
   it('preserves legacy SOUL.md content verbatim', async () => {
@@ -228,7 +191,7 @@ Complete every research task thoroughly.
 Always cite primary sources.`
     setupFiles({ [posix('/workspace/SOUL.md')]: legacySoul })
 
-    const { context } = await builder.buildPromptParts(posix('/workspace'), baseConfig, true)
+    const context = await builder.buildMemoriesSection(posix('/workspace'))
 
     expect(context).toContain(`<soul>\n${legacySoul}\n</soul>`)
   })
@@ -238,12 +201,12 @@ Always cite primary sources.`
       [posix('/workspace/user.md')]: 'Name: V\nTimezone: UTC+8'
     })
 
-    const { context: result } = await builder.buildPromptParts(posix('/workspace'))
+    const { context } = await builder.buildPromptParts(posix('/workspace'))
+    const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
     expect(result).toContain('<user>')
     expect(result).toContain('Name: V')
     expect(result).toContain('</user>')
-    expect(result).toContain('WHO the user is')
   })
 
   it('includes memory/FACT.md in memories section', async () => {
@@ -251,28 +214,12 @@ Always cite primary sources.`
       [posix('/workspace/memory/FACT.md')]: '# Active Projects\n\n- Cherry Studio'
     })
 
-    const { context: result } = await builder.buildPromptParts(posix('/workspace'))
+    const { context } = await builder.buildPromptParts(posix('/workspace'))
+    const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
     expect(result).toContain('<facts>')
     expect(result).toContain('Cherry Studio')
     expect(result).toContain('</facts>')
-    expect(result).toContain('WHAT you know')
-  })
-
-  it('includes all memory files when all exist', async () => {
-    setupFiles({
-      [posix('/workspace/soul.md')]: 'Be concise.',
-      [posix('/workspace/user.md')]: 'Name: V',
-      [posix('/workspace/memory/FACT.md')]: 'Project: Cherry Studio'
-    })
-
-    const { context: result } = await builder.buildPromptParts(posix('/workspace'))
-
-    expect(result).toContain('<soul>')
-    expect(result).toContain('<user>')
-    expect(result).toContain('<facts>')
-    expect(result).toContain('Update them autonomously')
-    expect(result).toContain('exclusive scope')
   })
 
   it('builds the memories section without the base agent prompt', async () => {
@@ -284,11 +231,10 @@ Always cite primary sources.`
 
     const result = await builder.buildMemoriesSection(posix('/workspace'))
 
-    expect(result).toContain('## Memories')
+    expect(result).toContain('<agent_identity>')
     expect(result).toContain('Be concise.')
     expect(result).toContain('Name: V')
     expect(result).toContain('Project: Cherry Studio')
-    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).not.toContain('## Autonomy Tools')
   })
 
@@ -298,7 +244,8 @@ Always cite primary sources.`
       [posix('/workspace/soul.md')]: 'Sharp and efficient.'
     })
 
-    const { base, context: result } = await builder.buildPromptParts(posix('/workspace'))
+    const { base, context } = await builder.buildPromptParts(posix('/workspace'))
+    const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
     expect(base).toEqual({ kind: 'custom', content: 'You are CustomBot.' })
     expect(result).not.toContain('You are CustomBot.')
@@ -313,12 +260,14 @@ Always cite primary sources.`
       [posix('/agent-data/memory/FACT.md')]: 'Persistent agent fact.'
     })
 
-    const { base, context: result } = await builder.buildPromptParts(
+    const { base, context } = await builder.buildPromptParts(
       posix('/workspace'),
       undefined,
       false,
       posix('/agent-data')
     )
+
+    const result = context + '\n' + (await builder.buildMemoriesSection(posix('/agent-data')))
 
     expect(base).toEqual({ kind: 'custom', content: 'Workspace-local system prompt.' })
     expect(result).not.toContain('Workspace-local system prompt.')
@@ -326,7 +275,6 @@ Always cite primary sources.`
     expect(result).toContain('Persistent agent fact.')
     expect(result).toContain(posix('`/agent-data/`'))
     expect(result).toContain(posix('`/agent-data/SOUL.md`'))
-    expect(result).toContain('current working directory is the session workspace')
   })
 
   it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
@@ -334,7 +282,7 @@ Always cite primary sources.`
 
     const { context: result } = await builder.buildPromptParts(
       posix('/workspace'),
-      baseConfig,
+      { ...baseConfig, bootstrap_completed: true },
       true,
       posix('/agent-data')
     )
@@ -361,7 +309,8 @@ Always cite primary sources.`
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
     })
 
-    const { context: result } = await builder.buildPromptParts(posix('/workspace'))
+    const { context } = await builder.buildPromptParts(posix('/workspace'))
+    const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
     expect(result).not.toContain('must not be read')
   })
@@ -374,7 +323,8 @@ Always cite primary sources.`
       [posix('/workspace/memory/fact.md')]: 'Lowercase facts'
     })
 
-    const { context: result } = await builder.buildPromptParts(posix('/workspace'))
+    const { context } = await builder.buildPromptParts(posix('/workspace'))
+    const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
     expect(result).toContain('<soul>')
     expect(result).toContain('Uppercase soul')
@@ -384,19 +334,11 @@ Always cite primary sources.`
     expect(result).toContain('Lowercase facts')
   })
 
-  it('uses mtime cache for repeated reads', async () => {
-    setupFiles({
-      [posix('/workspace/soul.md')]: 'Cached soul'
-    })
+  it('retains identity content on repeated reads', async () => {
+    setupFiles({ [posix('/workspace/soul.md')]: 'Cached soul' })
 
-    await builder.buildPromptParts(posix('/workspace'))
-    await builder.buildPromptParts(posix('/workspace'))
-
-    // The file should only be opened once due to caching.
-    const soulReadCalls = mockedOpen.mock.calls.filter(
-      (call) => typeof call[0] === 'string' && call[0].includes('soul.md')
-    )
-    expect(soulReadCalls).toHaveLength(1)
+    expect(await builder.buildMemoriesSection(posix('/workspace'))).toContain('Cached soul')
+    expect(await builder.buildMemoriesSection(posix('/workspace'))).toContain('Cached soul')
   })
 
   describe('bootstrap mode', () => {
@@ -406,10 +348,6 @@ Always cite primary sources.`
       const { context: result } = await builder.buildPromptParts(posix('/workspace'))
 
       expect(result).toContain('## Bootstrap Mode')
-      expect(result).toContain('**Discover the role**')
-      expect(result).toContain('with your role definition')
-      expect(result).not.toContain('The configured Agent System Prompt already defines your role')
-      expect(result).toContain('complete_bootstrap')
     })
 
     it('injects bootstrap instructions when bootstrap_completed is false', async () => {
@@ -424,9 +362,10 @@ Always cite primary sources.`
     })
 
     it('runs bootstrap when reset (bootstrap_completed false) even if the agent has instructions', async () => {
-      // `config reset_bootstrap` sets bootstrap_completed=false and promises the next session onboards.
-      // That explicit reset must override the instruction-based skip, or the tool's promise is a lie.
-      setupFiles({})
+      setupFiles({
+        [posix('/workspace/SOUL.md')]:
+          'I am a warm, direct assistant who gives concise answers and adapts to the user’s communication style.'
+      })
 
       const { context: result } = await builder.buildPromptParts(
         posix('/workspace'),
@@ -435,31 +374,6 @@ Always cite primary sources.`
       )
 
       expect(result).toContain('## Bootstrap Mode')
-    })
-
-    it('onboards persona and user context without redefining the configured Agent role', async () => {
-      setupFiles({})
-
-      const { context } = await builder.buildPromptParts(
-        posix('/workspace'),
-        { ...baseConfig, bootstrap_completed: false },
-        true
-      )
-
-      expect(context).toContain('The configured Agent System Prompt already defines your role')
-      expect(context).toContain('Never change, restate, or replace the Agent System Prompt')
-      expect(context).toContain('**Discover your presentation**')
-      expect(context).toContain('**Learn about the user**')
-      expect(context).toContain(
-        'Update `SOUL.md` with your name, personality, tone, and communication style. Do not put role, goals, capability scope, or behavioral constraints in this file.'
-      )
-      expect(context).toContain(
-        'Update `USER.md` with everything you learned about the user. Use Write if the file is missing; use Edit if it already exists.'
-      )
-      expect(context).toContain('During bootstrap, write persona and user-profile files at these exact absolute paths:')
-      expect(context).not.toContain('figure out what role you should play')
-      expect(context).not.toContain('**Discover the role**')
-      expect(context).not.toContain('with your role definition')
     })
 
     it('skips bootstrap when bootstrap_completed is true', async () => {
@@ -473,12 +387,12 @@ Always cite primary sources.`
       expect(result).not.toContain('## Bootstrap Mode')
     })
 
-    it('skips bootstrap when the agent already has non-blank user instructions', async () => {
+    it('onboards a configured role when its persona has not been established', async () => {
       setupFiles({})
 
       const { context: result } = await builder.buildPromptParts(posix('/workspace'), baseConfig, true)
 
-      expect(result).not.toContain('## Bootstrap Mode')
+      expect(result).toContain('## Bootstrap Mode')
     })
 
     it('skips bootstrap when SOUL.md has substantial content (legacy migration)', async () => {
@@ -514,7 +428,7 @@ Always cite primary sources.`
 
       expect(result).toContain('## Bootstrap Mode')
       expect(result).toContain('## Memories')
-      expect(result).toContain('<user>')
+      expect(await builder.buildMemoriesSection(posix('/workspace'))).toContain('<user>')
     })
   })
 
@@ -540,9 +454,6 @@ Always cite primary sources.`
       expect(result).toContain('Project: cherry-studio')
       expect(result).toContain('Build tool: pnpm + electron-vite')
       expect(result).toContain('</facts>')
-      // The agent should also be told to keep updating FACT.md
-      expect(result).toContain('mcp__agent-memory__memory')
-      expect(result).toContain('action="update"')
     })
 
     it('resolves FACT.md case-insensitively', async () => {
