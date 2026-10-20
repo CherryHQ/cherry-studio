@@ -373,11 +373,12 @@ export class AiStreamManager extends BaseService {
   /** Stop drains in flight by topic and reason, so duplicate abort requests join instead of stacking. */
   private readonly drainingTopics = new Map<string, Promise<void>>()
   /**
-   * Turn ids each topic's last user Stop already handled — the turn it drained plus any successor
-   * the graceful interrupt resumed while the drain held the lock. A late twin of that Stop reads the
-   * resumed successor as the live turn, so a single recorded id cannot match it.
+   * Stop ids each topic already drained, so the duplicate requests of that same Stop — the explicit
+   * abort and `sdkStop`'s transport signal — return early. Keyed by the Stop's identity, not by a
+   * turn id: the graceful interrupt resumes a queued successor under the live turn, so a turn-id
+   * key would swallow a genuinely new Stop for that successor.
    */
-  private readonly stoppedTurnsByTopic = new Map<string, Set<string>>()
+  private readonly stoppedStopsByTopic = new Map<string, Set<string>>()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -1249,7 +1250,7 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
-  async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
+  async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void, stopId?: string): Promise<void> {
     // A renderer Stop sends its abort twice (explicit abort + `sdkStop`'s transport signal). The
     // duplicate must join the running drain: once the lock releases it would capture — and cancel —
     // the queued successor the first stop just resumed. Only hookless callers join: a `beforeAbort`
@@ -1268,15 +1269,15 @@ export class AiStreamManager extends BaseService {
       // Bind the stop to the turn being drained: terminal handling can admit a queued successor
       // while this lock is held, and the driver cancel is identity-free.
       const stoppedTurnId = agentSession ? agentSession.runtime.getLiveTurnId(agentSession.sessionId) : undefined
-      // A UI Stop is the only reason whose twin can arrive after this drain resolved. It then reads
-      // the successor the Stop's graceful interrupt resumed, not the turn the Stop recorded, so the
-      // record carries both ids: the turn this Stop drained and the successor it resumed. A Stop for
-      // a turn this record already covers is the twin of that Stop and must not drain again.
+      // A UI Stop is the only reason whose twin can arrive after this drain resolved. The twin is
+      // recognised by the Stop's own identity, which both of its requests carry: recording the turn
+      // id instead would also swallow a separate Stop for the successor the graceful interrupt
+      // resumed under the live turn.
       const userStop = reason === USER_STOP_ABORT_REASON && agentSession !== undefined
-      if (userStop) {
-        if (stoppedTurnId !== undefined && this.stoppedTurnsByTopic.get(topicId)?.has(stoppedTurnId)) return
+      if (userStop && stopId !== undefined) {
+        if (this.stoppedStopsByTopic.get(topicId)?.has(stopId)) return
         // Replaces the previous Stop's record, so the set never grows past one Stop per topic.
-        this.stoppedTurnsByTopic.set(topicId, new Set(stoppedTurnId !== undefined ? [stoppedTurnId] : []))
+        this.stoppedStopsByTopic.set(topicId, new Set([stopId]))
       }
 
       this.abort(topicId, reason)
@@ -1310,14 +1311,6 @@ export class AiStreamManager extends BaseService {
         if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
         await runtimeClosing
         if (reason !== USER_STOP_ABORT_REASON) await drainReplacementLoops()
-        // A successor resumed while this drain held the lock belongs to this Stop's session, not to a
-        // new user request, so the Stop's twin must treat it as already handled.
-        if (userStop) {
-          const resumedTurnId = runtime.getLiveTurnId(sessionId)
-          if (resumedTurnId !== undefined && resumedTurnId !== stoppedTurnId) {
-            this.stoppedTurnsByTopic.get(topicId)?.add(resumedTurnId)
-          }
-        }
       }
     }).finally(() => {
       if (this.drainingTopics.get(drainKey) === draining) this.drainingTopics.delete(drainKey)

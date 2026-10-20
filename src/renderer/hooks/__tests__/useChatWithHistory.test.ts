@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { clearPendingUserStop, peekPendingStopId } from '@renderer/services/aiTransport/IpcChatTransport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useChatWithHistory } from '../useChatWithHistory'
@@ -88,6 +89,7 @@ describe('useChatWithHistory', () => {
     streamAbortMock.mockResolvedValue(undefined)
     setMessages.mockClear()
     stop.mockClear()
+    clearPendingUserStop('topic-abort')
     sendMessage.mockClear()
     regenerate.mockClear()
 
@@ -311,8 +313,28 @@ describe('useChatWithHistory', () => {
       await result.current.stop()
     })
 
-    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort' })
+    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort', stopId: expect.any(String) })
     expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('registers the Stop identity before sdkStop fires its twin', async () => {
+    // `sdkStop` aborts the SDK's per-request controller, and the transport answers that signal with
+    // its own `ai.stream.abort`. The identity must already be registered by then, or the twin goes
+    // out without it and main reads it as a fresh Stop for the resumed successor turn.
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+    let registeredWhenSdkStopRan: string | undefined
+    stop.mockImplementationOnce(async () => {
+      registeredWhenSdkStopRan = peekPendingStopId('topic-abort')
+    })
+
+    await act(async () => {
+      await result.current.stop()
+    })
+
+    const [explicitRequest] = streamAbortMock.mock.calls[0]
+    expect(explicitRequest.stopId).toEqual(expect.any(String))
+    expect(registeredWhenSdkStopRan).toBe(explicitRequest.stopId)
   })
 
   it('starts the main-process abort before stopping the local SDK stream', async () => {

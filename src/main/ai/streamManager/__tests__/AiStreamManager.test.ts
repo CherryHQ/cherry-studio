@@ -2040,13 +2040,15 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('persistence:initial', 'persistence')]
       })
 
-      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
       expect(mockHandleUserStop).toHaveBeenCalledOnce()
 
       // The second IPC message of the same Stop runs only now, after the first drain released its
       // dedup entry. The turn it would abort is the successor the first stop admitted, so a fresh
       // drain here would capture and cancel it — the user's one Stop must not kill the next turn.
-      await expect(mgr.abortAndDrain('agent-session:session-1', 'user-requested')).resolves.toBeUndefined()
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      ).resolves.toBeUndefined()
 
       expect(mockHandleUserStop).toHaveBeenCalledOnce()
       expect(continuationListener.pausedResults).toHaveLength(0)
@@ -2078,17 +2080,61 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('persistence:initial', 'persistence')]
       })
 
-      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
       expect(mockHandleUserStop).toHaveBeenCalledOnce()
       expect(mockHandleUserStop).toHaveBeenCalledWith('session-1', 'turn-drain-1')
 
       // The twin of the same Stop, arriving after the first drain resolved. `getLiveTurnId()` now
       // returns the resumed successor, so a turn-id comparison cannot see the match — the Stop's
       // own identity must travel with both requests.
-      await expect(mgr.abortAndDrain('agent-session:session-1', 'user-requested')).resolves.toBeUndefined()
+      await expect(
+        mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      ).resolves.toBeUndefined()
 
       expect(mockHandleUserStop).toHaveBeenCalledOnce()
       expect(continuationListener.pausedResults).toHaveLength(0)
+    })
+
+    it('stops a fresh user Stop aimed at the successor the previous Stop resumed', async () => {
+      vi.useRealTimers()
+      const firstController = new AbortController()
+      const successorController = new AbortController()
+      const firstListener = new FakeListener('persistence:first', 'persistence')
+      const successorListener = new FakeListener('persistence:successor', 'persistence')
+      // The live turn advances as the first Stop settles: turn A while it drains, turn B once its
+      // graceful interrupt resumes the queued successor.
+      let liveTurnId: string | undefined = 'turn-a'
+      mockGetLiveTurnId.mockImplementation(() => liveTurnId)
+      mockHandleUserStop.mockImplementation(async () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [successorListener],
+          abortController: successorController
+        })
+        liveTurnId = 'turn-b'
+      })
+
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [firstListener],
+        abortController: firstController
+      })
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-1')
+      expect(mockHandleUserStop).toHaveBeenCalledOnce()
+      expect(firstController.signal.aborted).toBe(true)
+      expect(successorController.signal.aborted).toBe(false)
+
+      // A separate Stop click for the resumed successor. It is a new user request, so it must reach
+      // the graceful interrupt instead of being swallowed by the previous Stop's record.
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested', undefined, 'stop-2')
+
+      expect(successorController.signal.aborted).toBe(true)
+      expect(mockHandleUserStop).toHaveBeenCalledTimes(2)
+      expect(mockHandleUserStop).toHaveBeenLastCalledWith('session-1', 'turn-b')
     })
 
     it('still drains a user Stop for a turn the previous Stop did not handle', async () => {

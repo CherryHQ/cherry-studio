@@ -3,4 +3,4 @@
 // docs/references/architecture/renderer.md §5.
 export { type ExecutionFinishEvent, executionStreamOverlayService } from './ExecutionStreamOverlayService'
 export { getStreamBlockedMessage } from './getStreamBlockedMessage'
-export { ipcChatTransport } from './IpcChatTransport'
+export { beginUserStop, ipcChatTransport } from './IpcChatTransport'
