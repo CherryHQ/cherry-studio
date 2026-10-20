@@ -750,6 +750,12 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   useEffect(() => {
     return bindRuntime?.({
+      prepareMessageReplacement: (previousMessageId) => {
+        const commit = messageListRef.current?.prepareContentReplacement(
+          getMessageGroupKey({ id: previousMessageId, role: 'user' })
+        )
+        return (messageId) => commit?.(getMessageGroupKey({ id: messageId, role: 'user' }))
+      },
       scrollToBottom: () => runtimeActionsRef.current.scrollToBottom(),
       locateMessage: (messageId) => runtimeActionsRef.current.scrollToMessageById(messageId),
       copyTopicImage: () => runtimeActionsRef.current.runTopicImageAction('copy'),

@@ -90,6 +90,7 @@ interface Params {
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void>
   scrollToBottom: () => void
+  prepareMessageReplacement?: (previousMessageId: string) => (messageId: string) => void
   startNewContextBlocked: boolean
   assistant?: Assistant
   composerModelId?: UniqueModelId
@@ -115,6 +116,7 @@ export function useChatWriteActions(params: Params): Result {
     cache,
     seedReservedMessages,
     scrollToBottom,
+    prepareMessageReplacement,
     startNewContextBlocked,
     assistant,
     composerModelId
@@ -386,10 +388,12 @@ export function useChatWriteActions(params: Params): Result {
       const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const sourceMessage = uiMessages.find((message) => message.id === messageId)
       const effectiveTurnOptions = turnOptions ?? getInheritedTurnOptions(uiMessages, sourceMessage)
+      const commitReplacement = prepareMessageReplacement?.(messageId)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }
       })
+      commitReplacement?.(newMessage.id)
       await seedReservedMessages([
         {
           id: newMessage.id,
@@ -433,7 +437,16 @@ export function useChatWriteActions(params: Params): Result {
         preserveActiveNode: ack.preserveActiveNode
       })
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      prepareMessageReplacement,
+      seedReservedMessages,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      uiMessages
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(

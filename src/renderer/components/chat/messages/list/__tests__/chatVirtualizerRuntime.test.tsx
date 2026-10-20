@@ -227,6 +227,271 @@ describe('useChatVirtualizerRuntime', () => {
     document.getSelection()?.removeAllRanges()
   })
 
+  describe('edit-and-resend scroll space', () => {
+    const disposers: (() => void)[] = []
+    afterEach(() => {
+      disposers
+        .splice(0)
+        .reverse()
+        .forEach((dispose) => dispose())
+    })
+
+    function setupReading(top = 2200, itemOffset = 0) {
+      const callbacks: ResizeObserverCallback[] = []
+      disposers.push(installResizeObserverMock(callbacks))
+      const raf = installQueuedAnimationFrame()
+      disposers.push(raf.restore)
+      let runtime!: ChatVirtualizerRuntime<string>
+      let handle!: MessageVirtualListHandle
+      let height = 6000
+      let currentKey = 'old'
+      let measuredHeight = height
+      let offset = top
+      let clampPending = false
+      const probe = (key: string | string[]) => (
+        <RuntimeDomProbe
+          items={Array.isArray(key) ? key : [key]}
+          handleRef={(value) => {
+            if (value) handle = value
+          }}
+          onRuntime={(value) => (runtime = value)}
+        />
+      )
+      const view = render(probe('old'))
+      disposers.push(() => view.unmount())
+      const scroller = runtime.scrollerRef.current!
+      const slack = () => Number.parseFloat(runtime.freezeSpacerRef.current?.style.height || '0')
+      const maxOffset = () => Math.max(0, height + slack() - 400)
+      // jsdom has no layout: model native clamping and its separate scroll event explicitly.
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => {
+          if (offset > maxOffset()) {
+            offset = maxOffset()
+            clampPending = true
+          }
+          return offset
+        },
+        set: (value) => {
+          offset = Math.max(0, Math.min(value, maxOffset()))
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => Math.max(400, height + slack()))
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime.vlistHandleRef.current = createHandle({
+        getItemOffset: () => itemOffset,
+        getItemSize: () => measuredHeight - itemOffset
+      })
+      raf.tick(60)
+      scroller.scrollTop = top
+      act(() => {
+        runtime.takeUserControl('user-scrolled-up')
+        runtime.scrollerProps.onScroll(top)
+      })
+      const resize = (nextHeight = height, nextMeasurement = nextHeight) => {
+        height = nextHeight
+        measuredHeight = nextMeasurement
+        act(() => callbacks[0]?.([], {} as ResizeObserver))
+      }
+      return {
+        raf,
+        slack,
+        scroller,
+        get runtime() {
+          return runtime
+        },
+        get handle() {
+          return handle
+        },
+        resize,
+        captureReplacement: () => handle.prepareContentReplacement(currentKey),
+        stageReplacement(key: string, nextHeight: number) {
+          act(() => handle.prepareContentReplacement?.(currentKey)?.(key))
+          view.rerender(probe([currentKey, key]))
+          resize(nextHeight)
+          raf.tick(2)
+        },
+        commitReplacement(key: string, nextHeight: number) {
+          currentKey = key
+          view.rerender(probe(key))
+          resize(nextHeight)
+          raf.tick(2)
+        },
+        replace(key = 'new', nextHeight = 2400, settle = true) {
+          act(() => handle.prepareContentReplacement?.(currentKey)?.(key))
+          currentKey = key
+          height = nextHeight
+          measuredHeight = nextHeight
+          view.rerender(probe(key))
+          resize()
+          if (settle) raf.tick(2)
+        },
+        scrollTo(next: number, intent = true) {
+          act(() => {
+            if (intent) runtime.markUserInput(next < offset ? 'up' : 'down')
+            scroller.scrollTop = next
+            runtime.scrollerProps.onScroll(scroller.scrollTop)
+          })
+        },
+        flushClamp() {
+          void scroller.scrollTop
+          if (clampPending) {
+            clampPending = false
+            act(() => runtime.scrollerProps.onScroll(scroller.scrollTop))
+          }
+        }
+      }
+    }
+
+    it('keeps only the viewport deficit and consumes fractional motion without moving the viewport', () => {
+      const list = setupReading()
+      list.replace()
+      expect(list.slack()).toBe(200)
+      expect(list.scroller.scrollTop).toBe(2200)
+      list.scrollTo(2199.5)
+      expect(list.slack()).toBe(199.5)
+      expect(list.scroller.scrollTop).toBe(2199.5)
+      list.flushClamp()
+      list.scrollTo(2199)
+      act(() => list.runtime.scrollerProps.onScrollEnd())
+      list.resize()
+      list.raf.tick(2)
+      expect(list.slack()).toBe(199)
+      expect(list.scroller.scrollTop).toBe(2199)
+      expect(list.handle.isFollowing()).toBe(false)
+    })
+
+    it('does not preserve old reply height when the target viewport already fits', () => {
+      const list = setupReading()
+      list.replace('new', 3000)
+      expect(list.slack()).toBe(0)
+      expect(list.scroller.scrollTop).toBe(2200)
+    })
+
+    it('recovers a wholly blank viewport to the edited user message once', () => {
+      const list = setupReading(4800, 2000)
+      list.replace('new', 2300)
+      expect(list.scroller.scrollTop).toBe(2000)
+      expect(list.slack()).toBe(100)
+      act(() => list.runtime.scrollerProps.onScroll(2000))
+      list.resize()
+      list.raf.tick(2)
+      expect(list.scroller.scrollTop).toBe(2000)
+      expect(list.slack()).toBe(100)
+      expect(list.handle.isFollowing()).toBe(false)
+      list.scrollTo(1950)
+      expect(list.scroller.scrollTop).toBe(1950)
+      expect(list.slack()).toBe(50)
+    })
+
+    it('counts inertia after the input window without extra viewport displacement', () => {
+      const list = setupReading()
+      list.replace()
+      let now = 1000
+      const time = vi.spyOn(performance, 'now').mockImplementation(() => now)
+      disposers.push(() => time.mockRestore())
+      list.scrollTo(2150)
+      now += 1000
+      list.scrollTo(2100, false)
+      expect(list.slack()).toBe(100)
+      expect(list.scroller.scrollTop).toBe(2100)
+      act(() => list.runtime.scrollerProps.onScrollEnd())
+      list.resize()
+      expect(list.slack()).toBe(100)
+      list.scrollTo(0)
+      expect(list.slack()).toBe(0)
+    })
+
+    it('does not shrink past committed layout when measurement runs ahead of the DOM', () => {
+      const list = setupReading()
+      list.replace()
+      list.resize(2400, 2600)
+      expect(list.slack()).toBe(200)
+      expect(list.scroller.scrollTop).toBe(2200)
+      list.flushClamp()
+      list.scrollTo(2199.995)
+      expect(list.scroller.scrollTop).toBeCloseTo(2199.995, 5)
+      expect(list.slack()).toBe(200)
+      list.scrollTo(2150, false)
+      expect(list.scroller.scrollTop).toBe(2150)
+      expect(list.slack()).toBeGreaterThanOrEqual(150)
+      expect(list.slack()).toBeLessThan(151)
+    })
+
+    it('pauses consumption during thumb dragging and does not charge the drag on release', () => {
+      const list = setupReading()
+      list.replace()
+      act(() => list.runtime.beginScrollbarDrag())
+      list.scrollTo(1900)
+      act(() => list.runtime.scrollerProps.onScrollEnd())
+      expect(list.slack()).toBe(200)
+      act(() => list.runtime.endScrollbarDrag())
+      expect(list.slack()).toBe(200)
+      expect(list.scroller.scrollTop).toBe(1900)
+      list.scrollTo(1800)
+      expect(list.slack()).toBe(100)
+      expect(list.scroller.scrollTop).toBe(1800)
+    })
+
+    it('never restores space or charges the same growth twice', () => {
+      const list = setupReading()
+      list.replace()
+      list.resize(2500)
+      expect(list.slack()).toBe(100)
+      expect(list.scroller.scrollTop).toBe(2200)
+      list.scrollTo(2100, false)
+      list.resize(2400)
+      list.resize(2500)
+      expect(list.slack()).toBe(100)
+      list.resize(2550)
+      expect(list.slack()).toBe(50)
+      act(() => list.handle.scrollToBottom())
+      list.resize(2600)
+      expect(list.slack()).toBe(0)
+      expect(list.handle.isFollowing()).toBe(true)
+    })
+
+    it('replaces the budget on successive edits and cancels earlier pending corrections', () => {
+      const list = setupReading(2200, 2000)
+      list.replace()
+      list.scrollTo(2100)
+      act(() => list.runtime.scrollerProps.onScrollEnd())
+      expect(list.scroller.scrollTop).toBe(2100)
+      list.replace('second', 2000, false)
+      list.flushClamp()
+      expect(list.scroller.scrollTop).toBe(2100)
+      list.replace('third', 2300)
+      expect(list.slack()).toBe(200)
+      expect(list.scroller.scrollTop).toBe(2100)
+      list.resize()
+      list.raf.tick(4)
+      expect(list.slack()).toBe(200)
+      expect(list.scroller.scrollTop).toBe(2100)
+    })
+
+    it('waits for the old branch to leave before measuring an optimistic replacement', () => {
+      const list = setupReading()
+      list.stageReplacement('new', 6100)
+      expect(list.slack()).toBe(0)
+      list.commitReplacement('new', 2400)
+      expect(list.slack()).toBe(200)
+      expect(list.scroller.scrollTop).toBe(2200)
+    })
+
+    it('retains the pre-write position when refreshed rows arrive before the write resolves', () => {
+      const list = setupReading(2800)
+      const commit = list.captureReplacement()
+      list.commitReplacement('new', 3000)
+      act(() => commit('new'))
+      list.raf.tick(2)
+      expect(list.slack()).toBe(200)
+      expect(list.scroller.scrollTop).toBe(2800)
+      list.scrollTo(2700)
+      expect(list.slack()).toBe(100)
+      expect(list.scroller.scrollTop).toBe(2700)
+    })
+  })
+
   it('keeps requested live item keys mounted and resolves their index after prepends', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     const view = render(
