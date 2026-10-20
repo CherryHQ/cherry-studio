@@ -111,6 +111,7 @@ beforeEach(() => {
   getByProviderIdMock.mockReturnValue({
     id: 'ppio',
     name: 'PPIO',
+    settings: {},
     reportsActualCost: false
   })
   getApiKeysMock.mockReturnValue([{ id: 'key-a', key: 'submit-key', label: 'Primary', isEnabled: true }])

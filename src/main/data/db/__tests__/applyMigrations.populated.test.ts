@@ -1331,7 +1331,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('adds External Knowledge connections without changing populated business data', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0027_sloppy_wolverine'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0028_minor_jackpot'))
     sqlite
       .prepare(
         `INSERT INTO preference (scope, key, value, created_at, updated_at)
