@@ -322,8 +322,17 @@ const AgentPage = () => {
     routeSessionId
   ])
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
+  // NOT_FOUND drops the query entity before the delete popup settles. Keep the session
+  // AgentRightPane already mounted so its workspace effect does not open a second discard.
+  const pendingDeletedSession =
+    pendingLocalPermanentDeleteId &&
+    activeSessionId === pendingLocalPermanentDeleteId &&
+    lastVisibleSessionRef.current?.id === pendingLocalPermanentDeleteId
+      ? lastVisibleSessionRef.current
+      : null
   const visibleSession =
     activeSession ??
+    pendingDeletedSession ??
     (isActiveSessionLoading && lastVisibleSessionRef.current?.id === activeSessionId
       ? lastVisibleSessionRef.current
       : null)

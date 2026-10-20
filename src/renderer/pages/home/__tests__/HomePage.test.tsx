@@ -97,6 +97,8 @@ const homeMocks = vi.hoisted(() => ({
   loadLatestTopic: vi.fn(),
   reuseOrCreateTopic: vi.fn(),
   navigate: vi.fn(),
+  historyOnActiveRecordChange: undefined as ((topic: Topic | null) => void) | undefined,
+  historyOnPending: undefined as ((id: string | null) => void) | undefined,
   routeSearch: {} as Record<string, unknown>,
   setShowSidebar: vi.fn(),
   topicPanelTopicsSource: undefined as unknown,
@@ -651,13 +653,17 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({
     open,
     onRecordSelect,
-    onActiveRecordChange
+    onActiveRecordChange,
+    onLocalPermanentDeletePendingChange
   }: {
     open?: boolean
     onRecordSelect?: (topic: Topic) => void
     onActiveRecordChange?: (topic: Topic | null) => void
-  }) =>
-    open ? (
+    onLocalPermanentDeletePendingChange?: (id: string | null) => void
+  }) => {
+    homeMocks.historyOnActiveRecordChange = onActiveRecordChange
+    homeMocks.historyOnPending = onLocalPermanentDeletePendingChange
+    return open ? (
       <div data-testid="history-records-view">
         <button type="button" onClick={() => onRecordSelect?.(historyTopic)}>
           Open history topic
@@ -670,6 +676,7 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
         </button>
       </div>
     ) : null
+  }
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -709,6 +716,8 @@ describe('HomePage', () => {
     homeMocks.assistantsLoading = false
     homeMocks.assistantsRefreshing = false
     homeMocks.routeSearch = {}
+    homeMocks.historyOnActiveRecordChange = undefined
+    homeMocks.historyOnPending = undefined
     // HomePage writes its write-only persist keys (topic expansion, global-search
     // recents) straight through cacheService, bypassing the hook mock below.
     MockCacheUtils.resetMocks()
@@ -2056,6 +2065,53 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBeNull())
     expect(homeMocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the deleted chat topic instead of the globally latest one when NOT_FOUND arrives first', async () => {
+    // Bare re-entry resolves to latest C. The pending guard must stay on A so History can still report neighbor B.
+    homeMocks.entryTopic = { ...historyTopic, id: 'topic-a', name: 'Active topic' }
+    homeMocks.routeSearch = { topicId: 'topic-a' }
+    homeMocks.activeTopicSource = 'query'
+    homeMocks.navigate.mockImplementation(async (options?: { search?: { topicId?: string } }) => {
+      const topicId = options?.search?.topicId
+      if (topicId) {
+        homeMocks.routeSearch = { topicId }
+        homeMocks.forceActiveTopicUndefined = false
+        homeMocks.activeTopicError = undefined
+        homeMocks.activeTopicOverride = { ...historyTopic, id: topicId, name: `Topic ${topicId}` }
+        return
+      }
+      homeMocks.routeSearch = { topicId: 'topic-c' }
+      homeMocks.forceActiveTopicUndefined = false
+      homeMocks.activeTopicError = undefined
+      homeMocks.activeTopicOverride = { ...historyTopic, id: 'topic-c', name: 'Latest topic' }
+    })
+
+    const view = render(<HomePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    expect(homeMocks.historyOnPending).toEqual(expect.any(Function))
+    await act(async () => {
+      homeMocks.historyOnPending?.('topic-a')
+    })
+    homeMocks.forceActiveTopicUndefined = true
+    homeMocks.activeTopicOverride = undefined
+    homeMocks.activeTopicLoading = false
+    homeMocks.activeTopicError = DataApiErrorFactory.notFound('Topic', 'topic-a')
+    view.rerender(<HomePage />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-a')
+    expect(homeMocks.navigate).not.toHaveBeenCalledWith({ to: '/app/chat', search: {}, replace: true })
+
+    await act(async () => {
+      homeMocks.historyOnActiveRecordChange?.({ ...historyTopic, id: 'topic-b', name: 'Neighbor topic' })
+    })
+
+    await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-b'))
+    expect(screen.getByTestId('home-chat-shell')).toHaveAttribute('data-active-topic-id', 'topic-b')
+    expect(homeMocks.navigate).not.toHaveBeenCalledWith({ to: '/app/chat', search: {}, replace: true })
   })
 
   it('clears the remembered topic id and converges when the bound route resolves NOT_FOUND', async () => {

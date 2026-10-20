@@ -39,6 +39,8 @@ type HistoryRecordsViewProps =
       mode: 'assistant'
       onRecordSelect?: (topic: RendererTopic) => void
       onActiveRecordChange?: (topic: RendererTopic | null) => void
+      /** Active while History is permanently deleting `id`; `null` after that attempt settles. */
+      onLocalPermanentDeletePendingChange?: (id: string | null) => void
     })
   | (HistoryRecordsViewBaseProps & {
       mode: 'agent'
@@ -69,6 +71,7 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             onClose={props.onClose}
             onRecordSelect={props.onRecordSelect}
             onActiveRecordChange={props.onActiveRecordChange}
+            onLocalPermanentDeletePendingChange={props.onLocalPermanentDeletePendingChange}
             toolbarLeading={props.toolbarLeading}
           />
         ) : (

@@ -120,6 +120,8 @@ interface AssistantHistoryRecordsProps {
   onClose: () => void
   onRecordSelect?: (topic: RendererTopic) => void
   onActiveRecordChange?: (topic: RendererTopic | null) => void
+  /** Active while this list is permanently deleting `id`; `null` when that attempt settles. */
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   toolbarLeading?: ReactNode
 }
 
@@ -128,6 +130,7 @@ const AssistantHistoryRecords = ({
   onClose,
   onRecordSelect,
   onActiveRecordChange: onActiveTopicChange,
+  onLocalPermanentDeletePendingChange,
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
@@ -331,44 +334,49 @@ const AssistantHistoryRecords = ({
 
             const orderedBeforeDelete = timeSortedTopicsRef.current
             const neighborBeforeDelete = pickNeighbourAfterRemoval(orderedBeforeDelete, topic.id)
-            let outcome
+            onLocalPermanentDeletePendingChange?.(topic.id)
             try {
-              outcome = await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
-            } catch (err) {
-              logger.error('Failed to permanently delete topic from history records', { topicId: topic.id, err })
-              await refetch().catch((refreshError) => {
-                logger.warn('Failed to refresh topics after permanent delete failed', refreshError as Error, {
-                  topicId: topic.id
+              let outcome
+              try {
+                outcome = await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
+              } catch (err) {
+                logger.error('Failed to permanently delete topic from history records', { topicId: topic.id, err })
+                await refetch().catch((refreshError) => {
+                  logger.warn('Failed to refresh topics after permanent delete failed', refreshError as Error, {
+                    topicId: topic.id
+                  })
                 })
-              })
-              throw new Error(historyPermanentDeleteFailureMessage(err, t))
-            }
+                throw new Error(historyPermanentDeleteFailureMessage(err, t))
+              }
 
-            if (!outcome.deletedIds.includes(topic.id)) {
-              await refetch().catch((refreshError) => {
-                logger.warn('Failed to refresh topics after stale permanent delete', refreshError as Error, {
-                  topicId: topic.id
+              if (!outcome.deletedIds.includes(topic.id)) {
+                await refetch().catch((refreshError) => {
+                  logger.warn('Failed to refresh topics after stale permanent delete', refreshError as Error, {
+                    topicId: topic.id
+                  })
                 })
-              })
-              throw new Error(t('recycle_bin.delete.stale'))
+                throw new Error(t('recycle_bin.delete.stale'))
+              }
+
+              if (activeRecordIdRef.current !== topic.id) return
+
+              const nextTopic = survivingHistoryNeighbor(
+                orderedBeforeDelete,
+                timeSortedTopicsRef.current,
+                topic.id,
+                neighborBeforeDelete
+              )
+              onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
+            } finally {
+              onLocalPermanentDeletePendingChange?.(null)
             }
-
-            if (activeRecordIdRef.current !== topic.id) return
-
-            const nextTopic = survivingHistoryNeighbor(
-              orderedBeforeDelete,
-              timeSortedTopicsRef.current,
-              topic.id,
-              neighborBeforeDelete
-            )
-            onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
           }
         })
       } finally {
         permanentDeleteLockRef.current = false
       }
     },
-    [deleteTopicById, getRendererTopic, onActiveTopicChange, refetch, t]
+    [deleteTopicById, getRendererTopic, onActiveTopicChange, onLocalPermanentDeletePendingChange, refetch, t]
   )
 
   const handleBulkDeleteTopics = useCallback(
