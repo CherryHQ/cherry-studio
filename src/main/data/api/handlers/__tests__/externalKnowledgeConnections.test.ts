@@ -37,6 +37,7 @@ describe('externalKnowledgeConnectionHandlers', () => {
     dbh.db
       .insert(knowledgeBaseTable)
       .values({
+        orderKey: 'a0',
         id: baseId,
         name: 'Knowledge',
         dimensions: null,
