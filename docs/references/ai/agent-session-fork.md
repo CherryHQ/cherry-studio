@@ -38,6 +38,28 @@ the child's workspace; selecting an earlier turn does not restore historical fil
 versions. Copying detects file changes and can fail with `workspace_changed`.
 Shared-workspace editing remains the responsibility of the sessions using it.
 
+## Edit and resend within a session
+
+Pi **Edit and resend** retains the original input and descendants, creates a
+sibling input, and selects the new branch. The common product prefix is shared.
+Native fork starts at the checkpoint before the edited input. Each new branch
+has a native binding in `agent_session_context`; remapped checkpoints belong to
+that binding and do not overwrite the original prefix rows.
+
+For the first input, an empty prefix records a fresh intended native identity;
+Pi creates that context on dispatch. A nonempty prefix requires a valid native
+checkpoint. Editing is rejected while the session has unsettled work.
+
+The sibling navigator selects the chosen sibling's latest descendant. Selection
+only changes the stored view; it does not run the harness. The next send resolves
+that branch's native context. An idle connection on another branch is closed
+before connecting; an active connection prevents a cross-branch send.
+
+The additive schema migration supplies parent/selection and binding fields.
+`AgentSessionMessageTreeSeeder` converts old flat archives into one selected
+path, preserving existing IDs and message facts. Previously deleted tails cannot
+be recovered.
+
 ## Ownership and dependencies
 
 ```mermaid
@@ -97,7 +119,8 @@ are opaque to the host and data layer. Native schemas live in each adapter's
 message reads strip `runtimeAnchor`. The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
 
-No new database table or `app_state` fork record is required. Cherry does not
+Fork publication uses existing session/message tables and native context bindings,
+without an `app_state` fork record. Cherry does not
 generate a summary, reconstruct model context from UI messages, or apply Chat
 compression settings to Agent forks.
 
@@ -125,6 +148,7 @@ Native files are published before the child database transaction. A failed or
 interrupted operation can therefore leave files without a child row. Recovery
 checks whether the target session exists: published children are preserved, while
 unpublished operations clean up only resources whose ownership can be established.
+For an in-session edit, a retained native context binding also proves publication.
 An adopted workspace is retained; unreadable manifests or changed file identities
 remain available for later investigation rather than authorizing deletion.
 

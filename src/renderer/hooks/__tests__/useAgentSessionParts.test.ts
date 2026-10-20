@@ -5,7 +5,7 @@ import { createElement, type ReactNode, startTransition, Suspense } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const dataApiMocks = MockUseDataApi
 
@@ -140,47 +140,25 @@ describe('useAgentSessionParts', () => {
     mockAgentSessionPartsDataApi()
   })
 
-  it('replaces an edited tail across pages while preserving earlier history and its older cursor', async () => {
-    const options = agentSessionHistoryQueryOptions('session-1')
-    MockUseDataApiUtils.seedInfiniteQuery(
-      '/agent-sessions/:sessionId/messages',
-      [
-        { items: [sessionMessageRow('later-answer'), sessionMessageRow('later-user')], nextCursor: 'target-page' },
-        {
-          items: [
-            sessionMessageRow('old-answer'),
-            sessionMessageRow('edited-user'),
-            sessionMessageRow('earlier-answer')
-          ],
-          nextCursor: 'older-page'
-        },
-        { items: [sessionMessageRow('earlier-user')], nextCursor: 'unloaded-history' }
-      ],
-      options
-    )
+  it('keeps the selected branch when reservations for another branch arrive late', async () => {
+    const selected = { ...sessionMessageRow('selected-user'), siblings: ['old-user', 'selected-user'] }
+    mockLiveAgentSessionParts([selected])
     const { result } = renderHook(() => useAgentSessionParts('session-1'))
-    const replacements: CherryUIMessage[] = [
-      {
-        id: 'new-user',
-        role: 'user',
-        parts: [{ type: 'text', text: 'Replacement' }],
-        metadata: { createdAt: '2026-01-02T00:00:00.000Z' }
-      },
-      { id: 'new-answer', role: 'assistant', parts: [], metadata: { createdAt: '2026-01-02T00:00:01.000Z' } }
-    ]
-    await act(() => result.current.replaceMessageTail('edited-user', replacements))
-    expect(result.current.messages.map((message) => message.id)).toEqual([
-      'earlier-user',
-      'earlier-answer',
-      'new-user',
-      'new-answer'
-    ])
-    expect(result.current.messages[2].parts).toEqual([{ type: 'text', text: 'Replacement' }])
-    expect(
-      MockUseDataApiUtils.getInfiniteQueryPages('/agent-sessions/:sessionId/messages', options)?.map(
-        (page) => page.nextCursor
-      )
-    ).toEqual(['older-page', 'unloaded-history'])
+    await act(() =>
+      result.current.seedReservedMessages([
+        { id: 'off-path-reply', role: 'assistant', parts: [{ type: 'text', text: 'Late output' }] }
+      ])
+    )
+    await act(() =>
+      result.current.replaceMessageTail('old-user', [
+        { id: 'other-edit', role: 'user', parts: [{ type: 'text', text: 'Late edit acknowledgement' }] }
+      ])
+    )
+    expect(result.current.messages.map((message) => message.id)).toEqual(['selected-user'])
+    expect(result.current.getMessageSiblings('selected-user')).toEqual({
+      group: [{ id: 'old-user' }, { id: 'selected-user' }],
+      activeIndex: 1
+    })
   })
 
   it('keeps a newer reply when revalidation has already replaced the edited tail', async () => {
@@ -681,9 +659,8 @@ describe('useAgentSessionParts', () => {
     })
 
     const queuedArgs = live.trigger.mock.calls[1]?.[0]
-    const latestRefresh = dataApiMocks.useMutation.mock.calls.at(-1)?.[2]?.refresh as
-      | ((context: { args: typeof queuedArgs; result: undefined }) => string[])
-      | undefined
+    const latestRefresh = dataApiMocks.useMutation.mock.calls.findLast(([method]) => method === 'DELETE')?.[2]
+      ?.refresh as ((context: { args: typeof queuedArgs; result: undefined }) => string[]) | undefined
     const refreshedPaths =
       typeof latestRefresh === 'function' ? latestRefresh({ args: queuedArgs, result: undefined }) : latestRefresh
     expect(refreshedPaths).toEqual(['/agent-sessions/session-1/messages'])

@@ -265,7 +265,7 @@ flowchart LR
 
 ##### 复用产品消息树
 
-既有[消息树](../../../../docs/references/chat/message-tree.md)使用 `topic`、`message.parentId` 和 `topic.activeNodeId` 表达消息前序、编辑／重发和分支选择，普通聊天也沿选中路径构造模型历史。产品结构优先复用这套模型，不再建立第二棵 context 树。`agent_session_message` 当前仍是独立的平铺模型；两者收敛属于设计与迁移工作，不是本方案已实现的行为。
+既有[消息树](../../../../docs/references/chat/message-tree.md)使用 `topic`、`message.parentId` 和 `topic.activeNodeId` 表达消息前序、编辑／重发和分支选择，普通聊天也沿选中路径构造模型历史。产品结构优先复用这套模型，不再建立第二棵 context 树。`agent_session_message` 现保留独立物理表，同时采用这套树语义：单个隐藏根、`parentId` 和 `agent_session.activeNodeId`。这不代表桌面执行已切换到公共 Runtime。
 
 | 关系 | 所有者与表达方式 |
 | --- | --- |
@@ -284,9 +284,9 @@ Child 内容可以复用消息存储和树形渲染，但界面上嵌套到父�
 | 关注点 | 当前普通聊天 | 当前 Agent 路径 | 拟议边界 |
 | --- | --- | --- | --- |
 | 容器与导航 | `topic` 拥有 assistant 选择、名称、排序、活跃时间、回收站及 `activeNodeId`。 | `agent_session` 混合了会话元数据、agent/workspace 绑定、计划复用及 `conversation`/`background` 分类。 | Runtime 切换期间保留既有 ID 和导航所有者。显式用户会话成员关系由 [#20635](https://github.com/CherryHQ/cherry-studio/issues/20635) 拆分；能够访问 Runtime 不代表应进入侧栏。 |
-| 消息结构 | `message.parentId`、单个虚拟根、兄弟分组和选中路径查询。 | `agent_session_message` 按 `(createdAt, id)` 排序，没有父节点或选中节点。 | Agent 归档复用消息树契约，不以原生 context 代替消息节点。 |
-| 编辑与 fork | 产品树操作选择或创建替代路径。 | [编辑](../../../../src/main/data/services/AgentSessionMessageService.ts)在原生 fork 后删除旧尾部；[fork](../../../../src/main/ai/agentSession/fork/AgentSessionForkOperations.ts)发布另一个产品会话并复制前缀。 | 已确认的目标行为是保留旧分支并选中编辑后的分支，随相应 UI/action 改动一起交付。“fork 为新会话”仍是另一项操作。 |
-| 原生位置 | 普通聊天根据选中路径组装模型历史。 | Resume token 和私有 `runtimeAnchor`/`nativeSessionId` 位于消息行中。 | 持久化经过验证的原生绑定，保留历史 checkpoint；不能从选中的展示路径重建 harness。 |
+| 消息结构 | `message.parentId`、单个虚拟根、兄弟分组和选中路径查询。 | `agent_session_message.parentId` 和隐藏根定义前序，`agent_session.activeNodeId` 选择路径；Seeder 按 `(createdAt, id)` 串联旧平铺记录。 | Agent 归档复用消息树契约，不以原生 context 代替消息节点。 |
+| 编辑与 fork | 产品树操作选择或创建替代路径。 | [编辑](../../../../src/main/data/services/AgentSessionMessageService.ts)在发布原生 fork 后创建并选中兄弟输入，保留旧尾部；[fork](../../../../src/main/ai/agentSession/fork/AgentSessionForkOperations.ts)发布另一个产品会话并复制前缀。 | 已确认的目标行为是保留旧分支并选中编辑后的分支，随相应 UI/action 改动一起交付。“fork 为新会话”仍是另一项操作。 |
+| 原生位置 | 普通聊天根据选中路径组装模型历史。 | 消息保留原生来源；`agent_session_context` 将根/分支锚点关联到原生身份、已发布末端和 fork checkpoint 映射。 | 持久化经过验证的原生绑定，保留历史 checkpoint；不能从选中的展示路径重建 harness。 |
 | 可信产品状态 | 共享消息内容、snapshot、用量及附件。 | 另有 Main 写入的 `delivery*` 状态和原生 checkpoint 证据。 | 保留 Main 独占写入和跨会话投递语义；共享消息编辑不能接受这些字段。 |
 | 依赖记录 | 聊天附件引用及 topic 导航/搜索。 | [Agent 附件引用](../../../../src/main/data/db/schemas/fileRelations.ts)、用量 `messageKind`、session 收藏、task/channel 绑定和保存的路由。 | 合表需要迁移所有消费者；内容列看起来相同不代表所有权可以互换。 |
 
@@ -296,7 +296,7 @@ Child 内容可以复用消息存储和树形渲染，但界面上嵌套到父�
 
 ##### 已确认的编辑与分支行为
 
-用户已确认：编辑并重发时保留旧分支，并切换到新分支。这是目标产品行为，当前实现仍会删除旧尾部。
+用户已确认：编辑并重发时保留旧分支，并切换到新分支。既有桌面 driver 路径现已实现这一行为；公共 Runtime 投影接入仍是后续工作。
 
 ```text
 root
@@ -307,7 +307,7 @@ root
 
 编辑后的输入使用新的消息 ID 和逻辑输入 ID，与原输入拥有相同前序节点。产品树共享公共前缀，不改写既有消息、输入事实或原生绑定。原生 fork 从被编辑输入之前的已验证边界开始，不能从旧回答之后开始。新分支获得独立绑定。显式 fork 到另一个产品会话仍复制前缀，使用新的产品 ID 和原生 checkpoint 映射。
 
-编辑首条输入时前缀为空，使用该操作已验证的配置显式创建新原生上下文，不要求不存在的输入前 checkpoint。这是创建新分支的操作，不是对缺失上下文的降级重建。前缀非空而 checkpoint 缺失时仍拒绝执行，展示文本不能替代 checkpoint。
+编辑首条输入时前缀为空，先记录预期原生身份，在派发时使用该操作已验证的配置按需创建新 Pi 上下文，不要求不存在的输入前 checkpoint。这是创建新分支的操作，不是对缺失上下文的降级重建。前缀非空而 checkpoint 缺失时仍拒绝执行，展示文本不能替代 checkpoint。
 
 原生结果验证通过且来源版本仍匹配后，才发布新分支与选中状态。发布前失败，保留旧选中状态和历史。发布后提交被拒绝或结果未知，新分支仍展示真实状态；不能删除该分支、恢复旧尾部或自动重发。在另行定义如何安全中断或 fork 之前，保留当前禁止编辑尚有未结束工作的来源这一限制。打开或选中保留的分支，不会重新提交其输入。
 
@@ -507,7 +507,13 @@ P1 基础现已包含 backend/context 的增量 migration、现有消息上的�
 
 严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Main 观察器保留写入失败的事实供 `flush()` 补写，由调用者持有至停止；这些辅助模块不注册第二个生命周期服务，也不切换桌面执行。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
 
-文档仍为 proposed：产品消息树、桌面所有者/投影接线、原生备份/删除集成及强制退出进程后的崩溃验收仍属于 P2–P4。原生正常关闭/重开和数据库故障注入不能替代应用崩溃门槛。
+Agent 树阶段现已增加追加式 schema migration 和注册的 `AgentSessionMessageTreeSeeder`。它保留消息 ID、时间戳、附件、用量及投递元数据，再选中迁移后的末端，不补造提交事实。待完成回复的投递会捕获发送分支。既有 context 行增加 `anchorMessageId`、`headMessageId` 和不透明的 `checkpointMapping`；共享前缀行保留原始原生来源。
+
+既有桌面 driver 路径复用共享兄弟分支导航。选择兄弟节点会选中其最新后代，不打开 harness；后续发送再解析该分支的原生目标。发送在异步校验前捕获父节点，父节点已被推进则拒绝，不跟随后来的 UI 选择。Runtime 输出、排队轮次及完成/失败回复保持所捕获的分支。Renderer 收到确认后刷新 Main 选中路径，不将其他分支的预留消息插入缓存。
+
+[树 fixture](../../../../src/main/data/services/__tests__/agentSessionMessageTree.test.ts) 验证可重复迁移、选中路径分页、分支隔离和迟到投递。[原生发布 fixture](../../../../src/main/ai/agentSession/fork/__tests__/branchPublication.sdkContract.test.ts) 使用真实 Pi 会话文件与 SQLite，验证反复编辑和独立绑定，不改写公共前缀。这些 fixture 不证明 provider 执行或应用崩溃恢复。另外，已在受跟踪的开发版 Electron 实例中，经真实 UI/Main/Pi 路径及本地脚本 HTTP 模型验证后续输入编辑、兄弟分支切换、分别继续两套原生历史，以及首条输入编辑；原生请求仅包含选中分支的输入。这是开发环境接入证据，不等于真实 provider、打包构建、Durable 或强制退出进程后的恢复验收。
+
+文档仍为 proposed：公共 Runtime 的桌面所有者/投影接线、原生备份/删除集成及强制退出进程后的崩溃验收仍属于 P2–P4。原生正常关闭/重开和数据库故障注入不能替代应用崩溃门槛。
 
 #### 实现阶段与验证门槛
 

@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -104,7 +105,7 @@ export class AgentSessionForkOperations {
     const driver = agent && runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!agent || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
     const prefix = structuredClone(source.prefix)
-    const nativeSessionId = randomUUID()
+    let nativeSessionId: string = randomUUID()
     let resources: AgentSessionForkResources | undefined
     try {
       if (prefix.length) {
@@ -142,6 +143,7 @@ export class AgentSessionForkOperations {
         })
         if (!native.resumeToken.trim() || native.checkpoints.length !== checkpoints.length)
           throw new AgentSessionForkError('history_corrupt')
+        nativeSessionId = native.resumeToken
         resources.resumeToken = native.resumeToken
         await writeForkResources(resources)
         remapNativeHistory(prefix, native.resumeToken, native.checkpoints)
@@ -151,8 +153,18 @@ export class AgentSessionForkOperations {
       await closeSource()
       signal.throwIfAborted()
       return database.withWriteTx((tx) => {
-        agentSessionMessageService.replaceEditTailTx(tx, sessionId, target, prefix)
-        return persist(tx, nativeSessionId)
+        agentSessionMessageService.selectEditParentTx(tx, sessionId, target)
+        const result = persist(tx, nativeSessionId)
+        if (resources) {
+          const checkpointMapping = Object.fromEntries(
+            prefix.flatMap((row) => {
+              const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+              return anchor.success ? [[row.id, anchor.data.checkpoint]] : []
+            })
+          )
+          agentSessionContextService.publishBranchTx(tx, sessionId, nativeSessionId, checkpointMapping)
+        }
+        return result
       })
     } catch (error) {
       if (resources && !this.hasPublishedResources(resources)) {

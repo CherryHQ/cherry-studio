@@ -142,7 +142,7 @@
   "agent.edit_resend.error.invalid_target": "ข้อความนี้แก้ไขแล้วส่งใหม่ไม่ได้",
   "agent.edit_resend.label": "แก้ไขแล้วส่งใหม่",
   "agent.edit_resend.save": "บันทึกและส่งใหม่",
-  "agent.edit_resend.warning": "จะแทนที่ข้อความนี้และข้อความที่ตามมาทั้งหมด การเปลี่ยนแปลงไฟล์จะไม่ถูกย้อนกลับ",
+  "agent.edit_resend.warning": "สร้างสาขาใหม่และเก็บข้อความเดิมไว้ การเปลี่ยนแปลงไฟล์จะไม่ถูกยกเลิก",
   "agent.heartbeat.action_failed": "บันทึกหรือเริ่ม heartbeat ไม่สำเร็จ ตรวจสอบ log แล้วลองอีกครั้ง",
   "agent.heartbeat.conflict": "งานถูกเปลี่ยนแปลงจากภายนอกตัวแก้ไขนี้ คัดลอกการแก้ไขของคุณเก็บไว้ก่อนโหลดใหม่",
   "agent.heartbeat.description": "เอเจนต์จะตรวจงานเหล่านี้ในแต่ละรอบ heartbeat ทุกรอบที่มีงานจะใช้โมเดลที่คุณเลือก",

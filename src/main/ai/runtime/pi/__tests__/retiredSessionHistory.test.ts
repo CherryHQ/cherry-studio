@@ -8,7 +8,7 @@ import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import Database from 'better-sqlite3'
-import { eq } from 'drizzle-orm'
+import { eq, ne } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +19,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { RetiredAgentRuntimeSeeder } from '@data/db/seeding/seeders/RetiredAgentRuntimeSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -199,6 +200,7 @@ describe('retired DSH session migration', () => {
     async (retry) => {
       BaseService.resetInstances()
       seeder.run(dbh.db)
+      new AgentSessionMessageTreeSeeder().run(dbh.db)
       const migration = getRetiredAgentSessionMigration(dbh.db, 'conversation')!
       const sessions = path.join(directory, 'sessions')
       writeFileSync(sessions, 'blocked history directory')
@@ -272,6 +274,7 @@ describe('retired DSH session migration', () => {
 
   it('persists resumable context, attachments and inert tool history and regenerates historical fork boundaries', async () => {
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     const migration = getRetiredAgentSessionMigration(dbh.db, 'conversation')!
     await ensureRetiredSessionHistory('conversation')
     const file = resolveResumeTokenSessionFile(migration.resumeToken, path.join(directory, 'sessions'))!
@@ -327,6 +330,7 @@ describe('retired DSH session migration', () => {
       .where(eq(agentTable.id, 'legacy'))
       .run()
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy')).get()?.disabledTools).toEqual([
       BROWSER_TOOL_GROUP
     ])
@@ -342,6 +346,7 @@ describe('retired DSH session migration', () => {
       .where(eq(agentTable.id, 'legacy'))
       .run()
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy')).get()).toMatchObject({
       configuration: { permission_mode: 'bypassPermissions' },
       disabledTools: ['bash', 'write', 'read', 'edit', 'legacy-dsh:mcp__Server__Tool']
@@ -387,6 +392,7 @@ describe('retired DSH session migration', () => {
         .run()
     }
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     await ensureRetiredSessionHistory('conversation')
     const row = dbh.db
       .select()
@@ -423,6 +429,7 @@ describe('retired DSH session migration', () => {
 
   it('retains the old native identity on filesystem failure and safely retries without duplicating history', async () => {
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     writeFileSync(path.join(directory, 'sessions'), 'not a directory')
     await expect(ensureRetiredSessionHistory('conversation')).rejects.toThrow()
     expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toBeDefined()
@@ -448,6 +455,7 @@ describe('retired DSH session migration', () => {
       })
       .run()
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     const commit = vi.spyOn(runtimeMigration, 'commitRetiredAgentSessionMigration')
     commit.mockImplementationOnce(() => {
       throw new Error('interrupted before commit')
@@ -479,6 +487,7 @@ describe('retired DSH session migration', () => {
 
   it('does not commit stale history when database content changes during file generation', async () => {
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     const migrating = ensureRetiredSessionHistory('conversation')
     dbh.db
       .update(agentSessionMessageTable)
@@ -512,6 +521,7 @@ describe('retired DSH session migration', () => {
       })
       .run()
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     await ensureRetiredSessionHistory('conversation')
     const row = dbh.db
       .select()
@@ -585,6 +595,7 @@ describe('retired DSH session migration', () => {
     }
 
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     await ensureRetiredSessionHistory('conversation')
     const retained = dbh.db
       .select()
@@ -701,6 +712,7 @@ describe('retired DSH session migration', () => {
       })
       .run()
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     await ensureRetiredSessionHistory('conversation')
     const row = dbh.db
       .select()
@@ -738,6 +750,7 @@ describe('retired DSH session migration', () => {
       ])
       .run()
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     await ensureRetiredSessionHistory('conversation')
     runtimeDriverRegistry.register(new PiRuntimeDriver())
     try {
@@ -784,6 +797,7 @@ describe('retired DSH session migration', () => {
       })
       .run()
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     const operationId = randomUUID()
     const forks = path.join(directory, 'forks')
     const artifactDirectory = path.join(forks, operationId)
@@ -843,10 +857,13 @@ describe('retired DSH session migration', () => {
 
   it('completes empty and archived sessions without discarding their database records', async () => {
     seeder.run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
     await migrateRetiredSessionHistories()
     expect(listRetiredAgentSessionMigrations(dbh.db)).toEqual([])
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(3)
-    expect(dbh.db.select().from(agentSessionMessageTable).all()).toHaveLength(4)
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(ne(agentSessionMessageTable.role, 'root')).all()
+    ).toHaveLength(4)
   })
 
   it.each(['none', 'completion'] as const)(
@@ -872,6 +889,7 @@ describe('retired DSH session migration', () => {
         .where(eq(agentSessionMessageTable.id, 'user-2'))
         .run()
       seeder.run(dbh.db)
+      new AgentSessionMessageTreeSeeder().run(dbh.db)
       BaseService.resetInstances()
       const runtime = new AgentSessionRuntimeService()
       try {

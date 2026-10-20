@@ -142,7 +142,7 @@
   "agent.edit_resend.error.invalid_target": "Không thể chỉnh sửa và gửi lại tin nhắn này.",
   "agent.edit_resend.label": "Sửa và gửi lại",
   "agent.edit_resend.save": "Lưu và gửi lại",
-  "agent.edit_resend.warning": "Thay thế tin nhắn này và tất cả tin nhắn sau đó. Các thay đổi đối với tệp sẽ không được hoàn tác.",
+  "agent.edit_resend.warning": "Tạo nhánh mới và giữ lại các tin nhắn gốc. Các thay đổi đối với tệp sẽ không được hoàn tác.",
   "agent.heartbeat.action_failed": "Không thể lưu hoặc khởi chạy heartbeat. Kiểm tra nhật ký và thử lại.",
   "agent.heartbeat.conflict": "Tác vụ đã được thay đổi bên ngoài trình soạn thảo. Sao chép nội dung chỉnh sửa trước khi tải lại.",
   "agent.heartbeat.description": "Tác tử kiểm tra các tác vụ này mỗi nhịp heartbeat. Mỗi lần chạy có nội dung sẽ sử dụng mô hình đã chọn.",
