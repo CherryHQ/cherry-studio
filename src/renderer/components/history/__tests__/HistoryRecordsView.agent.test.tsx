@@ -425,10 +425,12 @@ function setupAgentHistory({
     })
   ],
   pinIdBySessionId = new Map<string, string>(),
-  requestRecordRemoval
+  requestRecordRemoval,
+  onLocalPermanentDeletePendingChange
 }: {
   activeRecordId?: string | null
   agents?: AgentEntity[]
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   pinIdBySessionId?: Map<string, string>
   requestRecordRemoval?: (
     nextSessionId: string | null,
@@ -462,6 +464,7 @@ function setupAgentHistory({
       onClose={onClose}
       onRecordSelect={onRecordSelect}
       onActiveRecordChange={onActiveRecordChange}
+      onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
       requestRecordRemoval={requestRecordRemoval}
     />
   )
@@ -474,6 +477,7 @@ function setupAgentHistory({
         onClose={onClose}
         onRecordSelect={onRecordSelect}
         onActiveRecordChange={onActiveRecordChange}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         requestRecordRemoval={requestRecordRemoval}
       />
     )
@@ -1461,6 +1465,158 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledOnce()
     expect(view.onActiveRecordChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps history neighbor B when NOT_FOUND would otherwise activate globally latest C before the delete reply', async () => {
+    // Display order [C, A, B]. Unguarded AgentPage recovery replaces A with non-null C
+    // before the IPC reply, and History then treats C as a user choice and skips B.
+    const user = userEvent.setup()
+    let currentPending: string | null = null
+    const events: string[] = []
+    const sessions = [
+      createSession({
+        id: 'session-c',
+        name: 'Latest session',
+        lastActivityAt: '2026-05-16T08:00:00.000Z',
+        updatedAt: '2026-05-16T08:00:00.000Z'
+      }),
+      createSession({ id: 'session-a', name: 'Active session', lastActivityAt: '2026-05-15T08:00:00.000Z' }),
+      createSession({
+        id: 'session-b',
+        name: 'Neighbor session',
+        lastActivityAt: '2026-05-14T08:00:00.000Z',
+        updatedAt: '2026-05-14T08:00:00.000Z'
+      })
+    ]
+    const view = setupAgentHistory({
+      activeRecordId: 'session-a',
+      sessions,
+      onLocalPermanentDeletePendingChange: (id) => {
+        currentPending = id
+        events.push(id === null ? 'clear' : `pending:${id}`)
+      }
+    })
+    view.onActiveRecordChange.mockImplementation((id: string | null) => {
+      events.push(`select:${id ?? 'null'}`)
+    })
+    hookMocks.deleteSessionWithOutcome.mockImplementation(async () => {
+      if (currentPending !== 'session-a') {
+        await act(async () => {
+          view.rerender('session-c')
+        })
+      }
+      return { status: 'succeeded' }
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+
+    await user.click(permanentDeleteButton('Active session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(view.onActiveRecordChange).toHaveBeenCalledWith('session-b')
+    expect(view.onActiveRecordChange).not.toHaveBeenCalledWith('session-c')
+    expect(events).toEqual(['pending:session-a', 'select:session-b', 'clear'])
+    expect(currentPending).toBeNull()
+  })
+
+  it('does not arm the pending guard when permanent delete is cancelled before it starts', async () => {
+    const user = userEvent.setup()
+    const pending: Array<string | null> = []
+    setupAgentHistory({
+      activeRecordId: 'session-alpha',
+      onLocalPermanentDeletePendingChange: (id) => {
+        pending.push(id)
+      }
+    })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledOnce()
+    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(pending).toEqual([])
+  })
+
+  it('clears the pending guard without selecting a neighbor when permanent delete fails or is stale', async () => {
+    const user = userEvent.setup()
+    const pending: Array<string | null> = []
+    let failure: unknown
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      try {
+        await action()
+      } catch (error) {
+        failure = error
+        return false
+      }
+      return true
+    })
+    hookMocks.deleteSessionWithOutcome.mockResolvedValueOnce({ status: 'failed', error: 'Delete failed' })
+    const view = setupAgentHistory({
+      activeRecordId: 'session-alpha',
+      onLocalPermanentDeletePendingChange: (id) => {
+        pending.push(id)
+      }
+    })
+    const openPermanentDelete = async () => {
+      await user.click(permanentDeleteButton('Alpha session'))
+      await act(async () => {
+        await flushCommandMenuAction()
+      })
+    }
+
+    await openPermanentDelete()
+    expect(failure).toEqual(expect.objectContaining({ message: 'Delete failed' }))
+    expect(view.onActiveRecordChange).not.toHaveBeenCalled()
+    expect(pending).toEqual(['session-alpha', null])
+
+    pending.length = 0
+    failure = undefined
+    hookMocks.deleteSessionWithOutcome.mockResolvedValueOnce({ status: 'stale' })
+    await openPermanentDelete()
+    expect(failure).toEqual(
+      expect.objectContaining({
+        message: 'This item has already been deleted or archived. Refresh the list and try again.'
+      })
+    )
+    expect(view.onActiveRecordChange).not.toHaveBeenCalled()
+    expect(pending).toEqual(['session-alpha', null])
+  })
+
+  it('keeps a newer non-null selection made while the history delete reply is still pending', async () => {
+    const user = userEvent.setup()
+    const pending: Array<string | null> = []
+    const view = setupAgentHistory({
+      activeRecordId: 'session-alpha',
+      onLocalPermanentDeletePendingChange: (id) => {
+        pending.push(id)
+      }
+    })
+    hookMocks.deleteSessionWithOutcome.mockImplementation(async () => {
+      expect(pending).toEqual(['session-alpha'])
+      view.onActiveRecordChange.mockClear()
+      await act(async () => {
+        view.rerender('session-c')
+      })
+      return { status: 'succeeded' }
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+
+    await user.click(permanentDeleteButton('Alpha session'))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(view.onActiveRecordChange).not.toHaveBeenCalled()
+    expect(pending).toEqual(['session-alpha', null])
   })
 
   it('selects the pre-delete neighbor when NOT_FOUND recovery clears the active session during delete', async () => {

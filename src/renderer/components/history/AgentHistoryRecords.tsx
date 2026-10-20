@@ -121,6 +121,8 @@ interface AgentHistoryRecordsProps {
     transition: AgentFileNavigationTransition,
     options?: AgentFileNavigationOptions
   ) => void
+  /** Active while this list is permanently deleting `id`; `null` when that attempt settles. */
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   toolbarLeading?: ReactNode
 }
 
@@ -130,6 +132,7 @@ const AgentHistoryRecords = ({
   onRecordSelect,
   onActiveRecordChange: onActiveSessionChange,
   requestRecordRemoval,
+  onLocalPermanentDeletePendingChange,
   toolbarLeading
 }: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
@@ -284,40 +287,47 @@ const AgentHistoryRecords = ({
                 throw new Error(t('recycle_bin.delete.busy'))
               }
 
-              const outcome = await deleteSessionWithOutcome(id, {
-                permanent: true,
-                showFeedback: false,
-                onDeleted: () => {
-                  const activeId = activeRecordIdRef.current
-                  const clearedDuringDelete = activeId == null && wasActiveAtStart
-                  if (activeId !== id && !clearedDuringDelete) return
-                  grant?.commitDiscard()
-                }
-              })
-              if (outcome.status !== 'succeeded') {
-                await reload().catch((refreshError) => {
-                  logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
-                    sessionId: id
-                  })
+              // Hold missing-session recovery until this attempt settles. The by-id NOT_FOUND
+              // notification can arrive before the IPC reply and is not user navigation.
+              onLocalPermanentDeletePendingChange?.(id)
+              try {
+                const outcome = await deleteSessionWithOutcome(id, {
+                  permanent: true,
+                  showFeedback: false,
+                  onDeleted: () => {
+                    const activeId = activeRecordIdRef.current
+                    const clearedDuringDelete = activeId == null && wasActiveAtStart
+                    if (activeId !== id && !clearedDuringDelete) return
+                    grant?.commitDiscard()
+                  }
                 })
-                throw new Error(
-                  outcome.status === 'failed'
-                    ? outcome.error || t('agent.session.delete.error.failed')
-                    : t('recycle_bin.delete.stale')
+                if (outcome.status !== 'succeeded') {
+                  await reload().catch((refreshError) => {
+                    logger.warn('Failed to refresh sessions after permanent delete failed', refreshError as Error, {
+                      sessionId: id
+                    })
+                  })
+                  throw new Error(
+                    outcome.status === 'failed'
+                      ? outcome.error || t('agent.session.delete.error.failed')
+                      : t('recycle_bin.delete.stale')
+                  )
+                }
+
+                const activeId = activeRecordIdRef.current
+                const clearedDuringDelete = activeId == null && wasActiveAtStart
+                if (activeId !== id && !clearedDuringDelete) return
+
+                const nextSession = survivingHistoryNeighbor(
+                  orderedBeforeDelete,
+                  timeSortedSessionsRef.current,
+                  id,
+                  neighborBeforeDelete
                 )
+                onActiveSessionChange?.(nextSession?.id ?? null)
+              } finally {
+                onLocalPermanentDeletePendingChange?.(null)
               }
-
-              const activeId = activeRecordIdRef.current
-              const clearedDuringDelete = activeId == null && wasActiveAtStart
-              if (activeId !== id && !clearedDuringDelete) return
-
-              const nextSession = survivingHistoryNeighbor(
-                orderedBeforeDelete,
-                timeSortedSessionsRef.current,
-                id,
-                neighborBeforeDelete
-              )
-              onActiveSessionChange?.(nextSession?.id ?? null)
             }
           })
           .then(() => undefined)
@@ -350,7 +360,15 @@ const AgentHistoryRecords = ({
       deferredRemovalIdRef.current = id
       return Promise.resolve()
     },
-    [deleteSessionWithOutcome, historySessionLabel, onActiveSessionChange, reload, requestRecordRemoval, t]
+    [
+      deleteSessionWithOutcome,
+      historySessionLabel,
+      onActiveSessionChange,
+      onLocalPermanentDeletePendingChange,
+      reload,
+      requestRecordRemoval,
+      t
+    ]
   )
 
   const handleBulkDeleteSessions = useCallback(

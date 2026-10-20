@@ -15,6 +15,8 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 const agentPageMocks = vi.hoisted(() => ({
   historyRemovalNullRanSync: false,
+  historyOnActiveRecordChange: undefined as ((sessionId: string | null) => void) | undefined,
+  historyOnPending: undefined as ((id: string | null) => void) | undefined,
   workspace: {
     id: 'workspace-a',
     name: 'Workspace A',
@@ -711,13 +713,17 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({
     open,
     onActiveRecordChange,
+    onLocalPermanentDeletePendingChange,
     requestRecordRemoval
   }: {
     open?: boolean
     onActiveRecordChange?: (sessionId: string | null) => void
+    onLocalPermanentDeletePendingChange?: (id: string | null) => void
     requestRecordRemoval?: (nextSessionId: string | null, transition: () => void) => void
-  }) =>
-    open ? (
+  }) => {
+    agentPageMocks.historyOnActiveRecordChange = onActiveRecordChange
+    agentPageMocks.historyOnPending = onLocalPermanentDeletePendingChange
+    return open ? (
       <div data-testid="history-records-view">
         <button type="button" onClick={() => onActiveRecordChange?.('session-next')}>
           Replace history session
@@ -738,6 +744,7 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
         </button>
       </div>
     ) : null
+  }
 }))
 
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -774,6 +781,8 @@ describe('AgentPage', () => {
     agentPageMocks.classicLayoutRightPaneOpenOverride = null
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.pendingSession = null
+    agentPageMocks.historyOnActiveRecordChange = undefined
+    agentPageMocks.historyOnPending = undefined
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
@@ -1645,6 +1654,70 @@ describe('AgentPage', () => {
       (call) => call[0]?.search && Object.keys(call[0].search).length === 0
     )
     expect(recoveryNavigations).toHaveLength(1)
+  })
+
+  it('keeps history on the deleted session instead of the globally latest one when NOT_FOUND arrives first', async () => {
+    // Bare re-entry resolves to latest C. The pending guard must stay on A so History can still report neighbor B.
+    agentPageMocks.routeSearch = { sessionId: 'session-a' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-a'
+    agentPageMocks.lastUsedSessionId = 'session-a'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a' }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.navigate.mockImplementation(async (options?: { search?: { sessionId?: string } }) => {
+      const sessionId = options?.search?.sessionId
+      const nextId = sessionId || 'session-c'
+      agentPageMocks.routeSearch = { sessionId: nextId }
+      agentPageMocks.tabUrl = `/app/agents?sessionId=${nextId}`
+      if (!sessionId || sessionId === 'session-b') {
+        activeSessionMocks.error = undefined
+        activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: nextId }
+        activeSessionMocks.sessionSource = 'query'
+      }
+    })
+
+    const view = render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    agentPageMocks.historyOnPending?.('session-a')
+    activeSessionMocks.session = null
+    activeSessionMocks.sessionSource = 'none'
+    activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'session-a')
+    view.rerender(<AgentPage />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    if (agentPageMocks.routeSearch.sessionId === 'session-c') view.rerender(<AgentPage />)
+
+    const activeId = agentPageMocks.activeSessionOptions?.activeSessionId
+    if (activeId === 'session-a') agentPageMocks.historyOnActiveRecordChange?.('session-b')
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-b'))
+    expect(agentPageMocks.routeSearch.sessionId).toBe('session-b')
+    expect(agentPageMocks.navigate).not.toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
+  })
+
+  it('lets a newer session choice win while a history permanent delete is still pending', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-a' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-a'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    const view = render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    expect(agentPageMocks.historyOnPending).toEqual(expect.any(Function))
+    agentPageMocks.historyOnPending?.('session-a')
+    activeSessionMocks.session = null
+    activeSessionMocks.sessionSource = 'none'
+    activeSessionMocks.error = DataApiErrorFactory.notFound('Session', 'session-a')
+    view.rerender(<AgentPage />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(agentPageMocks.navigate).not.toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select session next' }))
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-next'))
+    view.rerender(<AgentPage />)
+    expect(agentPageMocks.navigate).not.toHaveBeenCalledWith({ to: '/app/agents', search: {}, replace: true })
   })
 
   it('holds missing-session recovery while the open session is being permanently deleted', async () => {

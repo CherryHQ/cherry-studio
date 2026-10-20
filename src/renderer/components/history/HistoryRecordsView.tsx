@@ -53,6 +53,8 @@ type HistoryRecordsViewProps =
         transition: AgentFileNavigationTransition,
         options?: AgentFileNavigationOptions
       ) => void
+      /** Active while History is permanently deleting `id`; `null` after that attempt settles. */
+      onLocalPermanentDeletePendingChange?: (id: string | null) => void
     })
 
 const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
@@ -76,6 +78,7 @@ const HistoryRecordsView = (props: HistoryRecordsViewProps) => {
             onRecordSelect={props.onRecordSelect}
             onActiveRecordChange={props.onActiveRecordChange}
             requestRecordRemoval={props.requestRecordRemoval}
+            onLocalPermanentDeletePendingChange={props.onLocalPermanentDeletePendingChange}
             toolbarLeading={props.toolbarLeading}
           />
         )}

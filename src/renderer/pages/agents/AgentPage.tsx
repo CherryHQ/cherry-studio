@@ -1119,6 +1119,7 @@ const AgentPage = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
+            onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             requestRecordRemoval={requestSessionNavigation}
             toolbarLeading={
               !isWindowFrame ? (
