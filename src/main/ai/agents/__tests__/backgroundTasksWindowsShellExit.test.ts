@@ -286,6 +286,55 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     expect(onExit).toHaveBeenCalledTimes(1)
   }, 20_000)
 
+  it('does not adopt a replacement shell pid before the identity probe has stamped it', async () => {
+    // The shell exited and the OS reused its pid for an unrelated process that has since forked a
+    // child of its own. The recorded shell pid is the one root the record names, so the runner's
+    // walk still reaches it — but the replacement reads a different creation stamp from the one
+    // captured at spawn, so the walk must not extend the task's ownership through it to whatever
+    // it has since forked. A walk that admits everything parented to the recorded pid persists a
+    // stranger's subtree as this task's verified work, which is what a later kill then takes down.
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 300)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    // `999999` is the task's own orphan worker, created under the shell the runner recorded.
+    await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
+    // The orphan is observed and remembered across the polls the shell's exit starts; then the
+    // shell's row is gone — which is why its number was reusable — and a stranger now holds the
+    // pid with a child of its own.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    // The shell's own row is gone — which is why its number was reusable — while the task's own
+    // orphan keeps running and the stranger that took the pid has forked a child of its own.
+    await writeFakeRows(
+      [
+        TABLE_HEADER,
+        `"7777","${shellPid}","20261017000011.000000+480"`,
+        `"4444","7777","20261017000012.000000+480"`,
+        `"999999","${shellPid}","${SPAWN_STAMP}"`
+      ].join('\n') + '\n'
+    )
+
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+
+    // The task's own orphan is remembered as its verified work; the replacement's subtree is not.
+    await vi.waitFor(
+      async () => {
+        expect(await readKnownPids()).toContain(999_999)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
+    expect(await readKnownPids()).not.toContain(7_777)
+    expect(await readKnownPids()).not.toContain(4_444)
+  }, 20_000)
+
   it('spares a replacement whose recorded root carries no identity stamp', async () => {
     // The startup identity query failed, so the evidence holds the shell pid and no stamps. A
     // replacement then takes that pid, forks a child of its own, and the task's orphan — created

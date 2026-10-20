@@ -332,10 +332,16 @@ const probe = () => {
     // across a dead link. A child is always created after the parent it was created under, so a
     // live parent is what proves the row is that parent's own — and a row is refused when a live
     // replacement took the parent's pid after it appeared: such a replacement is stamped later
-    // than the row, which is therefore not the replacement's child but this task's orphan.
+    // than the row, which is therefore not the replacement's child but this task's orphan. The
+    // shell pid is not exempt: the OS can hand its number to a stranger, and a row parented to
+    // that number is only the task's own while the occupant still reads the stamp captured at
+    // spawn — everything the replacement forked afterwards belongs to the replacement.
     if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
       const parent = byPid.get(row.ppid)
-      if (!parent || row.ppid === shellPid || known.get(row.ppid) === parent.created) keep.add(row.pid)
+      if (!parent) keep.add(row.pid)
+      else if (row.ppid === shellPid) {
+        if (!stamps.shellCreatedAt || parent.created === stamps.shellCreatedAt) keep.add(row.pid)
+      } else if (known.get(row.ppid) === parent.created) keep.add(row.pid)
     }
   }
   let grew = true
