@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Limpar factos partilhados",
   "settings.user_memory.clear_confirm": "Limpar os factos partilhados de todos os agentes ativos? Os registos e as conversas anteriores serão preservados.",
   "settings.user_memory.conflict": "Os factos guardados foram alterados. O rascunho foi preservado. Consulte a versão mais recente e integre-a no rascunho antes de guardar.",
-  "settings.user_memory.description": "Factos partilhados pelos agentes de ambiente de trabalho com memória do utilizador ativa. A memória de cada projeto permanece separada. Os canais de conversa externos não usam esta memória.",
+  "settings.user_memory.description": "Factos duradouros do utilizador partilhados por assistentes e agentes de ambiente de trabalho com memória ativa. A memória do projeto mantém-se separada. Os canais externos não usam esta memória.",
   "settings.user_memory.empty": "Ainda não existem factos partilhados.",
   "settings.user_memory.enabled": "Usar memória partilhada",
   "settings.user_memory.journal": "Diário de memória",

@@ -241,24 +241,22 @@ export function BasicInfoStep({
         placeholder={t('library.config.dialogs.create.description_placeholder')}
       />
 
-      {runtimeSelectable && (
-        <FormField
-          control={form.control}
-          name="userMemoryEnabled"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between">
-              <FormLabel>{t('settings.user_memory.enabled')}</FormLabel>
-              <FormControl>
-                <Switch
-                  checked={field.value !== false}
-                  onCheckedChange={field.onChange}
-                  aria-label={t('settings.user_memory.enabled')}
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-      )}
+      <FormField
+        control={form.control}
+        name="userMemoryEnabled"
+        render={({ field }) => (
+          <FormItem className="flex items-center justify-between">
+            <FormLabel>{t('settings.user_memory.enabled')}</FormLabel>
+            <FormControl>
+              <Switch
+                checked={field.value ?? runtimeSelectable}
+                onCheckedChange={field.onChange}
+                aria-label={t('settings.user_memory.enabled')}
+              />
+            </FormControl>
+          </FormItem>
+        )}
+      />
     </div>
   )
 }

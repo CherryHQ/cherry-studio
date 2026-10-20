@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Effacer les faits partagés",
   "settings.user_memory.clear_confirm": "Effacer les faits partagés pour tous les agents concernés ? Les journaux et conversations historiques seront conservés.",
   "settings.user_memory.conflict": "Les faits enregistrés ont changé. Votre brouillon est conservé. Consultez la dernière version et fusionnez-la avec votre brouillon avant de sauvegarder.",
-  "settings.user_memory.description": "Faits partagés par les agents de bureau dont la mémoire utilisateur est activée. La mémoire propre à chaque projet reste séparée. Les canaux de discussion externes ne les utilisent pas.",
+  "settings.user_memory.description": "Informations durables partagées par les assistants et agents de bureau dont la mémoire est activée. La mémoire des projets reste séparée. Les canaux de discussion externes ne partagent pas cette mémoire.",
   "settings.user_memory.empty": "Aucun fait partagé pour le moment.",
   "settings.user_memory.enabled": "Utiliser la mémoire partagée",
   "settings.user_memory.journal": "Journal de mémoire",

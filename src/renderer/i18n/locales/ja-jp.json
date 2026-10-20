@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "共有情報を消去",
   "settings.user_memory.clear_confirm": "有効な全エージェントの共有情報を消去しますか？過去のログと会話は保持されます。",
   "settings.user_memory.conflict": "保存済みの情報が変更されました。下書きは保持されています。最新の内容を確認し、下書きに統合してから保存してください。",
-  "settings.user_memory.description": "ユーザーメモリが有効なデスクトップエージェント間で共有します。プロジェクト固有のメモリは独立し、外部チャットではこの共有メモリを使用しません。",
+  "settings.user_memory.description": "メモリを有効にしたデスクトップのアシスタントとエージェントで共有する長期的なユーザー情報です。プロジェクトのメモリは独立しており、外部チャットチャネルでは共有されません。",
   "settings.user_memory.empty": "共有情報はまだありません。",
   "settings.user_memory.enabled": "共有メモリを使用",
   "settings.user_memory.journal": "メモリログ",

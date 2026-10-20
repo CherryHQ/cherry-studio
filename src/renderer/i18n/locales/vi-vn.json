@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Xóa thông tin chung",
   "settings.user_memory.clear_confirm": "Xóa thông tin chung cho mọi tác nhân đã bật? Nhật ký và cuộc trò chuyện trước đây vẫn được giữ lại.",
   "settings.user_memory.conflict": "Thông tin đã lưu đã thay đổi. Bản nháp được giữ lại. Xem phiên bản mới nhất và hợp nhất vào bản nháp trước khi lưu.",
-  "settings.user_memory.description": "Thông tin được chia sẻ giữa các tác nhân trên máy tính đã bật bộ nhớ người dùng. Bộ nhớ riêng của dự án được giữ tách biệt. Các kênh trò chuyện bên ngoài không dùng bộ nhớ này.",
+  "settings.user_memory.description": "Thông tin lâu dài về người dùng được chia sẻ giữa các trợ lý và tác tử trên máy tính đã bật bộ nhớ. Bộ nhớ dự án vẫn riêng biệt. Các kênh trò chuyện bên ngoài không dùng bộ nhớ chung này.",
   "settings.user_memory.empty": "Chưa có thông tin chung.",
   "settings.user_memory.enabled": "Dùng bộ nhớ chung",
   "settings.user_memory.journal": "Nhật ký bộ nhớ",

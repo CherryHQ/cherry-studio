@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Gemeinsame Fakten leeren",
   "settings.user_memory.clear_confirm": "Gemeinsame Fakten für alle aktivierten Agenten leeren? Frühere Protokolle und Gespräche bleiben erhalten.",
   "settings.user_memory.conflict": "Die gespeicherten Fakten wurden geändert. Ihr Entwurf bleibt erhalten. Prüfen Sie die aktuelle Version und führen Sie sie vor dem Speichern mit Ihrem Entwurf zusammen.",
-  "settings.user_memory.description": "Fakten für Desktop-Agenten mit aktivierten Benutzererinnerungen. Projektspezifische Erinnerungen bleiben getrennt. Externe Chats verwenden diese gemeinsamen Erinnerungen nicht.",
+  "settings.user_memory.description": "Langfristige Nutzerinformationen für Desktop-Assistenten und Agenten mit aktiviertem Gedächtnis. Projektwissen bleibt getrennt. Externe Chatkanäle verwenden dieses gemeinsame Gedächtnis nicht.",
   "settings.user_memory.empty": "Noch keine gemeinsamen Fakten.",
   "settings.user_memory.enabled": "Gemeinsames Gedächtnis verwenden",
   "settings.user_memory.journal": "Gedächtnisprotokoll",

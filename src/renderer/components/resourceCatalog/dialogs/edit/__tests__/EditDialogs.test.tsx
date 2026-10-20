@@ -803,6 +803,36 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
+  it('saves the shared memory opt-in and restores it when reopened', async () => {
+    const saved = { ...ASSISTANT, settings: { ...ASSISTANT.settings, userMemoryEnabled: true } }
+    updateAssistantMock.mockResolvedValue(saved)
+    const first = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    const toggle = screen.getByRole('switch', { name: 'settings.user_memory.enabled' })
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { userMemoryEnabled: true } } })
+    )
+    first.unmount()
+    render(<AssistantEditDialog open resource={saved} onOpenChange={vi.fn()} />)
+    expect(screen.getByRole('switch', { name: 'settings.user_memory.enabled' })).toBeChecked()
+  })
+
+  it('flushes the memory preference before opening shared memory settings', async () => {
+    updateAssistantMock.mockResolvedValue({
+      ...ASSISTANT,
+      settings: { ...ASSISTANT.settings, userMemoryEnabled: true }
+    })
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} />
+    }
+    render(<Host />)
+    fireEvent.click(screen.getByRole('switch', { name: 'settings.user_memory.enabled' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.user_memory.title' }))
+    await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/user-memory'))
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { userMemoryEnabled: true } } })
+  })
   it.each(['agent', 'assistant'] as const)(
     'opens global prompt settings from an empty %s prompt panel',
     async (type) => {

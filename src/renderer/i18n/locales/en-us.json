@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Clear shared facts",
   "settings.user_memory.clear_confirm": "Clear the shared facts for all enabled agents? Historical journal entries and conversations will remain.",
   "settings.user_memory.conflict": "The saved facts changed. Your draft is preserved. Review the latest version and merge it into your draft before saving.",
-  "settings.user_memory.description": "Facts shared by desktop agents with user memory enabled. Project-specific agent memory stays separate. External chat channels do not use this shared memory.",
+  "settings.user_memory.description": "Long-term user facts shared by desktop assistants and agents with memory enabled. Project memory stays separate. External chat channels do not use this shared memory.",
   "settings.user_memory.empty": "No shared facts yet.",
   "settings.user_memory.enabled": "Use shared memory",
   "settings.user_memory.journal": "Memory journal",

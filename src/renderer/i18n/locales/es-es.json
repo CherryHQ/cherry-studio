@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Vaciar hechos compartidos",
   "settings.user_memory.clear_confirm": "¿Vaciar los hechos compartidos de todos los agentes habilitados? Se conservarán los registros y las conversaciones anteriores.",
   "settings.user_memory.conflict": "Los hechos guardados han cambiado. Se conserva tu borrador. Revisa la última versión y combínala con tu borrador antes de guardar.",
-  "settings.user_memory.description": "Hechos compartidos por los agentes de escritorio con la memoria del usuario activada. La memoria de cada proyecto permanece separada. Los canales de chat externos no usan esta memoria compartida.",
+  "settings.user_memory.description": "Datos duraderos del usuario compartidos por asistentes y agentes de escritorio con memoria activada. La memoria del proyecto sigue separada. Los canales externos no usan esta memoria.",
   "settings.user_memory.empty": "Aún no hay hechos compartidos.",
   "settings.user_memory.enabled": "Usar memoria compartida",
   "settings.user_memory.journal": "Diario de memoria",

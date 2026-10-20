@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "清空共用事實",
   "settings.user_memory.clear_confirm": "清空所有已啟用智慧體的共用事實？歷史日誌和對話將保留。",
   "settings.user_memory.conflict": "已儲存的事實發生變更，草稿已保留。請檢視最新版本並合併至草稿後再儲存。",
-  "settings.user_memory.description": "供已啟用使用者記憶的桌面智慧體共用。專案相關的智慧體記憶保持獨立，外部聊天管道不使用此共用記憶。",
+  "settings.user_memory.description": "已開啟記憶的桌面助手和智慧體共用的長期使用者事實。專案記憶保持獨立，外部聊天管道不使用此共用記憶。",
   "settings.user_memory.empty": "尚無共用事實。",
   "settings.user_memory.enabled": "使用共用記憶",
   "settings.user_memory.journal": "記憶日誌",

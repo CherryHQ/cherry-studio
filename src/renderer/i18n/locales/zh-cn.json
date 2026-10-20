@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "清空共享事实",
   "settings.user_memory.clear_confirm": "清空所有已启用智能体的共享事实？历史日志和对话将保留。",
   "settings.user_memory.conflict": "已保存的事实发生变化，草稿已保留。请查看最新版本并合并到草稿后再保存。",
-  "settings.user_memory.description": "供已开启用户记忆的桌面智能体共享。项目相关的智能体记忆保持独立，外部聊天渠道不使用此共享记忆。",
+  "settings.user_memory.description": "已开启记忆的桌面助手和智能体共用的长期用户事实。项目记忆保持独立，外部聊天渠道不使用此共享记忆。",
   "settings.user_memory.empty": "暂无共享事实。",
   "settings.user_memory.enabled": "使用共享记忆",
   "settings.user_memory.journal": "记忆日志",

@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Ortak bilgileri temizle",
   "settings.user_memory.clear_confirm": "Etkin tüm ajanların ortak bilgileri temizlensin mi? Geçmiş günlükler ve konuşmalar korunacaktır.",
   "settings.user_memory.conflict": "Kaydedilen bilgiler değişti. Taslağınız korunuyor. Kaydetmeden önce son sürümü inceleyip taslağınızla birleştirin.",
-  "settings.user_memory.description": "Kullanıcı belleği açık masaüstü ajanlarının paylaştığı bilgiler. Projeye özgü bellek ayrı tutulur. Harici sohbet kanalları bu ortak belleği kullanmaz.",
+  "settings.user_memory.description": "Belleği açık masaüstü asistanları ve ajanların paylaştığı uzun vadeli kullanıcı bilgileri. Proje belleği ayrı kalır. Harici sohbet kanalları bu ortak belleği kullanmaz.",
   "settings.user_memory.empty": "Henüz ortak bilgi yok.",
   "settings.user_memory.enabled": "Ortak belleği kullan",
   "settings.user_memory.journal": "Bellek günlüğü",

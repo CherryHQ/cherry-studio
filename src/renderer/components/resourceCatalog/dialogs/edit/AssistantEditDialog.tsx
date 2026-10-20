@@ -100,6 +100,7 @@ type AssistantEditFormValues = {
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
+  userMemoryEnabled: boolean
   enableBrowser: boolean
   mcpMode: AssistantFormState['mcpMode']
   contextOverrideEnabled: boolean
@@ -142,6 +143,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     maxToolCalls: form.maxToolCalls,
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
+    userMemoryEnabled: form.userMemoryEnabled,
     enableBrowser: form.enableBrowser,
     mcpMode: form.mcpMode,
     contextOverrideEnabled: form.contextOverrideEnabled,
@@ -183,6 +185,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     maxToolCalls: values.maxToolCalls,
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
+    userMemoryEnabled: values.userMemoryEnabled,
     enableBrowser: values.enableBrowser,
     mcpMode: values.mcpMode,
     contextOverrideEnabled: values.contextOverrideEnabled,
@@ -588,6 +591,31 @@ function AssistantBasicFields({
               triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
             />
             <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="userMemoryEnabled"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.user_memory.enabled')}</FormLabel>
+            <div className="flex items-center justify-between gap-3">
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  aria-label={t('settings.user_memory.enabled')}
+                />
+              </FormControl>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onSettingsNavigate?.(() => openSettingsTab('/settings/user-memory'))}>
+                {t('settings.user_memory.title')}
+              </Button>
+            </div>
           </FormItem>
         )}
       />

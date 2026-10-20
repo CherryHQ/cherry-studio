@@ -5826,7 +5826,7 @@
   "settings.user_memory.clear": "Șterge informațiile partajate",
   "settings.user_memory.clear_confirm": "Ștergi informațiile partajate pentru toți agenții activați? Jurnalele și conversațiile anterioare vor fi păstrate.",
   "settings.user_memory.conflict": "Informațiile salvate s-au schimbat. Ciorna este păstrată. Verifică ultima versiune și combin-o cu ciorna înainte de salvare.",
-  "settings.user_memory.description": "Informații partajate între agenții desktop cu memoria utilizatorului activată. Memoria specifică proiectului rămâne separată. Canalele externe de chat nu folosesc această memorie.",
+  "settings.user_memory.description": "Informații durabile despre utilizator, partajate de asistenții și agenții desktop cu memoria activată. Memoria proiectelor rămâne separată. Canalele externe nu folosesc această memorie.",
   "settings.user_memory.empty": "Nu există încă informații partajate.",
   "settings.user_memory.enabled": "Folosește memoria partajată",
   "settings.user_memory.journal": "Jurnal de memorie",
