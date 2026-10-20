@@ -1,32 +1,24 @@
-import { CalendarClock, CalendarX2, MoreHorizontal, PencilLine, Play } from 'lucide-react'
+import { CalendarClock, CalendarX2, ChevronRight, MoreHorizontal, Pause, PencilLine, Play, Trash2 } from 'lucide-react'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Badge,
   Button,
   ConfirmDialog,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Switch
+  NormalTooltip
 } from '@cherrystudio/ui'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
 import { TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
-import {
-  useDeleteTask,
-  useRunTask,
-  useSetTaskEnabled,
-  useTask,
-  useTaskLogs,
-  useUpdateTask
-} from '@renderer/hooks/agent/useTasks'
+import { useDeleteTask, useRunTask, useSetTaskEnabled, useTask, useUpdateTask } from '@renderer/hooks/agent/useTasks'
 import { ErrorCode, toDataApiError } from '@shared/data/api/errors'
-import type { TaskRunSummary } from '@shared/data/api/schemas/agents'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskListItem } from '@shared/data/api/schemas/agents'
 import type { AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -54,39 +46,35 @@ function formatNextRun(value: string) {
   return zone ? `${time} (${zone})` : time
 }
 
-function toRunSummary(log: TaskRunLogEntity | undefined): TaskRunSummary | null {
-  if (!log) return null
-  if (log.status === 'running') return { status: 'running' }
-  return { status: log.status, finishedAt: new Date(Date.parse(log.startedAt) + (log.durationMs ?? 0)).toISOString() }
-}
-
 export function ScheduledTaskToolInline({ result }: { result: ScheduledTaskResult }) {
-  const { task, error } = useTask(result.taskId)
-  // SWR keeps the last task alongside the refetch error, so a deletion must win over cached data.
+  const { t } = useTranslation()
+  const { task, error, isLoading, refetch } = useTask(result.taskId)
+  // A deletion must take precedence over SWR's last cached task.
   const isDeleted = !!error && toDataApiError(error).code === ErrorCode.NOT_FOUND
 
   if (task && !isDeleted) return <ScheduledTaskCard task={task} />
+  const Icon = isDeleted ? CalendarX2 : CalendarClock
   return (
-    <div className="my-1 flex min-h-12 max-w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <CalendarX2 aria-hidden="true" size={16} strokeWidth={1.8} />
-      </span>
+    <div className="my-2 flex w-full max-w-lg items-start gap-2.5 rounded-lg border border-border-subtle bg-card p-3">
+      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium text-foreground text-sm" title={result.name}>
           {result.name}
         </div>
-        {isDeleted ? <ScheduledTaskDeletedLabel /> : null}
+        <div className="mt-1 text-muted-foreground text-xs" role="status">
+          {isDeleted ? t('agent.tasks.card.deleted') : error ? t('agent.tasks.card.loadFailed') : t('common.loading')}
+        </div>
       </div>
+      {error && !isDeleted ? (
+        <Button variant="ghost" size="sm" disabled={isLoading} onClick={() => void refetch()}>
+          {t('common.retry')}
+        </Button>
+      ) : null}
     </div>
   )
 }
 
-function ScheduledTaskDeletedLabel() {
-  const { t } = useTranslation()
-  return <div className="text-muted-foreground text-xs">{t('agent.tasks.card.deleted')}</div>
-}
-
-function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
+function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const { agent } = useAgent(task.agentId)
@@ -95,9 +83,7 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
   const { setTaskEnabled } = useSetTaskEnabled()
   const { runTask } = useRunTask()
   const { deleteTask } = useDeleteTask()
-  // Logs come newest first, so the head is the last run.
-  const { logs } = useTaskLogs(task.agentId, task.id)
-  const lastRun = toRunSummary(logs[0])
+  const lastRun = task.runSummary
   const [editOpen, setEditOpen] = useState(false)
   const [editorRequested, setEditorRequested] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -108,6 +94,15 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
     (channelId) => channels.find((channel) => channel.id === channelId)?.name || channelId
   )
   const isCompleted = task.status === 'completed'
+  const canToggle = task.status === 'active' || task.status === 'paused'
+  const isRunning = lastRun?.status === 'running' || lastRun?.status === 'queued'
+  const statusLabel = isCompleted
+    ? t('agent.tasks.card.triggered')
+    : task.status === 'active'
+      ? t('agent.tasks.card.enabled')
+      : task.status === 'paused'
+        ? t('agent.tasks.status.paused')
+        : t('agent.tasks.status.missed')
   const { trigger } = task
   const isOnce = trigger.kind === 'once'
   // A one-time run's date is its schedule, so it is shown once instead of repeating as "next run".
@@ -129,88 +124,83 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskEntity }) {
   const handleUpdate = async (patch: AgentTaskPatch) => !!(await updateTask(task.agentId, task.id, patch))
 
   return (
-    <div className="my-1 flex max-w-full items-start gap-3 rounded-lg border border-border bg-background px-3 py-2">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-info-subtle text-info-subtle-foreground">
-        <CalendarClock aria-hidden="true" size={16} strokeWidth={1.8} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 truncate font-medium text-foreground text-sm" title={task.name}>
-            {task.name}
-          </div>
-          {isCompleted || task.status === 'missed' ? (
-            <Badge variant="secondary">
-              {isCompleted ? t('agent.tasks.status.completed') : t('agent.tasks.status.missed')}
-            </Badge>
-          ) : (
-            <Switch
-              size="sm"
-              className="shrink-0"
-              checked={task.status === 'active'}
-              disabled={busy}
-              aria-label={t('agent.tasks.status.active')}
-              title={task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
-              onCheckedChange={(checked) => void runExclusive(() => setTaskEnabled(task.agentId, task.id, checked))}
-            />
-          )}
+    <div className="my-2 w-full max-w-lg rounded-lg border border-border-subtle bg-card p-3">
+      <div className="flex items-center gap-2.5">
+        <CalendarClock aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+        <div className="min-w-0 flex-1 truncate font-medium text-foreground text-sm" title={task.name}>
+          {task.name}
         </div>
-        <div className="text-muted-foreground text-xs">
-          {schedule}
-          {nextRun ? ` · ${t('agent.tasks.nextRun')} ${nextRun}` : null}
-        </div>
-        <div className="truncate text-muted-foreground text-xs">
-          {channelNames.length > 0
-            ? `${t('agent.tasks.channels.label')}: ${channelNames.join(', ')}`
-            : t('agent.tasks.card.inApp')}
-        </div>
-        {lastRun ? (
-          <div className="text-xs">
-            <TaskRunSummaryLine summary={lastRun} />
-          </div>
-        ) : null}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {!isCompleted ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                setEditorRequested(true)
-                setEditOpen(true)
-              }}>
-              <PencilLine size={14} />
-              {t('common.edit')}
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => void runExclusive(() => runTask(task.agentId, task.id))}>
-            <Play size={14} />
-            {t('agent.tasks.run')}
-          </Button>
-          <DropdownMenu>
+        <span className="shrink-0 text-muted-foreground text-xs">{statusLabel}</span>
+        <DropdownMenu>
+          <NormalTooltip content={t('common.more')}>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('common.more')}>
-                <MoreHorizontal size={14} />
+                <MoreHorizontal aria-hidden="true" size={16} />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {actions?.navigateToRoute ? (
-                <DropdownMenuItem
-                  onSelect={() => void actions.navigateToRoute?.({ path: `/settings/scheduled-tasks/${task.id}` })}>
-                  {t('agent.tasks.card.openInSettings')}
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem variant="destructive" onSelect={() => setDeleteConfirmOpen(true)}>
-                {t('agent.tasks.delete.label')}
+          </NormalTooltip>
+          <DropdownMenuContent align="end">
+            {!isCompleted ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  setEditorRequested(true)
+                  setEditOpen(true)
+                }}>
+                <PencilLine aria-hidden="true" />
+                {t('common.edit')}
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            ) : null}
+            {canToggle ? (
+              <DropdownMenuItem
+                onSelect={() =>
+                  void runExclusive(() => setTaskEnabled(task.agentId, task.id, task.status !== 'active'))
+                }>
+                {task.status === 'active' ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
+                {task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+              disabled={isRunning}
+              onSelect={() => void runExclusive(() => runTask(task.agentId, task.id))}>
+              <Play aria-hidden="true" />
+              {t('agent.tasks.run')}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleteConfirmOpen(true)}>
+              <Trash2 aria-hidden="true" />
+              {t('agent.tasks.delete.label')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="ms-6.5 mt-0.5 flex flex-wrap items-end gap-x-3 gap-y-1">
+        <div className="min-w-0 flex-1 basis-56 space-y-1.5">
+          <div className="text-muted-foreground text-xs leading-relaxed">
+            {schedule}
+            {nextRun ? ` · ${t('agent.tasks.nextRun')} ${nextRun}` : null}
+          </div>
+          {channelNames.length > 0 ? (
+            <div className="truncate text-muted-foreground text-xs" title={channelNames.join(', ')}>
+              {t('agent.tasks.channels.label')}: {channelNames.join(', ')}
+            </div>
+          ) : null}
+          {lastRun ? (
+            <div className="text-xs" role="status">
+              <TaskRunSummaryLine summary={lastRun} />
+            </div>
+          ) : null}
         </div>
+        {actions?.navigateToRoute ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ms-auto text-muted-foreground"
+            onClick={() => void actions.navigateToRoute?.({ path: `/settings/scheduled-tasks/${task.id}` })}>
+            {t('agent.tasks.card.viewTask')}
+            <ChevronRight aria-hidden="true" size={14} />
+          </Button>
+        ) : null}
       </div>
 
       {editorRequested ? (

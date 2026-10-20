@@ -1,62 +1,30 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createInstance } from 'i18next'
+import { I18nextProvider } from 'react-i18next'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import en from '@renderer/i18n/locales/en-us.json'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { ScheduledTaskEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskListItem } from '@shared/data/api/schemas/agents'
 
-const taskMocks = vi.hoisted(() => ({
-  task: undefined as ScheduledTaskEntity | undefined,
-  error: undefined as Error | undefined,
-  logs: [] as Array<Record<string, unknown>>,
-  updateTask: vi.fn(),
-  setTaskEnabled: vi.fn(),
-  runTask: vi.fn(),
-  deleteTask: vi.fn()
-}))
+vi.unmock('@cherrystudio/ui')
 
-vi.mock('@renderer/hooks/agent/useTasks', () => ({
-  useTask: () => ({ task: taskMocks.task, error: taskMocks.error, isLoading: false }),
-  useTaskLogs: () => ({ logs: taskMocks.logs }),
-  useUpdateTask: () => ({ updateTask: taskMocks.updateTask }),
-  useSetTaskEnabled: () => ({ setTaskEnabled: taskMocks.setTaskEnabled }),
-  useRunTask: () => ({ runTask: taskMocks.runTask }),
-  useDeleteTask: () => ({ deleteTask: taskMocks.deleteTask })
-}))
-
-// Keys stand in for copy; the schedule summary's interpolated time stays visible for assertions.
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: { time?: string }) => (options?.time ? `${key}{${options.time}}` : key),
-    i18n: { language: 'en-US' }
-  })
-}))
-
-vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: () => ({ agent: { id: 'agent-1', name: 'Cherry Assistant' } })
-}))
-
-vi.mock('@renderer/hooks/agent/useChannels', () => ({
-  useChannels: () => ({ channels: [{ id: 'channel-1', name: 'Team chat' }] })
-}))
-
+const { request, navigateToRoute } = vi.hoisted(() => ({ request: vi.fn(), navigateToRoute: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
 vi.mock('../../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => ({ navigateToRoute: vi.fn() })
-}))
-
-// The shared form dialog has its own coverage; this stand-in submits a fixed patch through the card's wiring.
-vi.mock('@renderer/components/ScheduledTask/TaskFormDialog', () => ({
-  TaskFormDialog: ({ open, onUpdate }: { open: boolean; onUpdate: (patch: { name: string }) => Promise<boolean> }) =>
-    open ? (
-      <button type="button" onClick={() => void onUpdate({ name: 'Renamed' })}>
-        save-edit
-      </button>
-    ) : null
+  useOptionalMessageListActions: () => ({ navigateToRoute })
 }))
 
 import { ScheduledTaskToolInline } from '../ScheduledTaskTool'
 
-function scheduledTask(overrides: Partial<ScheduledTaskEntity> = {}): ScheduledTaskEntity {
+const i18n = createInstance()
+beforeAll(async () => {
+  await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+})
+
+function scheduledTask(overrides: Partial<ScheduledTaskListItem> = {}): ScheduledTaskListItem {
   return {
     id: 'task-1',
     agentId: 'agent-1',
@@ -74,129 +42,128 @@ function scheduledTask(overrides: Partial<ScheduledTaskEntity> = {}): ScheduledT
     status: 'active',
     createdAt: '2026-10-16T06:40:55.806Z',
     updatedAt: '2026-10-16T06:40:55.808Z',
+    runSummary: null,
     ...overrides
   }
 }
 
+function setTask(task: ScheduledTaskListItem) {
+  MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', { data: task })
+}
+
 function renderCard() {
-  return render(<ScheduledTaskToolInline result={{ taskId: 'task-1', name: 'Gold price' }} />)
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <ScheduledTaskToolInline result={{ taskId: 'task-1', name: 'Gold price' }} />
+    </I18nextProvider>
+  )
 }
 
 describe('ScheduledTaskToolInline', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    taskMocks.task = scheduledTask()
-    taskMocks.error = undefined
-    taskMocks.logs = []
-    taskMocks.updateTask.mockResolvedValue(scheduledTask({ name: 'Renamed' }))
+    MockUseDataApiUtils.resetMocks()
+    setTask(scheduledTask())
+    request.mockResolvedValue(scheduledTask())
   })
 
-  it('states the recurring cadence with its next run', () => {
+  it('shows the recurring schedule and opens that task from its quiet detail action', async () => {
+    const user = userEvent.setup()
     renderCard()
-
-    expect(screen.getByText('Gold price')).toBeInTheDocument()
-    expect(
-      screen.getByText(/^agent\.tasks\.schedule\.summary\.daily\{21:00\} · agent\.tasks\.nextRun /)
-    ).toBeInTheDocument()
-    expect(screen.queryByText(/agent\.tasks\.schedule\.once/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Daily at 21:00/)).toHaveTextContent('Next Run')
+    expect(screen.getByText('Enabled')).toBeInTheDocument()
+    expect(screen.queryByText('Results are shown in the app')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View task' }))
+    expect(navigateToRoute).toHaveBeenCalledWith({ path: '/settings/scheduled-tasks/task-1' })
   })
 
-  it('states a one-time task as one time on its date instead of a recurring cadence', () => {
-    const at = Date.parse('2026-10-17T01:00:00.000Z')
-    taskMocks.task = scheduledTask({ trigger: { kind: 'once', at }, nextRun: new Date(at).toISOString() })
-
-    renderCard()
-
-    const scheduleLine = screen.getByText(/^agent\.tasks\.schedule\.once · /)
-    expect(scheduleLine.textContent).toContain(
-      new Date(at).toLocaleString(undefined, { month: 'numeric', day: 'numeric' })
+  it('distinguishes a consumed one-time schedule from a failed execution', () => {
+    setTask(
+      scheduledTask({
+        trigger: { kind: 'once', at: Date.parse('2026-10-17T01:00:00Z') },
+        status: 'completed',
+        nextRun: null,
+        runSummary: { status: 'failed', finishedAt: '2026-10-17T01:00:05Z' }
+      })
     )
-    expect(scheduleLine.textContent).not.toMatch(/summary|nextRun/)
+    renderCard()
+    expect(screen.getByText(/^One time/)).toBeInTheDocument()
+    expect(screen.getByText('Triggered')).toBeInTheDocument()
+    expect(screen.getByText(/^Last run failed/)).toBeInTheDocument()
+    expect(screen.queryByText(/Last run succeeded|Next Run/)).not.toBeInTheDocument()
   })
 
-  it('reports the most recent run, not an older one', () => {
-    taskMocks.logs = [
-      { id: 'run-2', status: 'failed', startedAt: '2026-10-16T13:00:00.000Z', durationMs: 4000 },
-      { id: 'run-1', status: 'completed', startedAt: '2026-10-15T13:00:00.000Z', durationMs: 4000 }
-    ]
-
+  it.each(['queued', 'running'] as const)('shows %s independently and prevents another manual run', async (status) => {
+    const user = userEvent.setup()
+    setTask(scheduledTask({ runSummary: { status } }))
     renderCard()
-
-    expect(screen.getByText(/^agent\.tasks\.runSummary\.failed/)).toBeInTheDocument()
-    expect(screen.queryByText(/agent\.tasks\.runSummary\.completed/)).not.toBeInTheDocument()
+    expect(screen.getByText(en[`agent.tasks.runSummary.${status}`])).toBeInTheDocument()
+    expect(screen.getByText('Enabled')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    expect(screen.getByRole('menuitem', { name: en['agent.tasks.run'] })).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('shows a run still in progress as running', () => {
-    taskMocks.logs = [{ id: 'run-1', status: 'running', startedAt: '2026-10-16T13:00:00.000Z', durationMs: null }]
-
+  it('moves pause and resume into a keyboard-accessible menu', async () => {
+    const user = userEvent.setup()
+    const view = renderCard()
+    screen.getByRole('button', { name: 'More' }).focus()
+    await user.keyboard('{Enter}')
+    await user.click(await screen.findByRole('menuitem', { name: en['agent.tasks.pause'] }))
+    expect(request).toHaveBeenCalledWith('ai.agent.task.pause', { agentId: 'agent-1', taskId: 'task-1' })
+    view.unmount()
+    setTask(scheduledTask({ enabled: false, status: 'paused' }))
     renderCard()
-
-    expect(screen.getByText('agent.tasks.runSummary.running')).toBeInTheDocument()
+    expect(screen.getByText(en['agent.tasks.status.paused'])).toBeInTheDocument()
+    expect(screen.queryByText(/Next Run/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitem', { name: en['agent.tasks.resume'] }))
+    expect(request).toHaveBeenCalledWith('ai.agent.task.resume', { agentId: 'agent-1', taskId: 'task-1' })
   })
 
-  it('shows no last run for a task that has never run', () => {
+  it('requires confirmation before deleting from the menu', async () => {
+    const user = userEvent.setup()
     renderCard()
-
-    expect(screen.queryByText(/agent\.tasks\.runSummary/)).not.toBeInTheDocument()
-  })
-
-  it('says results stay in the app when no channel is targeted, and names the channels otherwise', () => {
-    const { unmount } = renderCard()
-    expect(screen.getByText('agent.tasks.card.inApp')).toBeInTheDocument()
-    unmount()
-
-    taskMocks.task = scheduledTask({ channelIds: ['channel-1'] })
-    renderCard()
-    expect(screen.getByText('agent.tasks.channels.label: Team chat')).toBeInTheDocument()
-    expect(screen.queryByText('agent.tasks.card.inApp')).not.toBeInTheDocument()
-  })
-
-  it('pauses an active task from its switch', async () => {
-    renderCard()
-
-    await userEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-
-    expect(taskMocks.setTaskEnabled).toHaveBeenCalledWith('agent-1', 'task-1', false)
-  })
-
-  it('saves edits made from the card to that task', async () => {
-    renderCard()
-
-    await userEvent.click(screen.getByRole('button', { name: 'common.edit' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'save-edit' }))
-
-    expect(taskMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Renamed' })
-  })
-
-  it('deletes only after the user confirms', async () => {
-    renderCard()
-
-    await userEvent.click(screen.getByRole('button', { name: 'agent.tasks.delete.label' }))
-    expect(taskMocks.deleteTask).not.toHaveBeenCalled()
-
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitem', { name: en['agent.tasks.delete.label'] }))
+    expect(request).not.toHaveBeenCalled()
     const dialog = await screen.findByRole('dialog')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.delete.label' }))
-
-    await waitFor(() => expect(taskMocks.deleteTask).toHaveBeenCalledWith('agent-1', 'task-1'))
+    await user.click(within(dialog).getByRole('button', { name: en['agent.tasks.delete.label'] }))
+    expect(request).toHaveBeenCalledWith('ai.agent.task.delete', { agentId: 'agent-1', taskId: 'task-1' })
   })
 
-  it('marks a deleted task as deleted even while its last snapshot is still cached', () => {
-    // After a delete, the refetch fails with NOT_FOUND while SWR still holds the previous task.
-    taskMocks.error = DataApiErrorFactory.notFound('Task', 'task-1')
-
+  it('removes all actions after deletion even with a cached task', () => {
+    MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', {
+      data: scheduledTask(),
+      error: DataApiErrorFactory.notFound('Task', 'task-1')
+    })
     renderCard()
-
-    expect(screen.getByText('Gold price')).toBeInTheDocument()
-    expect(screen.getByText('agent.tasks.card.deleted')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
+    expect(screen.getByText('This scheduled task has been deleted')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('keeps showing the task when a refresh fails for another reason', () => {
-    taskMocks.error = new Error('network down')
-
+  it('distinguishes loading and a retryable read failure from deletion', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryLoading('/agent-tasks/:taskId')
+    const view = renderCard()
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    view.unmount()
+    const refetch = vi.fn()
+    MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', {
+      data: undefined,
+      error: new Error('offline'),
+      refetch
+    })
     renderCard()
+    expect(screen.getByText('Could not load task')).toBeInTheDocument()
+    expect(screen.queryByText('This scheduled task has been deleted')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(refetch).toHaveBeenCalledOnce()
+  })
 
-    expect(screen.queryByText('agent.tasks.card.deleted')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.edit' })).toBeInTheDocument()
+  it('keeps the last known task on a transient refresh error', () => {
+    MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', { data: scheduledTask(), error: new Error('offline') })
+    renderCard()
+    expect(screen.getByText('Enabled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View task' })).toBeInTheDocument()
   })
 })

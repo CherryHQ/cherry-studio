@@ -29,7 +29,7 @@ export const TaskRunSummaryLine: FC<{ summary: TaskRunSummary }> = ({ summary })
   if (summary.status === 'running') {
     return (
       <span className="flex items-center gap-1.5 text-foreground">
-        <Loader2 aria-hidden className="size-3 text-foreground motion-safe:animate-spin" />
+        <Loader2 aria-hidden className="size-3 shrink-0 motion-safe:animate-spin" />
         {t('agent.tasks.runSummary.running')}
       </span>
     )
@@ -38,23 +38,23 @@ export const TaskRunSummaryLine: FC<{ summary: TaskRunSummary }> = ({ summary })
   const time = formatTaskCardTime(summary.finishedAt)
   if (summary.status === 'completed') {
     return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <CircleCheck aria-hidden className="size-3 text-foreground" />
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <CircleCheck aria-hidden className="size-3 shrink-0" />
         {t('agent.tasks.runSummary.completed', { time })}
       </span>
     )
   }
   if (summary.status === 'failed') {
     return (
-      <span className="flex items-center gap-1.5 text-foreground">
-        <CircleX aria-hidden className="size-3 text-foreground" />
+      <span className="flex items-center gap-1.5 text-error-subtle-foreground">
+        <CircleX aria-hidden className="size-3 shrink-0" />
         {t('agent.tasks.runSummary.failed', { time })}
       </span>
     )
   }
   return (
-    <span className="flex items-center gap-1.5 text-foreground">
-      <CircleStop aria-hidden className="size-3 text-foreground" />
+    <span className="flex items-center gap-1.5 text-muted-foreground">
+      <CircleStop aria-hidden className="size-3 shrink-0" />
       {t('agent.tasks.runSummary.cancelled', { time })}
     </span>
   )
