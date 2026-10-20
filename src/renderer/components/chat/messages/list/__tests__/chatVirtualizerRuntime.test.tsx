@@ -312,6 +312,10 @@ describe('useChatVirtualizerRuntime', () => {
           if (scrollFirst) act(() => runtime.scrollerProps.onScroll(scroller.scrollTop))
           act(() => callbacks[0]?.([], {} as ResizeObserver))
         },
+        moveAnchor(nextOffset: number, nextHeight: number) {
+          itemOffset = nextOffset
+          resize(nextHeight)
+        },
         captureReplacement: () => handle.prepareContentReplacement(currentKey),
         stageReplacement(key: string, nextHeight: number) {
           act(() => handle.prepareContentReplacement?.(currentKey)?.(key))
@@ -412,6 +416,37 @@ describe('useChatVirtualizerRuntime', () => {
       expect(list.slack()).toBe(100)
       expect(list.scroller.scrollTop).toBe(2100)
     })
+
+    it('protects the semantic destination before reclaiming growth above the viewport', () => {
+      const list = setupReading()
+      list.replace()
+      list.moveAnchor(200, 2600)
+      expect(list.scroller.scrollTop).toBe(2400)
+      expect(list.slack()).toBe(200)
+      list.moveAnchor(300, 2700)
+      expect(list.scroller.scrollTop).toBe(2500)
+      expect(list.slack()).toBe(200)
+      list.changeLayout(2700, 600, true)
+      list.flushClamp()
+      expect(list.scroller.scrollTop).toBe(2500)
+      expect(list.slack()).toBe(400)
+    })
+
+    it.each(['instant', 'smooth'] as const)(
+      'does not undo completed %s navigation when an edit resolves',
+      (behavior) => {
+        const list = setupReading()
+        const commit = list.captureReplacement()
+        act(() => list.handle.scrollToTop(behavior))
+        list.raf.tick(60)
+        expect(list.scroller.scrollTop).toBe(0)
+        act(() => commit('new'))
+        list.commitReplacement('new', 2400)
+        list.raf.tick(4)
+        expect(list.scroller.scrollTop).toBe(0)
+        expect(list.handle.isFollowing()).toBe(false)
+      }
+    )
 
     it('does not preserve old reply height when the target viewport already fits', () => {
       const list = setupReading()

@@ -227,6 +227,7 @@ export function useChatVirtualizerRuntime<T>({
   const freezeSpacerHeightRef = useRef(0)
   const freezeBaselineScrollHeightRef = useRef<number | null>(null)
   const replacementFreezeRef = useRef<ReplacementFreeze | null>(null)
+  const replacementRevisionRef = useRef(0)
   const replacementFrameRef = useRef<number | null>(null)
   const programmaticScrollTopRef = useRef<number | null>(null)
   const userScrollRevisionRef = useRef(0)
@@ -348,6 +349,28 @@ export function useChatVirtualizerRuntime<T>({
     },
     [suppressNextAutoscrollConfirm]
   )
+  const resolveFreezeTarget = useCallback((): number | null => {
+    const frozen = freezeAnchorRef.current
+    const el = scrollerRef.current
+    const handle = vlistHandleRef.current
+    if (!frozen || !el || !handle) return null
+    const itemIndex = findDataIndexByKey(frozen.itemKey)
+    if (itemIndex < 0) return null
+    const elementItemKey = frozen.element?.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
+    if (
+      frozen.element &&
+      frozen.elementViewportTop != null &&
+      frozen.element.isConnected &&
+      contentRef.current?.contains(frozen.element) &&
+      frozen.element.getClientRects().length > 0 &&
+      elementItemKey === frozen.itemKey
+    ) {
+      const currentTop = frozen.element.getBoundingClientRect().top - el.getBoundingClientRect().top
+      return Math.max(0, el.scrollTop + currentTop - frozen.elementViewportTop)
+    }
+    return Math.max(0, topPadding) + handle.getItemOffset(itemIndex) + frozen.offsetInItem
+  }, [findDataIndexByKey, topPadding])
+
   const updateReplacementSpace = useCallback(
     (upwardDistance = 0) => {
       const replacement = replacementFreezeRef.current
@@ -363,6 +386,14 @@ export function useChatVirtualizerRuntime<T>({
         }
         return
       }
+      if (
+        !userScrollGestureRef.current &&
+        !autoscrollActiveRef.current &&
+        !smoothScroll.isAnimating() &&
+        !isUserScrollIntentPending()
+      ) {
+        replacement.readingTop = resolveFreezeTarget() ?? replacement.readingTop
+      }
       const growth = Math.max(0, height - replacement.heightPeak)
       replacement.heightPeak = Math.max(replacement.heightPeak, height)
       // Use committed layout, not a virtualizer measurement that may precede the DOM update.
@@ -373,7 +404,15 @@ export function useChatVirtualizerRuntime<T>({
       // Layout protection can grow independently of the user's non-refilling reclamation budget.
       setFreezeSpacerHeight(Math.max(replacement.remaining, minimum))
     },
-    [getMeasuredContentHeight, getNaturalScrollHeight, setFreezeSpacerHeight, writeProgrammaticScroll]
+    [
+      getMeasuredContentHeight,
+      getNaturalScrollHeight,
+      isUserScrollIntentPending,
+      resolveFreezeTarget,
+      setFreezeSpacerHeight,
+      smoothScroll,
+      writeProgrammaticScroll
+    ]
   )
   const maintainFreezeScrollRange = useCallback(() => {
     if (replacementFreezeRef.current) {
@@ -386,6 +425,7 @@ export function useChatVirtualizerRuntime<T>({
     setFreezeSpacerHeight(Math.max(0, baseline - naturalHeight))
   }, [getNaturalScrollHeight, setFreezeSpacerHeight, updateReplacementSpace])
   const clearFreeze = useCallback(() => {
+    replacementRevisionRef.current++
     replacementFreezeRef.current = null
     if (replacementFrameRef.current !== null) cancelAnimationFrame(replacementFrameRef.current)
     replacementFrameRef.current = null
@@ -545,8 +585,14 @@ export function useChatVirtualizerRuntime<T>({
       if (!scroller || viewportFollow.isFollowing()) return () => {}
       const top = scroller.scrollTop
       const revision = userScrollRevisionRef.current
+      const replacementRevision = replacementRevisionRef.current
       return (key: string) => {
-        if (scrollerRef.current !== scroller || viewportFollow.isFollowing()) return
+        if (
+          scrollerRef.current !== scroller ||
+          viewportFollow.isFollowing() ||
+          replacementRevisionRef.current !== replacementRevision
+        )
+          return
         const readingTop = revision === userScrollRevisionRef.current ? top : scroller.scrollTop
         if (replacementFrameRef.current !== null) cancelAnimationFrame(replacementFrameRef.current)
         replacementFrameRef.current = null
@@ -571,7 +617,6 @@ export function useChatVirtualizerRuntime<T>({
   const reassertFreeze = useCallback(() => {
     const frozen = freezeAnchorRef.current
     const el = scrollerRef.current
-    const content = contentRef.current
     const handle = vlistHandleRef.current
     if (!frozen || !el || !handle) return
     if (replacementFreezeRef.current?.remaining === null) return
@@ -590,28 +635,11 @@ export function useChatVirtualizerRuntime<T>({
       return
     }
 
-    const elementItemKey = frozen.element?.closest<HTMLElement>('[data-message-key]')?.dataset.messageKey
-    if (
-      frozen.element &&
-      frozen.elementViewportTop != null &&
-      frozen.element.isConnected &&
-      content?.contains(frozen.element) &&
-      frozen.element.getClientRects().length > 0 &&
-      elementItemKey === frozen.itemKey
-    ) {
-      const currentTop = frozen.element.getBoundingClientRect().top - el.getBoundingClientRect().top
-      const drift = currentTop - frozen.elementViewportTop
-      if (Math.abs(drift) > FREEZE_REASSERT_TOLERANCE_PX) {
-        writeProgrammaticScroll(el.scrollTop + drift)
-      }
-      return
-    }
-
-    const target = Math.max(0, topPadding) + handle.getItemOffset(itemIndex) + frozen.offsetInItem
-    if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
+    const target = resolveFreezeTarget()
+    if (target !== null && Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
       writeProgrammaticScroll(target)
     }
-  }, [captureFreezeAnchor, findDataIndexByKey, smoothScroll, topPadding, writeProgrammaticScroll])
+  }, [captureFreezeAnchor, findDataIndexByKey, resolveFreezeTarget, smoothScroll, writeProgrammaticScroll])
 
   // Explicit reading actions freeze the current semantic anchor. Passive DOM
   // events, ordinary clicks and virtualizer compensation never call this path.
