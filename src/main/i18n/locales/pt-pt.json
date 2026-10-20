@@ -31,6 +31,8 @@
   "apiGateway.docs.tags.cherry": "Endpoints próprios do Cherry Studio: bases de conhecimento, informações do serviço e verificação de estado.",
   "apiGateway.docs.tags.gemini": "Endpoints compatíveis com Gemini, servidos em `/v1beta` tal como na API original.",
   "apiGateway.docs.tags.openai": "Endpoints compatíveis com OpenAI. Aponte o URL base de um SDK da OpenAI para este gateway para os utilizar.",
+  "api_gateway.errors.internal_bind_permission_denied": "O sistema operativo recusou ao Servidor API interno a escuta em {{address}}, porta TCP pedida {{port}} (EACCES). Repita o pedido. Se voltar a falhar, peça ao administrador do sistema para verificar as restrições de escuta na interface de loopback.",
+  "api_gateway.errors.public_bind_permission_denied": "O sistema operativo recusou ao Servidor API a escuta em {{address}}, porta TCP {{port}} (EACCES). Em Configurações → Servidor API, escolha outra Porta, saia do campo para guardar e clique em iniciar. Atualize o endereço nos clientes.",
   "appMenu.about": "Sobre",
   "appMenu.close": "Fechar Janela",
   "appMenu.copy": "Copiar",
