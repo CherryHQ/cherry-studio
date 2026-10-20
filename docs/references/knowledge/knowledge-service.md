@@ -254,7 +254,7 @@ Explicit validation invalidates the generation's successful validation cache;
 concurrent validation calls share one request. Ordinary provider work reuses a
 successful generation-level validation. Token acquisition, identity validation,
 and the provider operation share a terminal-error boundary: HTTP 401,
-`invalid_grant`, and missing required scopes require reauthorization; transient
+`invalid_grant`, invalid-token code `20005`, and missing required scopes require reauthorization; transient
 timeouts and caller or lifecycle cancellation do not change authorization state.
 Stale generations cannot publish success or failure. Startup calls share one
 reconciliation flight; shutdown closes admission, aborts work, and waits for

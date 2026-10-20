@@ -14,6 +14,8 @@ Reconnect permits first identity binding only when every persisted identity/disp
 
 Both Feishu transports consume the body inside their transport error boundary, before parsing JSON. Knowledge body failures remain transient and use the existing bounded retries. Registration request timeouts retry within the registration deadline; other network failures retain the existing request-failure behavior. Caller cancellation and JSON/schema errors remain distinct, and raw transport details are not exposed.
 
+HTTP 200 responses with Feishu error code `20005` invalidate the authorization through the same terminal path as HTTP 401. Transport success does not imply a usable token.
+
 ## Alternatives considered
 
 Deleting and recreating the Connection discards recoverable identity-free state. Skipping account checks whenever the user ID is missing could replace an established account. Treating all response errors as retryable would conflate malformed provider data with transport failures and broaden the existing registration policy.
@@ -27,3 +29,5 @@ The recovery needs no schema migration. A partially populated identity remains a
 - Regression — `ExternalKnowledgeRuntime.test.ts`: real SQLite startup reconciliation and replacement reconnect preserve the Connection ID and persist its first identity and credentials; an actual SDK body failure retries to successful initial authorization.
 - Regression — `ExternalKnowledgeRuntime.test.ts`: each surviving authorization marker blocks identity-free recovery; existing account mismatch, stale reference, cancellation, and generation cases remain covered.
 - Regression — `feishuKnowledgeProvider.test.ts` and `feishuAppRegistration.test.ts`: body failure, timeout, cancellation, registration deadline, and malformed response cases preserve their distinct outcomes.
+
+- Regression — `ExternalKnowledgeRuntime.test.ts`: the real SDK transport receives `20005`; the real SQLite Connection changes to requiring reauthorization and rejects further token acquisition.
