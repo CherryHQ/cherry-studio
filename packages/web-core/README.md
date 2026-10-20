@@ -1,7 +1,7 @@
 # Web Core
 
-The Web edition's Core Worker: it owns the user's SQLite database in the browser and
-serves DataApi requests with the unmodified main-process data services. See the
+The Web edition's Core Worker: it owns the user's SQLite database in the browser, serves
+DataApi requests and runs chat turns with the unmodified main-process services. See the
 [Agent Note](../../.agents/notes/proposed/architecture/2026-10-20-web-core-database.md).
 
 - `./worker` — `startCoreWorker(self, extraCommands?)` turns a dedicated Worker into a
@@ -12,15 +12,36 @@ serves DataApi requests with the unmodified main-process data services. See the
 ## How the data layer runs here
 
 The Worker build (`vite.config.ts`) aliases the few main-process modules the services
-touch to browser implementations in `src/runtime/`: `@application` (only `DbService` and
-`WindowManager`), `@logger`, `diagnostics`, `platform`, `node:crypto`, `node:util`,
-better-sqlite3 (→ `@cherrystudio/sqlite-wasm-compat`) and drizzle's file-reading
-migrator (→ migrations bundled at build time). Nothing under `src/main` is edited.
+touch to browser implementations in `src/runtime/`: `@application` (only the services
+registered by `startCoreWorker`), `@logger`, `diagnostics`, `platform`, `electron` (only
+`ipcMain` and `app.getLocale()`), `node:crypto`, `node:os`, `node:path`, `node:util`,
+`node:buffer`, better-sqlite3 (→ `@cherrystudio/sqlite-wasm-compat`), drizzle's
+file-reading migrator (→ migrations bundled at build time) and the provider registry
+loader (→ the bundled catalog). Nothing under `src/main` is edited.
 A build plugin fails on any other Node built-in or Electron import, so a served service
 that grows a desktop-only dependency breaks `build:harness` instead of the browser.
 
-Only the topic and message routes (`topicHandlers`, `messageHandlers`) are served.
-`/search/contents` also searches agent sessions, whose services are not browser-ready yet.
+The topic, message, provider, model and assistant routes are served. `/search/contents`
+also searches agent sessions, whose services are not browser-ready yet.
+
+## How chat runs here
+
+`open` also starts `AiStreamManager` (its `onInit` marks replies a closed tab left pending as
+failed) and `AiService` (its desktop `onInit` is skipped), next to `WebPreferenceService`
+(stored preferences over the defaults, read-only) and `WebCacheService` (memory and shared
+tiers, not relayed to the page). Traces are dropped: the desktop trace window has no Web
+counterpart. `close` stops live streams before closing the database.
+
+`workerModuleReplacements` swaps the entry modules of desktop features the Web edition leaves
+out (skills, built-in tools, agent sessions, channels, attachments and file storage, model
+listing, web search, Copilot / Grok CLI / Ollama, trace storage, devtools) for stand-ins in
+`src/disabled/` that throw `WebUnsupportedError` when called. Swapping the entry module keeps
+the feature's dependencies out of the bundle. Provider requests use the Worker's `fetch`, so
+an endpoint must allow CORS from the page's origin.
+
+The Worker build moves every eagerly loaded module into a `core` chunk. WebKit evaluates a
+module Worker's script a second time when a lazily loaded chunk imports from it, which
+started a second Core Worker without a database.
 
 ## Database invariants
 
@@ -36,5 +57,6 @@ Only the topic and message routes (`topicHandlers`, `messageHandlers`) are serve
 
 `pnpm test:web-core:browser` builds `harness/` and runs `e2e/` with Playwright in Chromium,
 WebKit and Firefox (`pnpm exec playwright install chromium webkit firefox` once). The
-harness Worker adds test-only commands (`sql`, `seedMessages`, `integrity`, `searchMessages`).
+harness Worker adds test-only commands (`sql`, `seedMessages`, `integrity`, `searchMessages`,
+`chat`). `e2e/mockProvider.ts` is the OpenAI-compatible endpoint the chat tests talk to.
 `WEB_CORE_SCALE=1` adds the 50k-message timing run.
