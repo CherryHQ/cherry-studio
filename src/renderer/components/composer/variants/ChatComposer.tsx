@@ -1,4 +1,4 @@
-import { Eraser } from 'lucide-react'
+import { Eraser, ScanLine } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,6 +24,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
@@ -51,7 +52,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
-import { getComposerShortcutLabel, resolveSendShortcut } from '@renderer/utils/input'
+import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import {
@@ -98,6 +99,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from './shared/ComposerDictationButton'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import {
   buildComposerQueuedPayload,
@@ -111,6 +113,7 @@ import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBase
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
+import { useScreenshotChat } from './shared/useScreenshotChat'
 
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
@@ -177,6 +180,7 @@ export interface ChatComposerProps {
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  previewInputFile?: ComposerInputFilePreviewAction
 }
 
 interface SavedComposerDraft {
@@ -399,6 +403,7 @@ const ChatComposerRoot = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -458,6 +463,7 @@ const ChatComposerRoot = ({
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
             onCreateEmptyTopic={onCreateEmptyTopic}
+            previewInputFile={previewInputFile}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
             deferQuickPanel={deferQuickPanel}
@@ -498,10 +504,12 @@ const ChatComposerInner = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
 }: ChatComposerInnerProps) => {
+  const { t } = useTranslation()
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
   const scope = TopicType.Chat
@@ -545,7 +553,6 @@ const ChatComposerInner = ({
   const layerActive = useComposerLayerActive()
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
-  const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
@@ -554,6 +561,7 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const releaseFollowupEditRef = useRef<() => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -604,6 +612,7 @@ const ChatComposerInner = ({
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
+      releaseFollowupEditRef.current()
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
@@ -658,6 +667,14 @@ const ChatComposerInner = ({
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
   const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
+  const { screenshotEnabled, startScreenshot } = useScreenshotChat({
+    scopeKey: streamScopeKey,
+    editingId: editingMessageForCurrentTopic?.editingSessionId,
+    active: layerActive,
+    actionsRef,
+    setFiles,
+    isBlocked: () => isSavingEdit || directSendInFlightRef.current
+  })
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!assistantId && !isAssistantLoading && !assistant
@@ -1112,6 +1129,7 @@ const ChatComposerInner = ({
 
     if (!savedDraft) return
 
+    releaseFollowupEditRef.current()
     exitInputHistoryPreview()
     actionsRef.current.replaceDraft({ text: savedDraft.text, tokens: savedDraft.draftTokens })
     setText(savedDraft.text)
@@ -1149,6 +1167,7 @@ const ChatComposerInner = ({
   }, [editingMessageId])
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
+    releaseFollowupEditRef.current()
     const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
@@ -1211,7 +1230,7 @@ const ChatComposerInner = ({
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
-  const placeholderText = t('chat.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) })
+  const placeholderText = t('chat.input.placeholder')
 
   const tokens = useMemo(
     () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
@@ -1293,6 +1312,20 @@ const ChatComposerInner = ({
 
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
     const items: QuickPanelListItem[] = []
+    if (screenshotEnabled) {
+      const label = t('settings.shortcuts.screenshot_capture')
+      items.push({
+        id: 'composer:screenshot',
+        label,
+        icon: <ScanLine size={16} />,
+        filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'settings.shortcuts.screenshot_capture', [
+          'screenshot',
+          'capture'
+        ]),
+        action: startScreenshot
+      })
+    }
 
     if (hasNewTopicAction) {
       const label = t('chat.conversation.new')
@@ -1310,10 +1343,22 @@ const ChatComposerInner = ({
     }
 
     return items
-  }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  }, [addNewTopic, hasNewTopicAction, newTopicDisabled, screenshotEnabled, startScreenshot, t])
   const mcpToolbarActive = isMcpToolbarActive({ scope: TopicType.Chat, assistant })
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
     () => [
+      ...(screenshotEnabled
+        ? [
+            {
+              id: 'composer:screenshot',
+              label: t('settings.shortcuts.screenshot_capture'),
+              icon: <ScanLine size={18} />,
+              requiresPanel: false,
+              availableWithoutModel: true,
+              onSelect: startScreenshot
+            }
+          ]
+        : []),
       ...(hasNewTopicAction
         ? [
             {
@@ -1357,6 +1402,8 @@ const ChatComposerInner = ({
       hasNewTopicAction,
       mcpToolbarActive,
       newTopicDisabled,
+      screenshotEnabled,
+      startScreenshot,
       t
     ]
   )
@@ -1482,7 +1529,7 @@ const ChatComposerInner = ({
         return true
       } catch (error) {
         logger.warn('send failed', { error })
-        toast.error(t('chat.input.send_failed'))
+        toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
         return false
       } finally {
         setIsSending(false)
@@ -1492,6 +1539,7 @@ const ChatComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
+    releaseFollowupEditRef.current()
     setText('')
     setDraftTokens(undefined)
     setFiles([])
@@ -1512,6 +1560,9 @@ const ChatComposerInner = ({
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    takeForEdit: takeFollowupForEdit,
+    releaseEdit,
+    beginSend,
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
@@ -1520,6 +1571,9 @@ const ChatComposerInner = ({
     markSeen,
     onDrain: sendQueuedPayload
   })
+  releaseFollowupEditRef.current = releaseEdit
+  const followupScopeRef = useLatest(selectedKnowledgeBasesScopeKey)
+
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
@@ -1529,8 +1583,21 @@ const ChatComposerInner = ({
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
-  // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
-  // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
+  const captureOutgoingFollowup = useCallback(
+    (taken: FollowupQueueItem) => {
+      const draft = actionsRef.current.getDraft()
+      const payload = buildQueuedPayload(draft)
+      if (payload === null) {
+        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
+        return null
+      }
+      return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
+    },
+    [actionsRef, buildQueuedPayload, files]
+  )
+
+  // After takeForEdit removes the queued item, atomic replacement preserves unmanaged tokens
+  // even when the restored text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       resetHistoryIndex()
@@ -1843,7 +1910,7 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {speedControlModel ? (
         <ModelSpeedControl
@@ -1859,6 +1926,7 @@ const ChatComposerInner = ({
         />
       ) : null}
       <ChatComposerContextUsage usage={contextUsage} />
+      <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )
 
@@ -1867,13 +1935,12 @@ const ChatComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
-      )}
+      <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
           showAiDisclaimer
+          voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
           onTextChange={handleTextChange}
           tokens={tokens}
@@ -1931,14 +1998,29 @@ const ChatComposerInner = ({
                   if (!item) return
                   // Only drop the item once the send actually succeeds; a failed manual
                   // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
+                  const release = beginSend(id)
+                  if (!release) return
+                  const dispatchScope = followupScopeRef.current
+                  try {
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent && followupScopeRef.current === dispatchScope) removeFollowup(id)
+                  } finally {
+                    release()
+                  }
                 }}
                 onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
+                  if (directSendInFlightRef.current) return
+                  if (editingMessageForCurrentTopic) {
+                    releaseEdit()
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    removeFollowup(id)
+                    return
+                  }
+                  const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+                  if (!incoming) return
+                  restoreFollowupDraft(incoming)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
@@ -1948,13 +2030,14 @@ const ChatComposerInner = ({
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
+          previewInputFile={previewInputFile}
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
           quickPanelEnabled={config.enableQuickPanel ?? true}
           enableDragDrop={config.enableDragDrop ?? true}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching && !isDirectSending}
+          editable={!searching && !isDirectSending && !isSavingEdit}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}

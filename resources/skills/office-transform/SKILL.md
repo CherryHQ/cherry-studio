@@ -1,6 +1,6 @@
 ---
 name: office-transform
-description: Derive new Office files from structural selections without touching the original. Use when the user points at part of a spreadsheet, Word document, PDF, or PowerPoint deck (a worksheet range, paragraph, page, slide, shape, or a pasted selection-ref block) and wants it extracted, converted, or edited — the result is always a NEW file; the source file is never modified. Covers xlsx range extraction to csv/markdown/xlsx, docx paragraph extraction and text replacement, pdf page extraction, pptx slide/shape/table-cell extraction and editing, and targeted xlsx cell edits.
+description: 'Extract or edit a selection from xlsx, docx, pdf, or pptx into a new file; the source is never modified.'
 version: 1.0.0
 ---
 

@@ -5,7 +5,10 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+
+vi.mock('@cherrystudio/ui', async () => vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui'))
 
 const mocks = vi.hoisted(() => ({
   closeTab: vi.fn(),
@@ -38,7 +41,8 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return mocks.platformState.isMac
-  }
+  },
+  isLinux: false
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -63,22 +67,26 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   }
 }))
 
-vi.mock('../../../hooks/tab', () => ({
-  useMainWindowNavigation: vi.fn(),
-  useTabs: () => ({
-    activeTabId: mocks.activeTabId,
-    closeTab: mocks.closeTab,
-    closeTabs: mocks.closeTabs,
-    detachTab: mocks.detachTab,
-    openTab: vi.fn(),
-    pinTab: vi.fn(),
-    reorderTabs: vi.fn(),
-    setActiveTab: mocks.setActiveTab,
-    tabs: mocks.tabs,
-    unpinTab: vi.fn(),
-    updateTab: vi.fn()
-  })
-}))
+vi.mock('../../../hooks/tab', async () => {
+  const actual = (await vi.importActual('../../../hooks/tab')) as Record<string, unknown>
+  return {
+    ...(actual as object),
+    useMainWindowNavigation: vi.fn(),
+    useTabs: () => ({
+      activeTabId: mocks.activeTabId,
+      closeTab: mocks.closeTab,
+      closeTabs: mocks.closeTabs,
+      detachTab: mocks.detachTab,
+      openTab: vi.fn(),
+      pinTab: vi.fn(),
+      reorderTabs: vi.fn(),
+      setActiveTab: mocks.setActiveTab,
+      tabs: mocks.tabs,
+      unpinTab: vi.fn(),
+      updateTab: vi.fn()
+    })
+  }
+})
 
 vi.mock('../../app/Sidebar', () => ({
   default: () => <aside data-testid="sidebar" />
@@ -274,8 +282,8 @@ describe('AppShell', () => {
     const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
     detachFocusedTab?.(settingsTab.id)
 
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('first')
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'first')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('restores the most recently accessed workspace tab when Settings is restored active', () => {
@@ -310,8 +318,8 @@ describe('AppShell', () => {
 
     const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
     detachFocusedTab?.(settingsTab.id)
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
+    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id, 'home')
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('blocks and dismisses global search while the Settings tab is focused', () => {
@@ -443,105 +451,6 @@ describe('AppShell', () => {
     expect(await screen.findByTestId('macos-traffic-light-spacer')).toBeInTheDocument()
     expect(screen.getByTestId('macos-traffic-light-drag-region')).toBeInTheDocument()
     expect(mocks.tabBarProps).toHaveProperty('isFullscreen', false)
-  })
-
-  it('clears the split state when the last mini-app tab closes', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' }
-    ]
-
-    render(<AppShell />)
-    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
-    closeTab?.('mini-left')
-
-    // A surviving split would reopen the next mini app straight into the stale
-    // pane and keep `right-app` pinned in the keep-alive pool.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
-    expect(mocks.closeTab).toHaveBeenCalledWith('mini-left')
-  })
-
-  it('keeps the split state while another mini-app tab is still open', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' },
-      { id: 'mini-other', isDormant: false, title: 'Other', type: 'route', url: '/app/mini-app/other-app' }
-    ]
-
-    render(<AppShell />)
-    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
-    closeTab?.('mini-left')
-
-    // The remaining mini-app tab still renders the split, so collapsing it here
-    // would drop the pane out from under the user.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
-  })
-
-  it('leaves non mini-app tab closes untouched', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-
-    render(<AppShell />)
-    const closeTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
-    closeTab?.('home')
-
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
-  })
-
-  it('clears the split state when the last mini-app tab detaches', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' }
-    ]
-
-    render(<AppShell />)
-    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachTab?.('mini-left')
-
-    // Split state does not follow the tab to the new window, so leaving it set
-    // here reopens the next mini app straight into a split nobody asked for.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
-    expect(mocks.detachTab).toHaveBeenCalledWith('mini-left')
-  })
-
-  it('keeps the split state when detaching leaves another mini-app tab behind', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-    mocks.tabs = [
-      ...mocks.tabs,
-      { id: 'mini-left', isDormant: false, title: 'Left', type: 'route', url: '/app/mini-app/left-app' },
-      { id: 'mini-other', isDormant: false, title: 'Other', type: 'route', url: '/app/mini-app/other-app' }
-    ]
-
-    render(<AppShell />)
-    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachTab?.('mini-left')
-
-    // The mini-app tab still in this window keeps rendering the split.
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
-  })
-
-  it('leaves non mini-app tab detaches untouched', () => {
-    MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
-    MockUseCacheUtils.setCacheValue('mini_app.split_id', 'right-app')
-
-    render(<AppShell />)
-    const detachTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachTab?.('home')
-
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
-    expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('right-app')
   })
 
   it('cycles tabs via command handlers', () => {

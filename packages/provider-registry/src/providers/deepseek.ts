@@ -93,6 +93,7 @@ export default defineProvider({
   ],
   metadata: {
     website: {
+      billing: 'https://platform.deepseek.com/top_up',
       apiKey: 'https://platform.deepseek.com/api_keys',
       docs: 'https://api-docs.deepseek.com/',
       models: 'https://api-docs.deepseek.com/',
