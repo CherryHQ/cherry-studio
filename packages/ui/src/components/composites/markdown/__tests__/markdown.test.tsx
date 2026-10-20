@@ -244,16 +244,84 @@ describe('Markdown (static)', () => {
     expect(container.innerHTML).not.toContain('attacker.example')
   })
 
-  it('forwards an extra rehype plugin', () => {
-    let visited = 0
-    const counterPlugin = () => (tree: { children: unknown[] }) => {
-      if (Array.isArray(tree.children)) visited = tree.children.length
+  it('does not preserve relative images by default', () => {
+    const { container } = render(
+      <Markdown id="relative-default">{'![](images/x.png)\n\n![diagram](images/x.png)'}</Markdown>
+    )
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.textContent).toBe('\ndiagram')
+  })
+
+  it.each(['images/x.png', './icon.svg#symbol', '../images/x%20y.png?v=1#detail'])(
+    'preserves the exact sanitized destination %s when enabled',
+    (src) => {
+      const { container } = render(
+        <Markdown id="relative-enabled" preserveRelativeImageSrcs>{`![diagram](${src})`}</Markdown>
+      )
+      expect(container.querySelector('img')?.getAttribute('src')).toBe(src)
+      expect(
+        container
+          .querySelector('img')
+          ?.getAttributeNames()
+          .filter((name) => name.startsWith('data-') && name !== 'data-streamdown')
+      ).toEqual([])
     }
-    render(
-      <Markdown id="m4" rehypePlugins={[counterPlugin as unknown as never]}>
-        {'A\n\nB\n\nC'}
+  )
+
+  it.each(['/x.png', 'http://example.com/x.png', 'https://example.com/x.png', 'data:image/png;base64,AAAA'])(
+    'keeps nonrelative image %s unchanged when enabled',
+    (src) => {
+      const { container } = render(
+        <Markdown id="nonrelative" preserveRelativeImageSrcs>{`![diagram](${src})`}</Markdown>
+      )
+      expect(container.querySelector('img')?.getAttribute('src')).toBe(src)
+    }
+  )
+
+  it.each([
+    'file:///tmp/x.png',
+    'javascript:alert',
+    'C:/docs/x.png',
+    'C:%5Cdocs%5Cx.png',
+    'images%5Cx.png',
+    'images%2Fx.png'
+  ])('does not grant preservation to %s', (src) => {
+    const { container } = render(
+      <Markdown id="unsafe-relative" preserveRelativeImageSrcs>{`![diagram](${src})`}</Markdown>
+    )
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.textContent).toBe('diagram')
+  })
+
+  it.each([
+    ['', null],
+    ['?v=1', null],
+    ['#symbol', null],
+    ['//cdn.example/x.png', '/x.png'],
+    ['./images%2Fx.png', '/images%2Fx.png'],
+    ['./images%5Cx.png', '/images%5Cx.png'],
+    [' ./x.png', null],
+    ['./x.png ', '/x.png'],
+    ['./x\n.png', '/x.png']
+  ])('leaves unsupported destination %j on the existing hardening path', (src, expected) => {
+    const { container } = render(
+      <Markdown id="unsupported-relative" preserveRelativeImageSrcs>{`<img alt="diagram" src="${src}">`}</Markdown>
+    )
+    expect(container.querySelector('img')?.getAttribute('src') ?? null).toBe(expected)
+  })
+
+  it('preserves sanitized images without trusting author markers or unsafe attributes', () => {
+    const { container } = render(
+      <Markdown id="relative-sanitize" preserveRelativeImageSrcs>
+        {
+          '<img src="images/x.png" onerror="alert(1)"><span data-markdown-image-src="file:///tmp/x.png">Forged</span><img src="file:///tmp/x.png" data-markdown-image-src="images/x.png">'
+        }
       </Markdown>
     )
-    expect(visited).toBeGreaterThan(0)
+    expect(container.querySelectorAll('img')).toHaveLength(1)
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('images/x.png')
+    expect(container.innerHTML).not.toContain('onerror')
+    expect(container.innerHTML).not.toContain('file:///')
+    expect(container.innerHTML).not.toContain('data-markdown-image-src')
   })
 })

@@ -3,11 +3,13 @@ import { stat } from 'node:fs/promises'
 
 import {
   type NativeRequest,
+  type NativeSpeechStreamRequest,
   type NativeSuccess,
   nativeResponseSchema,
   SystemSpeechError,
   type SystemSpeechErrorCode
 } from './contracts'
+import { openSpeechStream } from './speechStream'
 
 export interface SystemSpeechNativeClientOptions {
   helperPath: string
@@ -22,15 +24,7 @@ export class SystemSpeechNativeClient {
     request: Request,
     options: { signal?: AbortSignal } = {}
   ): Promise<Extract<NativeSuccess, { operation: Request['operation'] }>> {
-    if (options.signal?.aborted) throw new SystemSpeechError('cancelled')
-    try {
-      const helper = await stat(this.options.helperPath)
-      if (!helper.isFile() || (process.platform !== 'win32' && (helper.mode & 0o100) === 0))
-        throw new SystemSpeechError('native_helper_failed')
-    } catch {
-      throw new SystemSpeechError('native_helper_failed')
-    }
-    if (options.signal?.aborted) throw new SystemSpeechError('cancelled')
+    await this.requireHelper(options.signal)
 
     const child = spawn(this.options.helperPath, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
     return new Promise((resolve, reject) => {
@@ -86,5 +80,22 @@ export class SystemSpeechNativeClient {
       if (options.signal?.aborted) abort()
       else child.stdin.end(`${JSON.stringify(request)}\n`)
     })
+  }
+
+  async stream(request: NativeSpeechStreamRequest, options: { signal?: AbortSignal } = {}) {
+    await this.requireHelper(options.signal)
+    return openSpeechStream(this.options, request, options.signal)
+  }
+
+  private async requireHelper(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw new SystemSpeechError('cancelled')
+    try {
+      const helper = await stat(this.options.helperPath)
+      if (!helper.isFile() || (process.platform !== 'win32' && (helper.mode & 0o100) === 0))
+        throw new SystemSpeechError('native_helper_failed')
+    } catch {
+      throw new SystemSpeechError('native_helper_failed')
+    }
+    if (signal?.aborted) throw new SystemSpeechError('cancelled')
   }
 }
