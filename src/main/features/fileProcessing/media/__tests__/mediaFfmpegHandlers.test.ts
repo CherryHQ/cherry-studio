@@ -139,6 +139,41 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     expect(result).toMatchObject({ sampleRateHz: 16000, channels: 1 })
   })
 
+  it('extracts a long commented recording into chunks at or below the byte limit', async () => {
+    const sourcePath = join(root, 'commented-800s.wav')
+    const comment = 'a'.repeat(10_000)
+    const maxChunkBytes = 25_000_000
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=800:sample_rate=16000',
+        '-ac',
+        '1',
+        '-c:a',
+        'pcm_s16le',
+        '-metadata',
+        `comment=${comment}`,
+        sourcePath
+      ])
+    ).toBe(0)
+    const sourceTags = JSON.parse(
+      spawnSync(ffprobePath, ['-v', 'error', '-show_entries', 'format_tags=comment', '-of', 'json', sourcePath], {
+        encoding: 'utf8'
+      }).stdout
+    )
+    expect(sourceTags.format.tags.comment).toHaveLength(comment.length)
+
+    const result = await mediaFfmpegHandlers.extractAudio(
+      { filePath: sourcePath, outputDir: join(root, 'commented-800s-chunks'), maxChunkBytes },
+      context()
+    )
+    expect(result.chunks.length).toBeGreaterThan(1)
+    expect(result.chunks.every((chunk) => chunk.byteLength <= maxChunkBytes)).toBe(true)
+    expect(result.chunks.every((chunk) => statSync(chunk.path).size <= maxChunkBytes)).toBe(true)
+  }, 120_000)
+
   it('preserves an internal audio timestamp gap in the normalized WAV', async () => {
     const sourcePath = join(root, 'gapped-audio.mka')
     expect(
