@@ -56,6 +56,7 @@ caller
      -> KnowledgeService
         -> KnowledgeIngestionService
         -> JobManager
+           -> knowledge.copy-sources
            -> knowledge.prepare-root / knowledge.index-documents
            -> knowledge.check-file-processing-result
            -> knowledge.delete-subtree / knowledge.reindex-subtree
@@ -120,7 +121,9 @@ caller
  -> preload IPC add-items(leaf item payloads)
     -> create leaf items
     -> mark roots processing
-    -> enqueue knowledge.index-documents
+    -> file: enqueue knowledge.copy-sources
+         -> copy-sources copies the bytes off the lock, commits them, schedules the item
+    -> url / note: enqueue knowledge.index-documents
 ```
 
 For container items (`directory`):
@@ -131,7 +134,8 @@ caller
     -> create root items
     -> mark roots preparing
     -> enqueue knowledge.prepare-root
-    -> prepare-root expands owner
+    -> prepare-root pins the owner's raw/ prefix
+    -> prepare-root expands and copies the owner off the lock
     -> prepare-root creates child items
     -> workflow service schedules each child
 ```
@@ -174,6 +178,7 @@ The chunk IPC entrypoint is a runtime inspection helper:
 
 Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` registers:
 
+- `knowledge.copy-sources`
 - `knowledge.prepare-root`
 - `knowledge.index-documents`
 - `knowledge.check-file-processing-result`

@@ -98,11 +98,14 @@ addItems(baseId, inputs)
   -> no-op on empty inputs
   -> resolve detect / replace conflicts when requested
   -> under same-base mutation lock:
+       reserve raw/ names (no bytes are copied here)
        create each item
        set root status to preparing for containers
        set root status to processing for leaves
        rollback created rows if create/status update fails
   -> schedule each accepted item
+       owes bytes (file, url restored with a snapshot)
+                 -> knowledge.copy-sources, which schedules the item once its bytes are committed
        container -> knowledge.prepare-root
        leaf      -> knowledge.index-documents
        invalid   -> mark item failed, no job
@@ -277,7 +280,12 @@ knowledge.prepare-root(baseId, itemId)
        delete removable descendants by resolved id
   -> under same-base mutation lock:
        re-read root and skip if it is now missing or deleting
-       expand source into new child rows
+       pin the root's raw/ prefix
+  -> off the lock:
+       scan the source folder and copy its files under the pinned prefix
+  -> under same-base mutation lock:
+       re-read root and skip if a delete landed during the copy
+       create the new child rows
        set root status processing
   -> schedule each recreated leaf
        if scheduling fails:
@@ -288,7 +296,7 @@ knowledge.prepare-root(baseId, itemId)
 
 The stale expansion cleanup clears derived vector material and purges Knowledge-owned raw/indexed files for removable leaf descendants before deleting resolved descendant rows, so a retry does not leave stale vectors or stale Knowledge-owned files from a previous partial expansion.
 
-The second root read closes the race where `prepare-root` loads an active root, then a delete request marks that root `deleting` before expansion starts. Once a root is deleting, no new children may be created under it.
+The later root reads close the race where `prepare-root` loads an active root, then a delete request marks that root `deleting` before expansion starts or while its files are copying off the lock. Once a root is deleting, no new children may be created under it; the bytes already copied sit under the pinned prefix, which the delete removes.
 
 The child scheduling compensation mirrors `addItems`: once a child job was accepted, the row is left alone; the failing child and later children are marked `failed` so no `processing` leaf remains without a job.
 

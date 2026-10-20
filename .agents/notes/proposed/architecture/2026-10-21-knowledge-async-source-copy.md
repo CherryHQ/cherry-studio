@@ -15,24 +15,25 @@ The lock has no timeout and guards almost every write on the base: another add, 
 
 Users see the same cost directly. A direct file pick shows nothing until every copy finishes. After a same-name conflict is resolved, the conflict dialog cannot be closed until then. One unreadable file fails the add and rolls back the whole selection.
 
-Reindex already follows the rule: it copies the user's original into a prepared temp file off the lock and only commits the rename inside it (`reindexSubtreeJobHandler`).
+URL and note re-acquisition in reindex already follow the rule: they produce the new content off the lock and only write it inside (`reacquire.ts`). The file utilities provide the matching primitive for copies: `prepareAtomicCopy` streams into a temp file next to the target, and its `commit()` is a rename.
 
 ## Proposal
 
-Apply the reindex pattern to both import paths so the lock covers only name reservation, row writes, and the final commit.
+Apply that split to both import paths so the lock covers only name reservation, row writes, and the final commit.
 
 - **File add.** Inside the lock, `addItems` keeps resolving conflicts (including the `replace` purge), reserving `raw/` names, and creating rows in `processing`, but copies no bytes. After the lock it enqueues one copy job per file item on the base queue and resolves. Name reservation is already derived from item rows, so a reserved name stays claimed before its bytes exist.
 - **Copy job.** A new Knowledge job copies the item's source into a prepared temp file next to its reserved path, off the lock. Inside the lock it then confirms the item is still live, commits the rename, and schedules the item's next stage (file processing or indexing). The job is listed in `KNOWLEDGE_JOB_TYPES` and carries `itemId`, so subtree and base deletion cancel it like any other Knowledge job. It declares `recovery: 'abandon'` and reuses the shared `onSettled` failure path: a failed copy marks only its own item failed with the reason, and an interrupted copy becomes `indexing_interrupted`, reindexable from the original source.
 - **Directory import.** `knowledge.prepare-root` still pins the container's `raw/` prefix inside the lock, scans and copies outside it, then re-checks that the container is live and creates the child rows inside the lock. Directory copy progress keeps its current display.
 - **Unchanged.** IPC shapes, item statuses, and the database schema (no migration); same-name conflict detection and the rename/replace outcomes; Knowledge base restore, which keeps copying inside its call because its target base is newly created (the lock blocks nothing else) and it relies on all-or-nothing rollback.
 
-Out of scope: per-file copy progress and aggregate import progress in the UI; moving the `replace` purge after the new copy succeeds (after this change a failed copy leaves a visible, reindexable item instead of an error with nothing added); and the file-processing 30-minute limit counting queue time.
+Out of scope: an explicit "acquiring" state for file items (planned as the next change and released together with this one: let file items use `preparing`, which needs a table-rebuild migration); per-file copy progress and aggregate import progress in the UI; reindex's file re-copy, which still runs under the lock (`reacquire.ts`); moving the `replace` purge after the new copy succeeds (after this change a failed copy leaves a visible, reindexable item instead of an error with nothing added); and the file-processing 30-minute limit counting queue time.
 
 ## Alternatives considered
 
 - Keep copying in `addItems` and chunk the selection in the renderer: releases the lock between chunks but still holds it for each chunk's copy, keeps the silent wait, and needs a new conflict-precheck route because `detect` writes immediately when a chunk has no conflict.
 - Copy outside the lock but still inside `addItems`: frees the lock, but the caller still waits for every byte and one failure still fails the whole add.
 - Create rows as `idle` and give the copy job `recovery: 'retry'`: copying spends nothing, so resuming automatically after a crash is attractive. Rejected for now because nothing in the boot sweep, reindex admission, or the renderer moves an `idle` item forward, so a copy job lost for any reason would strand its row; `abandon` keeps the recovery story of every other indexing job.
+- Create copying file rows as `preparing` in this change: gives "bytes not landed yet" an explicit state that boot recovery, reindex admission, and polling already handle. Deferred to its own change because `preparing` is directory-only in the `knowledge_item_type_status_check` constraint and the entity schema, so it needs a table-rebuild migration.
 
 ## Acceptance criteria
 
@@ -46,7 +47,7 @@ Out of scope: per-file copy progress and aggregate import progress in the UI; mo
 
 ## Risks
 
-- The window between add and copy grows from zero to the queue wait, so a source moved or deleted in between fails that item instead of the whole add.
+- Known limitation: the window between add and copy grows from zero to the queue wait, which can be minutes on a busy base. Until its copy finishes, an item still needs its original file; moving or deleting it, or unplugging the drive it lives on, fails that item (not the whole add), and the list shows such items as `processing` like any other.
 - Copy jobs share the base queue's five slots with indexing, so a large import delays other indexing in the same base (throughput, not peak load) and adds one job row per file until JobManager GC prunes it.
 - `processing` now also covers waiting to copy and copying; the UI cannot tell these apart until the progress follow-up.
-- Code that assumes a file is on disk when `addItems` resolves must move behind the copy job's hand-off; the known cases are the scheduling loop and the file-processing start.
+- An item row no longer implies its bytes are on disk. Scheduling and the file-processing start move behind the copy job's hand-off; two readers keep the gap until the explicit state lands: previewing a copying item (`knowledge.get_file_path`) finds no file, and restoring a base while some of its files are still copying skips those items as missing sources.

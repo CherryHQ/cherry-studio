@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-21-knowledge-async-source-copy.md
-2026-10-21-knowledge-async-source-copy.md: 32ff175f5117c8c6ed6622536d151e99f7aeee0f
-2026-10-21-knowledge-async-source-copy.zh.md: ee74c53a4c7e9b293147d4383d716aaa54445f1f
+2026-10-21-knowledge-async-source-copy.md: a61af2f1999d3b0121e0a3cb729ea98f6dba36c4
+2026-10-21-knowledge-async-source-copy.zh.md: 60c43be553b0f7c8a515cff801af17326bbc1f78
