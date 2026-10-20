@@ -204,13 +204,16 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
   if (oauthError === 'access_denied') return new FeishuProviderError('authorization-denied', true)
   if (oauthError === 'expired_token') return new FeishuProviderError('authorization-expired', true)
   if (oauthError === 'invalid_scope') return new FeishuProviderError('app-scope-missing', true)
+  if (providerCode === 99991672 || providerCode === 99991676 || providerCode === 99991679) {
+    return new FeishuProviderError('app-scope-missing', true)
+  }
   if (providerCode === 131005) return new FeishuProviderError('scope-not-found', false)
   if (providerCode === 131006) return new FeishuProviderError('resource-permission-denied', false)
   if (providerCode === 2889902) return new FeishuProviderError('resource-permission-denied', false)
   if (providerCode === 2889906 || providerCode === 2889914) {
     return new FeishuProviderError('scope-not-found', false)
   }
-  if (oauthError === 'invalid_grant' || response.status === 401) {
+  if (oauthError === 'invalid_grant' || providerCode === 20005 || response.status === 401) {
     return new FeishuProviderError('reauthorization-required', true)
   }
   if (providerCode === 99991663 || response.status === 429 || response.status >= 500) {

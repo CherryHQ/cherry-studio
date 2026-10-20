@@ -5,6 +5,7 @@
  */
 
 import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+import { chunk } from 'es-toolkit'
 
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -578,10 +579,9 @@ export class KnowledgeItemService {
     status: 'deleting' | 'failed',
     update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
-    if (status === 'failed') {
-      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
-    }
-    return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
+    return application
+      .get('DbService')
+      .withWriteTx((tx) => this.applySubtreeStatusTx(tx, baseId, rootIds, status, update))
   }
 
   setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {
@@ -608,21 +608,22 @@ export class KnowledgeItemService {
       return []
     }
 
-    const updatedRows = tx.all<{ id: string; groupId: string | null }>(sql`
+    const updatedRows = chunk(uniqueRootIds, 500).flatMap((rootBatch) =>
+      tx.all<{ id: string; groupId: string | null }>(sql`
         WITH RECURSIVE subtree AS (
           SELECT id
           FROM knowledge_item
           WHERE base_id = ${baseId}
             AND id IN (${sql.join(
-              uniqueRootIds.map((id) => sql`${id}`),
+              rootBatch.map((id) => sql`${id}`),
               sql`, `
             )})
 
           UNION ALL
 
           SELECT child.id
-          FROM knowledge_item child
-          INNER JOIN subtree parent ON child.group_id = parent.id
+          FROM subtree parent
+          CROSS JOIN knowledge_item child ON child.group_id = parent.id
           WHERE child.base_id = ${baseId}
         )
         UPDATE knowledge_item
@@ -633,9 +634,10 @@ export class KnowledgeItemService {
           ${status === 'failed' ? sql`AND status != 'deleting'` : sql``}
         RETURNING id, group_id AS "groupId"
       `)
+    )
 
     const updatedIdSet = new Set(updatedRows.map((row) => row.id))
-    const updatedIds = updatedRows.map((row) => row.id)
+    const updatedIds = [...updatedIdSet]
 
     if (status === 'failed') {
       this.reconcileContainers(

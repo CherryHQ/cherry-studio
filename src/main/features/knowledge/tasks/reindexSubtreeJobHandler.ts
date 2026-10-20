@@ -46,6 +46,8 @@ export function createReindexSubtreeJobHandler(
   knowledgeLockManager: KeyedMutex,
   ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgeReindexSubtreePayload> {
+  const owners = new Map<string, string>()
+  const executions = new Map<string, string[]>()
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
     // embedding API; the item is parked at `failed` and reindexed on demand.
@@ -68,7 +70,15 @@ export function createReindexSubtreeJobHandler(
 
       // Reindex is admitted only for completed/failed subtrees, but delete may win
       // after enqueue. Keep this fast path so delete remains the only preemptive action.
-      const liveRoots = resolveReindexableRoots(baseId, rootItemIds, ctx.jobId)
+      const liveRoots = await knowledgeLockManager.runExclusive(baseId, () => {
+        const roots = resolveReindexableRoots(baseId, rootItemIds, ctx.jobId)
+        if (!roots) return null
+        const itemIds = roots.map((item) => item.id)
+        executions.set(ctx.jobId, itemIds)
+        for (const id of itemIds) owners.set(id, ctx.jobId)
+        return roots.filter((item) => rootItemIds.includes(item.id))
+      })
+      const owns = (id: string) => owners.get(id) === ctx.jobId
       if (!liveRoots) {
         reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
         return
@@ -94,7 +104,7 @@ export function createReindexSubtreeJobHandler(
             )
             const liveItemIds = new Set(subtreeResult.items.map((item) => item.id))
             for (const failure of failuresToRecord) {
-              if (!liveItemIds.has(failure.itemId)) continue
+              if (!liveItemIds.has(failure.itemId) || !owns(failure.itemId)) continue
               knowledgeItemService.setSubtreeStatus(baseId, [failure.itemId], 'failed', {
                 error: failure.reason instanceof Error ? failure.reason.message : String(failure.reason)
               })
@@ -121,7 +131,13 @@ export function createReindexSubtreeJobHandler(
         }
         const rootItems = subtreeResult.items
 
-        const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
+        const selectedRoots = rootItems
+          .filter((item) => rootItemIds.includes(item.id) && owns(item.id))
+          .filter((root) =>
+            knowledgeItemService
+              .getSubtreeItems(baseId, [root.id], { includeRoots: true })
+              .every((item) => owns(item.id))
+          )
         // Admission (assertSubtreesCanReindex) already rejected roots whose source is gone, but the
         // source can vanish between admission and acquiring this lock. Re-check right before the delete:
         // a root that can no longer rebuild keeps its existing vectors (stays completed/searchable)
@@ -244,19 +260,27 @@ export function createReindexSubtreeJobHandler(
     },
 
     async onSettled(event) {
-      await markReindexSubtreeFailedOnSettled(event)
+      await knowledgeLockManager.runExclusive(event.input.baseId, async () => {
+        const claimed = executions.get(event.jobId)
+        const rootItemIds = event.input.rootItemIds.filter((id) => !claimed || owners.get(id) === event.jobId)
+        await markReindexSubtreeFailedOnSettled({ ...event, input: { ...event.input, rootItemIds } })
+        for (const id of claimed ?? []) {
+          if (owners.get(id) === event.jobId) owners.delete(id)
+        }
+        executions.delete(event.jobId)
+      })
     }
   }
 }
 
-/** The selected root items, or null when the subtree is being deleted and reindex must stand down. */
+/** The selected subtree items, or null when the subtree is being deleted and reindex must stand down. */
 function resolveReindexableRoots(baseId: string, rootItemIds: string[], jobId: string): KnowledgeItem[] | null {
   const result = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
   if ('skip' in result) {
     logger.info('Skipping reindex-subtree for deleting subtree', { baseId, rootItemIds, jobId })
     return null
   }
-  return result.items.filter((item) => rootItemIds.includes(item.id))
+  return result.items
 }
 
 /**

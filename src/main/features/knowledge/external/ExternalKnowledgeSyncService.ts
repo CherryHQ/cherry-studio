@@ -400,7 +400,8 @@ export class ExternalKnowledgeSyncService {
       initialDocument.remoteRevision !== null &&
       initialDocument.remoteRevision === input.reference.descriptor.remoteRevision
     ) {
-      return await this.updateUnchangedDocument(input, expectedDocument!)
+      const unchanged = await this.updateUnchangedDocument(input, expectedDocument!)
+      if (unchanged) return unchanged
     }
 
     input.reportProgress(0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
@@ -416,7 +417,8 @@ export class ExternalKnowledgeSyncService {
     const markdown = normalizeMarkdown(read.content)
     const contentHash = hashMarkdown(markdown)
     if (initialDocument?.availability === 'active' && initialDocument.contentHash === contentHash) {
-      return await this.updateUnchangedDocument(input, expectedDocument!)
+      const unchanged = await this.updateUnchangedDocument(input, expectedDocument!)
+      if (unchanged) return unchanged
     }
     const itemId = this.dependencies.createItemId()
     const relativePath = KnowledgeRelativePathSchema.parse(`external/${itemId}.md`)
@@ -528,7 +530,7 @@ export class ExternalKnowledgeSyncService {
   private async updateUnchangedDocument(
     input: SyncExternalKnowledgeDocumentInput,
     expectedDocument: ExternalKnowledgeDocumentVersion
-  ): Promise<ExternalKnowledgeDocumentSyncResult> {
+  ): Promise<ExternalKnowledgeDocumentSyncResult | null> {
     return await this.knowledgeLockManager.runExclusive(input.fence.baseId, () => {
       input.signal.throwIfAborted()
       const dbService = application.get('DbService')
@@ -547,6 +549,8 @@ export class ExternalKnowledgeSyncService {
       ) {
         return { outcome: 'skipped', warnings: ['stale-publication'] }
       }
+
+      if (knowledgeItemService.getById(latestDocument.knowledgeItemId).status !== 'completed') return null
 
       dbService.withWriteTx((tx) => {
         const item = knowledgeItemService.updateCompletedExternalMetadataTx(tx, latestDocument.knowledgeItemId, {

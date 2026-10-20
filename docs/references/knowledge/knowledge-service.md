@@ -277,8 +277,9 @@ Explicit validation invalidates the generation's successful validation cache;
 concurrent validation calls share one request. Ordinary provider work reuses a
 successful generation-level validation. Token acquisition, identity validation,
 and the provider operation share a terminal-error boundary: HTTP 401,
-`invalid_grant`, and missing required scopes require reauthorization; transient
+`invalid_grant`, invalid-token code `20005`, and missing required scopes require reauthorization; transient
 timeouts and caller or lifecycle cancellation do not change authorization state.
+Paginated reads refresh expiring tokens after each request admission wait, including retries.
 Stale generations cannot publish success or failure. Startup calls share one
 reconciliation flight; shutdown closes admission, aborts work, and waits for
 startup and tracked operations before clearing runtime state.
@@ -503,7 +504,7 @@ an active-owned descendant.
 
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
-If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery and the beginning of each external Source sync scan committed `deleting` roots and re-enqueue cleanup jobs best-effort when already-durable cleanup was interrupted or failed. Recovery groups roots by base and admits at most 500 roots per transaction and Job so one failure does not stop other batches.
+If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery and the beginning of each external Source sync scan committed `deleting` roots and re-enqueue cleanup jobs best-effort when already-durable cleanup was interrupted or failed. All cleanup admissions contain at most 500 roots per Job. Source withdrawal keeps every cleanup batch in its single transaction; recovery groups roots by base and uses one transaction per batch so one failure does not stop other batches.
 An external sync excludes its in-process active staging ids from recovery; the
 committed deleting rows become recoverable again after completion or process
 failure.
