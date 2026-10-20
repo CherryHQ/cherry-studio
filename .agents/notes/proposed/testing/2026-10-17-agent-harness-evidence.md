@@ -97,7 +97,7 @@ Sources: `prompt`, `_startRun`, `_tryExecuteExtensionCommand`, `_queueUserInput`
 
 `SessionManager.open(path)` creates a new context for a missing path and can initialize an empty file. Public `open(existingRef)` cannot map directly to it. Verify the loaded native identity against the expected identity and refuse a mismatched open. An `existsSync` check alone leaves a check/load race. Strictly read-only opening also involves empty-file initialization; if required, improve native strict-open support rather than copy its session parser. [SessionManager](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/session-manager.ts)
 
-Unpatched 1.3.0 `PromptOptions` supplies no caller input-correlation token, while `_steeringMessages` and `_followUpMessages` retain text. Together with input transforms and batched consumption, this prevents a general input-to-output mapping based on text or ordering. This is source inspection of the pinned baseline; the later [P0 check](2026-10-17-agent-harness-evidence.md#p0-input-correlation-check--2026-10-19) covers Cherry's native correlation patch. Complete model terminal attribution remains a gate in the [implementation plan](../architecture/2026-10-17-agent-runtime-contract.md#desktop-integration-implementation-plan). [Pi AgentSession source](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts), [Cherry adapter](../../../../packages/agent-runtime-pi/src/runtime.ts)
+Unpatched 1.3.0 `PromptOptions` supplies no caller input-correlation token, while `_steeringMessages` and `_followUpMessages` retain text. Together with input transforms and batched consumption, this prevents a general input-to-output mapping based on text or ordering. This is source inspection of the pinned baseline; the later [P0 check](2026-10-17-agent-harness-evidence.md#p0-input-correlation-check--2026-10-19) covers Cherry's native correlation patch. The terminal-attribution check below completes the package-level P0 evidence in the [implementation plan](../architecture/2026-10-17-agent-runtime-contract.md#desktop-integration-implementation-plan), without claiming host integration. [Pi AgentSession source](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts), [Cherry adapter](../../../../packages/agent-runtime-pi/src/runtime.ts)
 
 ### DSH
 
@@ -372,6 +372,23 @@ pnpm test:main \
 ```
 
 The Pi checkout's `npm run check`, Cherry's Pi package typecheck/build, and `pnpm typecheck:node --incremental false` passed. These are deterministic native/local-provider tests. They do not complete P0's model terminal mapping, persist host input associations, or establish desktop, live-provider, or crash-recovery acceptance.
+
+#### P0 terminal attribution check — 2026-10-20
+
+The existing Pi 1.3.0 dependency patch now emits `input_settled`: native request preparation captures unanswered placed inputs, and a final reply or terminal settlement reports their actual assistant entry. Tool/boundary continuations and native retries retain the batch. The adapter forwards typed stop/abort evidence and exposes optional `InputState.response`; multiple inputs can share it. Queued input remains unresolved until it is actually placed and attributed. This patch update is validated through Cherry's public adapter; it is not an upstream release or a new source-test run in the linked Pi checkout.
+
+Durable supplies the same association through `SubmissionRecord.answer`. Inspection and the new real-Harness regression show that native `done` includes truncated answers, so the adapter reads the referenced assistant before mapping outcome. Normal final answers become `completed`, truncation becomes `unanswered` with `output-truncated`, and known failure/abort evidence remains distinct. Passive reads do not resume the scheduler. Responses follow current-view identity rules; host restart correlation is still a P1 responsibility.
+
+Verification passed for **15 selected files / 158 tests**: 54 Pi package tests, 8 Durable adapter tests, 6 common observation tests, and the 90 main-process bridge tests selected in the preceding P0 check. New assertions cover transformed/batched steering, shared answers after tools in both harnesses, retry without premature failure, abort versus undelivered input, truncation, no final answer, later follow-up failure, native entry availability before terminal events, recoverable status-read failure without losing input correlation, and owned-child continuation. The initial regression run failed on the missing terminal/response facts before the implementation.
+
+```sh
+pnpm --filter @cherrystudio/agent-runtime-pi exec vitest run \
+  tests/runtime.test.ts tests/nativeSession.test.ts tests/subagentDelivery.test.ts tests/goalState.test.ts
+pnpm --filter @cherrystudio/agent-runtime-pi-durable exec vitest run tests/runtime.test.ts
+pnpm --filter @cherrystudio/agent-runtime exec vitest run tests/observation.test.ts
+```
+
+All three package typechecks, `pnpm typecheck:node --incremental false`, and changed-file Oxlint/ESLint passed. Package builds ran during the dependency patch installation. This establishes P0's package-level AC2/AC7 evidence, not desktop rendering, host persistence, live-provider, or process-crash acceptance. Notes remain proposed through the later integration layers.
 
 #### Remaining gaps
 

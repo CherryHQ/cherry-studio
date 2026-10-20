@@ -35,6 +35,14 @@ is native and conversation-scoped: the host must reuse the original immutable
 input and policy with its key. The host also persists the logical InputId mapping;
 a reopened runtime can return a native input reference without that host ID.
 
+Settled input exposes `response` from the native answer entry when available. Several submissions
+may share it. Native `done` alone is insufficient: Durable 1.3.0 also uses it for truncated output
+and tool-only termination. The adapter reads the actual assistant stop reason before reporting
+`completed`; truncation becomes `unanswered` with `output-truncated`. Native aborted submissions
+map to `aborted`, known model/task failures to `failed`, and other unanswered reasons remain
+`unanswered`. A late status read cannot downgrade a known terminal state. These reads do not
+enable the scheduler.
+
 Observations normalize committed `ConversationView` snapshots, live assistant
 partials, tool calls/results, and retained live tool output. Coverage is
 `current-view`, not a history archive. Persistent entries use native entry IDs;

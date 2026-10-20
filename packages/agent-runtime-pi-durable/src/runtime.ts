@@ -109,21 +109,81 @@ export async function createPiDurableRuntime(
   let shutdown: Promise<OperationResult<ShutdownReceipt>> | undefined
   const refFor = (id: number): Thread =>
     Object.freeze({ backendId: options.backendId, id: runtimeId<'thread'>(String(id)) })
-  const inputState = (record: SubmissionRecord): InputState => ({
-    nativeInput: { session: refFor(record.conversationId), id: runtimeId(String(record.id)) },
-    ...(logicalIds.has(record.id) && { inputId: logicalIds.get(record.id)! }),
-    facts:
-      record.status === 'queued'
-        ? ['accepted', 'queued']
-        : record.entry !== undefined
-          ? ['accepted', 'placed']
-          : ['accepted'],
-    ...(record.status === 'done' && { outcome: 'completed' as const }),
-    ...(record.status === 'unanswered' && { outcome: 'unanswered' as const })
-  })
-  const publishInput = (record: SubmissionRecord) => {
+  const inputState = async (record: SubmissionRecord): Promise<InputState> => {
+    let terminal: Pick<InputState, 'outcome' | 'response' | 'error'> = {}
+    if (record.type === 'input' && record.status === 'done') {
+      const entry = await harness.commit((tx) => tx.entry(record.answer), context)
+      const index = entry?.model?.findIndex((message) => message.role === 'assistant') ?? -1
+      const message = entry?.model?.[index]
+      if (message?.role === 'assistant') {
+        const reason = message.stopReason
+        const completed = reason === 'stop' && !message.content.some((part) => part.type === 'toolCall')
+        terminal = {
+          response: { session: refFor(record.conversationId), id: runtimeId(`entry:${record.answer}:${index}`) },
+          outcome: completed
+            ? 'completed'
+            : reason === 'aborted'
+              ? 'aborted'
+              : reason === 'error'
+                ? 'failed'
+                : 'unanswered',
+          ...(!completed && {
+            error: {
+              operation: 'input',
+              code:
+                reason === 'length'
+                  ? 'output-truncated'
+                  : reason === 'error'
+                    ? 'model-error'
+                    : reason === 'aborted'
+                      ? 'aborted'
+                      : 'no-final-answer',
+              message: message.errorMessage ?? `Durable response ended: ${reason}`
+            }
+          })
+        }
+      }
+    } else if (record.status === 'unanswered') {
+      terminal = {
+        outcome:
+          record.reason === 'aborted'
+            ? 'aborted'
+            : ['model_error', 'no_model', 'faulted'].includes(record.reason)
+              ? 'failed'
+              : 'unanswered',
+        error: {
+          operation: 'input',
+          code: record.reason,
+          message: typeof record.detail === 'string' ? record.detail : record.reason
+        }
+      }
+    }
+    return {
+      nativeInput: { session: refFor(record.conversationId), id: runtimeId(String(record.id)) },
+      ...(logicalIds.has(record.id) && { inputId: logicalIds.get(record.id)! }),
+      facts:
+        record.status === 'queued'
+          ? ['accepted', 'queued']
+          : record.entry !== undefined
+            ? ['accepted', 'placed']
+            : ['accepted'],
+      ...terminal
+    }
+  }
+  const publishInput = async (record: SubmissionRecord): Promise<InputState> => {
+    const known = inputs.get(record.id)
+    if (
+      known &&
+      (known.status === 'done' ||
+        known.status === 'unanswered' ||
+        (known.status === 'placed' && record.status === 'queued'))
+    )
+      record = known
     inputs.set(record.id, record)
-    live.get(record.conversationId)?.projection.feed.publish({ type: 'input.changed', input: inputState(record) })
+    const input = await inputState(record)
+    if (inputs.get(record.id) === record)
+      live.get(record.conversationId)?.projection.feed.publish({ type: 'input.changed', input })
+    return input
   }
   const publishRelation = (record: ConversationRecord) => {
     if (!record.owner) return
@@ -140,7 +200,8 @@ export async function createPiDurableRuntime(
   }
   const unsubscribe = harness.subscribeCommits((publication) => {
     for (const change of publication.changes) {
-      if (change.type === 'submission' && change.value.type === 'input') publishInput(change.value)
+      if (change.type === 'submission' && change.value.type === 'input')
+        void track(publishInput(change.value)).catch(report)
       if (change.type === 'conversation') publishRelation(change.value)
     }
   })
@@ -198,7 +259,7 @@ export async function createPiDurableRuntime(
           admission: Promise.resolve()
         }
         live.set(conversation.id, entry)
-        for (const record of inputs.values()) if (record.conversationId === conversation.id) publishInput(record)
+        for (const record of inputs.values()) if (record.conversationId === conversation.id) await publishInput(record)
         for (const record of relations.values())
           if (record.owner?.conversationId === conversation.id) publishRelation(record)
         return { status: 'confirmed', value: entry }
@@ -246,12 +307,15 @@ export async function createPiDurableRuntime(
               }
               try {
                 const record = await submission.status(context)
-                publishInput(record)
-                state = inputState(record)
+                state = await publishInput(record)
               } catch (cause) {
                 report(cause)
+                const known = entry.projection.feed.snapshot.inputs.find(
+                  (value) => value.nativeInput?.id === String(submission.id)
+                )
+                state = { ...state, ...known, inputId: input.inputId }
+                entry.projection.feed.publish({ type: 'input.changed', input: state })
               }
-              entry.projection.feed.publish({ type: 'input.changed', input: state })
               return {
                 status: 'acknowledged',
                 inputId: input.inputId,
@@ -304,8 +368,7 @@ export async function createPiDurableRuntime(
                 record = await harness.commit((tx) => tx.submissionByRequest(entry.conversation.id, query.key), context)
               if (!record || record.conversationId !== entry.conversation.id || record.type !== 'input')
                 return { status: 'confirmed', value: { found: false } }
-              publishInput(record)
-              return { status: 'confirmed', value: { found: true, input: inputState(record) } }
+              return { status: 'confirmed', value: { found: true, input: await publishInput(record) } }
             } catch (cause) {
               report(cause)
               return { status: 'unknown', error: error('lookup-input', 'native-error') }

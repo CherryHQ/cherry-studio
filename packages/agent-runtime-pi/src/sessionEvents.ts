@@ -1,4 +1,4 @@
-import { getCurrentTools, type Message } from '@earendil-works/pi-ai'
+import { getCurrentTools, type AssistantMessage, type Message } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
   buildSessionContext,
@@ -15,6 +15,14 @@ export type AgentRuntimeEvent =
   | { type: 'subagents'; subagents: SubagentView[] }
   | { type: 'session-append'; entries: SessionEntry[] }
   | { type: 'input-placed'; inputId: string; entryId: string }
+  | {
+      type: 'input-settled'
+      inputIds: readonly string[]
+      entryId: string
+      stopReason: AssistantMessage['stopReason']
+      aborted: boolean
+      errorMessage?: string
+    }
   | { type: 'compaction-start'; reason: CompactionReason }
   | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string }
   | { type: 'turn-complete'; headEntryId: string | undefined; aborted: boolean }
@@ -47,6 +55,16 @@ export class SessionEvents {
   handle(event: AgentSessionEvent): void {
     const entries = this.flush()
     switch (event.type) {
+      case 'input_settled':
+        this.listener({
+          type: 'input-settled',
+          inputIds: [...event.inputIds],
+          entryId: event.entryId,
+          stopReason: event.message.stopReason,
+          aborted: event.aborted,
+          ...(event.message.errorMessage === undefined ? {} : { errorMessage: event.message.errorMessage })
+        })
+        break
       case 'input_placed':
         this.listener({ type: 'input-placed', inputId: event.inputId, entryId: event.entryId })
         break
