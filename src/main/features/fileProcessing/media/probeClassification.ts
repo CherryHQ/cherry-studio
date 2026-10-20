@@ -50,6 +50,8 @@ export interface VideoTailProbePoint {
   endSeconds: number
   /** `format.start_time`. Input `-ss` is relative to this, not the video stream start. */
   formatStartTimeSeconds: number
+  /** `video.start_time`, or `format.start_time` when the stream start is absent. Output `-ss` is relative to this. */
+  videoStartTimeSeconds: number
 }
 
 /** Where a bounded packet read should look. The video stream end is not an input seek. */
@@ -57,16 +59,16 @@ export function videoTailProbePoint(probe: FfprobeResult): VideoTailProbePoint |
   const video = (probe.streams ?? []).find((stream) => stream.codec_type === 'video' && !isAttachedPicture(stream))
   if (!video) return undefined
   const formatStartTimeSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0
+  const videoStartTimeSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
   const videoDurationSeconds = parseFiniteSeconds(video.duration)
   if (videoDurationSeconds != null && videoDurationSeconds > 0) {
-    const videoStartSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
-    return { endSeconds: videoStartSeconds + videoDurationSeconds, formatStartTimeSeconds }
+    return { endSeconds: videoStartTimeSeconds + videoDurationSeconds, formatStartTimeSeconds, videoStartTimeSeconds }
   }
   // An explicit non-positive stream duration is not a missing value, so it does not borrow the format duration.
   if (videoDurationSeconds != null) return undefined
   const formatDurationSeconds = parseFiniteSeconds(probe.format?.duration)
   if (formatDurationSeconds == null || formatDurationSeconds <= 0) return undefined
-  return { endSeconds: formatStartTimeSeconds + formatDurationSeconds, formatStartTimeSeconds }
+  return { endSeconds: formatStartTimeSeconds + formatDurationSeconds, formatStartTimeSeconds, videoStartTimeSeconds }
 }
 
 /** ffprobe interval covering the end of the video timeline, including a packet that starts earlier. */
@@ -81,6 +83,21 @@ export function relativeInputSeekMs(ptsSeconds: number, formatStartTimeSeconds: 
   if (!Number.isFinite(ptsSeconds) || !Number.isFinite(formatStartTimeSeconds)) return undefined
   const timestampMs = Math.floor((ptsSeconds - formatStartTimeSeconds) * 1000 + 1e-6)
   return timestampMs >= 0 ? timestampMs : undefined
+}
+
+export function relativeOutputSeekMs(
+  inputSeekMs: number,
+  formatStartTimeSeconds: number,
+  videoStartTimeSeconds: number
+): number | undefined {
+  if (
+    !Number.isFinite(inputSeekMs) ||
+    !Number.isFinite(formatStartTimeSeconds) ||
+    !Number.isFinite(videoStartTimeSeconds)
+  ) {
+    return undefined
+  }
+  return relativeInputSeekMs(formatStartTimeSeconds + inputSeekMs / 1000, videoStartTimeSeconds) ?? 0
 }
 
 export function sniffEbmlDocType(header: Uint8Array): 'webm' | 'matroska' | null {
