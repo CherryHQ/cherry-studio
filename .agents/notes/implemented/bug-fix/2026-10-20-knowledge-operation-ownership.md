@@ -22,5 +22,5 @@ Newer overlapping work wins while unrelated roots can still proceed. Ordinary de
 
 ## Verification
 
-- `ownedSubtreeJobHandlers.integration.test.ts`: a failed A acquisition waits for B, a newer A reindex completes, then the old failure settles; A stays completed and visible through the real SQLite query boundary.
-- `reindexSubtreeJobHandler.test.ts`: existing deletion, reset, interruption, and scheduling regressions pass.
+- Regression — `ownedSubtreeJobHandlers.integration.test.ts`: a failed A acquisition waits for B, a newer A reindex completes, then the old failure settles; A stays completed and visible through the real SQLite query boundary.
+- Regression — `reindexSubtreeJobHandler.test.ts`: existing deletion, reset, interruption, and scheduling regressions pass.

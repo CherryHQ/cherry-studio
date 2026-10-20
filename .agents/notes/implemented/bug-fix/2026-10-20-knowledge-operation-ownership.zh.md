@@ -22,5 +22,5 @@ Status: implemented
 
 ## 验证
 
-- `ownedSubtreeJobHandlers.integration.test.ts`：失败的 A 获取等待 B，较新的 A 重建完成后旧失败才结算；通过真实 SQLite 查询边界验证 A 仍已完成且可见。
-- `reindexSubtreeJobHandler.test.ts`：已有删除、重置、中断和调度回归测试通过。
+- Regression — `ownedSubtreeJobHandlers.integration.test.ts`：失败的 A 获取等待 B，较新的 A 重建完成后旧失败才结算；通过真实 SQLite 查询边界验证 A 仍已完成且可见。
+- Regression — `reindexSubtreeJobHandler.test.ts`：已有删除、重置、中断和调度回归测试通过。
