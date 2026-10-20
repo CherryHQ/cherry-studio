@@ -7,7 +7,9 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import AgentChat from '../AgentChat'
 
@@ -153,7 +155,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
   const workspaceRootId = '__workspace_root__'
 
   return {
-    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { maxDepth: 1, watchMissingRoot: true },
     isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
       Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
     useArtifactFileTreeModel: ({
@@ -603,11 +605,13 @@ vi.mock('../components/AgentSessionMessages', async () => {
     sessionId,
     openAgentToolFlow,
     openArtifactFile,
+    previewInputFile,
     openDiagnosticReport
   }: {
     sessionId: string
     openAgentToolFlow?: (input: any) => void
     openArtifactFile?: (path: string) => void
+    previewInputFile?: (input: InputFilePreview) => void
     openDiagnosticReport?: (description?: string) => void
   }) => {
     const [messageState, setMessageState] = React.useState('')
@@ -650,6 +654,16 @@ vi.mock('../components/AgentSessionMessages', async () => {
             })
           }>
           open flow b
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            previewInputFile?.({
+              displayName: 'sent-report.md',
+              previewPath: '/managed/sent-report.md' as AbsoluteFilePath
+            })
+          }>
+          Preview sent attachment
         </button>
         <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
           open artifact file
@@ -722,7 +736,7 @@ describe('AgentChat artifact pane', () => {
             modifiedAt: 1,
             mime: 'text/plain'
           })
-        : Promise.resolve(undefined)
+        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined)
     )
     agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
       messages: [],
@@ -933,6 +947,15 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+  })
+
+  it('opens a sent attachment through the message-list bridge', async () => {
+    const user = userEvent.setup()
+    renderAgentChat()
+    await user.click(screen.getByRole('button', { name: 'Preview sent attachment' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(await screen.findByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'sent-report.md')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/managed')
   })
 
   it('keeps the viewport and visited capability mounted while a center surface is presented', () => {

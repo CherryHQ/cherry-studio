@@ -6,7 +6,8 @@ import { loggerService } from '@logger'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import {
   listDirectory as searchListDirectory,
-  listDirectoryEntries as searchListDirectoryEntries
+  listDirectoryEntries as searchListDirectoryEntries,
+  openRequestPath
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -106,12 +107,11 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))
   handleGuarded(IpcChannel.Backup_ListS3Files, backupManager.listS3Files.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteS3File, backupManager.deleteS3File.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
-  handleGuarded(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
   // file
   handleGuarded(IpcChannel.File_Open, fileManager.open.bind(fileManager))
-  handleGuarded(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
+  // Raw renderer path text: resolves and validates before the OS default-open (see `openRequestPath`).
+  handleGuarded(IpcChannel.File_OpenPath, (_event: Electron.IpcMainInvokeEvent, path: string) => openRequestPath(path))
   handleGuarded(IpcChannel.File_Save, fileManager.save.bind(fileManager))
   handleGuarded(IpcChannel.File_Select, fileManager.selectFile.bind(fileManager))
   handleGuarded(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))

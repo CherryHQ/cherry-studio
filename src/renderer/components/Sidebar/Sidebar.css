@@ -1,13 +1,63 @@
 .sidebar-theme {
-  --sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --sidebar-active-border: rgba(16, 185, 129, 0.15);
-  --sidebar-glow-bg: rgba(16, 185, 129, 0.25);
-  --sidebar-glow-line: rgba(16, 185, 129, 0.5);
+  --sidebar-hover-bg: color-mix(in oklab, var(--sidebar-foreground) 5%, transparent);
+  --sidebar-active-bg: color-mix(in oklab, var(--sidebar-foreground) 10%, transparent);
 }
 
-.dark .sidebar-theme {
-  --sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --sidebar-glow-line: rgba(114, 255, 121, 0.35);
+.sidebar-action {
+  color: var(--muted-foreground);
+  background-color: transparent;
+  transition:
+    background-color 200ms ease-in-out,
+    border-color 200ms ease-in-out,
+    color 200ms ease-in-out;
+}
+
+.sidebar-action [data-slot='sidebar-entry-icon'],
+.sidebar-action [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
+  color: var(--muted-foreground);
+  transition: color 200ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-action,
+  .sidebar-action [data-slot='sidebar-entry-icon'],
+  .sidebar-action [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
+    transition: none;
+  }
+}
+
+.sidebar-action:where(:hover, :focus-visible):not([aria-disabled='true']) {
+  color: var(--sidebar-foreground);
+  background-color: var(--sidebar-hover-bg);
+}
+
+.sidebar-action[data-active='true'],
+.sidebar-action[data-state='open'] {
+  color: var(--sidebar-accent-foreground);
+  background-color: var(--sidebar-active-bg);
+}
+
+.sidebar-action[data-active='true'] {
+  border: 0.5px solid var(--border-subtle);
+  outline: none;
+  box-shadow: none;
+}
+
+.sidebar-action[data-active='true'] [data-slot='sidebar-entry-icon'],
+.sidebar-action[data-active='true'] [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
+  color: var(--primary);
+}
+
+.sidebar-action:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--sidebar-ring);
+}
+
+.sidebar-action[aria-disabled='true'] {
+  color: var(--foreground-disabled);
+  background-color: transparent;
+}
+
+.sidebar-action[aria-disabled='true'] [data-slot='sidebar-entry-icon'],
+.sidebar-action[aria-disabled='true'] [data-slot='sidebar-entry-icon'] .lucide:not(.lucide-custom) {
+  color: var(--foreground-disabled);
 }

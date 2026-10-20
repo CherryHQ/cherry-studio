@@ -41,10 +41,27 @@ export const browserRequestSchemas = {
   'browser.pane.detach': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), scope: z.enum(['agent', 'topic']).optional(), tabId: z.uuid() }),
     output: z.void()
+  }),
+  'browser.input.focused': defineRoute({
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      scope: z.enum(['agent', 'topic']).optional(),
+      tabId: z.uuid(),
+      requestId: z.uuid(),
+      status: z.enum(['focused', 'background', 'unavailable'])
+    }),
+    output: z.void()
   })
 }
 
 export type BrowserEventSchemas = {
+  'browser.input.focus_requested': {
+    sessionId: string
+    scope: 'agent' | 'topic'
+    tabId: string
+    requestId: string
+    expiresAt: number
+  }
   'browser.cursor.state': BrowserCursorState
   'browser.guest.ensure_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
   'browser.pane.open_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }

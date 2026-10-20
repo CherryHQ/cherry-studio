@@ -5,15 +5,18 @@ sources:
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/db/schemas/agentSession.ts
   - src/main/ai/agents/runAgentTask.ts
+  - src/main/ai/agents/heartbeatSchedule.ts
+  - src/shared/ai/agentHeartbeat.ts
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
-  - src/main/ai/runtime/dsh
+  - src/shared/ai/piBuiltinTools.ts
+  - patches/@sting8k__pi-vcc@0.8.1.patch
+  - scripts/piVccBundle.ts
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
   - src/main/ai/mcp/servers/cherryAutonomyTools.ts
-  - packages/dsh-bridge/src/plugin.ts
 ---
 
 # Agent Session Runtime
@@ -30,7 +33,7 @@ The boundary is:
 - `AgentSessionRuntimeService` owns Cherry's UI/session lifecycle.
 - `AgentSessionRuntimeDriver` owns the concrete agent-session runtime lifecycle.
 
-The built-in drivers are Claude Code, Pi, and DeepSeek Harness (DSH). Their
+The built-in drivers are Claude Code and Pi. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
@@ -48,6 +51,17 @@ driver internals behind the same host contract.
 | Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
 | Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Heartbeat execution deadline
+
+In the agent's heartbeat settings, **Maximum Execution Time (minutes)** controls
+one heartbeat turn, independently of the interval between ticks. The saved
+`configuration.heartbeat_timeout_minutes` accepts 1–1440 minutes; existing
+agents retain the two-minute default. Schedule creation and startup repair derive
+`jobInputTemplate.timeoutMinutes` from this configuration, and `runAgentTask`
+enforces that deadline. Editing the schedule row directly is not a persistent
+configuration change. Updating the deadline preserves a circuit-breaker pause;
+use the heartbeat toggle off/on to reset that pause explicitly.
 
 ## Background sessions and conversation navigation
 
@@ -87,13 +101,12 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 
 1. instruction precedence when an Agent System Prompt exists;
 2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`);
-3. runtime-supplied root workspace instructions when the SDK exposes them to the materializer;
-4. variable-resolved Agent System Prompt text and its authority wrapper;
-5. context required when `system.md` replaces a native base;
-6. linked-channel security policy;
-7. citation markers for the lookup tools the runtime actually exposes;
-8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
-9. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
+3. variable-resolved Agent System Prompt text and its authority wrapper;
+4. context required when `system.md` replaces a native base;
+5. linked-channel security policy;
+6. citation markers for the lookup tools the runtime actually exposes;
+7. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
+8. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
 Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
 
@@ -101,12 +114,14 @@ Runtime adapters own only native mechanics:
 
 | Runtime-neutral Cherry policy | Runtime-specific carrier |
 |---|---|
-| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides, and DSH composes base plus append into its generated persona. |
-| Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`; DSH places it in composition persona text. |
-| Workspace instruction authority | Claude uses `AgentsMdLoader`; Pi permits native context files; DSH enables bounded workspace context. Physical placement differs while semantic precedence stays common. |
-| Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`; DSH writes `skillDirs` into the generated composition. |
+| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
+| Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
+| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`; sealed sessions disable both through `settingSources: []`. Pi permits native context files. Semantic precedence stays common. |
+| Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
+
+Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
 
 Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
 
@@ -171,13 +186,11 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 A receive-only autonomous generation never accepts a redirect. Follow-ups
 remain in `pendingTurns` until terminal persistence releases runtime ownership.
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
-(`AutonomousTurnOrigin`: a dsh goal round with its round number, or Claude Code
-waking after background work). `startReceiveOnlyTurn` publishes it to the shared
+(`AutonomousTurnOrigin`: Claude Code waking after background work). `startReceiveOnlyTurn` publishes it to the shared
 cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
 status like the api-retry state, not conversation content — so the transcript can
 label a turn that has no user message above it while the session is open.
-If a user turn is live when the runtime starts its own — even an admitted one, since
-dsh runs a queued goal round ahead of a prompt it has already accepted — the user turn
+If a user turn is live when the runtime starts its own — even an admitted one when runtime-owned work takes precedence — the user turn
 is deferred: its stream is suspended, the receive-only turn takes the connection, and
 the user turn is relaunched afterwards with its admission preserved (no re-send).
 Content the runtime produces for the deferred turn before its stream reopens is
@@ -251,13 +264,17 @@ tool argument because Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
-`session_send` and `session_create` always require a live per-call user approval because both start
-another Agent Session turn. A headless delivery, channel turn, scheduled turn, or other execution
-without an approval responder is denied before either tool runs. Runtime-generated completion
+`session_send` and `session_create` follow the calling Session's permission mode: interactive calls
+are auto-approved in `auto` and `bypassPermissions`, including the first send; other modes require
+per-call approval. Existing Agents in either automatic mode adopt this behavior without migration.
+Claude SDK approval requests, including explicit `permissions.ask` rules, still require a user
+decision in automatic modes; ordinary delegation is approved by `PreToolUse` before that callback.
+A headless delivery, channel turn, scheduled turn, or execution without an approval responder is
+denied in every mode before either tool runs. Runtime-generated completion
 results do not call a model tool and route only to the immutable sender Session stored on the
 accepted request.
 
-This deliberately limits the first version to one user-approved delegation hop. A Session started
+This deliberately limits delegation to one hop from an interactive Session. A Session started
 by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
 request and let the runtime return the result. The limit prevents unattended A -> B -> A loops and a
 prompt-injected Agent from using a more privileged Agent as a confused deputy without introducing a
@@ -267,7 +284,7 @@ ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the h
 
 List, search, send, create, and delivery-query visibility share one authorization boundary. Channel,
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
-but still require a live approval for delegation. Knowing a Session or message id never grants
+and delegate under the calling Session's permission mode and interaction boundary. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
@@ -492,12 +509,9 @@ to restore files.
 ## Native user-data SQLite guard
 
 `userDataSqliteGuard.ts` is the single policy source that protects Cherry Studio's SQLite files
-across Claude Code, Pi, and DSH. Native structured write tools cannot bypass it through a permission
+across Claude Code and Pi. Native structured write tools cannot bypass it through a permission
 mode: Claude calls it from the common `PreToolUse` guard table, Pi calls it in the shared native and
-code-mode authorizer before Full Access handling, and DSH asks Main over the authenticated bridge
-before local approval or bypass policy. DSH root agents and delegated subagents use the same check;
-an unavailable bridge or invalid cwd fails closed. This does not add to or change DSH's existing
-sandbox configuration.
+code-mode authorizer before Full Access handling.
 
 The main application database and its `-wal`, `-shm`, and `-journal` sidecars are always protected.
 Existing symlink and hard-link aliases to those files are protected by canonical path and file
@@ -704,6 +718,10 @@ resources (extensions, project skills/prompts/themes), it must add a Cherry-owne
 trust prompt and persisted decision first, then selectively pass that decision
 into pi resource loading rather than widening the `no*` flags wholesale.
 
+Before constructing the prompt or SDK session, Pi startup prepares the captured
+session workspace: it creates an app-owned system directory or validates that a
+user directory exists, preventing missing system directories from aborting startup.
+
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
 the runtime from that captured provider, model, enabled-key set, skill paths,
@@ -722,76 +740,154 @@ the live gate applies newly disabled tools immediately, while the spawn-time
 a rebuild-signature fact; adding or removing a disabled tool returns `rebuild`
 after any applicable live tightening has landed.
 
+### Pi conversation compaction
+
+Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
+Users do not need to install the npm package or enable disk extension discovery.
+The main-process build compiles the extension into `out/main/pi-vcc.mjs`.
+`loadPiVccExtension` imports that ESM bundle and registers it through
+`DefaultResourceLoader.extensionFactories`; `noExtensions` remains enabled to
+prevent discovery of unrelated executable extensions. The source package is a
+build-time dependency; no TypeScript extension sources ship in `node_modules`.
+The separate ESM bundle preserves Pi SDK's import-only entry point while
+Cherry's main bundle remains CommonJS.
+
+#### User-visible behavior
+
+With the default pi-vcc configuration, compaction works as follows:
+
+| Input | Compaction behavior |
+|---|---|
+| Automatic compaction or bare `/compact` | pi-vcc extracts transcript content algorithmically instead of asking an LLM to generate a summary. |
+| `/compact Focus on the API decisions` | Pi's native LLM summarizer receives `Focus on the API decisions` as summary instructions. |
+| `/compact keep:3` | Pi's native LLM summarizer receives `keep:3` as summary instructions; this does not select pi-vcc's keep-three-turns behavior. |
+| `/pi-vcc` or `/pi-vcc-recall` | These extension commands are not registered in Cherry. Use `/compact` to compact; the model can call `vcc_recall` to retrieve history. |
+
+Compaction reduces the model's active context; it does not erase the persisted
+session transcript. The `vcc_recall` tool searches the current session's raw
+JSONL history, so the model can retrieve details omitted from the compacted
+context, including after reopening that session. It cannot choose another
+session file or an arbitrary filesystem path.
+
+Cherry lists recall in the agent's tool settings. It is auto-approved in default
+and acceptEdits permission modes, including unattended turns, because it reads
+only the current session history. Explicitly disabling it still blocks access;
+disabling recall does not disable compaction.
+
+#### Why the bundled dependency is patched
+
+The version-pinned
+[pnpm patch](../../../patches/@sting8k__pi-vcc@0.8.1.patch) changes two integration
+behaviors. pnpm applies it during installation; there is no runtime source rewrite.
+
+First, unpatched pi-vcc does not interpret `/compact` text the same way as Pi's
+native summarizer. For `/compact Focus on the API decisions`, the call chain is:
+
+1. Cherry passes the text unchanged to `session.compact(customInstructions)`.
+2. pi-vcc intercepts the compaction and treats that text as a follow-up user
+   message, rather than instructions for the summary.
+3. Its `session_compact` handler calls `pi.sendUserMessage` with that text.
+4. Pi emits this event before clearing its manual-compaction state, so the
+   resulting prompt is rejected because compaction is still in progress. The
+   text neither guides the summary nor reaches the model as a follow-up.
+
+This failure occurs between pi-vcc and the Pi SDK; Cherry does not discard or
+rewrite the instructions. A thin wrapper that makes the same SDK call encounters
+the same failure. The patch makes pi-vcc defer to native compaction when ordinary
+nonempty custom instructions are present. Bare `/compact` and automatic
+compaction still use VCC. Merely delaying the follow-up would not preserve the
+original contract: summary instructions would still become a new user turn.
+
+Second, the patch removes registration of `/pi-vcc` and `/pi-vcc-recall`, while
+retaining the compaction hook and recall tool. Cherry tracks `/compact` as a
+manual compaction turn and closes that turn from compaction events. An extension
+command invoked through `session.prompt()` can return before its work completes,
+causing Cherry to finish the turn before the later compaction events arrive.
+Removing these command entry points keeps operations on the existing tracked
+paths without adding another command lifecycle to Cherry.
+
+The patch does not implement compaction or recall in Cherry. Pi and pi-vcc still
+own those operations; Cherry owns loading, permissions, and UI turn completion.
+Recall's tool-catalog entry and auto-approval are Cherry code, separate from the
+dependency patch. Remove the corresponding patch changes when an upstream
+version preserves native instruction semantics and offers a way to omit these
+commands, after verifying the same integration contracts.
+
+#### Configuration and verification
+
+All Cherry Pi sessions share
+`application.getPath('feature.agents.pi.root', 'pi-vcc-config.json')`, supplied to
+pi-vcc through `PI_VCC_CONFIG_PATH`. This is isolated from standalone Pi's
+configuration. Setting `overrideDefaultCompaction` to `false` restores native
+LLM compaction for bare `/compact` and automatic compaction; instruction-bearing
+`/compact` already uses native compaction. No separate compaction toggle is added
+to Cherry's UI.
+
+The real-SDK integration tests in
+[piVcc.test.ts](../../../src/main/ai/runtime/pi/piVcc.test.ts) cover default
+compaction without an LLM call, native instruction-guided compaction, recall
+after reopening, unattended approval, explicit disabling, command exclusion,
+and production file filtering. They build and load the real ESM artifact,
+including a native Node import with source-package resolution blocked.
+These checks do not replace a full installed Electron/asar smoke test.
+
 ### Pi code mode
 
-Pi exposes only `read`, `write`, `edit`, and `bash` directly. Its complete bridged
-MCP catalog, including Cherry autonomy tools, is exposed through four native custom tools:
+Pi 1.0 supplies the native `codemode`, `tool_search`, and MCP extensions. Cherry
+injects only its managed Bash definition and mounts the session's complete MCP
+server set through an in-memory transport. Pi owns discovery, tool definitions,
+structured results, cancellation, and MCP connection teardown. Disk-discovered
+Pi MCP configuration stays disabled; Cherry remains the configuration owner.
 
-- `tool_search` ranks tool names and descriptions with BM25 and returns each match as a
-  TypeScript declaration for `tools.invoke(name, params)`. The declarations are
-  model guidance; they are not compiled or type-checked.
-- `tool_describe` returns the complete description and TypeScript declaration for one
-  discovered tool.
-- `tool_call` calls one discovered tool, applying that target tool's live disabled-tool
-  and approval policy before execution.
-- `tool_exec` runs JavaScript in the existing worker-thread executor and routes
-  `tools.invoke` calls back to the Pi MCP definitions. The outer `tool_exec` call
-  always uses Pi's approval flow (except the explicit `bypassPermissions` mode),
-  and every nested call re-enters the same live permission/approval policy. Nested
-  approvals are presented one at a time because the outer Pi tool part carries one
-  active approval card; accepted calls may still execute concurrently.
+`codemode` runs JavaScript in QuickJS with no Node, filesystem, or network
+access. Scripts call `tools.<identifier>(args)` and discover deferred MCP tools
+through `searchTools`, `describeTool`, `describeNamespace`, or `ALL_TOOLS`.
+Native file and shell tools remain available both directly and from scripts.
+Every nested call emits its own tool events and passes Cherry's `tool_call`
+approval extension, including disabled-tool, SQLite, global-install, and
+permission-mode policies. The script itself needs no separate approval because
+all outward effects pass through those tool calls.
 
-This executor is an orchestration boundary, not a security sandbox:
-`worker_threads` isolates scheduling but retains the app's Node.js authority.
-Move it to a capability-isolated executor before allowing untrusted code without
-an outer approval prompt. Pi's native file and shell tools are not in the code-mode
-catalog; `read`, `write`, `edit`, and `bash` remain direct tools with their existing
-path and command policy.
+Scripts have no default time limit. An explicit `timeout_ms` includes time spent
+waiting for tool approval and cancels pending calls when it expires. Native MCP
+may save large text results to a temporary file; reading that file outside the
+workspace follows the normal approval policy.
 
-## DSH driver boundary
+Pi sanitizes MCP identifiers to `[A-Za-z0-9_]`; Cherry uses those identifiers for
+policy and disabled-tool lookups. A stored `tool_exec` disable applies to
+`codemode`. Historical `tool_call`/`tool_exec` results remain readable, while new
+MCP tool results retain their structured payloads and Cherry citation metadata.
+Closing a connection emits `session_shutdown` before disposing the SDK session.
 
-`DshRuntimeDriver` launches the bundled DeepSeek Harness through
-`@deepseek-ai/dsh-sdk-client`. `DshRuntimeConnection` generates a
-session-specific composition under the centralized DSH paths, injects the
-resolved provider/model configuration, and connects the harness process to a
-local `DshBridgeServer`.
+## Retired Agent runtime migration
 
-The bridge is the Cherry capability boundary. It projects Cherry-owned and
-selected MCP tools into DSH names, applies live disabled-tool and permission
-policy, routes approval requests through the shared registry, and forwards
-subagent/background-flow events into the host event model. DSH-native built-ins
-remain described by the shared `dshBuiltinTools` catalog; the driver does not
-reuse the AI SDK `ToolRegistry`.
+Existing DSH agents are converted to Pi by `RetiredAgentRuntimeSeeder`, including archived
+agents. IDs, models, workspaces, message content, and resource links are preserved. Plan
+permissions become `default`; equivalent disabled file/shell tools keep their restrictions.
+Legacy MCP restrictions are mapped against the actual tool catalog before Pi starts; an
+unresolved restriction blocks startup and asks the user to reconfigure tool access.
+CodeMate's separately installed DeepSeek Harness tool is unchanged.
 
-The generated composition receives the common Agent prompt, bounded workspace
-context, managed skill directories, and a generation-specific bridge socket and
-token. Connection materialization snapshots provider/model/tool facts before
-and after startup and fails closed if they change. Resume tokens are validated
-before use and remain opaque to `AgentSessionRuntimeService`.
+The seeder records each affected session in `app_state` and leaves native tokens intact.
+Fork recovery retires already-published retired-runtime journals without deleting their files.
+After fork recovery and crash-message reconciliation, `retiredSessionHistory` imports the
+persisted Cherry transcript through Pi's `SessionManager`, validates the generated file,
+and transactionally replaces resume tokens, fork checkpoints, and edited native identities.
+Tools appear as historical text and are never executed during import. Attachments retain
+managed file paths. Native DSH goals and child-process state are not carried over.
 
-`DshStreamAdapter` maps session events, usage, retries, compaction, plan-mode,
-and terminal reasons into `AgentRuntimeEvent`s. DSH child-session lifecycle is
-coordinated separately so nested content is either attached to the current host
-turn or persisted as background flow without corrupting the main transcript.
+A failed import retains its progress marker and original message metadata. Startup continues
+for other sessions; validation, connection, editing, and forking retry the import before
+using that session. No failed conversion silently starts an empty context. The original DSH
+files remain untouched. Restoring an older backup repeats the same conversion.
 
-### Approval feedback and Full Access shell validation
-
-When an approval is rejected with a reason, the bridge injects that feedback into
-the current Agent turn so the harness can respond to it. Agent tool calls without
-a verified workspace directory are denied.
-
-In Full Access mode, the bridge removes `sandbox_permissions` and `justification`
-from the native `bash` and `pwsh` tool schemas. A runtime guard also rejects calls
-that still supply either field, before executing the command, and tells the Agent
-to retry using its current permissions. This validation does not terminate the
-conversation or add a general retry limit. No setup is required; repeated invalid
-requests can be corrected by removing those fields or stopping the run.
+Pi retains direct transport for supported models. Other gateway-routable chat models use
+the existing local Gateway's OpenAI-compatible route, preserving model identity, consent,
+credential invalidation, and provider-owned usage capture.
 
 ## Internal Agent continuation normalization
 
-When a Cherry-internal Agent Session request enters the API gateway in Anthropic
-Messages format and its converted UIMessage list ends with a text-only assistant
-attachment, the gateway appends an ephemeral user continuation after conversion.
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format and its converted UIMessage list ends with an assistant attachment whose parts are all `text` or `reasoning`, the gateway appends an ephemeral user continuation after conversion, including for reasoning-only attachments. Eligibility depends on part types, not text length; empty text or reasoning and an empty parts array do not prevent continuation. Attachments containing tool parts or any other part type do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
 The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
 and model. The original assistant attachment is preserved and the caller's params
@@ -900,8 +996,6 @@ Focused tests:
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
 - `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`
-- `src/main/ai/runtime/dsh/DshRuntimeDriver.test.ts`
-- `src/main/ai/runtime/dsh/__tests__/DshRuntimeConnection.trace.test.ts`
 
 Cross-Session delivery acceptance tests additionally pin these crash and security boundaries:
 
@@ -917,7 +1011,7 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
 - deleting a target Session first creates failure results for pending completion requests;
 - deleting an accepted request cannot leave an in-memory entry because delivery has no runtime FIFO;
 - a missing `delivery_turn_ref` target fails recovery without replaying model/tool work;
-- interactive `session_send` and `session_create` request approval, while headless calls are denied
+- interactive `session_send` and `session_create` follow the permission mode, while headless calls are denied in every mode
   and runtime-generated completion delivery remains allowed;
 - concurrent dispatch attempts for one durable message atomically persist one placeholder plus one
   CAS owner before producing one send;

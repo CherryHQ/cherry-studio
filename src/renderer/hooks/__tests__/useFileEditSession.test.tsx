@@ -225,11 +225,28 @@ describe('useFileEditSession', () => {
       })
       expect(result.current.conflict).toBe(true)
 
-      ipcMocks.request
-        .mockResolvedValueOnce(readResult(utf8('external\n'), 10))
-        .mockResolvedValueOnce(writeResult(11, 7))
+      const write = Promise.withResolvers<ReturnType<typeof writeResult>>()
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('external\n'), 10)).mockReturnValueOnce(write.promise)
+      let keepPromise!: Promise<void>
+      let settled = false
       await act(async () => {
-        await result.current.keepDraft()
+        keepPromise = result.current.keepDraft()
+        void keepPromise.then(
+          () => {
+            settled = true
+          },
+          () => {
+            settled = true
+          }
+        )
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.isSaving).toBe(true)
+      expect(settled).toBe(false)
+
+      await act(async () => {
+        write.resolve(writeResult(11, 7))
+        await keepPromise
       })
 
       expect(result.current.conflict).toBe(false)
