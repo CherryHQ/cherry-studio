@@ -405,6 +405,7 @@ describe('KnowledgeService integration', () => {
 
     const seedReindexBase = async () => {
       await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a0',
         id: REINDEX_BASE_ID,
         name: 'Reindex KB',
         groupId: null,
@@ -534,6 +535,7 @@ describe('KnowledgeService integration', () => {
 
     it('rejects replacing a root whose subtree contains active-owned external content before artifact cleanup', async () => {
       await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a0',
         id: COMPLETED_BASE_ID,
         name: 'Active KB',
         groupId: null,

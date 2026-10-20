@@ -1400,9 +1400,9 @@ describe('applyMigrations over a populated database', () => {
     sqlite
       .prepare(
         `INSERT INTO knowledge_base
-          (id, name, dimensions, embedding_model_id, status, error, chunk_size, chunk_overlap,
+          (id, name, order_key, dimensions, embedding_model_id, status, error, chunk_size, chunk_overlap,
            chunk_strategy, chunk_separator, created_at, updated_at)
-         VALUES ('11111111-1111-4111-8111-111111111111', 'Existing base', NULL, NULL,
+         VALUES ('11111111-1111-4111-8111-111111111111', 'Existing base', 'a0', NULL, NULL,
            'completed', NULL, 1024, 200, 'structured', '\\n\\n', 100, 200)`
       )
       .run()
