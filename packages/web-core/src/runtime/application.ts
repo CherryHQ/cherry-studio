@@ -2,15 +2,13 @@ import type { AiService } from '@main/ai/AiService'
 import type { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import type { AiStreamManager } from '@main/ai/streamManager'
 import type { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
+import type { CacheService } from '@main/data/CacheService'
+import type { DataApiService } from '@main/data/DataApiService'
+import type { PreferenceService } from '@main/data/PreferenceService'
+import type { IpcApiService } from '@main/ipc/IpcApiService'
 
 import type { WebDbService } from '../database/WebDbService'
-import type { WebCacheService } from '../services/WebCacheService'
-import type { WebPreferenceService } from '../services/WebPreferenceService'
-
-/** Electron's WindowManager role in the Worker: deliver main-process broadcasts to the page. */
-export interface WebWindowManager {
-  broadcast(channel: string, payload: unknown): void
-}
+import type { WebWindowManager } from '../services/WebWindowManager'
 
 /** The part of the desktop trace store that every chat turn writes to. */
 export type WebTraceStorage = Pick<TraceStorageService, 'setTopicId' | 'saveEntity' | 'addSpanEvent' | 'saveSpans'>
@@ -18,8 +16,10 @@ export type WebTraceStorage = Pick<TraceStorageService, 'setTopicId' | 'saveEnti
 interface WebServices {
   DbService: WebDbService
   WindowManager: WebWindowManager
-  PreferenceService: WebPreferenceService
-  CacheService: WebCacheService
+  PreferenceService: PreferenceService
+  CacheService: CacheService
+  DataApiService: DataApiService
+  IpcApiService: IpcApiService
   AiStreamManager: AiStreamManager
   AiService: AiService
   TraceStorageService: WebTraceStorage
@@ -41,6 +41,11 @@ class WebApplication {
     const instance = this.#services.get(name)
     if (!instance) throw new Error(`Service "${name}" is not available in the Web Core Worker`)
     return instance as WebServices[K]
+  }
+
+  /** Paths name files the desktop keeps under its data folder; the Worker never opens them. */
+  getPath(namespace: string, filename?: string): string {
+    return filename ? `web://${namespace}/${filename}` : `web://${namespace}`
   }
 
   isReady(): boolean {

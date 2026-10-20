@@ -13,5 +13,6 @@
     "vite.config.ts",
     "playwright.config.ts",
     "../../src/main/env.d.ts"
-  ]
+  ],
+  "exclude": ["src/page/**", "harness/bridge.ts"]
 }
