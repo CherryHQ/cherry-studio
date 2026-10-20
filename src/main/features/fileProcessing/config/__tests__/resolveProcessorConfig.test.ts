@@ -10,7 +10,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
+    if (name === 'LocalModelService') return { isDefaultModelReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   return result

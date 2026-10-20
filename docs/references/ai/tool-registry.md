@@ -94,7 +94,7 @@ The sync is idempotent; a stale entry is overwritten on the next sync.
 - **`listTools(serverId)`** is cache-only — it returns the shared
   `mcp.tools.<serverId>` cache and **never connects** to the upstream MCP server.
   Every hot path that builds an agent/chat's tool surface uses it: the Claude Code
-  SDK bridge (`createSdkMcpServerInstance`), `buildMcpToolMetadata`, the agent
+  SDK bridge (`createMcpBridgeServer`), `buildMcpToolMetadata`, the agent
   tool-policy (`agentTools.listMcpDescriptors`), and the two AI-SDK adapters
   above. A dead or slow server therefore cannot block agent/chat startup
   (issue #16242).

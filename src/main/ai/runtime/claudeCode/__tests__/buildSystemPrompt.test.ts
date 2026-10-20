@@ -62,10 +62,6 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string) => key)
 }))
 
-vi.mock('@main/ai/mcp/servers/cherryBuiltinTools', () => ({
-  default: vi.fn(() => ({ mcpServer: { id: 'cherry-tools' } }))
-}))
-
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mockFindBySessionId, listChannels: vi.fn().mockResolvedValue([]) }
 }))
@@ -151,21 +147,6 @@ describe('buildSystemPrompt — current workspace', () => {
     const text = expectClaudeCodePreset(result)
     expect(text).not.toContain(WORKSPACE_MARKER)
     expect(text).not.toContain('"/workspace/project-a"')
-  })
-
-  it('appends root-scoped AGENTS.md instructions alongside the native Claude Code project context', async () => {
-    const result = await buildSystemPrompt(
-      makeAgent(),
-      '/workspace/project-a',
-      '/data/Agents/agent-1',
-      [],
-      [],
-      '## Workspace Instructions (AGENTS.md)\n\nRoot repository rules.'
-    )
-
-    const text = expectClaudeCodePreset(result)
-    expect(text).toContain('## Workspace Instructions (AGENTS.md)')
-    expect(text).toContain('Root repository rules.')
   })
 
   it('does not duplicate the preset-owned workspace context for the built-in assistant', async () => {
@@ -321,21 +302,13 @@ describe('buildSystemPrompt — cache-stable segment order', () => {
     })
 
     const text = promptText(
-      await buildSystemPrompt(
-        makeAgent({ instructions: 'CONFIGURED_AGENT_INSTRUCTIONS' }),
-        '/tmp/cwd',
-        undefined,
-        [],
-        [],
-        'WORKSPACE_INSTRUCTIONS'
-      )
+      await buildSystemPrompt(makeAgent({ instructions: 'CONFIGURED_AGENT_INSTRUCTIONS' }), '/tmp/cwd')
     )
 
     const orderedMarkers = [
       '## Instruction Precedence',
       ARTIFACTS_MARKER,
       'CONFIGURED_AGENT_INSTRUCTIONS',
-      'WORKSPACE_INSTRUCTIONS',
       'PERSONA_AND_MEMORY_CONTEXT',
       'By default, respond in English.'
     ]

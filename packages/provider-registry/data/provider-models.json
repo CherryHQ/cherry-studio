@@ -565,6 +565,29 @@
       "providerId": "302ai"
     },
     {
+      "apiModelId": "gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.375
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "302ai"
+    },
+    {
       "apiModelId": "glm-4.5",
       "modelId": "glm-4-5",
       "pricing": {
@@ -3732,6 +3755,10 @@
       "providerId": "claude-code"
     },
     {
+      "modelId": "claude-haiku-5-5",
+      "providerId": "claude-code"
+    },
+    {
       "modelId": "claude-opus-4-1",
       "providerId": "claude-code"
     },
@@ -4117,6 +4144,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
         }
       },
       "providerId": "copilot"
@@ -13219,6 +13265,44 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "google/gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "google/gemini-nano-banana-2.1",
+      "modelId": "gemini-nano-banana-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "google/gemini-omni-flash-preview",
       "modelId": "gemini-omni-flash-preview",
       "pricing": {
@@ -15525,6 +15609,24 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "modelId": "minimax-m3-1-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       },
       "providerId": "gateway"
@@ -19266,9 +19368,9 @@
       "providerId": "minimax"
     },
     {
-      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "apiModelId": "MiniMax-M3.1-Flash",
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
-      "modelId": "minimax-m3-1-flash-preview",
+      "modelId": "minimax-m3-1-flash",
       "providerId": "minimax",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -19469,9 +19571,9 @@
       "providerId": "minimax-global"
     },
     {
-      "apiModelId": "MiniMax-M3.1-Flash-Preview",
+      "apiModelId": "MiniMax-M3.1-Flash",
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
-      "modelId": "minimax-m3-1-flash-preview",
+      "modelId": "minimax-m3-1-flash",
       "providerId": "minimax-global",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -23262,6 +23364,25 @@
       }
     },
     {
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "minimax-m3-1-flash",
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "max"
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "muse-spark-1.2-contributor",
       "endpointTypes": ["openai-responses"],
       "modelId": "muse-spark-1-2-contributor",
@@ -26937,6 +27058,44 @@
       }
     },
     {
+      "apiModelId": "google/gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.1875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "~google/gemini-flash-latest",
       "modelId": "gemini-flash-latest",
       "pricing": {
@@ -26970,6 +27129,117 @@
             ],
             "defaultEffort": "medium",
             "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-nano-banana-2.1",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
+      "modelId": "gemini-nano-banana-2-1",
+      "outputModalities": ["image", "text"],
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "minimal",
+                "kind": "effort",
+                "values": ["high", "minimal", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "minimal",
+            "supportedEfforts": ["high", "minimal", "none"]
           }
         }
       }
@@ -42658,6 +42928,25 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-4-argon",
+      "modelId": "gemini-4-argon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-embedding-001",
       "modelId": "gemini-embedding-001",
       "pricing": {
@@ -42706,6 +42995,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.5
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "gemini-nano-banana-2.1",
+      "modelId": "gemini-nano-banana-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
         }
       },
       "providerId": "vertexai"
@@ -43316,5 +43624,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "72256daaa86fa347"
+  "version": "69aab4c55557f4a3"
 }

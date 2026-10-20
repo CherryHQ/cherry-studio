@@ -1,0 +1,9 @@
+{
+  "roots": [".agents/notes", "CONTRIBUTING.md", "docs/i18n"],
+  "excluded": [
+    ".agents/notes/AGENTS.md",
+    ".agents/notes/implemented/AGENTS.md",
+    ".agents/notes/proposed/AGENTS.md",
+    "docs/i18n/terminology.md"
+  ]
+}

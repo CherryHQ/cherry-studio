@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
   deriveModelGroupName,
@@ -11,9 +15,12 @@ import {
   isGatewayRoutableModel,
   isGenerateImageModel,
   isNonChatModel,
+  isPublicGatewayRoutableModel,
   isReasoningModel,
   isRerankModel,
   isSpeechToTextModel,
+  isSupportTemperatureModel,
+  isSupportTopPModel,
   isTextToSpeechModel,
   isVideoModel,
   isVisionModel
@@ -168,4 +175,34 @@ describe('shared model capability helpers', () => {
       expect(isGatewayRoutableModel(colonProvider)).toBe(false)
     })
   })
+
+  describe('isPublicGatewayRoutableModel', () => {
+    it('keeps an ordinary gateway-routable model', () => {
+      expect(isPublicGatewayRoutableModel(createModel())).toBe(true)
+    })
+
+    it('excludes Cherry Cloud without removing it from the internal Work runtime', () => {
+      const cloudModel: Model = {
+        ...createModel(),
+        id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+        providerId: CHERRY_CLOUD_PROVIDER_ID,
+        apiModelId: 'deepseek-free'
+      }
+
+      expect(isGatewayRoutableModel(cloudModel)).toBe(true)
+      expect(isPublicGatewayRoutableModel(cloudModel)).toBe(false)
+    })
+  })
 })
+
+it.each([
+  ['gemini-4-argon', false],
+  ['gpt-6-sol', true]
+] as const)(
+  'exposes sampling controls for %s according to support independently of active reasoning',
+  (apiModelId, supported) => {
+    const model = { ...createModel(), id: `custom::${apiModelId}`, providerId: 'custom', apiModelId }
+    expect(isSupportTemperatureModel(model)).toBe(supported)
+    expect(isSupportTopPModel(model)).toBe(supported)
+  }
+)

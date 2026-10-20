@@ -5,7 +5,7 @@ import { getSamplingPolicy, type SamplingContext } from '@cherrystudio/provider-
 import type { SamplingSettings } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { AiSdkParam } from '@shared/types/aiSdk'
-import { getRawModelId } from '@shared/utils/model'
+import { getRawModelId, isQwenModel } from '@shared/utils/model'
 
 import type { ResolvedReasoningInvocation } from './reasoningSerializers'
 
@@ -49,14 +49,22 @@ export function resolveSamplingReasoning(
 }
 
 /** Omit rejected sampling after all overrides, including passthrough body values. */
-export function stripRejectedSamplingParams(
+export function stripUnsupportedModelParams(
   params: SamplingParams,
   model: Model,
   context: { reasoning?: SamplingReasoning; providerOptionsKey?: string; endpointType?: EndpointType } = {}
 ): SamplingParams {
   const input = samplingContext(model, resolveSamplingReasoning(params, context))
   const policy = getSamplingPolicy({ ...input, endpointType: context.endpointType })
-  if (!policy.omitTemperature && !policy.omitTopP && !policy.omitTopK) return params
+  const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
+  if (
+    !policy.omitTemperature &&
+    !policy.omitTopP &&
+    !policy.omitTopK &&
+    !policy.omitCachedContent &&
+    !normalizeTemperature
+  )
+    return params
 
   function strip<T>(values: Record<string, T>): Record<string, T> {
     const cleaned = { ...values }
@@ -68,6 +76,18 @@ export function stripRejectedSamplingParams(
     if (policy.omitTopK) {
       delete cleaned.topK
       delete cleaned.top_k
+    }
+    if (policy.omitCachedContent) {
+      delete cleaned.cachedContent
+      delete cleaned.cached_content
+    }
+    if (
+      normalizeTemperature &&
+      typeof cleaned.temperature === 'number' &&
+      Number.isFinite(cleaned.temperature) &&
+      cleaned.temperature >= 2
+    ) {
+      cleaned.temperature = 1.9 as T
     }
     return cleaned
   }

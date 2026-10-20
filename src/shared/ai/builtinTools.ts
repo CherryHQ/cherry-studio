@@ -476,11 +476,7 @@ export const toMarkdownOutputSchema = z.object({
 })
 
 export const TO_MARKDOWN_DESCRIPTION =
-  'Convert one supported local document to Markdown. Relative paths resolve from the session workspace. ' +
-  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
-  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
-  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
-  'file instead of being returned; read the returned path in slices as needed.'
+  'Convert a local document to Markdown in a temp file; scan-only PDFs need OCR. See path for supported formats.'
 
 export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
 export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
@@ -506,10 +502,7 @@ export const reportArtifactsInputSchema = z.object({
 })
 
 export const REPORT_ARTIFACTS_DESCRIPTION =
-  'Declare the final deliverable file(s) produced for the user. Call this once, at the end of the task, ' +
-  'after the requested file(s) are finished — pass the final path(s) and an optional one-line summary. ' +
-  'List only final deliverables; omit intermediate, scratch, or temporary files. Skip the call entirely ' +
-  'if the task produced no files.'
+  'Declare final deliverable files once, at the end of the task. Omit scratch files; skip if none were produced.'
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
@@ -519,9 +512,9 @@ export type { GenerateImageOutput, GenerateImageOutputItem } from './generateIma
 export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageOutputSchema } from './generateImageTool'
 
 // ── agent autonomy tools (cron / notify / config) ────────────────
-// Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their input schemas
-// are plain JSON Schema `Tool` definitions in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`;
-// only the names are shared (the approval policy references them).
+// Hosted by the same in-process `cherry-tools` MCP server as the tools above. Their zod input
+// schemas live in `src/main/ai/mcp/servers/cherryAutonomyTools.ts`; only the names are shared
+// (the approval policy references them).
 
 export const CRON_TOOL_NAME = 'cron'
 export const NOTIFY_TOOL_NAME = 'notify'
@@ -614,7 +607,8 @@ export const mcpResourceEntrySchema = z.object({
 })
 
 export const mcpResourceListOutputSchema = z.object({
-  resources: z.array(mcpResourceEntrySchema)
+  resources: z.array(mcpResourceEntrySchema),
+  resourceTemplates: z.array(mcpResourceEntrySchema.omit({ uri: true }).extend({ uriTemplate: z.string() }))
 })
 
 export const mcpResourceReadInputSchema = z.object({
@@ -628,7 +622,7 @@ export const mcpResourceReadInputSchema = z.object({
   uri: z
     .string()
     .min(1)
-    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".'),
+    .describe('Resource URI returned by mcp_resource_list, or expanded from a uriTemplate published by that server.'),
   offset: z
     .number()
     .int()

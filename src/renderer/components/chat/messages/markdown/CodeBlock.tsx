@@ -2,15 +2,11 @@ import type { Node } from 'mdast'
 import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
 
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
-import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
-import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/components/CodeBlockView/constants'
 import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
 import { INLINE_CODE_CLASS, useMarkdownCode } from '@renderer/components/markdown'
-import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdownLight'
-import { isWin } from '@renderer/utils/platform'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
@@ -29,8 +25,6 @@ interface Props {
   isStreaming?: boolean
   [key: string]: any
 }
-
-const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} inline-flex max-w-full items-center align-middle break-all! [&>span]:translate-y-px`
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
@@ -64,23 +58,6 @@ const CodeBlock: React.FC<Props> = ({
     },
     [actions, blockId, id, text]
   )
-
-  // Widget swaps race the per-tick span rebuild, so they wait for this block
-  // to stop growing (an unclosed tail fence); part-level state is too coarse.
-  const inlinePath = !isIncomplete && (language === null || language === 'text') ? normalizeInlineFilePath(text) : null
-
-  if (inlinePath && isKnownNavigationPath(inlinePath)) {
-    return <NavigateToolInline input={{ path: inlinePath }} />
-  }
-
-  // A plain text fence may be the model's way to present a single generated file or directory path.
-  if (!isWin && inlinePath && isInlineFilePath(text)) {
-    return (
-      <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
-        <ClickableFilePath path={inlinePath} />
-      </code>
-    )
-  }
 
   if (language !== null) {
     // Fancy code block

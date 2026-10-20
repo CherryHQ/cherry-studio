@@ -42,6 +42,12 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
               if (part.type !== 'tool-call') {
                 return part
               }
+              const extraContent = part.providerOptions?.openaiCompatible?.extra_content
+              const extra =
+                extraContent && typeof extraContent === 'object' && !Array.isArray(extraContent) ? extraContent : {}
+              const googleContent = extra.google
+              const google =
+                googleContent && typeof googleContent === 'object' && !Array.isArray(googleContent) ? googleContent : {}
               // Google OpenAI-compatible API expects extra_content.google.thought_signature
               // See: https://ai.google.dev/gemini-api/docs/thought-signatures#openai
               return {
@@ -51,8 +57,10 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
                   openaiCompatible: {
                     ...part.providerOptions?.openaiCompatible,
                     extra_content: {
+                      ...extra,
                       google: {
-                        thought_signature: MAGIC_STRING
+                        ...google,
+                        thought_signature: google.thought_signature ?? MAGIC_STRING
                       }
                     }
                   }
@@ -84,7 +92,7 @@ import { getRawModelId } from '@shared/utils/model'
 
 import type { RequestFeature } from '../feature'
 
-/** Inject thought_signature on tool calls for Gemini 3 via OpenAI-compat API. */
+/** Inject thought_signature on tool calls for Gemini 3/4 via OpenAI-compat API. */
 export const skipGeminiThoughtSignatureFeature: RequestFeature = {
   name: 'skip-gemini-thought-signature',
   applies: (scope) => requiresThoughtSignatures(getRawModelId(scope.model), scope.model.providerId),

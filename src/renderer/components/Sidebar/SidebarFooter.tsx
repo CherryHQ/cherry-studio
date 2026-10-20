@@ -1,5 +1,7 @@
-import { ChevronRight, Columns2 } from 'lucide-react'
+import { Columns2 } from 'lucide-react'
 import React from 'react'
+
+import { Button } from '@cherrystudio/ui'
 
 import { UserAvatar } from './primitives'
 import { SidebarTooltip } from './Tooltip'
@@ -13,70 +15,99 @@ export interface SidebarFooterProps {
   layout: SidebarVisibleLayout
   user?: SidebarUser
   actions?: SidebarFooterActions
+  userAction?: SidebarFooterActions
   extensionsLabel?: string
   onExtensionsClick?: () => void
   onOverlayOpenChange?: (open: boolean) => void
+  renderUserTrigger?: (trigger: React.ReactElement) => React.ReactElement
 }
 
-export function SidebarFooter({ layout, actions, onOverlayOpenChange, ...props }: SidebarFooterProps) {
+export function SidebarFooter({ layout, actions, userAction, onOverlayOpenChange, ...props }: SidebarFooterProps) {
   const resolvedActions = typeof actions === 'function' ? actions(layout, onOverlayOpenChange) : actions
+  const resolvedUserAction = typeof userAction === 'function' ? userAction(layout, onOverlayOpenChange) : userAction
 
-  if (layout === 'icon') return <IconFooter actions={resolvedActions} {...props} />
-  return <FullFooter actions={resolvedActions} {...props} />
+  if (layout === 'icon') return <IconFooter actions={resolvedActions} userAction={resolvedUserAction} {...props} />
+  return <FullFooter actions={resolvedActions} userAction={resolvedUserAction} {...props} />
 }
 
-type FooterProps = Omit<SidebarFooterProps, 'layout' | 'actions' | 'onOverlayOpenChange'> & {
+type FooterProps = Omit<SidebarFooterProps, 'layout' | 'actions' | 'userAction' | 'onOverlayOpenChange'> & {
   actions?: React.ReactNode
+  userAction?: React.ReactNode
 }
 
-function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
+function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsClick, renderUserTrigger }: FooterProps) {
+  const userButton = user ? (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={user.name}
+      size="icon"
+      className="sidebar-action rounded-full transition-colors duration-150"
+      onClick={user.onClick}>
+      <UserAvatar user={user} className="size-6" />
+    </Button>
+  ) : null
+
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-3 [-webkit-app-region:no-drag]">
+    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-1.5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            aria-label={extensionsLabel}
             onClick={onExtensionsClick}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <Columns2 size={18} strokeWidth={1.6} />
-          </button>
+            size="icon"
+            className="sidebar-action size-9 rounded-full transition-colors duration-150">
+            <Columns2 className="size-4.5" strokeWidth={1.6} />
+          </Button>
         </SidebarTooltip>
       )}
       {actions}
-      {user && (
-        <div className="cursor-pointer" onClick={user.onClick}>
-          <UserAvatar user={user} className="h-7 w-7" />
-        </div>
-      )}
+      {userAction}
+      {userButton && user ? (
+        <SidebarTooltip content={user.name}>{renderUserTrigger?.(userButton) ?? userButton}</SidebarTooltip>
+      ) : null}
     </div>
   )
 }
 
-function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
+function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsClick, renderUserTrigger }: FooterProps) {
+  const userButton = user ? (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={user.name}
+      className="sidebar-action min-w-0 flex-1 justify-start gap-2 rounded-full py-1.5 pr-1 pl-2 text-left"
+      onClick={user.onClick}>
+      <UserAvatar user={user} className="size-6 shrink-0" />
+      <span className="min-w-0 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
+    </Button>
+  ) : null
+
   return (
-    <div className="space-y-1 px-2 py-2 [-webkit-app-region:no-drag]">
+    <div className="space-y-1 py-2 pr-1 pl-2 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          aria-label={extensionsLabel}
           onClick={onExtensionsClick}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+          className="sidebar-action flex w-full items-center gap-2.5 rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
           <Columns2 size={16} strokeWidth={1.6} />
           <span>{extensionsLabel}</span>
-        </button>
+        </Button>
       )}
 
       {actions}
 
-      {user && (
-        <div
-          className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-accent/60"
-          onClick={user.onClick}>
-          <UserAvatar user={user} className="h-7 w-7 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] text-sidebar-foreground">{user.name}</div>
-          </div>
-          <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+      {userButton ? (
+        <div className="flex min-w-0 items-center">
+          {renderUserTrigger?.(userButton) ?? userButton}
+          <div className="ml-auto flex shrink-0 items-center">{userAction}</div>
         </div>
+      ) : (
+        userAction
       )}
     </div>
   )

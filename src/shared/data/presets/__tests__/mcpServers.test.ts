@@ -6,6 +6,10 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 const preset = (name: string) => PRESET_MCP_SERVERS.find((server) => server.name === name)
 
 describe('PRESET_MCP_SERVERS', () => {
+  it('ships the filesystem server with no platform-shaped baseDir default', () => {
+    expect(preset(BuiltinMcpServerNames.filesystem)?.args ?? []).toEqual([])
+  })
+
   it('models flomo and nowledge-mem as the HTTP endpoints they are', () => {
     // The seeder writes these URLs onto installed rows, so the exact endpoint is the contract.
     expect(preset(BuiltinMcpServerNames.flomo)).toEqual(

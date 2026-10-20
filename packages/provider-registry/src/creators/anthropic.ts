@@ -9,6 +9,46 @@ export default defineCreator({
   idPrefixes: ['claude'],
   models: [
     {
+      id: 'claude-haiku-5-5',
+      name: 'Claude Haiku 5.5',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.1 },
+        output: { currency: 'USD', perMillionTokens: 0.5 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.01 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 0.125 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 100001,
+            input: { currency: 'USD', perMillionTokens: 0.5 },
+            output: { currency: 'USD', perMillionTokens: 2.5 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.05 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 0.625 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [
+          { kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' },
+          { kind: 'toggle' }
+        ]
+      }
+    },
+    {
       id: 'claude-sonnet-5-5',
       name: 'Claude Sonnet 5.5',
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
@@ -88,10 +128,7 @@ export default defineCreator({
       outputModalities: ['text'],
       contextWindow: 1000000,
       maxOutputTokens: 128000,
-      parameterSupport: {
-        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
-        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
-      }
+      parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } }
     },
     {
       id: 'claude-fable-5-1',
@@ -101,10 +138,7 @@ export default defineCreator({
       outputModalities: ['text'],
       contextWindow: 1000000,
       maxOutputTokens: 128000,
-      parameterSupport: {
-        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
-        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
-      }
+      parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } }
     },
     {
       id: 'claude-fable-latest',
@@ -113,10 +147,7 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
       contextWindow: 1000000,
-      parameterSupport: {
-        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
-        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
-      }
+      parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } }
     },
     {
       id: 'claude-haiku-latest',
@@ -138,10 +169,7 @@ export default defineCreator({
       outputModalities: ['text'],
       contextWindow: 1000000,
       maxOutputTokens: 128000,
-      parameterSupport: {
-        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
-        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
-      }
+      parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } }
     },
     {
       id: 'claude-opus-latest',
@@ -163,10 +191,7 @@ export default defineCreator({
       outputModalities: ['text'],
       contextWindow: 1000000,
       maxOutputTokens: 128000,
-      parameterSupport: {
-        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
-        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
-      }
+      parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } }
     },
     {
       id: 'claude-sonnet-latest',
@@ -274,10 +299,7 @@ export default defineCreator({
       contextWindow: 1000000,
       maxOutputTokens: 128000,
       messageCompatibility: { vertexWebSearchBeta: true },
-      parameterSupport: {
-        temperature: { range: { max: 1, min: 0 }, supported: true, whenReasoning: { supported: false } },
-        topP: { supported: true, whenReasoning: { range: { max: 1, min: 0.95 } } }
-      }
+      parameterSupport: { temperature: { supported: false }, topP: { supported: false }, topK: { supported: false } }
     },
     {
       id: 'claude-sonnet-4',
@@ -341,6 +363,12 @@ export default defineCreator({
     }
   ],
   reasoningFamilies: [
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-haiku-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: true,
+      wireDialect: 'effort'
+    },
     // Sonnet's lowest setting skips up-front thinking but retains progress updates between tools.
     {
       pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-sonnet-5[.-]5(?:$|[\\[ @:-])',

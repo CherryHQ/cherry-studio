@@ -9,46 +9,26 @@ export const REQUEST_POLICIES: Record<
   '302ai/claude-fable-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   '302ai/claude-fable-5-1': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -168,20 +148,20 @@ export const REQUEST_POLICIES: Record<
   },
   '302ai/claude-opus-5-5': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   '302ai/claude-opus-5-thinking': {
@@ -254,42 +234,32 @@ export const REQUEST_POLICIES: Record<
   '302ai/claude-sonnet-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
-      },
-      topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
-      }
-    }
-  },
-  '302ai/claude-sonnet-5-5': {
-    parameterSupport: {
-      temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  '302ai/claude-sonnet-5-5': {
+    parameterSupport: {
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   '302ai/gemini-3-1-flash-image-preview': {
@@ -347,8 +317,9 @@ export const REQUEST_POLICIES: Record<
       thoughtSignatures: true
     }
   },
-  '302ai/gpt-6-astra': {
+  '302ai/gemini-4-argon': {
     parameterSupport: {
+      cachedContent: false,
       temperature: {
         supported: false
       },
@@ -361,8 +332,29 @@ export const REQUEST_POLICIES: Record<
       frequencyPenalty: false,
       presencePenalty: false,
       maxTokens: true,
-      stopSequences: false,
+      stopSequences: true,
       systemMessage: true
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  '302ai/gpt-6-astra': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   '302ai/gpt-6-luna': {
@@ -412,6 +404,24 @@ export const REQUEST_POLICIES: Record<
   '302ai/kimi-k3': {
     messages: {
       dynamicToolDeclarations: true
+    }
+  },
+  '302ai/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
     }
   },
   '302ai/qwen3-235b-a22b': {
@@ -528,23 +538,13 @@ export const REQUEST_POLICIES: Record<
   'aws-bedrock/claude-fable-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -788,46 +788,26 @@ export const REQUEST_POLICIES: Record<
   'claude-code/claude-fable-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'claude-code/claude-fable-5-1': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -857,6 +837,24 @@ export const REQUEST_POLICIES: Record<
     messages: {
       interleavedThinkingBeta: true,
       vertexWebSearchBeta: true
+    }
+  },
+  'claude-code/claude-haiku-5-5': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'claude-code/claude-opus-4-1': {
@@ -1044,20 +1042,20 @@ export const REQUEST_POLICIES: Record<
   },
   'claude-code/claude-opus-5-5': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'claude-code/claude-opus-5[1m]': {
@@ -1156,110 +1154,70 @@ export const REQUEST_POLICIES: Record<
   'claude-code/claude-sonnet-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
-      },
-      topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
-      }
-    }
-  },
-  'claude-code/claude-sonnet-5-5': {
-    parameterSupport: {
-      temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'claude-code/claude-sonnet-5-5': {
+    parameterSupport: {
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'claude-fable-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'claude-fable-5-1': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'claude-fable-latest': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -1289,6 +1247,24 @@ export const REQUEST_POLICIES: Record<
     messages: {
       interleavedThinkingBeta: true,
       vertexWebSearchBeta: true
+    }
+  },
+  'claude-haiku-5-5': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'claude-haiku-latest': {
@@ -1455,23 +1431,13 @@ export const REQUEST_POLICIES: Record<
   'claude-opus-4-8-fast': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     },
     messages: {
@@ -1493,42 +1459,32 @@ export const REQUEST_POLICIES: Record<
   },
   'claude-opus-5-5': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'claude-opus-5-fast': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -1638,42 +1594,32 @@ export const REQUEST_POLICIES: Record<
   'claude-sonnet-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
-      },
-      topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
-      }
-    }
-  },
-  'claude-sonnet-5-5': {
-    parameterSupport: {
-      temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'claude-sonnet-5-5': {
+    parameterSupport: {
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'claude-sonnet-latest': {
@@ -1702,46 +1648,26 @@ export const REQUEST_POLICIES: Record<
   'copilot/claude-fable-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'copilot/claude-fable-5-1': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -1820,20 +1746,20 @@ export const REQUEST_POLICIES: Record<
   },
   'copilot/claude-opus-5-5': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'copilot/claude-sonnet-4-6': {
@@ -1865,42 +1791,32 @@ export const REQUEST_POLICIES: Record<
   'copilot/claude-sonnet-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
-      },
-      topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
-      }
-    }
-  },
-  'copilot/claude-sonnet-5-5': {
-    parameterSupport: {
-      temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'copilot/claude-sonnet-5-5': {
+    parameterSupport: {
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'copilot/gemini-3-5-flash': {
@@ -1923,8 +1839,9 @@ export const REQUEST_POLICIES: Record<
       thoughtSignatures: true
     }
   },
-  'copilot/gpt-6-1-sol': {
+  'copilot/gemini-4-argon': {
     parameterSupport: {
+      cachedContent: false,
       temperature: {
         supported: false
       },
@@ -1937,26 +1854,47 @@ export const REQUEST_POLICIES: Record<
       frequencyPenalty: false,
       presencePenalty: false,
       maxTokens: true,
-      stopSequences: false,
+      stopSequences: true,
       systemMessage: true
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  'copilot/gpt-6-1-sol': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'copilot/gpt-6-astra': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: false,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'copilot/gpt-6-luna': {
@@ -2004,6 +1942,24 @@ export const REQUEST_POLICIES: Record<
     },
     messages: {
       dynamicToolDeclarations: true
+    }
+  },
+  'dashscope/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
     }
   },
   'dashscope/moonshot-kimi-k2-instruct': {
@@ -2061,6 +2017,24 @@ export const REQUEST_POLICIES: Record<
       dynamicToolDeclarations: false
     }
   },
+  'fireworks/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
   'gateway/claude-3-haiku': {
     parameterSupport: {
       temperature: {
@@ -2087,46 +2061,26 @@ export const REQUEST_POLICIES: Record<
   'gateway/claude-fable-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'gateway/claude-fable-5-1': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -2273,23 +2227,13 @@ export const REQUEST_POLICIES: Record<
   'gateway/claude-opus-4-8-fast': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     },
     messages: {
@@ -2311,42 +2255,32 @@ export const REQUEST_POLICIES: Record<
   },
   'gateway/claude-opus-5-5': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'gateway/claude-opus-5-fast': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -2433,42 +2367,32 @@ export const REQUEST_POLICIES: Record<
   'gateway/claude-sonnet-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
-      },
-      topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
-      }
-    }
-  },
-  'gateway/claude-sonnet-5-5': {
-    parameterSupport: {
-      temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'gateway/claude-sonnet-5-5': {
+    parameterSupport: {
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'gateway/gemini-3-1-flash-image': {
@@ -2536,8 +2460,9 @@ export const REQUEST_POLICIES: Record<
       thoughtSignatures: true
     }
   },
-  'gateway/gpt-6-1-sol': {
+  'gateway/gemini-4-argon': {
     parameterSupport: {
+      cachedContent: false,
       temperature: {
         supported: false
       },
@@ -2550,26 +2475,47 @@ export const REQUEST_POLICIES: Record<
       frequencyPenalty: false,
       presencePenalty: false,
       maxTokens: true,
-      stopSequences: false,
+      stopSequences: true,
       systemMessage: true
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  'gateway/gpt-6-1-sol': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'gateway/gpt-6-astra': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: false,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'gateway/gpt-6-luna': {
@@ -2629,6 +2575,42 @@ export const REQUEST_POLICIES: Record<
   'gateway/kimi-k3-fast': {
     messages: {
       dynamicToolDeclarations: true
+    }
+  },
+  'gateway/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
+  'gateway/minimax-m3-1-flash': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
     }
   },
   'gateway/qwen3-235b-a22b-thinking': {
@@ -2741,6 +2723,28 @@ export const REQUEST_POLICIES: Record<
       thoughtSignatures: true
     }
   },
+  'gemini-4-argon': {
+    parameterSupport: {
+      cachedContent: false,
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: true,
+      systemMessage: true
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
   'gemini/gemini-3-1-flash-lite-preview': {
     messages: {
       thoughtSignatures: true
@@ -2748,38 +2752,38 @@ export const REQUEST_POLICIES: Record<
   },
   'gpt-6-1-sol': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: false,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'gpt-6-astra': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: false,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'gpt-6-luna': {
@@ -2834,6 +2838,24 @@ export const REQUEST_POLICIES: Record<
   'huggingface/kimi-k3': {
     messages: {
       dynamicToolDeclarations: true
+    }
+  },
+  'huggingface/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
     }
   },
   'huggingface/qwen3-235b-a22b-thinking-2507': {
@@ -2914,6 +2936,114 @@ export const REQUEST_POLICIES: Record<
   'lanyun/qwen3-32b': {
     messages: {
       thinkingPrompt: true
+    }
+  },
+  'minimax-global/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
+  'minimax-global/minimax-m3-1-flash': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
+  'minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
+  'minimax-m3-1-flash': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
+  'minimax/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
+  'minimax/minimax-m3-1-flash': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
     }
   },
   'modelscope/qwen3-235b-a22b-thinking-2507': {
@@ -3118,40 +3248,58 @@ export const REQUEST_POLICIES: Record<
       dynamicToolDeclarations: true
     }
   },
-  'openai-codex/gpt-6-1-sol': {
+  'nvidia/minimax-m3': {
     parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
+        supported: true
+      },
+      topK: {
         supported: false
       },
       topP: {
+        supported: true
+      }
+    }
+  },
+  'openai-codex/gpt-6-1-sol': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
+      temperature: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: false,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'openai-codex/gpt-6-astra': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: false,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'openai-codex/gpt-6-luna': {
@@ -3210,72 +3358,78 @@ export const REQUEST_POLICIES: Record<
       dynamicToolDeclarations: true
     }
   },
+  'opencode/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
+  'opencode/minimax-m3-1-flash': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
   'openrouter/claude-fable-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'openrouter/claude-fable-5-1': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'openrouter/claude-fable-latest': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -3457,20 +3611,20 @@ export const REQUEST_POLICIES: Record<
   },
   'openrouter/claude-opus-5-5': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'openrouter/claude-opus-latest': {
@@ -3579,42 +3733,32 @@ export const REQUEST_POLICIES: Record<
   'openrouter/claude-sonnet-5': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
-      },
-      topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
-      }
-    }
-  },
-  'openrouter/claude-sonnet-5-5': {
-    parameterSupport: {
-      temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
+      topP: {
+        supported: false
+      }
+    }
+  },
+  'openrouter/claude-sonnet-5-5': {
+    parameterSupport: {
       frequencyPenalty: false,
-      presencePenalty: false,
       maxTokens: true,
+      presencePenalty: false,
       stopSequences: true,
-      systemMessage: true
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'openrouter/claude-sonnet-latest': {
@@ -3715,8 +3859,9 @@ export const REQUEST_POLICIES: Record<
       thoughtSignatures: true
     }
   },
-  'openrouter/gpt-6-1-sol': {
+  'openrouter/gemini-4-argon': {
     parameterSupport: {
+      cachedContent: false,
       temperature: {
         supported: false
       },
@@ -3729,26 +3874,47 @@ export const REQUEST_POLICIES: Record<
       frequencyPenalty: false,
       presencePenalty: false,
       maxTokens: true,
-      stopSequences: false,
+      stopSequences: true,
       systemMessage: true
+    },
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  'openrouter/gpt-6-1-sol': {
+    parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
+      temperature: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      }
     }
   },
   'openrouter/gpt-6-astra': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: false,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: false,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'openrouter/gpt-6-luna': {
@@ -3843,6 +4009,24 @@ export const REQUEST_POLICIES: Record<
     },
     messages: {
       dynamicToolDeclarations: false
+    }
+  },
+  'openrouter/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
     }
   },
   'openrouter/qwen3-14b': {
@@ -4133,6 +4317,24 @@ export const REQUEST_POLICIES: Record<
       dynamicToolDeclarations: true
     }
   },
+  'silicon/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
   'silicon/qwen3-14b': {
     messages: {
       thinkingPrompt: true
@@ -4173,49 +4375,47 @@ export const REQUEST_POLICIES: Record<
       dynamicToolDeclarations: false
     }
   },
+  'tokenhub/minimax-m3': {
+    parameterSupport: {
+      frequencyPenalty: true,
+      maxTokens: true,
+      presencePenalty: true,
+      stopSequences: true,
+      systemMessage: true,
+      temperature: {
+        supported: true
+      },
+      topK: {
+        supported: false
+      },
+      topP: {
+        supported: true
+      }
+    }
+  },
   'vertexai/claude-fable-5-1@default': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
   'vertexai/claude-fable-5@default': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -4387,20 +4587,20 @@ export const REQUEST_POLICIES: Record<
   },
   'vertexai/claude-opus-5-5@default': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'vertexai/claude-opus-5@default': {
@@ -4498,42 +4698,32 @@ export const REQUEST_POLICIES: Record<
   },
   'vertexai/claude-sonnet-5-5@default': {
     parameterSupport: {
+      frequencyPenalty: false,
+      maxTokens: true,
+      presencePenalty: false,
+      stopSequences: true,
+      systemMessage: true,
       temperature: {
-        supported: false
-      },
-      topP: {
         supported: false
       },
       topK: {
         supported: false
       },
-      frequencyPenalty: false,
-      presencePenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+      topP: {
+        supported: false
+      }
     }
   },
   'vertexai/claude-sonnet-5@default': {
     parameterSupport: {
       temperature: {
-        range: {
-          max: 1,
-          min: 0
-        },
-        supported: true,
-        whenReasoning: {
-          supported: false
-        }
+        supported: false
+      },
+      topK: {
+        supported: false
       },
       topP: {
-        supported: true,
-        whenReasoning: {
-          range: {
-            max: 1,
-            min: 0.95
-          }
-        }
+        supported: false
       }
     }
   },
@@ -4593,6 +4783,28 @@ export const REQUEST_POLICIES: Record<
     }
   },
   'vertexai/gemini-3-pro-image': {
+    messages: {
+      thoughtSignatures: true
+    }
+  },
+  'vertexai/gemini-4-argon': {
+    parameterSupport: {
+      cachedContent: false,
+      temperature: {
+        supported: false
+      },
+      topP: {
+        supported: false
+      },
+      topK: {
+        supported: false
+      },
+      frequencyPenalty: false,
+      presencePenalty: false,
+      maxTokens: true,
+      stopSequences: true,
+      systemMessage: true
+    },
     messages: {
       thoughtSignatures: true
     }

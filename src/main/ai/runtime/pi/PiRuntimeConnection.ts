@@ -18,16 +18,20 @@ import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
-import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
 import {
   getBinarySearchDirs,
@@ -46,11 +50,12 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -63,6 +68,8 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { createPiIdentityExtension } from './identityExtension'
+import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
@@ -74,8 +81,8 @@ import {
   type PiConnectionSnapshot,
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
-import { buildPiMcpToolName, createPiMcpExtension, warmMcpToolCatalogs } from './piMcpExtension'
-import { loadPiAi, loadPiSdk } from './piSdk'
+import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
+import { loadPiAi, loadPiSdk, loadPiVccExtension } from './piSdk'
 import { resolveResumeTokenSessionFile } from './piSessionFile'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
@@ -114,22 +121,6 @@ function resolvePiShellPath(): string | undefined {
   if (!shellPath) throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configured}`)
   return shellPath
 }
-
-const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
-  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
-)
-const PI_APPROVAL_REQUIRED_TOOLS = new Set([
-  ...listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
-])
-const PI_NON_BYPASSABLE_APPROVAL_TOOLS = new Set(
-  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
-    buildPiMcpToolName(serverName, toolName)
-  )
-)
 
 function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const definedEnv = Object.fromEntries(
@@ -204,21 +195,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    const resolveInjection = async (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> => {
-      try {
-        return await resolvePiProviderInjectionForSession(
-          this.input.sessionId,
-          snapshot.provider,
-          snapshot.model,
-          snapshot.enabledApiKeys
-        )
-      } catch (error) {
-        if (error instanceof ApiGatewayNotRunningError) {
-          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-        }
-        throw error
-      }
-    }
+    const resolveInjection = (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> =>
+      resolvePiProviderInjectionForSession(
+        this.input.sessionId,
+        snapshot.provider,
+        snapshot.model,
+        snapshot.enabledApiKeys
+      )
 
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
@@ -231,10 +214,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
-    if (usesPiGateway(discoverySnapshot.provider)) {
+    if (usesPiGateway(discoverySnapshot.provider, discoverySnapshot.model)) {
       await resolveInjection(discoverySnapshot)
     }
-    await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
+    await warmAgentMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
@@ -246,6 +229,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (!session?.agentId || !workspacePath) {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
+
+    await prepareAgentSessionWorkspaceDirectory(session)
 
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
@@ -264,8 +249,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
       withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
-      (message, metrics) => this.recordProviderInvocation(message, metrics),
-      (model) => this.startProviderSpan(model)
+      (message, metrics, pricingSnapshot) => this.recordProviderInvocation(message, metrics, pricingSnapshot),
+      (model) => this.startProviderSpan(model),
+      (model) => this.captureInvocationPricing(model.id)
     )
 
     // Cherry owns the credential + model registry: in-memory only, never pi's
@@ -328,6 +314,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         citationsGuidance,
         effectiveLanguage: initialSnapshot.effectiveLanguage
       })
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
+        channelLinked: linkedChannel !== null
+      })
+      const mountedPolicies = listBuiltinToolPolicies({ mountedServers })
       const approvalContext = {
         sessionId: this.input.sessionId,
         workspacePath,
@@ -338,16 +330,28 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         getPermissionMode: () => this.permissionMode,
         isDisabled: (toolName: string) => this.isToolDisabled(toolName),
         additionalReadOnlyRoots: additionalSkillPaths,
-        // Safe first-party MCP tools may run headlessly; third-party and mutating tools still prompt.
-        // disabledTools hard-blocks every class at fire-time.
-        autoApprovedTools: PI_AUTO_APPROVED_MCP_TOOLS,
-        approvalRequiredTools: PI_APPROVAL_REQUIRED_TOOLS,
-        nonBypassableApprovalTools: PI_NON_BYPASSABLE_APPROVAL_TOOLS
+        // Approval follows the mounted server set; disabledTools still blocks at fire-time.
+        autoApprovedTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'auto')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        approvalRequiredTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'required')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        nonBypassableApprovalTools: new Set(
+          mountedPolicies
+            .filter(({ approval, bypassApproval }) => approval === 'required' && bypassApproval === 'enforce')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        ),
+        delegationTools: new Set(
+          mountedPolicies
+            .filter(({ approval }) => approval === 'delegation')
+            .map(({ serverName, toolName }) => buildPiMcpToolName(serverName, toolName))
+        )
       }
-      const mountedServers = resolveMountedMcpServers(agent, {
-        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
-        channelLinked: linkedChannel !== null
-      })
       const mcpServers = buildAgentMcpServers(
         session,
         agent,
@@ -379,9 +383,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
           createPiApprovalExtension(approvalContext),
+          createPiIdentityExtension(agentDataPath),
           pi.createCodemodeExtension({ models: false }),
           pi.createToolSearchExtension(),
-          createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
+          createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),
+          await loadPiVccExtension(application.getPath('feature.agents.pi.root', 'pi-vcc-config.json'))
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -727,7 +733,32 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
-  private recordProviderInvocation(message: AssistantMessage, metrics?: PiInvocationMetrics): void {
+  private captureInvocationPricing(apiModelId: string): AiUsagePricingSnapshot | null {
+    const capture = this._usageCapture
+    if (capture?.owner !== 'agent-sdk') return null
+    const frozen = capture.frozenModels.find((model) => model.aliases.includes(apiModelId))
+    if (!frozen) return null
+    try {
+      const provider = providerService.getByProviderId(capture.providerId)
+      const modelId = parseUniqueModelId(frozen.modelId as UniqueModelId).modelId
+      const model = modelService.getByKey(provider.id, modelId)
+      return createAiUsageCaptureContext({
+        providerId: provider.id,
+        modelId,
+        pricing: model.pricing,
+        billing: provider.settings.billing
+      }).pricingSnapshot
+    } catch (error) {
+      logger.warn('Could not capture Pi invocation pricing', { error })
+      return null
+    }
+  }
+
+  private recordProviderInvocation(
+    message: AssistantMessage,
+    metrics?: PiInvocationMetrics,
+    pricingSnapshot?: AiUsagePricingSnapshot | null
+  ): void {
     if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
     if (message.stopReason === 'error' || message.stopReason === 'aborted') return
@@ -747,6 +778,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       invocation: {
         requestId,
         model: message.responseModel?.trim() || message.model || this.modelId,
+        pricingSnapshot,
         messageAssociation: 'current-turn',
         usage: {
           inputTokens,
@@ -857,7 +889,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return
       }
       // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
-      this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      this.eventQueue.push({
+        type: 'compaction-error',
+        error: event.errorMessage ?? 'pi compaction aborted',
+        aborted: event.aborted
+      })
       return
     }
     // `willRetry` keeps the surrounding agent turn open; it does not defer this compaction result.
@@ -918,12 +954,18 @@ interface PiInvocationMetrics {
 function withPiInvocationCapture(
   config: ProviderConfig,
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  onComplete: (message: AssistantMessage, metrics?: PiInvocationMetrics) => void,
-  startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined
+  onComplete: (
+    message: AssistantMessage,
+    metrics: PiInvocationMetrics,
+    pricingSnapshot: AiUsagePricingSnapshot | null
+  ) => void,
+  startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined,
+  capturePricing: (model: { id: string }) => AiUsagePricingSnapshot | null
 ): ProviderConfig {
   return {
     ...config,
     streamSimple: (model, context, options) => {
+      const pricingSnapshot = capturePricing(model)
       const traceObserver = startTrace(model)
       let stream: ReturnType<typeof streamSimple>
       try {
@@ -958,10 +1000,14 @@ function withPiInvocationCapture(
           traceObserver?.complete(message)
           const timeCompletionMs = Math.max(0, Date.now() - streamStartedAt)
           const timeFirstTokenMs = firstTokenAt !== undefined ? Math.max(0, firstTokenAt - streamStartedAt) : undefined
-          onComplete(message, {
-            ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
-            timeCompletionMs
-          })
+          onComplete(
+            message,
+            {
+              ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+              timeCompletionMs
+            },
+            pricingSnapshot
+          )
         },
         (error) => traceObserver?.error(error)
       )
@@ -1004,21 +1050,44 @@ function normalizeDisabledTools(
   snapshot: PiConnectionSnapshot
 ): Set<string> {
   const disabled = new Set((disabledTools ?? []).map(normalizePiDisabledToolId))
+  const unresolved = new Set([...disabled].filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX)))
+  const legacyTools: Array<{ ids: string[]; nameAlias?: string; piName: string }> = listBuiltinToolPolicies({
+    mountedServers: new Set(Object.values(CHERRY_MCP_SERVER))
+  }).map((tool) => ({
+    ids: [legacyDisabledToolId(tool.serverName, tool.toolName)],
+    piName: buildPiMcpToolName(tool.serverName, tool.toolName)
+  }))
   const catalog = application.get('McpCatalogService')
-  for (const server of snapshot.mcpServerSnapshots.values()) {
+  for (const [namespace, server] of snapshot.mcpServerSnapshots) {
     if (!server) continue
     const tools = catalog.listTools(server.id, { includeDisabled: false })
     const names = tools.map((tool) => buildPiMcpToolName(server.id, tool.name))
     for (const tool of tools) {
       const name = buildPiMcpToolName(server.id, tool.name)
+      const piName = buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name))
+      legacyTools.push({
+        ids: [legacyDisabledToolId(namespace, tool.name), legacyDisabledToolId(server.id, tool.name)],
+        nameAlias: legacyDisabledToolId(server.name, tool.name),
+        piName
+      })
       if (
         disabled.has(buildFunctionCallToolName(server.name, tool.name)) ||
         disabled.has(`mcp__${server.id}__${tool.name}`)
       ) {
-        disabled.add(buildPiMcpToolName(server.id, tool.name, names.indexOf(name) !== names.lastIndexOf(name)))
+        disabled.add(piName)
       }
     }
   }
+  for (const id of unresolved) {
+    // DSH used the configured namespace; display-name aliases are only safe when unambiguous.
+    const exact = legacyTools.filter((tool) => tool.ids.includes(id))
+    const matches = exact.length ? exact : legacyTools.filter((tool) => tool.nameAlias === id)
+    const piNames = new Set(matches.map((tool) => tool.piName))
+    if (piNames.size !== 1) continue
+    for (const name of piNames) disabled.add(name)
+    unresolved.delete(id)
+  }
+  assertLegacyDisabledToolsResolved(unresolved)
   // Sanitizing raw aliases can accidentally block another tool whose name collides.
   return disabled
 }

@@ -13,7 +13,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -22,7 +22,7 @@ import {
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
-import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -37,7 +37,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isVisionModel } from '@shared/utils/model'
 import {
   isExternalCliProvider,
@@ -107,7 +107,6 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
   customHeaders?: string | Readonly<Record<string, string>>
   usageCapture: AgentSessionUsageCapture
-  internalRequestToken?: string
 }
 
 /** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
@@ -190,7 +189,7 @@ function buildUsageModels(
     {
       apiModelId: string
       modelName: string | null
-      pricingSnapshot: ReturnType<typeof createAiUsagePricingSnapshot>
+      pricingSnapshot: ReturnType<typeof createAiUsageCaptureContext>['pricingSnapshot']
       aliases: Set<string>
     }
   >()
@@ -198,7 +197,13 @@ function buildUsageModels(
     const current = byModelId.get(ref.modelId) ?? {
       apiModelId: ref.apiModelId,
       modelName: ref.model?.name ?? ref.modelId,
-      pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
+      pricingSnapshot: createAiUsageCaptureContext({
+        providerId: ref.providerId,
+        modelId: ref.modelId,
+        pricing: ref.model?.pricing,
+        billing: ref.provider?.settings?.billing,
+        invocationStartedAt: null
+      }).pricingSnapshot,
       aliases: new Set<string>()
     }
     current.aliases.add(sdkModelId)
@@ -401,6 +406,7 @@ async function deriveConnectionConfigFromSnapshot(
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName: agent.modelName || null,
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -435,7 +441,7 @@ async function deriveConnectionConfigFromSnapshot(
   }
 }
 
-/** DB-definition facts for each referenced MCP server (read-only rows; no client connections). */
+/** Server definitions and connected metadata; never starts client connections. */
 function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): unknown[] {
   return [...(mcpIds ?? [])].sort().map((mcpId) => {
     const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
@@ -444,6 +450,7 @@ function deriveMcpDefinitionFacts(mcpIds: string[] | null | undefined, snapshots
       mcpId,
       id: server.id,
       name: server.name,
+      instructions: application.get('McpRuntimeService').getConnectedServerInstructions(server.id) ?? null,
       type: server.type,
       command: server.command ?? null,
       args: server.args ?? null,
@@ -714,13 +721,9 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
-    const apiGatewayService = application.get('ApiGatewayService')
-    const config = apiGatewayService.getCurrentConfig()
-    const host = config.host || '127.0.0.1'
-    const port = config.port || 23333
     return {
       branch: 'gateway',
-      baseUrl: gatewayClientOrigin(host, port),
+      baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),
       credentialsFingerprint: gatewayCredentialsFingerprint(),
       toolSearchCompatible,
       modelIds: {
@@ -804,7 +807,6 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
-        internalRequestToken: gateway.internalRequestToken,
         credentialsFingerprint: gatewayCredentialsFingerprint()
       }
     }
@@ -919,8 +921,8 @@ function mergeRuntimeSettings(
   fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
 ): ClaudeCodeSettings {
   const fastModeHeaders =
-    route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
-      ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
+    route.branch === 'gateway' && fastModeTransport === 'openai-priority'
+      ? `${CHERRY_FAST_MODE_HEADER}: true`
       : undefined
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,

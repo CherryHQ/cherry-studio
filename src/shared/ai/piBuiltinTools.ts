@@ -15,6 +15,7 @@ export type PiBuiltinToolDescriptor = {
 export const PI_TOOL_SEARCH_TOOL_NAME = 'tool_search'
 export const PI_TOOL_CALL_TOOL_NAME = 'tool_call'
 export const PI_TOOL_EXEC_TOOL_NAME = 'codemode'
+export const PI_TOOL_RECALL_TOOL_NAME = 'vcc_recall'
 
 export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
@@ -26,6 +27,7 @@ export const PI_NATIVE_BUILTIN_TOOLS = [
 // Single catalog shared by runtime policy and the edit dialog for Pi native tools.
 export const PI_BUILTIN_TOOLS = [
   ...PI_NATIVE_BUILTIN_TOOLS,
+  { name: PI_TOOL_RECALL_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
   { name: PI_TOOL_SEARCH_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
   { name: PI_TOOL_EXEC_TOOL_NAME, category: 'shell', approval: 'auto', permissionClass: 'meta' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]

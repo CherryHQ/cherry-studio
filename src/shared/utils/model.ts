@@ -11,8 +11,18 @@
  *    `@cherrystudio/provider-registry` (creator-declared data).
  */
 
-import { endpointImpliedCapability, MODALITY, modelMatchId, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
-import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import {
+  endpointImpliedCapability,
+  getSamplingPolicy,
+  MODALITY,
+  modelMatchId,
+  VENDOR_PATTERNS
+} from '@cherrystudio/provider-registry'
+import {
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryAiDefaultModel,
+  isManagedCherryCloudModel
+} from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -108,6 +118,10 @@ export const isGatewayRoutableModel = (model: Model): boolean => {
   return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
 }
 
+/** Models the public API gateway and Code Mate may expose. */
+export const isPublicGatewayRoutableModel = (model: Model): boolean =>
+  isGatewayRoutableModel(model) && !isManagedCherryCloudModel(model.providerId)
+
 // ---------------------------------------------------------------------------
 // Reasoning configuration
 // ---------------------------------------------------------------------------
@@ -138,10 +152,21 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 
 /** Check if model supports temperature parameter */
 export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+  !getSamplingPolicy({
+    modelId: getRawModelId(model),
+    providerId: model.providerId,
+    parameterSupport: model.parameterSupport,
+    reasoning: 'off'
+  }).omitTemperature
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean =>
+  !getSamplingPolicy({
+    modelId: getRawModelId(model),
+    providerId: model.providerId,
+    parameterSupport: model.parameterSupport,
+    reasoning: 'off'
+  }).omitTopP
 
 // Vendor identity checks all delegate to `VENDOR_PATTERNS` in
 // `@cherrystudio/provider-registry`. Do NOT inline new regex here —

@@ -17,6 +17,7 @@ export interface SamplingPolicy {
   omitTemperature: boolean
   omitTopP: boolean
   omitTopK: boolean
+  omitCachedContent: boolean
   temperatureMax?: number
   topPMin?: number
   exclusiveTemperatureTopP: boolean
@@ -40,6 +41,7 @@ export function getSamplingPolicy(context: SamplingContext): SamplingPolicy {
       (topP.requiresExplicitReasoningOff === true && !off) ||
       (active && topP.whenReasoning?.supported === false),
     omitTopK: topK?.supported === false,
+    omitCachedContent: catalog?.cachedContent === false,
     temperatureMax:
       temperature.max ?? (active ? temperature.whenReasoning?.range?.max : undefined) ?? temperature.range?.max,
     topPMin: active ? topP.whenReasoning?.range?.min : undefined,

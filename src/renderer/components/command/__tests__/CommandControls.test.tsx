@@ -110,10 +110,12 @@ describe('CommandShortcut', () => {
     expect(content).toHaveTextContent('New Session')
     expect(content.parentElement).toHaveAttribute('data-placement', 'bottom')
     expect(content.parentElement).toHaveAttribute('data-delay', '800')
-    expect(screen.getByText('⌘N').tagName).toBe('KBD')
-    expect(screen.getByText('⌘N').className).toContain('bg-transparent')
-    expect(screen.getByText('⌘N').className).toContain('rounded-none')
-    expect(screen.getByText('⌘N').className).toContain('[font:inherit]')
+    const keycap = screen.getByText('⌘N', { selector: 'kbd' })
+    expect(keycap.className).toContain('bg-transparent')
+    expect(keycap.className).toContain('rounded-none')
+    expect(keycap.className).toContain('[font:inherit]')
+    // The keycap is aria-hidden, so the sr-only copy is what the description announces.
+    expect(screen.getByText('⌘N', { selector: '.sr-only' })).toBeInTheDocument()
   })
 
   it('renders the shortcut inline as a hover-revealed kbd without a tooltip', () => {
