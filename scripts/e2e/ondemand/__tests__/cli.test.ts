@@ -75,14 +75,15 @@ it('preserves a handled signal as interrupted after the next finalize process', 
   }
 })
 
-it('rejects missing authenticated credentials before starting an application', () => {
+it.each(['resolve', 'run'])('rejects missing authenticated credentials during %s', (command) => {
   const cli = controller()
   cli.env.QA_PROFILE = 'authenticated'
   try {
     expect(
-      spawnSync(process.execPath, [require.resolve('tsx/cli'), resolve(__dirname, '../run.ts'), 'run'], {
+      spawnSync(process.execPath, [require.resolve('tsx/cli'), resolve(__dirname, '../run.ts'), command], {
         env: {
           ...cli.env,
+          GITHUB_REPOSITORY: 'invalid',
           CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: '',
           CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: '',
           CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ''
@@ -91,7 +92,12 @@ it('rejects missing authenticated credentials before starting an application', (
         timeout: 10_000
       }).status
     ).toBe(2)
-    expect(readResult(cli.env.QA_OUT)).toMatchObject({ status: 'failed', exitCode: 2, failureStage: 'prepare' })
+    expect(readResult(cli.env.QA_OUT)).toMatchObject({
+      status: 'failed',
+      exitCode: 2,
+      failureStage: command === 'resolve' ? 'input' : 'prepare',
+      errors: [expect.objectContaining({ message: expect.stringContaining('apiKey') })]
+    })
     expect(existsSync(resolve(cli.directory, 'app.json'))).toBe(false)
   } finally {
     cli.cleanup()

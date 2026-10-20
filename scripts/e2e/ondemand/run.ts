@@ -222,6 +222,7 @@ async function main(): Promise<void> {
   ]
   switch (command) {
     case 'resolve': {
+      if (request.profile === 'authenticated') readProfileConfig()
       const target = resolveRepositoryRef(request.ref, process.env.GITHUB_REPOSITORY ?? 'CherryHQ/cherry-studio')
       if (target.kind !== request.mode)
         throw new QaError(

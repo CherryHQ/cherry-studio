@@ -14,6 +14,8 @@ it('dispatches one validated platform and retains the machine-readable verdict a
   })
   const run = workflow.jobs.test.steps.find((step: { name?: string }) => step.name === 'Run one test')
   expect(run.env.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY).toBe('${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}')
+  const preflight = workflow.jobs.resolve.steps.find((step: { id?: string }) => step.id === 'ref')
+  expect(preflight.env).toEqual(run.env)
   expect(workflow.jobs.test.strategy).toBeUndefined()
   expect(workflow.jobs.test['runs-on']).toBe('${{ needs.resolve.outputs.runner }}')
   expect(workflow.jobs.test.concurrency).toMatchObject({ 'cancel-in-progress': false, queue: 'max' })
@@ -24,4 +26,23 @@ it('dispatches one validated platform and retains the machine-readable verdict a
   expect(source).not.toContain('inputs.plan }}\n        run:')
   expect(source).not.toContain('run-phase')
   expect(source).not.toContain('startup-smoke')
+})
+
+it('keeps unrelated workflow diagnostics blocking the CI gate', () => {
+  const ci = parse(readFileSync(resolve(__dirname, '../../../../.github/workflows/ci.yml'), 'utf8'))
+  const lint = ci.jobs['basic-checks'].steps.find(
+    (step: { name?: string }) => step.name === 'Lint GitHub Actions workflows'
+  )
+  const filters = [...lint.with.args.matchAll(/-ignore '([^']+)'/g)]
+  expect(filters).toHaveLength(1)
+  const ignored = new RegExp(filters[0][1])
+  expect('unexpected key "queue" for "concurrency" section. expected one of "cancel-in-progress", "group"').toMatch(
+    ignored
+  )
+  for (const error of [
+    'unexpected key "queue_typo" for "concurrency" section. expected one of "cancel-in-progress", "group"',
+    'unexpected key "queue" for "job" section. expected one of "runs-on", "steps"',
+    'invalid expression in concurrency group'
+  ])
+    expect(error).not.toMatch(ignored)
 })
