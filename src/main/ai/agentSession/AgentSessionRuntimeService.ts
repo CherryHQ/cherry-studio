@@ -2410,6 +2410,11 @@ export class AgentSessionRuntimeService extends BaseService {
     if (active) {
       this.clearIdleTimer(entry)
     } else {
+      // The drain is authoritative for children whose SubagentStop was deferred while other work was
+      // active: with no background work left, nothing can still be carrying a continued child, so a
+      // still-listed one is done. Releasing here is what lets a desktop follow-up's unprovenanced
+      // root calls resolve again — the child's origin binding survives as provenance.
+      entry.liveNativeChildren?.clear()
       void this.finishBackgroundFlows(entry)
       if (!this.isSessionBusy(entry.sessionId)) this.refreshIdleTimer(entry)
       this.releaseDrainedTopicStream(entry)

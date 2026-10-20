@@ -3523,6 +3523,49 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    // SubagentStop can land while UNRELATED background work is still active, so the release is
+    // deferred — and the drain that follows is the first moment nothing can still be carrying the
+    // child. Releasing there keeps a desktop follow-up's unprovenanced root calls working after all
+    // background work has drained.
+    it('releases a stopped child\u2019s liveness when the connection drains after its SubagentStop', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = warmConnection()
+      service.markTurnTerminal('session-1', 'success')
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      service.bindNativeChildOrigin('session-1', 'agent-b')
+      service.markTurnTerminal('session-1', 'success')
+
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      const entry = getEntry(service)
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      // SubagentStop arrives while that work is still active, so the release defers.
+      service.releaseNativeChildLiveness('session-1', 'agent-b')
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+
+      // The drain is authoritative: with no background work left, nothing can still be carrying the
+      // stopped child, so the deferred release must land here.
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      expect(service.getSessionToolsAuthorization('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      expect(service.getMcpInteractionHost('session-1')).toMatchObject({ windowId: 'window-1' })
+
+      // Provenance survives — a resumed child keeps its headless origin.
+      expect(service.getSessionToolsAuthorization('session-1', 'agent-b')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      void service.closeSession('session-1')
+    })
+
     // A CLI crash after SubagentStart but before SubagentStop leaves the child bound while a later
     // desktop turn reuses the entry and reconnects with no surviving child: an unprovenanced root
     // MCP call must not hit the headless denial (and its consent-host suppression) there. Bindings
