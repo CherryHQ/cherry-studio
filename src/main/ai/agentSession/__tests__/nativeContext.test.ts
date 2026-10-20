@@ -14,13 +14,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type { OperationResult } from '@cherrystudio/agent-runtime'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { AgentSessionContextSeeder } from '@data/db/seeding/seeders/AgentSessionContextSeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
-import { backfillNativeContexts } from '../backfillNativeContexts'
 import {
   confirmPiContext,
   createDurableBackend,
@@ -152,8 +154,11 @@ describe('native context storage and reconciliation', () => {
     expect(() => loadPiSession(backend.id, manager.getSessionId())).toThrow('ambiguous')
   })
 
-  it('backfills all distinct native identities idempotently without changing old rows or creating missing files', async () => {
+  it('confirms seeded identities separately and retries missing files after seeding is complete', async () => {
     const { backend } = await pi()
+    const agentId = uuid()
+    dbh.db.insert(agentTable).values({ id: agentId, type: 'pi', name: 'Pi', instructions: '', orderKey: 'a0' }).run()
+    dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, sessionId)).run()
     const manager = SessionManager.create(directory, application.getPath('feature.agents.pi.sessions'))
     manager.appendMessage(fauxAssistantMessage('old native answer'))
     const first = message('old visible question')
@@ -170,14 +175,28 @@ describe('native context storage and reconciliation', () => {
       .run()
     const before = dbh.db.select().from(agentSessionMessageTable).all()
     const files = readdirSync(application.getPath('feature.agents.pi.sessions'))
-    const result = backfillNativeContexts(sessionId)
-    expect(result.bound).toHaveLength(1)
-    expect(result.unresolved).toHaveLength(1)
-    expect(backfillNativeContexts(sessionId)).toEqual(result)
-    expect(contexts.forSession(sessionId)).toHaveLength(2)
-    expect(contexts.backend(backend.id).id).toBe(backend.id)
+    const seeder = new AgentSessionContextSeeder()
+    new SeedRunner(dbh.db).runAll([seeder])
+    const pending = contexts.forSession(sessionId)
+    expect(pending).toHaveLength(2)
+    expect(pending.every((row) => row.nativeThreadId === null && row.backendId === backend.id)).toBe(true)
+    const available = pending.find((row) => row.intendedThreadId === manager.getSessionId())!
+    const missing = pending.find((row) => row.intendedThreadId === 'missing-native')!
+    expect(confirmPiContext(available.id).nativeThreadId).toBe(manager.getSessionId())
+    expect(() => confirmPiContext(missing.id)).toThrow('missing')
+    expect(contexts.context(missing.id).nativeThreadId).toBeNull()
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
     expect(readdirSync(application.getPath('feature.agents.pi.sessions'))).toEqual(files)
+
+    const recovered = SessionManager.create(directory, application.getPath('feature.agents.pi.sessions'), {
+      id: 'missing-native'
+    })
+    recovered.appendMessage(fauxAssistantMessage('recovered native history'))
+    new SeedRunner(dbh.db).runAll([seeder])
+    expect(contexts.context(missing.id).nativeThreadId).toBeNull()
+    expect(confirmPiContext(missing.id).nativeThreadId).toBe('missing-native')
+    expect(contexts.forSession(sessionId)).toHaveLength(2)
+    expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
   })
 
   it('does not dispatch when the message submission transaction fails', async () => {
