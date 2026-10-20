@@ -1963,7 +1963,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto",
       "name": "Auto (account strategy)",
@@ -1980,7 +1980,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-best",
       "name": "Auto Best",
@@ -1997,7 +1997,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-cheapest",
       "name": "Auto Cheapest",
@@ -2014,7 +2014,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-coding",
       "name": "Auto Coding",
@@ -2031,7 +2031,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-consistent",
       "name": "Auto Consistent",
@@ -2048,7 +2048,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-fastest",
       "name": "Auto Fastest",
@@ -2065,7 +2065,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-fastest-quality",
       "name": "Auto Fastest Quality",
@@ -2082,7 +2082,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-reasoning",
       "name": "Auto Reasoning",
@@ -2099,7 +2099,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-split",
       "name": "Auto Split (account traffic split)",
@@ -2116,7 +2116,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-task",
       "name": "Auto Task",
@@ -2133,7 +2133,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-tooling",
       "name": "Auto Tool Use",
@@ -2150,7 +2150,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-value",
       "name": "Auto Value",
@@ -2167,7 +2167,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-value-coding",
       "name": "Auto Value Coding",
@@ -2184,7 +2184,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-value-reasoning",
       "name": "Auto Value Reasoning",
@@ -2201,7 +2201,7 @@
       "inputModalities": ["text"],
       "limits": {
         "contextWindow": 262144,
-        "maxOutputTokens": 65536
+        "maxOutputTokens": 64000
       },
       "modelId": "auto-value-tooling",
       "name": "Auto Value Tool Use",
@@ -41893,5 +41893,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "396a376f21e1f0ae"
+  "version": "bc9d86af7d41d832"
 }

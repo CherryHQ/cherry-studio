@@ -52,7 +52,7 @@ const routingModeOverrides = ROUTING_MODES.map(([modelId, name]) => ({
   inputModalities: ['text'],
   outputModalities: ['text'],
   // The smallest context and output limit among the models the router can choose.
-  limits: { contextWindow: 262_144, maxOutputTokens: 65_536 },
+  limits: { contextWindow: 262_144, maxOutputTokens: 64_000 },
   reason: 'Routing mode owned by AI Stupid Level; routes only among tool-calling models'
 })) satisfies Array<Partial<ProviderModelOverride>>
 
