@@ -72,39 +72,13 @@ const KNOWLEDGE_BASE_NOT_FOUND_RESOURCE = 'KnowledgeBase'
  */
 const KNOWLEDGE_CONCEPT_CONTENT_NOT_FOUND_RESOURCE = 'Knowledge concept content'
 
-export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's private knowledge base — local documents, notes, web clippings.
+export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's documents, notes, and clippings. Pass known baseIds, else kb_list first; cite with [cite:id].`
 
-Use this when:
-- The user references "my notes" / "my documents" / their own materials
-- The question references topics likely covered in stored documents
-- Specific factual lookup that isn't general knowledge
+export const KNOWLEDGE_LIST_DESCRIPTION = `List knowledge bases or outline one with baseId. Metadata only; use kb_search or kb_read for content.`
 
-Workflow: when a relevant base ID is already known (for example, from an attached knowledge base), call kb_search directly with that ID in baseIds. Call kb_list first only when no relevant base ID is known. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
+export const KNOWLEDGE_READ_DESCRIPTION = `Read one document by baseId and conceptId, or grep it with pattern. Cite with [cite:id].`
 
-export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
-
-Two modes, selected by \`baseId\`:
-- Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name or source. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.
-
-This tool returns metadata and structure, not retrieved evidence. Do not answer content questions from names or sampleSources; use kb_search for relevant passages or kb_read for a known document.`
-
-export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
-
-Pass the \`conceptId\` and \`baseId\` from a kb_search hit (or a kb_list outline). Two modes, selected by \`pattern\`:
-- Omit \`pattern\` to read the document text: kb_search returns short matching chunks, kb_read returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
-- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.
-
-Cite: append [cite:id] immediately after each statement this document supports, using the result's exact \`id\` field.`
-
-export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
-
-Set \`action\`:
-- "add": import one new source. Set \`type\` and its field — "file" (\`path\`: an absolute local file path), "url" (\`url\`), or "note" (\`content\`, optional \`title\`). The source is copied in and indexed.
-- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs (the \`conceptId\` field of a kb_search hit or a kb_list outline) to remove.
-- "refresh": re-index documents (re-read the source, rebuild chunks/embeddings). Set \`conceptIds\`.
-
-Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from kb_search or a kb_list outline first; ids that don't resolve come back in \`notFound\`.`
+export const KNOWLEDGE_MANAGE_DESCRIPTION = `Add, delete, or re-index knowledge documents. Destructive; get conceptIds first and confirm the user's request.`
 
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both

@@ -14,17 +14,7 @@ export const LsToolSchema = z.object({
 
 // Tool definition with detailed description
 export const lsToolDefinition = {
-  description: `Lists files and directories in a specified path.
-
-- Returns a tree-like structure with icons (📁 directories, 📄 files)
-- Shows the absolute directory path in the header
-- Entries are sorted alphabetically with directories first
-- Can list recursively with recursive=true (up to 5 levels deep)
-- Common directories (node_modules, dist, .git) are excluded
-- Hidden files (starting with .) are excluded except .env.example
-- Results are limited to 100 entries
-- The path parameter must resolve within the configured workspace root if specified
-- If path is not specified, defaults to the base directory`,
+  description: `List a directory alphabetically, directories first, max 100. Set recursive for up to 5 levels.`,
   inputSchema: LsToolSchema
 }
 
