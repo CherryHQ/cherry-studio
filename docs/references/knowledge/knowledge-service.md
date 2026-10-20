@@ -214,11 +214,13 @@ apps may grant additional scopes.
 The runtime reports `scope-missing` for missing required scopes and
 `automatic-scope-mismatch` for unexpected PersonalAgent grants.
 
-Reauthorization compares `tenantKey + accountUserId`; an application-scoped
+For a previously authorized Connection, reauthorization compares `tenantKey + accountUserId`; an application-scoped
 `accountOpenId` change alone does not change identity. A tenant or user mismatch
 returns `identity-conflict`; a missing stable user id returns
 `identity-unverifiable`. Neither replaces the existing credentials or application
-metadata.
+metadata. A Connection whose identity/display fields, `authorizedAt`, and
+`lastValidatedAt` are all null and whose granted scopes are empty may bind its
+first identity through reconnect after interrupted initial authorization.
 
 ### Credential replacement and recovery
 
@@ -267,6 +269,11 @@ exposing provider bodies in errors or logs. It prefers positive integer
 interval defaults to 5 seconds. One registration deadline covers delays and
 in-flight requests, and `slow_down` growth is bounded. Registration and Knowledge
 provider requests also have a 30-second timeout combined with caller cancellation.
+The timeout and transport-error handling cover response body consumption.
+Knowledge transport failures use the existing bounded retries; registration
+request timeouts retry within the registration deadline. Other registration
+network failures remain request errors, and malformed JSON/schema responses
+remain distinct from transport failures.
 A registration session is claimed synchronously before a consumer awaits its
 polling result, so it cannot be consumed twice but remains cancellable while its
 first consumer runs.
