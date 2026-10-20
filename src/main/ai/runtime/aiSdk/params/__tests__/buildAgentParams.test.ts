@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 
@@ -949,6 +950,72 @@ describe('buildAgentParams standard model parameters', () => {
           expect(body).not.toHaveProperty('top_p')
         }
         expect(body).not.toHaveProperty('topP')
+      }
+    )
+
+    it.each([
+      ['openai/gpt-5.6-terra', false],
+      ['gpt-4o', true]
+    ] as const)(
+      'serializes catalog-resolved CherryIN %s without bypassing temperature support',
+      async (apiModelId, supported) => {
+        const resolved = providerRegistryService.resolveModel(
+          { id: 'cherryin', presetProviderId: 'cherryin', defaultChatEndpoint: 'openai-chat-completions' },
+          apiModelId
+        )
+        expect(resolved.presetModel).not.toBeNull()
+        const catalogModel = mergePresetModel(
+          resolved.presetModel!,
+          resolved.registryOverride,
+          'cherryin',
+          resolved.reasoningProfile.wire,
+          resolved.reasoningProfile.support,
+          resolved.serviceTierControl
+        )
+        let body: Record<string, unknown> | undefined
+        resolveProviderAiSdkConfigMock.mockResolvedValue({
+          config: {
+            providerId: 'openai-compatible',
+            providerSettings: {
+              fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+                body = JSON.parse(String(init?.body))
+                throw new Error('request captured')
+              }
+            }
+          },
+          credentialReceipt: { attribution: 'unknown' }
+        })
+        const result = await buildAgentParams({
+          request: { conversation: CONVERSATION },
+          signal: undefined,
+          provider: makeProvider({ id: 'cherryin', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }),
+          model: catalogModel,
+          assistant: makeAssistant({
+            settings: {
+              enableTemperature: true,
+              temperature: 0.7,
+              customParameters: [
+                { name: 'temperature', type: 'number', value: 0.3 },
+                { name: 'user', type: 'string', value: 'terra-probe' }
+              ]
+            }
+          })
+        })
+        const sdkModel = createOpenAICompatible({
+          name: 'openai-compatible',
+          baseURL: 'https://provider.test/v1',
+          fetch: result.sdkConfig.providerSettings.fetch
+        }).chatModel(apiModelId)
+        await expect(
+          sdkModel.doGenerate({
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+            temperature: result.options.temperature,
+            providerOptions: result.options.providerOptions
+          })
+        ).rejects.toThrow('request captured')
+        expect(body).toMatchObject({ model: apiModelId, user: 'terra-probe' })
+        expect(Object.hasOwn(body!, 'temperature')).toBe(supported)
+        if (supported) expect(body?.temperature).toBe(0.3)
       }
     )
 
