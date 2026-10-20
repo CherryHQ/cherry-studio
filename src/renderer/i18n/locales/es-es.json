@@ -4663,6 +4663,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "Conéctate a flomo para capturar rápidamente notas e ideas mediante IA. Requiere autorización de cuenta de flomo.",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "Instalación automática del servicio MCP (versión beta)",
   "settings.mcp.builtinServersDescriptions.memory": "Implementación básica de memoria persistente basada en un grafo de conocimiento local. Esto permite que el modelo recuerde información relevante del usuario entre diferentes conversaciones. Es necesario configurar la variable de entorno MEMORY_FILE_PATH.",
+  "settings.mcp.builtinServersDescriptions.multi_calendar": "Conéctate a Multi Calendar para consultar eventos, encontrar huecos libres, crear, mover y cancelar eventos y responder a invitaciones en tus calendarios de Outlook.com, Microsoft 365 y Google a la vez. Requiere autorización de una cuenta de Lumman.",
   "settings.mcp.builtinServersDescriptions.no": "sin descripción",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Requiere que la aplicación Nowledge Mem se ejecute localmente. Mantiene chats de IA, herramientas, notas, agentes y archivos en una memoria privada en tu ordenador. Descárgala desde https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Ejecuta código Python en un entorno sandbox seguro. Usa Pyodide para ejecutar Python, compatible con la mayoría de las bibliotecas estándar y paquetes de cálculo científico.",

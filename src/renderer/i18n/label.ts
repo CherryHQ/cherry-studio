@@ -329,6 +329,7 @@ export const getFileFieldLabelKey = (key: string): string => {
 
 const builtInMcpDescriptionKeyMap: Record<BuiltinMcpServerName, string> = {
   [BuiltinMcpServerNames.flomo]: 'settings.mcp.builtinServersDescriptions.flomo',
+  [BuiltinMcpServerNames.multiCalendar]: 'settings.mcp.builtinServersDescriptions.multi_calendar',
   [BuiltinMcpServerNames.qveris]: 'settings.mcp.builtinServersDescriptions.qveris',
   [BuiltinMcpServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
   [BuiltinMcpServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',

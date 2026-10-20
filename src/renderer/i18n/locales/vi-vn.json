@@ -4663,6 +4663,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "Kết nối với flomo để nhanh chóng ghi lại ghi chú và ý tưởng qua AI. Yêu cầu ủy quyền tài khoản flomo.",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "Tự động cài đặt dịch vụ MCP (beta)",
   "settings.mcp.builtinServersDescriptions.memory": "Triển khai bộ nhớ liên tục dựa trên đồ thị tri thức cục bộ. Điều này cho phép mô hình ghi nhớ thông tin liên quan đến người dùng trên các cuộc trò chuyện khác nhau. Yêu cầu cấu hình biến môi trường MEMORY_FILE_PATH.",
+  "settings.mcp.builtinServersDescriptions.multi_calendar": "Kết nối với Multi Calendar để xem sự kiện, tìm thời gian rảnh, tạo, dời và hủy sự kiện, cũng như trả lời lời mời trên các lịch Outlook.com, Microsoft 365 và Google cùng lúc. Yêu cầu ủy quyền tài khoản Lumman.",
   "settings.mcp.builtinServersDescriptions.no": "Không có mô tả",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Yêu cầu ứng dụng Nowledge Mem chạy cục bộ. Lưu giữ cuộc trò chuyện AI, công cụ, ghi chú, Agent và tệp trong bộ nhớ riêng tư trên máy tính. Tải xuống tại https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",

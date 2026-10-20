@@ -41,6 +41,17 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   },
   {
+    name: BuiltinMcpServerNames.multiCalendar,
+    reference: 'https://lumman.co/mcp/multi-calendar',
+    type: 'streamableHttp',
+    baseUrl: 'https://calendar.lumman.co/mcp',
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    provider: 'Lumman',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
     name: BuiltinMcpServerNames.qveris,
     reference: 'https://qveris.ai/docs/mcp-server',
     type: 'streamableHttp',

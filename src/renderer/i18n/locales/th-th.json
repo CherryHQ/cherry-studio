@@ -4663,6 +4663,7 @@
   "settings.mcp.builtinServersDescriptions.flomo": "เชื่อมต่อกับ flomo เพื่อบันทึกโน้ตและแนวคิดผ่าน AI อย่างรวดเร็ว ต้องอนุญาตบัญชี flomo",
   "settings.mcp.builtinServersDescriptions.mcp_auto_install": "ติดตั้ง MCP service อัตโนมัติ (เบต้า)",
   "settings.mcp.builtinServersDescriptions.memory": "หน่วยความจำถาวรตามกราฟความรู้ในเครื่อง ช่วยให้โมเดลจดจำข้อมูลที่เกี่ยวข้องกับผู้ใช้ข้ามการสนทนาต่าง ๆ ต้องกำหนดค่าตัวแปรสภาพแวดล้อม MEMORY_FILE_PATH",
+  "settings.mcp.builtinServersDescriptions.multi_calendar": "เชื่อมต่อ Multi Calendar เพื่อดูกิจกรรม ค้นหาเวลาว่าง สร้าง ย้าย และยกเลิกกิจกรรม รวมถึงตอบรับคำเชิญในปฏิทิน Outlook.com, Microsoft 365 และ Google พร้อมกัน ต้องได้รับการอนุญาตบัญชี Lumman",
   "settings.mcp.builtinServersDescriptions.no": "ไม่มีคำอธิบาย",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "ต้องให้ Nowledge Mem app รันในเครื่อง เก็บ AI chats, tools, notes, agents และไฟล์ในหน่วยความจำส่วนตัวบนคอมพิวเตอร์ของคุณ ดาวน์โหลดจาก https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "รันโค้ด Python ในสภาพแวดล้อม Sandbox ที่ปลอดภัย รัน Python ด้วย Pyodide รองรับไลบรารีมาตรฐานส่วนใหญ่และแพ็กเกจคำนวณทางวิทยาศาสตร์",

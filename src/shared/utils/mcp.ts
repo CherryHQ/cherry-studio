@@ -7,6 +7,7 @@ type ContentBlock = z.infer<typeof ContentBlockSchema>
 
 export const BuiltinMcpServerNames = {
   flomo: '@cherry/flomo',
+  multiCalendar: '@cherry/multi-calendar',
   qveris: '@cherry/qveris',
   mcpAutoInstall: '@cherry/mcp-auto-install',
   memory: '@cherry/memory',
