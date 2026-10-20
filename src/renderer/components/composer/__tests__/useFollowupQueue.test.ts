@@ -1,17 +1,16 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
+import { createElement, StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import type { TopicStreamStatus } from '@shared/ai/transport'
 
-const store = new Map<string, unknown>()
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    getCasual: vi.fn((key: string) => store.get(key)),
-    setCasual: vi.fn((key: string, value: unknown) => {
-      store.set(key, value)
-    })
-  }
-}))
+const store = {
+  get: (key: string) => cacheService.getCasual(key),
+  set: (key: string, value: unknown) => cacheService.setCasual(key, value),
+  clear: () => MockCacheUtils.resetMocks()
+}
 
 const { useFollowupQueue } = await import('../useFollowupQueue')
 
@@ -26,7 +25,14 @@ describe('useFollowupQueue', () => {
 
   it('enqueues (storing draft + payload, persisting) and removeId dequeues', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+      useFollowupQueue({
+        scopeKey: 's1',
+        status: 'streaming',
+        turnId: 'turn-1',
+        autoSendEnabled: true,
+        markSeen: vi.fn(),
+        onDrain: vi.fn()
+      })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -42,7 +48,14 @@ describe('useFollowupQueue', () => {
 
   it('reorders the queue and persists the new order', () => {
     const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+      useFollowupQueue({
+        scopeKey: 's1',
+        status: 'streaming',
+        turnId: 'turn-1',
+        autoSendEnabled: true,
+        markSeen: vi.fn(),
+        onDrain: vi.fn()
+      })
     )
 
     act(() => result.current.enqueue(draft('a'), payload('a')))
@@ -58,7 +71,15 @@ describe('useFollowupQueue', () => {
   it('reloads the queue from the cache when the scopeKey changes', () => {
     store.set('followup-queue.s2', [item('x', 'queued')])
     const { result, rerender } = renderHook(
-      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() }),
+      ({ scopeKey }) =>
+        useFollowupQueue({
+          scopeKey,
+          status: 'streaming',
+          turnId: 'turn-1',
+          autoSendEnabled: true,
+          markSeen: vi.fn(),
+          onDrain: vi.fn()
+        }),
       { initialProps: { scopeKey: 's1' } }
     )
 
@@ -74,14 +95,15 @@ describe('useFollowupQueue', () => {
     store.set('followup-queue.s1', [{ id: 'h', draft: draft('head'), payload: headPayload }])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
-      { initialProps: { isFulfilled: false } }
+      ({ status, turnId, autoSendEnabled }) =>
+        useFollowupQueue({ scopeKey: 's1', status, turnId, autoSendEnabled, markSeen, onDrain }),
+      { initialProps: { status: 'streaming' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true } }
     )
 
     expect(onDrain).not.toHaveBeenCalled()
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
     })
 
     expect(markSeen).toHaveBeenCalled()
@@ -97,12 +119,13 @@ describe('useFollowupQueue', () => {
     store.set('followup-queue.s1', [head])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
-      { initialProps: { isFulfilled: false } }
+      ({ status, turnId, autoSendEnabled }) =>
+        useFollowupQueue({ scopeKey: 's1', status, turnId, autoSendEnabled, markSeen, onDrain, onDrainFailed }),
+      { initialProps: { status: 'streaming' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
     })
 
     expect(markSeen).toHaveBeenCalled()
@@ -119,12 +142,13 @@ describe('useFollowupQueue', () => {
     store.set('followup-queue.s1', [head])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
-      { initialProps: { isFulfilled: false } }
+      ({ status, turnId, autoSendEnabled }) =>
+        useFollowupQueue({ scopeKey: 's1', status, turnId, autoSendEnabled, markSeen, onDrain, onDrainFailed }),
+      { initialProps: { status: 'streaming' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
     })
 
     expect(onDrain).toHaveBeenCalledWith(head.payload)
@@ -137,13 +161,14 @@ describe('useFollowupQueue', () => {
     store.set('followup-queue.s1', [item('h', 'head')])
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
-      { initialProps: { isFulfilled: false } }
+      ({ status, turnId, autoSendEnabled }) =>
+        useFollowupQueue({ scopeKey: 's1', status, turnId, autoSendEnabled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { status: 'streaming' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true } }
     )
 
     act(() => result.current.setPaused(true))
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
     })
 
     expect(onDrain).not.toHaveBeenCalled()
@@ -155,14 +180,26 @@ describe('useFollowupQueue', () => {
     store.set('followup-queue.s1', [item('h', 'head')])
 
     const { result, rerender } = renderHook(
-      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
-      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+      ({ scopeKey, status, turnId, autoSendEnabled }) =>
+        useFollowupQueue({ scopeKey, status, turnId, autoSendEnabled, markSeen: vi.fn(), onDrain }),
+      {
+        initialProps: {
+          scopeKey: 's1',
+          status: 'streaming' as TopicStreamStatus,
+          turnId: 'turn-1',
+          autoSendEnabled: true
+        }
+      }
     )
 
     act(() => result.current.setPaused(true))
-    act(() => rerender({ scopeKey: 's2', isFulfilled: false }))
+    act(() =>
+      rerender({ scopeKey: 's2', status: 'streaming' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
+    )
     expect(result.current.paused).toBe(false)
-    await act(async () => rerender({ scopeKey: 's1', isFulfilled: true }))
+    await act(async () =>
+      rerender({ scopeKey: 's1', status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
+    )
 
     expect(result.current.paused).toBe(true)
     expect(onDrain).not.toHaveBeenCalled()
@@ -179,12 +216,21 @@ describe('queued edit switching', () => {
   const setup = (ids = ['A', 'B']) => {
     const entries = ids.map((id) => item(id, id))
     store.set('followup-queue.s1', entries)
+    vi.mocked(cacheService.setCasual).mockClear()
     const markSeen = vi.fn()
     const onDrain = vi.fn().mockResolvedValue(true)
     const onDrainFailed = vi.fn()
     const hook = renderHook(
-      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen, onDrain, onDrainFailed }),
-      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+      ({ scopeKey, status, turnId, autoSendEnabled }) =>
+        useFollowupQueue({ scopeKey, status, turnId, autoSendEnabled, markSeen, onDrain, onDrainFailed }),
+      {
+        initialProps: {
+          scopeKey: 's1',
+          status: 'streaming' as TopicStreamStatus,
+          turnId: 'turn-1',
+          autoSendEnabled: true
+        }
+      }
     )
     return { ...hook, entries, markSeen, onDrain, onDrainFailed }
   }
@@ -253,7 +299,7 @@ describe('queued edit switching', () => {
       })
     else
       await act(async () => {
-        rerender({ scopeKey: 's1', isFulfilled: true })
+        rerender({ scopeKey: 's1', status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
       })
     act(() => {
       result.current.removeId(x.id)
@@ -278,7 +324,8 @@ describe('queued edit switching', () => {
     expect(result.current.items, 'reorder must keep the supplied order across the absent slot').toEqual([a, b, x])
     act(() => {
       result.current.takeForEdit(b.id, capture)
-      result.current.reorder([x])
+      result.current.removeId(a.id)
+      result.current.removeId(c.id)
       result.current.takeForEdit(x.id, capture)
     })
     expect(result.current.items, 'an absent slot beyond the new queue length must clamp safely').toEqual([b])
@@ -325,7 +372,10 @@ describe('queued edit switching', () => {
       expect(result.current.takeForEdit(a.id, capture), 'admitted dispatch must refuse Edit').toBeNull()
     })
     expect(result.current.items, 'admission must not change visible items').toEqual([a, b])
-    expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'admission must not persist').toBe(0)
+    expect(
+      vi.mocked(cacheService.setCasual).mock.calls.filter(([key]) => key.startsWith('followup-queue.')),
+      'admission must not persist the queue'
+    ).toEqual([])
     act(() => {
       result.current.takeForEdit(b.id, capture)
       release()
@@ -373,7 +423,7 @@ describe('queued edit switching', () => {
           })
       )
       act(() => {
-        rerender({ scopeKey: 's1', isFulfilled: true })
+        rerender({ scopeKey: 's1', status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
       })
       act(() => {
         expect(result.current.takeForEdit(a.id, capture), 'draining head must refuse editing').toBeNull()
@@ -399,7 +449,7 @@ describe('queued edit switching', () => {
     }
   )
 
-  it('discards taken metadata and admissions on scope change and ignores old-scope success', async () => {
+  it('discards local taken metadata on scope change while settling success in the source', async () => {
     const {
       result,
       rerender,
@@ -418,10 +468,10 @@ describe('queued edit switching', () => {
     )
     act(() => {
       result.current.takeForEdit(b.id, capture)
-      rerender({ scopeKey: 's1', isFulfilled: true })
+      rerender({ scopeKey: 's1', status: 'done' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
     })
     act(() => {
-      rerender({ scopeKey: 's2', isFulfilled: false })
+      rerender({ scopeKey: 's2', status: 'streaming' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
     })
     act(() => {
       result.current.takeForEdit(c.id, capture)
@@ -433,13 +483,455 @@ describe('queued edit switching', () => {
       result.current.takeForEdit(d.id, capture)
     })
     expect(result.current.items, 'old success must not clear the new scope taken record').toEqual([c])
-    expect(store.get('followup-queue.s1'), 'old success must not mutate the prior scope cache').toEqual([a])
+    expect(store.get('followup-queue.s1'), 'success removes the delivered source item').toEqual([])
     act(() => {
-      rerender({ scopeKey: 's1', isFulfilled: false })
+      rerender({ scopeKey: 's1', status: 'streaming' as TopicStreamStatus, turnId: 'turn-1', autoSendEnabled: true })
     })
     act(() => {
-      expect(result.current.takeForEdit(a.id, capture), 'scope reload must discard old admission').toEqual(a)
+      expect(result.current.takeForEdit(a.id, capture), 'delivered source item cannot be edited').toBeNull()
     })
     expect(result.current.items, 'scope reload must not reinsert old taken B').toEqual([])
   })
+})
+
+describe('terminal admission regressions', () => {
+  beforeEach(() => store.clear())
+  const observation = (status: TopicStreamStatus | undefined, turnId: string | undefined = 'turn-1') => ({
+    status,
+    turnId: turnId as string | undefined,
+    autoSendEnabled: true,
+    scopeKey: 's1'
+  })
+  const setup = (initial = observation('streaming'), strict = false) => {
+    store.set('followup-queue.s1', [item('B', 'B'), item('C', 'C')])
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const markSeen = vi.fn()
+    const onDrainFailed = vi.fn()
+    const hook = () =>
+      renderHook((props) => useFollowupQueue({ ...props, onDrain, markSeen, onDrainFailed }), {
+        initialProps: initial,
+        wrapper: strict ? ({ children }) => createElement(StrictMode, null, children) : undefined
+      })
+    return { ...hook(), hook, onDrain, markSeen, onDrainFailed }
+  }
+
+  it.each(['error', 'aborted'] as const)('pending B cannot be resent or taken after remount (%s)', async (status) => {
+    const { rerender, unmount, hook, onDrain } = setup(observation('streaming'), true)
+    let accept!: (sent: boolean) => void
+    onDrain.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          accept = resolve
+        })
+    )
+    act(() => rerender(observation(status)))
+    const second = hook()
+    unmount()
+    const replacement = hook()
+    act(() => {
+      for (const consumer of [second, replacement]) {
+        expect(consumer.result.current.beginSend('B')).toBeNull()
+        expect(consumer.result.current.takeForEdit('B', () => null)).toBeNull()
+      }
+    })
+    await act(async () => {
+      accept(true)
+    })
+    expect(onDrain.mock.calls).toEqual([[payload('B')]])
+    expect(second.result.current.items).toEqual([item('C', 'C')])
+    expect(replacement.result.current.items).toEqual([item('C', 'C')])
+    expect(store.get('followup-queue.s1')).toEqual([item('C', 'C')])
+  })
+
+  it('navigation cannot leave delivered B queued or overwrite newer source edits and return slots', async () => {
+    const { rerender, result, hook, onDrain } = setup()
+    let accept!: (sent: boolean) => void
+    onDrain.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          accept = resolve
+        })
+    )
+    act(() => rerender(observation('aborted')))
+    const destination = [item('X', 'X'), item('Y', 'Y')]
+    store.set('followup-queue.s2', destination)
+    rerender({ ...observation('streaming'), scopeKey: 's2' })
+    const source = hook()
+    act(() => {
+      source.result.current.enqueue(draft('D'), payload('D'))
+      source.result.current.enqueue(draft('E'), payload('E'))
+    })
+    const [b, c, d, e] = source.result.current.items
+    act(() => {
+      source.result.current.reorder([b, d, c, e])
+      source.result.current.takeForEdit(c.id, () => null)
+      result.current.takeForEdit('X', () => null)
+    })
+    await act(async () => {
+      accept(true)
+    })
+    expect(source.result.current.items).toEqual([d, e])
+    expect(store.get('followup-queue.s1')).toEqual([d, e])
+    act(() => {
+      source.result.current.takeForEdit(e.id, () => ({ draft: draft('C edited'), payload: payload('C edited') }))
+      result.current.takeForEdit('Y', () => ({ draft: draft('X edited'), payload: payload('X edited') }))
+    })
+    const editedC = { ...c, draft: draft('C edited'), payload: payload('C edited') }
+    expect(source.result.current.items).toEqual([d, editedC])
+    expect(result.current.items).toEqual([
+      { ...destination[0], draft: draft('X edited'), payload: payload('X edited') }
+    ])
+    expect(store.get('followup-queue-paused.s2')).toBeUndefined()
+    await act(async () => {
+      source.rerender(observation('error', 'turn-2'))
+    })
+    expect(onDrain.mock.calls).toEqual([[b.payload], [d.payload]])
+    expect(source.result.current.items).toEqual([editedC])
+  })
+
+  it.each(['false', 'reject'] as const)(
+    'late %s exposes Resume in both source views without retrying the receipt',
+    async (outcome) => {
+      const { rerender, hook, onDrain, onDrainFailed } = setup()
+      let accept!: (sent: boolean) => void
+      let reject!: (error: Error) => void
+      onDrain.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve, fail) => {
+            accept = resolve
+            reject = fail
+          })
+      )
+      act(() => rerender(observation('error')))
+      rerender({ ...observation('streaming'), scopeKey: 's2' })
+      const source = hook()
+      const replacement = hook()
+      await act(async () => {
+        if (outcome === 'false') accept(false)
+        else reject(new Error('failure'))
+      })
+      for (const consumer of [source, replacement]) {
+        expect(consumer.result.current.paused).toBe(true)
+        expect(consumer.result.current.items).toEqual([item('B', 'B'), item('C', 'C')])
+      }
+      expect(onDrainFailed).toHaveBeenCalledOnce()
+      expect(store.get('followup-queue-paused.s2')).toBeUndefined()
+      await act(async () => {
+        replacement.result.current.setPaused(false)
+        source.rerender(observation('error'))
+        replacement.rerender(observation('error'))
+      })
+      expect(source.result.current.paused).toBe(false)
+      expect(replacement.result.current.paused).toBe(false)
+      expect(onDrain.mock.calls).toEqual([[payload('B')]])
+      const release = source.result.current.beginSend('B')
+      expect(release).toBeTypeOf('function')
+      release?.()
+      act(() => expect(replacement.result.current.takeForEdit('B', () => null)).toEqual(item('B', 'B')))
+    }
+  )
+
+  it('another writer cannot resurrect B, discard new items or replace current payloads with stale reorder data', () => {
+    const { result, hook } = setup()
+    const second = hook()
+    const stale = [...result.current.items]
+    act(() => {
+      result.current.removeId('B')
+      second.result.current.enqueue(draft('D'), payload('D'))
+      result.current.reorder(stale)
+    })
+    const d = result.current.items[1]
+    expect(second.result.current.items).toEqual([item('C', 'C'), d])
+    const old = [...result.current.items]
+    act(() => {
+      store.set('followup-queue.s1', [{ ...old[0], payload: payload('C updated') }, d, item('E', 'E')])
+      second.result.current.removeId(d.id)
+      result.current.reorder(old)
+      second.result.current.takeForEdit('E', () => null)
+      result.current.reorder([item('C', 'stale')])
+    })
+    expect(result.current.items).toEqual([{ ...item('C', 'C'), payload: payload('C updated') }])
+    expect(store.get('followup-queue.s1')).toEqual(result.current.items)
+  })
+
+  it('release stays in its acquisition scope and cannot unlock other claims or a reacquired id', () => {
+    const { result, rerender, hook } = setup()
+    const releaseB = result.current.beginSend('B')!
+    const releaseC = result.current.beginSend('C')!
+    store.set('followup-queue.s2', [item('B', 'destination B')])
+    rerender({ ...observation('streaming'), scopeKey: 's2' })
+    const releaseDestination = result.current.beginSend('B')!
+    const source = hook()
+    act(() => source.result.current.removeId('B'))
+    expect(store.get('followup-queue-inflight.s1')).toEqual(['B', 'C'])
+    releaseB()
+    expect(source.result.current.beginSend('C')).toBeNull()
+    expect(result.current.beginSend('B')).toBeNull()
+    act(() => store.set('followup-queue.s1', [item('B', 'B'), item('C', 'C')]))
+    const newRelease = source.result.current.beginSend('B')!
+    releaseB()
+    expect(source.result.current.beginSend('B')).toBeNull()
+    newRelease()
+    releaseC()
+    releaseDestination()
+    act(() => expect(source.result.current.takeForEdit('B', () => null)).toEqual(item('B', 'B')))
+  })
+
+  it.each(['success', 'false', 'reject', 'throw'] as const)(
+    'removed pending B stays removed after %s and releases its claim',
+    async (outcome) => {
+      const { result, rerender, onDrain, onDrainFailed } = setup()
+      let accept!: (sent: boolean) => void
+      let reject!: (error: Error) => void
+      onDrain.mockImplementationOnce(() => {
+        if (outcome === 'throw') throw new Error('sync failure')
+        return new Promise<boolean>((resolve, fail) => {
+          accept = resolve
+          reject = fail
+        })
+      })
+      act(() => rerender(observation('aborted')))
+      act(() => result.current.removeId('B'))
+      await act(async () => {
+        if (outcome === 'reject') reject(new Error('failure'))
+        else if (outcome !== 'throw') accept(outcome === 'success')
+      })
+      expect(result.current.items).toEqual([item('C', 'C')])
+      expect(store.get('followup-queue.s1')).toEqual([item('C', 'C')])
+      expect(store.get('followup-queue-inflight.s1')).toEqual([])
+      expect(onDrainFailed).toHaveBeenCalledTimes(outcome === 'success' ? 0 : 1)
+    }
+  )
+
+  it.each(['done', 'error', 'aborted'] as const)(
+    'does not strand the head after %s or dequeue before acceptance',
+    async (status) => {
+      const { result, rerender, onDrain, markSeen } = setup()
+      let accept!: (accepted: boolean) => void
+      onDrain.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            accept = resolve
+          })
+      )
+      act(() => {
+        rerender(observation(status))
+      })
+      expect(result.current.items.map((entry) => entry.id)).toEqual(['B', 'C'])
+      expect(onDrain.mock.calls).toEqual([[payload('B')]])
+      expect(markSeen).toHaveBeenCalledTimes(status === 'done' ? 1 : 0)
+      await act(async () => {
+        accept(true)
+      })
+      expect(result.current.items.map((entry) => entry.id)).toEqual(['C'])
+    }
+  )
+
+  it.each([
+    ['done', 'error'],
+    ['error', 'done'],
+    ['aborted', 'aborted']
+  ] as const)(
+    'does not double-send the same id across %s to %s, but admits a new id without a live render',
+    async (first, second) => {
+      const { rerender, onDrain, result } = setup()
+      await act(async () => {
+        rerender(observation(first))
+      })
+      await act(async () => {
+        rerender(observation(second))
+      })
+      expect(onDrain.mock.calls).toEqual([[payload('B')]])
+      expect(result.current.items.map((entry) => entry.id)).toEqual(['C'])
+      await act(async () => {
+        rerender(observation(second, 'turn-2'))
+      })
+      expect(onDrain.mock.calls).toEqual([[payload('B')], [payload('C')]])
+      expect(result.current.items).toEqual([])
+    }
+  )
+
+  it('deduplicates a consumed terminal receipt through StrictMode replay, remount and a second instance', async () => {
+    const { rerender, onDrain, unmount, hook } = setup(observation('error'), true)
+    await act(async () => {
+      rerender(observation('error'))
+    })
+    const second = hook()
+    await act(async () => {
+      second.rerender(observation('error'))
+    })
+    unmount()
+    const remount = hook()
+    await act(async () => {
+      remount.rerender(observation('error'))
+    })
+    expect(onDrain.mock.calls).toEqual([[payload('B')]])
+    expect(remount.result.current.items.map((entry) => entry.id)).toEqual(['C'])
+  })
+
+  it('respects another instance pause without consuming the terminal, then admits it on resume', async () => {
+    const { rerender, result, onDrain } = setup()
+    store.set('followup-queue-paused.s1', true)
+    await act(async () => {
+      rerender(observation('error'))
+    })
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(store.get('followup-queue-last-drained-turn.s1')).toBeUndefined()
+    act(() => {
+      result.current.setPaused(true)
+    })
+    await act(async () => {
+      result.current.setPaused(false)
+    })
+    expect(onDrain.mock.calls).toEqual([[payload('B')]])
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['C'])
+  })
+
+  it.each(['false', 'reject', 'throw'] as const)(
+    'retains and pauses after %s without retrying on rerender, resume or remount',
+    async (outcome) => {
+      const { rerender, result, onDrain, onDrainFailed, hook, unmount } = setup()
+      if (outcome === 'false') onDrain.mockResolvedValueOnce(false)
+      else if (outcome === 'reject') onDrain.mockRejectedValueOnce(new Error('failed'))
+      else
+        onDrain.mockImplementationOnce(() => {
+          throw new Error('sync failure')
+        })
+      await act(async () => {
+        rerender(observation('error'))
+      })
+      expect(result.current.items.map((entry) => entry.id)).toEqual(['B', 'C'])
+      expect(result.current.paused).toBe(true)
+      expect(store.get('followup-queue-paused.s1')).toBe(true)
+      await act(async () => {
+        result.current.setPaused(false)
+      })
+      rerender(observation('error'))
+      unmount()
+      const remount = hook()
+      await act(async () => {
+        remount.rerender(observation('error'))
+      })
+      expect(onDrain.mock.calls).toEqual([[payload('B')]])
+      expect(onDrainFailed).toHaveBeenCalledOnce()
+      const release = remount.result.current.beginSend('B')
+      expect(release).toBeTypeOf('function')
+      release?.()
+      act(() => {
+        expect(remount.result.current.takeForEdit('B', () => null)?.id).toBe('B')
+      })
+      expect(remount.result.current.items.map((entry) => entry.id)).toEqual(['C'])
+    }
+  )
+
+  it('does not consume a terminal when manual admission holds the head', async () => {
+    const { result, rerender, onDrain } = setup()
+    const release = result.current.beginSend('B')!
+    await act(async () => {
+      rerender(observation('done'))
+    })
+    expect(store.get('followup-queue-last-drained-turn.s1')).toBeUndefined()
+    expect(onDrain).not.toHaveBeenCalled()
+    release()
+    await act(async () => {
+      rerender(observation('error'))
+    })
+    expect(onDrain.mock.calls).toEqual([[payload('B')]])
+  })
+
+  it('never sends the document taken for editing and drains the next visible head', async () => {
+    const { result, rerender, onDrain } = setup()
+    act(() => {
+      result.current.takeForEdit('B', () => null)
+    })
+    await act(async () => {
+      rerender(observation('aborted'))
+    })
+    expect(onDrain.mock.calls).toEqual([[payload('C')]])
+    expect(result.current.items).toEqual([])
+  })
+
+  it('keeps receipts independent and pauses only the originating scope on a late failure', async () => {
+    const { result, rerender, onDrain, onDrainFailed } = setup()
+    store.set('followup-queue.s2', [item('X', 'X'), item('Y', 'Y')])
+    let fail!: (accepted: boolean) => void
+    onDrain.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          fail = resolve
+        })
+    )
+    act(() => {
+      rerender(observation('error'))
+    })
+    await act(async () => {
+      rerender({ ...observation('error'), scopeKey: 's2' })
+    })
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['Y'])
+    await act(async () => {
+      fail(false)
+    })
+    expect(result.current.paused).toBe(false)
+    expect(store.get('followup-queue-paused.s1')).toBe(true)
+    expect(store.get('followup-queue-paused.s2')).toBeUndefined()
+    expect(onDrainFailed).toHaveBeenCalledOnce()
+    await act(async () => {
+      rerender(observation('error'))
+    })
+    expect(result.current.paused).toBe(true)
+    expect(result.current.items.map((entry) => entry.id)).toEqual(['B', 'C'])
+    expect(onDrain.mock.calls).toEqual([[payload('B')], [payload('X')]])
+  })
+
+  it.each(['awaiting-approval', undefined] as const)(
+    'does not send, pause or consume on %s even without identity',
+    async (status) => {
+      const { rerender, result, onDrain, onDrainFailed } = setup()
+      await act(async () => {
+        rerender({ ...observation(status), turnId: undefined })
+      })
+      expect(onDrain).not.toHaveBeenCalled()
+      expect(onDrainFailed).not.toHaveBeenCalled()
+      expect(result.current.paused).toBe(false)
+      expect(result.current.items).toHaveLength(2)
+      expect(store.get('followup-queue-last-drained-turn.s1')).toBeUndefined()
+    }
+  )
+
+  it('stops unidentified terminal sending and notifies once across remounts', async () => {
+    const { rerender, result, onDrain, onDrainFailed, unmount, hook } = setup()
+    await act(async () => {
+      rerender({ ...observation('error'), turnId: undefined })
+    })
+    expect(result.current.paused).toBe(true)
+    expect(result.current.items).toHaveLength(2)
+    unmount()
+    const remount = hook()
+    await act(async () => {
+      remount.rerender({ ...observation('done'), turnId: undefined })
+    })
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(onDrainFailed).toHaveBeenCalledOnce()
+  })
+
+  it.each(['error', 'aborted'] as const)(
+    'does not consume a disabled terminal so enabling later can send it (%s)',
+    async (status) => {
+      const { rerender, onDrain, onDrainFailed, result } = setup()
+      await act(async () => {
+        rerender({ ...observation(status), autoSendEnabled: false })
+      })
+      expect(onDrain).not.toHaveBeenCalled()
+      expect(store.get('followup-queue-inflight.s1')).toBeUndefined()
+      expect(result.current.paused).toBe(false)
+      expect(store.get('followup-queue-paused.s1')).toBeUndefined()
+      expect(onDrainFailed).not.toHaveBeenCalled()
+      expect(store.get('followup-queue-last-drained-turn.s1')).toBeUndefined()
+      await act(async () => {
+        rerender(observation(status))
+      })
+      expect(onDrain.mock.calls).toEqual([[payload('B')]])
+      expect(result.current.items.map((entry) => entry.id)).toEqual(['C'])
+    }
+  )
 })

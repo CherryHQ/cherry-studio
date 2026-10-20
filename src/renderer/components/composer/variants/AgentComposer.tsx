@@ -309,7 +309,7 @@ export interface AgentComposerSendBody {
   fastMode?: boolean
 }
 
-export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody; notifyFailure?: boolean }
 
 export interface AgentComposerLaunchOptions {
   initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
@@ -1500,7 +1500,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, queueOwnsFailureNotice = false) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1518,6 +1518,7 @@ const AgentComposerInner = ({
         const sent = await chatSendMessage(
           { text: payload.text },
           {
+            notifyFailure: !queueOwnsFailureNotice,
             body: {
               agentId,
               sessionId,
@@ -1535,7 +1536,7 @@ const AgentComposerInner = ({
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
-        toast.errorFromException(error)
+        if (!queueOwnsFailureNotice) toast.errorFromException(error)
         return false
       }
     },
@@ -1588,8 +1589,8 @@ const AgentComposerInner = ({
     workspaceKey
   ])
 
-  // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
+  // Foreground terminals drain independently of background tasks.
+  const { status, turnId, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1602,9 +1603,12 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
-    isFulfilled: !sendDisabled && !launchOptions?.editing && sessionFulfilled,
+    status,
+    turnId,
+    autoSendEnabled: !sendDisabled && !launchOptions?.editing,
     markSeen: markSessionSeen,
-    onDrain: sendQueuedPayload
+    onDrain: (payload) => sendQueuedPayload(payload, true),
+    onDrainFailed: () => toast.warning(t('chat.input.followup_queue.auto_send_stopped'))
   })
   releaseFollowupEditRef.current = releaseEdit
   const followupScopeRef = useLatest(

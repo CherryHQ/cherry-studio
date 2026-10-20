@@ -500,6 +500,32 @@ describe('useAgentChatRuntimeState', () => {
     }
   )
 
+  it('suppresses automatic open-rejection feedback while preserving manual feedback', async () => {
+    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+      '@renderer/hooks/useConversationTurnController'
+    )
+    mocks.controllerOptions.mockImplementation(useConversationTurnController)
+    const error = new Error('stream open failed')
+    mocks.streamOpen.mockRejectedValue(error)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    await act(async () => {
+      expect(await result.current.sendMessage({ text: 'automatic B' }, { notifyFailure: false })).toBe(false)
+    })
+    expect(toast.getToastQueue().toasts).toHaveLength(0)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    await act(async () => {
+      expect(await result.current.sendMessage({ text: 'manual B' })).toBe(false)
+    })
+    expect(toast.getToastQueue().toasts).toHaveLength(1)
+    expect(mocks.streamOpen).toHaveBeenCalledTimes(2)
+  })
+
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)
     const { result } = renderHook(() =>
