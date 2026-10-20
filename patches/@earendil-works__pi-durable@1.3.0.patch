@@ -1,0 +1,50 @@
+diff --git a/dist/storage/sqlite/storage.d.ts b/dist/storage/sqlite/storage.d.ts
+index d312292d50b18d2c86b6a2e3b18c1ce89ba21db9..099f26ecc3d57d12127798523e10b4d7434cb64c 100644
+--- a/dist/storage/sqlite/storage.d.ts
++++ b/dist/storage/sqlite/storage.d.ts
+@@ -21,6 +21,8 @@ export declare class SqliteStorage implements Storage {
+     private constructor();
+     /** Initialize storage over an owned SQLite database facade. */
+     static open(db: SqliteDatabase, options?: SqliteStorageOptions): Promise<SqliteStorage>;
++    /** Open initialized storage without migrations; the database must already exist. */
++    static openExisting(db: SqliteDatabase, options?: SqliteStorageOptions): Promise<SqliteStorage>;
+     commit(writes: readonly StorageWrite[], _context: Context): Promise<Seq>;
+     mintId<I extends Id<string>>(): Promise<I>;
+     conversation(id: ConversationId, _context: Context): Promise<ConversationRecord | undefined>;
+diff --git a/dist/storage/sqlite/storage.js b/dist/storage/sqlite/storage.js
+index e063ce41d4942e6e3202a55fd6c1e7d98cbc7506..08b9541e544f9cb12d4e432781aae6cbcb7669b2 100644
+--- a/dist/storage/sqlite/storage.js
++++ b/dist/storage/sqlite/storage.js
+@@ -2,7 +2,7 @@ import { apply } from "@earendil-works/chord/delta";
+ import { StorageRequestError } from "../../errors.js";
+ import { idFromNumber, seqFromNumber } from "../../ids.js";
+ import { nextCursor, scanStart } from "../scan.js";
+-import { applySqliteMigrationsForSchema } from "./migrations.js";
++import { applySqliteMigrationsForSchema, CURRENT_SQLITE_SCHEMA_VERSION } from "./migrations.js";
+ import { createSqliteSchema } from "./schema.js";
+ const parseJson = (value) => JSON.parse(value);
+ const encodeJson = (value) => JSON.stringify(value);
+@@ -104,6 +104,23 @@ export class SqliteStorage {
+             throw error;
+         }
+     }
++    /** Open an initialized store without schema writes or implicit creation. */
++    static async openExisting(db, options = {}) {
++        try {
++            const schema = createSqliteSchema(options.prefix);
++            const version = await db.get(`SELECT version FROM ${schema.tables.durableSchema} WHERE singleton = 1`);
++            if (version?.version !== CURRENT_SQLITE_SCHEMA_VERSION)
++                throw new Error("Durable SQLite schema requires explicit migration");
++            const metadata = await db.get(`SELECT next_id FROM ${schema.tables.durableMetadata} WHERE singleton = 1`);
++            const nextId = Number(metadata?.next_id);
++            if (!Number.isSafeInteger(nextId) || nextId < 2)
++                throw new Error("Durable SQLite metadata is invalid");
++            return new SqliteStorage(db, schema, nextId);
++        } catch (error) {
++            try { await db.close(); } catch { /* Preserve the opening failure. */ }
++            throw error;
++        }
++    }
+     async commit(writes, _context) {
+         this.assertOpen();
+         const documentActions = this.prepareDocumentActions(writes);
