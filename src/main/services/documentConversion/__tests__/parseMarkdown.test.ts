@@ -186,6 +186,39 @@ describe('leading nested lists', () => {
     expect(shape(continued)).toEqual(shape('- Parent\n\n  More\n- Next'))
   })
 
+  it('keeps consecutive and trailing empty ordered and bullet items', async () => {
+    expect(shape('3.\n4. Next')).toEqual([
+      { type: 'text', text: '', bullet: 1, orderedNumber: 3, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 4, listDepth: 1 }
+    ])
+    expect(shape('3.\n4.\n5. Next\n6.')).toEqual([
+      { type: 'text', text: '', bullet: 1, orderedNumber: 3, listDepth: 1 },
+      { type: 'text', text: '', bullet: 1, orderedNumber: 4, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: 5, listDepth: 1 },
+      { type: 'text', text: '', bullet: 1, orderedNumber: 6, listDepth: 1 }
+    ])
+    expect(shape('-\n-\n- Next')).toEqual([
+      { type: 'text', text: '', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: '', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: undefined, listDepth: 1 }
+    ])
+    expect(shape('- Next\n-\n-')).toEqual([
+      { type: 'text', text: 'Next', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: '', bullet: 1, orderedNumber: undefined, listDepth: 1 },
+      { type: 'text', text: '', bullet: 1, orderedNumber: undefined, listDepth: 1 }
+    ])
+
+    const word = await JSZip.loadAsync(await convertDocx(parseMarkdown('3.\n4. Next'), new Map(), 'Lists'))
+    const xml = await word.file('word/document.xml')!.async('string')
+    const listed = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].flatMap((match) => {
+      const paragraph = match[0]
+      if (!paragraph.includes('<w:ilvl ')) return []
+      return [[...paragraph.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((part) => part[1]).join('')]
+    })
+    expect(listed).toEqual(['', 'Next'])
+    expect(roundTrip('-\n-\n- Next').match(/^- $/gm)).toHaveLength(2)
+  })
+
   it('still opens a leading table, image, code block, or heading as the parent item', () => {
     const table = '- | A | B |\n  | --- | --- |\n  | 1 | 2 |\n  - Child'
     expect(shape(table).filter((block) => block.type === 'text' && block.text === '')).toEqual([])

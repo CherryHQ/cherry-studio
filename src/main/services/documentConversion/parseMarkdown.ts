@@ -260,6 +260,9 @@ export function parseMarkdown(
         list.current = list.next
         if (list.next !== undefined) list.next++
       }
+    } else if (token.type === 'list_item_close') {
+      // A nested list already consumed the pending parent marker. An item with no blocks still needs one.
+      if (lists.at(-1)?.first) blocks.push({ type: 'text', text: '', ...openItem() })
     } else if (token.type === 'blockquote_open') {
       containers.push('quote')
     } else if (token.type === 'blockquote_close') {

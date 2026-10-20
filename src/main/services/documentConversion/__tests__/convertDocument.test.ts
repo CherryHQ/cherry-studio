@@ -284,6 +284,26 @@ describe('document conversion', () => {
     expect(Number(items[1]?.indent)).toBeGreaterThan(Number(items[0]?.indent))
   })
 
+  it('keeps consecutive empty list markers in Word output', async () => {
+    const word = await JSZip.loadAsync(
+      (await convertDocumentBundle({ markdown: '3.\n4. Next\n\n-\n-\n- Later', format: 'docx' })).bytes
+    )
+    const documentXml = await word.file('word/document.xml')!.async('string')
+    const numberingXml = await word.file('word/numbering.xml')!.async('string')
+    const items = [...documentXml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].flatMap((match) => {
+      const paragraph = match[0]
+      if (!paragraph.includes('<w:ilvl ')) return []
+      const text = [...paragraph.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((part) => part[1]).join('')
+      const ilvl = paragraph.match(/<w:ilvl w:val="(\d+)"/)?.[1]
+      const numId = paragraph.match(/<w:numId w:val="(\d+)"/)?.[1]
+      const numbering = numberingLevel(numberingXml, numId, ilvl)
+      return [{ text, start: numbering?.start }]
+    })
+    expect(items.map((item) => item.text)).toEqual(['', 'Next', '', '', 'Later'])
+    expect(items[0]?.start).toBe('3')
+    expect(items[1]?.start).toBe('4')
+  })
+
   it('preserves ordered list start numbers through editable Office and HTML output', async () => {
     const markdown = '3. Step three\n4. Step four'
     const docx = (await convertDocumentBundle({ markdown, format: 'docx' })).bytes
