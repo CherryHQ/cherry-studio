@@ -584,11 +584,23 @@ export class ExternalKnowledgeRuntime {
           )
           assertCurrent()
           const credential = await this.readCredential(connection, { state, generation })
+          const authorization = { appId: credential.appId, appSecret: credential.appSecret, accessToken }
           return await operation({
-            authorization: { appId: credential.appId, appSecret: credential.appSecret, accessToken },
+            authorization,
             connection: validatedConnection,
             signal,
-            request: (budget, request) => this.runCredentialRequest(state, generation, signal, request, budget)
+            request: (budget, request) =>
+              this.runCredentialRequest(
+                state,
+                generation,
+                signal,
+                async () => {
+                  authorization.accessToken = await this.acquireAccessToken(connectionId, signal)
+                  assertCurrent()
+                  return await request()
+                },
+                budget
+              )
           })
         } catch (error) {
           assertCurrent()
