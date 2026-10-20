@@ -28,11 +28,11 @@ Newer overlapping work wins while unrelated roots can still proceed. Ordinary de
 
 ## Verification
 
-- `ownedSubtreeJobHandlers.integration.test.ts`: a failed A acquisition waits for B, a newer A reindex completes, then the old failure settles; A stays completed and visible through the real SQLite query boundary.
-- `reindexSubtreeJobHandler.test.ts`: existing deletion, reset, interruption, and scheduling regressions pass.
+- Regression — `ownedSubtreeJobHandlers.integration.test.ts`: a failed A acquisition waits for B, a newer A reindex completes, then the old failure settles; A stays completed and visible through the real SQLite query boundary.
+- Regression — `reindexSubtreeJobHandler.test.ts`: existing deletion, reset, interruption, and scheduling regressions pass.
 
-- `ExternalKnowledgeSyncService.test.ts`: unchanged revision/hash and a failure just before acquiring the lock rebuild the local owner.
-- `subtreeDeletion.integration.test.ts`: 33,001 roots pass real JobManager payload validation and real SQLite status updates; an injected failure rolls back all jobs and status changes.
+- Regression — `ExternalKnowledgeSyncService.test.ts`: unchanged revision/hash and a failure just before acquiring the lock rebuild the local owner.
+- Regression — `subtreeDeletion.integration.test.ts`: 33,001 roots pass real JobManager payload validation and real SQLite status updates; an injected failure rolls back all jobs and status changes.
 
-- `ExternalKnowledgeSourceLifecycle.test.ts`: schedule mutation queued during base teardown cannot leave an orphan schedule.
-- `ExternalKnowledgeDisconnect.test.ts`: reauthorization commits while cancellation is deferred without changing the disconnect revision; final source/document deletion succeeds.
+- Regression — `ExternalKnowledgeSourceLifecycle.test.ts`: schedule mutation queued during base teardown cannot leave an orphan schedule.
+- Regression — `ExternalKnowledgeDisconnect.test.ts`: reauthorization commits while cancellation is deferred without changing the disconnect revision; final source/document deletion succeeds.
