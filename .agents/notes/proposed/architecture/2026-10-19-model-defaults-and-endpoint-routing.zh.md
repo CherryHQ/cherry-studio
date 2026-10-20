@@ -30,9 +30,9 @@ Status: proposed
 
 ### 基线与实施前置条件
 
-这份纯文档 Spec 直接堆叠在 [PR #21724](https://github.com/CherryHQ/cherry-studio/pull/21724) 上，目标分支为 `DeJeune/openai-gemini-endpoints-implement`，核对版本为 `d5122ff4e47f6b76c53988263ff60e7cb858b016`。该父层也是诊断基线，提供连接继承和独立元数据控件。父 PR 面向 `main`；本 Spec 相对父层仅新增双语文档三件套。
+这份纯文档 Spec 直接堆叠在 [PR #21724](https://github.com/CherryHQ/cherry-studio/pull/21724) 上，目标分支为 `DeJeune/openai-gemini-endpoints-implement`，核对版本为 `c60f7c7ef2a35e831395847740fcf5c7a65b9007`。该父层包含诊断基线、连接继承、独立元数据控件和普通云端 TTS。父 PR 面向 `main`；本 Spec 相对父层仅新增双语文档三件套。
 
-依赖顺序为 `main` → 前置 #21724 → 本 Spec → 下述实现层。Spec 当前 head 获得 Approval 后即可开始实现，无需等待前置 PR 合并，其改动通过堆叠关系继承。如果父层变化，需要向上变基并重新核对受影响的 API、测试和 Spec 审批要求。本地普通 TTS 原型仍未合入，其语音适配器和测试必须在下述传输层中交付并验证。本 Spec 不新增产品实现。工作拆解会标明来自前置改动或原型的计划文件位置。
+依赖顺序为 `main` → 前置 #21724 → 本 Spec → 下述实现层。Spec 当前 head 获得 Approval 后即可开始实现，无需等待前置 PR 合并，其改动通过堆叠关系继承。如果父层变化，需要向上变基并重新核对受影响的 API、测试和 Spec 审批要求。普通 TTS 适配器和测试现已提交到前置层；下述传输层仍需将其接入提案中的共同选择规则，并验证剩余场景。本 Spec 不新增产品实现。工作拆解会标明来自前置改动的计划文件位置。
 
 ### 默认描述与显式覆盖
 
@@ -97,7 +97,7 @@ Status: proposed
 ### 实施顺序
 
 1. Spec 当前 head 获得 Approval 后，在本 Spec 上堆叠模型默认值解析与稀疏创建语义，继承前置路由与表单改动，覆盖 AC1、AC2 的创建部分和 AC8。
-2. 在该层上堆叠请求目标选择和普通云端 TTS，覆盖 AC3–AC7 及 AC9 的路由部分。前两层一起验收，避免修复能力后掩盖错误路由。
+2. 在该层上堆叠请求目标选择，以及继承的云端 TTS 的集成，覆盖 AC3–AC7 及 AC9 的路由部分。前两层一起验收，避免修复能力后掩盖错误路由。
 3. 在传输层上堆叠配置解释与选择性重置，完成 AC2、AC9、AC10 和累计 Electron 场景。同步维护参考文档；只有具备全部 AC 证据的最终层才将笔记迁移到 implemented。
 
 ### 逐文件工作拆解
@@ -111,7 +111,7 @@ Status: proposed
 | `packages/provider-registry/src/registry-utils.ts` | 负责纯端点兼容与建议规则；运行时和配置调用方共享连接来源选择 | 数据服务和渲染进程不导入 `main/ai`；不重复实现 URL 选择策略 |
 | `src/main/ai/provider/endpoint.ts` 和 `src/main/ai/AiService.ts` | 在 SDK 配置前，依据实际生图、编辑或嵌入请求约束端点选择 | SDK 请求采用选中的目标端点及其显式地址 |
 | 来自 #21724 的 `src/main/ai/provider/endpointConnection.ts` | 保留 URL 与完整路径归一化，同时使用共享连接来源决策 | 现有继承根地址和完整 URL 覆盖保留原有语义 |
-| 来自本地原型的 `src/main/ai/provider/speech.ts` 与自定义 Gemini 语音适配器 | 普通 TTS 接入共同路由规则和现有朗读流程 | 列表可选资格与实际传输一致，包括明确的 New API 路径 |
+| 来自 #21724 的 `src/main/ai/provider/speech.ts` 与自定义 Gemini 语音适配器 | 普通 TTS 接入共同路由规则和现有朗读流程 | 列表可选资格与实际传输一致，包括明确的 New API 路径 |
 
 仅将连接来源的纯决策共享到 registry，传输专用的 SDK 与路径构造留在主进程。配置解释展示来源端点和配置的基础地址，绝不包含凭证材料。用于建议的提供商上下文必须包含有效端点配置，不能只有厂商身份或默认 LLM 类型。同一批次按提供商解析一次上下文，避免增加逐模型数据库读取。
 
@@ -119,7 +119,7 @@ Status: proposed
 
 ### 验证计划
 
-以下是计划检查，不是已完成的实现证据。下列已有测试名称来自诊断工作树；`endpointConnection.test.ts` 和 `modelMetadataForms.test.tsx` 来自 #21724，`speechModels.test.ts` 来自本地 TTS 原型。
+以下是计划检查，不是已完成的实现证据。下列已有测试名称来自诊断工作树；`endpointConnection.test.ts`、`modelMetadataForms.test.tsx` 和 `speechModels.test.ts` 来自 #21724。
 
 | 验证负责方 | 显式测试位置 | 可观察证据 |
 | --- | --- | --- |
