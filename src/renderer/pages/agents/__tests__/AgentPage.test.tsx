@@ -339,8 +339,7 @@ vi.mock('@renderer/hooks/tab', () => {
     }),
     useTabs: () => ({ updateTab }),
     useCurrentTabId: () => 'agent-tab',
-    useIsActiveTab: () => agentPageMocks.isActiveTab,
-    useTabSelfVisuals: vi.fn()
+    useIsActiveTab: () => agentPageMocks.isActiveTab
   }
 })
 
@@ -719,7 +718,6 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
     ) : null
 }))
 
-import { useTabSelfVisuals } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 
@@ -879,6 +877,41 @@ describe('AgentPage', () => {
     view.unmount()
     agentPageMocks.composerLaunchOptions = undefined
     render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
+  })
+
+  it('pre-fills the scheduled task starter prompt without sending it, and drops it once sent', async () => {
+    agentPageMocks.agents = []
+    const taskSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-task-chat',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    agentPageMocks.routeSearch = { intent: 'task', sessionId: taskSession.id }
+    activeSessionMocks.session = taskSession
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    await waitFor(() =>
+      expect(agentPageMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: { sessionId: 'session-task-chat' },
+        replace: true
+      })
+    )
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-task-chat')
+    expect(agentPageMocks.composerLaunchOptions).toMatchObject({
+      initialDraft: { text: 'settings.scheduledTasks.chatDraft', tokens: [] }
+    })
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+
+    agentPageMocks.routeSearch = { sessionId: 'session-task-chat' }
+    act(() => {
+      agentPageMocks.composerLaunchOptions.onSent()
+    })
 
     await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
   })
@@ -2629,9 +2662,6 @@ describe('AgentPage', () => {
     const { rerender } = render(<AgentPage />)
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
-    )
 
     agentPageMocks.routeSearch = { sessionId: 'session-2' }
     activeSessionMocks.session = null
@@ -2641,9 +2671,6 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-2'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: true })
-    )
 
     activeSessionMocks.session = {
       id: 'session-2',
@@ -2657,9 +2684,6 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-2')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('false')
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
-    )
   })
 
   it('does not create a first-launch session from remembered agent and workspace state', () => {
