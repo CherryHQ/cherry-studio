@@ -17,8 +17,11 @@
   },
   "dependencies": {
     "@cherrystudio/sqlite-wasm-compat": "workspace:*",
+    "@noble/hashes": "^2.4.0",
+    "buffer": "^6.0.3",
     "drizzle-orm": "^0.44.5",
-    "es-toolkit": "^1.49.0"
+    "es-toolkit": "^1.49.0",
+    "pathe": "^2.0.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
