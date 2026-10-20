@@ -317,10 +317,18 @@ function mergeObjectSchemas(target: Schema, source: Schema): Schema {
   }
   // Both parts constrain the array items, so each item must meet both.
   const bothHaveItems = isRecord(target.items) && isRecord(part.items)
+  const targetPrefix = Array.isArray(target.prefixItems) ? target.prefixItems : []
+  const sourcePrefix = Array.isArray(part.prefixItems) ? part.prefixItems : []
+  const prefixItems = Array.from({ length: Math.max(targetPrefix.length, sourcePrefix.length) }, (_, index) => {
+    const left = itemSchema(target, index)
+    const right = itemSchema(part, index)
+    return isRecord(left) && isRecord(right) ? { allOf: [left, right] } : (right ?? left)
+  })
   return {
     ...target,
     ...part,
     ...(bothHaveItems && { items: { allOf: [target.items, part.items] } }),
+    ...(prefixItems.length > 0 && { prefixItems }),
     ...(hasProperties && { properties }),
     ...(hasRequired && {
       required: [...((target.required as string[]) ?? []), ...((part.required as string[]) ?? [])]

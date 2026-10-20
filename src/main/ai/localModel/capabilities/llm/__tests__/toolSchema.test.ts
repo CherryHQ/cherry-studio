@@ -392,6 +392,90 @@ describe('toGbnfJsonSchema', () => {
     })
   })
 
+  it.each([
+    [1, 1],
+    [2, 1],
+    [1, 2],
+    [0, 1],
+    [1, 0]
+  ])('intersects array constraints with prefix lengths %i and %i', (idPrefixLength, limitPrefixLength) => {
+    const id = {
+      type: 'object',
+      properties: { id: { type: 'string' }, note: { type: 'string' } },
+      required: ['id']
+    }
+    const limit = { type: 'object', properties: { limit: { type: ['integer', 'null'] } }, required: ['limit'] }
+    const schema = {
+      type: 'object',
+      properties: {
+        rows: {
+          allOf: [
+            { type: 'array', prefixItems: Array(idPrefixLength).fill(id), items: id },
+            { type: 'array', prefixItems: Array(limitPrefixLength).fill(limit), items: limit }
+          ]
+        }
+      },
+      required: ['rows']
+    }
+    const generated = {
+      rows: [
+        { id: 'row-1', note: null, limit: null },
+        { id: 'row-2', note: null, limit: 2 },
+        { id: 'row-3', note: null, limit: 3 }
+      ]
+    }
+
+    expect(generates(schema, generated)).toBe(true)
+    for (const index of [0, 1, 2]) {
+      for (const key of ['id', 'limit']) {
+        const missingRequired = structuredClone(generated)
+        Reflect.deleteProperty(missingRequired.rows[index], key)
+        expect(generates(schema, missingRequired)).toBe(false)
+      }
+    }
+    expect(toToolArguments(schema, generated)).toEqual({
+      rows: [
+        { id: 'row-1', limit: null },
+        { id: 'row-2', limit: 2 },
+        { id: 'row-3', limit: 3 }
+      ]
+    })
+  })
+
+  it.each([false, true])('applies items only after its own prefix (reverse: %s)', (reverse) => {
+    const parts = [
+      {
+        type: 'array',
+        prefixItems: [{ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }],
+        items: { type: 'object', properties: { label: { type: 'string' } }, required: ['label'] }
+      },
+      {
+        type: 'array',
+        items: { type: 'object', properties: { limit: { type: 'integer' } }, required: ['limit'] }
+      }
+    ]
+    const schema = { allOf: reverse ? parts.toReversed() : parts }
+
+    expect(
+      generates(schema, [
+        { id: 'row-1', limit: 1 },
+        { label: 'tail', limit: 2 }
+      ])
+    ).toBe(true)
+    expect(
+      generates(schema, [
+        { label: 'head', limit: 1 },
+        { label: 'tail', limit: 2 }
+      ])
+    ).toBe(false)
+    expect(
+      generates(schema, [
+        { id: 'row-1', limit: 1 },
+        { id: 'row-2', limit: 2 }
+      ])
+    ).toBe(false)
+  })
+
   it('requires an alternative of every union an allOf combines', () => {
     const schema = {
       type: 'object',
