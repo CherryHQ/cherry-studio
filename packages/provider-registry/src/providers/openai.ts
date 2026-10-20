@@ -9,12 +9,18 @@ export default defineProvider({
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    'openai-text-to-speech': { adapterFamily: 'openai' },
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://api.openai.com',
       reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
+  overrides: [
+    { modelId: 'tts-1', endpointTypes: ['openai-text-to-speech'] },
+    { modelId: 'tts-1-hd', endpointTypes: ['openai-text-to-speech'] },
+    { modelId: 'gpt-4o-mini-tts', endpointTypes: ['openai-text-to-speech'] }
+  ],
   serverTools: [
     {
       id: 'web-search',

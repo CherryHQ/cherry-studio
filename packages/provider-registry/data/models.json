@@ -8437,6 +8437,7 @@
     {
       "capabilities": ["audio-generation"],
       "contextWindow": 8192,
+      "endpointTypes": ["google-generate-content"],
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-preview-tts",
       "inputModalities": ["text"],
@@ -8458,6 +8459,7 @@
     {
       "capabilities": ["audio-generation"],
       "contextWindow": 32768,
+      "endpointTypes": ["google-generate-content"],
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-tts",
       "inputModalities": ["text"],
@@ -8611,6 +8613,7 @@
     {
       "capabilities": ["audio-generation"],
       "contextWindow": 8192,
+      "endpointTypes": ["google-generate-content"],
       "family": "gemini-flash",
       "id": "gemini-2-5-pro-preview-tts",
       "inputModalities": ["text"],
@@ -8632,6 +8635,7 @@
     {
       "capabilities": ["audio-generation"],
       "contextWindow": 32768,
+      "endpointTypes": ["google-generate-content"],
       "family": "gemini-pro",
       "id": "gemini-2-5-pro-tts",
       "inputModalities": ["text"],
@@ -9012,6 +9016,7 @@
     {
       "capabilities": ["reasoning", "audio-generation"],
       "contextWindow": 8192,
+      "endpointTypes": ["google-generate-content"],
       "family": "gemini-flash",
       "id": "gemini-3-1-flash-tts-preview",
       "inputModalities": ["text"],
@@ -16518,6 +16523,16 @@
       }
     },
     {
+      "capabilities": ["audio-generation"],
+      "endpointTypes": ["openai-text-to-speech"],
+      "id": "gpt-4o-mini-tts",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "GPT-4o mini TTS",
+      "outputModalities": ["audio"],
+      "ownedBy": "openai"
+    },
+    {
       "capabilities": ["audio-recognition"],
       "family": "gpt",
       "id": "gpt-4o-transcribe",
@@ -19047,6 +19062,26 @@
       }
     },
     {
+      "capabilities": ["audio-generation"],
+      "endpointTypes": ["openai-text-to-speech"],
+      "id": "tts-1",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "TTS-1",
+      "outputModalities": ["audio"],
+      "ownedBy": "openai"
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "endpointTypes": ["openai-text-to-speech"],
+      "id": "tts-1-hd",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "TTS-1 HD",
+      "outputModalities": ["audio"],
+      "ownedBy": "openai"
+    },
+    {
       "capabilities": ["function-call", "image-recognition", "file-input"],
       "contextWindow": 128000,
       "family": "sonar",
@@ -20679,26 +20714,6 @@
       "metadata": {},
       "name": "Transcribe-1",
       "outputModalities": ["text"],
-      "ownedBy": "vercel"
-    },
-    {
-      "capabilities": ["audio-generation"],
-      "family": "o",
-      "id": "tts-1",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "TTS-1",
-      "outputModalities": ["audio"],
-      "ownedBy": "vercel"
-    },
-    {
-      "capabilities": ["audio-generation"],
-      "family": "o",
-      "id": "tts-1-hd",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "TTS-1 HD",
-      "outputModalities": ["audio"],
       "ownedBy": "vercel"
     },
     {
@@ -23267,5 +23282,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "38986c5ef01254eb"
+  "version": "6de3d888d0260e1e"
 }

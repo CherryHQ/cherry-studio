@@ -142,6 +142,8 @@ export {
   endpointImpliedCapability,
   canInheritEndpointConnection,
   ENDPOINT_CONNECTION_FAMILY,
+  getSpeechGenerationEndpoint,
+  getNewApiSpeechEndpoint,
   inferAdapterFamily,
   lookupRegistryModel,
   lookupRegistryProvider

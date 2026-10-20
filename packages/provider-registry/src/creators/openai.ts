@@ -139,6 +139,28 @@ export default defineCreator({
       }
     },
     {
+      id: 'tts-1',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['openai-text-to-speech']
+    },
+    {
+      id: 'tts-1-hd',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['openai-text-to-speech']
+    },
+    {
+      id: 'gpt-4o-mini-tts',
+      name: 'GPT-4o mini TTS',
+      capabilities: ['audio-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['audio'],
+      endpointTypes: ['openai-text-to-speech']
+    },
+    {
       id: 'gpt-6.1-sol',
       name: 'GPT-6.1 Sol',
       family: 'gpt',

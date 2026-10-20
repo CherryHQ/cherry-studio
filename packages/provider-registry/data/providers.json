@@ -832,6 +832,9 @@
         },
         "openai-responses": {
           "adapterFamily": "newapi"
+        },
+        "openai-text-to-speech": {
+          "adapterFamily": "newapi"
         }
       },
       "id": "new-api",
@@ -1217,6 +1220,9 @@
               }
             }
           }
+        },
+        "openai-text-to-speech": {
+          "adapterFamily": "openai"
         }
       },
       "id": "openai",
@@ -2769,5 +2775,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "46d9d6dcfae8310b"
+  "version": "418ffe834f14ba88"
 }
