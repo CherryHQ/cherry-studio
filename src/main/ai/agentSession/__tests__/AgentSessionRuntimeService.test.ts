@@ -3479,6 +3479,37 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getMcpInteractionHost('session-1', 'agent-a')).toMatchObject({ windowId: 'window-1' })
     })
 
+    // The consumed SDK supports nested agents, and `SubagentStart` carries no parent reference —
+    // only `agent_id`. So a grandchild B spawns from a headless child A cannot be attributed to A
+    // from the hook alone, and binding it against `currentTurn` credits it with the desktop
+    // follow-up that now owns the session. Its auto-approved mutating calls would then sail past
+    // the headless guard that correctly denies A.
+    it('keeps a grandchild of a headless child under unattended authority', async () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      getEntry(service).connection = warmConnection()
+      service.bindNativeChildOrigin('session-1', 'agent-a')
+      service.markTurnTerminal('session-1', 'success')
+
+      // The desktop follow-up owns the turn while A is still running; A now spawns a grandchild.
+      mocks.getInteractionWindow.mockReturnValue('window-1')
+      mocks.getWindow.mockReturnValue({})
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
+      service.bindNativeChildOrigin('session-1', 'agent-grandchild')
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
+
+      expect(service.getToolGuardInteractionState('session-1', 'agent-grandchild')).toMatchObject({
+        currentTurn: 'headless',
+        userResponse: 'unavailable'
+      })
+      // The foreground turn keeps its own interactive authority — the restriction is scoped to the
+      // descendant, not applied to the session.
+      expect(service.getToolGuardInteractionState('session-1')).toMatchObject({ currentTurn: 'interactive' })
+      void service.closeSession('session-1')
+    })
+
     // Bindings are historical provenance: after a headless child finishes (SubagentStop releases
     // its liveness, the SDK drains idle) its stale binding must not keep a desktop follow-up's
     // unprovenanced root calls failing closed — only a still-live child does that.

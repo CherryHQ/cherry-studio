@@ -3730,6 +3730,13 @@ export class AgentSessionRuntimeService extends BaseService {
   /**
    * Record which turn spawned one native Claude child. Bound at `SubagentStart`, where the SDK first
    * names the child by `agent_id` and the spawning turn is still the one that owns it.
+   *
+   * `SubagentStart` carries no parent reference, so a grandchild spawned from inside a child cannot
+   * be attributed to that parent from the hook alone — `currentTurn` is then whatever the
+   * concurrent foreground turn happens to be. The spawning execution's own authority therefore
+   * propagates through descendants: while a live child of a headless turn is running, a newly bound
+   * child is headless too, because the only way a child can appear is from work the session already
+   * has running, and a headless parent's descendants stay unattended.
    */
   bindNativeChildOrigin(sessionId: string, nativeSubagentId: string): void {
     const entry = this.entries.get(sessionId)
@@ -3738,8 +3745,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const origins = (entry.nativeChildOrigins ??= new Map<string, boolean>())
     // First binding wins: a later turn waking or resuming the same child must not upgrade it.
     if (origins.has(nativeSubagentId)) return
+    const spawnedByLiveHeadlessChild =
+      nativeSubagentId !== undefined &&
+      [...(entry.liveNativeChildren ?? [])].some(
+        (live) => live !== nativeSubagentId && (origins.get(live) ?? true) === true
+      )
     const turn = this.currentTurn(entry)
-    origins.set(nativeSubagentId, turn === undefined || turn.headless === true)
+    origins.set(nativeSubagentId, spawnedByLiveHeadlessChild || turn === undefined || turn.headless === true)
   }
 
   /**
