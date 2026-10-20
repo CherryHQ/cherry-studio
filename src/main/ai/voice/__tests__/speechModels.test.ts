@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 
+import { NoSuchModelError } from '@ai-sdk/provider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
@@ -10,7 +11,22 @@ import { userModelTable } from '@main/data/db/schemas/userModel'
 import { userProviderTable } from '@main/data/db/schemas/userProvider'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY, type EndpointType } from '@shared/data/types/model'
 
-import { generateModelSpeech, listSpeechModels, listSpeechVoices, resolveSpeechConfiguration } from '../speechModels'
+import { startSpeech } from '../execution'
+import type { SpeechRequest } from '../executionTypes'
+import { listSpeechModels, listSpeechVoices, resolveSpeechConfiguration, resolveSpeechRequest } from '../speechModels'
+
+async function generateModelSpeech(
+  modelId: SpeechRequest['modelId'],
+  text: string,
+  options: SpeechRequest['options'],
+  signal: AbortSignal
+) {
+  const execution = startSpeech({ modelId, input: { kind: 'text', text }, output: 'audio', options }, signal)
+  const result = await execution.output
+  await execution.closed
+  if (result.kind !== 'audio') throw new Error('Cloud speech must return complete audio')
+  return result
+}
 
 const pcm = Buffer.from([0, 0, 255, 127, 0, 128, 1, 0])
 function geminiResponse(mimeType = 'audio/L16;codec=pcm;rate=24000', finishReason = 'STOP') {
@@ -84,6 +100,38 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('configured cloud speech', () => {
+  it.each(['https://aiplatform.googleapis.com', 'https://vertex.example/api'])(
+    'rejects Vertex IAM speech consistently before transport at %s',
+    async (baseUrl) => {
+      addModel('speech-vertex', 'gemini-2.5-flash-tts', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          presetProviderId: 'vertexai',
+          authConfig: { type: 'iam-gcp', project: 'test-project', location: 'us-central1' },
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl, adapterFamily: 'google-vertex' }
+          }
+        })
+        .where(eq(userProviderTable.providerId, 'speech-vertex'))
+        .run()
+      const fetch = vi.spyOn(net, 'fetch')
+      const modelId = 'speech-vertex::gemini-2.5-flash-tts'
+
+      expect(listSpeechModels().map(({ id }) => id)).not.toContain(modelId)
+      expect(await resolveSpeechConfiguration({ modelId })).toMatchObject({
+        modelId,
+        status: { status: 'unsupported' }
+      })
+      await expect(listSpeechVoices(modelId)).rejects.toThrow(NoSuchModelError)
+      expect(() => resolveSpeechRequest({ modelId, voice: 'Kore' })).toThrow(NoSuchModelError)
+      await expect(
+        generateModelSpeech(modelId, 'Hello', { voice: 'Kore' }, new AbortController().signal)
+      ).rejects.toThrow(NoSuchModelError)
+      expect(fetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('lists only finite speech models and keeps unavailable explicit selections', async () => {
     addModel('live-google', 'gemini-live-audio', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     dbh.db

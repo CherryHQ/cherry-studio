@@ -16,6 +16,8 @@ import { resolveEffectiveEndpoint, resolveWireModelId } from './endpoint'
 
 const openaiVoices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse']
 function speechEndpoint(provider: Provider, model: Model) {
+  // These speech adapters require API keys, even when IAM providers share their endpoint protocol.
+  if (provider.authType !== 'api-key') return undefined
   if (provider.id === 'new-api' || provider.presetProviderId === 'new-api') {
     const { presetModel } = providerRegistryService.lookupModel(
       provider.id,
