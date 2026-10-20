@@ -33,6 +33,7 @@ Out of scope: an explicit "acquiring" state for file items (planned as the next 
 - Keep copying in `addItems` and chunk the selection in the renderer: releases the lock between chunks but still holds it for each chunk's copy, keeps the silent wait, and needs a new conflict-precheck route because `detect` writes immediately when a chunk has no conflict.
 - Copy outside the lock but still inside `addItems`: frees the lock, but the caller still waits for every byte and one failure still fails the whole add.
 - Create rows as `idle` and give the copy job `recovery: 'retry'`: copying spends nothing, so resuming automatically after a crash is attractive. Rejected for now because nothing in the boot sweep, reindex admission, or the renderer moves an `idle` item forward, so a copy job lost for any reason would strand its row; `abandon` keeps the recovery story of every other indexing job.
+- Enqueue copy jobs with a higher queue priority so they jump ahead of pending indexing: `EnqueueOptions.priority` already exists and would bound the wait to one running job. Deferred because the right concurrency split between copying and indexing on a base is not settled yet.
 - Create copying file rows as `preparing` in this change: gives "bytes not landed yet" an explicit state that boot recovery, reindex admission, and polling already handle. Deferred to its own change because `preparing` is directory-only in the `knowledge_item_type_status_check` constraint and the entity schema, so it needs a table-rebuild migration.
 
 ## Acceptance criteria
@@ -47,7 +48,7 @@ Out of scope: an explicit "acquiring" state for file items (planned as the next 
 
 ## Risks
 
-- Known limitation: the window between add and copy grows from zero to the queue wait, which can be minutes on a busy base. Until its copy finishes, an item still needs its original file; moving or deleting it, or unplugging the drive it lives on, fails that item (not the whole add), and the list shows such items as `processing` like any other.
+- Known limitation: the window between add and copy grows from zero to the queue wait. Knowledge jobs on a base queue run first-in, first-out, so an import into a base that still has earlier work pending (for example a previous import's indexing) copies only after that backlog drains, which can take far longer than the copy itself. Until its copy finishes, an item still needs its original file; moving or deleting it, or unplugging the drive it lives on, fails that item (not the whole add), and the list shows such items as `processing` like any other.
 - Copy jobs share the base queue's five slots with indexing, so a large import delays other indexing in the same base (throughput, not peak load) and adds one job row per file until JobManager GC prunes it.
 - `processing` now also covers waiting to copy and copying; the UI cannot tell these apart until the progress follow-up.
 - An item row no longer implies its bytes are on disk. Scheduling and the file-processing start move behind the copy job's hand-off; two readers keep the gap until the explicit state lands: previewing a copying item (`knowledge.get_file_path`) finds no file, and restoring a base while some of its files are still copying skips those items as missing sources.
