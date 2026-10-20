@@ -96,12 +96,15 @@ resets the mocks.
 ```typescript
 export interface TestDatabaseOptions {
   seeders?: ISeeder[]
+  migrationsFolder?: string
 }
 ```
 
 - `seeders`: run these after schema init. Useful for the small set of
   service tests that depend on seeded data (`ProviderRegistryService`,
   preset-aware flows).
+- `migrationsFolder`: use a production migration subset to populate an old
+  schema before testing migrate-forward. Defaults to the full production chain.
 
 ```typescript
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'

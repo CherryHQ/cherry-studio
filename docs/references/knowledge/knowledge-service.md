@@ -156,10 +156,13 @@ An external item contains only the local indexing contract:
 }
 ```
 
-Provider credentials, tenant/connection identity, remote hierarchy and
-revision, normalized-content hashes, authorization state, document warnings,
+Provider credentials, tenant/connection identity, remote revision,
+normalized-content hashes, authorization state, document warnings,
 and availability stay in their owning connection/source/document records.
 They are not copied into `knowledge_item.data` or vector metadata.
+Remote node hierarchy and breadcrumbs belong to traversal descriptors and
+are not persisted on documents. Sources retain indexed, unchanged, skipped,
+and warning counts; the scanned count remains in the job result only.
 
 `ExternalKnowledgeSource.state` is only `active` or `paused`.
 `ExternalKnowledgeDocument.availability` is only `active` or `unavailable`:

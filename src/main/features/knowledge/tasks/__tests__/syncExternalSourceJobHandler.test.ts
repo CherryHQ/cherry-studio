@@ -1,5 +1,10 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
+import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -10,20 +15,7 @@ import {
 } from '../../external/ExternalKnowledgeSyncService'
 import type { KnowledgeSyncExternalSourcePayload } from '../jobTypes'
 
-const { settleSyncTxMock, notifyDataChangeMock, withWriteTxMock } = vi.hoisted(() => ({
-  settleSyncTxMock: vi.fn(),
-  notifyDataChangeMock: vi.fn(),
-  withWriteTxMock: vi.fn((fn: (tx: object) => unknown) => fn({}))
-}))
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ DbService: { withWriteTx: withWriteTxMock } })
-})
-
-vi.mock('@data/services/ExternalKnowledgeSourceService', () => ({
-  externalKnowledgeSourceService: { settleSyncTx: settleSyncTxMock }
-}))
+const { notifyDataChangeMock } = vi.hoisted(() => ({ notifyDataChangeMock: vi.fn() }))
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 
@@ -81,10 +73,49 @@ const settledEvent = (
 })
 
 describe('sync-external-source job handler', () => {
+  const dbh = setupTestDatabase()
+  const source = () => dbh.db.select().from(externalKnowledgeSourceTable).get()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    settleSyncTxMock.mockReturnValue(true)
-    withWriteTxMock.mockImplementation((fn: (tx: object) => unknown) => fn({}))
+    dbh.db
+      .insert(knowledgeBaseTable)
+      .values({
+        id: BASE_ID,
+        name: 'Existing wiki',
+        orderKey: 'a0',
+        status: 'completed',
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeConnectionTable)
+      .values({
+        id: '0198f3f2-7d13-7abc-8def-123456789abc',
+        provider: 'feishu',
+        appId: 'app',
+        appCredentialSource: 'personal-agent',
+        authorizationStatus: 'pending-authorization',
+        credentialReference: 'credential'
+      })
+      .run()
+    dbh.db
+      .insert(externalKnowledgeSourceTable)
+      .values({
+        id: SOURCE_ID,
+        baseId: BASE_ID,
+        connectionId: '0198f3f2-7d13-7abc-8def-123456789abc',
+        provider: 'feishu',
+        tenantId: 'tenant',
+        spaceId: 'space',
+        scope: { kind: 'space' },
+        name: 'Wiki',
+        state: 'active',
+        revision: 3,
+        activeJobId: JOB_ID
+      })
+      .run()
   })
 
   it('runs the complete source synchronization with a fenced payload and safe output', async () => {
@@ -144,7 +175,7 @@ describe('sync-external-source job handler', () => {
 
     expect(dispatchScheduledEnvelope).toHaveBeenCalledWith(scheduleEnvelope, 'scheduled')
     expect(syncSource).not.toHaveBeenCalled()
-    expect(settleSyncTxMock).not.toHaveBeenCalled()
+    expect(source()).toMatchObject({ activeJobId: JOB_ID, lastFinishedAt: null })
     expect(notifyDataChangeMock).not.toHaveBeenCalled()
   })
 
@@ -338,22 +369,18 @@ describe('sync-external-source job handler', () => {
 
       await handler.onSettled?.(event)
 
-      expect(settleSyncTxMock).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          sourceId: SOURCE_ID,
-          expectedRevision: 3,
-          jobId: JOB_ID,
-          finishedAt: 999,
-          outcome: expectedOutcome,
-          errorSummary: expectedError,
-          scannedCount: expectedSummary.scannedCount,
-          indexedCount: expectedSummary.indexedCount,
-          unchangedCount: expectedSummary.unchangedCount,
-          skippedCount: expectedSummary.skippedCount,
-          warningCount: expectedSummary.warningCount
-        })
-      )
+      expect(source()).toMatchObject({
+        id: SOURCE_ID,
+        revision: 3,
+        activeJobId: null,
+        lastFinishedAt: 999,
+        lastOutcome: expectedOutcome,
+        lastErrorSummary: expectedError,
+        lastIndexedCount: expectedSummary.indexedCount,
+        lastUnchangedCount: expectedSummary.unchangedCount,
+        lastSkippedCount: expectedSummary.skippedCount,
+        lastWarningCount: expectedSummary.warningCount
+      })
       expect(notifyDataChangeMock).toHaveBeenCalledWith([
         {
           endpoint: '/knowledge-bases/:id/external-knowledge-sources',
@@ -367,12 +394,17 @@ describe('sync-external-source job handler', () => {
   )
 
   it('does not notify when a stale revision or active job loses the settle fence', async () => {
-    settleSyncTxMock.mockReturnValue(false)
+    dbh.db
+      .update(externalKnowledgeSourceTable)
+      .set({ revision: 4 })
+      .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+      .run()
     const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
 
     await handler.onSettled?.(settledEvent())
 
     expect(notifyDataChangeMock).not.toHaveBeenCalled()
+    expect(source()).toMatchObject({ revision: 4, activeJobId: JOB_ID, lastFinishedAt: null })
   })
 
   it('projects a structured handler timeout ahead of stale cancellation metadata', async () => {
@@ -391,28 +423,21 @@ describe('sync-external-source job handler', () => {
       })
     )
 
-    expect(settleSyncTxMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ outcome: 'failed', errorSummary: 'timeout' })
-    )
+    expect(source()).toMatchObject({ activeJobId: null, lastOutcome: 'failed', lastErrorSummary: 'timeout' })
   })
 
   it('publishes the source read model only after the settlement transaction returns', async () => {
-    const order: string[] = []
-    settleSyncTxMock.mockImplementation(() => {
-      order.push('settle')
-      return true
+    let publishedSource: ReturnType<typeof source>
+    let publishedInsideTransaction: boolean | undefined
+    notifyDataChangeMock.mockImplementation(() => {
+      publishedSource = source()
+      publishedInsideTransaction = dbh.sqlite.inTransaction
     })
-    withWriteTxMock.mockImplementation((fn: (tx: object) => unknown) => {
-      const result = fn({})
-      order.push('commit')
-      return result
-    })
-    notifyDataChangeMock.mockImplementation(() => order.push('notify'))
     const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
 
     await handler.onSettled?.(settledEvent())
 
-    expect(order).toEqual(['settle', 'commit', 'notify'])
+    expect(publishedInsideTransaction).toBe(false)
+    expect(publishedSource).toMatchObject({ activeJobId: null, lastOutcome: 'completed', lastFinishedAt: 999 })
   })
 })

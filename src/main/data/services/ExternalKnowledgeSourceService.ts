@@ -43,7 +43,6 @@ export type SettleExternalKnowledgeSyncInput = {
   jobId: string
   finishedAt: number
   outcome: ExternalKnowledgeSyncOutcome
-  scannedCount: number
   indexedCount: number
   unchangedCount: number
   skippedCount: number
@@ -312,7 +311,6 @@ export class ExternalKnowledgeSourceService {
         activeJobId: null,
         lastFinishedAt: input.finishedAt,
         lastOutcome: input.outcome,
-        lastScannedCount: input.scannedCount,
         lastIndexedCount: input.indexedCount,
         lastUnchangedCount: input.unchangedCount,
         lastSkippedCount: input.skippedCount,
