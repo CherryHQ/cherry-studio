@@ -333,12 +333,14 @@ export class ServiceContainer {
     const { metadata, useClass } = entry.provider
     const deps: unknown[] = []
 
-    // Resolve dependencies
+    // Resolve dependencies. get() rejects conditional services, including active ones.
     for (const depName of metadata.dependencies) {
-      if (!this.services.has(depName)) {
+      const dependency = this.services.get(depName)
+      if (!dependency) {
         throw new Error(`[ServiceContainer] Dependency '${depName}' not found for service '${metadata.name}'`)
       }
-      deps.push(this.get(depName))
+      const instance = dependency.provider.metadata.conditions?.length ? this.getOptional(depName) : this.get(depName)
+      deps.push(instance)
     }
 
     // Create instance with dependencies

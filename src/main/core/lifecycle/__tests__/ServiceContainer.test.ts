@@ -282,6 +282,25 @@ describe('ServiceContainer', () => {
       expect(container.isExcluded('DependsOnDarwin')).toBe(true)
     })
 
+    it('should instantiate a dependent of an active conditional dependency and transitively exclude a dependent of an excluded one', () => {
+      @Injectable('DependsOnLinux')
+      @DependsOn(['LinuxOnlyService'])
+      class DependsOnLinux extends BaseService {}
+
+      const container = ServiceContainer.getInstance()
+      container.setConditionContext(mockContext) // linux, not darwin
+      container.register(LinuxOnlyService)
+      container.register(DependsOnLinux)
+      container.register(DarwinOnlyService)
+      container.register(DependsOnDarwin)
+      container.excludeDependentsOfExcluded()
+
+      expect(container.get('DependsOnLinux')).toBeInstanceOf(DependsOnLinux)
+      expect(container.getInstance('LinuxOnlyService')).toBeInstanceOf(LinuxOnlyService)
+      expect(container.has('DependsOnDarwin')).toBe(false)
+      expect(container.isExcluded('DependsOnDarwin')).toBe(true)
+    })
+
     it('should handle multi-layer transitive exclusion chains', () => {
       const container = ServiceContainer.getInstance()
       container.setConditionContext(mockContext)
