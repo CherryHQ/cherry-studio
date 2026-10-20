@@ -366,11 +366,12 @@ export function useChatVirtualizerRuntime<T>({
       const growth = Math.max(0, height - replacement.heightPeak)
       replacement.heightPeak = Math.max(replacement.heightPeak, height)
       // Use committed layout, not a virtualizer measurement that may precede the DOM update.
-      const required = Math.max(0, scroller.scrollTop + scroller.clientHeight - getNaturalScrollHeight())
+      const required = Math.max(0, replacement.readingTop + scroller.clientHeight - getNaturalScrollHeight())
       const minimum = Math.ceil(required * 64) / 64
       const requested = scroller.scrollTop === 0 && upwardDistance > 0 ? replacement.remaining : upwardDistance + growth
       replacement.remaining = Math.min(replacement.remaining, Math.max(minimum, replacement.remaining - requested))
-      setFreezeSpacerHeight(replacement.remaining)
+      // Layout protection can grow independently of the user's non-refilling reclamation budget.
+      setFreezeSpacerHeight(Math.max(replacement.remaining, minimum))
     },
     [getMeasuredContentHeight, getNaturalScrollHeight, setFreezeSpacerHeight, writeProgrammaticScroll]
   )
@@ -515,6 +516,7 @@ export function useChatVirtualizerRuntime<T>({
             ? Math.max(0, topPadding) + (vlistHandleRef.current?.getItemOffset(index) ?? 0)
             : readingTop
         replacement.corrected = true
+        replacement.readingTop = target
         replacement.remaining = Math.max(0, target + scroller.clientHeight - height)
         replacement.heightPeak = height
         // Establish the destination range before moving, then discard the old tail below it.
@@ -1068,7 +1070,7 @@ export function useChatVirtualizerRuntime<T>({
     if (!viewportFollow.isFollowing()) {
       if (isUserInitiated) {
         beginUserScrollGesture()
-        if (replacementFreezeRef.current?.remaining === null) replacementFreezeRef.current.readingTop = offset
+        if (replacementFreezeRef.current) replacementFreezeRef.current.readingTop = offset
         if (delta < 0) updateReplacementSpace(-delta)
         // A held native thumb remains explicit input after the initial signal is consumed.
         // The generic gesture latch also covers virtua compensation, so it is not sufficient.

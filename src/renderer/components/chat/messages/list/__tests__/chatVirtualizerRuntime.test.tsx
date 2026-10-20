@@ -244,6 +244,7 @@ describe('useChatVirtualizerRuntime', () => {
       let runtime!: ChatVirtualizerRuntime<string>
       let handle!: MessageVirtualListHandle
       let height = 6000
+      let viewport = 400
       let currentKey = 'old'
       let measuredHeight = height
       let offset = top
@@ -261,7 +262,7 @@ describe('useChatVirtualizerRuntime', () => {
       disposers.push(() => view.unmount())
       const scroller = runtime.scrollerRef.current!
       const slack = () => Number.parseFloat(runtime.freezeSpacerRef.current?.style.height || '0')
-      const maxOffset = () => Math.max(0, height + slack() - 400)
+      const maxOffset = () => Math.max(0, height + slack() - viewport)
       // jsdom has no layout: model native clamping and its separate scroll event explicitly.
       Object.defineProperty(scroller, 'scrollTop', {
         configurable: true,
@@ -276,8 +277,8 @@ describe('useChatVirtualizerRuntime', () => {
           offset = Math.max(0, Math.min(value, maxOffset()))
         }
       })
-      setElementMetric(scroller, 'scrollHeight', () => Math.max(400, height + slack()))
-      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => Math.max(viewport, height + slack()))
+      setElementMetric(scroller, 'clientHeight', () => viewport)
       runtime.vlistHandleRef.current = createHandle({
         getItemOffset: () => itemOffset,
         getItemSize: () => measuredHeight - itemOffset
@@ -304,6 +305,13 @@ describe('useChatVirtualizerRuntime', () => {
           return handle
         },
         resize,
+        changeLayout(nextHeight: number, nextViewport: number, scrollFirst: boolean) {
+          height = nextHeight
+          measuredHeight = nextHeight
+          viewport = nextViewport
+          if (scrollFirst) act(() => runtime.scrollerProps.onScroll(scroller.scrollTop))
+          act(() => callbacks[0]?.([], {} as ResizeObserver))
+        },
         captureReplacement: () => handle.prepareContentReplacement(currentKey),
         stageReplacement(key: string, nextHeight: number) {
           act(() => handle.prepareContentReplacement?.(currentKey)?.(key))
@@ -359,6 +367,50 @@ describe('useChatVirtualizerRuntime', () => {
       expect(list.slack()).toBe(199)
       expect(list.scroller.scrollTop).toBe(2199)
       expect(list.handle.isFollowing()).toBe(false)
+    })
+
+    it.each([
+      ['content shrink', 2200, 400, false],
+      ['content shrink', 2200, 400, true],
+      ['viewport expansion', 2400, 600, false],
+      ['viewport expansion', 2400, 600, true],
+      ['composer padding shrink', 2300, 400, false],
+      ['composer padding shrink', 2300, 400, true]
+    ] as const)(
+      'protects the reading anchor after %s (height %i, viewport %i, scroll first %s)',
+      (_label, height, viewport, scrollFirst) => {
+        const list = setupReading()
+        list.replace()
+        act(() => list.runtime.scrollerProps.onScrollEnd())
+        list.changeLayout(height, viewport, scrollFirst)
+        list.flushClamp()
+        expect(list.scroller.scrollTop).toBe(2200)
+        expect(list.slack()).toBe(2600 - height + viewport - 400)
+        list.changeLayout(2400, 400, false)
+        expect(list.scroller.scrollTop).toBe(2200)
+        expect(list.slack()).toBe(200)
+        list.scrollTo(2150)
+        expect(list.scroller.scrollTop).toBe(2150)
+        expect(list.slack()).toBe(150)
+      }
+    )
+
+    it('drops temporary layout protection without refilling already reclaimed space', () => {
+      const list = setupReading()
+      list.replace()
+      list.scrollTo(2150)
+      act(() => list.runtime.scrollerProps.onScrollEnd())
+      expect(list.slack()).toBe(150)
+      list.changeLayout(2200, 400, true)
+      list.flushClamp()
+      expect(list.scroller.scrollTop).toBe(2150)
+      expect(list.slack()).toBe(350)
+      list.changeLayout(2400, 400, false)
+      expect(list.scroller.scrollTop).toBe(2150)
+      expect(list.slack()).toBe(150)
+      list.scrollTo(2100)
+      expect(list.slack()).toBe(100)
+      expect(list.scroller.scrollTop).toBe(2100)
     })
 
     it('does not preserve old reply height when the target viewport already fits', () => {
