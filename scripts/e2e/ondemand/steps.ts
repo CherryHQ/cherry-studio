@@ -84,18 +84,19 @@ export function createScenarioContext(
           entry.status = 'passed'
         } catch (error) {
           const unavailable = page.isClosed() || !page.context().browser()?.isConnected()
+          const screenshotFailed = step.verb === 'screenshot'
           entry.status = 'failed'
           entry.detail = error instanceof Error ? error.message : String(error)
           addFailure(
             result,
             new QaError(
-              'steps',
-              unavailable ? 3 : 1,
-              unavailable ? 'APP_UNAVAILABLE' : 'ASSERTION_FAILED',
+              screenshotFailed && !unavailable ? 'report' : 'steps',
+              unavailable ? 3 : screenshotFailed ? 2 : 1,
+              unavailable ? 'APP_UNAVAILABLE' : screenshotFailed ? 'SCREENSHOT_FAILED' : 'ASSERTION_FAILED',
               entry.detail
             )
           )
-          stopped = unavailable || !options.continueOnFailure
+          stopped = unavailable || screenshotFailed || !options.continueOnFailure
           await screenshot('failure').catch(() => undefined)
         } finally {
           entry.seconds = (Date.now() - started) / 1000

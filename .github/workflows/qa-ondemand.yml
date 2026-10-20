@@ -13,6 +13,11 @@ on:
         type: choice
         options: [branch, tag]
         default: branch
+      profile:
+        description: "clean onboarding or authenticated with repository test providers"
+        type: choice
+        options: [clean, authenticated]
+        default: clean
       ref:
         description: "Repository branch or v* release tag"
         type: string
@@ -36,8 +41,10 @@ permissions:
 
 env:
   LANG: zh_CN.UTF-8
+  TZ: Asia/Shanghai
   QA_PLATFORM: ${{ inputs.platform }}
   QA_MODE: ${{ inputs.mode }}
+  QA_PROFILE: ${{ inputs.profile }}
   QA_REF: ${{ inputs.ref }}
   QA_SPEC: ${{ inputs.spec }}
   QA_PLAN: ${{ inputs.plan }}
@@ -140,12 +147,22 @@ jobs:
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts release
       - name: Run one test
         shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts run
       - name: Finalize and clean up owned application
         if: always()
         shell: bash
         env:
           QA_CANCELLED: ${{ job.status == 'cancelled' }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts finalize
       - name: Record bootstrap failure and publish summary
         if: always()

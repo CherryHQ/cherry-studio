@@ -15,7 +15,7 @@ export async function ensureChinese(page: Page, apply = false): Promise<void> {
     const language = await page.evaluate(async () => window.api.preference.get('app.language'))
     if (language !== 'zh-CN') throw new Error(`Expected app.language zh-CN, observed ${language}`)
     const marker = page
-      .getByText('欢迎使用 Cherry Studio', { exact: true })
+      .getByRole('combobox', { name: '语言', exact: true })
       .or(page.getByRole('button', { name: '启动台', exact: true }))
       .filter({ visible: true })
     await expect(marker.first()).toBeVisible({ timeout: 15_000 })

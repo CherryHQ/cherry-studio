@@ -16,6 +16,9 @@ gh workflow run qa-ondemand.yml --repo CherryHQ/cherry-studio --ref main \
 gh workflow run qa-ondemand.yml --repo CherryHQ/cherry-studio --ref main \
   -f platform=windows -f mode=branch -f ref=main -f spec=provider-setup \
   -f plan="$(cat tests/e2e/ondemand/plans/example.json)"
+
+gh workflow run qa-ondemand.yml --repo CherryHQ/cherry-studio --ref main \
+  -f platform=windows -f mode=branch -f ref=main -f profile=authenticated -f spec=smoke
 ```
 
 With a plan, `spec` is only the report name and needs no matching file. Without a plan, `smoke` uses the bundled JSON; other names require a reviewed code scenario. Names must match `^[a-z0-9][a-z0-9-]{0,40}$`. The plan's **10,240 UTF-8 byte** limit is a tool policy, separate from GitHub's dispatch payload limit. Use a reviewed scenario for longer flows. `timeout_minutes` defaults to 45; branch runs require 15–360 minutes, tag runs 1–360. Branch dependencies and Electron preparation can take several minutes before the test starts.
@@ -40,9 +43,11 @@ A strict JSON object contains nonempty `steps`, optional `continueOnFailure` (de
 
 Selectors must identify a single element for actions and visibility assertions. `clickRole` accepts the roles enumerated in `plan.ts`. Actions/assertions default to 15 seconds; startup has a separate 60-second budget. Default execution stops at the first failure and marks remaining steps `not_run`. `continueOnFailure: true` collects more assertion failures, but never turns a failed/incomplete run into a pass; lost application connections still stop execution.
 
-The controller enforces zh-CN through Electron and Preference, reloads, and verifies a Chinese UI marker. It accepts fresh onboarding and does not silently skip it. Environment inspection is fixed controller code; plans cannot supply JavaScript, shell commands, or IPC routes. A release lacking the required interfaces fails explicitly.
+The controller enforces zh-CN through Electron and Preference, reloads, and verifies a visible Chinese UI marker: an onboarding combobox named `语言` or the shell button named `启动台`. These accessible names depend on the application's `common.language` and `title.launchpad` translations; changes to those translations require updating the controller's markers. The language control works across all onboarding steps. A structural `data-ui` selector alone cannot establish that Chinese translations are displayed. Environment inspection is fixed controller code; plans cannot supply JavaScript, shell commands, or IPC routes. A release lacking the required interfaces fails explicitly.
 
-Runner timezones are recorded, not changed. Ordinary plans do not fail because of timezone differences. `requiredTimezone` makes matching application main-process and renderer timezones mandatory. No provider credentials are required by the initial smoke/JSON scenarios. Use repository-owned credential configuration explicitly when adding a scenario that needs it; never put secrets in dispatch plans.
+Hosted jobs set `TZ=Asia/Shanghai` for the controller and inherited application environment without changing the runner's operating-system settings. Actual main-process and renderer timezones are still recorded. Ordinary plans do not fail because of timezone differences. `requiredTimezone` makes matching application main-process and renderer timezones mandatory; it verifies a dependency rather than selecting a timezone.
+
+The `profile` input defaults to `clean`, preserves fresh onboarding, and requires no provider credentials. `authenticated` uses a separate isolated profile and configures repository-owned test providers through the application's DataApi before completing onboarding. It sets global defaults for chat and translation. Existing assistants keep their own model choices, so scenarios using a built-in assistant must select the configured test model. The profile does not log in to CherryIN or create knowledge-base content. Required repository configuration is `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL` and `CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL` (variables), plus `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY` (secret). `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL` is optional. To enable embedding scenarios, supply all three `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL`, `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL` (variables), and `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY` (secret). Missing or partial required configuration fails with exit 2 before launch. Provider keys are available only to the execution/finalization steps for configuration and redaction; raw plans and profiles remain excluded from artifacts. Never put secrets in dispatch plans.
 
 ## Results
 
@@ -63,7 +68,7 @@ Artifacts last 30 days and include `results.json`, `results.md`, masked screensh
 | 3 | Application not ready or connection unavailable |
 | null | Interrupted; use GitHub's cancellation/timeout state too |
 
-The priority for coexisting errors is `2 > 3 > 1 > 0`; all errors remain recorded. Categories identify execution stages, not confirmed product defects. `metadata` includes both SHAs and the target ref/mode. `environment` includes runner/image versions, actual application version, locale, and timezones. Unavailable observations have a reason; application version is never inferred from a tag. `timings` separates preparation, readiness, and steps. Hard termination can prevent artifact upload; missing evidence cannot be counted as a pass. A handled interruption preserves a null classification; the final verdict process uses conventional termination status 130.
+The priority for execution errors is `2 > 3 > 1 > 0`. Cleanup errors remain in `errors[]` but do not override an existing execution failure; cleanup failure alone returns 2. Categories identify execution stages, not confirmed product defects. `metadata` includes both SHAs and the target ref/mode/profile. `environment` includes runner/image versions, actual application version, locale, and timezones. Unavailable observations have a reason; application version is never inferred from a tag. `timings` separates preparation, readiness, and steps. Hard termination can prevent artifact upload; missing evidence cannot be counted as a pass. A handled interruption preserves a null classification; the final verdict process uses conventional termination status 130.
 
 ## Local verification
 

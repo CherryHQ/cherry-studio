@@ -7,7 +7,13 @@ import { parse } from 'yaml'
 it('dispatches one validated platform and retains the machine-readable verdict and evidence', () => {
   const source = readFileSync(resolve(__dirname, '../../../../.github/workflows/qa-ondemand.yml'), 'utf8')
   const workflow = parse(source)
-  expect(Object.keys(workflow.on.workflow_dispatch.inputs)).toHaveLength(6)
+  expect(workflow.env.TZ).toBe('Asia/Shanghai')
+  expect(workflow.on.workflow_dispatch.inputs.profile).toMatchObject({
+    options: ['clean', 'authenticated'],
+    default: 'clean'
+  })
+  const run = workflow.jobs.test.steps.find((step: { name?: string }) => step.name === 'Run one test')
+  expect(run.env.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY).toBe('${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}')
   expect(workflow.jobs.test.strategy).toBeUndefined()
   expect(workflow.jobs.test['runs-on']).toBe('${{ needs.resolve.outputs.runner }}')
   expect(workflow.jobs.test.concurrency).toMatchObject({ 'cancel-in-progress': false, queue: 'max' })

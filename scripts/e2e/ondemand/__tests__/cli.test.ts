@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 
@@ -11,6 +11,7 @@ function controller() {
     ...process.env,
     QA_PLATFORM: 'macos',
     QA_MODE: 'branch',
+    QA_PROFILE: 'clean',
     QA_SPEC: 'smoke',
     QA_PLAN: '',
     QA_TIMEOUT_MINUTES: '45',
@@ -69,6 +70,29 @@ it('preserves a handled signal as interrupted after the next finalize process', 
     saveResult(cli.env.QA_OUT, result)
     expect(cli.execute('finalize')).toBe(130)
     expect(readResult(cli.env.QA_OUT)).toMatchObject({ status: 'interrupted', exitCode: null, failureStage: 'steps' })
+  } finally {
+    cli.cleanup()
+  }
+})
+
+it('rejects missing authenticated credentials before starting an application', () => {
+  const cli = controller()
+  cli.env.QA_PROFILE = 'authenticated'
+  try {
+    expect(
+      spawnSync(process.execPath, [require.resolve('tsx/cli'), resolve(__dirname, '../run.ts'), 'run'], {
+        env: {
+          ...cli.env,
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: '',
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: '',
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ''
+        },
+        encoding: 'utf8',
+        timeout: 10_000
+      }).status
+    ).toBe(2)
+    expect(readResult(cli.env.QA_OUT)).toMatchObject({ status: 'failed', exitCode: 2, failureStage: 'prepare' })
+    expect(existsSync(resolve(cli.directory, 'app.json'))).toBe(false)
   } finally {
     cli.cleanup()
   }

@@ -13,8 +13,29 @@ it('preserves all errors while selecting environment > unavailable > assertion',
   expect(result).toMatchObject({ status: 'failed', exitCode: 3, failureStage: 'steps' })
   addFailure(result, new QaError('cleanup', 2, 'CLEANUP_FAILED', 'owned process remains'))
   completeResult(result)
-  expect(result).toMatchObject({ exitCode: 2, failureStage: 'cleanup' })
+  expect(result).toMatchObject({ exitCode: 3, failureStage: 'steps' })
   expect(result.errors.map((error) => error.code)).toEqual(['ASSERTION_FAILED', 'APP_UNAVAILABLE', 'CLEANUP_FAILED'])
+  addFailure(result, new QaError('environment', 2, 'TIMEZONE_MISMATCH', 'wrong timezone'))
+  completeResult(result)
+  expect(result).toMatchObject({ exitCode: 2, failureStage: 'environment' })
+})
+
+it.each([1, 3] as const)('keeps execution exit %s when cleanup also fails', (exitCode) => {
+  const result = createResult({})
+  addFailure(result, new QaError('cleanup', 2, 'CLEANUP_FAILED', 'owned process remains'))
+  addFailure(result, new QaError('steps', exitCode, 'STEP_FAILED', 'step failed'))
+  completeResult(result)
+  expect(result).toMatchObject({ status: 'failed', exitCode, failureStage: 'steps' })
+  expect(result.errors.map((error) => error.code)).toEqual(['CLEANUP_FAILED', 'STEP_FAILED'])
+})
+
+it('fails an otherwise successful run when cleanup fails', () => {
+  const result = createResult({})
+  completeResult(result)
+  expect(result).toMatchObject({ status: 'passed', exitCode: 0 })
+  addFailure(result, new QaError('cleanup', 2, 'CLEANUP_FAILED', 'owned process remains'))
+  completeResult(result)
+  expect(result).toMatchObject({ status: 'failed', exitCode: 2, failureStage: 'cleanup' })
 })
 
 it('starts with a recoverable interrupted snapshot rather than a provisional pass', () => {

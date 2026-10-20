@@ -98,3 +98,42 @@ it('stops even continue-on-failure plans when the application connection is lost
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+it.each(['capture', 'write'])('stops and retains a report failure after a screenshot %s error', async (failure) => {
+  const { values, page } = inputPage()
+  const result = createResult({})
+  const directory = mkdtempSync(join(tmpdir(), 'qa-screenshot-'))
+  if (failure === 'capture') {
+    mkdirSync(join(directory, 'screenshots'))
+    vi.spyOn(page, 'screenshot').mockRejectedValueOnce(new Error('Screenshot capture failed'))
+  }
+  try {
+    const context = createScenarioContext(
+      page,
+      result,
+      directory,
+      [],
+      () => {},
+      async () => {}
+    )
+    await executePlan(
+      context,
+      parsePlan(
+        '{"continueOnFailure":true,"steps":[{"verb":"screenshot"},{"verb":"fill","selector":"#after","text":"x"}]}'
+      )
+    )
+    mkdirSync(join(directory, 'screenshots'), { recursive: true })
+    await context.screenshot('final')
+    completeResult(result)
+    expect(values).toEqual({})
+    expect(result.steps.map((step) => step.status)).toEqual(['failed', 'not_run'])
+    expect(result).toMatchObject({
+      status: 'failed',
+      exitCode: 2,
+      failureStage: 'report',
+      errors: [{ stage: 'report', exitCode: 2, code: 'SCREENSHOT_FAILED' }]
+    })
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

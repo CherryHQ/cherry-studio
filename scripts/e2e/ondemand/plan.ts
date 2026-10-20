@@ -137,6 +137,7 @@ export function scenarioPath(name: string): string {
 export function readRequest(env: NodeJS.ProcessEnv = process.env) {
   const platform = z.enum(['windows', 'macos']).parse(env.QA_PLATFORM ?? 'windows')
   const mode = z.enum(['branch', 'tag']).parse(env.QA_MODE ?? 'branch')
+  const profile = z.enum(['clean', 'authenticated']).parse(env.QA_PROFILE ?? 'clean')
   const spec = safeName.parse(env.QA_SPEC ?? 'smoke')
   const minutes = env.QA_TIMEOUT_MINUTES ?? '45'
   if (!/^\d+$/.test(minutes)) throw new Error('timeout_minutes must be an integer')
@@ -154,6 +155,6 @@ export function readRequest(env: NodeJS.ProcessEnv = process.env) {
       ? parsePlan(readFileSync(resolve(__dirname, '../../../tests/e2e/ondemand/plans/smoke.json'), 'utf8'))
       : null
   const file = plan ? null : scenarioPath(spec)
-  return { platform, mode, spec, timeoutMinutes, plan, file, ref: text.parse(env.QA_REF ?? 'main') }
+  return { platform, mode, profile, spec, timeoutMinutes, plan, file, ref: text.parse(env.QA_REF ?? 'main') }
 }
 export type Request = ReturnType<typeof readRequest>

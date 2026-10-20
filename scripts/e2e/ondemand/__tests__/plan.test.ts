@@ -26,6 +26,12 @@ it('accepts a temporary plan without any matching spec file', () => {
   expect(request.plan?.continueOnFailure).toBe(false)
 })
 
+it('defaults to clean and requires an explicit authenticated profile', () => {
+  expect(readRequest({}).profile).toBe('clean')
+  expect(readRequest({ QA_PROFILE: 'authenticated' }).profile).toBe('authenticated')
+  expect(() => readRequest({ QA_PROFILE: 'developer' })).toThrow()
+})
+
 it.each(['../escape', 'UPPER', 'a/b', 'a\\b', 'a'.repeat(42)])('rejects unsafe report names %s', (name) => {
   expect(() => readRequest({ QA_SPEC: name })).toThrow()
   expect(() => scenarioPath(name)).toThrow()

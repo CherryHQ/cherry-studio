@@ -32,6 +32,7 @@ export interface Result {
     spec: string
     platform: string
     mode: string
+    profile?: string
     ref: string
     controllerSha: string | null
     applicationSha: string | null
@@ -68,6 +69,7 @@ export function createResult(env: NodeJS.ProcessEnv = process.env): Result {
       spec: env.QA_SPEC ?? 'smoke',
       platform: env.QA_PLATFORM ?? 'windows',
       mode: env.QA_MODE ?? 'branch',
+      profile: env.QA_PROFILE ?? 'clean',
       ref: env.QA_REF ?? 'main',
       controllerSha: env.GITHUB_SHA ?? null,
       applicationSha: env.QA_SHA ?? null,
@@ -104,7 +106,10 @@ export function addFailure(result: Result, error: QaError): void {
 
 export function completeResult(result: Result): void {
   const priority = { 0: 0, 1: 1, 3: 2, 2: 3 }
-  const selected = result.errors.reduce<Result['errors'][number] | undefined>(
+  const executionErrors = result.errors.filter((error) => error.stage !== 'cleanup')
+  const selected = (executionErrors.length ? executionErrors : result.errors).reduce<
+    Result['errors'][number] | undefined
+  >(
     (current, error) => (!current || priority[error.exitCode] > priority[current.exitCode] ? error : current),
     undefined
   )

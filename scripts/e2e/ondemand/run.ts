@@ -14,6 +14,7 @@ import { resolveRepositoryRef } from '../regression/ref'
 import { captureMaskedScreenshot } from '../regression/screenshotEvidence'
 import { collectEnvironment, ensureChinese, verifyTimezone } from './environment'
 import { readRequest, type Request } from './plan'
+import { prepareAuthenticatedProfile, readProfileConfig, type ProfileConfig } from './profile'
 import { addFailure, completeResult, createResult, QaError, readResult, type Result, saveResult } from './report'
 import { createScenarioContext, executePlan, type ScenarioContext } from './steps'
 
@@ -68,7 +69,7 @@ function copyLogs(): void {
   }
 }
 
-async function run(request: Request): Promise<void> {
+async function run(request: Request, profileConfig?: ProfileConfig): Promise<void> {
   result.timings.preparationSeconds = (Date.now() - Date.parse(result.metadata.startedAt)) / 1000
   const readyStarted = Date.now()
   let attachedPage: Page | undefined
@@ -94,7 +95,7 @@ async function run(request: Request): Promise<void> {
     const record = await launchApp(paths, {
       mode: request.mode,
       platform: request.platform,
-      profile: 'clean',
+      profile: request.profile,
       targetRoot: resolve(process.env.QA_TARGET_ROOT ?? process.cwd()),
       runKey: `${process.env.GITHUB_RUN_ID ?? Date.now()}-${process.env.GITHUB_RUN_ATTEMPT ?? 1}-${request.platform}`,
       locale: 'zh-CN',
@@ -126,6 +127,7 @@ async function run(request: Request): Promise<void> {
     result.timings.readinessSeconds = (Date.now() - readyStarted) / 1000
     phase('environment')
     try {
+      if (profileConfig) await prepareAuthenticatedProfile(page, profileConfig)
       await ensureChinese(page, true)
     } finally {
       await collectEnvironment(page, readAppRecord(paths), result)
@@ -256,9 +258,12 @@ async function main(): Promise<void> {
         arch: process.env.RUNNER_ARCH ?? process.arch
       })
       return
-    case 'run':
-      await run(request)
+    case 'run': {
+      phase('prepare')
+      const profileConfig = request.profile === 'authenticated' ? readProfileConfig() : undefined
+      await run(request, profileConfig)
       break
+    }
     case 'finalize':
       if (process.env.QA_CANCELLED === 'true' || result.metadata.interruptedAt) interrupted = true
       await cleanup()
