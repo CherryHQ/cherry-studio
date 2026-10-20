@@ -21,6 +21,22 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
 }
 
 describe('classifyError', () => {
+  it('uses the parse diagnosis for a serialized unresolved tool call', () => {
+    expect(
+      classifyError(
+        makeError({
+          name: 'AI_InvalidResponseDataError',
+          message: "Expected 'function.name' to be a string."
+        }),
+        'custom'
+      )
+    ).toMatchObject({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+  })
+
   it.each([
     [new Error('OpenAI API key is missing. Pass it using the apiKey parameter.'), 'auth'],
     [

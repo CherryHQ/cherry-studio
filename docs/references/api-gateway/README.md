@@ -209,6 +209,7 @@ Two explicit listeners share that port and the MCP session store; the IPv6 socke
 If IPv6 is unavailable, IPv4 remains usable and only its addresses are advertised.
 A port conflict fails startup and releases both listeners. Local HTTP and remote WebSocket clients share the port. Rebinding only
 releases the listening handles; existing local streams and MCP sessions continue.
+An OS-refused bind (`EACCES` from `listen`) on the internal loopback gateway triggers up to two automatic retries, each with a fresh server and an OS-assigned port. Concurrent internal consumers share the same three-attempt budget. Failed starts release their listeners before retrying; exhaustion reports the final failed address/port and allows a later request to try again. Other errors are not retried automatically. The public gateway reports recovery guidance and keeps its configured port; change the port in Settings and click Start to retry.
 The settings card explains network exposure and pairing requirements in plain language.
 Actual bound addresses appear only in the collapsed connection details, including while access is disabled.
 
