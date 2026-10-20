@@ -36,7 +36,8 @@ export const ENTRY_KINDS = {
   subagentMessage: 'cherry.subagent-message',
   plan: 'cherry.plan',
   turnStop: 'cherry.turn-stop',
-  idleDriverExit: 'cherry.idle-driver-exit'
+  idleDriverExit: 'cherry.idle-driver-exit',
+  subagentSteer: 'cherry.subagent-steer'
 } as const
 export type EntryKind = (typeof ENTRY_KINDS)[keyof typeof ENTRY_KINDS]
 
@@ -144,6 +145,19 @@ export type PolicyRecord =
     }
   /** The idle driver of `generation` stopped; written by the transaction that decided it (H4). */
   | { readonly type: 'idle-driver-exit'; readonly value: { readonly generation: number } }
+  /**
+   * A `message_subagent` call's steer for run `run` of child `sessionId`, written before it is sent; `digest` is the
+   * hash of the text sent. A second record with `withdrawn: true` says no boundary of that run took it.
+   */
+  | {
+      readonly type: 'subagent-steer'
+      readonly value: {
+        readonly sessionId: ThreadId
+        readonly run: number
+        readonly digest: string
+        readonly withdrawn: boolean
+      }
+    }
 /** Enters the model context. */
 export type MarkerFact =
   | { readonly type: 'goal-round'; readonly round: RoundDetails }
