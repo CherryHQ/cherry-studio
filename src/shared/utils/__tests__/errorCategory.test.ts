@@ -92,6 +92,19 @@ describe('classifyErrorCategory transport failures', () => {
   })
 })
 
+describe('classifyErrorCategory server failures', () => {
+  it.each([500, 502, 503, 504, 522, 524, 529])('maps HTTP %i to server', (status) => {
+    expect(classifyErrorCategory({ status })).toBe('server')
+  })
+
+  it.each(['unauthorized', 'insufficient_balance', 'too many requests', 'model_not_found'])(
+    'maps HTTP 503 with a "%s" message to server',
+    (text) => {
+      expect(classifyErrorCategory({ status: 503, text })).toBe('server')
+    }
+  )
+})
+
 // Client-refusal gateways reject third-party clients with auth-flavored wording that names the
 // CLIENT, not the key ("unauthorized client detected, contact support" — #21376). Filing that
 // under auth claims the key is invalid and sends users off regenerating working keys; it is a
