@@ -2228,6 +2228,42 @@ describe('ExternalKnowledgeRuntime', () => {
 describe('ExternalKnowledgeRuntime interrupted initial authorization', () => {
   setupTestDatabase()
 
+  it('invalidates a persisted connection when the SDK receives HTTP 200 with invalid-token code 20005', async () => {
+    const credentials = new MemoryCredentials()
+    const created = externalKnowledgeConnectionService.create({
+      appId: 'cli_one',
+      appCredentialSource: 'custom-app',
+      credentialReference: 'ref-one'
+    })
+    externalKnowledgeConnectionService.markConnected(created.id, {
+      accountUserId: 'user_one',
+      accountOpenId: 'ou_one',
+      accountUnionId: null,
+      tenantKey: 'tenant_one',
+      displayName: 'User',
+      avatarUrl: null,
+      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+    })
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValue(Response.json({ code: 20005, msg: 'invalid access token' }))
+    const runtime = new ExternalKnowledgeRuntime({ credentials, now: () => 1_000 })
+    await runtime.start()
+    try {
+      await expect(runtime.runAuthorizedRequest(created.id, async () => 'unreachable')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      expect(externalKnowledgeConnectionService.getById(created.id)?.authorizationStatus).toBe(
+        'reauthorization-required'
+      )
+      await expect(runtime.acquireAccessToken(created.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+    } finally {
+      await runtime.stop()
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
+
   it('binds the first identity through replacement reconnect after startup reconciliation', async () => {
     const credentials = new MemoryCredentials()
     const provider = createProvider({
