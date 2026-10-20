@@ -1,12 +1,14 @@
 import type { ReasoningEffort } from '../schemas/enums'
 import { defineCreator } from './types'
 
+// https://platform.minimax.io/docs/api-reference/text-openai-api
+// Both M3 models ignore sampling and penalty overrides.
 const m3Parameters = {
-  temperature: { supported: true },
-  topP: { supported: true },
+  temperature: { supported: false },
+  topP: { supported: false },
   topK: { supported: false },
-  frequencyPenalty: true,
-  presencePenalty: true,
+  frequencyPenalty: false,
+  presencePenalty: false,
   maxTokens: true,
   stopSequences: true,
   systemMessage: true
@@ -27,6 +29,14 @@ export default defineCreator({
     {
       id: 'minimax-m3-1-flash',
       name: 'MiniMax-M3.1-Flash',
+      openWeights: true,
+      // https://platform.minimax.io/docs/pricing/overview#models/text
+      // Free gateway offers override these direct-API prices on their own rows.
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.15 },
+        output: { currency: 'USD', perMillionTokens: 0.6 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.015 }
+      },
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -37,6 +47,7 @@ export default defineCreator({
     { id: 'minimax-m2-1' },
     {
       id: 'minimax-m3',
+      name: 'MiniMax-M3',
       maxOutputTokens: 524288,
       parameterSupport: m3Parameters
     },

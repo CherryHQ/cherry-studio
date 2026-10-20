@@ -16,7 +16,15 @@ export const minimaxOverrides = [
   },
   {
     modelId: 'minimax-m3',
-    endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+    limits: { contextWindow: 1_000_000 },
+    // Standard tier, <= 512k input tokens. Longer inputs use a separate tariff.
+    // https://platform.minimax.io/docs/pricing/overview#models/text
+    pricing: {
+      input: { perMillionTokens: 0.3, currency: 'USD' },
+      output: { perMillionTokens: 1.2, currency: 'USD' },
+      cacheRead: { perMillionTokens: 0.06, currency: 'USD' }
+    }
   },
   {
     modelId: 'image-01',

@@ -68,6 +68,7 @@ import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/d
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { selectCurrentMiniMaxModels } from './utils/minimaxModelDiscovery'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
@@ -1200,6 +1201,20 @@ class ProviderRegistryService {
     return results
   }
 
+  /** Filter new discovery choices without altering explicit resolution or persisted models. */
+  selectModelsForDiscovery(provider: Provider, models: Partial<Model>[]): Partial<Model>[] {
+    if (!this.resolveProviderPreset(provider.id, provider.presetProviderId)) return models
+    const presetIds = new Map(
+      models.map((model) => [
+        model,
+        model.presetModelId ??
+          (model.apiModelId ? this.resolveModel(provider, model.apiModelId).presetModel?.id : undefined) ??
+          ''
+      ])
+    )
+    return selectCurrentMiniMaxModels(models, (model) => presetIds.get(model) ?? '')
+  }
+
   private listProviderPresetModels(
     providerId: string,
     presetProvider: ProtoProviderConfig,
@@ -1243,7 +1258,7 @@ class ProviderRegistryService {
       })
     }
 
-    return results
+    return includeDisabled ? results : selectCurrentMiniMaxModels(results)
   }
 
   listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Model[] {
@@ -1309,7 +1324,7 @@ class ProviderRegistryService {
       })
     }
 
-    return results
+    return includeDisabled ? results : selectCurrentMiniMaxModels(results)
   }
 
   /**
