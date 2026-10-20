@@ -832,6 +832,73 @@ describe('MainWindowService', () => {
       }
     })
 
+    it('reserves distinct destinations for overlapping automatic downloads', async () => {
+      await (svc as any).onInit()
+      const downloadsDir = await mkdtemp(path.join(tmpdir(), 'cherry-browser-downloads-'))
+      prefValues['app.browser.downloads.ask_where_to_save'] = false
+      prefValues['app.browser.downloads.dir'] = downloadsDir
+      try {
+        const handler = agentBrowserSessionMock.on.mock.calls.filter(([event]) => event === 'will-download').at(-1)?.[1]
+        if (!handler) throw new Error('download handler was not registered')
+
+        const item = () => {
+          let savePath = ''
+          return {
+            getFilename: () => 'report.pdf',
+            setSavePath: vi.fn((next: string) => {
+              savePath = next
+            }),
+            once: vi.fn(),
+            savePath: () => savePath
+          }
+        }
+
+        const first = item()
+        const second = item()
+        handler({}, first)
+        handler({}, second)
+
+        expect(first.savePath()).toBe(path.join(downloadsDir, 'report.pdf'))
+        expect(second.savePath()).toBe(path.join(downloadsDir, 'report (1).pdf'))
+
+        // Once the first item settles, its name is free again; a completed file
+        // would still be caught by the filesystem check.
+        const done = first.once.mock.calls.find(([event]) => event === 'done')?.[1]
+        done()
+        const third = item()
+        handler({}, third)
+        expect(third.savePath()).toBe(path.join(downloadsDir, 'report.pdf'))
+      } finally {
+        prefValues['app.browser.downloads.ask_where_to_save'] = true
+        delete prefValues['app.browser.downloads.dir']
+        await rm(downloadsDir, { recursive: true, force: true })
+      }
+    })
+
+    it('falls back to the registered Downloads path when no folder is chosen', async () => {
+      await (svc as any).onInit()
+      prefValues['app.browser.downloads.ask_where_to_save'] = false
+      delete prefValues['app.browser.downloads.dir']
+      try {
+        const handler = agentBrowserSessionMock.on.mock.calls.filter(([event]) => event === 'will-download').at(-1)?.[1]
+        if (!handler) throw new Error('download handler was not registered')
+        let savePath = ''
+        handler(
+          {},
+          {
+            getFilename: () => 'report.pdf',
+            setSavePath: (next: string) => {
+              savePath = next
+            },
+            once: vi.fn()
+          }
+        )
+        expect(savePath).toBe(path.join('/mock/sys.downloads', 'report.pdf'))
+      } finally {
+        prefValues['app.browser.downloads.ask_where_to_save'] = true
+      }
+    })
+
     it('allows ordinary HTTP(S) including LAN while denying privileged schemes and URL credentials', async () => {
       await (svc as any).onInit()
       const handler = agentBrowserSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]

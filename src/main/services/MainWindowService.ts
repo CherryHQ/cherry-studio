@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
@@ -435,10 +436,21 @@ export class MainWindowService extends BaseService {
    */
   private attachBrowserDownloadHandler(restrictedSession: Electron.Session): { dispose: () => void } {
     const preferenceService = application.get('PreferenceService')
+    // Downloads that have a destination but no file on disk yet must still keep
+    // the name they received, or two overlapping transfers write the same file.
+    const activeDownloads = new Set<string>()
     const handleDownload = (_event: Electron.Event, item: Electron.DownloadItem) => {
       if (preferenceService.get('app.browser.downloads.ask_where_to_save')) return
-      const dir = preferenceService.get('app.browser.downloads.dir') || app.getPath('downloads')
-      item.setSavePath(resolveDownloadSavePath(dir, item.getFilename()))
+      const dir = preferenceService.get('app.browser.downloads.dir') || application.getPath('sys.downloads')
+      const savePath = resolveDownloadSavePath(
+        dir,
+        item.getFilename(),
+        (candidate) => activeDownloads.has(candidate) || existsSync(candidate)
+      )
+      activeDownloads.add(savePath)
+      item.setSavePath(savePath)
+      // A completed file is caught by `existsSync`; a cancelled one never lands.
+      item.once('done', () => activeDownloads.delete(savePath))
     }
     restrictedSession.on('will-download', handleDownload)
     return {

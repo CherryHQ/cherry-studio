@@ -135,17 +135,12 @@ export function BrowserSettings() {
             </SettingDescription>
           </div>
           <div className="mt-0.5 flex shrink-0 gap-1.5">
-            <Button
-              variant="outline"
-              aria-labelledby="browser-download-location-title"
-              disabled={saving}
-              onClick={() => void handleBrowseDownloadDir()}>
+            <Button variant="outline" disabled={saving} onClick={() => void handleBrowseDownloadDir()}>
               <FolderOpen size={14} />
               {t('common.browse')}
             </Button>
             <Button
               variant="destructive"
-              aria-labelledby="browser-download-location-title"
               disabled={saving || !downloadDir}
               onClick={async () => {
                 setSaving(true)
