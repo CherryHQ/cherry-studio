@@ -1,8 +1,25 @@
-import type { MessageEndEvent } from '@earendil-works/pi-coding-agent'
+import type { MessageEndEvent, TurnEndEvent } from '@earendil-works/pi-coding-agent'
 
-import type { MessageResult, RetractResult, RunEndFacts, StartResult, TurnInput } from '@cherrystudio/agent-behavior'
+import {
+  INTERRUPTED_CALL_RESULT,
+  type MessageResult,
+  type RetractResult,
+  type RunEndFacts,
+  type StartResult,
+  type TurnInput
+} from '@cherrystudio/agent-behavior'
 
-import { addUsage, historyOf, keyOf, keysOf, textOf, usageFact, ZERO_USAGE } from './history'
+import {
+  addUsage,
+  historyOf,
+  keyOf,
+  keysOf,
+  resultFor,
+  textOf,
+  unansweredCalls,
+  usageFact,
+  ZERO_USAGE
+} from './history'
 import {
   type Adapter,
   type Conversation,
@@ -110,11 +127,10 @@ export function finishRun(adapter: Adapter, conv: Conversation, ending: RunEndin
   }
   for (const submission of conv.submissions.values())
     if (submission.run === run.run && submission.state === 'running') submission.state = 'settled'
-  // Messages Pi took for this run but never placed missed its last boundary; they wait for the next run.
-  const missed = [...conv.steered].filter((key) => conv.submissions.get(key)?.state === 'queued')
-  if (missed.length > 0) conv.native?.session.clearQueue()
+  // Steers the run never placed missed its last boundary: withdrawn, never carried into the next run (G-C5).
+  withdrawAll(conv, [...conv.held.splice(0), ...conv.steered])
+  if (conv.steered.size > 0) conv.native?.session.agent.clearSteeringQueue()
   conv.steered.clear()
-  conv.inbox.push(...conv.held.splice(0), ...missed)
   run.end()
   if (ending === undefined || ending.live === 'completed') drain(adapter, conv)
   wake(conv)
@@ -122,12 +138,8 @@ export function finishRun(adapter: Adapter, conv: Conversation, ending: RunEndin
 
 /** H2 stop: withdraws queued input, aborts the active run with the foreground children it owns, resolves once it ended. */
 export async function stopRun(adapter: Adapter, conv: Conversation): Promise<void> {
-  for (const key of [...conv.inbox.splice(0), ...conv.held.splice(0), ...conv.steered]) {
-    const submission = conv.submissions.get(key)!
-    if (submission.state === 'queued') submission.state = 'withdrawn'
-  }
-  if (conv.steered.size > 0) conv.native?.session.clearQueue()
-  conv.steered.clear()
+  // A steer handed to Pi is being placed; the run's end withdraws it if it was not.
+  withdrawAll(conv, [...conv.inbox.splice(0), ...conv.held.splice(0)])
   wake(conv)
   const run = conv.active
   if (!run) return
@@ -145,16 +157,37 @@ export async function stopRun(adapter: Adapter, conv: Conversation): Promise<voi
 export function retract(conv: Conversation, key: string): RetractResult {
   const submission = conv.submissions.get(key)
   if (!submission) return 'not-found'
-  // A steer Pi holds joins the running run; Pi cannot give it back alone.
+  // A steer handed to Pi at a turn's end is being placed in that run.
   if (submission.state === 'running' || conv.steered.has(key)) return 'already-started'
   if (submission.state === 'settled') return 'settled'
+  withdraw(conv, key)
+  return 'withdrawn'
+}
+
+/** Takes back input `key` that no run has taken yet, from the inbox or the held steers. */
+export function withdraw(conv: Conversation, key: string): void {
+  const submission = conv.submissions.get(key)
+  if (submission?.state !== 'queued' || conv.steered.has(key)) return
   submission.state = 'withdrawn'
   for (const list of [conv.inbox, conv.held]) {
     const at = list.indexOf(key)
     if (at >= 0) list.splice(at, 1)
   }
   wake(conv)
-  return 'withdrawn'
+}
+
+/** Withdraws the inputs `keys` names that no run took. */
+function withdrawAll(conv: Conversation, keys: readonly string[]): void {
+  for (const key of keys) {
+    const submission = conv.submissions.get(key)!
+    if (submission.state === 'queued') submission.state = 'withdrawn'
+  }
+}
+
+/** H5 untilDone: the input ran to the end of its run, was withdrawn, or was never submitted here (a 'busy' start). */
+export function inputDone(conv: Conversation, key: string): boolean {
+  const state = conv.submissions.get(key)?.state
+  return state === undefined || state === 'settled' || state === 'withdrawn'
 }
 
 /** Message ends of the active run: its last reply and usage, and the steered messages Pi placed in it. */
@@ -173,44 +206,70 @@ export function noteMessage(conv: Conversation, message: MessageEndEvent['messag
   submission.state = 'running'
   submission.run = run.run
   conv.steered.delete(key)
+  // The steer's `message` answers now (H3).
+  wake(conv)
 }
 
-/** H3 message: an idle child starts a run with it; a running one takes it into the run in progress. */
-export function messageChild(adapter: Adapter, conv: Conversation, input: TurnInput, key: string): MessageResult {
+/**
+ * H3 message: an idle child starts a run with it; a running one takes it as a steer into the run in progress. With
+ * `run`, only run `run` may take it: when that is not the active run, it is withdrawn at once.
+ */
+export function messageChild(
+  adapter: Adapter,
+  conv: Conversation,
+  input: TurnInput,
+  key: string,
+  run?: number
+): MessageResult {
   const existing = conv.submissions.get(key)
   if (existing) return existing.admission as MessageResult
+  const active = conv.active
+  if (run !== undefined && active?.run !== run) {
+    const admission: MessageResult = { run, status: 'withdrawn' }
+    conv.submissions.set(key, { input, admission, state: 'withdrawn' })
+    return admission
+  }
   // Nothing is recorded for a child still launching, so the same key can be sent once it has launched.
   if (!conv.native) throw new Error(`Child ${conv.thread} is still launching`)
-  const active = conv.active
   if (!active) {
     const admission: MessageResult = { run: conv.runs + 1, status: 'started' }
     conv.submissions.set(key, { input, admission, state: 'queued' })
+    answerOpenCalls(conv)
     startRun(adapter, conv, key)
     return admission
   }
   const admission: MessageResult = { run: active.run, status: 'queued' }
   conv.submissions.set(key, { input, admission, state: 'queued' })
-  steer(conv, key)
+  conv.held.push(key)
   return admission
 }
 
-function steer(conv: Conversation, key: string): void {
-  const session = conv.native!.session
-  // Pi takes a steer only while it streams; otherwise it would start a run of its own with the message.
-  if (!session.isStreaming) {
-    conv.held.push(key)
-    return
-  }
-  conv.steered.add(key)
-  void session.sendCustomMessage(markerMessage(conv.submissions.get(key)!.input as TurnInput, key), {
-    triggerTurn: true
-  })
+/** H3: before a run starts, each open call of the child's last reply gets the interrupted result, unless it failed. */
+function answerOpenCalls(conv: Conversation): void {
+  const entries = conv.manager.getBranch()
+  const at = entries.findLastIndex((entry) => entry.type === 'message' && entry.message.role === 'assistant')
+  const reply = entries[at]
+  if (reply?.type !== 'message' || reply.message.role !== 'assistant') return
+  if (reply.message.stopReason === 'error' || reply.message.stopReason === 'aborted') return
+  const open = unansweredCalls(entries, at)
+  for (const call of open) conv.manager.appendMessage(resultFor(call, INTERRUPTED_CALL_RESULT, true))
+  // Pi's in-memory transcript follows its storage only when refreshed.
+  if (open.length > 0) conv.native!.session.refreshContext()
 }
 
-/** At each turn of the active run: messages Pi could not take earlier go to its steering queue. */
-export function flushHeld(conv: Conversation): void {
-  if (!conv.native?.session.isStreaming) return
-  for (const key of conv.held.splice(0)) steer(conv, key)
+/**
+ * At each turn's end, right before Pi polls its steering queue: the oldest held steer goes to Pi, which places it
+ * before the next request. A failed or aborted turn takes none; its run ends, which withdraws them.
+ */
+export function offerSteer(conv: Conversation, reply: TurnEndEvent['message']): void {
+  if (!conv.active || (reply.role === 'assistant' && (reply.stopReason === 'error' || reply.stopReason === 'aborted')))
+    return
+  const key = conv.held.shift()
+  if (key === undefined) return
+  conv.steered.add(key)
+  void conv.native!.session.sendCustomMessage(markerMessage(conv.submissions.get(key)!.input as TurnInput, key), {
+    triggerTurn: true
+  })
 }
 
 /** H3 awaitAnswer: the end of the run that took message `key`; one withdrawn before it ran answers with run `run`. */

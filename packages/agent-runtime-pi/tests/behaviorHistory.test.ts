@@ -17,8 +17,8 @@ const usage = {
 describe('behavior history', () => {
   // Catches a projection that reads a marker's data from `content` instead of `details`, loses a record's key, a
   // reply's cost or a person's text, keys a call and its result apart from the gate's `<sessionId>:<toolCallId>`, or
-  // marks every error result as blocked: keysSeen would miss writes, usage would bill nothing, approvals could not be
-  // matched to calls and the gate rules would count a failed call as one the gate stopped.
+  // drops a blocked call's reason from its result: keysSeen would miss writes, usage would bill nothing, approvals could
+  // not be matched to calls and the gate rules could not find why a call was blocked.
   it('projects native entries into the history the package decides on', () => {
     const manager = SessionManager.inMemory('/tmp/behavior-history')
     const thread = runtimeId<'thread'>(manager.getSessionId())
@@ -82,9 +82,8 @@ describe('behavior history', () => {
       callId: 'call-1',
       callKey: `${thread}:call-1`,
       isError: true,
-      blocked: 'plan mode'
+      text: 'Tool call blocked: plan mode'
     })
-    expect(history[3]).not.toHaveProperty('blocked')
     expect(history[4]).toMatchObject({
       key: 'k-marker',
       marker: { type: 'subagent-status' },

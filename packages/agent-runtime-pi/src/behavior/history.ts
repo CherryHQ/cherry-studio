@@ -1,4 +1,4 @@
-import type { TextContent, Usage } from '@earendil-works/pi-ai'
+import type { AssistantMessage, TextContent, ToolResultMessage, Usage } from '@earendil-works/pi-ai'
 import type { buildSessionContext, SessionEntry } from '@earendil-works/pi-coding-agent'
 
 import {
@@ -15,8 +15,9 @@ import { type ItemId, type JsonValue, runtimeId, type ThreadId } from '@cherryst
 /** A message of the context Pi builds from the branch. */
 export type ContextMessage = ReturnType<typeof buildSessionContext>['messages'][number]
 type AssistantStop = Extract<HistoryEntry, { kind: 'assistant' }>['stop']
+type ToolCallPart = Extract<AssistantMessage['content'][number], { type: 'toolCall' }>
 
-/** How a blocked call's result reads, as Durable stores it; the projection reads it back as `blocked`. */
+/** How a blocked call's result reads, as Durable stores it (README "History projection"). */
 export const BLOCKED_PREFIX = 'Tool call blocked: '
 export const ZERO_USAGE: UsageFact = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
 const STOPS: ReadonlySet<string> = new Set<AssistantStop>(['stop', 'length', 'toolUse', 'error', 'aborted'])
@@ -101,9 +102,7 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
       }
       return message.errorMessage === undefined ? reply : { ...reply, error: message.errorMessage }
     }
-    case 'toolResult': {
-      const text = textOf(message.content)
-      const blocked = message.isError && text.startsWith(BLOCKED_PREFIX) ? text.slice(BLOCKED_PREFIX.length) : undefined
+    case 'toolResult':
       return {
         kind: 'tool-result',
         id,
@@ -111,15 +110,39 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
         callKey: callKeyFor(thread, message.toolCallId),
         tool: message.toolName,
         isError: message.isError,
-        text,
-        ...(message.details === undefined ? {} : { details: message.details }),
-        ...(blocked === undefined ? {} : { blocked })
+        text: textOf(message.content),
+        ...(message.details === undefined ? {} : { details: message.details })
       }
-    }
     default:
       return undefined
   }
 }
+
+/** The calls of the assistant reply at `at` that no later entry answers; none when `at` holds no assistant reply. */
+export function unansweredCalls(entries: readonly SessionEntry[], at: number): ToolCallPart[] {
+  const entry = entries[at]
+  if (entry?.type !== 'message' || entry.message.role !== 'assistant') return []
+  const answered = new Set(
+    entries
+      .slice(at + 1)
+      .flatMap((later) =>
+        later.type === 'message' && later.message.role === 'toolResult' ? [later.message.toolCallId] : []
+      )
+  )
+  return entry.message.content.filter(
+    (part): part is ToolCallPart => part.type === 'toolCall' && !answered.has(part.id)
+  )
+}
+
+/** A result for `call` that the adapter writes itself: a fork's placeholder or an interrupted call's (H3). */
+export const resultFor = (call: ToolCallPart, text: string, isError: boolean): ToolResultMessage => ({
+  role: 'toolResult',
+  toolCallId: call.id,
+  toolName: call.name,
+  content: [{ type: 'text', text }],
+  isError,
+  timestamp: Date.now()
+})
 
 /** Keys the thread's records and markers carry (`ConversationFacts.keysSeen` without live jobs). */
 export function keysOf(history: readonly HistoryEntry[]): Set<string> {

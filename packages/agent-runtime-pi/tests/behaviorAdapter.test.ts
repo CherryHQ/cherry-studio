@@ -27,6 +27,11 @@ function latch() {
   })
   return { promise, release }
 }
+const aborted = (signal: AbortSignal): Promise<void> =>
+  new Promise((resolve) => {
+    if (signal.aborted) resolve()
+    signal.addEventListener('abort', () => resolve(), { once: true })
+  })
 
 const key = (label: string) => `test:${label}` as Key
 const input = (text: string): TurnInput => ({ ...encodeEntry({ type: 'subagent-message' }), text })
@@ -43,7 +48,12 @@ const spec: ChildSpec = {
     status: 'running'
   }
 }
-const noLifecycle = { onOpen: async () => {}, onCompacted: async () => {}, onClose: async () => {} }
+const noLifecycle = {
+  onOpen: async () => {},
+  onCompacting: async () => ({ summary: 'summary' }),
+  onCompacted: async () => {},
+  onClose: async () => {}
+}
 const tool = (name: string): ToolDefinition => ({
   name,
   description: name,
@@ -54,6 +64,22 @@ const tool = (name: string): ToolDefinition => ({
   modelOnly: true,
   run: async () => ({ text: name, isError: false })
 })
+/** A tool whose call waits until released or aborted. */
+function holdTool(name = 'hold') {
+  const started = latch()
+  const gate = latch()
+  const definition: ToolDefinition = {
+    ...tool(name),
+    run: async (call) => {
+      started.release()
+      await Promise.race([gate.promise, aborted(call.signal)])
+      return { text: 'held', isError: false }
+    }
+  }
+  return { tool: definition, started: started.promise, release: gate.release }
+}
+const markerKeys = (facts: ConversationFacts) =>
+  facts.history.flatMap((entry) => (entry.kind === 'marker' ? [entry.key] : []))
 async function spawn(pi: PiHarness, parent: ThreadId, fork?: ChildSpec['fork']): Promise<ThreadId> {
   const { spawned } = await pi.harness.withCall(parent, (ports) =>
     ports.ledger.transact(parent, () => ({
@@ -90,41 +116,103 @@ describe('coding-agent behavior adapter', () => {
   })
 
   // Catches a message that reaches a child while Pi settles its run (after Pi's last steering check) being started by
-  // Pi as a run of its own, stranded in Pi's queue, or answered with the end of the run it missed.
-  it('carries a message that missed the run into the next run and answers it there', async () => {
-    const sent = latch()
-    let late: (() => Promise<MessageResult>) | undefined
-    const admissions: MessageResult[] = []
+  // Pi as a run of its own, stranded in Pi's queue, or carried into the child's next run, a run nobody recorded (H3).
+  it('withdraws a message that reaches a child while its run settles', async () => {
+    const late: { send?: () => Promise<MessageResult>; sent?: Promise<MessageResult> } = {}
     const pi = await openPiHarness(() => {}, [
       (api) => {
-        api.on('agent_settled', async () => {
-          const send = late
-          late = undefined
-          if (!send) return
-          admissions.push(await send())
-          sent.release()
+        // Not awaited: the run the message would join ends only after this handler.
+        api.on('agent_settled', () => {
+          late.sent ??= late.send?.()
         })
       }
     ])
     const parent = await pi.harness.createThread()
     const child = await spawn(pi, parent)
-    pi.harness.script(child, [{ text: 'first' }, { text: 'second' }, { text: 'third' }])
-    late = () => pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('late'), key('late')))
+    pi.harness.script(child, [{ text: 'first' }, { text: 'second' }])
+    late.send = () => pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('late'), key('late')))
     await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
-    await sent.promise
-    const answer = await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 1, key('late')))
-    expect(admissions).toEqual([{ run: 1, status: 'queued' }])
-    expect(answer).toEqual({ outcome: 'completed', text: 'second' })
-    expect((await read(pi, parent)).children.get(child)?.runUsage).toHaveLength(2)
-    // A run Pi started with the late message on its own would take 'third' and write its marker a second time.
+    await pi.harness.settle()
+    expect(await late.sent).toEqual({ run: 1, status: 'withdrawn' })
+    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 1, key('late')))).toEqual({
+      outcome: 'completed',
+      text: 'first'
+    })
+    expect((await read(pi, parent)).children.get(child)?.runUsage).toHaveLength(1)
+    // A run started with the late message would have taken 'second' and written its marker.
     const next = await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('next'), key('next')))
-    expect(
-      await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, next.run, key('next')))
-    ).toEqual({ outcome: 'completed', text: 'third' })
-    const lateMarkers = (await read(pi, child)).history.filter(
-      (entry) => entry.kind === 'marker' && entry.key === key('late')
-    )
-    expect(lateMarkers).toHaveLength(1)
+    expect(next).toEqual({ run: 2, status: 'started' })
+    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 2, key('next')))).toEqual({
+      outcome: 'completed',
+      text: 'second'
+    })
+    expect(markerKeys(await read(pi, child))).toEqual([key('work'), key('next')])
+  })
+
+  // Catches a steer whose message answers only once the child's run ends instead of when a boundary takes it, which
+  // keeps the caller's tool call (message_subagent) waiting for the whole child run (H3).
+  it('answers a steer as soon as a boundary of the run takes it', async () => {
+    const first = holdTool('first')
+    const second = holdTool('second')
+    const pi = await openPiHarness((ports) => {
+      ports.tools.register(first.tool)
+      ports.tools.register(second.tool)
+    })
+    const parent = await pi.harness.createThread()
+    const child = await spawn(pi, parent)
+    pi.harness.script(child, [
+      { text: '', toolCalls: [{ name: 'first', args: {} }] },
+      { text: '', toolCalls: [{ name: 'second', args: {} }] },
+      { text: 'done' }
+    ])
+    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
+    await first.started
+    const steer = pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('steer'), key('steer'), 1))
+    first.release()
+    // The boundary after the first call placed the steer; the run now waits in the second call.
+    await second.started
+    expect(await Promise.race([steer, Promise.resolve('unanswered')])).toEqual({ run: 1, status: 'queued' })
+    second.release()
+    await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 1, key('work')))
+  })
+
+  // Catches a withdrawal that takes the other steers of the run with it (Pi can only clear its whole steering queue):
+  // each steer must wait for its own boundary, and only the one whose tool call aborted is withdrawn (H3).
+  it('withdraws only the steer whose tool call aborted', async () => {
+    const hold = holdTool()
+    const steering = latch()
+    const sent: { child?: ThreadId; steer?: Promise<MessageResult> } = {}
+    const steerer: ToolDefinition = {
+      ...tool('steerer'),
+      run: async (_call, ports) => {
+        sent.steer = ports.helpers.message(sent.child!, input('aborted steer'), key('aborted'), 1)
+        steering.release()
+        return { text: (await sent.steer).status, isError: false }
+      }
+    }
+    const pi = await openPiHarness((ports) => {
+      ports.tools.register(hold.tool)
+      ports.tools.register(steerer)
+    })
+    const parent = await pi.harness.createThread()
+    const child = await spawn(pi, parent)
+    sent.child = child
+    pi.harness.script(child, [{ text: '', toolCalls: [{ name: 'hold', args: {} }] }, { text: 'child done' }])
+    await pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('work'), key('work')))
+    await hold.started
+    pi.harness.script(parent, [{ text: '', toolCalls: [{ name: 'steerer', args: {} }] }, { text: 'never' }])
+    await pi.harness.sendUser(parent, 'go')
+    await steering.promise
+    const kept = pi.harness.withCall(parent, (ports) => ports.helpers.message(child, input('kept'), key('kept'), 1))
+    await pi.harness.withCall(parent, (ports) => ports.turns.stop(parent, 'user'))
+    expect(await sent.steer).toEqual({ run: 1, status: 'withdrawn' })
+    hold.release()
+    expect(await kept).toEqual({ run: 1, status: 'queued' })
+    expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, 1, key('work')))).toEqual({
+      outcome: 'completed',
+      text: 'child done'
+    })
+    expect(markerKeys(await read(pi, child))).toEqual([key('work'), key('kept')])
   })
 
   // Catches a fork that starts the child empty or copies the parent's history past the fork point.
@@ -172,8 +260,7 @@ describe('coding-agent behavior adapter', () => {
   it('lets onCompacted add a quiet input once the compaction is over', async () => {
     const pi = await openPiHarness((ports) =>
       ports.lifecycle.register({
-        onOpen: async () => {},
-        onClose: async () => {},
+        ...noLifecycle,
         onCompacted: async (thread, bound) => {
           await bound.ledger.transact(thread, () => ({
             ops: [{ type: 'append-quiet', thread, input: input('status'), key: key('after-compaction') }],
@@ -199,6 +286,7 @@ describe('coding-agent behavior adapter', () => {
         order.push('job')
       })
       ports.lifecycle.register({
+        ...noLifecycle,
         onOpen: async (thread, _open, bound) => {
           const job = { kind: 'subagent-report', scope: thread, input: null, onRestart: 'resume' } as const
           await bound.ledger.transact(thread, () => ({
@@ -208,9 +296,7 @@ describe('coding-agent behavior adapter', () => {
           }))
           await new Promise((resolve) => setTimeout(resolve, 0))
           order.push('open')
-        },
-        onCompacted: async () => {},
-        onClose: async () => {}
+        }
       })
     })
     await pi.harness.createThread()
@@ -268,8 +354,8 @@ describe('coding-agent behavior adapter', () => {
     expect(stops).toBe(1)
   })
 
-  // Catches a run another extension starts going unnoticed: it has no run number or end, so untilRunEnd resolves at
-  // once, and the adapter does not drain at its settle, so input submitted while it runs stays stuck.
+  // Catches a run another extension starts going unnoticed: it has no run number or end, so the waits resolve while it
+  // runs, and the adapter does not drain at its settle, so input submitted while it runs stays stuck.
   it('reports a run the adapter did not start', async () => {
     let foreign: ExtensionAPI | undefined
     const pi = await openPiHarness(() => {}, [
