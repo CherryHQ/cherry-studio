@@ -145,14 +145,15 @@ async function request(
   const timeoutSignal = AbortSignal.timeout(FEISHU_REQUEST_TIMEOUT_MS)
   const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal
   let response: Response
+  let text: string
   try {
     response = await net.fetch(url, { ...init, signal })
+    text = await response.text()
   } catch (error) {
     if (callerSignal?.aborted) throw callerSignal.reason ?? error
     throw new FeishuProviderError('transient', false)
   }
 
-  const text = await response.text()
   if (text === '' && options.allowEmpty && response.ok) return null
 
   let body: Record<string, unknown>
