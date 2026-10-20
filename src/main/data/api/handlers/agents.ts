@@ -43,7 +43,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/agent-tasks/:taskId': {
     GET: async ({ params }) => {
-      const task = taskService.getTaskById(params.taskId)
+      const task = taskService.getTaskDetail(params.taskId)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     }

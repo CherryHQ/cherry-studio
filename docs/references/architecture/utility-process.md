@@ -70,7 +70,7 @@ Registration is idempotent for the same definition object and rejects a differen
 the same id. Domains own their definitions; no central mutable manifest or manual install step
 in `main.ts` is required.
 
-The public client exposes `request`, `stop`, and `withStopped`. It does not expose forks,
+The public client exposes `request`, `openStream`, `stop`, and `withStopped`. It does not expose forks,
 pids, ports, generation counters, or status events. The first request starts the process;
 concurrent cold-start callers share the readiness barrier.
 
@@ -112,8 +112,8 @@ The exact deadlines and error codes live in the
   consumers. `ReadableContentService` remains the file-entry `?nodeWorker` precedent for
   short-lived work that does not need process isolation.
 - **Mechanism in core, request policy in consumers.** Startup and stop deadlines bound resource
-  lifecycle; business request deadlines, queues, concurrency limits, retries, and backpressure
-  remain consumer-owned. No worker-initiated RPC or status API is added without a consumer.
+  lifecycle; business request deadlines, queues, concurrency limits, retries, and downstream
+  buffering remain consumer-owned. Request streams provide bounded transport credit. No worker-initiated RPC or status API is added without a consumer.
 - **No request replay or eager restart.** Infrastructure failure ends the affected requests.
   A later request may spawn a new generation; the breaker prevents deterministic crash loops.
   Explicit reset follows remediation. Consumer-facing recovery is specified in the
