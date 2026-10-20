@@ -2570,6 +2570,55 @@ describe('ModelService.reconcileForProvider', () => {
     }
   )
 
+  it('publishes model membership and affected session effects when reconcile deletes a session override model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    const siblingModelId = createUniqueModelId('openai', 'gpt-4o-mini')
+    // The override target must be preset-backed: reconcile removals only delete
+    // managed-list rows, not fully custom ones.
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o', presetModelId: 'gpt-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: siblingModelId, name: 'GPT-4o mini' })
+      ])
+    await dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'ws-reconcile-fx', name: 'W', path: '/tmp/ws-reconcile-fx', orderKey: 'a0' })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-reconcile-target',
+        name: '',
+        workspaceId: 'ws-reconcile-fx',
+        model: targetModelId,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-reconcile-sibling',
+        name: '',
+        workspaceId: 'ws-reconcile-fx',
+        model: siblingModelId,
+        orderKey: 'a1'
+      }
+    ])
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [targetModelId] })
+
+    // Call 1 is the pin purge; call 2 carries the model removal and the
+    // FK-cleared session overrides so every window refetches.
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
+      { endpoint: '/models', kind: 'membership', entityIds: [targetModelId] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-reconcile-target'] }
+    ])
+    const [session] = await dbh.db
+      .select()
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-reconcile-target'))
+    expect(session.model).toBeNull()
+  })
+
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer
     // test (T6 in usePullReconcileSubmit.test.ts) covers the aggregation

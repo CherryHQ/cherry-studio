@@ -13,8 +13,6 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -33,6 +31,7 @@ import {
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
 import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/utils/modelDeletionEffects'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -483,34 +482,6 @@ function createPresetFallback(
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
   return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
-}
-
-/**
- * Sessions whose override points at one of `modelIds`. Read before the delete: `ON DELETE SET NULL`
- * clears `agent_session.model` silently, so mounted conversations must be told to refetch.
- */
-function selectSessionsUsingModelsTx(tx: Pick<DbType, 'select'>, modelIds: readonly string[]): string[] {
-  const sessionIds: string[] = []
-  for (let i = 0; i < modelIds.length; i += SQLITE_INARRAY_CHUNK) {
-    const chunk = modelIds.slice(i, i + SQLITE_INARRAY_CHUNK)
-    for (const row of tx
-      .select({ id: agentSessionTable.id })
-      .from(agentSessionTable)
-      .where(inArray(agentSessionTable.model, chunk))
-      .all()) {
-      sessionIds.push(row.id)
-    }
-  }
-  return sessionIds
-}
-
-/** Publish model-deletion effects so model caches and affected session overrides refresh in every window. */
-function notifyModelsDeleted(modelIds: readonly string[], sessionIds: readonly string[]): void {
-  if (modelIds.length === 0) return
-  notifyDataApiDataChange([
-    { endpoint: '/models', kind: 'membership', entityIds: [...modelIds] },
-    ...(sessionIds.length > 0 ? [{ endpoint: '/agent-sessions/:sessionId' as const, entityIds: [...sessionIds] }] : [])
-  ])
 }
 
 class ModelService {
@@ -1185,11 +1156,15 @@ class ModelService {
     const dbService = application.get('DbService')
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const deletedIds: string[] = []
+    const affectedSessionIds: string[] = []
     const rows = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
           for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            // Read affected session overrides before the rows go: the FK clears
+            // agent_session.model on delete and only these ids know which sessions re-fetched.
+            affectedSessionIds.push(...selectSessionsUsingModelsTx(tx, chunk))
             const deletedRows = tx
               .delete(userModelTable)
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
@@ -1225,6 +1200,7 @@ class ModelService {
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()
+    notifyModelsDeleted(deletedIds, affectedSessionIds)
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
