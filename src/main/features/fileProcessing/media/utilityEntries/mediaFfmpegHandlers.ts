@@ -25,6 +25,7 @@ import type {
 import {
   classifyFfprobeResult,
   relativeInputSeekMs,
+  relativeOutputSeekMs,
   sniffEbmlDocType,
   videoTailProbePoint,
   videoTailReadInterval,
@@ -309,7 +310,13 @@ async function videoSeekBounds(
   signal: AbortSignal,
   logger: Logger,
   pidRegistryPath?: string
-): Promise<{ durationMs: number; lastFrameMs?: number }> {
+): Promise<{
+  durationMs: number
+  inputSeekMs?: number
+  outputSeekMs?: number
+  formatStartTimeSeconds?: number
+  videoStartTimeSeconds?: number
+}> {
   let probe: unknown
   try {
     probe = await probeJson(filePath, signal, logger, pidRegistryPath)
@@ -353,11 +360,22 @@ async function videoSeekBounds(
     signal.throwIfAborted()
     if (!isUnavailableProbeMetadata(error)) throw error
     logger.warn(`video tail packets unavailable: ${error instanceof Error ? error.message : String(error)}`)
-    return { durationMs }
+    return {
+      durationMs,
+      formatStartTimeSeconds: tail.formatStartTimeSeconds,
+      videoStartTimeSeconds: tail.videoStartTimeSeconds
+    }
   }
 
-  const lastFrameMs = ptsSeconds == null ? undefined : relativeInputSeekMs(ptsSeconds, tail.formatStartTimeSeconds)
-  return { durationMs, lastFrameMs }
+  const inputSeekMs = ptsSeconds == null ? undefined : relativeInputSeekMs(ptsSeconds, tail.formatStartTimeSeconds)
+  const outputSeekMs = ptsSeconds == null ? undefined : relativeInputSeekMs(ptsSeconds, tail.videoStartTimeSeconds)
+  return {
+    durationMs,
+    inputSeekMs,
+    outputSeekMs,
+    formatStartTimeSeconds: tail.formatStartTimeSeconds,
+    videoStartTimeSeconds: tail.videoStartTimeSeconds
+  }
 }
 
 export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = {
@@ -466,10 +484,16 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     for (let index = 0; index < timestampsMs.length; index += 1) {
       signal.throwIfAborted()
       const timestampMs = timestampsMs[index]
-      // Input -ss counts from the format start. An in-duration anchor uses the last video packet PTS.
-      let seekMs = timestampMs
-      if (bounds.lastFrameMs != null && timestampMs > bounds.lastFrameMs && timestampMs <= bounds.durationMs) {
-        seekMs = bounds.lastFrameMs
+      // Input -ss is format-relative. Output -ss is video-start-relative. The returned time stays format-relative.
+      let inputSeekMs = timestampMs
+      let outputSeekMs =
+        bounds.formatStartTimeSeconds == null || bounds.videoStartTimeSeconds == null
+          ? timestampMs
+          : (relativeOutputSeekMs(timestampMs, bounds.formatStartTimeSeconds, bounds.videoStartTimeSeconds) ??
+            timestampMs)
+      if (bounds.inputSeekMs != null && timestampMs > bounds.inputSeekMs && timestampMs <= bounds.durationMs) {
+        inputSeekMs = bounds.inputSeekMs
+        if (bounds.outputSeekMs != null) outputSeekMs = bounds.outputSeekMs
       }
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
       const frameArgs = [
@@ -489,6 +513,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       for (const outputSeek of [false, true]) {
         signal.throwIfAborted()
         rmSync(outputPath, { force: true })
+        const seekMs = outputSeek ? outputSeekMs : inputSeekMs
         const seekArgs = ['-ss', (seekMs / 1000).toFixed(3)]
         const inputArgs = outputSeek ? ['-i', filePath, ...seekArgs] : [...seekArgs, '-i', filePath]
         try {
@@ -505,7 +530,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
           continue
         }
         if (existsSync(outputPath)) {
-          frames.push({ path: outputPath, timestampMs: seekMs })
+          frames.push({ path: outputPath, timestampMs: inputSeekMs })
           break
         }
       }
