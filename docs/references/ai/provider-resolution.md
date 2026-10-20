@@ -4,6 +4,9 @@ sources:
   - src/main/ai/provider/endpoint.ts
   - src/main/ai/provider/config.ts
   - src/main/ai/provider/endpointConnection.ts
+  - src/main/ai/provider/speech.ts
+  - src/main/ai/provider/custom/geminiSpeechModel.ts
+  - src/main/ai/voice/speechModels.ts
   - packages/provider-registry/src/registry-utils.ts
   - packages/aiCore/src/core/providers/core/initialization.ts
 ---
@@ -113,6 +116,25 @@ uses the provider's default endpoint unless a model/endpoint prefill supplies on
 empty endpoints keep provider inheritance. There is no new stored type or purpose,
 and existing misconfigured rows are not rewritten automatically: users correct
 their endpoints directly in the model form.
+
+## Ordinary speech synthesis
+
+Voice settings and message read-aloud include enabled provider speech models alongside
+local voices. OpenAI speech endpoints use the installed OpenAI SDK; Gemini text-only
+input and audio-only output models use `generateContent` through the custom
+`SpeechModelV3` adapter. Model metadata determines eligibility; a configured provider
+address alone does not make every model a speech model.
+
+Speech requests inherit compatible connection roots through the same endpoint
+resolver. New API's registry rules recognize known speech models advertised through
+its Chat endpoint and select their dedicated speech transport. The configured gateway
+prefix is preserved. Explicit target addresses take precedence.
+
+Cloud synthesis returns complete WAV audio to the existing playback session. Gemini
+PCM is wrapped as WAV before playback. OpenAI applies speed during synthesis; Gemini
+applies it during playback. Cloud language selection is automatic, and voice choices
+come from the selected speech adapter. Cancellation discards late results. Streaming
+speech and Realtime sessions are not supported by this path.
 
 ## Variants
 

@@ -9,8 +9,10 @@ import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhas
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { MediaKind } from '@main/services/mediaProtocol'
-import type { LocalTranscriptionModelId, LocalSpeechModelId } from '@shared/ai/localVoice'
+import { isSpeechModelId } from '@shared/ai/localVoice'
+import type { LocalTranscriptionModelId } from '@shared/ai/localVoice'
 import { type LocalVoiceModelId, type VoiceSessionSource, type VoiceSessionTrigger } from '@shared/ai/localVoice'
+import type { SpeechModelId } from '@shared/ai/speech'
 import type { FileEntryId, InternalFileEntry } from '@shared/data/types/file'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoiceSessionCommand, VoiceSessionPhase, VoiceSessionState } from '@shared/ipc/schemas/voice'
@@ -22,15 +24,12 @@ import {
   describeVoiceModel,
   listVoiceModels,
   resolveTranscriptionConfiguration,
-  resolveSpeechConfiguration,
   getVoiceAdapterId,
   resolveTranscriptionRequest,
-  resolveSpeechRequest,
   downloadVoiceModel,
   cancelVoiceModelDownload,
   removeVoiceModel,
   listLocalAsrLocales,
-  listLocalVoices,
   voiceAudioProcess
 } from './localAdapters'
 import {
@@ -44,6 +43,7 @@ import {
   playbackPhase,
   type PlaybackState
 } from './playbackState'
+import { listSpeechModels, listSpeechVoices, resolveSpeechRequest, resolveSpeechConfiguration } from './speechModels'
 import { getMicrophoneStatus, openMicrophoneSettings, openSystemVoiceSettings } from './voicePlatform'
 import { VoiceRuntimeError } from './VoiceRuntimeError'
 
@@ -80,7 +80,7 @@ type Session = {
   preflightAbort?: AbortController
   operation?: VoiceOperation
   speechPlan?: ReturnType<typeof resolveSpeechRequest>
-  selectedModel?: LocalVoiceModelId
+  selectedModel?: SpeechModelId
   resolvedAdapter?: string
   terminalStatus?: 'completed' | 'failed' | 'aborted'
   cleanup?: Promise<void>
@@ -151,7 +151,8 @@ export class VoiceSessionService extends BaseService {
 
   listModels() {
     this.requireAdmission()
-    return listVoiceModels()
+    const local = listVoiceModels()
+    return { ...local, models: [...local.models, ...listSpeechModels()] }
   }
 
   resolveTranscription(owner: VoiceOwner, input: InputFor<'ai.voice.transcription.resolve'>) {
@@ -193,15 +194,8 @@ export class VoiceSessionService extends BaseService {
     return this.inspect(owner, (signal) => getLocalVoiceStatus(input.modelId, input, signal))
   }
 
-  voices(owner: VoiceOwner, modelId: LocalSpeechModelId) {
-    return this.inspect(owner, async (signal) =>
-      (await listLocalVoices(modelId, signal)).map(({ id, name, locale, languages }) => ({
-        id,
-        name,
-        language: locale,
-        ...(languages && { languages: [...languages] })
-      }))
-    )
+  voices(owner: VoiceOwner, modelId: SpeechModelId) {
+    return this.inspect(owner, (signal) => listSpeechVoices(modelId, signal))
   }
 
   async startRecording(owner: VoiceOwner, input: InputFor<'ai.voice.recording.start'>): Promise<VoiceSessionState> {
@@ -390,7 +384,12 @@ export class VoiceSessionService extends BaseService {
           return {
             sessionId: session.id,
             requestId: input.requestId,
-            output: { id: outputId, url: media.getUrl(MediaKind.Audio, outputId), mimeType: 'audio/wav' as const },
+            output: {
+              id: outputId,
+              url: media.getUrl(MediaKind.Audio, outputId),
+              mimeType: 'audio/wav' as const,
+              ...(result.playbackRate !== undefined && { playbackRate: result.playbackRate })
+            },
             playback: createPlaybackSnapshot(session.playback, true)
           }
         },
@@ -786,7 +785,7 @@ export class VoiceSessionService extends BaseService {
   private async run<T>(
     session: Session,
     requestId: string,
-    modelId: LocalVoiceModelId,
+    modelId: SpeechModelId,
     operation: VoiceOperation,
     work: (signal: AbortSignal) => Promise<T>,
     options: {
@@ -803,7 +802,10 @@ export class VoiceSessionService extends BaseService {
     if (this.active || this.inspections.size || session.pending.size) throw new VoiceRuntimeError('busy')
     if (session.requestId === requestId && session.operation !== undefined)
       throw new VoiceRuntimeError('invalid_request')
-    const adapterId = getVoiceAdapterId(modelId)
+    const adapterId =
+      operation === 'speech' && !isSpeechModelId(modelId)
+        ? 'cloud-tts'
+        : getVoiceAdapterId(modelId as LocalVoiceModelId)
     const controller = new AbortController()
     const active: ActiveOperation = { session, requestId, controller }
     this.active = active

@@ -2,25 +2,22 @@ import * as z from 'zod'
 
 import {
   APPLE_ASR_MODEL_ID,
-  APPLE_TTS_MODEL_ID,
-  QWEN3_TTS_MODEL_ID,
-  KOKORO_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
   LOCAL_VOICE_MODEL_IDS,
   type LocalSpeechModelId,
   type LocalTranscriptionModelId,
-  type LocalVoiceModelDescriptor,
   type VoiceModelLookup,
   TranscriptionLanguageSource,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
   VOICE_SESSION_SOURCES,
   VOICE_SESSION_TRIGGERS,
-  WINDOWS_ASR_MODEL_ID,
-  WINDOWS_TTS_MODEL_ID
+  WINDOWS_ASR_MODEL_ID
 } from '@shared/ai/localVoice'
+import type { VoiceModelDescriptor } from '@shared/ai/speech'
 import { LOCAL_MODEL_DOWNLOAD_RESULTS } from '@shared/data/presets/localModel'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { voiceErrorCodes } from '@shared/ipc/errors/voice'
 
 import { defineRoute } from '../define'
@@ -54,7 +51,7 @@ const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
 const asrModelId = z.enum([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID, FUNASR_MODEL_ID])
 const speechInput = sessionAdmission
   .extend({
-    modelId: z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, QWEN3_TTS_MODEL_ID, KOKORO_TTS_MODEL_ID]).optional(),
+    modelId: UniqueModelIdSchema.optional(),
     text: z.string().trim().min(1).max(10_000),
     voice: z.string().min(1).max(256).optional(),
     preferenceResolution: z.literal(true).optional(),
@@ -151,7 +148,7 @@ const voiceStatus = z.strictObject({
     .enum(Object.keys(voiceErrorCodes) as [keyof typeof voiceErrorCodes, ...Array<keyof typeof voiceErrorCodes>])
     .optional()
 })
-const speechModelId = z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, QWEN3_TTS_MODEL_ID, KOKORO_TTS_MODEL_ID])
+const speechModelId = UniqueModelIdSchema
 
 export const voiceRequestSchemas = {
   'ai.voice.resources.open_settings': defineRoute({ input: z.void(), output: z.void() }),
@@ -191,7 +188,12 @@ export const voiceRequestSchemas = {
     output: z.strictObject({
       sessionId: z.uuid(),
       requestId: z.uuid(),
-      output: z.strictObject({ id: z.uuid(), url: z.url(), mimeType: z.literal('audio/wav') }),
+      output: z.strictObject({
+        id: z.uuid(),
+        url: z.url(),
+        mimeType: z.literal('audio/wav'),
+        playbackRate: z.number().min(MIN_SPEECH_SPEED).max(MAX_SPEECH_SPEED).optional()
+      }),
       playback: playbackStateSchema,
       resolved: z
         .strictObject({
@@ -245,7 +247,7 @@ export const voiceRequestSchemas = {
   'ai.voice.models.list': defineRoute({
     input: z.void(),
     output: z.custom<{
-      models: readonly LocalVoiceModelDescriptor[]
+      models: readonly VoiceModelDescriptor[]
       defaultAsrModelId?: LocalTranscriptionModelId
       defaultSpeechModelId?: LocalSpeechModelId
     }>()
@@ -283,7 +285,7 @@ export const voiceRequestSchemas = {
       z.strictObject({
         id: z.string(),
         name: z.string(),
-        language: z.string(),
+        language: z.string().optional(),
         languages: z.array(z.string()).optional()
       })
     )

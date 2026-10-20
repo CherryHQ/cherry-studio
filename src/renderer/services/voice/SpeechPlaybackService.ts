@@ -100,6 +100,7 @@ interface PlaybackRun {
   playCommandRevision?: number
   outputId?: string
   outputUrl?: string
+  playbackRate?: number
   audio?: HTMLAudioElement
   spectrum?: AudioSpectrum
   ended?: EventListener
@@ -392,6 +393,7 @@ export class SpeechPlaybackService {
       }
       run.outputId = result.output.id
       run.outputUrl = result.output.url
+      run.playbackRate = result.output.playbackRate
       this.acceptTarget(run, result.playback)
       await this.executeTarget(run)
     } catch (error) {
@@ -455,6 +457,7 @@ export class SpeechPlaybackService {
       const audio = this.createAudio(run.outputUrl)
       run.audio = audio
       run.spectrum = createAudioSpectrum(audio)
+      audio.playbackRate = run.playbackRate ?? 1
       run.audioAttemptId = target.attemptId
       run.ended = () => void this.handleEnded(run, audio)
       run.failed = () => void this.failPlayback(run, 'operation_failed', audio)

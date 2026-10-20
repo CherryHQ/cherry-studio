@@ -3,14 +3,14 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import {
   isTranscriptionModelId,
-  isSpeechModelId,
   TranscriptionLanguageSource,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
-  type LocalSpeechModelId,
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
+import type { SpeechModelId } from '@shared/ai/speech'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { voiceRequestSchemas, VoiceSessionEvent, VoiceSessionState } from '@shared/ipc/schemas/voice'
@@ -96,14 +96,14 @@ export interface ResolvedTranscriptionPreferences {
 }
 
 export interface ResolvedSpeechPreferences {
-  readonly modelId: LocalSpeechModelId
+  readonly modelId: SpeechModelId
   readonly voice: string
   readonly language?: string
   readonly speed: number
 }
 
 export interface SpeechPreferenceInput {
-  readonly modelId?: LocalSpeechModelId
+  readonly modelId?: SpeechModelId
   readonly voice?: string
   readonly language?: string
   readonly speed: number
@@ -203,7 +203,7 @@ export class VoiceService {
   async readSpeechPreferenceInput(): Promise<SpeechPreferenceInput> {
     const preferences = await this.readSpeechPreferences()
     const modelId = preferences.modelId.trim()
-    if (modelId && !isSpeechModelId(modelId)) throw new VoiceDomainError('unsupported')
+    if (modelId && !UniqueModelIdSchema.safeParse(modelId).success) throw new VoiceDomainError('unsupported')
     if (
       !Number.isFinite(preferences.speed) ||
       preferences.speed < MIN_SPEECH_SPEED ||
@@ -215,7 +215,7 @@ export class VoiceService {
     const language =
       this.optionalLanguage(preferences.language) ?? getDefaultVoiceLanguage(i18n.resolvedLanguage ?? i18n.language)
     return {
-      ...(modelId && { modelId: modelId as LocalSpeechModelId }),
+      ...(modelId && { modelId: modelId as SpeechModelId }),
       ...(voice && { voice }),
       language,
       speed: preferences.speed
@@ -317,7 +317,7 @@ export class VoiceService {
     return this.invoke(() => this.ipc.request('ai.voice.model.status', input))
   }
 
-  listVoices(modelId: LocalSpeechModelId): Promise<OutputFor<'ai.speech.voices.list'>> {
+  listVoices(modelId: SpeechModelId): Promise<OutputFor<'ai.speech.voices.list'>> {
     return this.invoke(() => this.ipc.request('ai.speech.voices.list', { modelId }))
   }
 

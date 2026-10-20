@@ -1,6 +1,7 @@
 import type { SpeechOptions, TranscriptionOptions } from '@cherrystudio/ai-core'
 import {
   DEFAULT_SPEECH_SPEED,
+  isSpeechModelId,
   TranscriptionLanguageSource,
   VoiceModelSupport,
   VoiceResourceOperation,
@@ -108,7 +109,7 @@ export function resolveSpeechRequest(
   environment = getVoiceEnvironment()
 ) {
   const modelId = input.modelId ?? resolveDefaultSpeechModel(environment)
-  if (!modelId) throw new VoiceRuntimeError('unsupported')
+  if (!modelId || !isSpeechModelId(modelId)) throw new VoiceRuntimeError('unsupported')
   const definition = speechDefinition(modelId)
   requireSupport(definition, environment)
   return {
@@ -234,7 +235,11 @@ export async function resolveSpeechConfiguration(
 ): Promise<OutputFor<'ai.voice.speech.resolve'>> {
   const modelId = input.modelId ?? resolveDefaultSpeechModel(environment)
   const selection = { ...input, modelId, speed: input.speed ?? DEFAULT_SPEECH_SPEED }
-  if (!modelId || speechDefinition(modelId).support(environment) !== VoiceModelSupport.Supported)
+  if (
+    !modelId ||
+    !isSpeechModelId(modelId) ||
+    speechDefinition(modelId).support(environment) !== VoiceModelSupport.Supported
+  )
     return { ...selection, status: { status: 'unsupported', reason: 'unsupported' } }
   const definition = speechDefinition(modelId)
   const voice = input.voice

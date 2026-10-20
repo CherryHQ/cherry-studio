@@ -17,7 +17,6 @@ import {
   type AiPlugin,
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
-  generateSpeech as aiCoreGenerateSpeech,
   rerank as aiCoreRerank,
   type RuntimeProviderCallEvent,
   type RuntimeProviderCallHandler,
@@ -47,7 +46,8 @@ import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
-import type { LocalSpeechModelId, LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import type { LocalTranscriptionModelId } from '@shared/ai/localVoice'
+import type { SpeechModelId } from '@shared/ai/speech'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -109,7 +109,8 @@ import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
 import { routeToEndpoint } from './utils/provider'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
-import { createLocalSpeechModel, createLocalTranscriptionModel } from './voice/localAdapters'
+import { createLocalTranscriptionModel } from './voice/localAdapters'
+import { generateModelSpeech } from './voice/speechModels'
 import { VoiceRuntimeError } from './voice/VoiceRuntimeError'
 
 const logger = loggerService.withContext('AiService')
@@ -1233,16 +1234,16 @@ export class AiService extends BaseService {
     throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
-  // ── Local one-shot voice ──
+  // ── One-shot voice ──
 
   async generateSpeech(
-    modelId: LocalSpeechModelId,
+    modelId: SpeechModelId,
     text: string,
     options: SpeechOptions,
     signal: AbortSignal
-  ): Promise<SpeechResult> {
+  ): Promise<SpeechResult & { playbackRate?: number }> {
     signal.throwIfAborted()
-    return aiCoreGenerateSpeech(createLocalSpeechModel(modelId, options), text, options, signal)
+    return generateModelSpeech(modelId, text, options, signal)
   }
 
   async transcribe(

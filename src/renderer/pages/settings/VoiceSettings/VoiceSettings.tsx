@@ -49,8 +49,6 @@ import {
   DOWNLOADABLE_SPEECH_BUNDLES,
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
-  type LocalSpeechModelId,
-  type LocalVoiceModelDescriptor,
   isTranscriptionModelId,
   isSpeechModelId,
   TranscriptionLanguageSource,
@@ -58,7 +56,9 @@ import {
   type LocalVoiceModelId,
   type LocalTranscriptionModelId
 } from '@shared/ai/localVoice'
+import type { SpeechModelId, VoiceModelDescriptor } from '@shared/ai/speech'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
+import { MODEL_CAPABILITY, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import { defaultLanguage as fallbackSampleCatalog } from '@shared/utils/languages'
 
@@ -77,7 +77,7 @@ interface QueriedRecognitionStatus {
 }
 
 interface QueriedSpeechStatus {
-  modelId: LocalSpeechModelId
+  modelId: SpeechModelId
   language?: string
   voice?: string
   result: StatusState
@@ -104,7 +104,7 @@ const SPEECH_PREFERENCE_KEYS = {
   voiceId: 'feature.voice.speech.voice_id',
   language: 'feature.voice.speech.language'
 } as const
-const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
+const MODEL_LABEL_KEYS: Partial<Record<string, string>> = {
   [APPLE_ASR_MODEL_ID]: 'settings.voice.model.apple_asr',
   [APPLE_TTS_MODEL_ID]: 'settings.voice.model.apple_tts',
   [QWEN3_TTS_MODEL_ID]: 'settings.voice.model.qwen3_tts',
@@ -219,7 +219,11 @@ function VoiceSettings() {
     speechPlaybackService.getSnapshot,
     speechPlaybackService.getSnapshot
   )
-  const [models, setModels] = useState<readonly LocalVoiceModelDescriptor[]>([])
+  const [models, setModels] = useState<readonly VoiceModelDescriptor[]>([])
+  const modelLabel = (id: string) => {
+    const key = MODEL_LABEL_KEYS[id]
+    return key ? t(key) : (models.find((model) => model.id === id)?.name ?? id)
+  }
   const asrInstallationStatus = useSharedCacheSelector(
     [LOCAL_MODEL_STATUS_CACHE_KEY],
     ([snapshots]) => snapshots?.[FUNASR_BUNDLE_ID]?.status
@@ -229,16 +233,14 @@ function VoiceSettings() {
       .map((id) => snapshots?.[id]?.status)
       .join(',')
   )
-  const [downloadableModelStatuses, setDownloadableModelStatuses] = useState<
-    Partial<Record<LocalVoiceModelId, StatusState>>
-  >({})
+  const [downloadableModelStatuses, setDownloadableModelStatuses] = useState<Partial<Record<string, StatusState>>>({})
   const [asrLocales, setAsrLocales] = useState<Awaited<ReturnType<typeof voiceService.listTranscriptionLocales>>>()
   const [defaultAsrModel, setDefaultAsrModel] = useState<LocalTranscriptionModelId>()
-  const [defaultSpeechModel, setDefaultSpeechModel] = useState<LocalSpeechModelId>()
+  const [defaultSpeechModel, setDefaultSpeechModel] = useState<SpeechModelId>()
   const [defaultVoice, setDefaultVoice] =
     useState<Awaited<ReturnType<typeof voiceService.resolveSpeechConfiguration>>>()
   const [voices, setVoices] = useState<
-    readonly { id: string; name: string; language: string; languages?: readonly string[] }[]
+    readonly { id: string; name: string; language?: string; languages?: readonly string[] }[]
   >([])
   const [voicesLoading, setVoicesLoading] = useState(true)
   const [queriedRecognitionStatus, setQueriedRecognitionStatus] = useState<QueriedRecognitionStatus>()
@@ -311,7 +313,7 @@ function VoiceSettings() {
     const downloadable = models.filter((model) => model.resourceOperations.includes(VoiceResourceOperation.Download))
     const inspection = Promise.all(
       downloadable.map((model) => {
-        const status = voiceService.getModelStatus({ modelId: model.id })
+        const status = voiceService.getModelStatus({ modelId: model.id as LocalVoiceModelId })
         trackSettingsInspection(pendingSettingsInspectionsRef.current, status)
         return status.then((result) => [model.id, result] as const)
       })
@@ -350,7 +352,7 @@ function VoiceSettings() {
   const speechLanguageOptions = useMemo<VoiceSelectOption[]>(() => {
     const displayNames = new Intl.DisplayNames([i18n.language], { type: 'language', languageDisplay: 'standard' })
     const worldLabel = t('settings.voice.language.world')
-    const languages = new Set(voices.flatMap((voice) => voice.languages ?? [voice.language]))
+    const languages = new Set(voices.flatMap((voice) => voice.languages ?? (voice.language ? [voice.language] : [])))
     if (effectiveSpeechLanguage) languages.add(effectiveSpeechLanguage)
     return [
       {
@@ -363,7 +365,9 @@ function VoiceSettings() {
         .map((language) => ({
           value: language,
           label: languageLabel(language, displayNames, worldLabel),
-          disabled: !voices.some((voice) => (voice.languages ?? [voice.language]).includes(language))
+          disabled: !voices.some(
+            (voice) => !voice.language || (voice.languages ?? []).includes(language) || voice.language === language
+          )
         }))
         .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
     ]
@@ -380,13 +384,20 @@ function VoiceSettings() {
       })
     },
     ...voices
-      .filter((voice) => (voice.languages ?? [voice.language]).includes(effectiveSpeechLanguage))
+      .filter(
+        (voice) =>
+          !voice.language ||
+          (voice.languages ?? []).includes(effectiveSpeechLanguage) ||
+          voice.language === effectiveSpeechLanguage
+      )
       .map((voice) => ({ value: voice.id, label: voice.name }))
       .sort((a, b) => a.label.localeCompare(b.label, i18n.language))
   ]
   if (
     speechVoice &&
-    (!selectedVoice || !(selectedVoice.languages ?? [selectedVoice.language]).includes(effectiveSpeechLanguage))
+    (!selectedVoice ||
+      (selectedVoice.language &&
+        !(selectedVoice.languages ?? [selectedVoice.language]).includes(effectiveSpeechLanguage)))
   ) {
     speechVoiceOptions.push({
       value: speechVoice,
@@ -427,10 +438,11 @@ function VoiceSettings() {
           ? queriedRecognitionStatus.result
           : { status: 'loading' }
   const configuredSpeechModel = speechModel
-    ? isSpeechModelId(speechModel)
-      ? speechModel
+    ? UniqueModelIdSchema.safeParse(speechModel).success
+      ? (speechModel as SpeechModelId)
       : undefined
     : defaultSpeechModel
+  const cloudSpeech = !!configuredSpeechModel && !isSpeechModelId(configuredSpeechModel)
   const configuredSpeechLanguage = languageValue(speechLanguage)
   const configuredSpeechVoice = optionalValue(speechVoice)
   const speechStatus: StatusState =
@@ -687,7 +699,7 @@ function VoiceSettings() {
   }, [microphonePermissionFailed, needsMicrophoneRecovery])
 
   const transcriptionModels = models.filter((model) => isTranscriptionModelId(model.id))
-  const speechModels = models.filter((model) => isSpeechModelId(model.id))
+  const speechModels = models.filter((model) => model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION))
   const canOpenMicrophoneSettings = needsMicrophoneRecovery
   const speechBusy = previewLoading || ['generating', 'ready', 'playing', 'paused'].includes(speech.phase)
   const speechError = previewFailure?.snapshot === speech ? previewFailure.reason : speech.error
@@ -920,26 +932,24 @@ function VoiceSettings() {
             <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.recognition.model')}>
               <SelectValue>
                 {recognitionModel && recognitionDescriptor?.resourceOperations.includes(VoiceResourceOperation.Download)
-                  ? t(MODEL_LABEL_KEYS[recognitionDescriptor.id])
+                  ? modelLabel(recognitionDescriptor.id)
                   : undefined}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={EMPTY_VALUE}>
                 {t('settings.voice.automatic')}
-                {!recognitionModel && effectiveRecognitionModel
-                  ? ` · ${t(MODEL_LABEL_KEYS[effectiveRecognitionModel])}`
-                  : ''}
+                {!recognitionModel && effectiveRecognitionModel ? ` · ${modelLabel(effectiveRecognitionModel)}` : ''}
               </SelectItem>
               {recognitionModel && !transcriptionModels.some((model) => model.id === recognitionModel) ? (
                 <SelectItem value={recognitionModel} disabled>
-                  {isTranscriptionModelId(recognitionModel) ? t(MODEL_LABEL_KEYS[recognitionModel]) : recognitionModel}{' '}
-                  — {t('settings.voice.status.unsupported')}
+                  {isTranscriptionModelId(recognitionModel) ? modelLabel(recognitionModel) : recognitionModel} —{' '}
+                  {t('settings.voice.status.unsupported')}
                 </SelectItem>
               ) : null}
               {transcriptionModels.map((model) => {
                 const downloadable = model.resourceOperations.includes(VoiceResourceOperation.Download)
-                const status = downloadableModelStatuses[model.id as LocalTranscriptionModelId]
+                const status = downloadableModelStatuses[model.id as LocalVoiceModelId]
                 const needsDownload = downloadable && status && status.status !== 'ready'
                 return (
                   <SelectItem
@@ -947,7 +957,7 @@ function VoiceSettings() {
                     value={needsDownload ? `${DOWNLOAD_MODEL_PREFIX}${model.id}` : model.id}
                     disabled={downloadable && !status}
                     className="group/model cursor-pointer hover:bg-accent data-[highlighted]:bg-accent [&>span:last-child]:flex-1">
-                    <span>{t(MODEL_LABEL_KEYS[model.id])}</span>
+                    <span>{modelLabel(model.id)}</span>
                     {downloadable && status?.status !== 'ready' ? (
                       <span className="ml-auto inline-flex items-center gap-1 text-link group-hover/model:underline group-data-[highlighted]/model:underline">
                         <Download className="size-3" aria-hidden="true" />
@@ -1060,9 +1070,10 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-speech-model" className="scroll-mt-6 flex-wrap gap-3">
           <SettingRowTitle>{t('settings.voice.speech.model')}</SettingRowTitle>
           {speechModels.length === 1 &&
+          isSpeechModelId(speechModels[0].id) &&
           (!speechModel || speechModel === speechModels[0].id) &&
           !speechModels[0].resourceOperations.includes(VoiceResourceOperation.Download) ? (
-            <span className="text-sm text-muted-foreground">{t(MODEL_LABEL_KEYS[speechModels[0].id])}</span>
+            <span className="text-sm text-muted-foreground">{modelLabel(speechModels[0].id)}</span>
           ) : (
             <Select
               value={speechModel || EMPTY_VALUE}
@@ -1081,18 +1092,17 @@ function VoiceSettings() {
               }}>
               <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.speech.model')}>
                 <SelectValue>
-                  {speechModel && isSpeechModelId(speechModel) ? t(MODEL_LABEL_KEYS[speechModel]) : undefined}
+                  {speechModel && isSpeechModelId(speechModel) ? modelLabel(speechModel) : undefined}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={EMPTY_VALUE}>
                   {t('settings.voice.automatic')}
-                  {!speechModel && configuredSpeechModel ? ` · ${t(MODEL_LABEL_KEYS[configuredSpeechModel])}` : ''}
+                  {!speechModel && configuredSpeechModel ? ` · ${modelLabel(configuredSpeechModel)}` : ''}
                 </SelectItem>
                 {speechModel && !speechModels.some((model) => model.id === speechModel) ? (
                   <SelectItem value={speechModel} disabled>
-                    {isSpeechModelId(speechModel) ? t(MODEL_LABEL_KEYS[speechModel]) : speechModel} —{' '}
-                    {t('settings.voice.status.unsupported')}
+                    {modelLabel(speechModel)} — {t('settings.voice.status.unsupported')}
                   </SelectItem>
                 ) : null}
                 {speechModels.map((model) => {
@@ -1104,7 +1114,7 @@ function VoiceSettings() {
                       key={model.id}
                       value={needsDownload ? `${DOWNLOAD_MODEL_PREFIX}${model.id}` : model.id}
                       disabled={downloadable && !status}>
-                      {t(MODEL_LABEL_KEYS[model.id])}
+                      {modelLabel(model.id)}
                       {needsDownload ? (
                         <span className="ml-2 inline-flex items-center gap-1 text-link">
                           <Download className="size-3" aria-hidden="true" />
@@ -1126,7 +1136,8 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-speech-language" className="scroll-mt-6 flex-wrap gap-3">
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
           <Select
-            value={languageValue(speechLanguage) ?? EMPTY_VALUE}
+            disabled={cloudSpeech}
+            value={cloudSpeech ? 'auto' : (languageValue(speechLanguage) ?? EMPTY_VALUE)}
             onValueChange={(value) => {
               if (value === SYSTEM_SETTINGS_VALUE) {
                 openSystemVoiceSettings()
@@ -1139,6 +1150,7 @@ function VoiceSettings() {
               <SelectValue placeholder={t('common.select')} />
             </SelectTrigger>
             <SelectContent>
+              {cloudSpeech ? <SelectItem value="auto">{t('settings.voice.language.auto_detect')}</SelectItem> : null}
               {speechLanguageOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
                   {option.label}

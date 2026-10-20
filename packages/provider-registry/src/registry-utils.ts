@@ -174,3 +174,36 @@ const ENDPOINT_IMPLIED_CAPABILITY: Partial<Record<EndpointType, ModelCapability>
 export function endpointImpliedCapability(endpointType: EndpointType | undefined | null): ModelCapability | undefined {
   return endpointType ? ENDPOINT_IMPLIED_CAPABILITY[endpointType] : undefined
 }
+
+/** Finite speech synthesis supported by declared endpoints and modalities, independent of model IDs. */
+export function getSpeechGenerationEndpoint(
+  model: Pick<ModelConfig, 'endpointTypes' | 'inputModalities' | 'outputModalities'>
+): EndpointType | undefined {
+  if (model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH)) {
+    return ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH
+  }
+  if (
+    model.endpointTypes?.includes(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) &&
+    model.inputModalities?.length === 1 &&
+    model.inputModalities[0] === 'text' &&
+    model.outputModalities?.length === 1 &&
+    model.outputModalities[0] === 'audio'
+  ) {
+    return ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  }
+  return undefined
+}
+
+/** New API advertises OpenAI TTS as generic `openai`; the catalog supplies its speech dialect. */
+export function getNewApiSpeechEndpoint(
+  model: Pick<ModelConfig, 'endpointTypes' | 'inputModalities' | 'outputModalities'>,
+  catalogModel: ModelConfig | null
+): EndpointType | undefined {
+  if (
+    getSpeechGenerationEndpoint(catalogModel ?? {}) === ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH &&
+    (!model.endpointTypes?.length || model.endpointTypes.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))
+  ) {
+    return ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH
+  }
+  return getSpeechGenerationEndpoint(model)
+}
