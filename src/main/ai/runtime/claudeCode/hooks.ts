@@ -36,8 +36,12 @@ import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
-/** The SDK's two names for the tool that launches a native subagent. */
-const SUBAGENT_LAUNCH_TOOL_NAMES: ReadonlySet<string> = new Set(['Task', 'Agent'])
+/**
+ * Tools that can launch a native subagent: the SDK's `Task`/`Agent`, and `Skill` — a skill declared
+ * `context: fork` starts a descendant the same way (SDK 0.3.284). A plain skill invocation starts
+ * nothing, so its attempt is dropped at the tool's terminal instead of binding the next child.
+ */
+const SUBAGENT_LAUNCH_TOOL_NAMES: ReadonlySet<string> = new Set(['Task', 'Agent', SKILL_TOOL_NAME])
 
 // Tools whose successful completion mutates the workspace and therefore breaks a no-progress run:
 // the native edit tools, plus the assistant-files MCP tools (referenced by runtime name).
@@ -256,9 +260,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
-  // A `Task`/`Agent` call that never started a child (denied, errored) leaves no `SubagentStart`
-  // behind to consume its attribution — drop it so it cannot label the NEXT spawn with the wrong
-  // parent.
+  // A spawn-capable call that never started a child (denied, errored, or a non-fork skill) leaves
+  // no `SubagentStart` behind to consume its attribution — drop it so it cannot label the NEXT
+  // spawn with the wrong parent.
   const spawnAttemptCleanupHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (
       !input ||

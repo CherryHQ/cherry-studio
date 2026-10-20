@@ -166,7 +166,7 @@ function settleTurn(): void {
   runtime().markTurnTerminal(SESSION_ID, 'success')
 }
 
-function hook(kind: 'PreToolUse' | 'SubagentStart' | 'SubagentStop'): HookCallback {
+function hook(kind: 'PreToolUse' | 'PostToolUse' | 'SubagentStart' | 'SubagentStop', index = 0): HookCallback {
   const table = buildClaudeCodeHooks({
     sessionId: SESSION_ID,
     cwd: '/tmp',
@@ -177,9 +177,19 @@ function hook(kind: 'PreToolUse' | 'SubagentStart' | 'SubagentStop'): HookCallba
     supportsImages: false
   })
   const [matcher] = table?.[kind] ?? []
-  const [found] = matcher?.hooks ?? []
-  if (!found) throw new Error(`no ${kind} hooks registered`)
+  const found = matcher?.hooks?.[index]
+  if (!found) throw new Error(`no ${kind} hook at ${index}`)
   return found
+}
+
+/** The tool call ended without starting a child (PostToolUse carries the same tool_use_id). */
+async function settleToolCall(toolName: string): Promise<void> {
+  // PostToolUse hooks are [postToolTimingHook, bashOutcomeHook, spawnAttemptCleanupHook].
+  await hook('PostToolUse', 2)(
+    { hook_event_name: 'PostToolUse', tool_name: toolName, tool_use_id: 'tool-use-1', duration_ms: 1 } as never,
+    'tool-use-1',
+    { signal: new AbortController().signal }
+  )
 }
 
 async function fireGuard(payload: Record<string, unknown>): Promise<HookJSONOutput> {
@@ -315,6 +325,53 @@ describe('native Claude child authority across a desktop follow-up', () => {
     )
 
     expect(decisionOf(await fireGuard({ agent_id: 'grandchild' })).permissionDecision).toBe('deny')
+  })
+
+  // A skill declared `context: fork` launches its descendant through the Skill tool (SDK 0.3.284),
+  // not Task/Agent. The Skill call is therefore the spawn record — without it the forked descendant
+  // binds to the desktop follow-up that merely happens to own the session.
+  it('binds a context-fork skill’s descendant to the execution that invoked it', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    beginTurn(false)
+    // The headless child invokes a forked skill: its `agent_id` is the parent.
+    await fireGuard({ tool_name: 'Skill', agent_id: NATIVE_CHILD, tool_input: { skill: 'forked-review' } })
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'forked-child', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'forked-child' })).permissionDecision).toBe('deny')
+  })
+
+  // A plain skill invocation starts nothing. Its attribution must not survive to claim the next
+  // spawn, which would drag the follow-up's own interactive child under the old headless denial.
+  it('drops a skill call that spawned no child', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    beginTurn(false)
+    await fireGuard({ tool_name: 'Skill', agent_id: NATIVE_CHILD, tool_input: { skill: 'plain' } })
+    await settleToolCall('Skill')
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'child-of-desktop', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'child-of-desktop' })).permissionDecision).toBeUndefined()
   })
 
   // The cross-Session tools are the other class an unattended child must not reach. These are also

@@ -986,10 +986,17 @@ export class AiStreamManager extends BaseService {
   stashWakeChannelListeners(topicId: string, listeners: StreamListener[], owesTaskIds?: ReadonlySet<string>): void {
     if (listeners.length === 0) return
     const pending = this.pendingChannelListeners.get(topicId)
+    // A cancelled id owes nothing, so it must not enter the debt: its absence would read as a
+    // completion and hand these recipients to whichever unrelated work wakes next.
+    const retired = this.retiredStashedTaskIds.get(topicId)
+    const owed = owesTaskIds === undefined ? undefined : [...owesTaskIds].filter((id) => !retired?.has(id))
+    // A fire whose only outstanding work was cancelled owes no delivery at all: stashing its
+    // recipients would discharge through an empty debt at the next wake.
+    if (!pending && owed !== undefined && owed.length === 0) return
     const merged = new Map(pending?.listeners.map((l) => [l.id, l]))
     for (const listener of listeners) merged.set(listener.id, listener)
     const debts = new Set(pending?.owesTaskIds)
-    for (const id of owesTaskIds ?? []) debts.add(id)
+    for (const id of owed ?? []) debts.add(id)
     this.pendingChannelListeners.set(topicId, { listeners: [...merged.values()], owesTaskIds: debts })
   }
 
@@ -1001,11 +1008,14 @@ export class AiStreamManager extends BaseService {
    * follow-up's private result would otherwise be claimed by an external chat's stale recipients.
    */
   retireStashedWakeTaskIds(topicId: string, taskIds: ReadonlySet<string>): void {
-    const pending = this.pendingChannelListeners.get(topicId)
-    if (!pending) return
+    if (taskIds.size === 0) return
+    // Record the cancellation whether or not a stash exists yet: a fire retains its recipients only
+    // at its terminal, so the cancelled id can still be in the ledger when that stash is created.
     const retired = this.retiredStashedTaskIds.get(topicId) ?? new Set<string>()
     for (const id of taskIds) retired.add(id)
     this.retiredStashedTaskIds.set(topicId, retired)
+    const pending = this.pendingChannelListeners.get(topicId)
+    if (!pending) return
     const debts = new Set(pending.owesTaskIds)
     for (const id of taskIds) debts.delete(id)
     if (debts.size === 0) this.pendingChannelListeners.delete(topicId)

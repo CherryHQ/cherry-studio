@@ -992,6 +992,61 @@ describe('AiStreamManager', () => {
     expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set())).toBe(true)
   })
 
+  // A task cancelled BEFORE the fire retains has no stash to retire from yet. Dropping the record
+  // there left the cancelled id in the debt the fire later stashed, and its absence (the task is
+  // gone from the live set) discharged the chat to whichever unrelated wake came next.
+  it('records a cancellation that lands before the stash exists', () => {
+    const topicId = 'agent-session:cancel-before-stash'
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async () => undefined,
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    // The shell task is stopped while the foreground reply still runs; the fire retains at its
+    // terminal, and the runtime ledger still names the cancelled id.
+    mgr.retireStashedWakeTaskIds(topicId, new Set(['task-killed']))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-killed', 'task-shell']))
+
+    // The other shell task is still running, so nothing is owed: a desktop follow-up's private
+    // completion must not claim these recipients.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set(['task-shell', 'desktop-task']))).toBe(false)
+  })
+
+  // If every task a fire owes was cancelled, it owes no delivery at all. Stashing its recipients
+  // anyway leaves an empty debt, which the next wake reads as discharged.
+  it('does not stash recipients for a fire whose only work was cancelled', async () => {
+    const topicId = 'agent-session:all-cancelled'
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async () => undefined,
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.retireStashedWakeTaskIds(topicId, new Set(['task-killed']))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-killed']))
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+  })
+
   // The stash is the wake's ONLY route to channel recipients. A listener still attached to the held
   // stream was either already served or never recorded as owed — carrying a copy of it into the
   // wake would hand the wake's output (possibly another fire's) to that chat.
