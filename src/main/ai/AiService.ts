@@ -37,6 +37,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -1081,14 +1082,30 @@ export class AiService extends BaseService {
     const dataUrls: Base64String[] = []
     let filteredCount = 0
     for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+      const payload = image?.base64
+      if (typeof payload === 'string' && payload) {
+        dataUrls.push(`data:${image?.mediaType || 'image/png'};base64,${payload}`)
         continue
       }
 
       filteredCount += 1
     }
 
+    if (dataUrls.length === 0) {
+      logger.warn('Image generation returned no images', {
+        uniqueModelId: request.uniqueModelId,
+        providerId: sdkConfig.providerId,
+        modelId: sdkConfig.modelId,
+        filteredCount
+      })
+      const emptyError = new Error(t('ai.image.error.no_images', { model: sdkConfig.modelId })) as Error & {
+        providerId: string
+        modelId: string
+      }
+      emptyError.providerId = sdkConfig.providerId
+      emptyError.modelId = sdkConfig.modelId
+      throw emptyError
+    }
     if (filteredCount > 0) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,

@@ -11,6 +11,7 @@
   "agent.session.workspace_status.inaccessible": "Workspace path is not accessible: {{path}}",
   "agent.session.workspace_status.missing": "Workspace path does not exist: {{path}}",
   "agent.session.workspace_status.not_directory": "Workspace path is not a directory: {{path}}",
+  "ai.image.error.no_images": "Image generation returned no images for {{model}}. The provider may have filtered the request; try a different prompt or try again.",
   "apiGateway.docs.description": "OpenAI-, Anthropic- and Gemini-compatible HTTP API for Cherry Studio, plus Cherry-specific endpoints (models, knowledge bases)",
   "apiGateway.docs.language_switcher_label": "Documentation language",
   "apiGateway.docs.operations.chat_completions": "Create a chat completion. Request and response bodies follow the OpenAI Chat Completions format; set `stream: true` for incremental output.",
