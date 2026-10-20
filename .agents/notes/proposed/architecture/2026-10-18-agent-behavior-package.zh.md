@@ -85,6 +85,16 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 - 规则契约放在本包的 README 里，公共层的 notes 链接过去。
 - 包名是 `@cherrystudio/agent-behavior`。它不用 `agent-runtime-*` 前缀，因为它不实现 `AgentRuntime`。
 
+实现 PR-1 期间记下的决定（2026-10-19 至 2026-10-20）：
+
+- `Waits.untilDone(thread, key)` 取代等待 run 结束：driver 等的是自己提交的键，遗留输入不会让它空转。
+- steer 只并入它点名的、正在跑的 run；该 run 先结束或发出它的工具调用中止时撤回，绝不开新 run。steer 键按 run 区分。
+- fork 一律新建会话；占位结果只补给 fork 子代理自己的未答调用；任何 run 开始前，未答调用先补「被打断」结果。
+- 闸门的 `before` 收到中止信号；被中止的问人不留 memo。
+- 每次压缩前先问 `onCompacting`；拒绝则不压缩；适配器拒绝绕过它的压缩。
+- 每个会话一个空闲驱动，负责人已确认；fork 出的子代理不自驱。
+- YAGNI 审计找出的死字段已删除（`callWindow`、`GateFacts.lineage`、`LiveFacts.reopened`、工具结果的 `blocked`、`turn-stop.by`）。
+
 ### 受 harness 限制的能力
 
 下表各行是 harness 之间仅有的预期行为差异。标注「推断」的项由 Durable 源码推出，它的例子和测试都没有覆盖。
@@ -101,6 +111,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 | 8 | 子智能体每次运行的请求上限 | 没有原语；`beforeRequest` 抛出的错误会被跳过。 | 模型桥按会话计数，第 201 次请求以不可重试的 `quota exceeded` 错误失败；适配器报告 `limit_reached`。 | 可以提：请求预算，或允许 `beforeRequest` 拒绝 | 能 |
 | 9 | 交互的身份、有效期与迟到的回答；崩溃后不重复提问 | 没有交互原语；`beforeTool` 在 intent 之前等待，崩溃后会重跑。 | 宿主持久记录审批结局，`cherry.approval:` memo 记下每个答复；用户答复之前崩溃，就再问一次。 | 可以提：交互原语 | 部分能：memo 消除了「答过还问」；等待中崩溃仍会再问一次 |
 | 10 | 在 harness 内拦下 `/goal` | 没有输入钩子；Durable spec 自己的 `/plan` 也由宿主路由。 | 宿主把 `/goal` 交给 goal 命令入口；被当成普通输入提交的 `/goal`，模型会当文本读到。 | 不需要，上游有意如此设计 | 不适用 |
+| 11 | 把尚未接纳的 goal 轮对模型隐藏（`ContextFilter`） | 没有上下文钩子；Durable 的提交只有被接纳后才进入历史，未接纳的轮根本到不了模型 | Durable 上不安装 `ContextFilter`（已声明差异）；coding-agent 适配器安装它 | 不需要 | 不适用 |
 
 ## Alternatives considered
 

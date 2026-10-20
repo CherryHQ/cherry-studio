@@ -85,6 +85,16 @@ The owner settled these on 2026-10-18:
 - Rule contracts live in this package's README, and the common-layer notes link to it.
 - The package is `@cherrystudio/agent-behavior`. It avoids the `agent-runtime-*` prefix because it does not implement `AgentRuntime`.
 
+Decisions recorded while implementing PR-1 (2026-10-19 to 2026-10-20):
+
+- `Waits.untilDone(thread, key)` replaces the run-end wait: the driver waits on the key it submitted, so leftover inputs cannot make it spin.
+- A steer merges only into the running run it names; it is withdrawn when that run ends first or when the tool call that sent it aborts, and it never starts a run. Steer keys are per run.
+- A fork always creates a new conversation; placeholder results are filled only for a fork subagent's own unanswered calls, and unanswered calls get the interrupted result before any run starts.
+- The gate's `before` receives an abort signal; an aborted ask leaves no memo.
+- `onCompacting` is asked before every compaction; a declined compaction compacts nothing; an adapter refuses compactions that would bypass it.
+- One idle driver per conversation, confirmed by the owner; a forked child does not drive itself.
+- Dead fields found by the YAGNI audit were removed (`callWindow`, `GateFacts.lineage`, `LiveFacts.reopened`, the tool-result `blocked` flag, `turn-stop.by`).
+
 ### Capabilities limited by the harness
 
 These rows are the only intended behavioral differences between harnesses. Items marked inferred follow from Durable source and are not covered by its examples or tests.
@@ -101,6 +111,7 @@ These rows are the only intended behavioral differences between harnesses. Items
 | 8 | Per-run request cap for children | No primitive; an error thrown in `beforeRequest` is skipped. | The model bridge counts per session and fails request 201 with a non-retryable `quota exceeded` error; the adapter reports `limit_reached`. | Could request a request budget or a refusing `beforeRequest` | Yes |
 | 9 | Interaction identity, expiry and late answers; no repeated question after a crash | No interaction primitive; `beforeTool` waits before intent and reruns after a crash. | The host persists approval outcomes, and a `cherry.approval:` memo records each answer; a crash before the user answers asks again. | Could request an interaction primitive | Partly: the memo stops re-asking answered questions; a crash while waiting still asks again |
 | 10 | Intercept `/goal` inside the harness | No input hook; the Durable spec routes its own `/plan` through the host too. | The host routes `/goal` to the goal command entry; a `/goal` submitted as plain input reaches the model as text. | Not needed; upstream design | Not applicable |
+| 11 | Hide not-yet-admitted goal rounds from the model (`ContextFilter`) | No context hook; a Durable submission enters history only once it is admitted, so an unadmitted round never reaches the model | `ContextFilter` is not installed on Durable (declared difference); the coding-agent adapter installs it | Not needed | Not applicable |
 
 ## Alternatives considered
 
