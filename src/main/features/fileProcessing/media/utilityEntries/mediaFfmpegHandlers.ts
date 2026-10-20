@@ -378,7 +378,21 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
 
     await runCommand(
       ffmpegPath,
-      ['-y', '-i', filePath, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-f', 'wav', wavPath],
+      [
+        '-y',
+        '-i',
+        filePath,
+        '-vn',
+        '-af',
+        'aresample=16000:async=1',
+        '-ac',
+        '1',
+        '-c:a',
+        'pcm_s16le',
+        '-f',
+        'wav',
+        wavPath
+      ],
       signal,
       logger,
       { ffmpeg: true, pidRegistryPath }
@@ -458,41 +472,43 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
         seekMs = bounds.lastFrameMs
       }
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
-      rmSync(outputPath, { force: true })
-      try {
-        await runCommand(
-          ffmpegPath,
-          [
-            '-y',
-            '-ss',
-            (seekMs / 1000).toFixed(3),
-            '-i',
-            filePath,
-            '-map',
-            '0:V:0',
-            '-frames:v',
-            '1',
-            '-an',
-            '-update',
-            '1',
-            '-vf',
-            `scale=w='min(iw,${maxEdgePx})':h='min(ih,${maxEdgePx})':force_original_aspect_ratio=decrease`,
-            '-q:v',
-            String(quality),
-            outputPath
-          ],
-          signal,
-          logger,
-          { ffmpeg: true, pidRegistryPath }
-        )
-      } catch (error) {
+      const frameArgs = [
+        '-map',
+        '0:V:0',
+        '-frames:v',
+        '1',
+        '-an',
+        '-update',
+        '1',
+        '-vf',
+        `scale=w='min(iw,${maxEdgePx})':h='min(ih,${maxEdgePx})':force_original_aspect_ratio=decrease`,
+        '-q:v',
+        String(quality),
+        outputPath
+      ]
+      for (const outputSeek of [false, true]) {
         signal.throwIfAborted()
-        const message = error instanceof Error ? error.message : String(error)
-        if (!message.startsWith('Media tool failed (exit ')) throw error
-        logger.warn(`frame extract failed timestampMs=${timestampMs}: ${message}`)
-        continue
+        rmSync(outputPath, { force: true })
+        const seekArgs = ['-ss', (seekMs / 1000).toFixed(3)]
+        const inputArgs = outputSeek ? ['-i', filePath, ...seekArgs] : [...seekArgs, '-i', filePath]
+        try {
+          await runCommand(ffmpegPath, ['-y', ...inputArgs, ...frameArgs], signal, logger, {
+            ffmpeg: true,
+            pidRegistryPath
+          })
+        } catch (error) {
+          rmSync(outputPath, { force: true })
+          signal.throwIfAborted()
+          const message = error instanceof Error ? error.message : String(error)
+          if (!message.startsWith('Media tool failed (exit ')) throw error
+          if (outputSeek) logger.warn(`frame extract failed timestampMs=${timestampMs}: ${message}`)
+          continue
+        }
+        if (existsSync(outputPath)) {
+          frames.push({ path: outputPath, timestampMs: seekMs })
+          break
+        }
       }
-      if (existsSync(outputPath)) frames.push({ path: outputPath, timestampMs: seekMs })
     }
     return { frames }
   },
