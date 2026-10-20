@@ -88,7 +88,6 @@ export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: 
 
   if (head?.ok) {
     const length = contentLength(head)
-    const acceptRanges = /bytes/i.test(header(head, 'accept-ranges') ?? '')
     const result: DownloadProbe = {
       finalUrl: head.url || url,
       totalBytes: length ?? 0,
@@ -97,12 +96,19 @@ export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: 
       lastModified: header(head, 'last-modified'),
       mime: header(head, 'content-type')
     }
-    if (length && acceptRanges) {
-      return { ...result, supportsRanges: true }
-    }
     await head.body?.cancel()
     if (length) {
-      const confirmed = await probeRange(result.finalUrl, fetchImpl, signal)
+      // `Accept-Ranges` is advisory: servers behind proxies and CDNs advertise
+      // it while answering range requests with the whole body. Confirm with a
+      // real one-byte range before segmenting; a failed confirmation degrades
+      // to a single stream instead of trusting the header.
+      const confirmed: Pick<DownloadProbe, 'totalBytes' | 'supportsRanges'> & {
+        etag?: string
+        lastModified?: string
+      } = await probeRange(result.finalUrl, fetchImpl, signal).catch((error: unknown) => {
+        if (signal?.aborted) throw error
+        return { totalBytes: length, supportsRanges: false }
+      })
       return {
         ...result,
         ...confirmed,
