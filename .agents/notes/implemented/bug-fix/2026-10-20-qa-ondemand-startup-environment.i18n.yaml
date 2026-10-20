@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-20-qa-ondemand-startup-environment.md
-2026-10-20-qa-ondemand-startup-environment.md: 68ce1d2ad54376c98e6d7a5ac4954430537fced9
-2026-10-20-qa-ondemand-startup-environment.zh.md: 99329acac6ed019aa17203e3cbb1240f41bd4acd
