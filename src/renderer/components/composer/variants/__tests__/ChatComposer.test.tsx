@@ -7,10 +7,12 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
+import { useChatRuntimeState } from '@renderer/pages/home/useChatRuntimeState'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -154,7 +156,7 @@ const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipcRequestMock },
+  ipcApi: { request: ipcRequestMock, on: () => () => {} },
   useIpcOn: (event: string, callback: (payload: unknown) => void) => {
     useEffect(() => {
       mocks.eventListeners.set(event, callback)
@@ -569,6 +571,7 @@ vi.mock('@renderer/hooks/useProvider', async (importOriginal) => {
 })
 
 vi.mock('@renderer/hooks/command', () => ({
+  useCommandRuntime: () => ({ hasHandler: () => false, execute: vi.fn() }),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
     mocks.commandHandlers.set(command, handler)
     mocks.commandOptions.set(command, options ?? {})
@@ -586,11 +589,24 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useChatWithHistory', () => ({
+  useChatWithHistory: () => ({ activeExecutions: [], regenerate: vi.fn(), stop: vi.fn(), setMessages: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({ overlay: {}, liveAssistants: [], disposeOverlay: vi.fn(), reset: vi.fn() })
+}))
+
+vi.mock('@renderer/pages/home/hooks/useChatWriteActions', () => ({
+  useChatWriteActions: () => ({ actions: {} })
+}))
+
 vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
   useTopicAwaitingApproval: () => false
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicOverlayHandoffOnTerminal: () => {},
   useTopicAwaitingApproval: () => mocks.awaitingApproval,
   useTopicStreamStatus: () => ({
     isPending: mocks.topicPending,
@@ -5476,6 +5492,123 @@ describe('ChatComposer', () => {
       }
     )
 
+    it.each(['error', 'aborted'] as const)(
+      'waits for history readiness before draining a remounted %s terminal',
+      async (status) => {
+        const draftCache = createMockCacheService()
+        vi.mocked(cacheService.get).mockImplementation(draftCache.get)
+        vi.mocked(cacheService.set).mockImplementation(draftCache.set)
+        const {
+          dock,
+          originals: [b, c],
+          view,
+          send
+        } = await setup(['B', 'C'])
+        act(() => mocks.surfaceProps?.onTextChange('unsent D'))
+        view.unmount()
+        mocks.topicPending = false
+        mocks.topicStatus = status
+        const component = (sendDisabled: boolean) => (
+          <ChatComposer topic={topic} onSend={send} sendDisabled={sendDisabled} />
+        )
+        const replacement = render(component(true))
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+        await act(async () => {})
+        const scope = `${topic.id}:${topic.assistantId}`
+        expect(send).not.toHaveBeenCalled()
+        expect(cacheService.getCasual(`followup-queue-inflight.${scope}`)).toBeUndefined()
+        expect(cacheService.getCasual(`followup-queue-last-drained-turn.${scope}`)).toBeUndefined()
+        expect(cacheService.getCasual(`followup-queue-paused.${scope}`)).toBeUndefined()
+        expect(dock().paused).toBe(false)
+        expect(toast.warning).not.toHaveBeenCalled()
+        expect(dock().items).toEqual([b, c])
+        const acceptance = createDeferred<boolean>()
+        send.mockReturnValueOnce(acceptance.promise)
+        replacement.rerender(component(false))
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+        expect(send).toHaveBeenCalledWith('B', expect.objectContaining({ notifyFailure: false }))
+        expect(dock().items).toEqual([b, c])
+        await act(async () => acceptance.resolve(true))
+        expect(dock().items).toEqual([c])
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+        replacement.rerender(component(false))
+        await act(async () => {})
+        expect(send).toHaveBeenCalledTimes(1)
+      }
+    )
+
+    it('shows only the queue warning when automatic stream open rejects', async () => {
+      const draftCache = createMockCacheService()
+      vi.mocked(cacheService.get).mockImplementation(draftCache.get)
+      vi.mocked(cacheService.set).mockImplementation(draftCache.set)
+      function RuntimeComposer() {
+        const runtime = useChatRuntimeState({
+          topic,
+          isHistoryLoading: false,
+          initialMessages: [],
+          uiMessages: [],
+          refresh: async () => [],
+          activeNodeId: null,
+          messagesCacheMutate: vi.fn(),
+          composerModelId: model.id
+        })
+        return <ChatComposer topic={topic} onSend={runtime.sendMessage} />
+      }
+      mocks.topicPending = true
+      mocks.getDraft.mockImplementation((props) => ({ text: props.text, tokens: [] }))
+      const view = render(<RuntimeComposer />)
+      const dock = () => (mocks.surfaceProps?.queueContent as any)?.props
+      for (const text of ['B', 'C']) {
+        await act(async () => {
+          await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+        })
+      }
+      const originals = [...dock().items]
+      act(() => mocks.surfaceProps?.onTextChange('unsent D'))
+      const providerLookup = createDeferred<any>()
+      const getProvider = vi.spyOn(dataApiService, 'get').mockReturnValueOnce(providerLookup.promise)
+      ipcRequestMock.mockImplementation(async (route: string) => {
+        if (route === 'ai.stream.open') throw new Error('automatic open failed')
+        return {}
+      })
+      const openRequests = () => ipcRequestMock.mock.calls.filter(([route]) => route === 'ai.stream.open')
+      mocks.topicPending = false
+      mocks.topicStatus = 'aborted'
+      view.rerender(<RuntimeComposer />)
+      await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('chat.input.followup_queue.auto_send_stopped'))
+      await act(async () => {
+        providerLookup.resolve({ id: 'provider', name: 'Provider' })
+        await providerLookup.promise
+      })
+      expect(openRequests()).toEqual([
+        [
+          'ai.stream.open',
+          expect.objectContaining({
+            userMessageParts: [{ type: 'text', text: 'B' }]
+          })
+        ]
+      ])
+      expect(toast.warning).toHaveBeenCalledTimes(1)
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(toast.errorFromException).not.toHaveBeenCalled()
+      expect(dock().items).toEqual(originals)
+      expect(dock().paused).toBe(true)
+      expect(cacheService.getCasual(`followup-queue-inflight.${topic.id}:${topic.assistantId}`)).toEqual([])
+      expect(mocks.surfaceProps?.text).toBe('unsent D')
+      view.rerender(<RuntimeComposer />)
+      view.unmount()
+      render(<RuntimeComposer />)
+      await act(async () => {})
+      expect(openRequests()).toHaveLength(1)
+      expect(toast.warning).toHaveBeenCalledTimes(1)
+      expect(toast.errorFromException).not.toHaveBeenCalled()
+      expect(dock().items).toEqual(originals)
+      expect(dock().paused).toBe(true)
+      expect(mocks.surfaceProps?.text).toBe('unsent D')
+      expect(toast.error).not.toHaveBeenCalled()
+      getProvider.mockRestore()
+    })
+
     it.each(['false', 'reject'] as const)(
       'retains a failed automatic payload (%s) with exactly one stopped notice',
       async (outcome) => {
@@ -5497,7 +5630,7 @@ describe('ChatComposer', () => {
         expect(toast.warning).toHaveBeenCalledTimes(1)
         expect(toast.errorFromException).not.toHaveBeenCalled()
         if (outcome === 'false') {
-          expect(send).toHaveBeenCalledWith(a.payload.text, expect.objectContaining({ notifyBlocked: false }))
+          expect(send).toHaveBeenCalledWith(a.payload.text, expect.objectContaining({ notifyFailure: false }))
           expect(toast.error).not.toHaveBeenCalled()
         }
         expect(dock().items).toEqual([a, b])

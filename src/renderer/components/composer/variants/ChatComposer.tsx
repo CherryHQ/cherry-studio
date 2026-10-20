@@ -166,7 +166,7 @@ export interface ChatComposerProps {
   onSend: (
     text: string,
     options?: {
-      notifyBlocked?: boolean
+      notifyFailure?: boolean
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
       reasoningEffort?: ReasoningEffortOption
@@ -1518,7 +1518,7 @@ const ChatComposerInner = ({
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
         const sent = await onSend(payload.text, {
-          notifyBlocked: !queueOwnsFailureNotice,
+          notifyFailure: !queueOwnsFailureNotice,
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
@@ -1571,7 +1571,7 @@ const ChatComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     status,
     turnId,
-    autoSendEnabled: true,
+    autoSendEnabled: !sendDisabled,
     markSeen,
     onDrain: (payload) => sendQueuedPayload(payload, true),
     onDrainFailed: () => toast.warning(t('chat.input.followup_queue.auto_send_stopped'))

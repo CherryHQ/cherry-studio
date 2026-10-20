@@ -272,7 +272,7 @@ export function useAgentChatRuntimeState({
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      return send({ text: message?.text ?? '', options }, { notifyBlocked: options?.notifyBlocked })
+      return send({ text: message?.text ?? '', options }, { notifyFailure: options?.notifyFailure })
     },
     [send]
   )

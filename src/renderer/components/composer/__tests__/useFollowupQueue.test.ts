@@ -914,17 +914,24 @@ describe('terminal admission regressions', () => {
     expect(onDrainFailed).toHaveBeenCalledOnce()
   })
 
-  it('does not consume a disabled terminal so enabling later can send it', async () => {
-    const { rerender, onDrain, result } = setup()
-    await act(async () => {
-      rerender({ ...observation('aborted'), autoSendEnabled: false })
-    })
-    expect(onDrain).not.toHaveBeenCalled()
-    expect(store.get('followup-queue-last-drained-turn.s1')).toBeUndefined()
-    await act(async () => {
-      rerender(observation('aborted'))
-    })
-    expect(onDrain.mock.calls).toEqual([[payload('B')]])
-    expect(result.current.items.map((entry) => entry.id)).toEqual(['C'])
-  })
+  it.each(['error', 'aborted'] as const)(
+    'does not consume a disabled terminal so enabling later can send it (%s)',
+    async (status) => {
+      const { rerender, onDrain, onDrainFailed, result } = setup()
+      await act(async () => {
+        rerender({ ...observation(status), autoSendEnabled: false })
+      })
+      expect(onDrain).not.toHaveBeenCalled()
+      expect(store.get('followup-queue-inflight.s1')).toBeUndefined()
+      expect(result.current.paused).toBe(false)
+      expect(store.get('followup-queue-paused.s1')).toBeUndefined()
+      expect(onDrainFailed).not.toHaveBeenCalled()
+      expect(store.get('followup-queue-last-drained-turn.s1')).toBeUndefined()
+      await act(async () => {
+        rerender(observation(status))
+      })
+      expect(onDrain.mock.calls).toEqual([[payload('B')]])
+      expect(result.current.items.map((entry) => entry.id)).toEqual(['C'])
+    }
+  )
 })

@@ -309,7 +309,7 @@ export interface AgentComposerSendBody {
   fastMode?: boolean
 }
 
-export type AgentComposerSendOptions = { body?: AgentComposerSendBody; notifyBlocked?: boolean }
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody; notifyFailure?: boolean }
 
 export interface AgentComposerLaunchOptions {
   initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
@@ -1518,7 +1518,7 @@ const AgentComposerInner = ({
         const sent = await chatSendMessage(
           { text: payload.text },
           {
-            notifyBlocked: !queueOwnsFailureNotice,
+            notifyFailure: !queueOwnsFailureNotice,
             body: {
               agentId,
               sessionId,
