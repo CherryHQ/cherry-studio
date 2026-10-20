@@ -2354,7 +2354,7 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      reconcile: vi.fn().mockResolvedValue('invalid')
+      reconcile: vi.fn().mockResolvedValue('stale-owner')
     }
     const freshConnection = { close: vi.fn(), send: vi.fn(), events: createAsyncQueue<any>().iterable }
     const connect = vi.fn().mockResolvedValue(freshConnection)
@@ -2459,10 +2459,10 @@ describe('AgentSessionRuntimeService', () => {
       send: vi.fn(),
       close: vi.fn(),
       // Emulates the Pi/Dsh snapshot contract: a reconcile whose frozen agent no longer matches
-      // the session row is 'invalid' unless the host marks it as serving an accepted turn.
+      // the session row is 'stale-owner' unless the host marks it as serving an accepted turn.
       reconcile: vi.fn(async (input: any) => {
         const session = mocks.getSessionById()
-        return session.agentId !== 'agent-1' && input.servesAcceptedTurn !== true ? 'invalid' : 'current'
+        return session.agentId !== 'agent-1' && input.servesAcceptedTurn !== true ? 'stale-owner' : 'current'
       })
     }
     const connect = vi.fn()
@@ -2493,7 +2493,7 @@ describe('AgentSessionRuntimeService', () => {
     void service.closeSession('session-1')
   })
 
-  it('admits the accepted turn when a reconciliation queued before acceptance reports invalid', async () => {
+  it('admits the accepted turn when a reconciliation queued before acceptance reports a stale owner', async () => {
     const events = createAsyncQueue<any>()
     // The reconcile call predates the turn's acceptance, so it never carries servesAcceptedTurn —
     // a verdict that rejects only session ownership must still not strand the accepted input.
@@ -2501,7 +2501,7 @@ describe('AgentSessionRuntimeService', () => {
       events: events.iterable,
       send: vi.fn(),
       close: vi.fn(),
-      reconcile: vi.fn().mockResolvedValue('invalid')
+      reconcile: vi.fn().mockResolvedValue('stale-owner')
     }
     const connect = vi.fn()
     runtimeDriverRegistry.register({
@@ -2540,7 +2540,7 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      reconcile: vi.fn().mockResolvedValue('invalid')
+      reconcile: vi.fn().mockResolvedValue('stale-owner')
     }
     entry.connection = connection
     entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
@@ -2601,7 +2601,40 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).toHaveBeenCalled()
   })
 
-  it('still defers an ownership-only invalid verdict for an accepted turn', async () => {
+  it('keeps an invalid verdict fail-closed when the frozen owner’s configured model was deleted', async () => {
+    // The turn started on M1; A later moved to M2, the session was re-pointed to same-runtime B on
+    // M2, and M2 was deleted — which nulls A's configured model. Derivation now fails before the
+    // driver can refresh its tool-policy snapshot, while the frozen M1 still resolves. Treating a
+    // routable frozen model as proof of ownership would keep running the pre-deletion Bash policy.
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      reconcile: vi.fn().mockResolvedValue('invalid')
+    }
+    entry.connection = connection
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    // A survives with no configured model; B runs on M2 and the frozen M1 row is untouched.
+    mocks.getAgent.mockImplementation((id: string) =>
+      id === 'agent-1'
+        ? { id: 'agent-1', type: 'test-runtime', model: null }
+        : { id: 'agent-2', type: 'test-runtime', model: switchedModelId }
+    )
+
+    // The PATCH omits `model`, so the cleared model is only visible to derivation.
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1', model: null })
+
+    // Fail closed: the turn is torn down instead of retaining stale tool permissions.
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalled()
+    expect(connection.close).toHaveBeenCalled()
+  })
+
+  it('still defers a stale-owner verdict for an accepted turn', async () => {
     // The same sequence as above minus the model deletion: the frozen model still resolves, so the
     // rejection really is ownership-only and the accepted turn keeps its connection.
     const service = new AgentSessionRuntimeService()
@@ -2611,7 +2644,7 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn(),
       send: vi.fn(),
       events: [],
-      reconcile: vi.fn().mockResolvedValue('invalid')
+      reconcile: vi.fn().mockResolvedValue('stale-owner')
     }
     entry.connection = connection
     entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }

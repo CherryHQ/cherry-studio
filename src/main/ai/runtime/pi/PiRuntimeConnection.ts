@@ -591,7 +591,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         { servesAcceptedTurn: input.servesAcceptedTurn === true }
       )
     } catch (error) {
-      if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
+      if (error instanceof PiInvalidConnectionSnapshotError) {
+        return error.reason === 'reassigned' ? 'stale-owner' : 'invalid'
+      }
       throw error
     }
     const { agent } = snapshot

@@ -192,9 +192,12 @@ export type AgentRuntimeEvent =
  * - `rebuild`: spawn-frozen config is stale — the host reconnects at a safe boundary (any live
  *   patches were still applied first).
  * - `invalid`: the desired config can no longer be derived (agent/session/model deleted) — close.
+ * - `stale-owner`: ONLY the session-ownership check failed — the connection's frozen agent and
+ *   everything derived from it still resolve, so a live turn it serves may keep it to its boundary.
+ *   Never reported for a config/derivation failure.
  * - `failed`: a live patch failed — fail closed; the connection may be enforcing the OLD policy.
  */
-export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
+export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'stale-owner' | 'failed'
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>

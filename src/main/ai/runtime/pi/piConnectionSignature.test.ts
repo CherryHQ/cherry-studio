@@ -58,7 +58,7 @@ vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
   gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
 }))
 vi.mock('@main/ai/runtime/pi/modelInjection', () => ({ usesPiGateway: mocks.usesPiGateway }))
-const { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } = await import('./piConnectionSignature')
+const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
 
 const agent = {
   id: 'agent-1',
@@ -103,9 +103,9 @@ describe('capturePiConnectionSnapshot', () => {
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', path: '/workspace', type: 'user' }
     })
-    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).rejects.toBeInstanceOf(
-      PiInvalidConnectionSnapshotError
-    )
+    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).rejects.toMatchObject({
+      reason: 'reassigned'
+    })
 
     const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model', undefined, {
       servesAcceptedTurn: true
@@ -118,7 +118,7 @@ describe('capturePiConnectionSnapshot', () => {
       capturePiConnectionSnapshot('session-1', agent.id, 'provider::model', undefined, {
         servesAcceptedTurn: true
       })
-    ).rejects.toBeInstanceOf(PiInvalidConnectionSnapshotError)
+    ).rejects.toMatchObject({ reason: 'unavailable' })
   })
 
   it('rebuilds a warm connection when server instructions arrive or disappear', async () => {

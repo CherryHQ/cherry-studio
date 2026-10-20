@@ -1849,6 +1849,22 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.captureConnectionSnapshot).toHaveBeenCalledTimes(2)
   })
 
+  // The host may only keep a connection serving an accepted turn when the snapshot rejected
+  // OWNERSHIP (the frozen agent still resolves). A missing agent/model is a config failure.
+  it('separates a reassigned snapshot from an unavailable one', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const { PiInvalidConnectionSnapshotError } = await import('./piConnectionSignature')
+    const reassigned = Object.assign(new (PiInvalidConnectionSnapshotError as any)('reassigned'), {
+      reason: 'reassigned'
+    })
+    mocks.captureConnectionSnapshot.mockRejectedValueOnce(reassigned)
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('stale-owner')
+
+    mocks.captureConnectionSnapshot.mockRejectedValueOnce(new (PiInvalidConnectionSnapshotError as any)('gone'))
+    await expect(conn.reconcile({ modelId: 'p::m' })).resolves.toBe('invalid')
+    await conn.close()
+  })
+
   it('applies an exact camelCase MCP disable immediately before requesting a tool-catalog rebuild', async () => {
     const toolName = 'mcp__githubServer__searchIssues'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.', mcps: ['srv-1'] })

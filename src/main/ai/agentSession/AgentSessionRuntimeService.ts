@@ -9,8 +9,6 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
-import { modelService } from '@data/services/ModelService'
-import { providerService } from '@data/services/ProviderService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
@@ -957,13 +955,17 @@ export class AgentSessionRuntimeService extends BaseService {
         if (!hasLiveTurn) this.closeConnectionAsync(entry)
         return
       }
+      case 'stale-owner':
+        // A live turn froze this connection to its own agent: keep it until the boundary, where
+        // adoption picks up the session's new agent. With no live turn there is nothing to carry,
+        // so replace the connection instead of serving a stale owner.
+        if (this.liveTurn(entry)) return
+        this.closeConnectionAsync(entry)
+        return
       case 'invalid':
-        // An ownership-only rejection (top-bar switch) must not tear down a connection serving an
-        // accepted turn — the frozen agent is still runnable and the turn boundary adopts the
-        // session's new agent anyway.
-        if (this.invalidVerdictIsReassignmentOnly(entry)) return
-        // Desired config no longer derivable (agent/session/model rows gone) — same full
-        // invalidation as a cleared model.
+        // Desired config no longer derivable (agent/session/model — including the frozen owner's
+        // configured model — gone): same full invalidation as a cleared model. `invalid` is never
+        // an ownership-only verdict, so suppressing it would keep the pre-deletion tool policy.
         this.invalidateModelClearedEntry(entry)
         return
       case 'failed':
@@ -1001,6 +1003,10 @@ export class AgentSessionRuntimeService extends BaseService {
     switch (verdict) {
       case 'current':
       case 'patched':
+        return
+      case 'stale-owner':
+        // The very switch this reconcile was for: the work is frozen to this connection's owner,
+        // so there is nothing to reconcile against the session row.
         return
       case 'rebuild':
         // Spawn-frozen drift while detached work drains: the fresh-turn pull's wait-and-replace
@@ -2001,35 +2007,6 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.liveTurn(entry) ? { servesAcceptedTurn: true } : {}
   }
 
-  /**
-   * An 'invalid' reconcile verdict that fired only because the session row was re-pointed away
-   * from the agent a live turn froze to (top-bar switch): the frozen agent and the model the turn
-   * started on are both still resolvable, so the accepted turn keeps its connection until the turn
-   * boundary — where adoption picks up the session's new agent.
-   *
-   * Everything else stays fail-closed. `invalid` also covers an unroutable *model* (provider or
-   * model row deleted mid-turn), which is not an ownership failure: publishes there would keep a
-   * connection whose tool-policy snapshot cannot be refreshed, leaving the restrictions that were
-   * in force before the deletion running for the rest of the turn.
-   */
-  private invalidVerdictIsReassignmentOnly(entry: AgentSessionRuntimeEntry): boolean {
-    const turn = this.liveTurn(entry)
-    if (!turn) return false
-    const session = agentSessionService.getById(entry.sessionId)
-    if (!session?.agentId || session.agentId === entry.agentId) return false
-    return this.isRoutableModelId(turn.modelId ?? entry.modelId)
-  }
-
-  /** Whether a unique model id still resolves to a live provider and model row. */
-  private isRoutableModelId(uniqueModelId: UniqueModelId): boolean {
-    try {
-      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-      return Boolean(providerService.getByProviderId(providerId) && modelService.getByKey(providerId, modelId))
-    } catch {
-      return false
-    }
-  }
-
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
       this.assertSessionWritable(entry.sessionId)
@@ -2131,15 +2108,20 @@ export class AgentSessionRuntimeService extends BaseService {
             // and the loop reconnects from the latest config.
             this.closeConnectionAsync(entry)
             continue
+          case 'stale-owner': {
+            // The turn already accepted under the frozen agent outranks the reassignment until its
+            // boundary: keep the connection and let adoption take over there. Without a live turn
+            // the connection is simply the stale fact — replace it and reconnect under the row.
+            if (this.liveTurn(entry)) return true
+            this.closeConnectionAsync(entry)
+            continue
+          }
           case 'invalid': {
-            // The turn already accepted under the frozen agent outranks the reassignment until
-            // its boundary: an ownership-only rejection (see invalidVerdictIsReassignmentOnly)
-            // must not close the session and strand the accepted input.
-            if (this.invalidVerdictIsReassignmentOnly(entry)) return true
-            // 'invalid' also fires for a warm connection frozen to an agent the session no longer
-            // points at (top-bar reassignment; Pi/Dsh capture against the frozen id). The session
-            // row is still runnable, so replace the connection instead of closing the session —
-            // an input already admitted for this turn must survive the transition.
+            // The desired config cannot be derived (agent/session/model gone). Unlike a stale
+            // owner, the frozen connection's tool policy can no longer be re-derived either, so
+            // the session must not keep running under the pre-failure restrictions. The session
+            // row is still runnable → replace the connection instead of closing the session,
+            // so an input already admitted for this turn survives the transition.
             const session = agentSessionService.getById(entry.sessionId)
             const sessionAgent = session?.agentId ? agentService.getAgent(session.agentId) : null
             if (session && sessionAgent?.model && session.agentId === entry.agentId) {
