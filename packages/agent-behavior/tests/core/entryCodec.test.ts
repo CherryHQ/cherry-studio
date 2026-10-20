@@ -45,7 +45,8 @@ const records: PolicyRecord[] = [
   { type: 'subagent-origin', value: { parentToolCallId: 'call-1', fork: false, description: 'scan', modelKey: 'p/m' } },
   { type: 'plan', value: { active: true, at: 7 } },
   { type: 'turn-stop', value: { cause: 'goal-command', at: 9 } },
-  { type: 'idle-driver-exit', value: { generation: 2 } }
+  { type: 'idle-driver-exit', value: { generation: 2 } },
+  { type: 'subagent-steer', value: { sessionId: child, run: 1, digest: 'ab12', withdrawn: false } }
 ]
 const markers: MarkerFact[] = [
   {
@@ -59,7 +60,7 @@ const markers: MarkerFact[] = [
 
 describe('entry kinds', () => {
   // Catches a renamed kind (every stored session entry of the old name is orphaned) or a pi.* kind Durable refuses.
-  it('keeps today’s cherry.* kinds and adds plan, turn-stop and idle-driver-exit', () => {
+  it('keeps today’s cherry.* kinds and adds plan, turn-stop, idle-driver-exit and subagent-steer', () => {
     expect(ENTRY_KINDS).toEqual({
       goal: 'cherry.goal',
       goalRound: 'cherry.goal-round',
@@ -71,7 +72,8 @@ describe('entry kinds', () => {
       subagentMessage: 'cherry.subagent-message',
       plan: 'cherry.plan',
       turnStop: 'cherry.turn-stop',
-      idleDriverExit: 'cherry.idle-driver-exit'
+      idleDriverExit: 'cherry.idle-driver-exit',
+      subagentSteer: 'cherry.subagent-steer'
     })
   })
 })

@@ -351,6 +351,69 @@ describe('subagent tools', () => {
     expect((await w.read(t)).children.get(CHILD)?.runUsage).toHaveLength(2)
   })
 
+  // Catches a rerun of a steer that a crash cut after the child took it (H3): the call's result was never stored, and
+  // its rerun, finding the child finished, sent the same instruction again as a new run.
+  it('message_subagent rerun after a crash does not deliver its steer twice', async () => {
+    const hold = holds()
+    const steerSent = latch()
+    const answered = latch()
+    const proceed = latch()
+    let first = true
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      wrap: wrapTool('message_subagent', (run) => async (call, ports) => {
+        const message: typeof ports.helpers.message = (child, input, key, steered) => {
+          const answer = ports.helpers.message(child, input, key, steered)
+          if (steered !== undefined) steerSent.release()
+          return answer
+        }
+        const outcome = await run(call, { ...ports, helpers: { ...ports.helpers, message } })
+        if (first) {
+          first = false
+          answered.release()
+          await proceed.promise
+          // The crash lands on this port call: after the child took the steer, before this result is stored.
+          await ports.ledger.read(call.thread)
+        }
+        return outcome
+      }),
+      scripts: (_t, lineage) =>
+        lineage.kind === 'subagent' ? [callTool('hold', { id: 'child' }), reply('child done'), reply('again')] : []
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', BACKGROUND),
+      callTool('hold', { id: 'parent' }),
+      callTool('message_subagent', { id: CHILD, message: 'one more thing' }),
+      reply('waiting'),
+      reply('read it'),
+      reply('read again')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await Promise.all([hold.started('parent'), hold.started('child')])
+    hold.release('parent')
+    await steerSent.promise
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    hold.release('child')
+    await answered.promise
+    await vi.waitFor(async () => expect(runRecords(await w.read(t)).at(-1)).toMatchObject({ status: 'finished' }))
+    w.fake.crashAt(1)
+    proceed.release()
+    await w.fake.whenCrashed()
+    await w.fake.restart()
+    await w.fake.settle()
+    const facts = await w.read(t)
+    const deliveries = (await w.read(CHILD)).history.filter(
+      (entry) => entry.kind === 'marker' && entry.text.includes('one more thing')
+    )
+    expect(deliveries).toHaveLength(1)
+    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(1)
+    expect(toolResults(facts).find(({ tool }) => tool === 'message_subagent')).toMatchObject({
+      isError: false,
+      details: { sessionId: CHILD, continued: false }
+    })
+  })
+
   // Catches the slot check made outside the commit (S-e): spawns that run at once would all see a free slot. The fake
   // runs one reply's calls in order, so this runs the tool itself three times at once.
   it('lets no more background spawns than the cap through when they run at once', async () => {
