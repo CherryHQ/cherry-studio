@@ -87,6 +87,51 @@ describe('filesystem mutations with mac case folding', () => {
     expect(await fs.readFile(path.join(workspaceRoot, 'allowed.txt'), 'utf-8')).toBe('allowed')
   })
 
+  it('rejects an invalid request without stalling an unrelated mutation behind slow I/O', async () => {
+    const workspaceRoot = await createTempDir('mutation-admission-independence-')
+    const otherWorkspaceRoot = await createTempDir('mutation-admission-independence-other-')
+    let releaseSlow!: () => void
+    const slowGate = new Promise<void>((resolve) => {
+      releaseSlow = resolve
+    })
+    let slowStarted!: () => void
+    const slowStartedGate = new Promise<void>((resolve) => {
+      slowStarted = resolve
+    })
+
+    const slowMutation = filesystemMutationService.runExclusive('slow.txt', workspaceRoot, async () => {
+      slowStarted()
+      await slowGate
+      await fs.writeFile(path.join(workspaceRoot, 'slow.txt'), 'slow')
+    })
+
+    const invalid = handleWriteTool({ file_path: '../escaped.txt', content: 'denied' }, workspaceRoot).catch(
+      (error: Error) => error
+    )
+    const unrelated = handleWriteTool({ file_path: 'unrelated.txt', content: 'unrelated' }, otherWorkspaceRoot)
+
+    let unrelatedAdmittedWhileSlowMutationRan = false
+    try {
+      await slowStartedGate
+      // Cross-file concurrency contract: admission must not wait on the slow
+      // mutation, so the unrelated write registers and lands while it runs.
+      unrelatedAdmittedWhileSlowMutationRan = await Promise.race([
+        unrelated.then(() => true),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000))
+      ])
+    } finally {
+      releaseSlow()
+      await slowMutation
+    }
+
+    await unrelated
+    expect(unrelatedAdmittedWhileSlowMutationRan).toBe(true)
+    expect(await fs.readFile(path.join(otherWorkspaceRoot, 'unrelated.txt'), 'utf-8')).toBe('unrelated')
+    const invalidError = await invalid
+    expect(invalidError).toBeInstanceOf(Error)
+    expect((invalidError as Error).message).toContain('outside the configured workspace root')
+  })
+
   it('serializes hard-link alias edits with an in-flight create that lacked inode identity', async () => {
     const workspaceRoot = await createTempDir('mutation-hardlink-create-race-')
     const primaryPath = path.join(workspaceRoot, 'primary.txt')
