@@ -251,7 +251,16 @@ describe('agent right pane flow rounds', () => {
         { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
         queuedOutput
       ),
-      textPart('More original-run output', 'call_launch')
+      // Emitted before the delivery, so it carries no marker and must stay in its originating round.
+      textPart('More original-run output', 'call_launch'),
+      {
+        type: 'text',
+        text: 'Second round findings',
+        providerMetadata: {
+          'claude-code': { parentToolCallId: 'call_launch' },
+          cherry: { resumedViaCallId: 'call_send' }
+        }
+      } as unknown as CherryMessagePart
     ]
     const messages = [message('m1', parts)]
 
@@ -264,9 +273,73 @@ describe('agent right pane flow rounds', () => {
       'call_launch:agent-flow-assistant-1'
     ])
     const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings', 'More original-run output'])
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please reread the four files'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+  })
+
+  // The positional fallback stays for a receipt whose round carries no marker of its own: an
+  // earlier tagged round must not drag a later untagged receipt's content into the wrong round.
+  it('keeps the positional advance for an untagged receipt in a tagged flow', () => {
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_send_1',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        {
+          success: true,
+          message: 'Message queued for delivery at its next tool round.',
+          pin: { id: 'af5051807ed7aaa30', name: 'reviewer', ref: 'abc' }
+        }
+      ),
+      {
+        type: 'text',
+        text: 'Second round findings',
+        providerMetadata: {
+          'claude-code': { parentToolCallId: 'call_launch' },
+          cherry: { resumedViaCallId: 'call_send_1' }
+        }
+      } as unknown as CherryMessagePart,
+      toolPart(
+        'call_send_2',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please finalize the review' },
+        {
+          success: true,
+          message: 'Message queued for delivery at its next tool round.',
+          pin: { id: 'af5051807ed7aaa30', name: 'reviewer', ref: 'abc' }
+        }
+      ),
+      // The adapter's launch-root look-up missed this round, so its content carries no marker:
+      // the receipt's walk position is the only evidence it belongs to the later round.
+      textPart('Third round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1',
+      'call_launch:agent-flow-resume-2',
+      'call_launch:agent-flow-assistant-2'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
     expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
     expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Please reread the four files'])
-    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
+    expect(texts('call_launch:agent-flow-resume-2')).toEqual(['Please finalize the review'])
+    expect(texts('call_launch:agent-flow-assistant-2')).toEqual(['Third round findings'])
   })
 
   // Prose that merely contains an `agentId:` token is not a launch receipt — it must not create
