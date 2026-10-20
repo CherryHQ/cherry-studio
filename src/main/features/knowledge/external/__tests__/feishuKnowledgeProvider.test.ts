@@ -660,4 +660,52 @@ describe('feishuKnowledgeProvider', () => {
 
     await expect(request).resolves.toBe(cancellation)
   })
+  it('classifies response body transport failures as transient without exposing their details', async () => {
+    const failed = new Response()
+    vi.spyOn(failed, 'text').mockRejectedValueOnce(new TypeError('secret-body-error'))
+    vi.mocked(net.fetch).mockResolvedValueOnce(failed)
+
+    const error = await getUserIdentity(authorization).catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({ code: 'transient', terminal: false })
+    expect(String(error)).not.toContain('secret-body-error')
+  })
+
+  it.each(['timeout', 'caller'] as const)(
+    'preserves %s classification during response body consumption',
+    async (reason) => {
+      const timeout = new AbortController()
+      const caller = new AbortController()
+      vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(timeout.signal)
+      let reading!: () => void
+      const started = new Promise<void>((resolve) => {
+        reading = resolve
+      })
+      vi.mocked(net.fetch).mockImplementationOnce(async (_url, init) => {
+        const result = new Response()
+        vi.spyOn(result, 'text').mockImplementation(
+          () =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+              reading()
+            })
+        )
+        return result
+      })
+      const request = getUserIdentity(authorization, caller.signal).catch((cause: unknown) => cause)
+      await started
+      const error = new DOMException('request stopped', reason === 'caller' ? 'AbortError' : 'TimeoutError')
+      if (reason === 'caller') caller.abort(error)
+      else timeout.abort(error)
+
+      if (reason === 'caller') await expect(request).resolves.toBe(error)
+      else await expect(request).resolves.toMatchObject({ code: 'transient', terminal: false })
+    }
+  )
+
+  it('keeps malformed JSON separate from response body transport failures', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(new Response('{invalid json'))
+
+    await expect(getUserIdentity(authorization)).rejects.toMatchObject({ code: 'invalid-response', terminal: false })
+  })
 })

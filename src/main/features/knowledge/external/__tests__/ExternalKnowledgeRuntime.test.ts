@@ -1,10 +1,14 @@
 import { gunzipSync } from 'node:zlib'
 
+import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { net } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ExternalKnowledgeConnection } from '@data/services/ExternalKnowledgeConnectionService'
+import {
+  externalKnowledgeConnectionService,
+  type ExternalKnowledgeConnection
+} from '@data/services/ExternalKnowledgeConnectionService'
 import { registrationBegin } from '@main/services/feishuAppRegistration'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 
@@ -2027,12 +2031,30 @@ describe('ExternalKnowledgeRuntime', () => {
     await expect(credentials.read('ref-one')).resolves.toEqual({ status: 'ok', credential: originalCredential })
   })
 
-  it('reports identity-unverifiable when a reconnect has no stable persisted user id', async () => {
+  it.each<Partial<ExternalKnowledgeConnection>>([
+    { authorizedAt: '2026-01-01T00:00:00.000Z' },
+    { lastValidatedAt: '2026-01-01T00:00:00.000Z' },
+    { accountOpenId: 'ou_one' },
+    { accountUnionId: 'on_one' },
+    { tenantKey: 'tenant_one' },
+    { displayName: 'Previous account' },
+    { avatarUrl: 'https://example.com/avatar.png' },
+    { grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES] }
+  ])('rejects a reconnect without a stable user id when prior authorization evidence remains: %o', async (evidence) => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const value = connection('one', 'ref-one', {
       authorizationStatus: 'reauthorization-required',
-      accountUserId: null
+      accountUserId: null,
+      accountOpenId: null,
+      accountUnionId: null,
+      tenantKey: null,
+      displayName: null,
+      avatarUrl: null,
+      grantedScopes: [],
+      authorizedAt: null,
+      lastValidatedAt: null,
+      ...evidence
     })
     connections.values.set(value.id, value)
     credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
@@ -2055,7 +2077,7 @@ describe('ExternalKnowledgeRuntime', () => {
         accountUserId: 'user_one',
         accountOpenId: 'ou_replacement_app',
         accountUnionId: null,
-        tenantKey: value.tenantKey!,
+        tenantKey: 'tenant_one',
         displayName: 'Restored user',
         avatarUrl: null
       }))
@@ -3229,5 +3251,134 @@ describe('ExternalKnowledgeRuntime', () => {
     await firstRejected
     await removing
     expect(lateOperation).not.toHaveBeenCalled()
+  })
+})
+
+describe('ExternalKnowledgeRuntime interrupted initial authorization', () => {
+  setupTestDatabase()
+
+  it('binds the first identity through replacement reconnect after startup reconciliation', async () => {
+    const credentials = new MemoryCredentials()
+    const provider = createProvider({
+      beginDeviceAuthorization: vi.fn(async () => ({
+        deviceCode: 'device-code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify?user_code=ABCD-EFGH',
+        expiresIn: 600,
+        interval: 5
+      })),
+      exchangeDeviceAuthorization: vi.fn(async () => ({
+        accessToken: 'access-one',
+        refreshToken: 'refresh-one',
+        expiresIn: 7200,
+        refreshTokenExpiresIn: 604800,
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ credentials, provider })
+    await runtime.start()
+    const initial = await runtime.beginUserAuthorization({ kind: 'custom-app', appId: 'cli_one', appSecret: 'secret' })
+    await runtime.stop()
+    await expect(credentials.read(initial.connection.credentialReference)).resolves.toEqual({ status: 'missing' })
+
+    const restarted = new ExternalKnowledgeRuntime({ credentials, provider })
+    await restarted.start()
+    try {
+      expect(externalKnowledgeConnectionService.getById(initial.connection.id)).toMatchObject({
+        authorizationStatus: 'reauthorization-required',
+        accountUserId: null,
+        authorizedAt: null
+      })
+      const reconnect = await restarted.beginReconnect(initial.connection.id, {
+        kind: 'custom-app',
+        appId: 'cli_replacement',
+        appSecret: 'replacement-secret'
+      })
+      const recovered = await restarted.completeUserAuthorization(reconnect.authorizationSessionId)
+      expect(recovered).toMatchObject({
+        id: initial.connection.id,
+        appId: 'cli_replacement',
+        authorizationStatus: 'connected',
+        accountUserId: 'user_one',
+        tenantKey: 'tenant_one',
+        authorizedAt: expect.any(String)
+      })
+      expect(recovered.credentialReference).not.toBe(initial.connection.credentialReference)
+      expect(externalKnowledgeConnectionService.getById(initial.connection.id)).toEqual(recovered)
+      await expect(credentials.read(recovered.credentialReference)).resolves.toMatchObject({
+        status: 'ok',
+        credential: { appSecret: 'replacement-secret', accessToken: 'access-one' }
+      })
+      await expect(restarted.acquireAccessToken(initial.connection.id)).resolves.toBe('access-one')
+    } finally {
+      await restarted.stop()
+    }
+  })
+  it('completes initial authorization after retrying an SDK identity response body failure', async () => {
+    const credentials = new MemoryCredentials()
+    const failed = new Response()
+    vi.spyOn(failed, 'text').mockRejectedValueOnce(new TypeError('connection reset'))
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValueOnce(
+        Response.json({
+          device_code: 'device-code',
+          user_code: 'ABCD-EFGH',
+          verification_uri: 'https://accounts.feishu.cn/oauth/v1/device/verify',
+          expires_in: 600
+        })
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          access_token: 'access-one',
+          refresh_token: 'refresh-one',
+          expires_in: 7200,
+          refresh_token_expires_in: 604800,
+          scope: FEISHU_REQUIRED_USER_SCOPES.join(' ')
+        })
+      )
+      .mockResolvedValueOnce(failed)
+      .mockResolvedValueOnce(
+        Response.json({
+          code: 0,
+          data: {
+            user_id: 'user_one',
+            open_id: 'ou_one',
+            tenant_key: 'tenant_one',
+            name: 'User'
+          }
+        })
+      )
+    let now = Date.now()
+    const runtime = new ExternalKnowledgeRuntime({
+      credentials,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        now += milliseconds
+      }
+    })
+    await runtime.start()
+    try {
+      const initial = await runtime.beginUserAuthorization({
+        kind: 'custom-app',
+        appId: 'cli_one',
+        appSecret: 'secret'
+      })
+      const connected = await runtime.completeUserAuthorization(initial.authorizationSessionId)
+
+      expect(connected).toMatchObject({
+        id: initial.connection.id,
+        authorizationStatus: 'connected',
+        accountUserId: 'user_one'
+      })
+      expect(externalKnowledgeConnectionService.getById(initial.connection.id)).toEqual(connected)
+      await expect(credentials.read(connected.credentialReference)).resolves.toMatchObject({
+        status: 'ok',
+        credential: { accessToken: 'access-one', refreshToken: 'refresh-one' }
+      })
+    } finally {
+      await runtime.stop()
+      vi.mocked(net.fetch).mockReset()
+    }
   })
 })

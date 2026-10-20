@@ -1012,7 +1012,7 @@ export class ExternalKnowledgeRuntime {
         )
         this.assertCredentialGeneration(state, session.generation)
         const connection = this.requireConnection(session.connectionId)
-        if (!session.initial) this.assertMatchingIdentity(connection, identity)
+        if (!session.initial) this.assertReconnectIdentity(connection, identity)
         await this.credentials.put(session.candidateCredentialReference, {
           ...session.credentials,
           ...this.absoluteTokens(token)
@@ -1329,7 +1329,18 @@ export class ExternalKnowledgeRuntime {
     }
   }
 
-  private assertMatchingIdentity(connection: ExternalKnowledgeConnection, identity: FeishuUserIdentity): void {
+  private assertReconnectIdentity(connection: ExternalKnowledgeConnection, identity: FeishuUserIdentity): void {
+    const neverAuthorized =
+      connection.authorizedAt === null &&
+      connection.lastValidatedAt === null &&
+      connection.accountUserId === null &&
+      connection.accountOpenId === null &&
+      connection.accountUnionId === null &&
+      connection.tenantKey === null &&
+      connection.displayName === null &&
+      connection.avatarUrl === null &&
+      connection.grantedScopes.length === 0
+    if (neverAuthorized && identity.accountUserId) return
     if (!connection.accountUserId || !identity.accountUserId) {
       throw new ExternalKnowledgeRuntimeError('identity-unverifiable')
     }

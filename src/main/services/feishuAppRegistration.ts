@@ -91,6 +91,7 @@ async function postRegistration(
   const timeoutSignal = AbortSignal.timeout(REGISTRATION_REQUEST_TIMEOUT_MS)
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   let response: Response
+  let text: string
   try {
     response = await net.fetch(`${baseUrl}/oauth/v1/app/registration`, {
       method: 'POST',
@@ -98,6 +99,7 @@ async function postRegistration(
       body: new URLSearchParams(params).toString(),
       signal: requestSignal
     })
+    text = await response.text()
   } catch (error) {
     if (signal?.aborted) throw signal.reason ?? error
     if (timeoutSignal.aborted) throw new RegistrationRequestTimeoutError()
@@ -107,7 +109,7 @@ async function postRegistration(
   if (!response.ok) throw new Error('Feishu app registration request failed')
 
   try {
-    const parsed = registrationResponseSchema.safeParse(JSON.parse(await response.text()))
+    const parsed = registrationResponseSchema.safeParse(JSON.parse(text))
     if (!parsed.success) throw new Error()
     return parsed.data
   } catch {
