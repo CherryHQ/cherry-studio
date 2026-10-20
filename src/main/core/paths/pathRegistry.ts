@@ -229,6 +229,7 @@ export function buildPathRegistry() {
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir
     'feature.agents.pi.sessions': path.join(appUserDataData, 'Agents', '.pi', 'sessions'), // Passed explicitly as sessionDir
+    'feature.agents.durable.stores': path.join(appUserDataData, 'Agents', '.durable'),
     'feature.agents.pi.vcc_file': path.join(app.getAppPath(), 'out', 'main', 'pi-vcc.mjs'),
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.forks': path.join(appUserDataData, 'Agents', '.forks'), // owned fork snapshots; retained for Pi lineage
@@ -408,6 +409,8 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.agents.pi.sessions',
+  'feature.agents.durable.stores',
   // Namespace prefixes
   'sys.',
   'external.',

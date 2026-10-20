@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 45de709d9b96e50531f6b92f21696df15d315d37..19e82bdb99b4b31624f07ef80684a7a6e99caad1 100644
+index 45de709d9b96e50531f6b92f21696df15d315d37..a7fba3ebcc5d8db3cb1085c544bac547d0531fd9 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -13,7 +13,7 @@
@@ -107,7 +107,7 @@ index 45de709d9b96e50531f6b92f21696df15d315d37..19e82bdb99b4b31624f07ef80684a7a6
      private _appendCustomMessage;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index 11ab140cd4a227d03bf247de3b0d6a7197e892e0..af1fe7a551158c76ca8651b2d858f23a0923cc6e 100644
+index 11ab140cd4a227d03bf247de3b0d6a7197e892e0..fa368dc16ef8a17b0c9ed9db53735785b2e2e6a0 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -95,6 +95,10 @@ export class AgentSession {
@@ -513,6 +513,55 @@ index 43c7ad43b394c7a9266dbcac0bee1e675b721713..c67519d0d52ea9856ddbd65f003711ca
  }) => void;
  export type SendUserMessageHandler = (content: string | (TextContent | ImageContent)[], options?: {
      deliverAs?: "steer" | "followUp";
+diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
+index 3f6104e19f4bdf82e5513af1cb6d84bf9f8b9d07..bf8efa54fa3d845f3fb2d46c90a8cb7c9473d217 100644
+--- a/dist/core/session-manager.d.ts
++++ b/dist/core/session-manager.d.ts
+@@ -375,6 +375,8 @@ export declare class SessionManager {
+      * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
+      * @param cwdOverride Optional cwd override instead of the session header cwd.
+      */
++    /** Strictly load an existing current-format file with the expected identity. */
++    static openExisting(path: string, expectedId: string, cwdOverride?: string): SessionManager;
+     static open(path: string, sessionDir?: string, cwdOverride?: string): SessionManager;
+     /**
+      * Continue the most recent session, or create new if none.
+diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
+index 62b469b5dc3fcea2aa8f52218cbdfe892d9abed4..79e551fc6b00042bd5d2123e7bde11139c19d6d1 100644
+--- a/dist/core/session-manager.js
++++ b/dist/core/session-manager.js
+@@ -1,6 +1,6 @@
+ import { getCurrentSystemMessage, uuidv7, } from "@earendil-works/pi-ai";
+ import { randomUUID } from "crypto";
+-import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readSync, statSync, writeFileSync, } from "fs";
++import { appendFileSync, closeSync, createReadStream, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync, } from "fs";
+ import { readdir, stat } from "fs/promises";
+ import { basename, join, resolve } from "path";
+ import { createInterface } from "readline";
+@@ -1323,6 +1323,23 @@ export class SessionManager {
+      * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
+      * @param cwdOverride Optional cwd override instead of the session header cwd.
+      */
++    /** Load a verified current-format session without initializing or rewriting files. */
++    static openExisting(path, expectedId, cwdOverride) {
++        const resolvedPath = resolvePath(path);
++        const content = readFileSync(resolvedPath, "utf8");
++        for (const line of content.split("\n")) if (line.trim()) JSON.parse(line);
++        const entries = parseSessionEntries(content);
++        const header = entries[0];
++        if (header?.type !== "session" || header.id !== expectedId || header.version !== CURRENT_SESSION_VERSION)
++            throw new Error("Session identity or format does not match");
++        const cwd = cwdOverride ?? getSessionHeaderCwd(header);
++        if (typeof cwd !== "string" || !cwd.trim()) throw new Error("Session cwd is missing");
++        const manager = new SessionManager(cwd, resolve(resolvedPath, ".."), undefined, false, undefined, entries);
++        manager.persist = true;
++        manager.sessionFile = resolvedPath;
++        manager.flushed = true;
++        return manager;
++    }
+     static open(path, sessionDir, cwdOverride) {
+         const resolvedPath = resolvePath(path);
+         let header = null;
 diff --git a/examples/extensions/custom-provider-anthropic/package-lock.json b/examples/extensions/custom-provider-anthropic/package-lock.json
 deleted file mode 100644
 index 7a9cc69020074e9b3e2a5e0d3487c8927124fb82..0000000000000000000000000000000000000000

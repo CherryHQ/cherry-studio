@@ -232,7 +232,7 @@ Child 内容归其上下文，并拥有独立的产品消息身份。父工具�
 
 ##### 存储决策与范围
 
-P1 使用 `DbService` 保存 Cherry 的上下文关联及消息上的必要提交信息，不新增 `agent_session_input` 或通用宿主输入日志。Pi 保留原生 session 文件；Pi Durable 使用独立文件中的原生 SQLite 存储。各 harness 拥有自己的序列化、提交和恢复语义，Cherry 负责位置、生命周期与产品关联。这些是拟议的宿主记录，不增加公共 `agent-runtime` 接口。
+P1 使用 `DbService` 保存 Cherry 的上下文关联及消息上的必要提交信息，不新增 `agent_session_input` 或通用宿主输入日志。Pi 保留原生 session 文件；Pi Durable 使用独立文件中的原生 SQLite 存储。各 harness 拥有自己的序列化、提交和恢复语义，Cherry 负责位置、生命周期与产品关联。这些是 Main 私有的宿主记录，不增加公共 `agent-runtime` 接口。
 
 当前[消息 schema](../../../../src/main/data/db/schemas/agentSessionMessage.ts)已经保存展示内容、搜索文本、运行时 resume token 和跨会话投递字段。[会话 schema](../../../../src/main/data/db/schemas/agentSession.ts)尚无显式原生上下文关联。[旧 Pi loader](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts)在 token 没有已落盘文件时可能初始化会话。P1 在保留既有历史的同时建立明确关联；已迁移上下文采用严格打开。
 
@@ -392,7 +392,7 @@ Pi 使用已注册的 `feature.agents.pi.sessions` 位置，并验证每个加�
 
 Durable 为每个已配置 backend 分配独立的原生 SQLite 文件。同一 store 中的所有 conversation 共享 Harness 所有者和调度作用域。优先使用 1.3.0 已有的 `openNodeSqliteStorage`；包测试已经使用它，但 Electron 可用性与打包后的加载仍需 P4 验证。可选的 table prefix 不代表它能安全共享 Cherry 的数据库事务：`DbService` 拥有同步 better-sqlite3 连接，Durable 拥有自己的连接、事务、schema 和故障生命周期。
 
-Durable 的数字 conversation ID 只标识 store 内记录，不能标识 store 本身。显式创建时，通过 Durable 已有的 `defineDoc` 机制，在 Cherry 拥有、session 作用域的原生文档中保存 backend ID；重开时先验证，再绑定 conversation 或允许 Harness 的恢复写入。已绑定 store 的标记缺失或不匹配意味着访问不可用，不能据此初始化或重新标记。创建标记走原生存储，不直接写 Durable 内部 SQL 表。该标记及其创建／重开测试属于 P1 待实现工作，不是现有适配器行为。
+Durable 的数字 conversation ID 只标识 store 内记录，不能标识 store 本身。显式创建时，通过 Durable 已有的 `defineDoc` 机制，在 Cherry 拥有、session 作用域的原生文档中保存 backend ID；重开时先验证，再绑定 conversation 或允许 Harness 的恢复写入。已绑定 store 的标记缺失或不匹配意味着访问不可用，不能据此初始化或重新标记。创建标记走原生存储，不直接写 Durable 内部 SQL 表。Main 原生上下文辅助模块创建并校验该标记；它不属于公共适配器接口。
 
 路径只通过 `application.getPath` 解析。Durable 的新位置注册在 `feature.agents.*` 下；需要由所有者控制创建时机的路径查询使用路径注册表的 `NO_ENSURE` 机制。纯数据库操作和严格 `open` 不得生成缺失的原生文件。包括 `openNodeSqliteStorage` 在内、会创建缺失文件的原生 API，必须在生产使用前具备严格打开已有文件的路径；单独检查文件存在不能消除检查／打开之间的竞态。P1 先验证仅打开已有存储、并在 `Harness.open` 执行恢复写入前读取身份的能力。优先使用原生能力；固定版本 API 无法满足该边界时，先记录所需的上游改进，再实现 loader。
 
@@ -484,7 +484,7 @@ Main 单独执行可重入的关联回填。对于既有 Pi 行，按当前 chec
 
 ##### P1 实现与验证边界
 
-P1 沿用既有产品所有者，覆盖 backend/原生关联、消息上必要的提交元数据、聚焦数据库服务、原生 store 绑定/严格 loader，以及恢复 fixture。不增加输入表或 attempt 历史；物理合表、逐消息 `contextId` 及会话 `rootContextId` 也不是前置要求。不改变公共 Runtime 必需方法，也不切换桌面执行。P2 产品切换前先完成 Agent 树迁移、已提交消息保护及强类型原生历史路径，再由 P2 接入产品投影写入与生命周期。P3 增加独立持久化的 child 关系/输出，P4 在应用中验证 Durable 调度与崩溃恢复。对应 backend 在生产切换前必须完成文件所有权、备份捕获与删除覆盖。
+P1 沿用既有产品所有者，覆盖 backend/原生关联、消息上必要的提交元数据、聚焦数据库服务、原生 store 绑定/严格 loader，以及恢复 fixture。不增加输入表或 attempt 历史；物理合表、逐消息 `contextId` 及会话 `rootContextId` 也不是前置要求。不改变公共 Runtime 必需方法，也不切换桌面执行。P2 产品切换前先完成 Agent 树迁移、保留旧分支的编辑操作及强类型原生历史路径，再由 P2 接入产品投影写入与生命周期。P3 增加独立持久化的 child 关系/输出，P4 在应用中验证 Durable 调度与崩溃恢复。对应 backend 在生产切换前必须完成文件所有权、备份捕获与删除覆盖。
 
 | 待验证场景 | 必须可观察的结果 | 所有者／验收 |
 | --- | --- | --- |
@@ -499,11 +499,15 @@ P1 沿用既有产品所有者，覆盖 backend/原生关联、消息上必要�
 | 终态先于确认接纳到达；两个输入共享一个响应 | 晚到回执保留终态；已确认时，两条关联指向同一产品响应。 | 消息提交/投影集成测试；AC7、AC9。 |
 | 被动重开 Durable 并查询 | 不启动模型／工具工作；强制退出进程后的恢复另由 P4 验证。 | P1 真实 Harness fixture，P4 worker 进程崩溃测试；AC8、AC11。 |
 
-以上是计划中的验收检查。本次存储方案仅修改文档，不表示 schema、migration、存储标记、备份支持或恢复测试已实现。
+P1 基础现已包含 backend/context 的增量 migration、现有消息上的私有 `submission` 列、已提交内容保护、显式原生创建、严格打开和被动对账。[原生存储 fixture](../../../../src/main/ai/agentSession/__tests__/nativeContext.test.ts)、[消息提交测试](../../../../src/main/data/services/__tests__/AgentSessionSubmission.test.ts) 和[已有数据迁移 fixture](../../../../src/main/data/db/__tests__/agentNativeContextMigration.test.ts) 使用真实适配器和 SQLite。回填记录不同的既有 Pi 身份，不选择写入者，也不重建历史。Durable 会话创建后的关联若丢失且无法恢复原生身份，则保留未解决的创建意图。
+
+严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Main 观察器保留写入失败的事实供 `flush()` 补写，由调用者持有至停止；这些辅助模块不注册第二个生命周期服务，也不切换桌面执行。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
+
+文档仍为 proposed：产品消息树、桌面所有者/投影接线、原生备份/删除集成及强制退出进程后的崩溃验收仍属于 P2–P4。原生正常关闭/重开和数据库故障注入不能替代应用崩溃门槛。
 
 #### 实现阶段与验证门槛
 
-以下是实现工作单元，不表示工作已完成或已经创建新的 PR。P0 与 P1 的 schema 设计可以独立推进；生产切换需同时满足两项门槛。派发前为每个上下文选定唯一的执行和持久化路径。未迁移上下文保留既有路径；原生派发后，错误或未知回执不能触发回退到另一个 driver，也不能启动第二个写入者。
+以下阶段描述完整路线；上面的实现证据说明哪些门槛已经验证。生产切换需同时满足 P0 原生证据与 P1 存储门槛。派发前为每个上下文选定唯一的执行和持久化路径。未迁移上下文保留既有路径；原生派发后，错误或未知回执不能触发回退到另一个 driver，也不能启动第二个写入者。
 
 | 阶段 | 交付物 | 进入下一步前的门槛 |
 | --- | --- | --- |
@@ -518,7 +522,7 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 
 扩展现有 [Pi Runtime 测试](../../../../packages/agent-runtime-pi/tests/runtime.test.ts)、[Durable Runtime 测试](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts)和[观察测试](../../../../packages/agent-runtime/tests/observation.test.ts)，走公共边界验证。宿主验证放在现有 Runtime、归档持久化、投递、消息 backend 与 `useAgentSessionParts` 测试旁；引入投影及私有提交元数据路径时，再增加聚焦测试。SQLite 测试使用 `setupTestDatabase()` 和生产 migration。Durable 崩溃测试使用隔离 worker 进程与持久 store，在有证据的 checkpoint 后直接杀进程，不调用 `shutdown`，再用新进程验证恢复。不假定外部工具副作用恰好执行一次。
 
-实现改动只运行显式指定的受影响测试文件，并检查 `docs:affected`；仅在代码路径改变后更新当前参考文档。包级测试和有序 close/reopen 不能满足 Electron 或崩溃恢复门槛。本次文档细化只运行文档、配对和限定文件的格式检查。
+实现改动只运行显式指定的受影响测试文件，并检查 `docs:affected`；仅在代码路径改变后更新当前参考文档。包级测试和有序 close/reopen 不能满足 Electron 或崩溃恢复门槛。P1 层还运行限定范围的宿主/原生 fixture、受影响消费者测试、Main 类型检查和 migration 检查。
 
 ## Alternatives considered
 
@@ -553,6 +557,6 @@ P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替
 
 精确任务取消和宿主跨 harness 编排仍是方案。可选 child/input 字段让受限访问可以表达，但不代表已有每种 harness 的适配器，也不从恢复的历史授予控制权限。Pi child 续接需要所有者的 loader，并保留原生报告策略。上下文保留到 shutdown 会增加内存占用；无法取消的 preflight 可能无限推迟关闭。归一化视图省略原生数据，背压下还可能丢失中间事件。Durable 的内存逻辑输入映射本身不能持久保存其与 Cherry 消息的关联。把这些限制当作公共类型已经解决的问题，会让纸面抽象强于实际实现。
 
-独立原生 store 会增加协调备份/删除的工作，也会保留部分重复展示文本。复用消息要求已提交版本不可变、提交元数据仅由 Main 管理；删除恢复证据或重试编辑后的内容会破坏关联。未来的载荷快照同样需要明确消费者及保留政策。严格打开已有 store、Durable store 身份标记、带真实数据的数据库迁移，以及所选原生 SQLite driver 在 Electron 中的支持仍是实现门槛。
+独立原生 store 会增加协调备份/删除的工作，也会保留部分重复展示文本。复用消息要求已提交版本不可变、提交元数据仅由 Main 管理；删除恢复证据或重试编辑后的内容会破坏关联。未来的载荷快照同样需要明确消费者及保留政策。P1 fixture 已在 Node 下覆盖严格打开已有 store、Durable store 身份标记及带真实数据的数据库迁移。所选原生 SQLite driver 在 Electron 中的支持仍是生产门槛。
 
 将平铺的 Agent 会话归档与 `topic`/`message` 收敛，需要明确迁移、分支选择、原生绑定和 child 历史规则。复用树结构不代表其删除、历史构造或路由行为已经适用于原生 agent 执行。
