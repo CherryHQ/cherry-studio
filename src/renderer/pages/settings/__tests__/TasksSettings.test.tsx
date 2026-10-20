@@ -3,17 +3,18 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  formStateToTrigger,
+  type ScheduleFormState,
+  triggerToFormState
+} from '@renderer/components/ScheduledTask/scheduleForm'
+import { TaskFormDialog, TaskTimeSelect } from '@renderer/components/ScheduledTask/TaskFormDialog'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { toast } from '@renderer/services/toast'
 import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 
-import TasksSettings, {
-  formStateToTrigger,
-  type ScheduleFormState,
-  TaskTimeSelect,
-  triggerToFormState
-} from '../TasksSettings'
+import TasksSettings from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
 
@@ -1918,6 +1919,31 @@ describe('TasksSettings detail behavior', () => {
         trigger: { kind: 'interval', ms: 900_000, anchor: 'createdAt' }
       })
     )
+  })
+
+  // The chat card mounts the editor already open on its first Edit click.
+  it('keeps saved channel recipients when the editor mounts already open', async () => {
+    channelDataMock.channels = [
+      { id: 'channel-agent-1', agentId: 'agent-1', name: 'Agent One Telegram', isActive: true, activeChatIds: ['c-1'] }
+    ]
+    const onUpdate = vi.fn().mockResolvedValue(true)
+
+    render(
+      <TaskFormDialog
+        open
+        task={{ ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }}
+        agents={[{ id: 'agent-1', name: 'Agent One' }]}
+        onOpenChange={vi.fn()}
+        onUpdate={onUpdate}
+      />
+    )
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ name: 'Renamed task' }))
   })
 
   it('keeps the owning Agent fixed while editing an existing task', async () => {
