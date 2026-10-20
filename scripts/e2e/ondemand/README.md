@@ -4,7 +4,7 @@
 
 ## Dispatch
 
-Use `--ref main` to select the controller and `-f ref=...` to select the application. The workflow pins and reports both SHAs. Before merging the workflow, explicitly selecting its development branch tests that branch's controller.
+Use `--ref main` to select the controller and `-f ref=...` to select the application. The workflow pins and reports both SHAs. The workflow must first exist on the default branch before GitHub accepts a dispatch; `--ref` cannot bypass first-time registration. After that initial merge, selecting a development branch explicitly tests its controller version.
 
 ```sh
 gh workflow run qa-ondemand.yml --repo CherryHQ/cherry-studio --ref main \
