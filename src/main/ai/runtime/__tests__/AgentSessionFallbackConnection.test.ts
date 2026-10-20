@@ -96,6 +96,22 @@ describe('fallback error classification', () => {
     expect(classifyRuntimeFallbackError(new Error('gateway returned 502 while proxying the request'))).toBeUndefined()
     expect(classifyRuntimeFallbackError(new Error('worker overload protection triggered'))).toBeUndefined()
   })
+
+  it('recognises the provider envelope Pi’s Anthropic adapter stringifies', () => {
+    // The pinned Pi adapter rejects with an ordinary Error whose message is the provider body.
+    expect(
+      classifyRuntimeFallbackError(
+        new Error('529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}')
+      )
+    ).toBe('http 529')
+    expect(classifyRuntimeFallbackError(new Error('503 {"type":"error","error":{"type":"overloaded_error"}}'))).toBe(
+      'http 503'
+    )
+    // The envelope is the provider's own verdict: a non-retryable one must not fall through.
+    expect(
+      classifyRuntimeFallbackError(new Error('400 {"type":"error","error":{"type":"invalid_request_error"}}'))
+    ).toBeUndefined()
+  })
 })
 
 describe('Pi/DSH connection fallback', () => {
@@ -295,6 +311,75 @@ describe('Pi/DSH connection fallback', () => {
     // reconcile's rebuild verdict — nothing else repairs this handoff. Without draining the
     // already-pending save, the replay executes the newly disabled tool.
     expect(fallback.reconcile).toHaveBeenCalledWith({ modelId: 'backup::model', carriedDisabledTools: ['write'] })
+    expect(fallback.send).toHaveBeenCalled()
+    await wrapper.close()
+  })
+
+  it('retains a tool disable that lands while the fallback drains its pending saves', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+
+    let releaseFirst!: () => void
+    primary.reconcile.mockImplementationOnce(async () => {
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: ['write'] })
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve
+      })
+      return 'patched'
+    })
+    let releaseSecond!: () => void
+    primary.reconcile.mockImplementationOnce(async () => {
+      // This save lands its restriction only when its discovery finishes.
+      await new Promise<void>((resolve) => {
+        releaseSecond = resolve
+      })
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: ['write', 'bash'] })
+      return 'patched'
+    })
+    const firstSave = wrapper.reconcile({ modelId: 'primary::model' })
+    await vi.waitFor(() => expect(releaseFirst).toBeTypeOf('function'))
+
+    // A content-free 503 starts the fallback, which waits for the pending save's verdict.
+    primary.events.push({ type: 'error', error: new Error('HTTP 503 service overloaded') })
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    // While that wait is open the user disables `bash`. The fallback must already own this save:
+    // forwarding it to the retired primary would land its tightening after the replay was admitted.
+    const secondSave = wrapper.reconcile({ modelId: 'primary::model' })
+    await vi.waitFor(() => expect(releaseSecond).toBeTypeOf('function'))
+    expect(driver.connect).not.toHaveBeenCalled()
+
+    releaseFirst()
+    await firstSave
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+    releaseConnect()
+    releaseSecond()
+    await secondSave
+
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    // The replacement is admitted under the union of every restriction the window applied, including
+    // the one saved during the drain — otherwise its replay executes the disabled tool.
+    expect(fallback.reconcile).toHaveBeenCalledWith({
+      modelId: 'backup::model',
+      carriedDisabledTools: expect.arrayContaining(['write', 'bash'])
+    })
     expect(fallback.send).toHaveBeenCalled()
     await wrapper.close()
   })

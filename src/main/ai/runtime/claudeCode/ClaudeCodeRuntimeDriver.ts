@@ -1041,6 +1041,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // installQuery skips registration when the connection closed mid-install; with no installed
     // query there is nothing to restart the loop on and nothing to announce.
     if (this.sessionTornDown) return false
+    // A rebuilt CLI starts with no background tasks and no work in flight, and the pinned SDK does
+    // not emit an empty snapshot on startup: publish that reset, or the host keeps watching work
+    // the retired process owned and waits on it forever.
+    this.eventQueue.push({ type: 'background-tasks', tasks: [] })
+    this.eventQueue.push({ type: 'background-work-state', active: false })
     // Tell the user in the transcript itself — persisted with the turn like any other data part.
     // Announced only now: a swap that never installed must leave no notice claiming it did, and
     // installQuery is pure setup, so nothing of the fallback turn can precede this.

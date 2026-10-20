@@ -66,6 +66,8 @@ function classifyProviderFailure(facts: ProviderFailureFacts): string | undefine
   return RETRYABLE_CODE.has(code.toUpperCase()) ? code.toLowerCase() : undefined
 }
 
+/** Pi's Anthropic adapter stringifies the provider envelope verbatim: `<status> {"type":"error",...}`. */
+const MESSAGE_PROVIDER_ENVELOPE = /^\s*(\d{3})\s*\{\s*"type"\s*:\s*"error"/
 /** Compatibility prose matching only: a retryable status has to be named as one. */
 const MESSAGE_HTTP_STATUS =
   /\b(?:http|status(?:[\s_-]?code)?|code|api[\s_-]?error)\b[\s:#=()/-]{0,8}(429|500|502|503|529)\b/i
@@ -79,6 +81,11 @@ const MESSAGE_PROVIDER_REASON =
 const MESSAGE_OVERLOAD = /\boverload/i
 
 function classifyMessageFailure(message: string): string | undefined {
+  // The envelope is the provider's own status: a non-retryable one must not fall through to prose.
+  const envelopeStatus = MESSAGE_PROVIDER_ENVELOPE.exec(message)?.[1]
+  if (envelopeStatus !== undefined) {
+    return RETRYABLE_STATUS.has(Number(envelopeStatus)) ? `http ${envelopeStatus}` : undefined
+  }
   const inProviderFrame = MESSAGE_PROVIDER_FRAME.test(message)
   const status =
     MESSAGE_HTTP_STATUS.exec(message)?.[1] ?? (inProviderFrame ? MESSAGE_STATUS.exec(message)?.[1] : undefined)
@@ -366,29 +373,29 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     if (!reason) return false
     const fallbackModelId = selectFallbackModelId(resolveAgentFallbackPolicy(this.input.agentId), this.currentModelId)
     if (!fallbackModelId) return false
-    // Tool disables already awaiting their verdicts when this fallback began apply to the live turn
-    // only once they resolve — which can be after the replacement captured the policy. Drain them
-    // so the replay inherits the tightened policy rather than the pre-save one.
-    const pendingSaves = this.pendingFallbackReconciles.splice(0)
-    await Promise.allSettled(pendingSaves)
-    if (this.closed) return false
     this.attempted = true
+    // Enter replacement coordination BEFORE draining the saves already pending: a save admitted
+    // while that drain waits must be retained for the replacement, not forwarded to the retired
+    // primary to land after the replay was admitted.
     this.replacementInFlight = true
-    // Now inside the window: fold what those saves left applied into the carried union.
-    if (pendingSaves.length > 0) this.rememberAppliedRestrictions()
-    // The replay must keep the turn's live policy: a save during the backoff (e.g. switching to
-    // bypassPermissions) would otherwise re-admit the replayed turn under a mode that mid-turn
-    // reconciliation itself defers. A policy that cannot be read cannot be preserved — decline.
-    const turnPolicy = this.current.getPermissionPolicy?.()
-    if (!turnPolicy) {
-      logger.warn('Declining the fallback replay: the live turn policy cannot be read', {
-        sessionId: this.input.sessionId,
-        fallbackModelId
-      })
-      return false
-    }
     let connection: AgentRuntimeConnection | undefined
     try {
+      const pendingSaves = this.pendingFallbackReconciles.splice(0)
+      await Promise.allSettled(pendingSaves)
+      if (this.closed) return false
+      // Now inside the window: fold what those saves left applied into the carried union.
+      if (pendingSaves.length > 0) this.rememberAppliedRestrictions()
+      // The replay must keep the turn's live policy: a save during the backoff (e.g. switching to
+      // bypassPermissions) would otherwise re-admit the replayed turn under a mode that mid-turn
+      // reconciliation itself defers. A policy that cannot be read cannot be preserved — decline.
+      const turnPolicy = this.current.getPermissionPolicy?.()
+      if (!turnPolicy) {
+        logger.warn('Declining the fallback replay: the live turn policy cannot be read', {
+          sessionId: this.input.sessionId,
+          fallbackModelId
+        })
+        return false
+      }
       await this.current.close()
       if (this.closed) return false
       const created = Promise.withResolvers<void>()

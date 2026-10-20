@@ -3783,6 +3783,90 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('resets the retired CLI’s background state when the fallback installs its replacement', async () => {
+    mocks.getPreference.mockImplementation((key: string) => {
+      if (key === 'chat.retry.enabled') return true
+      if (key === 'chat.retry.fallback_model_ids') return ['other-provider::haiku']
+      return undefined
+    })
+    const primaryQueue = createAsyncQueue<any>()
+    const fallbackQueue = createAsyncQueue<any>()
+    const primaryQuery = { ...primaryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const fallbackQuery = { ...fallbackQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-1',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'sonnet' },
+        settings: {},
+        sdkModelId: 'sonnet-sdk',
+        initializeTimeoutMs: 100
+      })
+      .mockResolvedValueOnce({
+        connectionConfig: {
+          rebuildSignature: 'sig-2',
+          live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+        },
+        key: 'warm-key',
+        options: { model: 'haiku' },
+        settings: {},
+        sdkModelId: 'haiku-sdk',
+        initializeTimeoutMs: 100
+      })
+    mocks.createClaudeQuery.mockReturnValueOnce(primaryQuery).mockReturnValueOnce(fallbackQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    // A background Bash task outlives the provider request that just failed: the host is tracking
+    // membership owned by the process the fallback is about to retire.
+    primaryQueue.push({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      tasks: [{ task_id: 'bg-1', task_type: 'bash', description: 'sleep 60' }]
+    })
+    primaryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'failed-session',
+      usage: {},
+      terminal_reason: 'api_error',
+      errors: ['API Error: 429 {"type":"rate_limit_error"}']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    fallbackQueue.push({ type: 'system', subtype: 'init', session_id: 'fallback-1' })
+    fallbackQueue.push({ type: 'result', subtype: 'success', session_id: 'fallback-1', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+
+    // The replacement process starts empty and the pinned SDK does not announce that on startup,
+    // so the swap must publish the reset before it continues — stale membership would leave the
+    // host waiting on background work the retired process no longer owns.
+    const staleIndex = seen.findIndex((event) => event?.type === 'background-tasks' && event.tasks.length === 1)
+    const resetIndex = seen.findIndex((event) => event?.type === 'background-tasks' && event.tasks.length === 0)
+    const fallbackIndex = seen.findIndex(
+      (event) => event?.type === 'chunk' && event.chunk?.type === 'data-model-fallback'
+    )
+    expect(staleIndex).toBeGreaterThanOrEqual(0)
+    expect(resetIndex).toBeGreaterThan(staleIndex)
+    expect(fallbackIndex).toBeGreaterThan(resetIndex)
+    expect(seen.slice(resetIndex, fallbackIndex)).toContainEqual({ type: 'background-work-state', active: false })
+    void connection.close()
+  })
+
   it('keeps a tool disable that reconciled while the fallback request was being built', async () => {
     mocks.getPreference.mockImplementation((key: string) => {
       if (key === 'chat.retry.enabled') return true
