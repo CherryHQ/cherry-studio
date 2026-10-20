@@ -66,7 +66,7 @@ describe('cherry-tools CLI tools', () => {
   it('advertises the thin list/search/install surface', async () => {
     const { tools } = await (await connectCli()).listTools()
     expect(tools.map((tool) => tool.name)).toEqual([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, CLI_INSTALL_TOOL_NAME])
-    expect(tools.find((tool) => tool.name === CLI_LIST_TOOL_NAME)?.description).toContain('command -v <name>')
+    expect(tools.find((tool) => tool.name === CLI_LIST_TOOL_NAME)?.description).toContain('system PATH')
     expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.required).toEqual(['query'])
     expect(tools.find((tool) => tool.name === CLI_INSTALL_TOOL_NAME)?.inputSchema.required).toEqual(['name', 'tool'])
   })
