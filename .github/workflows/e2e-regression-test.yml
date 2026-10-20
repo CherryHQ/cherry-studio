@@ -22,6 +22,7 @@ on:
           - provider-model-scroll
           - custom-assistant
           - chat-stream-failure
+          - about
           - translation
           - quick-assistant
           - knowledge
