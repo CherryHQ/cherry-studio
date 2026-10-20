@@ -91,6 +91,15 @@ const nextAnchoredRun = (from: number, startMinute: number, intervalMinutes: num
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset)
     for (let minute = firstSlotMinute; minute < 1440; minute += intervalMinutes) {
       const slot = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minute)
+      // A DST gap makes the wall-clock slot nonexistent and Date normalizes it forward
+      // into an off-grid instant, so only candidates that kept their date and time count.
+      const wallClockMatches =
+        slot.getFullYear() === day.getFullYear() &&
+        slot.getMonth() === day.getMonth() &&
+        slot.getDate() === day.getDate() &&
+        slot.getHours() === Math.floor(minute / 60) &&
+        slot.getMinutes() === minute % 60
+      if (!wallClockMatches) continue
       if (slot.getTime() > from) return slot.getTime()
     }
   }
