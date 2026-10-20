@@ -20,6 +20,7 @@ import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { AGENT_SESSION_STOPPED_CACHE_KEY } from '@shared/ai/agentSessionStopped'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
@@ -235,6 +236,10 @@ export function registerAgentMethods(
                   ? { reason: 'CONFLICT', message: 'Session is busy' }
                   : { reason: 'NOT_FOUND', message: 'Session is not available' }
             }
+          // An admitted turn supersedes any stop before it, wherever that stop came from: the
+          // accepted-turn state is published here so a window that only saw the earlier Stop does
+          // not suppress a plan handoff approved after this turn.
+          application.get('CacheService').setShared(AGENT_SESSION_STOPPED_CACHE_KEY(params.sessionId), false)
           return { status: 'applied', executionId: started.executionId }
         })
       } finally {
@@ -250,6 +255,9 @@ export function registerAgentMethods(
         .abortAndDrain(buildAgentSessionTopicId(params.sessionId), 'remote-cancel', () => {
           if (hub.journal(params.sessionId).activeExecutionId !== params.expectedExecutionId)
             throw new RemoteRpcError('CONFLICT', 'Execution is not active')
+          // Published before the abort, like the desktop Stop: a plan handoff armed in another window
+          // reads this flag when its respond resolves and must not restart the cancelled work.
+          application.get('CacheService').setShared(AGENT_SESSION_STOPPED_CACHE_KEY(params.sessionId), true)
         })
       return {
         status: 'applied',
