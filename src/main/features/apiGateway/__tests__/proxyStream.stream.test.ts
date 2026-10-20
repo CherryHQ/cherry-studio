@@ -50,8 +50,8 @@ vi.mock('@application', () => ({
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
-              isInternalAgentRequest: mockIsInternalAgentRequest,
-              getAgentSessionId: vi.fn(() => undefined)
+              isInternalRequest: (headers: Headers) => mockIsInternalAgentRequest(headers),
+              getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id') ?? undefined
             }
           : undefined
     )
@@ -224,7 +224,7 @@ async function processAndCaptureStreamMessages(
     params,
     inputFormat,
     outputFormat: 'anthropic',
-    requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
   })
   await vi.waitFor(() => expect(mockToUIMessages).toHaveBeenCalled())
   await vi.waitFor(() => expect(captured.listener).toBeDefined())
@@ -339,7 +339,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
         signal: controller.signal,
-        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+        requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
       })
     ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/tool_use ids must be unique/i) })
     expect(mockToUIMessages).not.toHaveBeenCalled()
@@ -575,7 +575,7 @@ describe('processMessage (streaming)', () => {
     }
     mockIsInternalAgentRequest.mockReturnValue(true)
     mockResolveAgentSessionUsage.mockReturnValue(usageContext)
-    const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    const requestHeaders = new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     const response = processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
@@ -592,13 +592,31 @@ describe('processMessage (streaming)', () => {
     await response
   })
 
+  it.each([true, false])(
+    'serves only the admitted model, without Cherry retries or fallbacks (stream=%s)',
+    async (stream) => {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+      expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 }))
+
+      if (stream) commit(captured.listener!)
+      await captured.listener!.onDone({} as any)
+      await response
+    }
+  )
+
   it('marks internal Agent usage when no active turn correlation is available', async () => {
     mockIsInternalAgentRequest.mockReturnValue(true)
     const response = processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
@@ -721,7 +739,7 @@ describe('processMessage (streaming)', () => {
       params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     })
 
     await vi.waitFor(() => expect(captured.listener).toBeDefined())

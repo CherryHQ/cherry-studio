@@ -27,19 +27,6 @@ describe('TabLruManager', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
-  describe('constructor', () => {
-    it('should use default limits', () => {
-      const limits = manager.getLimits()
-      expect(limits.softCap).toBe(TAB_LIMITS.softCap)
-      expect(limits.hardCap).toBe(TAB_LIMITS.hardCap)
-    })
-
-    it('should accept custom limits', () => {
-      const customManager = new TabLruManager({ softCap: 5, hardCap: 15 })
-      expect(customManager.getLimits()).toEqual({ softCap: 5, hardCap: 15 })
-    })
-  })
-
   describe('checkAndGetDormantCandidates', () => {
     describe('when under soft cap', () => {
       it('should return empty array when active tabs <= softCap', () => {

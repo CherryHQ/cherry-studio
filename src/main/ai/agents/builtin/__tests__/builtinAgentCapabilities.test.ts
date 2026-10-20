@@ -67,7 +67,6 @@ describe('hostToolsEnabled', () => {
     for (const channelLinked of [false, true]) {
       expect(hostToolsEnabled(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
       expect(hostToolsEnabled(agentOf('pi', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
-      expect(hostToolsEnabled(agentOf('dsh', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
     }
   })
 
@@ -86,22 +85,55 @@ describe('Agent browser mounting', () => {
           channelLinked: false,
           browserEnabled: true
         }
-      ).has('browser')
+      ).has('automation')
     ).toBe(false)
   })
   it.each(AGENT_TYPES)('requires enabled control and an interactive open environment on %s', (type) => {
-    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false, browserEnabled: true }).has('browser')).toBe(
-      true
-    )
-    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('browser')).toBe(false)
-    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: true, browserEnabled: true }).has('browser')).toBe(
-      false
-    )
+    expect(
+      resolveMountedMcpServers(agentOf(type), { channelLinked: false, browserEnabled: true }).has('automation')
+    ).toBe(true)
+    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('automation')).toBe(false)
+    expect(
+      resolveMountedMcpServers(agentOf(type), { channelLinked: true, browserEnabled: true }).has('automation')
+    ).toBe(false)
     expect(
       resolveMountedMcpServers(agentOf(type, BUILTIN_AGENT_ROLE.SUPPORT), {
         channelLinked: false,
         browserEnabled: true
-      }).has('browser')
+      }).has('automation')
     ).toBe(false)
+  })
+})
+
+describe('Agent memory mounting', () => {
+  it.each(AGENT_TYPES)('mounts memory by default on %s', (type) => {
+    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('agent-memory')).toBe(true)
+  })
+
+  it.each([
+    'mcp__agent-memory__memory',
+    'mcp__agent_memory__memory',
+    'mcp__agent-memory',
+    'mcp__agent_memory',
+    'mcp__agent-memory__*',
+    'mcp__agent_memory__*',
+    'mcp__*'
+  ])('unmounts memory when disabled by %s on every runtime', (rule) => {
+    for (const type of AGENT_TYPES) {
+      const mounted = resolveMountedMcpServers(
+        { type, configuration: {}, disabledTools: [rule] },
+        { channelLinked: false }
+      )
+      expect(mounted.has('agent-memory')).toBe(false)
+    }
+  })
+
+  it.each(AGENT_TYPES)('keeps memory mounted when an unrelated tool is disabled on %s', (type) => {
+    expect(
+      resolveMountedMcpServers(
+        { type, configuration: {}, disabledTools: ['mcp__cherry-tools__notify'] },
+        { channelLinked: false }
+      ).has('agent-memory')
+    ).toBe(true)
   })
 })

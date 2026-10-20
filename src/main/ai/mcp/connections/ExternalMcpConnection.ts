@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { AsyncLocalStorage } from 'node:async_hooks'
 
 import {
+  SdkErrorCode,
   SdkHttpError,
   SSEClientTransport,
   SseError,
@@ -54,7 +55,27 @@ function isTransportFallbackError(error: unknown): boolean {
   return false
 }
 
-function createClient(appVersion: string, events: McpConnectionEvents): ClientMcpConnection {
+/**
+ * `@modelcontextprotocol/client` verdicts every 5xx from the `server/discover`
+ * probe as `EraNegotiationFailed` without reading the body. Gateways that
+ * reject the unknown method with a bare 5xx (empty body, HTML, or a non-
+ * protocol JSON envelope) therefore never reached the legacy fallback when we
+ * required a JSON-RPC protocol error code in the body (#21709).
+ *
+ * Treat any probe `EraNegotiationFailed` with HTTP status >= 500 as grounds
+ * for one legacy retry on URL transports. Outage safety stays intact: a real
+ * outage also fails the legacy `initialize` handshake, and the caller rethrows
+ * the original probe error (#21938).
+ */
+function isLegacyProbeRejection(error: unknown): error is SdkHttpError {
+  return SdkHttpError.isInstance(error) && error.code === SdkErrorCode.EraNegotiationFailed && error.status >= 500
+}
+
+function createClient(
+  appVersion: string,
+  events: McpConnectionEvents,
+  versionMode: 'auto' | 'legacy' = 'auto'
+): ClientMcpConnection {
   return new ClientMcpConnection(
     { name: 'Cherry Studio', version: appVersion },
     {
@@ -63,10 +84,8 @@ function createClient(appVersion: string, events: McpConnectionEvents): ClientMc
         sampling: {},
         roots: {}
       },
-      versionNegotiation: {
-        mode: 'auto',
-        probe: { timeoutMs: 10_000, maxRetries: 0 }
-      }
+      versionNegotiation:
+        versionMode === 'auto' ? { mode: 'auto', probe: { timeoutMs: 10_000, maxRetries: 0 } } : { mode: 'legacy' }
     },
     events
   )
@@ -320,6 +339,29 @@ export async function createExternalMcpConnection({
         }
 
         await connection.close().catch(() => undefined)
+        if (
+          isLegacyProbeRejection(error) &&
+          (transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport)
+        ) {
+          log.warn('Server rejected probe; retrying in legacy mode', {
+            status: error.status,
+            statusText: error.statusText
+          })
+          const legacy = createClient(appVersion, events, 'legacy')
+          activeConnection = legacy
+          try {
+            const retryTransport = await createTransport(candidate)
+            await authProvider.withAuthorizationFlow(() =>
+              legacy.connect(retryTransport, { timeout: connectTimeoutMs, signal: initialAuthorization.signal })
+            )
+            log.info('Server connected', { era: legacy.era, serverVersion: legacy.serverVersion })
+            return finishConnection(legacy)
+          } catch (legacyError) {
+            await legacy.close().catch(() => undefined)
+            log.warn('Legacy retry failed', legacyError)
+            throw error
+          }
+        }
         if (candidate && candidate !== candidates.at(-1) && isTransportFallbackError(error)) {
           log.warn('Transport mismatch; trying fallback', { candidate })
           continue
@@ -341,6 +383,7 @@ export async function createExternalMcpConnection({
 }
 
 export const externalMcpConnectionInternals = {
+  isLegacyProbeRejection,
   isTransportFallbackError,
   transportCandidates
 }

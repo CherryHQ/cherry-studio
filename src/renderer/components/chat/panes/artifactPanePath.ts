@@ -1,5 +1,6 @@
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
+import { isWin } from '@renderer/utils/platform'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
@@ -11,14 +12,34 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 /** Synthetic id/path for the workspace root node in the projected file tree. */
 export const WORKSPACE_ROOT_ID = '__workspace_root__'
 
-export interface ArtifactPaneFileSelection {
+interface ArtifactPaneFileSelectionBase {
   workspacePath: string
   filePath: string
 }
 
+interface ArtifactPaneArtifactSelection extends ArtifactPaneFileSelectionBase {
+  previewType?: 'artifact'
+  displayName?: never
+  displayPath?: never
+  readOnly?: false
+}
+
+interface ArtifactPaneInputFileSelection extends ArtifactPaneFileSelectionBase {
+  displayName?: string
+  displayPath?: AbsoluteFilePath
+  previewType: 'file'
+  readOnly: true
+}
+
+export type ArtifactPaneFileSelection = ArtifactPaneArtifactSelection | ArtifactPaneInputFileSelection
+
 /** The normalized absolute path a selection edits — the `useFileEditSession` key. */
-export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
-  normalizeFilePreviewPath(`${selection.workspacePath}/${selection.filePath}`)
+export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath => {
+  const { workspacePath, filePath } = selection
+  // A POSIX root already ends in `/`. Another slash makes `//a\b.txt`, which file preview reads as UNC.
+  const joined = workspacePath.endsWith('/') ? `${workspacePath}${filePath}` : `${workspacePath}/${filePath}`
+  return normalizeFilePreviewPath(joined)
+}
 
 /**
  * Clipboard form of an absolute path: on Windows fold `/` to the native `\`
@@ -31,15 +52,31 @@ export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelectio
 export const getCopyableAbsolutePath = (path: string, isWindows: boolean): string =>
   isWindows ? path.replace(/\//g, '\\') : path
 
+export const getArtifactPaneSelectionDisplayPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
+  selection.displayPath ?? getArtifactPaneSelectionPath(selection)
+
+export const isUncPath = (path: string): boolean => /^(?:\\\\|\/\/)[^\\/]+[\\/]+[^\\/]+/.test(path.trim())
+
+// `\` separates Windows drive, UNC, and relative paths on Windows (`isWin`;
+// the main window has no Node `process`). A POSIX path keeps `\` literal.
+const backslashIsSeparator = (path: string): boolean => {
+  const trimmed = path.trim()
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return false
+  if (/^[A-Za-z]:[/\\]/.test(trimmed) || isUncPath(trimmed)) return true
+  return isWin
+}
+
+const pathSegmentPattern = (path: string): RegExp => (backslashIsSeparator(path) ? /[/\\]+/ : /\/+/)
+
 export const getPathBasename = (path: string): string => {
-  const trimmed = path.trim().replace(/[\\/]+$/, '')
-  if (!trimmed) return path
-  const segments = trimmed.split(/[/\\]+/).filter(Boolean)
-  return segments.at(-1) ?? trimmed
+  const withoutTrailing = path.replace(backslashIsSeparator(path) ? /[\\/]+$/ : /\/+$/, '')
+  if (!withoutTrailing) return path
+  const segments = withoutTrailing.split(pathSegmentPattern(withoutTrailing)).filter(Boolean)
+  return segments.at(-1) ?? withoutTrailing
 }
 
 export const normalizeTreePath = (path: string): string => {
-  const normalized = path.trim().replace(/\\/g, '/')
+  const normalized = backslashIsSeparator(path) ? path.replace(/\\/g, '/') : path
   const withoutTrailingSlash = normalized.replace(/\/+$/, '')
   if (/^[A-Za-z]:$/.test(withoutTrailingSlash)) return `${withoutTrailingSlash}/`
   if (!withoutTrailingSlash && normalized.startsWith('/')) return '/'
@@ -48,7 +85,8 @@ export const normalizeTreePath = (path: string): string => {
 
 export const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
 
-export const hasParentTraversal = (path: string): boolean => path.split(/[/\\]+/).some((segment) => segment === '..')
+export const hasParentTraversal = (path: string): boolean =>
+  path.split(pathSegmentPattern(path)).some((segment) => segment === '..')
 
 export const getPathDirname = (path: string): string => {
   const normalized = normalizeTreePath(path)

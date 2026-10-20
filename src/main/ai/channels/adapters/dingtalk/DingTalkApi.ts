@@ -5,6 +5,7 @@ import * as z from 'zod'
 
 import { t } from '@main/i18n'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
+import { SingleFlight } from '@shared/utils/async'
 import { sanitizeFilename } from '@shared/utils/file'
 
 import type { ChannelConfigForType } from '../../ChannelAdapter'
@@ -22,7 +23,7 @@ function failedResult(value: unknown): boolean {
 
 export class DingTalkApi {
   private token?: { value: string; expiresAt: number }
-  private tokenRequest?: Promise<string>
+  private readonly tokenRequest = new SingleFlight<string>()
 
   constructor(
     private readonly config: ChannelConfigForType<'dingtalk'>,
@@ -83,25 +84,19 @@ export class DingTalkApi {
   private async accessToken(): Promise<string> {
     this.signal.throwIfAborted()
     if (this.token && this.token.expiresAt > Date.now()) return this.token.value
-    if (!this.tokenRequest) {
-      this.tokenRequest = this.request(`${API}/v1.0/oauth2/accessToken`, {
+    return this.tokenRequest.run(async () => {
+      const data = await this.request(`${API}/v1.0/oauth2/accessToken`, {
         appKey: this.config.client_id,
         appSecret: this.config.client_secret
       })
-        .then((data) => {
-          const parsed = z.object({ accessToken: z.string().min(1), expireIn: z.number().positive() }).safeParse(data)
-          if (!parsed.success) throw new Error(t('common.dingtalk_delivery_failed'))
-          this.token = {
-            value: parsed.data.accessToken,
-            expiresAt: Date.now() + Math.max(0, parsed.data.expireIn - 60) * 1000
-          }
-          return this.token.value
-        })
-        .finally(() => {
-          this.tokenRequest = undefined
-        })
-    }
-    return this.tokenRequest
+      const parsed = z.object({ accessToken: z.string().min(1), expireIn: z.number().positive() }).safeParse(data)
+      if (!parsed.success) throw new Error(t('common.dingtalk_delivery_failed'))
+      this.token = {
+        value: parsed.data.accessToken,
+        expiresAt: Date.now() + Math.max(0, parsed.data.expireIn - 60) * 1000
+      }
+      return this.token.value
+    })
   }
 
   private async call(path: string, body: unknown, method = 'POST') {

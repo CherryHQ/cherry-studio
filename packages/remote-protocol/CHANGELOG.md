@@ -1,5 +1,28 @@
 # @cherrystudio/remote-protocol
 
+## 0.6.0
+
+### Minor Changes
+
+- [#21992](https://github.com/CherryHQ/cherry-studio/pull/21992) [`8bf2fe2`](https://github.com/CherryHQ/cherry-studio/commit/8bf2fe28d50170eb7b04c99dd5f8bfcf1913f2ae) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add the opt-in `agentMessageSummariesVersion: 1` capability and `agent.messages.list`
+  `partsMode: 'paged'` request. Summaries omit `partIds` and retain message identity,
+  revision and outcome metadata; clients enumerate complete parts through
+  `agent.parts.list`. Requests without the mode retain the full-message contract.
+  The list result type now includes `AgentMessageSummary`; consumers must narrow
+  list items before treating them as full `AgentMessage` recovery snapshots.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#21527](https://github.com/CherryHQ/cherry-studio/pull/21527) [`755f06d`](https://github.com/CherryHQ/cherry-studio/commit/755f06d1a367aaef741e35e6e9896e1300682af5) Thanks [@DeJeune](https://github.com/DeJeune)! - Advertise optional source SHA-256 verification for Agent uploads and persist verified completion outcomes.
+
+## 0.4.0
+
+### Minor Changes
+
+- [#21399](https://github.com/CherryHQ/cherry-studio/pull/21399) [`5485d7e`](https://github.com/CherryHQ/cherry-studio/commit/5485d7ef2974c2ac193a55427f6419461cb4cbd5) Thanks [@DeJeune](https://github.com/DeJeune)! - Add negotiated, bounded Agent attachment uploads and file-only messages with opaque upload references, resumable transfers, and revisioned attachment drafts for upload-before-send.
+
 ## 0.3.0
 
 ### Minor Changes
