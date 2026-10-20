@@ -1,4 +1,4 @@
-import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
+import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/streamManager'
@@ -9,6 +9,7 @@ import { IpcApiService } from '@main/ipc/IpcApiService'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
+import { WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
 import { application } from '../runtime/application'
 import { connectPage, ipcMain } from '../runtime/electron'
 import { installNodeGlobals } from '../runtime/nodeGlobals'
@@ -47,8 +48,8 @@ async function startPageServices() {
  */
 async function startAccountServices(opened: OpenedDatabase) {
   application.register('DbService', opened.service)
-  // PreferenceService only updates existing rows; the desktop seeds them on first start.
-  new SeedRunner(opened.service.getDb()).runAll([new PreferenceSeeder()])
+  // The desktop seeds on every start (`DbService.onInit`); PreferenceService only updates existing rows.
+  new SeedRunner(opened.service.getDb()).runAll([new WebPreferenceDefaultsSeeder(), ...seeders])
   const preferences = new PreferenceService()
   await preferences._doInit()
   application.register('PreferenceService', preferences)
@@ -100,8 +101,15 @@ export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string
       return { path: opened.path, openMs: opened.openMs, migrateMs: opened.migrateMs }
     },
     request: (request) => application.get('DataApiService').getApiServer().handleRequest(request),
-    'ipc-invoke': ({ channel, args }) => ipc.invoke(channel, args),
-    'ipc-send': ({ channel, args }) => ipc.send(channel, args),
+    // IPC handlers belong to the page services, which start asynchronously with the Worker.
+    'ipc-invoke': async ({ channel, args }) => {
+      await started
+      return ipc.invoke(channel, args)
+    },
+    'ipc-send': async ({ channel, args }) => {
+      await started
+      ipc.send(channel, args)
+    },
     async close() {
       if (!opened) return
       // Let live replies persist their partial text before the database goes away.

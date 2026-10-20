@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="initial-scale=1, width=device-width" />
+    <meta name="logger-window-source" content="mainWindow" />
+    <title>Cherry Studio</title>
+
+    <style>
+      html,
+      body {
+        margin: 0;
+      }
+
+      #spinner {
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        display: flex;
+      }
+
+      #spinner img {
+        width: 100px;
+        border-radius: 50px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <div id="spinner">
+      <img src="../../../src/renderer/assets/images/logo.png" />
+    </div>
+    <script>
+      console.time('init')
+    </script>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

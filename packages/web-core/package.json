@@ -13,8 +13,9 @@
     "./worker": "./src/worker/startCoreWorker.ts"
   },
   "scripts": {
+    "build:app": "cd ../.. && vite build --config packages/web-core/vite.app.config.ts",
     "build:harness": "vite build",
-    "test:browser": "vite build && playwright test",
+    "test:browser": "vite build && pnpm run build:app && playwright test",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.page.json"
   },
   "dependencies": {

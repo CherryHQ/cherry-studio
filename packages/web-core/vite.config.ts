@@ -3,10 +3,11 @@ import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { readMigrationFiles } from 'drizzle-orm/migrator'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Plugin, type UserConfig } from 'vite'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const srcMain = resolve(repoRoot, 'src/main')
+const srcRenderer = resolve(repoRoot, 'src/renderer')
 const runtime = (file: string) => resolve(import.meta.dirname, 'src/runtime', file)
 const disabled = (file: string) => resolve(import.meta.dirname, 'src/disabled', file)
 const page = (file: string) => resolve(import.meta.dirname, 'src/page', file)
@@ -42,7 +43,11 @@ export const workerAliases = [
   { find: /^@cherrystudio\/ai-sdk-provider$/, replacement: resolve(repoRoot, 'packages/ai-sdk-provider/src') },
   { find: /^@cherrystudio\/provider-registry$/, replacement: resolve(repoRoot, 'packages/provider-registry/src') },
   { find: /^@main\//, replacement: `${resolve(repoRoot, 'src/main')}/` },
-  { find: /^@shared\//, replacement: `${resolve(repoRoot, 'src/shared')}/` },
+  { find: /^@shared\//, replacement: `${resolve(repoRoot, 'src/shared')}/` }
+]
+
+/** The renderer aliases the harness bridge page needs; the Web app uses the desktop renderer's own. */
+const harnessPageAliases = [
   { find: /^@renderer\//, replacement: `${resolve(repoRoot, 'src/renderer')}/` },
   { find: /^@cherrystudio\/ui$/, replacement: resolve(repoRoot, 'packages/ui/src/index.ts') },
   { find: /^@cherrystudio\/ui\/icons$/, replacement: resolve(repoRoot, 'packages/ui/src/components/icons/index.ts') },
@@ -54,6 +59,7 @@ const pageSources = [
   resolve(repoRoot, 'src/renderer'),
   resolve(repoRoot, 'src/preload'),
   resolve(import.meta.dirname, 'src/page'),
+  resolve(import.meta.dirname, 'app/main.ts'),
   resolve(import.meta.dirname, 'harness/bridge.ts')
 ]
 
@@ -118,8 +124,8 @@ export const workerModuleReplacements: Record<string, string> = {
   'ai/utils/normalizeImageEditInputs.ts': disabled('images.ts'),
   'core/lifecycle/LifecycleManager.ts': disabled('lifecycle.ts'),
   'core/security/validateSender.ts': runtime('validateSender.ts'),
-  'data/api/handlers/apiHandlers.ts': runtime('apiHandlers.ts'),
   'data/bootConfig/BootConfigService.ts': runtime('bootConfig.ts'),
+  'data/migration/v2/index.ts': runtime('migrationV2.ts'),
   'data/services/utils/registryDataPaths.ts': runtime('providerRegistry.ts'),
   'ipc/handlers/ipcHandlers.ts': runtime('ipcHandlers.ts'),
   'services/CopilotService.ts': disabled('providers.ts'),
@@ -129,6 +135,12 @@ export const workerModuleReplacements: Record<string, string> = {
   'utils/builtinSkills.ts': disabled('skills.ts'),
   'utils/downloadAsBase64.ts': disabled('images.ts'),
   'utils/file/index.ts': disabled('files.ts')
+}
+
+/** Renderer modules replaced in the page, keyed by their path under `src/renderer`. */
+const pageModuleReplacements: Record<string, string> = {
+  'components/settingsMenu.ts': page('settingsMenu.ts'),
+  'services/sentry.ts': page('sentry.ts')
 }
 
 /** Imports swapped for one desktop importer only, keyed by the importer's path under `src/main`. */
@@ -146,8 +158,12 @@ export function replaceDesktopModules(): Plugin {
       const importReplacement = workerImportReplacements[relative(srcMain, importer)]?.[id]
       if (importReplacement) return importReplacement
       const resolved = await this.resolve(id, importer, { ...options, skipSelf: true })
-      const replacement = resolved && workerModuleReplacements[relative(srcMain, resolved.id)]
-      return replacement ?? resolved
+      if (!resolved) return resolved
+      const replacement =
+        workerModuleReplacements[relative(srcMain, resolved.id)] ??
+        pageModuleReplacements[relative(srcRenderer, resolved.id)]
+      // A wrapper such as `src/page/settingsMenu.ts` imports the module it replaces.
+      return replacement && replacement !== importer ? replacement : resolved
     }
   }
 }
@@ -155,7 +171,7 @@ export function replaceDesktopModules(): Plugin {
 const MIGRATIONS_ID = 'virtual:cherry-studio-migrations'
 
 /** Bundles the desktop migration chain, read with drizzle's own reader so hashes match the desktop. */
-function migrationsPlugin(): Plugin {
+export function migrationsPlugin(): Plugin {
   return {
     name: 'cherry-studio-migrations',
     resolveId: (id) => (id === MIGRATIONS_ID ? `\0${MIGRATIONS_ID}` : undefined),
@@ -173,7 +189,7 @@ function migrationsPlugin(): Plugin {
  * fails at runtime. Fail the build instead, so a data service that starts using one
  * needs a replacement above before it can ship to the Worker.
  */
-function forbidNodeModules(): Plugin {
+export function forbidNodeModules(): Plugin {
   return {
     name: 'forbid-node-modules',
     enforce: 'pre',
@@ -187,30 +203,39 @@ function forbidNodeModules(): Plugin {
 }
 
 // The non-pooled OPFS VFS needs SharedArrayBuffer, i.e. a cross-origin-isolated page.
-const crossOriginIsolation = {
+export const crossOriginIsolation = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Embedder-Policy': 'require-corp'
 }
 
-export default defineConfig({
-  root: resolve(import.meta.dirname, 'harness'),
-  resolve: { alias: workerAliases },
-  // The desktop preload exposes its API directly when context isolation is off; a page has none.
-  define: { 'process.contextIsolated': 'false' },
-  plugins: [resolveProcessAliases(), replaceDesktopModules(), forbidNodeModules(), migrationsPlugin()],
-  worker: {
-    format: 'es',
-    plugins: () => [resolveProcessAliases(), replaceDesktopModules(), forbidNodeModules(), migrationsPlugin()],
-    // Lazy chunks must not import from the entry file: WebKit evaluates a module Worker's
-    // script again when a chunk imports it, starting a second Core Worker without a database.
-    rolldownOptions: {
-      output: {
-        codeSplitting: {
-          groups: [{ name: 'core', tags: ['$initial'], test: (id) => !id.endsWith('/harness/harnessWorker.ts') }]
-        }
+// The desktop preload exposes its API directly when context isolation is off; a page has none.
+export const pageDefines = { 'process.contextIsolated': 'false' }
+
+const workerEntries = [
+  resolve(import.meta.dirname, 'harness/harnessWorker.ts'),
+  resolve(import.meta.dirname, 'app/coreWorker.ts')
+]
+
+export const coreWorkerConfig = {
+  format: 'es',
+  plugins: () => [resolveProcessAliases(), replaceDesktopModules(), forbidNodeModules(), migrationsPlugin()],
+  // Lazy chunks must not import from the entry file: WebKit evaluates a module Worker's
+  // script again when a chunk imports it, starting a second Core Worker without a database.
+  rolldownOptions: {
+    output: {
+      codeSplitting: {
+        groups: [{ name: 'core', tags: ['$initial'], test: (id: string) => !workerEntries.includes(id) }]
       }
     }
-  },
+  }
+} satisfies UserConfig['worker']
+
+export default defineConfig({
+  root: resolve(import.meta.dirname, 'harness'),
+  resolve: { alias: [...workerAliases, ...harnessPageAliases] },
+  define: pageDefines,
+  plugins: [resolveProcessAliases(), replaceDesktopModules(), forbidNodeModules(), migrationsPlugin()],
+  worker: coreWorkerConfig,
   optimizeDeps: { exclude: ['@sqlite.org/sqlite-wasm'] },
   server: { headers: crossOriginIsolation },
   preview: { headers: crossOriginIsolation },
