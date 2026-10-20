@@ -273,4 +273,52 @@ describe('feishu app registration', () => {
     expect((error as Error).message).toBe('Invalid response from Feishu app registration')
     expect((error as Error).message).not.toContain('secret-sentinel')
   })
+  it('reports response body network failures without exposing their details', async () => {
+    const failed = new Response()
+    vi.spyOn(failed, 'text').mockRejectedValueOnce(new TypeError('secret-body-error'))
+    vi.mocked(net.fetch).mockResolvedValueOnce(failed)
+
+    const error = await registrationBegin('feishu').catch((cause: unknown) => cause)
+
+    expect(error).toMatchObject({ message: 'Feishu app registration request failed' })
+    expect(String(error)).not.toContain('secret-body-error')
+  })
+
+  it.each(['timeout', 'caller', 'deadline'] as const)(
+    'handles %s during poll response body consumption',
+    async (reason) => {
+      const caller = new AbortController()
+      const deadline = new AbortController()
+      const timeout = new AbortController()
+      vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal).mockReturnValueOnce(timeout.signal)
+      vi.mocked(net.fetch)
+        .mockImplementationOnce(async (_url, init) => {
+          const result = new Response()
+          vi.spyOn(result, 'text').mockImplementation(
+            () =>
+              new Promise((_resolve, reject) => {
+                init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+              })
+          )
+          return result
+        })
+        .mockResolvedValueOnce(response({ client_id: 'app-id', client_secret: 'app-secret' }))
+      const polling = registrationPoll('feishu', 'device-code', {
+        interval: 0.001,
+        expiresIn: 120,
+        signal: caller.signal
+      }).catch((cause: unknown) => cause)
+      await vi.advanceTimersByTimeAsync(1)
+      const controller = reason === 'caller' ? caller : reason === 'deadline' ? deadline : timeout
+      controller.abort(new DOMException('stopped', reason === 'caller' ? 'AbortError' : 'TimeoutError'))
+      await vi.advanceTimersByTimeAsync(1)
+
+      if (reason === 'timeout')
+        await expect(polling).resolves.toMatchObject({ appId: 'app-id', appSecret: 'app-secret' })
+      else
+        await expect(polling).resolves.toMatchObject({
+          message: reason === 'caller' ? 'Registration polling aborted' : 'Feishu app registration timed out'
+        })
+    }
+  )
 })
