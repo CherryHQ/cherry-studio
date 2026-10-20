@@ -98,6 +98,7 @@ vi.mock('electron', () => ({
   app: {
     on: vi.fn(),
     removeListener: vi.fn(),
+    getLocale: vi.fn(() => 'en-US'),
     commandLine: {
       hasSwitch: vi.fn(() => false),
       getSwitchValue: vi.fn(() => '')
@@ -544,6 +545,19 @@ describe('WebviewService webview ownership', () => {
 
     expect(guestSession.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
     expect(guestSession.setSpellCheckerLanguages).toHaveBeenCalledWith([])
+  })
+
+  it('enables an owned mini app without clearing its language list', () => {
+    const guest = createContents(7, host, { session: siteSession })
+    guestById.set(7, guest)
+
+    service.setSpellCheckerEnabled(7, true, 'owner')
+
+    // The global language preference defaults to []; writing that empty list
+    // would set kSpellCheckEnable to false on Windows and Linux.
+    expect(siteSession.setSpellCheckerLanguages).toHaveBeenLastCalledWith(['en-US'])
+    expect(siteSession.setSpellCheckerLanguages).not.toHaveBeenCalledWith([])
+    expect(siteSession.setSpellCheckerEnabled).toHaveBeenLastCalledWith(true)
   })
 
   it('leaves agent browser panes to app.browser.spellcheck', () => {

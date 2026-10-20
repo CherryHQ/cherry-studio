@@ -50,11 +50,38 @@ function readEnabled(key: 'app.browser.spellcheck' | 'app.spell_check.enabled'):
   }
 }
 
+/**
+ * Picks the languages a session can actually load. With no explicit selection,
+ * Chromium would use the system locale by itself, but the gate has already
+ * cleared the list, so the locale has to be restored explicitly.
+ */
+function resolveLanguages(target: Electron.Session, requested: readonly string[]): string[] {
+  const available = target.availableSpellCheckerLanguages
+  const supported = requested.filter((language) => available.includes(language))
+  if (supported.length > 0 || requested.length > 0) return supported
+
+  const locale = app.getLocale()
+  if (available.includes(locale)) return [locale]
+  const base = locale.split('-')[0]
+  const match = available.find((language) => language === base || language.startsWith(`${base}-`))
+  return match ? [match] : []
+}
+
 /** Applies a policy to one session. Invalid language codes make Chromium throw, so filter them. */
 export function applySpellcheck(target: Electron.Session, policy: SpellcheckPolicy): void {
-  target.setSpellCheckerEnabled(policy.enabled)
-  const supported = policy.languages.filter((language) => target.availableSpellCheckerLanguages.includes(language))
-  target.setSpellCheckerLanguages(supported)
+  if (!policy.enabled) {
+    // Keep the empty list: it is the only in-process gate against dictionary downloads.
+    target.setSpellCheckerLanguages([])
+    target.setSpellCheckerEnabled(false)
+    return
+  }
+
+  const supported = resolveLanguages(target, policy.languages)
+  // On Windows and Linux `setSpellCheckerLanguages` sets `kSpellCheckEnable` to
+  // `!languages.empty()`, so writing an empty list here would turn the session
+  // off immediately after enabling it. Leave the list untouched instead.
+  if (supported.length > 0) target.setSpellCheckerLanguages(supported)
+  target.setSpellCheckerEnabled(true)
 }
 
 /**

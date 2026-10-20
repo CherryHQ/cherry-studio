@@ -150,6 +150,20 @@ describe('applyWebviewSpellcheckPolicy', () => {
     }
   })
 
+  it('keeps spellcheck enabled when no explicit language is configured', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.spellcheck', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.spell_check.languages', [])
+
+    applyWebviewSpellcheckPolicy()
+
+    for (const partition of BROWSER_PARTITIONS) {
+      const target = session.fromPartition(partition)
+      expect(vi.mocked(target.setSpellCheckerLanguages)).toHaveBeenLastCalledWith(['en-US'])
+      expect(vi.mocked(target.setSpellCheckerLanguages)).not.toHaveBeenCalledWith([])
+      expect(vi.mocked(target.setSpellCheckerEnabled)).toHaveBeenLastCalledWith(true)
+    }
+  })
+
   it('gates every agent browser session when the preference is off', () => {
     applyWebviewSpellcheckPolicy()
 
