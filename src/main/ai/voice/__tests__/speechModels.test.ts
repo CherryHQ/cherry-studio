@@ -10,7 +10,22 @@ import { userModelTable } from '@main/data/db/schemas/userModel'
 import { userProviderTable } from '@main/data/db/schemas/userProvider'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY, type EndpointType } from '@shared/data/types/model'
 
-import { generateModelSpeech, listSpeechModels, listSpeechVoices, resolveSpeechConfiguration } from '../speechModels'
+import { startSpeech } from '../execution'
+import type { SpeechRequest } from '../executionTypes'
+import { listSpeechModels, listSpeechVoices, resolveSpeechConfiguration } from '../speechModels'
+
+async function generateModelSpeech(
+  modelId: SpeechRequest['modelId'],
+  text: string,
+  options: SpeechRequest['options'],
+  signal: AbortSignal
+) {
+  const execution = startSpeech({ modelId, input: { kind: 'text', text }, output: 'audio', options }, signal)
+  const result = await execution.output
+  await execution.closed
+  if (result.kind !== 'audio') throw new Error('Cloud speech must return complete audio')
+  return result
+}
 
 const pcm = Buffer.from([0, 0, 255, 127, 0, 128, 1, 0])
 function geminiResponse(mimeType = 'audio/L16;codec=pcm;rate=24000', finishReason = 'STOP') {
@@ -278,6 +293,44 @@ describe('configured cloud speech', () => {
       expect(Buffer.from(result.audio).toString('ascii', 0, 4)).toBe('RIFF')
     }
   )
+
+  it('rejects streaming for finite cloud models before making a request', () => {
+    expect(() =>
+      startSpeech({
+        modelId: 'speech-openai::tts-1',
+        input: { kind: 'text', text: 'Hello' },
+        output: 'pcm-stream',
+        options: { voice: 'nova' }
+      })
+    ).toThrow('unsupported')
+    expect(listSpeechModels().find(({ id }) => id === 'speech-openai::tts-1')?.voiceCapabilities).toEqual({
+      speech: [{ input: 'text', output: 'audio' }]
+    })
+  })
+
+  it('cancels an in-flight cloud execution and waits for the request to settle', async () => {
+    const started = Promise.withResolvers<AbortSignal>()
+    vi.spyOn(net, 'fetch').mockImplementation(async (_url, init) => {
+      const signal = init?.signal
+      if (!signal) throw new Error('Cloud synthesis requires an abort signal')
+      started.resolve(signal)
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    const execution = startSpeech({
+      modelId: 'speech-openai::tts-1',
+      input: { kind: 'text', text: 'Hello' },
+      output: 'audio',
+      options: { voice: 'nova' }
+    })
+    const rejected = expect(execution.output).rejects.toBeDefined()
+    const signal = await started.promise
+    await execution.cancel()
+    await rejected
+    expect(signal.aborted).toBe(true)
+    await expect(execution.closed).resolves.toBeUndefined()
+  })
 
   it('discards a cloud response arriving after cancellation', async () => {
     const controller = new AbortController()

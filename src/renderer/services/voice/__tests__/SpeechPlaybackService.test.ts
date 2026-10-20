@@ -105,7 +105,7 @@ class FakeVoiceService {
       result: Promise.resolve({
         sessionId: id,
         requestId,
-        output: { id: `file-${index}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+        output: { kind: 'audio', id: `file-${index}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
       })
     }
   })
@@ -229,7 +229,7 @@ describe('SpeechPlaybackService planning and playback', () => {
       expect(voice.generateSpeech).not.toHaveBeenCalled()
       expect(service.getSnapshot().phase).toBe('idle')
       await expect(service.start(baseInput)).resolves.toEqual({ status: 'started' })
-      expect(service.getSnapshot().phase).toBe('playing')
+      await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
       await service.stop()
     }
   )
@@ -271,7 +271,12 @@ describe('SpeechPlaybackService planning and playback', () => {
           sessionId,
           requestId,
           resolved: { modelId: 'local-voice::apple-system-tts', voice: selected, language: 'zh-CN', speed: 1 },
-          output: { id: `file-${synthesizedVoices.length}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: {
+            kind: 'audio',
+            id: `file-${synthesizedVoices.length}`,
+            url: 'cherry-media://audio/output',
+            mimeType: 'audio/wav'
+          }
         })
       }
     })
@@ -364,7 +369,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(audios[0].src).toBe('')
     expect(voice.discardSession).toHaveBeenCalledWith(sessionId)
     await service.start(baseInput)
-    expect(service.getSnapshot().phase).toBe('playing')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     await service.stop()
   })
 
@@ -404,7 +409,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     resolveOutput({
       sessionId,
       requestId,
-      output: { id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+      output: { kind: 'audio', id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
     })
     await aborted
     resolveStop()
@@ -430,7 +435,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     resolve({
       sessionId,
       requestId,
-      output: { id: 'file-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+      output: { kind: 'audio', id: 'file-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
     })
     await starting
 
@@ -502,7 +507,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
     expect(audios[0].src).toBe('')
     await service.start(baseInput)
-    expect(service.getSnapshot().phase).toBe('playing')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     await service.stop()
   })
 
@@ -534,7 +539,7 @@ describe('SpeechPlaybackService planning and playback', () => {
       if (cleanupFails) await service.stop()
       expect(voice.getSnapshot().phase).toBe('idle')
       await service.start(baseInput)
-      expect(service.getSnapshot().phase).toBe('playing')
+      await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
       await service.stop()
     }
   )
@@ -637,7 +642,7 @@ describe('SpeechPlaybackService planning and playback', () => {
       finishedAudio.dispatchEvent(new Event('ended'))
 
       await vi.waitFor(() => expect(finishedAudio.src).toBe(''))
-      expect(voice.releaseOutput).toHaveBeenCalledWith({ sessionId, outputId: 'file-1' })
+      await vi.waitFor(() => expect(voice.releaseOutput).toHaveBeenCalledWith({ sessionId, outputId: 'file-1' }))
       if (chunks.length === 1) {
         await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('idle'))
         expect(voice.getSnapshot().phase).toBe('idle')
@@ -671,7 +676,7 @@ describe('SpeechPlaybackService planning and playback', () => {
           resolve({
             sessionId,
             requestId,
-            output: { id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+            output: { kind: 'audio', id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
           })
       })
     }))
@@ -701,7 +706,7 @@ describe('SpeechPlaybackService planning and playback', () => {
           resolve({
             sessionId,
             requestId,
-            output: { id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+            output: { kind: 'audio', id: 'output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
           })
       })
     }))
@@ -714,7 +719,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     await starting
 
     expect(audios[0].play).toHaveBeenCalledTimes(1)
-    expect(service.getSnapshot().phase).toBe('playing')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     expect(voice.getSnapshot()).toMatchObject({ phase: 'playing', playback: { pendingCommand: null } })
   })
 
@@ -817,7 +822,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     expect(service.getSnapshot().phase).toBe('failed')
     expect(service.canRetry(sessionId)).toBe(true)
     await service.retry()
-    expect(service.getSnapshot().phase).toBe('playing')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     expect(audios.at(-1)?.paused).toBe(false)
     expect(voice.generateSpeech).toHaveBeenCalledTimes(1)
     await service.stop()
@@ -838,7 +843,7 @@ describe('SpeechPlaybackService planning and playback', () => {
     await service.retry()
 
     expect(service.canRetry(sessionId)).toBe(false)
-    expect(service.getSnapshot().phase).toBe('playing')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     expect(audios[0].src).toBe('')
     expect(audios[1].currentTime).toBe(0)
     expect(audios[1].paused).toBe(false)
@@ -932,7 +937,7 @@ describe('SpeechPlaybackService planning and playback', () => {
       await started
       expect(audios).toHaveLength(2)
       expect(audios[1].paused).toBe(false)
-      expect(service.getSnapshot().phase).toBe('playing')
+      await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
       completion.resolve()
       await service.pause()
       expect(service.getSnapshot().phase).toBe('paused')
@@ -1231,7 +1236,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
     expect(await starting).toMatchObject({ reason: 'aborted' })
     oldAudio.dispatchEvent(new Event('error'))
     oldAudio.dispatchEvent(new Event('ended'))
-    expect(service.getSnapshot().phase).toBe('playing')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
     expect(voice.getSnapshot().phase).toBe('playing')
     expect(audios[1].paused).toBe(false)
     expect(voice.releaseOutput).not.toHaveBeenCalled()
@@ -1275,7 +1280,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
 
     ownerWindow.dispatchEvent(new Event('visibilitychange'))
     expect(audios[0].pause).not.toHaveBeenCalled()
-    expect(service.getSnapshot().phase).toBe('playing')
+    await vi.waitFor(() => expect(service.getSnapshot().phase).toBe('playing'))
 
     ownerWindow.dispatchEvent(new Event('beforeunload'))
     await vi.waitFor(() => {
@@ -1341,7 +1346,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
         result: Promise.resolve({
           sessionId: newSessionId,
           requestId,
-          output: { id: 'new-output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: { kind: 'audio', id: 'new-output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         })
       }))
     const oldStart = service.start(baseInput)
@@ -1383,7 +1388,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
       result: Promise.resolve({
         sessionId: newSessionId,
         requestId,
-        output: { id: 'new-output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+        output: { kind: 'audio', id: 'new-output', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
       })
     }))
 
@@ -1515,7 +1520,7 @@ describe('SpeechPlaybackService ownership and lifecycle', () => {
 
     await service.retry(sessionId)
 
-    expect(service.getSnapshot()).toMatchObject({ phase: 'playing' })
+    await vi.waitFor(() => expect(service.getSnapshot()).toMatchObject({ phase: 'playing' }))
     expect(voice.reportPlayback).toHaveBeenLastCalledWith(expect.objectContaining({ sessionId, phase: 'playing' }))
   })
 

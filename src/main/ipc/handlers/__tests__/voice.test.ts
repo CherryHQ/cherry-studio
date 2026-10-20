@@ -247,7 +247,9 @@ describe('Voice handlers through real IpcRouter', () => {
   it.each([
     ['an out-of-range speed', { speed: 2.01 }],
     ['a non-finite speed', { speed: Number.POSITIVE_INFINITY }],
-    ['a transcription model', { modelId: 'local-voice::apple-system-asr' }]
+    ['a model id without a provider', { modelId: 'tts-1' }],
+    ['an empty provider id', { modelId: '::tts-1' }],
+    ['an empty model id', { modelId: 'openai::' }]
   ])('rejects speech input containing %s before invoking the handler', async (_label, invalid) => {
     await expectValidationFailure(
       router.dispatch('ai.speech.generate', { ...input, ...invalid }, { senderId: 'owner' })

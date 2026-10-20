@@ -3,10 +3,9 @@ import * as z from 'zod'
 import {
   APPLE_ASR_MODEL_ID,
   FUNASR_MODEL_ID,
+  QWEN3_ASR_MODEL_ID,
   LOCAL_VOICE_MODEL_IDS,
-  type LocalSpeechModelId,
-  type LocalTranscriptionModelId,
-  type VoiceModelLookup,
+  VoiceModelSupport,
   TranscriptionLanguageSource,
   MAX_SPEECH_SPEED,
   MIN_SPEECH_SPEED,
@@ -15,12 +14,24 @@ import {
   WINDOWS_ASR_MODEL_ID
 } from '@shared/ai/localVoice'
 import type { VoiceModelDescriptor } from '@shared/ai/speech'
+import { SpeechInputKind, SpeechOutputKind, TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
+import type { SpeechStreamEvent, TranscriptionStreamEvent } from '@shared/ai/voice'
 import { LOCAL_MODEL_DOWNLOAD_RESULTS } from '@shared/data/presets/localModel'
 import { FileEntryIdSchema, InternalEntrySchema } from '@shared/data/types/file'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { voiceErrorCodes } from '@shared/ipc/errors/voice'
 
 import { defineRoute } from '../define'
+
+const voiceCapabilities = z.strictObject({
+  speech: z.array(z.strictObject({ input: z.enum(SpeechInputKind), output: z.enum(SpeechOutputKind) })).optional(),
+  transcription: z
+    .array(z.strictObject({ input: z.enum(TranscriptionInputKind), output: z.enum(TranscriptionOutputKind) }))
+    .optional()
+})
+const voiceModelDescriptor: z.ZodType<VoiceModelDescriptor> = z
+  .custom<VoiceModelDescriptor>()
+  .and(z.object({ voiceCapabilities }))
 
 const languageTag = z
   .string()
@@ -48,11 +59,15 @@ const sourceEntityId = z
 const sessionAdmission = request.extend({ sourceEntityId: sourceEntityId.optional() })
 const abort = session.extend({ requestId: z.uuid() })
 const modelId = z.enum(LOCAL_VOICE_MODEL_IDS)
-const asrModelId = z.enum([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID, FUNASR_MODEL_ID])
+const asrModelId = z.enum([APPLE_ASR_MODEL_ID, WINDOWS_ASR_MODEL_ID, FUNASR_MODEL_ID, QWEN3_ASR_MODEL_ID])
 const speechInput = sessionAdmission
   .extend({
     modelId: UniqueModelIdSchema.optional(),
     text: z.string().trim().min(1).max(10_000),
+    preferStream: z.boolean().optional(),
+    textStream: z.literal(true).optional(),
+    remainingText: z.array(z.string().trim().min(1).max(10_000)).max(1000).optional(),
+    retryAttemptId: z.number().int().positive().optional(),
     voice: z.string().min(1).max(256).optional(),
     preferenceResolution: z.literal(true).optional(),
     language,
@@ -138,6 +153,8 @@ export type VoiceSessionEvent =
     }
 
 export type VoiceEventSchemas = {
+  'ai.voice.transcript_event': TranscriptionStreamEvent
+  'ai.voice.stream_event': SpeechStreamEvent
   'ai.voice.session_event': VoiceSessionEvent
 }
 
@@ -157,7 +174,8 @@ export const voiceRequestSchemas = {
     output: z.strictObject({
       modelId: asrModelId.optional(),
       language: transcriptionLanguage.optional(),
-      status: voiceStatus
+      status: voiceStatus,
+      capabilities: voiceCapabilities.optional()
     })
   }),
   'ai.voice.speech.resolve': defineRoute({
@@ -188,12 +206,22 @@ export const voiceRequestSchemas = {
     output: z.strictObject({
       sessionId: z.uuid(),
       requestId: z.uuid(),
-      output: z.strictObject({
-        id: z.uuid(),
-        url: z.url(),
-        mimeType: z.literal('audio/wav'),
-        playbackRate: z.number().min(MIN_SPEECH_SPEED).max(MAX_SPEECH_SPEED).optional()
-      }),
+      output: z.discriminatedUnion('kind', [
+        z.strictObject({
+          kind: z.literal(SpeechOutputKind.Audio),
+          id: z.uuid(),
+          url: z.url(),
+          mimeType: z.literal('audio/wav'),
+          playbackRate: z.number().min(MIN_SPEECH_SPEED).max(MAX_SPEECH_SPEED).optional()
+        }),
+        z.strictObject({
+          kind: z.literal(SpeechOutputKind.PcmStream),
+          id: z.uuid(),
+          sampleRate: z.number().int().positive(),
+          channels: z.number().int().positive(),
+          capacityFrames: z.number().int().positive()
+        })
+      ]),
       playback: playbackStateSchema,
       resolved: z
         .strictObject({
@@ -205,7 +233,50 @@ export const voiceRequestSchemas = {
         .optional()
     })
   }),
+  'ai.voice.text.write': defineRoute({
+    input: abort.extend({
+      sequence: revision,
+      event: z.discriminatedUnion('type', [
+        z.strictObject({ type: z.literal('text'), text: z.string().min(1).max(2048) }),
+        z.strictObject({ type: z.literal('flush') })
+      ])
+    }),
+    output: z.void()
+  }),
+  'ai.voice.text.finish': defineRoute({ input: abort.extend({ sequence: revision }), output: z.void() }),
   'ai.speech.abort': defineRoute({ input: abort, output: z.void() }),
+  'ai.voice.stream.attach': defineRoute({ input: abort.extend({ attemptId: revision }), output: z.void() }),
+  'ai.voice.stream.acknowledge': defineRoute({
+    input: abort.extend({ attemptId: revision, frames: revision }),
+    output: z.void()
+  }),
+  'ai.voice.transcription.start': defineRoute({
+    input: request.extend({
+      modelId: asrModelId,
+      language: transcriptionLanguage.optional(),
+      format: z.strictObject({ sampleRate: z.literal(16000), channels: z.literal(1) })
+    }),
+    output: z.strictObject({ text: z.string() })
+  }),
+  'ai.voice.input.write': defineRoute({
+    input: abort.extend({
+      startFrame: z.number().int().nonnegative(),
+      samples: z
+        .instanceof(Float32Array)
+        .refine((samples) => samples.length > 0 && samples.length <= 1600 && samples.every(Number.isFinite))
+    }),
+    output: z.void()
+  }),
+  'ai.voice.input.finish': defineRoute({
+    input: abort.extend({
+      frames: z
+        .number()
+        .int()
+        .positive()
+        .max(16000 * 300)
+    }),
+    output: z.void()
+  }),
   'ai.transcription.generate': defineRoute({
     input: request.extend({
       modelId: asrModelId.optional(),
@@ -246,15 +317,21 @@ export const voiceRequestSchemas = {
   'ai.voice.session.discard': defineRoute({ input: session, output: z.void() }),
   'ai.voice.models.list': defineRoute({
     input: z.void(),
-    output: z.custom<{
-      models: readonly VoiceModelDescriptor[]
-      defaultAsrModelId?: LocalTranscriptionModelId
-      defaultSpeechModelId?: LocalSpeechModelId
-    }>()
+    output: z.object({
+      models: z.array(voiceModelDescriptor).readonly(),
+      defaultAsrModelId: asrModelId.optional(),
+      defaultSpeechModelId: speechModelId.optional()
+    })
   }),
   'ai.voice.model.describe': defineRoute({
     input: z.strictObject({ modelId: z.string().min(1).max(256) }),
-    output: z.custom<VoiceModelLookup>()
+    output: z.union([
+      z.strictObject({ support: z.literal(VoiceModelSupport.UnknownModel), model: z.null() }),
+      z.strictObject({
+        support: z.enum(VoiceModelSupport).exclude(['UnknownModel']),
+        model: voiceModelDescriptor
+      })
+    ])
   }),
   'ai.voice.model.download': defineRoute({
     input: z.strictObject({ modelId }),

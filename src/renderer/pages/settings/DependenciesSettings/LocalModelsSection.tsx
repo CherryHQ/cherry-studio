@@ -25,6 +25,11 @@ type CardNotice = keyof typeof CARD_NOTICE_KEYS
 
 /** Display metadata belongs to the installed model, not its capability. */
 const MODEL_CARDS = {
+  'qwen3-asr-1.7b-8bit': {
+    icon: <Mic className="size-5" />,
+    nameKey: 'settings.voice.model.qwen3_asr',
+    sources: ['Qwen/Qwen3-ASR-1.7B-hf']
+  },
   'kokoro-multi-lang-v1.1': {
     icon: <Volume2 className="size-5" />,
     nameKey: 'settings.voice.model.kokoro_tts',

@@ -21,10 +21,11 @@ import {
 } from '@shared/ai/localVoice'
 import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 
+import { completeSpeechOperation } from '../sdkOperations'
 import type { LocalVoiceStatus, SpeechModelDefinition } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
-import { checkAbort, withScratch } from './nativeSupport'
+import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
+import { withScratch } from './scratch'
 
 const LANGUAGES = ['zh-CN', 'en-US', 'en-GB'] as const
 const VOICES: LocalSpeechVoice[] = [
@@ -149,7 +150,7 @@ export const kokoroSpeechDefinition: SpeechModelDefinition = {
     ]
   }),
   status: (_options, signal) => getKokoroTtsStatus(signal),
-  createModel: createKokoroSpeechModel,
+  speechOperations: [completeSpeechOperation(createKokoroSpeechModel)],
   voices: async (signal) => {
     checkAbort(signal)
     return VOICES

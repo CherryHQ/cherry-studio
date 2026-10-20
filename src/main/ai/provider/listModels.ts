@@ -294,6 +294,7 @@ const ollamaFetcher: ModelFetcher = {
         const capabilities: Model['capabilities'] = []
         if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
         if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+        if (m.capabilities?.includes('embedding')) capabilities.push(MODEL_CAPABILITY.EMBEDDING)
         return toModel(m.name, provider, {
           ownedBy: 'ollama',
           capabilities,

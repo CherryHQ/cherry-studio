@@ -398,7 +398,7 @@ including concurrency preconditions, is part of its idempotency identity.
 | `agent.sessions.list` | `{ agentId?, workspaceId?, ...PageParams }` | `Page<SessionSummary>` |
 | `agent.sessions.get` | `{ sessionId }` | `{ session: SessionSummary }` |
 | `agent.sessions.create` | `{ commandId, agentId, workspace, title? }`; legacy `workspaceId` also accepted | `CommandReceipt` |
-| `agent.messages.list` | `{ sessionId, historyRevision, ...PageParams }` | `Page<Message>` |
+| `agent.messages.list` | `{ sessionId, historyRevision, partsMode?: 'paged', ...PageParams }` | `Page<Message \| MessageSummary>` |
 | `agent.parts.list` | `{ sessionId, messageId, messageRevision, ...PageParams }` | `Page<Part>` |
 | `agent.content.read` | `{ sessionId, contentId, revision, offset, maxBytes }` | `{ contentId, revision, offset, dataBase64, nextOffset, eof, sha256 }` |
 | `agent.messages.send` | `{ commandId, sessionId, text, expectedIdleRevision }` | `CommandReceipt` |
@@ -407,6 +407,15 @@ including concurrency preconditions, is part of its idempotency identity.
 | `agent.interactions.get` | `{ sessionId, interactionId }` | `{ interaction: Interaction }` |
 | `agent.interactions.respond` | `{ commandId, sessionId, interactionId, expectedRevision, expectedExecutionId, inputDigest, response }`; legacy `decision` also accepted | `CommandReceipt` |
 | `agent.commands.get` | `{ commandId }` | `CommandReceipt` |
+
+The optional `agentMessageSummariesVersion: 1` hello capability permits
+`partsMode: 'paged'`. This mode returns metadata-only messages marked
+`partsMode: 'paged'` without `partIds`; fetch all parts with `agent.parts.list`
+using each message's ID and revision. Without the parameter, complete message
+snapshots remain unchanged. Summaries never enter event/checkpoint recovery.
+See [the package contract](../../../packages/remote-protocol/README.md#paged-message-summaries)
+for compatibility and terminal item-size error details. The 64 KiB record ceiling
+still applies; the mode avoids embedding a potentially oversized part-ID index.
 
 `workspace` is `{ kind: 'system' }` or `{ kind: 'registered', id }`. `response` is
 `{ kind: 'approve' }`, `{ kind: 'deny', reason? }`, or `{ kind: 'answer', answers }`,
