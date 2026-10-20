@@ -48,23 +48,23 @@ Cherry Studio is an AI workstation for Windows, macOS, and Linux. Chat with mult
 
 **Agents — work with files, tools, and multi-step tasks.**
 
-![Cherry Studio agent workspace creating a presentation](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/agent-light-en.webp)
+![Cherry Studio agent workspace creating a presentation](.github/images/readme/agent-light-en.webp)
 
 **Conversations — explore ideas with your models and assistants.**
 
-![Cherry Studio conversation displaying a Mermaid chart](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/chat-light-en.webp)
+![Cherry Studio conversation displaying a Mermaid chart](.github/images/readme/chat-light-en.webp)
 
 **Model providers — configure services, API keys, and models in one place.**
 
-![Cherry Studio model provider settings in light mode](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/provider-light-en.webp)
+![Cherry Studio model provider settings in light mode](.github/images/readme/provider-light-en.webp)
 
 **Knowledge bases — organize sources for retrieval and agent workflows.**
 
-![Cherry Studio knowledge base with folders and documents](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/knowledge-light-en.webp)
+![Cherry Studio knowledge base with folders and documents](.github/images/readme/knowledge-light-en.webp)
 
 **Image creation — turn prompts into images and refine your work.**
 
-![Cherry Studio image creation workspace](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/drawing-light-en.webp)
+![Cherry Studio image creation workspace](.github/images/readme/drawing-light-en.webp)
 
 # 🌟 Key Features
 
