@@ -124,6 +124,17 @@ describe('DownloadManagerService recovery', () => {
     expect(picked).toBe(join(dir, 'orphan (1).bin'))
   })
 
+  it('gives concurrent reservations distinct destinations', async () => {
+    const service = new DownloadManagerService()
+    await service._doInit()
+
+    const picked = await Promise.all(
+      Array.from({ length: 20 }, () => internals(service).reservePath(dir, 'same.bin', 'uniquify'))
+    )
+
+    expect(new Set(picked).size).toBe(picked.length)
+  })
+
   it('drops a paused queued task from the pending queue', async () => {
     const { task } = createTask()
     store.setState(task.id, 'queued')

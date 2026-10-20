@@ -27,7 +27,8 @@ export class RequestMethods {
     private readonly now: () => number = Date.now
   ) {}
 
-  record(url: string, method: string): void {
+  record(url: string, method: string | undefined): void {
+    if (!method) return
     if (this.entries.size >= this.limit) this.prune()
     this.entries.set(url, { method: method.toUpperCase(), at: this.now() })
   }
@@ -58,6 +59,13 @@ export class RequestMethods {
     }
   }
 }
+
+/**
+ * Shared by the browser partition policy (writer) and the download takeover
+ * (reader). The policy owns the only `onBeforeRequest` listener on those
+ * sessions, so the takeover must not install a second one.
+ */
+export const browserRequestMethods = new RequestMethods()
 
 /**
  * Only a request without a body can be re-issued by the manager. An unobserved

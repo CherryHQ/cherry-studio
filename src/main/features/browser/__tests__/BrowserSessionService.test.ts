@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { BaseService, Signal } from '@main/core/lifecycle'
+import { browserRequestMethods } from '@main/services/download/requestMethods'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserSessionService } from '../BrowserSessionService'
@@ -323,15 +324,11 @@ describe('Browser download takeover', () => {
   function takeover() {
     const partition = getWebviewPartition(WebviewSecurityProfile.AgentBrowser)
     const target = session.fromPartition(partition)
-    const registered = target.webRequest.onBeforeRequest as unknown as { mock: { calls: unknown[][] } }
-    const listener = registered.mock.calls.filter((call) => typeof call[1] === 'function').at(-1)?.[1] as (
-      details: { url: string; method: string },
-      callback: (response: unknown) => void
-    ) => void
     return {
       partition,
       target,
-      record: (url: string, method: string) => listener({ url, method }, () => {})
+      // The partition policy records methods; the service only reads them.
+      record: (url: string, method: string) => browserRequestMethods.record(url, method)
     }
   }
 

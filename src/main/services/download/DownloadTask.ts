@@ -114,10 +114,7 @@ export class DownloadTask {
           this.ranges.map((range) => this.runSegment(range, handle, controller.signal))
         )
         if (signal.aborted) {
-          this.flush()
-          if (signal.reason === DOWNLOAD_CANCELLED) return 'cancelled'
-          this.options.store.setState(task.id, 'paused')
-          return 'paused'
+          return this.settleAbort(signal)
         }
         const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
         if (failure) {
@@ -216,7 +213,14 @@ export class DownloadTask {
   /** Servers without Range support: one stream from zero, no resume. */
   private async runSingleStream(signal: AbortSignal): Promise<DownloadRunResult> {
     const { probe, fetchImpl, task, store } = this.options
-    const response = await fetchImpl(probe.finalUrl, { redirect: 'follow', signal })
+    let response: Response
+    try {
+      response = await fetchImpl(probe.finalUrl, { redirect: 'follow', signal })
+    } catch (error) {
+      // A pause can land while the request is still waiting for headers.
+      if (!signal.aborted) throw error
+      return this.settleAbort(signal)
+    }
     if (!response.ok || !response.body) throw new Error(`HTTP ${response.status} for ${probe.finalUrl}`)
 
     store.setState(task.id, 'downloading')
@@ -243,10 +247,7 @@ export class DownloadTask {
         reader.releaseLock()
       }
       if (signal.aborted) {
-        this.flush()
-        if (signal.reason === DOWNLOAD_CANCELLED) return 'cancelled'
-        store.setState(task.id, 'paused')
-        return 'paused'
+        return this.settleAbort(signal)
       }
       await handle.sync()
     } finally {
@@ -260,7 +261,18 @@ export class DownloadTask {
   }
 
   private totalReceived(): number {
+    // A single-stream task carries a placeholder range (0-0), so its segment
+    // length is zero and clamping to it would report no progress at all.
+    if (!this.options.probe.supportsRanges) return this.received[0] ?? 0
     return receivedBytes(this.ranges, this.received)
+  }
+
+  /** Records how an aborted run settled, keeping a user cancel terminal. */
+  private settleAbort(signal: AbortSignal): DownloadRunResult {
+    this.flush()
+    if (signal.reason === DOWNLOAD_CANCELLED) return 'cancelled'
+    this.options.store.setState(this.options.task.id, 'paused')
+    return 'paused'
   }
 
   private maybeFlush(): void {
