@@ -113,7 +113,9 @@ function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | u
       const mediaType = imageDataUrlMediaType(`${scheme}${url.slice(prefix.length)}`)
       return mediaType ? { type: 'file', mediaType, url } : undefined
     }
-    if (/\s/.test(url)) return undefined
+    if (scheme === 'file://') {
+      if (/[\t\n\r]/.test(url)) return undefined
+    } else if (/\s/.test(url)) return undefined
     try {
       const parsed = new URL(url)
       const afterPrefix = url.slice(prefix.length)

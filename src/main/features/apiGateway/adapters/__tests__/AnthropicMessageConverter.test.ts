@@ -59,6 +59,12 @@ const unusableImageSources = [
   { name: 'file URL without a path', source: { type: 'url' as const, url: 'file://' } },
   { name: 'file URL with only a host', source: { type: 'url' as const, url: 'file://localhost' } },
   { name: 'file URL with only a query', source: { type: 'url' as const, url: 'file://?image=a.png' } },
+  { name: 'file URL with a tab in its path', source: { type: 'url' as const, url: 'file:///tmp/a\tb.png' } },
+  { name: 'file URL with a newline in its path', source: { type: 'url' as const, url: 'file:///tmp/a\nb.png' } },
+  {
+    name: 'file URL with a carriage return in its path',
+    source: { type: 'url' as const, url: 'file:///tmp/a\rb.png' }
+  },
   { name: 'non-image data URL', source: { type: 'url' as const, url: 'data:text/plain,hello' } },
   { name: 'data URL without a media type', source: { type: 'url' as const, url: 'data:,hello' } },
   { name: 'invalid base64 data URL', source: { type: 'url' as const, url: 'data:image/png;base64,not-valid-base64' } },
@@ -250,7 +256,10 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     ['https://example.com/a.png', 'image/png'],
     ['HTTPS://Example.com/a.png', 'image/png'],
     ['http://Example.com/a%20b.png?token=AbC', 'image/png'],
-    ['file:///tmp/a.png', 'image/png']
+    ['file:///tmp/a.png', 'image/png'],
+    ['file:///tmp/Screenshot 2026-10-17.png', 'image/png'],
+    ['FILE:///tmp/Screenshot 2026-10-17.png', 'image/png'],
+    ['file:///tmp/Screenshot%202026-10-17.png', 'image/png']
   ])('keeps a valid image URL in top-level and tool_result content: %s', (url, mediaType) => {
     const source = { type: 'url' as const, url }
     const msgs = converter.toUIMessages(
