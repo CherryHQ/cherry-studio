@@ -1,0 +1,52 @@
+# Agent Note: Copy Knowledge sources outside the base mutation lock
+
+Status: proposed
+
+English | [中文](2026-10-21-knowledge-async-source-copy.zh.md)
+
+## Problem
+
+The [Knowledge README](../../../../src/main/features/knowledge/README.md) requires handlers to hold the per-base mutation lock (`KeyedMutex.runExclusive`) only around the mutation section, never across slow I/O. Two import paths copy user files while holding it:
+
+- `KnowledgeIngestionService.addItems` copies every picked file into `raw/` inside the lock and resolves only after the last byte lands.
+- `knowledge.prepare-root` scans a directory and copies the whole tree inside one lock section (`scanRootItem`).
+
+The lock has no timeout and guards almost every write on the base: another add, item and base deletion, the final vector write and status flip of `knowledge.index-documents`, URL and note snapshot writes, the hand-off from file processing to indexing, `knowledge.delete-subtree`, and the reindex reset. A slow copy stalls all of them, and the stall grows with total bytes rather than file count. Once #22089 removes the 20-source cap, one pick of hundreds of large files can hold the lock for minutes. Lock waits also count toward job timeouts (2 minutes for `knowledge.check-file-processing-result`, 30 for `knowledge.index-documents`); what a timed-out job does once it finally acquires the lock has not been verified.
+
+Users see the same cost directly. A direct file pick shows nothing until every copy finishes. After a same-name conflict is resolved, the conflict dialog cannot be closed until then. One unreadable file fails the add and rolls back the whole selection.
+
+Reindex already follows the rule: it copies the user's original into a prepared temp file off the lock and only commits the rename inside it (`reindexSubtreeJobHandler`).
+
+## Proposal
+
+Apply the reindex pattern to both import paths so the lock covers only name reservation, row writes, and the final commit.
+
+- **File add.** Inside the lock, `addItems` keeps resolving conflicts (including the `replace` purge), reserving `raw/` names, and creating rows in `processing`, but copies no bytes. After the lock it enqueues one copy job per file item on the base queue and resolves. Name reservation is already derived from item rows, so a reserved name stays claimed before its bytes exist.
+- **Copy job.** A new Knowledge job copies the item's source into a prepared temp file next to its reserved path, off the lock. Inside the lock it then confirms the item is still live, commits the rename, and schedules the item's next stage (file processing or indexing). The job is listed in `KNOWLEDGE_JOB_TYPES` and carries `itemId`, so subtree and base deletion cancel it like any other Knowledge job. It declares `recovery: 'abandon'` and reuses the shared `onSettled` failure path: a failed copy marks only its own item failed with the reason, and an interrupted copy becomes `indexing_interrupted`, reindexable from the original source.
+- **Directory import.** `knowledge.prepare-root` still pins the container's `raw/` prefix inside the lock, scans and copies outside it, then re-checks that the container is live and creates the child rows inside the lock. Directory copy progress keeps its current display.
+- **Unchanged.** IPC shapes, item statuses, and the database schema (no migration); same-name conflict detection and the rename/replace outcomes; Knowledge base restore, which keeps copying inside its call because its target base is newly created (the lock blocks nothing else) and it relies on all-or-nothing rollback.
+
+Out of scope: per-file copy progress and aggregate import progress in the UI; moving the `replace` purge after the new copy succeeds (after this change a failed copy leaves a visible, reindexable item instead of an error with nothing added); and the file-processing 30-minute limit counting queue time.
+
+## Alternatives considered
+
+- Keep copying in `addItems` and chunk the selection in the renderer: releases the lock between chunks but still holds it for each chunk's copy, keeps the silent wait, and needs a new conflict-precheck route because `detect` writes immediately when a chunk has no conflict.
+- Copy outside the lock but still inside `addItems`: frees the lock, but the caller still waits for every byte and one failure still fails the whole add.
+- Create rows as `idle` and give the copy job `recovery: 'retry'`: copying spends nothing, so resuming automatically after a crash is attractive. Rejected for now because nothing in the boot sweep, reindex admission, or the renderer moves an `idle` item forward, so a copy job lost for any reason would strand its row; `abandon` keeps the recovery story of every other indexing job.
+
+## Acceptance criteria
+
+- AC1 — An interactive file add resolves before any file bytes are copied, and the new items are listed while their copies are still running. (verification: unit)
+- AC2 — While a file or directory copy is running, a delete, another add, and an index job's final write on the same base complete without waiting for the copy to finish. (verification: unit)
+- AC3 — A file whose copy fails because its source is missing or unreadable is marked failed with the reason, while the other files from the same add are copied and indexed. (verification: unit)
+- AC4 — Deleting a copying item, or its knowledge base, cancels the copy and leaves no file of that item under the base's `raw/` directory. (verification: unit)
+- AC5 — A copy interrupted by an app quit or crash leaves the item failed with `indexing_interrupted`, and reindexing it copies and indexes it. (verification: unit)
+- AC6 — Same-name conflict detection, the rename/replace outcomes, and restore's all-or-nothing behavior are unchanged. (verification: unit)
+- AC7 — In a packaged build, importing several hundred large files lists them at once, and deleting another item in the same base during the copy takes effect without waiting for the copy. (verification: packaged artifact)
+
+## Risks
+
+- The window between add and copy grows from zero to the queue wait, so a source moved or deleted in between fails that item instead of the whole add.
+- Copy jobs share the base queue's five slots with indexing, so a large import delays other indexing in the same base (throughput, not peak load) and adds one job row per file until JobManager GC prunes it.
+- `processing` now also covers waiting to copy and copying; the UI cannot tell these apart until the progress follow-up.
+- Code that assumes a file is on disk when `addItems` resolves must move behind the copy job's hand-off; the known cases are the scheduling loop and the file-processing start.
