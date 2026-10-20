@@ -128,4 +128,44 @@ describe('createMinimaxProvider', () => {
     )
     expect(result.images).toEqual([image])
   })
+
+  it.each([
+    ['https://api.minimax.io/v1', 'https://api.minimax.io/v1/voice_design'],
+    ['https://api.minimaxi.com/v1', 'https://api.minimaxi.com/v1/voice_design']
+  ])('posts voice design requests through %s', async (baseURL, voiceDesignUrl) => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ voice_id: 'CustomVoice001', base_resp: { status_code: 0 } }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL, fetch })
+
+    const result = await provider.designVoice({ prompt: 'A calm, warm narrator', voiceId: 'CustomVoice001' })
+
+    expect(fetch).toHaveBeenCalledWith(
+      voiceDesignUrl,
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'Content-Type': 'application/json' }) })
+    )
+    expect(JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+      prompt: 'A calm, warm narrator',
+      voice_id: 'CustomVoice001'
+    })
+    expect(result).toEqual({ voiceId: 'CustomVoice001' })
+  })
+
+  it('surfaces voice design API errors', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ base_resp: { status_code: 1004, status_msg: 'invalid voice ID' } }), {
+        headers: { 'x-request-id': 'request-123' },
+        status: 200
+      })
+    )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', fetch })
+
+    await expect(provider.designVoice({ prompt: 'A calm narrator', voiceId: 'CustomVoice001' })).rejects.toMatchObject({
+      message: 'invalid voice ID',
+      responseHeaders: { 'x-request-id': 'request-123' }
+    })
+  })
 })

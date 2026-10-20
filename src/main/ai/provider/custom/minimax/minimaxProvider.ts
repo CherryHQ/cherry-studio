@@ -4,6 +4,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
 import { MinimaxImageModel } from './minimaxImageModel'
+import { MinimaxVoiceDesign, type MinimaxVoiceDesignOptions, type MinimaxVoiceDesignResult } from './minimaxVoiceDesign'
 
 export const MINIMAX_PROVIDER_NAME = 'minimax' as const
 
@@ -22,6 +23,7 @@ export interface MinimaxProvider extends ProviderV3 {
   embeddingModel(modelId: string): EmbeddingModelV3
   textEmbeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
+  designVoice(options: MinimaxVoiceDesignOptions): Promise<MinimaxVoiceDesignResult>
 }
 
 export function createMinimaxProvider(settings: MinimaxProviderSettings = {}): MinimaxProvider {
@@ -66,6 +68,8 @@ export function createMinimaxProvider(settings: MinimaxProviderSettings = {}): M
       headers,
       fetch: customFetch
     })
+  const voiceDesign = new MinimaxVoiceDesign({ url: ({ path }) => url({ path, modelId: '' }), headers, fetch: customFetch })
+  provider.designVoice = (options: MinimaxVoiceDesignOptions) => voiceDesign.design(options)
 
   return provider
 }
