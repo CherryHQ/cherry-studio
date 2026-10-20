@@ -214,7 +214,6 @@ export function createSyncExternalSourceJobHandler(
           jobId: event.jobId,
           finishedAt: dependencies.now(),
           outcome,
-          scannedCount: summary.scannedCount,
           indexedCount: summary.indexedCount,
           unchangedCount: summary.unchangedCount,
           skippedCount: summary.skippedCount,

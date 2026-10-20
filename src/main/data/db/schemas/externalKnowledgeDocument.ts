@@ -15,9 +15,6 @@ export const externalKnowledgeDocumentTable = sqliteTable(
       .notNull()
       .references(() => externalKnowledgeSourceTable.id, { onDelete: 'cascade' }),
     remoteObjectId: text().notNull(),
-    canonicalNodeId: text().notNull(),
-    parentNodeId: text(),
-    relativeBreadcrumb: text({ mode: 'json' }).$type<string[]>().notNull(),
     title: text().notNull(),
     originalUrl: text().notNull(),
     remoteRevision: text(),
@@ -41,17 +38,11 @@ export const externalKnowledgeDocumentTable = sqliteTable(
     check(
       'external_knowledge_document_identity_nonempty_check',
       sql`length(trim(${t.remoteObjectId})) > 0
-          AND length(trim(${t.canonicalNodeId})) > 0
-          AND (${t.parentNodeId} IS NULL OR length(trim(${t.parentNodeId})) > 0)
           AND length(trim(${t.title})) > 0
           AND length(trim(${t.originalUrl})) > 0
           AND (${t.remoteRevision} IS NULL OR length(trim(${t.remoteRevision})) > 0)
           AND (${t.contentHash} IS NULL OR length(trim(${t.contentHash})) > 0)
           AND (${t.currentWarning} IS NULL OR length(trim(${t.currentWarning})) > 0)`
-    ),
-    check(
-      'external_knowledge_document_breadcrumb_check',
-      sql`json_valid(${t.relativeBreadcrumb}) AND json_type(${t.relativeBreadcrumb}) = 'array'`
     )
   ]
 )

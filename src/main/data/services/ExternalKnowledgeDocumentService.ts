@@ -36,14 +36,7 @@ export type ExternalKnowledgeDocumentVersion = Pick<
 
 export type ExternalKnowledgeDocumentSyncMetadata = Pick<
   ExternalKnowledgeDocumentRow,
-  | 'canonicalNodeId'
-  | 'parentNodeId'
-  | 'relativeBreadcrumb'
-  | 'title'
-  | 'originalUrl'
-  | 'remoteRevision'
-  | 'lastSeenAt'
-  | 'currentWarning'
+  'title' | 'originalUrl' | 'remoteRevision' | 'lastSeenAt' | 'currentWarning'
 >
 
 export type ExternalKnowledgeDocumentWarningMetadata = Omit<ExternalKnowledgeDocumentSyncMetadata, 'remoteRevision'>
@@ -221,14 +214,10 @@ export class ExternalKnowledgeDocumentService {
     expected: ExternalKnowledgeDocumentVersion,
     metadata: ExternalKnowledgeDocumentWarningMetadata
   ): ExternalKnowledgeDocument | null {
-    const { canonicalNodeId, parentNodeId, relativeBreadcrumb, title, originalUrl, lastSeenAt, currentWarning } =
-      metadata
+    const { title, originalUrl, lastSeenAt, currentWarning } = metadata
     const [row] = tx
       .update(externalKnowledgeDocumentTable)
       .set({
-        canonicalNodeId,
-        parentNodeId,
-        relativeBreadcrumb,
         title,
         originalUrl,
         lastSeenAt,

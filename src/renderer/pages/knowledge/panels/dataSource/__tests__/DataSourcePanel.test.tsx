@@ -594,7 +594,6 @@ describe('DataSourcePanel', () => {
       lastStartedAt: null,
       lastFinishedAt: null,
       lastOutcome: null,
-      lastScannedCount: null,
       lastIndexedCount: null,
       lastUnchangedCount: null,
       lastSkippedCount: null,

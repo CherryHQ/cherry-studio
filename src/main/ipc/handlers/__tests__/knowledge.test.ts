@@ -75,7 +75,6 @@ describe('knowledgeHandlers', () => {
     lastStartedAt: '2026-09-20T00:00:00.000Z',
     lastFinishedAt: null,
     lastOutcome: null,
-    lastScannedCount: null,
     lastIndexedCount: null,
     lastUnchangedCount: null,
     lastSkippedCount: null,
