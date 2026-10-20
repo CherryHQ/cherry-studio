@@ -101,6 +101,15 @@ describe('approval decisions (D34)', () => {
     })
     expect(decideApproval(gateCall('read'), host({ category: 'read' }), 'default', 'stream', plan).kind).toBe('allow')
   })
+
+  // Catches plan mode honoured only through a `cherry.plan` record: in the host's `plan` permission mode with no record,
+  // an auto-approved edit ran (D37, `planActive`).
+  it('blocks edits in the plan permission mode without a plan record', () => {
+    expect(
+      decideApproval(gateCall('write'), host({ category: 'edit', autoApproved: true }), 'plan', 'stream', undefined)
+    ).toEqual({ kind: 'block', reason: PLAN_BLOCK })
+    expect(decideApproval(gateCall('read'), host({ category: 'read' }), 'plan', 'stream', undefined).kind).toBe('allow')
+  })
 })
 
 describe('answers and repeats', () => {
