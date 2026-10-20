@@ -244,6 +244,61 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('drains a tool disable that was still being applied when the fallback started', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    let releaseConnect!: () => void
+    const driver = {
+      connect: vi.fn(
+        () =>
+          new Promise<AgentRuntimeConnection>((resolve) => {
+            releaseConnect = () => resolve(fallback as unknown as AgentRuntimeConnection)
+          })
+      )
+    }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+
+    // The user disables `write` while the live turn is executing. The save reaches the old
+    // connection, whose reconcile does not settle until its skill discovery finishes.
+    let releaseSave!: () => void
+    primary.reconcile.mockImplementation(async () => {
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: ['write'] })
+      await new Promise<void>((resolve) => {
+        releaseSave = resolve
+      })
+      return 'patched'
+    })
+    const inFlightSave = wrapper.reconcile({ modelId: 'primary::model' })
+    // The save has applied the disable but has not reported back yet.
+    await vi.waitFor(() => expect(primary.getPermissionPolicy().disabledTools).toEqual(['write']))
+
+    // A content-free 503 lands while that save is still awaiting discovery.
+    primary.events.push({ type: 'error', error: new Error('HTTP 503 service overloaded') })
+    // The fallback must not capture the turn policy until the pending save's verdict is in, so it
+    // waits here — releasing it is what lets the replacement startup reach its connect.
+    await vi.waitFor(() => expect(releaseSave).toBeTypeOf('function'))
+    releaseSave()
+    await inFlightSave
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+
+    releaseConnect()
+    const iterator = wrapper.events[Symbol.asyncIterator]()
+    await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'chunk' } })
+
+    // The replacement prefers its explicit old policy over the row, and the host defers the live
+    // reconcile's rebuild verdict — nothing else repairs this handoff. Without draining the
+    // already-pending save, the replay executes the newly disabled tool.
+    expect(fallback.reconcile).toHaveBeenCalledWith({ modelId: 'backup::model', carriedDisabledTools: ['write'] })
+    expect(fallback.send).toHaveBeenCalled()
+    await wrapper.close()
+  })
+
   it('replays the turn under the prompt it was admitted with, not one saved mid-turn', async () => {
     const primary = fakeConnection()
     primary.getPromptPolicy = vi.fn(() => ({ instructions: 'A' }))

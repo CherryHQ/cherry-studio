@@ -148,6 +148,14 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private replacementInFlight = false
   /** The latest reconcile the replacement has not seen yet; re-applied before its replay is admitted. */
   private retainedReconcile?: Parameters<AgentRuntimeConnection['reconcile']>[0]
+  /**
+   * Reconciles started before `replacementInFlight` was set and still awaiting their verdicts.
+   * Their tightening lands only when each resolves, so a fallback beginning inside that window
+   * would otherwise capture the old policy and let the replay execute the tool the save is
+   * disabling. Tracked as promises, not inputs, so a settled save drops out instead of being
+   * re-applied.
+   */
+  private readonly pendingFallbackReconciles: Promise<unknown>[] = []
   /** Set once the replacement's replay is submitted, until the swap publishes it as `current`.
    *  Pi and DSH can begin executing that prompt immediately, so saves landing in this window must
    *  reach it at once — retaining them for the post-swap re-apply would let a newly disabled tool
@@ -241,7 +249,14 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       )
       return forwarded
     }
-    return this.current.reconcile(input)
+    // A save started before a fallback did is not retained by the branch above, but it still has to
+    // reach the replacement: its tightening lands when it resolves, which can be inside the
+    // replacement's startup window. Track it so the startup drain waits for that verdict before
+    // admitting the replay — otherwise the replacement captures the pre-save policy and the replay
+    // executes the tool the save is disabling.
+    const forwarded = this.current.reconcile(input)
+    this.pendingFallbackReconciles.push(forwarded.catch(() => undefined))
+    return forwarded
   }
 
   getContextUsage() {
@@ -351,6 +366,16 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     if (!reason) return false
     const fallbackModelId = selectFallbackModelId(resolveAgentFallbackPolicy(this.input.agentId), this.currentModelId)
     if (!fallbackModelId) return false
+    // Tool disables already awaiting their verdicts when this fallback began apply to the live turn
+    // only once they resolve — which can be after the replacement captured the policy. Drain them
+    // so the replay inherits the tightened policy rather than the pre-save one.
+    const pendingSaves = this.pendingFallbackReconciles.splice(0)
+    await Promise.allSettled(pendingSaves)
+    if (this.closed) return false
+    this.attempted = true
+    this.replacementInFlight = true
+    // Now inside the window: fold what those saves left applied into the carried union.
+    if (pendingSaves.length > 0) this.rememberAppliedRestrictions()
     // The replay must keep the turn's live policy: a save during the backoff (e.g. switching to
     // bypassPermissions) would otherwise re-admit the replayed turn under a mode that mid-turn
     // reconciliation itself defers. A policy that cannot be read cannot be preserved — decline.
@@ -362,8 +387,6 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       })
       return false
     }
-    this.attempted = true
-    this.replacementInFlight = true
     let connection: AgentRuntimeConnection | undefined
     try {
       await this.current.close()
@@ -453,6 +476,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       this.handoff = undefined
       this.pendingModelId = undefined
       this.retainedReconcile = undefined
+      this.pendingFallbackReconciles.length = 0
       this.retainedDisabledTools.clear()
       this.replacementPolicyFailed = false
     }
@@ -466,6 +490,13 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
    * skill discovery), and the replay must not be admitted under a restriction already saved.
    */
   private async applyRetainedReconcile(connection: AgentRuntimeConnection, modelId: UniqueModelId): Promise<void> {
+    // A save that was pending when the fallback began tightened the live turn without the
+    // replacement seeing it, so its union must still be delivered even though no save landed in
+    // the window to re-apply. Reuse the window's reconcile slot: the replacement reads the same
+    // desired config the host already derived for the old connection.
+    if (!this.retainedReconcile && this.retainedDisabledTools.size > 0) {
+      this.retainedReconcile = { modelId: this.currentModelId }
+    }
     while (this.retainedReconcile) {
       // A save still being captured has not finished recording what it applied; wait it out so the
       // carried union is complete before the replay is admitted under it.
