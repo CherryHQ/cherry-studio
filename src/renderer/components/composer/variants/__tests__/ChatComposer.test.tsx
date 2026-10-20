@@ -716,9 +716,10 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.set).mockReset()
-    vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
-    vi.mocked(cacheService.setCasual).mockReset()
+    const queueCache = createMockCacheService()
+    vi.mocked(cacheService.getCasual).mockReset().mockImplementation(queueCache.getCasual)
+    vi.mocked(cacheService.setCasual).mockReset().mockImplementation(queueCache.setCasual)
+    vi.mocked(cacheService.subscribe).mockReset().mockImplementation(queueCache.subscribe)
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
@@ -5420,6 +5421,7 @@ describe('ChatComposer', () => {
       const queueCache = createMockCacheService()
       vi.mocked(cacheService.getCasual).mockImplementation(queueCache.getCasual)
       vi.mocked(cacheService.setCasual).mockImplementation(queueCache.setCasual)
+      vi.mocked(cacheService.subscribe).mockImplementation(queueCache.subscribe)
       mocks.topicPending = true
       mocks.getDraft.mockImplementation((props) => ({ text: props.text, tokens: [] }))
       const send = vi.fn().mockResolvedValue(undefined)
@@ -5497,6 +5499,102 @@ describe('ChatComposer', () => {
         expect(dock().items).toEqual([a, b])
         expect(dock().paused).toBe(true)
         expect(mocks.surfaceProps?.text).toBe('unsent D')
+      }
+    )
+
+    it('replacement dock cannot Steer pending automatic B twice after remount and removes it on acceptance', async () => {
+      const {
+        dock,
+        originals: [b, c],
+        view,
+        component,
+        send
+      } = await setup(['B', 'C'])
+      let accept!: (sent: boolean) => void
+      send.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            accept = resolve
+          })
+      )
+      act(() => mocks.surfaceProps?.onTextChange('unsent D'))
+      mocks.topicStatus = 'aborted'
+      view.rerender(component(false))
+      await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+      view.unmount()
+      render(component(false))
+      act(() => mocks.surfaceProps?.onTextChange('replacement editor'))
+      await act(async () => {
+        await dock().onSteer(b.id)
+      })
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send).toHaveBeenCalledWith(
+        b.payload.text,
+        expect.objectContaining({
+          userMessageParts: b.payload.userMessageParts,
+          mentionedModels: b.payload.mentionedModels,
+          reasoningEffort: b.payload.reasoningEffort,
+          serviceTier: b.payload.serviceTier,
+          chatTarget: b.payload.chatTarget
+        })
+      )
+      expect(dock().items).toEqual([b, c])
+      expect(mocks.surfaceProps?.text).toBe('replacement editor')
+      await act(async () => {
+        accept(true)
+      })
+      expect(dock().items).toEqual([c])
+      expect(mocks.surfaceProps?.text).toBe('replacement editor')
+      expect(send).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['false', 'reject'] as const)(
+      'replacement dock shows Resume after late automatic %s without retrying B',
+      async (outcome) => {
+        const {
+          dock,
+          originals: [b, c],
+          view,
+          component,
+          send
+        } = await setup(['B', 'C'])
+        let accept!: (sent: boolean) => void
+        let reject!: (error: Error) => void
+        send.mockImplementationOnce(
+          () =>
+            new Promise<boolean>((resolve, fail) => {
+              accept = resolve
+              reject = fail
+            })
+        )
+        mocks.topicStatus = 'aborted'
+        view.rerender(component(false))
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+        view.unmount()
+        render(component(false))
+        act(() => mocks.surfaceProps?.onTextChange('replacement editor'))
+        await act(async () => {
+          await dock().onSteer(b.id)
+        })
+        expect(send).toHaveBeenCalledTimes(1)
+        await act(async () => {
+          if (outcome === 'false') accept(false)
+          else reject(new Error('late failure'))
+        })
+        expect(dock().items).toEqual([b, c])
+        expect(dock().paused).toBe(true)
+        expect(vi.mocked(toast.warning).mock.calls).toEqual([['chat.input.followup_queue.auto_send_stopped']])
+        await act(async () => {
+          dock().onTogglePause()
+        })
+        expect(dock().paused).toBe(false)
+        expect(send).toHaveBeenCalledTimes(1)
+        expect(mocks.surfaceProps?.text).toBe('replacement editor')
+        await act(async () => {
+          await dock().onEdit(b.id)
+        })
+        expect(dock().items).toEqual([c])
+        expect(mocks.surfaceProps?.text).toBe('B')
       }
     )
 

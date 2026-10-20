@@ -15,14 +15,16 @@ export interface FollowupQueueItem {
 
 /** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
 const QUEUE_TTL = 24 * 60 * 60 * 1000
+const EMPTY_QUEUE: FollowupQueueItem[] = []
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 const drainedTurnKeyFor = (scopeKey: string) => `followup-queue-last-drained-turn.${scopeKey}`
+const inflightKeyFor = (scopeKey: string) => `followup-queue-inflight.${scopeKey}`
 const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
 
 /** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
   const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
-  return Array.isArray(cached) ? cached : []
+  return Array.isArray(cached) ? cached : EMPTY_QUEUE
 }
 
 function loadPaused(scopeKey: string): boolean {
@@ -75,11 +77,9 @@ export function useFollowupQueue({
   const [paused, setPausedState] = useState(() => loadPaused(scopeKey))
 
   // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
-  const pausedRef = useRef(paused)
   const scopeKeyRef = useRef(scopeKey)
   const itemsRef = useRef(items)
   const takenRef = useRef<{ item: FollowupQueueItem; slot: number } | null>(null)
-  const admissionsRef = useRef(new Set<string>())
   const markSeenRef = useRef(markSeen)
   markSeenRef.current = markSeen
   const onDrainRef = useRef(onDrain)
@@ -91,36 +91,58 @@ export function useFollowupQueue({
     cacheService.setCasual(keyFor(scopeKeyRef.current), next, QUEUE_TTL)
   }, [])
 
-  // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
+  const reconcile = useCallback((next: FollowupQueueItem[]) => {
+    const taken = takenRef.current
+    if (taken) {
+      const ids = new Set(next.map((item) => item.id))
+      const removedBefore = itemsRef.current.filter((item, index) => index < taken.slot && !ids.has(item.id)).length
+      taken.slot -= removedBefore
+    }
+    itemsRef.current = next
+    setItems(next)
+    return next
+  }, [])
+
   useEffect(() => {
-    if (scopeKeyRef.current === scopeKey) return
-    scopeKeyRef.current = scopeKey
-    takenRef.current = null
-    admissionsRef.current = new Set()
-    itemsRef.current = loadQueue(scopeKey)
-    setItems(itemsRef.current)
-    pausedRef.current = loadPaused(scopeKey)
-    setPausedState(pausedRef.current)
-  }, [scopeKey])
+    if (scopeKeyRef.current !== scopeKey) {
+      scopeKeyRef.current = scopeKey
+      takenRef.current = null
+      itemsRef.current = []
+    }
+    const reloadQueue = () => {
+      if (scopeKeyRef.current === scopeKey) reconcile(loadQueue(scopeKey))
+    }
+    const reloadPaused = () => {
+      if (scopeKeyRef.current === scopeKey) setPausedState(loadPaused(scopeKey))
+    }
+    const unsubscribeQueue = cacheService.subscribe(keyFor(scopeKey), reloadQueue)
+    const unsubscribePaused = cacheService.subscribe(pausedKeyFor(scopeKey), reloadPaused)
+    reloadQueue()
+    reloadPaused()
+    return () => {
+      unsubscribeQueue()
+      unsubscribePaused()
+    }
+  }, [scopeKey, reconcile])
 
   const setPaused = useCallback((nextPaused: boolean) => {
     cacheService.setCasual(pausedKeyFor(scopeKeyRef.current), nextPaused)
-    pausedRef.current = nextPaused
-    setPausedState(nextPaused)
   }, [])
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      const next = [...itemsRef.current, { id: crypto.randomUUID(), draft, payload }]
+      const current = reconcile(loadQueue(scopeKeyRef.current))
+      const next = [...current, { id: crypto.randomUUID(), draft, payload }]
       itemsRef.current = next
       setItems(next)
       persist(next)
     },
-    [persist]
+    [persist, reconcile]
   )
 
   const removeId = useCallback(
     (id: string) => {
+      reconcile(loadQueue(scopeKeyRef.current))
       const index = itemsRef.current.findIndex((item) => item.id === id)
       if (takenRef.current?.item.id === id) takenRef.current = null
       if (index < 0) return
@@ -130,16 +152,22 @@ export function useFollowupQueue({
       setItems(next)
       persist(next)
     },
-    [persist]
+    [persist, reconcile]
   )
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
-      itemsRef.current = nextItems
-      setItems(nextItems)
-      persist(nextItems)
+      const current = reconcile(loadQueue(scopeKeyRef.current))
+      const byId = new Map(current.map((item) => [item.id, item]))
+      if (nextItems.length !== current.length || new Set(nextItems.map((item) => item.id)).size !== current.length)
+        return
+      if (!nextItems.every((item) => byId.has(item.id))) return
+      const next = nextItems.map((item) => byId.get(item.id)!)
+      itemsRef.current = next
+      setItems(next)
+      persist(next)
     },
-    [persist]
+    [persist, reconcile]
   )
 
   const releaseEdit = useCallback(() => {
@@ -147,21 +175,27 @@ export function useFollowupQueue({
   }, [])
 
   const beginSend = useCallback((id: string) => {
-    const admissions = admissionsRef.current
-    if (admissions.has(id) || !itemsRef.current.some((item) => item.id === id)) return null
-    admissions.add(id)
+    const scope = scopeKeyRef.current
+    const claims = cacheService.getCasual<string[]>(inflightKeyFor(scope)) ?? []
+    if (claims.includes(id) || !loadQueue(scope).some((item) => item.id === id)) return null
+    cacheService.setCasual(inflightKeyFor(scope), [...claims, id])
     let released = false
     return () => {
       if (released) return
       released = true
-      admissions.delete(id)
+      const latest = cacheService.getCasual<string[]>(inflightKeyFor(scope)) ?? []
+      cacheService.setCasual(
+        inflightKeyFor(scope),
+        latest.filter((claim) => claim !== id)
+      )
     }
   }, [])
 
   const takeForEdit = useCallback<FollowupQueueController['takeForEdit']>(
     (id, captureOutgoing) => {
-      const current = itemsRef.current
-      if (takenRef.current?.item.id === id || admissionsRef.current.has(id)) return null
+      const current = reconcile(loadQueue(scopeKeyRef.current))
+      const claims = cacheService.getCasual<string[]>(inflightKeyFor(scopeKeyRef.current)) ?? []
+      if (takenRef.current?.item.id === id || claims.includes(id)) return null
       if (!current.some((item) => item.id === id)) return null
       const taken = takenRef.current
       const next = [...current]
@@ -178,7 +212,7 @@ export function useFollowupQueue({
       persist(next)
       return incoming
     },
-    [persist]
+    [persist, reconcile]
   )
 
   useEffect(() => {
@@ -186,14 +220,11 @@ export function useFollowupQueue({
     const flags = classifyTurn(status)
     if (!flags.isTerminal || flags.isTurnActive) return
     const dispatchScope = scopeKeyRef.current
-    pausedRef.current = loadPaused(dispatchScope)
-    if (pausedRef.current) return
-    const head = itemsRef.current[0]
+    if (loadPaused(dispatchScope)) return
+    const head = loadQueue(dispatchScope)[0]
     if (!head) return
     if (turnId === undefined) {
       cacheService.setCasual(pausedKeyFor(dispatchScope), true)
-      pausedRef.current = true
-      setPausedState(true)
       onDrainFailedRef.current?.()
       return
     }
@@ -205,17 +236,20 @@ export function useFollowupQueue({
     const onFailure = onDrainFailedRef.current
     const reportDrainFailure = () => {
       cacheService.setCasual(pausedKeyFor(dispatchScope), true)
-      if (scopeKeyRef.current === dispatchScope) {
-        pausedRef.current = true
-        setPausedState(true)
-      }
       onFailure?.()
     }
     void (async () => {
       try {
         const sent = await onDrainRef.current(head.payload)
         if (sent) {
-          if (scopeKeyRef.current === dispatchScope) removeId(head.id)
+          const current = loadQueue(dispatchScope)
+          if (current.some((item) => item.id === head.id)) {
+            cacheService.setCasual(
+              keyFor(dispatchScope),
+              current.filter((item) => item.id !== head.id),
+              QUEUE_TTL
+            )
+          }
         } else reportDrainFailure()
       } catch {
         reportDrainFailure()
@@ -223,7 +257,7 @@ export function useFollowupQueue({
         release()
       }
     })()
-  }, [scopeKey, status, turnId, autoSendEnabled, paused, beginSend, removeId])
+  }, [scopeKey, status, turnId, autoSendEnabled, paused, beginSend])
 
   return { items, enqueue, removeId, reorder, takeForEdit, releaseEdit, beginSend, paused, setPaused }
 }
