@@ -284,12 +284,17 @@ export function isResultPart(part: CherryMessagePart): boolean {
 export function projectCompletedMessageParts(entries: readonly PartEntry[]): CompletedMessagePartLayout {
   const reportEntries: PartEntry[] = []
   const forkEntries: PartEntry[] = []
+  // Attachment notices explain the whole reply payload, so they render outside
+  // collapsible process history regardless of what surrounds them.
+  const noticeEntries: PartEntry[] = []
   const contentEntries: PartEntry[] = []
 
   for (let position = 0; position < entries.length; position++) {
     const entry = entries[position]
     if (entry.part.type === 'data-agent-session-fork') {
       forkEntries.push(entry)
+    } else if (entry.part.type === 'data-attachment-notice') {
+      noticeEntries.push(entry)
     } else if (isReportToolPart(entry.part)) {
       reportEntries.push(entry)
     } else if (!isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)) {
@@ -368,7 +373,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),
-    resultEntries: [...contentEntries.filter(isDirectResult), ...forkEntries],
+    resultEntries: [...noticeEntries, ...contentEntries.filter(isDirectResult), ...forkEntries],
     reportEntries
   }
 }
