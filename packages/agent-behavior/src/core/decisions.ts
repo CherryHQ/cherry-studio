@@ -58,7 +58,11 @@ export type TxOp =
 export type Effect =
   | { readonly type: 'start-turn'; readonly thread: ThreadId; readonly input: TurnInput; readonly key: Key }
   | { readonly type: 'retract-turn'; readonly thread: ThreadId; readonly key: Key }
-  | { readonly type: 'stop-turn'; readonly thread: ThreadId; readonly cause: StopCause }
+  /**
+   * With `turn`, the entry the targeted run began with, the stop reaches that run only and never a later one (H2): a
+   * stop decided again for a repeated request names the turn it first named.
+   */
+  | { readonly type: 'stop-turn'; readonly thread: ThreadId; readonly cause: StopCause; readonly turn?: ItemId }
   /** A steer for run `run` of `child`: it joins that run or is withdrawn, never starting one (G-C5). */
   | {
       readonly type: 'message-child'
