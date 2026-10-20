@@ -20,6 +20,7 @@ import {
 } from '../../src/contract/fixtures'
 import type { JobKind, TxOp } from '../../src/core/decisions'
 import { createFakeHarness } from '../../src/fake/fakeHarness'
+import { createScriptedHost } from '../../src/fake/scriptedHost'
 import type { BoundPorts, LifecycleHandlers, ToolDefinition } from '../../src/ports/harness'
 
 const pendingAfter = <T>(promise: Promise<T>) =>
@@ -283,6 +284,44 @@ describe('fake harness', () => {
       expect.stringMatching(/^waits\.untilIdle .*onOpen/)
     ])
     expect((await read(fake, t)).history).toEqual([])
+  })
+
+  // Catches a restart that leaves the dead epoch's host waits pending: the obsolete question stays first in the
+  // scripted host's queue and takes the answer meant for the resumed call, which then waits for a second one.
+  it("retires the dead epoch's host waits on restart and keeps the restored run going", async () => {
+    const host = createScriptedHost({
+      settings: {
+        goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+        autonomy: 'auto',
+        permissionMode: 'default',
+        attendance: 'stream',
+        maxBackground: 2,
+        offloadThreshold: 4000
+      }
+    })
+    const asked = latch()
+    const ask: ToolDefinition = {
+      ...toolBase('ask'),
+      async run(call) {
+        asked.release()
+        const answer = await host.questions.ask(
+          { call: { thread: call.thread, key: call.key }, questions: [] },
+          call.signal
+        )
+        return { text: answer.status, isError: false }
+      }
+    }
+    const fake = createFakeHarness({ install: (p) => p.tools.register(ask) })
+    const t = await fake.createThread()
+    fake.script(t, [callTool('ask', {}), reply('done')])
+    await fake.sendUser(t, 'go')
+    await asked.promise
+    await fake.restart()
+    host.answerQuestion({ status: 'declined' })
+    expect(await pendingAfter(fake.settle())).toBe('settled')
+    const facts = await read(fake, t)
+    expect(toolResults(facts)).toMatchObject([{ isError: false, text: 'declined' }])
+    expect(facts.live.runEnd?.outcome).toBe('completed')
   })
 
   // Catches compaction requests escaping a child's request cap (PR-2a ruling G5): a compaction during a run is one of

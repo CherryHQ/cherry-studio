@@ -334,6 +334,8 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     async restart() {
       assertOpen()
       epoch.dead = true
+      // A dead process waits for no answer: aborting its runs' signals withdraws the host asks they hold.
+      for (const loop of epoch.loops.values()) loop.abort.abort()
       epoch = createEpoch()
       installed = installPorts(epoch)
       options.install?.(installed)

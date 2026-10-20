@@ -419,7 +419,8 @@ Beyond `ContractHarness` it offers:
 - `requestLog(thread)`: the ids of the entries each model request on `thread` saw, after the context filter.
 
 `restart()` loses what a Durable restart loses (handlers, run loops, running jobs, waiters) and keeps what it keeps
-(entries, submissions, memo, the job table, the final arguments of tool calls). `abandon` jobs are dropped first. Every
+(entries, submissions, memo, the job table, the final arguments of tool calls). The lost run loops' abort signals
+fire, so a host ask they still wait on (an approval, a question) is withdrawn instead of taking a later answer. `abandon` jobs are dropped first. Every
 conversation then gets `onOpen(reopened: true)` before any resumed work. A stop there only marks the restored run,
 which stays active in the facts until resume ends it as aborted, and a job ensured there starts once every `onOpen` has
 run. Then runs resume: a tool call cut in the middle reruns with its final arguments when its tool is `replay: 'safe'`,
