@@ -2,9 +2,18 @@ import { useSyncExternalStore } from 'react'
 
 type NotesEditFlush = () => Promise<void>
 
+/**
+ * One departing editor save. Re-invoked by every flush while it has not yet
+ * succeeded: the first invocation starts the save at departure, later ones
+ * rejoin it in flight or retry it after a failure, so a recovered environment
+ * (e.g. freed disk space) resolves the record instead of blocking migrations
+ * forever. A still-failing departure keeps rejecting every flush.
+ */
+type DepartingWriteAttempt = () => Promise<void>
+
 const flushCallbacks = new Set<NotesEditFlush>()
 const preFlushCallbacks = new Set<() => void | Promise<void>>()
-const departingWriteChains = new Set<Promise<void>>()
+const departingWriteAttempts = new Set<DepartingWriteAttempt>()
 const pendingImagePasteOperations = new Set<Promise<void>>()
 const autosaveCancelCallbacks = new Set<() => void>()
 const relocationEditLockListeners = new Set<() => void>()
@@ -119,6 +128,14 @@ export function registerNotesEditFlush(flush: NotesEditFlush): () => void {
   }
 }
 
+/** Clears all retained flush coordination state. Test-only. */
+export function resetNotesEditFlushTrackingForTests(): void {
+  flushCallbacks.clear()
+  preFlushCallbacks.clear()
+  departingWriteAttempts.clear()
+  pendingImagePasteOperations.clear()
+}
+
 export function registerNotesEditPreFlush(preFlush: () => void | Promise<void>): () => void {
   preFlushCallbacks.add(preFlush)
   return () => {
@@ -126,8 +143,8 @@ export function registerNotesEditPreFlush(preFlush: () => void | Promise<void>):
   }
 }
 
-export function trackDepartingNotesFileWrite(chain: Promise<void>): void {
-  departingWriteChains.add(chain)
+export function trackDepartingNotesFileWrite(attempt: DepartingWriteAttempt): void {
+  departingWriteAttempts.add(attempt)
 }
 
 export function trackPendingNotesImagePaste<T>(operation: Promise<T>): Promise<T> {
@@ -157,11 +174,12 @@ export async function flushAllNotesEdits(): Promise<void> {
   for (const preFlush of preFlushCallbacks) {
     await preFlush()
   }
-  // A departing chain leaves the set only once it has succeeded. A failed departing save stays tracked and
-  // keeps rejecting every later flush, so a retried migration can't proceed past unsaved content.
-  const departing = [...departingWriteChains].map((chain) =>
-    chain.then(() => {
-      departingWriteChains.delete(chain)
+  // A departing attempt leaves the set only once its save has succeeded. A failed departing save stays
+  // tracked and keeps rejecting every later flush, so a retried migration can't proceed past unsaved
+  // content — but each flush re-attempts the save, and success (now or after recovery) resolves the record.
+  const departing = [...departingWriteAttempts].map((attempt) =>
+    attempt().then(() => {
+      departingWriteAttempts.delete(attempt)
     })
   )
   await Promise.all([...[...flushCallbacks].map((flush) => flush()), ...departing])

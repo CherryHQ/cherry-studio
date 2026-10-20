@@ -41,12 +41,13 @@ describe('notesFileEditFlush structural writes', () => {
     unlockNotesEditsForRelocation()
 
     let departingFinished = false
-    const departing = new Promise<void>((resolve) => {
-      setTimeout(() => {
-        departingFinished = true
-        resolve()
-      }, 20)
-    })
+    const departing = () =>
+      new Promise<void>((resolve) => {
+        setTimeout(() => {
+          departingFinished = true
+          resolve()
+        }, 20)
+      })
     trackDepartingNotesFileWrite(departing)
 
     const flush = vi.fn().mockResolvedValue(undefined)
@@ -152,7 +153,7 @@ describe('notesFileEditFlush failed departing writes', () => {
     const flushModule = await import('../notesFileEditFlush')
     const failed = Promise.reject(new Error('departing save failed'))
     failed.catch(() => undefined)
-    flushModule.trackDepartingNotesFileWrite(failed)
+    flushModule.trackDepartingNotesFileWrite(() => failed)
 
     await expect(flushModule.flushAllNotesEdits()).rejects.toThrow('departing save failed')
     // A retried migration must not proceed past the unresolved failure.
@@ -163,9 +164,31 @@ describe('notesFileEditFlush failed departing writes', () => {
     vi.resetModules()
     const flushModule = await import('../notesFileEditFlush')
     const departing = vi.fn(async () => undefined)
-    flushModule.trackDepartingNotesFileWrite(departing())
+    flushModule.trackDepartingNotesFileWrite(departing)
 
     await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
     await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
+    // Once resolved, the record is removed and later flushes stop invoking it.
+    expect(departing).toHaveBeenCalledOnce()
+  })
+
+  it('re-attempts a failed departing save on later flushes and releases it after success', async () => {
+    vi.resetModules()
+    const flushModule = await import('../notesFileEditFlush')
+    const diskFull = new Error('disk full')
+    let attempt = 0
+    flushModule.trackDepartingNotesFileWrite(async () => {
+      attempt += 1
+      if (attempt === 1) {
+        throw diskFull
+      }
+    })
+
+    await expect(flushModule.flushAllNotesEdits()).rejects.toBe(diskFull)
+    // A recovered environment (e.g. freed disk space) lets the retry resolve
+    // the record instead of blocking every later migration forever.
+    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
+    await expect(flushModule.flushAllNotesEdits()).resolves.toBeUndefined()
+    expect(attempt).toBe(2)
   })
 })

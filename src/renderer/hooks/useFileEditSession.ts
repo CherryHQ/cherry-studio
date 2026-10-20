@@ -325,7 +325,7 @@ export function useFileEditSession(
       debouncedWrite.cancel()
       const model = modelRef.current
       if (model && (model.conflict || model.draft !== model.snapshot.content)) {
-        const persistDepartingEdits = (async () => {
+        const persistDepartingEdits = async () => {
           if (!model.conflict && model.draft !== model.snapshot.content) {
             requestWrite(model, { force: true })
           }
@@ -333,11 +333,16 @@ export function useFileEditSession(
           if (model.conflict || model.draft !== model.snapshot.content) {
             throw model.lastWriteError ?? new Error('Pending edit could not be saved')
           }
-        })()
+        }
         if (trackDepartingWritesForRelocation) {
+          // Start the final write now; relocation flushes rejoin it in flight and
+          // retry it after failures until it lands (tracked attempt, see
+          // notesFileEditFlush). Discarding the draft resolves the model here
+          // first, so a discarded clean model never registers anything.
+          void persistDepartingEdits().catch(() => undefined)
           trackDepartingNotesFileWrite(persistDepartingEdits)
         } else {
-          void persistDepartingEdits.catch(() => undefined)
+          void persistDepartingEdits().catch(() => undefined)
         }
       }
       modelRef.current = null
@@ -389,6 +394,10 @@ export function useFileEditSession(
     debouncedWrite.cancel()
     model.draft = model.snapshot.content
     model.lastWriteError = null
+    // Dropping the draft also resolves the conflict: the model is back to the
+    // exact disk state, so a departing model must not surface a rejected
+    // departing save for content the user explicitly threw away.
+    model.conflict = false
     syncFromModel(model)
   }, [debouncedWrite, syncFromModel])
 
