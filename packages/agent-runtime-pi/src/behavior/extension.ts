@@ -9,6 +9,7 @@ import {
 import type {
   AgentSession,
   ContextEvent,
+  ExtensionContext,
   ExtensionFactory,
   ToolDefinition as NativeTool,
   ToolCallEvent,
@@ -29,7 +30,7 @@ import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { zeroUsage } from '../subagentRun'
 import { BLOCKED_PREFIX, callKeyFor, historyOf, latestPlan, omittedMarkers, textOf, withoutMarkers } from './history'
 import { readFacts } from './ledger'
-import { endingOf, finishRun, flushHeld, noteMessage } from './runs'
+import { endingOf, finishRun, noteMessage, offerSteer } from './runs'
 import type { Adapter, Conversation } from './state'
 
 /** The adapter's side of one conversation's session: the package's tools, run boundaries and inbound handlers. */
@@ -51,7 +52,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       // Pi drops an abort made before it started the run (a prompt's input handlers); repeat it now.
       if (run.stopRequested) ctx.abort()
     })
-    pi.on('turn_start', () => flushHeld(conv))
+    pi.on('turn_end', (event) => offerSteer(conv, event.message))
     pi.on('message_end', (event) => noteMessage(conv, event.message))
     pi.on('agent_settled', (event) => {
       if (conv.active && !conv.active.pending) finishRun(adapter, conv, endingOf(conv.active, event.aborted))
@@ -68,7 +69,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
     )
     pi.on(
       'tool_call',
-      reporting(adapter, async (event: ToolCallEvent) => {
+      reporting(adapter, async (event: ToolCallEvent, ctx: ExtensionContext) => {
         const run = conv.active
         const nested = event.parentToolCallId !== undefined
         const key = callKeyFor(conv.thread, event.toolCallId)
@@ -79,12 +80,13 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
         if (!gate) return undefined
         const goalRound = run?.startedBy === ENTRY_KINDS.goalRound
         const facts: GateFacts = {
-          lineage: conv.lineage,
           plan: latestPlan(historyOf(conv.manager.getBranch(), conv.thread)),
           goalRound,
           callWindow: goalRound && run ? [...run.window] : []
         }
-        const gated: GateCall = { key, thread: conv.thread, tool: event.toolName, args, nested }
+        // H9: the run's abort signal, which aborts when the call's turn stops.
+        const signal = ctx.signal ?? new AbortController().signal
+        const gated = { key, thread: conv.thread, tool: event.toolName, args, nested, signal }
         const verdict = await gate.before(gated, facts, adapter.gatePorts)
         if (verdict.block !== undefined) return { block: true, reason: `${BLOCKED_PREFIX}${verdict.block}` }
         if (verdict.args !== undefined) replaceArgs(event.input, verdict.args)
@@ -127,10 +129,13 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
 }
 
 /** Pi puts what a handler throws on its extension error channel and carries on; the host hears of it in `onError`. */
-function reporting<E, R>(adapter: Adapter, handler: (event: E) => R | Promise<R>): (event: E) => Promise<R> {
-  return async (event) => {
+function reporting<E, C, R>(
+  adapter: Adapter,
+  handler: (event: E, ctx: C) => R | Promise<R>
+): (event: E, ctx: C) => Promise<R> {
+  return async (event, ctx) => {
     try {
-      return await handler(event)
+      return await handler(event, ctx)
     } catch (error) {
       adapter.report(error)
       throw error
@@ -155,7 +160,7 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
         args: params as JsonValue,
         signal: signal ?? new AbortController().signal
       }
-      const outcome = await adapter.withScope(owner, (ports) => tool.run(call, ports))
+      const outcome = await adapter.withScope({ owner, signal: call.signal }, (ports) => tool.run(call, ports))
       return {
         content: [{ type: 'text', text: outcome.text }],
         details: outcome.details,

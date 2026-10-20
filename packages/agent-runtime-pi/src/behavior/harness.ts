@@ -6,14 +6,14 @@ import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-ru
 import type { AgentRuntimeSession } from '../session'
 import { conversationExtension, meterRequests } from './extension'
 import { commit, modelContext, readFacts } from './ledger'
-import { awaitAnswer, drain, messageChild, retract, startTurn, stopRun, submit } from './runs'
+import { awaitAnswer, drain, inputDone, messageChild, retract, startTurn, stopRun, submit, withdraw } from './runs'
 import {
   type Adapter,
+  type CallScope,
   type Conversation,
   type Installation,
   type JobRecord,
   newConversation,
-  type Owner,
   piIdle,
   waitFor,
   wake
@@ -58,9 +58,8 @@ export interface PiBehavior {
   close(): Promise<void>
 }
 
-type Scope = {
+type Scope = CallScope & {
   ended: boolean
-  readonly owner?: Owner
   /** Jobs ensured inside `onOpen`; they start once it has run. */
   readonly opening?: JobRecord[]
 }
@@ -136,7 +135,25 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         stop: (thread) => enter(scope, () => stopRun(adapter, conversation(thread)))
       },
       helpers: {
-        message: (child, input, key) => enter(scope, () => messageChild(adapter, conversation(child), input, key)),
+        message: (child, input, key, run) =>
+          enter(scope, async () => {
+            const conv = conversation(child)
+            const accepted = messageChild(adapter, conv, input, key, run)
+            if (accepted.status !== 'queued') return accepted
+            // H3: a steer answers once a boundary of its run took it, or once it was withdrawn: its run ended first or
+            // the tool call that sent it aborted.
+            const submission = conv.submissions.get(key)!
+            const { signal } = scope
+            const abort = () => withdraw(conv, key)
+            if (signal?.aborted) abort()
+            signal?.addEventListener('abort', abort, { once: true })
+            try {
+              await waitFor(conv, () => submission.state !== 'queued')
+            } finally {
+              signal?.removeEventListener('abort', abort)
+            }
+            return submission.state === 'withdrawn' ? { run: accepted.run, status: 'withdrawn' } : accepted
+          }),
         awaitAnswer: (child, run, key) => enter(scope, () => awaitAnswer(conversation(child), run, key)),
         // H3: stops run `run` only while it is the child's active run; a child of an earlier process has none (D5).
         stop: (child, run) =>
@@ -152,10 +169,10 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
             const conv = conversation(thread)
             return waitFor(conv, () => conv.active === undefined && conv.hostCompacts === 0 && piIdle(conv))
           }),
-        untilRunEnd: (thread) =>
+        untilDone: (thread, key) =>
           enter(scope, () => {
             const conv = conversation(thread)
-            return waitFor(conv, () => conv.active === undefined)
+            return waitFor(conv, () => inputDone(conv, key))
           })
       },
       memory: { remember: (name, produce) => enter(scope, () => remember(name, produce)) },
@@ -163,11 +180,11 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     }
   }
   async function withScope<T>(
-    owner: Owner | undefined,
+    call: CallScope,
     body: (ports: BoundPorts) => Promise<T>,
     opening?: JobRecord[]
   ): Promise<T> {
-    const scope: Scope = { ended: false, owner, opening }
+    const scope: Scope = { ...call, ended: false, opening }
     try {
       return await body(bound(scope))
     } finally {
@@ -179,7 +196,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     opening?: JobRecord[]
   ): Promise<void> {
     const handlers = installation.lifecycle
-    return handlers ? withScope(undefined, (ports) => call(handlers, ports), opening) : Promise.resolve()
+    return handlers ? withScope({}, (ports) => call(handlers, ports), opening) : Promise.resolve()
   }
   /** H4 coding-agent: an in-process promise per job, started from the next microtask. */
   function startJob(job: JobRecord): void {
@@ -308,7 +325,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       }
       return thread
     },
-    withCall: (_thread, use) => withScope(undefined, use),
+    withCall: (_thread, use) => withScope({}, use),
     async submitUser(thread, text) {
       if (closed) throw new Error('The coding-agent harness is closed')
       users += 1
