@@ -64,17 +64,15 @@ export function createReindexSubtreeJobHandler(
 
       // Re-acquire each leaf root from its real source (a file re-copies the user's original, a url
       // re-fetches, a note rewrites its snapshot from data.content) before the reset touches
-      // anything. The slow half runs here, off the base lock; the writes it hands back overwrite the
-      // items' pinned raw/ paths inside the lock below.
+      // anything. Producers (url fetch, note check) run here; the writes they hand back overwrite
+      // the items' pinned raw/ paths once the roots are activated below.
       const reacquireWrites = await produceReacquireWrites(ctx, baseId, liveRoots)
 
-      // Reset vectors, expanded children, and root statuses as one base-level mutation.
-      const resetResult = await knowledgeLockManager.runExclusive(baseId, async () => {
+      // Activate the roots under the lock; the slow byte writes then run off it.
+      const activation = await knowledgeLockManager.runExclusive(baseId, async () => {
         // Re-acquisition and the wait for this lock are the long stretches; a cancel landing in
-        // either must not still spend the reset. Checked only here — mid-reset checks would trade
-        // this for a half-applied one, and once a root is activated recovery already covers it.
+        // either must not still activate anything. Once a root is activated recovery covers it.
         ctx.signal.throwIfAborted()
-        const base = knowledgeBaseService.getById(baseId)
         // Re-check under the mutation lock so reindex cannot turn a just-deleted
         // subtree back into preparing/processing during cleanup/reset.
         const subtreeResult = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
@@ -86,7 +84,7 @@ export function createReindexSubtreeJobHandler(
 
         const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
         // Admission (assertSubtreesCanReindex) already rejected roots whose source is gone, but the
-        // source can vanish between admission and acquiring this lock. Re-check right before the delete:
+        // source can vanish between admission and acquiring this lock. Re-check before activating:
         // a root that can no longer rebuild keeps its existing vectors (stays completed/searchable)
         // instead of being wiped with nothing to re-read from.
         const rebuildableRoots: typeof selectedRoots = []
@@ -118,12 +116,38 @@ export function createReindexSubtreeJobHandler(
           }
           knowledgeItemService.updateStatus(root.id, root.type === 'directory' ? 'preparing' : 'processing')
         }
+        return { roots: rebuildableRoots, skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
+      })
+      if (activation.roots.length === 0) {
+        reportKnowledgeProgress(ctx, 100, {
+          stage: activation.skippedDeleting ? 'deleting' : 'done',
+          totalFiles: 0,
+          ...(activation.skippedMissingSource > 0 ? { skippedMissingSource: activation.skippedMissingSource } : {})
+        })
+        return
+      }
 
-        // Land the re-acquired bytes on the pinned raw/ paths before the index is torn down. Both
-        // writes commit via tmp+rename, so a failure here leaves the previous bytes and index intact.
-        for (const root of rebuildableRoots) {
-          await reacquireWrites.get(root.id)?.(ctx.signal)
+      // Land the re-acquired bytes on the pinned raw/ paths before the index is torn down. No lock:
+      // an active root is invisible to search and reads (query/visibility.ts), and each write
+      // commits via tmp+rename, so a failure here leaves the previous bytes and index intact.
+      for (const root of activation.roots) {
+        await reacquireWrites.get(root.id)?.(ctx.signal)
+      }
+
+      // Reset vectors and expanded children as one base-level mutation.
+      const resetResult = await knowledgeLockManager.runExclusive(baseId, async () => {
+        ctx.signal.throwIfAborted()
+        const base = knowledgeBaseService.getById(baseId)
+        // A delete may have landed while the bytes were written; its cleanup owns the subtree now.
+        if ('skip' in resolveLiveKnowledgeSubtree(baseId, rootItemIds)) {
+          logger.info('Skipping reindex-subtree reset for subtree deleted during re-acquisition', {
+            baseId,
+            rootItemIds,
+            jobId: ctx.jobId
+          })
+          return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
         }
+        const rebuildableRoots = activation.roots
 
         const rebuildableRootIds = rebuildableRoots.map((item) => item.id)
         const leafItemIds = knowledgeItemService
@@ -146,7 +170,11 @@ export function createReindexSubtreeJobHandler(
           )
         }
 
-        return { roots: rebuildableRoots, skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
+        return {
+          roots: rebuildableRoots,
+          skippedDeleting: false,
+          skippedMissingSource: activation.skippedMissingSource
+        }
       })
       if (resetResult.roots.length === 0) {
         reportKnowledgeProgress(ctx, 100, {

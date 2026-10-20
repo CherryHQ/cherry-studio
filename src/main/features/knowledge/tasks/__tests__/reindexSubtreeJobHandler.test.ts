@@ -1,6 +1,7 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
@@ -241,6 +242,55 @@ describe('reindex-subtree job handler', () => {
     expect(copyFileIntoKnowledgeBaseAtMock.mock.invocationCallOrder[0]).toBeLessThan(
       deleteMaterialsMock.mock.invocationCallOrder[0]
     )
+  })
+
+  it('activates a file root under the lock, then re-copies it with the lock free', async () => {
+    const lock = new KeyedMutex()
+    const handler = createReindexSubtreeJobHandler(lock, ingestionService)
+    const root = createFileItem(FILE_ITEM_ID, 'completed')
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([root])
+    let finishCopy!: () => void
+    const copyStarted = new Promise<void>((resolveStarted) => {
+      copyFileIntoKnowledgeBaseAtMock.mockImplementationOnce(
+        () =>
+          new Promise((resolveCopy) => {
+            finishCopy = () => resolveCopy(FILE_RELATIVE_PATH)
+            resolveStarted()
+          })
+      )
+    })
+
+    const execution = handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }, 'reindex-job'))
+    await copyStarted
+
+    // Already out of `completed`, so nothing serves its old index while the bytes change...
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'processing')
+    // ...and every other mutation on the base proceeds during the copy.
+    await expect(lock.runExclusive('kb-1', () => 'other mutation')).resolves.toBe('other mutation')
+
+    finishCopy()
+    await execution
+    expect(deleteMaterialsMock).toHaveBeenCalled()
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'reindex-job', { forceFileReprocess: true })
+  })
+
+  it('skips the reset when the root is deleted while its bytes are re-acquired', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    let deleted = false
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(() => [
+      createFileItem(FILE_ITEM_ID, deleted ? 'deleting' : 'completed')
+    ])
+    copyFileIntoKnowledgeBaseAtMock.mockImplementationOnce(async () => {
+      deleted = true
+      return FILE_RELATIVE_PATH
+    })
+    const ctx = createCtx({ baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }, 'reindex-job')
+
+    await handler.execute(ctx)
+
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+    expect(scheduleItemMock).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, expect.objectContaining({ stage: 'deleting' }))
   })
 
   it('re-fetches a url root and overwrites its captured snapshot with the new page', async () => {
@@ -492,9 +542,8 @@ describe('reindex-subtree job handler', () => {
     // left unscheduled — the path that must store a localized code, not a raw English string.
     const controller = new AbortController()
     const ctx = { ...createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'), signal: controller.signal }
-    knowledgeItemUpdateStatusMock.mockImplementation(() => {
+    deleteMaterialsMock.mockImplementation(async () => {
       controller.abort(new Error('JobManager shutdown'))
-      return root
     })
 
     await expect(handler.execute(ctx)).rejects.toThrow('JobManager shutdown')
@@ -503,6 +552,31 @@ describe('reindex-subtree job handler', () => {
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['dir-1'], 'failed', {
       error: KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
     })
+  })
+
+  it('keeps the previous index when an abort lands while the bytes are re-acquired', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createFileItem(FILE_ITEM_ID, 'completed')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) =>
+        options.includeRoots || options.leafOnly ? [root] : []
+    )
+    const controller = new AbortController()
+    const ctx = {
+      ...createCtx({ baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }, 'reindex-job'),
+      signal: controller.signal
+    }
+    copyFileIntoKnowledgeBaseAtMock.mockImplementationOnce(async () => {
+      controller.abort(new Error('Job cancelled: knowledge-delete-subtree'))
+      throw new Error('Job cancelled: knowledge-delete-subtree')
+    })
+
+    await expect(handler.execute(ctx)).rejects.toThrow('Job cancelled')
+
+    // The root stays active for onSettled / the boot sweep to fail; its vectors are not wiped.
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'processing')
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+    expect(scheduleItemMock).not.toHaveBeenCalled()
   })
 
   it('onSettled marks active roots without follow-up jobs failed', async () => {

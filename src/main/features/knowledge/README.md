@@ -76,9 +76,9 @@ The per-base mutation lock is a core `KeyedMutex` (acquired via `runExclusive`),
 invariants that span the main DB, the index store, and the filesystem (e.g. add's
 read-conflicts-then-create-rows sequence). It is not about protecting SQLite itself — the per-base
 driver is synchronous, and single statements are atomic. Handlers acquire the lock only around the
-mutation section, never across slow I/O (fetch, read, embed, copy). File add and directory import
-copy their bytes off the lock (`knowledge.copy-sources` commits each copy with a rename under it);
-reindex's file re-copy (`pipeline/sources/reacquire.ts`) is the remaining exception.
+mutation section, never across slow I/O (fetch, read, embed, copy). File add, directory import, and
+reindex all copy their bytes off the lock: `knowledge.copy-sources` commits each copy with a rename
+under it, and reindex activates its roots under the lock before re-copying them off it.
 
 ## Related docs
 

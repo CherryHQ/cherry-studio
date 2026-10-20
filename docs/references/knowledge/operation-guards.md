@@ -233,12 +233,13 @@ Because the entrypoint does not write an active status before enqueueing, enqueu
 `reindexItems` rejects `deleting` before enqueue, and `reindex-subtree` treats `deleting` as a higher-priority state if delete wins the race after enqueue:
 
 - at job entry, it checks the target subtree and completes as skipped if any item is `deleting`;
-- under the same-base mutation lock, it checks again before clearing vectors or resetting statuses;
+- under the same-base mutation lock, it checks again before activating the roots;
+- after re-acquiring the roots' bytes off the lock, it checks a third time under the lock before clearing vectors or resetting statuses, because a delete can land while the bytes are written;
 - it does not cancel active jobs. Reindex is only admitted for terminal subtrees, so there should be no active indexing or expansion work to cancel.
 
 This prevents a later reindex request from cancelling delete cleanup or turning a deleting row back into `preparing` / `processing`.
 
-These two `deleting` checks are intentional, even though the entrypoint already rejects deleting subtrees. They cover the window between enqueue and job execution while preserving the rule that delete is always available.
+These `deleting` checks are intentional, even though the entrypoint already rejects deleting subtrees. They cover the window between enqueue and job execution while preserving the rule that delete is always available.
 
 ### Why Reindex Keeps Schedule-Failure Compensation
 
