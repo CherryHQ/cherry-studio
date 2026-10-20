@@ -35,6 +35,9 @@ import { readFacts } from './ledger'
 import { endingOf, finishRun, noteMessage, offerSteer } from './runs'
 import type { Adapter, Conversation } from './state'
 
+const UNWIRED_SUMMARIZER =
+  "Compaction cancelled: the session's compaction.summarize is not the adapter's summarize, so onCompacting was not asked"
+
 /** The adapter's side of one conversation's session: the package's tools, run boundaries and inbound handlers. */
 export function conversationExtension(adapter: Adapter, conv: Conversation): ExtensionFactory {
   return (pi) => {
@@ -53,6 +56,16 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       run.pending = false
       // Pi drops an abort made before it started the run (a prompt's input handlers); repeat it now.
       if (run.stopRequested) ctx.abort()
+    })
+    // H12: after the summarizer extension's handler; a compaction that bypassed the adapter's summarizer never asked
+    // `onCompacting` (the host left out `compaction.summarize` or passed its own), so it is cancelled.
+    pi.on('session_before_compact', () => {
+      if (conv.summarized) {
+        conv.summarized = false
+        return undefined
+      }
+      adapter.report(new Error(`${UNWIRED_SUMMARIZER} (${conv.thread})`))
+      return { cancel: true }
     })
     pi.on('turn_end', (event) => offerSteer(conv, event.message))
     pi.on('message_end', (event) => noteMessage(conv, event.message))
@@ -211,6 +224,7 @@ export function compactionSummarizer(adapter: Adapter, conv: Conversation): Comp
     throw new Error(reason)
   }
   return async (request) => {
+    conv.summarized = true
     conv.declined = false
     const run = conv.active
     if (run) {

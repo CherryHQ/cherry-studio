@@ -26,7 +26,8 @@ export type BehaviorSessionRequest = {
   readonly extension: ExtensionFactory
   /**
    * The session's compaction summarizer: pass it as `compaction.summarize`, so every compaction asks `onCompacting`
-   * (H12) and a decline's reason becomes the `compaction-end` error.
+   * (H12) and a decline's reason becomes the `compaction-end` error. A compaction that does not go through it is
+   * cancelled and reported to `onError`.
    */
   readonly summarize: CompactionSummarizer
   /**
@@ -43,7 +44,8 @@ export interface PiBehaviorOptions {
   readonly openSession: (request: BehaviorSessionRequest) => Promise<AgentRuntimeSession>
   /**
    * Errors no caller awaits: a job that threw, a run that failed to start, an automatic compaction's `onCompacting` or
-   * `onCompacted`, what a handler Pi calls threw, a quiet input that failed to write, a run the adapter did not start.
+   * `onCompacted`, what a handler Pi calls threw, a quiet input that failed to write, a run the adapter did not start,
+   * a compaction cancelled because it bypassed `BehaviorSessionRequest.summarize`.
    */
   readonly onError?: (error: unknown) => void
 }
