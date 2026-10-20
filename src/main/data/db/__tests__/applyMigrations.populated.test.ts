@@ -70,6 +70,26 @@ describe('applyMigrations over a populated database', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
+  it('adds mirror_enabled when upgrading a populated pre-export database', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0028_skill_mirror_export'))
+    sqlite
+      .prepare(`INSERT INTO agent_global_skill
+      (id, name, folder_name, source, content_hash, is_enabled, created_at, updated_at)
+      VALUES ('existing-skill', 'Existing skill', 'existing-skill', 'local', 'hash', 1, 1000, 2000)`)
+      .run()
+    sqlite.close()
+    sqlite = new Database(join(tempDir, 'test.db'))
+    db = drizzle({ client: sqlite, casing: 'snake_case' })
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT name, mirror_enabled, is_enabled FROM agent_global_skill').all()).toEqual([
+      { name: 'Existing skill', mirror_enabled: 1, is_enabled: 1 }
+    ])
+    sqlite.prepare('UPDATE agent_global_skill SET mirror_enabled = 0').run()
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT mirror_enabled FROM agent_global_skill').get()).toEqual({ mirror_enabled: 0 })
+    expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
+  })
+
   it('adds diagnostic history to a populated database and retains it after reopening', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     const now = Date.now()

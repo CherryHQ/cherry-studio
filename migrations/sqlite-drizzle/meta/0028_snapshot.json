@@ -1,7 +1,7 @@
 {
 	"version": "6",
 	"dialect": "sqlite",
-	"id": "80a8c39c-0219-44c5-ac55-bd898f0ddb6f",
+	"id": "d7d9bb18-43e5-4b26-933c-03130e064214",
 	"prevId": "d7821b2f-98c4-4781-a3fb-0afaea036bdb",
 	"tables": {
 		"agent": {
@@ -3703,6 +3703,13 @@
 					"notNull": true,
 					"autoincrement": false
 				},
+				"order_key": {
+					"name": "order_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
 				"group_id": {
 					"name": "group_id",
 					"type": "text",
@@ -3806,13 +3813,6 @@
 				"updated_at": {
 					"name": "updated_at",
 					"type": "integer",
-					"primaryKey": false,
-					"notNull": true,
-					"autoincrement": false
-				},
-				"order_key": {
-					"name": "order_key",
-					"type": "text",
 					"primaryKey": false,
 					"notNull": true,
 					"autoincrement": false

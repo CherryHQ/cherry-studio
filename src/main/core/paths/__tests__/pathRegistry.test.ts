@@ -90,6 +90,12 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps external skill exports under the user home without creating the shared directory', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.agents.skills']).toBe(path.join(registry['sys.home'], '.agents', 'skills'))
+    expect(shouldAutoEnsure('external.agents.skills')).toBe(false)
+  })
+
   it('keeps conditional Code Mate skill templates in read-only app resources', () => {
     const registry = buildPathRegistry()
 

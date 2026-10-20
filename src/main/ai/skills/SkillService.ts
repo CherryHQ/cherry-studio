@@ -538,15 +538,6 @@ export class SkillService {
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
-    if (existing?.mirrorEnabled === false) {
-      // A persisted opt-out survives reinstalls: refresh the library copy but keep
-      // the ~/.agents/skills projection removed.
-      if (!(await this.unlinkMirror(destFolderName))) {
-        logger.warn('Opted-out skill retains a stale mirror; unlink failed', { folderName: destFolderName })
-      }
-    } else {
-      await this.linkMirror(destFolderName)
-    }
 
     const tags = metadata.tags ?? []
 
@@ -564,6 +555,7 @@ export class SkillService {
           ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
         })
       })
+      await this.linkMirror(destFolderName)
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
       return updated
@@ -605,6 +597,7 @@ export class SkillService {
       throw new Error(`Failed to insert skill: ${metadata.name}`)
     }
 
+    await this.linkMirror(destFolderName)
     if (isBuiltin) {
       this.enableForAllAgents(inserted.id)
     }
@@ -648,6 +641,20 @@ export class SkillService {
 
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
   async linkMirror(folderName: string, options: { throwOnError?: boolean } = {}): Promise<boolean> {
+    if (!(await this.linkClaudeMirror(folderName, options))) return false
+    const skill = agentGlobalSkillService.getByFolderName(folderName)
+    if (!skill) return true
+    try {
+      await this.setExportEnabled(folderName, skill.mirrorEnabled)
+    } catch (error) {
+      logger.warn('Failed to synchronize external skill export', { folderName, error })
+      if (options.throwOnError) throw error
+      return false
+    }
+    return true
+  }
+
+  private async linkClaudeMirror(folderName: string, options: { throwOnError?: boolean }): Promise<boolean> {
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
@@ -740,6 +747,7 @@ export class SkillService {
     const targetDir = this.getMirrorPath(folderName)
     try {
       await fs.promises.rm(targetDir, { recursive: true, force: true })
+      await this.setExportEnabled(folderName, false)
       return true
     } catch (error) {
       logger.warn('Failed to remove skill mirror', { folderName, targetDir, error })
@@ -747,11 +755,38 @@ export class SkillService {
     }
   }
 
+  private async setExportEnabled(folderName: string, enabled: boolean): Promise<void> {
+    const root = path.resolve(application.getPath('external.agents.skills'))
+    const target = path.resolve(root, folderName)
+    if (!isPathInside(target, root) || target === root) throw new Error(`Invalid skill export: ${folderName}`)
+    const source = path.resolve(this.getMirrorPath(folderName))
+    let stat: fs.Stats | undefined
+    try {
+      stat = await fs.promises.lstat(target)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    if (stat) {
+      const owned =
+        stat.isSymbolicLink() && path.resolve(path.dirname(target), await fs.promises.readlink(target)) === source
+      if (!owned) {
+        if (enabled) throw new Error(`Skill export conflicts with an existing user entry: ${target}`)
+        return
+      }
+      if (!enabled) await fs.promises.unlink(target)
+      return
+    }
+    if (enabled) {
+      await fs.promises.mkdir(root, { recursive: true })
+      await fs.promises.symlink(source, target, isWin ? 'junction' : 'dir')
+    }
+  }
+
   /**
    * Toggle whether a skill is projected into the ~/.agents/skills mirror and apply the
    * change to the filesystem immediately. Filesystem first, persist second: a failed
    * projection throws with the database untouched, and a failed database write rolls
-   * the projection back, so disk and database never disagree.
+   * the projection back, reporting any restoration failure.
    */
   async setMirrorEnabled(skillId: string, mirrorEnabled: boolean): Promise<InstalledSkill | null> {
     return this.mutationLock.runExclusive(async () => {
@@ -759,25 +794,24 @@ export class SkillService {
       if (!skill) return null
 
       if (mirrorEnabled) {
-        if (!(await this.linkMirror(skill.folderName))) {
+        if (!(await this.linkClaudeMirror(skill.folderName, {}))) {
           throw new Error(`Failed to create the ~/.agents/skills mirror for skill: ${skill.folderName}`)
         }
-      } else if (!(await this.unlinkMirror(skill.folderName))) {
-        throw new Error(`Failed to remove the ~/.agents/skills mirror for skill: ${skill.folderName}`)
       }
+      await this.setExportEnabled(skill.folderName, mirrorEnabled)
 
-      const updated = agentGlobalSkillService.updateMirrorEnabled(skillId, mirrorEnabled)
-      if (!updated) {
-        // The DB write failed after the disk already changed — undo the projection
-        // so persisted state and filesystem agree again.
-        if (mirrorEnabled) {
-          await this.unlinkMirror(skill.folderName)
-        } else {
-          await this.linkMirror(skill.folderName)
+      try {
+        const updated = agentGlobalSkillService.updateMirrorEnabled(skillId, mirrorEnabled)
+        if (!updated) throw new Error(`Failed to persist mirror toggle for skill: ${skill.folderName}`)
+        return updated
+      } catch (error) {
+        try {
+          await this.setExportEnabled(skill.folderName, skill.mirrorEnabled)
+        } catch (recoveryError) {
+          throw new AggregateError([error, recoveryError], `Failed to restore skill export: ${skill.folderName}`)
         }
-        throw new Error(`Failed to persist mirror toggle for skill: ${skill.folderName}`)
+        throw error
       }
-      return updated
     })
   }
 
@@ -861,11 +895,7 @@ export class SkillService {
       throw error
     }
 
-    if (skill.mirrorEnabled) {
-      await this.linkMirror(skill.folderName, { throwOnError: true })
-    } else if (!(await this.unlinkMirror(skill.folderName))) {
-      logger.warn('Opted-out skill retains a stale mirror; unlink failed', { folderName: skill.folderName })
-    }
+    await this.linkMirror(skill.folderName, { throwOnError: true })
     if (this.hasMetadataChanges(skill, metadata)) {
       agentGlobalSkillService.update(skillId, {
         name: metadata.name,
@@ -969,11 +999,7 @@ export class SkillService {
           const prepared = await this.installer.prepareInstall(fetched.skillDir, destination)
           let databaseUpdated = false
           try {
-            // The remote update must not resurrect a mirror the user opted
-            // out of; refresh it only for opted-in skills.
-            if (currentSkill.mirrorEnabled) {
-              await this.linkMirror(currentSkill.folderName, { throwOnError: true })
-            }
+            await this.linkMirror(currentSkill.folderName, { throwOnError: true })
             application.get('DbService').withWriteTx((tx) => {
               agentGlobalSkillService.updateTx(tx, options.skillId, {
                 name: metadata.name,
@@ -1017,11 +1043,9 @@ export class SkillService {
                 recoveryErrors.push(recoveryError)
               }
             }
-            if (currentSkill.mirrorEnabled) {
-              await this.linkMirror(currentSkill.folderName, { throwOnError: true }).catch((recoveryError) =>
-                recoveryErrors.push(recoveryError)
-              )
-            }
+            await this.linkMirror(currentSkill.folderName, { throwOnError: true }).catch((recoveryError) =>
+              recoveryErrors.push(recoveryError)
+            )
             if (recoveryErrors.length > 0) {
               throw new AggregateError(
                 [error, ...recoveryErrors],
@@ -1267,14 +1291,6 @@ export class SkillService {
         continue
       }
       const skill = group[0]
-      if (!skill.mirrorEnabled) {
-        // User opted this skill out of the ~/.agents/skills projection — clear any
-        // mirror a previous reconcile (or the default-on install flow) left behind.
-        if (!(await this.unlinkMirror(skill.folderName))) {
-          logger.warn('Opted-out skill retains a stale mirror; unlink failed', { folderName: skill.folderName })
-        }
-        continue
-      }
       await this.linkMirror(skill.folderName)
     }
 
@@ -1499,7 +1515,10 @@ export class SkillService {
       }
 
       // Builtin contentHash is the trusted install baseline excluding Cherry's version marker.
-      if (existing && !filesUpdated && existing.contentHash === sourceHash) return false
+      if (existing && !filesUpdated && existing.contentHash === sourceHash) {
+        await this.linkMirror(destFolderName)
+        return false
+      }
 
       const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
       const tags = metadata.tags ?? []
@@ -1529,15 +1548,7 @@ export class SkillService {
         })
       }
 
-      if (existing?.mirrorEnabled === false) {
-        // A persisted opt-out survives builtin refreshes: keep the library copy
-        // current but leave the ~/.agents/skills projection removed.
-        if (!(await this.unlinkMirror(destFolderName))) {
-          logger.warn('Opted-out builtin retains a stale mirror; unlink failed', { folderName: destFolderName })
-        }
-      } else {
-        await this.linkMirror(destFolderName)
-      }
+      await this.linkMirror(destFolderName)
       logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
       return filesUpdated
     })
