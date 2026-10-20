@@ -31,7 +31,7 @@ type WebSearchProviderDisplayMeta = {
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
   crawl4ai: {
     descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
-    officialWebsite: 'https://docs.crawl4ai.com/core/self-hosting/'
+    officialWebsite: 'https://crawl4ai.com'
   },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',

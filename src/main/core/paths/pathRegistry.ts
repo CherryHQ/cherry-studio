@@ -65,6 +65,9 @@ export function buildPathRegistry() {
     // -- A. cherry.* — CHERRY_HOME infrastructure --
     'cherry.home': CHERRY_HOME,
     'cherry.bin': path.join(CHERRY_HOME, 'bin'),
+    // Linux FFmpeg tree. BinaryManager copies it; lookup must not mkdir it.
+    'cherry.bin.ffmpeg.bin': path.join(CHERRY_HOME, 'bin', 'ffmpeg', 'bin'),
+    'cherry.bin.ffmpeg.lib': path.join(CHERRY_HOME, 'bin', 'ffmpeg', 'lib'),
     'cherry.config': path.join(CHERRY_HOME, 'config'),
 
     // -- B. sys.* — OS directories (prefer app.* or cherry.* for Cherry-owned paths) --
@@ -459,7 +462,10 @@ const NO_ENSURE = [
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces',
   // Claude Code owns materialization of its transcript store.
-  'feature.agents.claude.projects'
+  'feature.agents.claude.projects',
+  // BinaryManager owns the Linux FFmpeg tree under cherry.bin/ffmpeg.
+  'cherry.bin.ffmpeg.bin',
+  'cherry.bin.ffmpeg.lib'
 ] as const satisfies readonly NoEnsureEntry[]
 
 /** Whether Application.getPath() should auto-create the directory for this key. */
