@@ -26,6 +26,7 @@ import {
   type SelectorShellMountStrategy,
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -406,7 +407,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (query) {
       filtered = filtered.filter(
         (item) =>
-          item.name.toLowerCase().includes(query) ||
+          matchesSearchText(item.name, query) ||
           (item.description ? item.description.toLowerCase().includes(query) : false)
       )
     }

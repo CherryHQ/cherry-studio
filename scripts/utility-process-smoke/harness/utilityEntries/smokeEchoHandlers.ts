@@ -2,7 +2,10 @@
 
 import { net } from 'electron'
 
-import type { UtilityProcessHandlers } from '../../../../src/main/core/utilityProcess/runtime/serveUtilityProcess'
+import type {
+  UtilityProcessHandlers,
+  UtilityProcessStreamHandlers
+} from '../../../../src/main/core/utilityProcess/runtime/serveUtilityProcess'
 import { checksum, type SmokeContract, type SmokeInitData } from '../smokeContract'
 
 export const smokeHandlers: UtilityProcessHandlers<SmokeContract> = {
@@ -35,4 +38,24 @@ export function initialize({ label }: SmokeInitData, context: { logger: { info: 
 
 export function dispose(context: { logger: { info: (message: string) => void } }): void {
   context.logger.info('disposed')
+}
+
+export const smokeStreams: UtilityProcessStreamHandlers<SmokeContract> = {
+  duplex: async (_, { input, write }) => {
+    let count = 0
+    for await (const frame of input) {
+      await write(frame)
+      count++
+    }
+    return count
+  },
+  produce: async (count, { write, logger }) => {
+    try {
+      for (let n = 0; n < count; n++) await write({ metadata: { n }, payload: new Uint8Array(3000).fill(n % 251) })
+      return count
+    } finally {
+      logger.info('stream-producer-cleaned')
+    }
+  },
+  streamStall: () => new Promise<never>(() => {})
 }

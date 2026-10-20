@@ -3,6 +3,7 @@ import { Activity, useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -17,8 +18,14 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
+  overlayOnUpdate: null as
+    | ((executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void)
+    | null,
+  autoReadUpdate: vi.fn(),
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
-  sendTurn: vi.fn()
+  sendTurn: vi.fn(),
+  autoReadConsume: vi.fn(async () => ({ status: 'started' })),
+  autoReadEnabled: true
 }))
 
 vi.mock('@logger', () => ({
@@ -32,6 +39,17 @@ vi.mock('@logger', () => ({
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn()
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.autoReadEnabled, vi.fn()]
+}))
+
+vi.mock('@renderer/services/voice', () => ({
+  autoReadService: {
+    update: mocks.autoReadUpdate,
+    consume: mocks.autoReadConsume
+  }
 }))
 
 // The live-state builder is the guard's observable output surface: the test
@@ -91,9 +109,13 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
     _topicId: string,
     executions: ActiveExecution[],
     _messages: CherryUIMessage[],
-    options?: { onFinish?: (executionId: string, event: ExecutionFinishEvent) => void }
+    options?: {
+      onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
+      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
+    }
   ) => {
     mocks.overlayExecutions = executions
+    mocks.overlayOnUpdate = options?.onUpdate ?? null
     mocks.overlayOnFinish = options?.onFinish ?? null
     return {
       overlay: {},
@@ -196,7 +218,44 @@ describe('useChatRuntimeState', () => {
     mocks.overlayOnFinish = null
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadUpdate.mockReset()
+    mocks.autoReadConsume.mockClear()
+    mocks.autoReadEnabled = true
     latestRuntime = null
+  })
+
+  it('reads eligible live text before completion through the incremental coordinator', async () => {
+    mocks.autoReadEnabled = true
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
+    })
+    mocks.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    render(<RuntimeHost topicId="topic-1" activeNodeId="active-assistant" />)
+    await act(async () => {
+      mocks.overlayOnUpdate?.('provider::model', {
+        attemptId: 7,
+        message: {
+          id: 'active-assistant',
+          role: 'assistant',
+          parts: [
+            { type: 'reasoning', text: 'Private.' },
+            { type: 'text', text: 'Live answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Live answer.'])
+    coordinator.cancelScope('topic-1')
   })
 
   it('reports a blocked stream open as not sent', async () => {
@@ -240,6 +299,19 @@ describe('useChatRuntimeState', () => {
     view.rerender(<RuntimeHost topicId="topic-1" />)
 
     expect(latestRuntime?.sendMessage).toBe(sendMessage)
+  })
+
+  it('does not infer auto-read from hydrated or rerendered message history', () => {
+    const completed = {
+      id: 'persisted-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'already completed' }]
+    } as CherryUIMessage
+    const view = render(<RuntimeHost topicId="topic-1" activeNodeId="persisted-assistant" messages={[completed]} />)
+
+    view.rerender(<RuntimeHost topicId="topic-1" activeNodeId="persisted-assistant" messages={[completed]} />)
+
+    expect(mocks.autoReadConsume).not.toHaveBeenCalled()
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {
@@ -390,5 +462,53 @@ describe('useChatRuntimeState', () => {
     view.rerender(<RuntimeHost topicId="topic-1" />)
 
     expect(mocks.overlayExecutions).toEqual([])
+  })
+
+  it('forwards only the branch that is active at the real finish event to auto-read', async () => {
+    const activeMessage = {
+      id: 'active-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'active answer' }]
+    } as CherryUIMessage
+    const inactiveMessage = {
+      id: 'inactive-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'inactive answer' }]
+    } as CherryUIMessage
+    render(<RuntimeHost topicId="topic-1" activeNodeId="active-assistant" />)
+
+    await act(async () => {
+      mocks.overlayOnFinish?.('provider::active', {
+        attemptId: 11,
+        message: activeMessage,
+        isAbort: false,
+        isError: false
+      })
+      mocks.overlayOnFinish?.('provider::inactive', {
+        attemptId: 12,
+        message: inactiveMessage,
+        isAbort: false,
+        isError: false
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.autoReadConsume).toHaveBeenNthCalledWith(1, {
+      enabled: true,
+      message: activeMessage,
+      attemptId: 11,
+      isAbort: false,
+      isError: false,
+      eligible: true
+    })
+    expect(mocks.autoReadConsume).toHaveBeenNthCalledWith(2, {
+      enabled: true,
+      message: inactiveMessage,
+      attemptId: 12,
+      isAbort: false,
+      isError: false,
+      eligible: false
+    })
   })
 })
