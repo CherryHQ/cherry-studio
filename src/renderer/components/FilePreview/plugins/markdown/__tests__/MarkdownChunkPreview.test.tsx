@@ -38,6 +38,19 @@ describe('MarkdownChunkPreview', () => {
     mocks.useVirtualizer.mockImplementation(virtualizerImpl)
   })
 
+  it('keys a heading on the text the sanitizer keeps, so a stripped element leaves no residue', async () => {
+    // `style` is stripped with its content, so `# A<style>bad</style>B` renders `AB`; keying it on
+    // `abadb` left the later `# AB` without the `-1` the unsplit document gives it.
+    const content = ['# A<style>bad</style>B', '', 'first', '', '# AB'].join('\n')
+    const chunks = splitMarkdownChunks(content, 1).chunks
+    mocks.range = chunks.map((_, index) => index)
+    const { container } = render(<MarkdownChunkPreview chunks={chunks} id="sanitized-style" />)
+
+    const ids = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids.map((id) => id?.split('--')[1])).toEqual(['ab', 'ab-1'])
+  })
+
   it('mounts only the chunks the virtualizer reports', async () => {
     mocks.range = [0]
 
@@ -67,6 +80,20 @@ describe('MarkdownChunkPreview', () => {
     const ids = (await screen.findAllByRole('heading')).map((heading) => heading.getAttribute('id'))
 
     expect(ids).toEqual(['heading-doc:0--title', 'heading-doc:3--title-1'])
+  })
+
+  it('keys a heading on the footnote number the renderer prints, so a repeated heading keeps its id', async () => {
+    // The renderer turns a defined `[^n]` into a superscript number, so the text its heading id is
+    // numbered from is `Foo1`, not `Foo[^n]`. Keying the assignment on the source text missed that
+    // key, both chunks fell back to their own counter, and both headings took `--foo1`.
+    const content = ['# Foo[^n]', '', 'first', '', '# Foo[^n]', '', '[^n]: note'].join('\n')
+    const chunks = splitMarkdownChunks(content, 1).chunks
+    mocks.range = chunks.map((_, index) => index)
+    const { container } = render(<MarkdownChunkPreview chunks={chunks} id="footnote-number" />)
+
+    const ids = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids.map((id) => id?.split('--')[1])).toEqual(['foo1', 'foo1-1'])
   })
 
   it('resolves a footnote backlink inside the chunk that was clicked', async () => {

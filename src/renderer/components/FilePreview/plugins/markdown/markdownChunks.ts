@@ -147,7 +147,7 @@ function htmlBlockTerminator(line: string): RegExp | null {
  * counted in columns: a tab spans four of them, so a tab-indented label sits in indented code
  * where no definition opens.
  */
-const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^[^\][\s]+]:(.*)$/
+const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^([^\][\s]+)]:(.*)$/
 
 /**
  * An ATX heading: up to three columns of indent, one to six `#`, then the heading's text — which
@@ -645,8 +645,12 @@ function* eachHtmlTag(line: string): Generator<HtmlTag> {
  */
 class HtmlElementStack {
   readonly names: string[] = []
-  /** Name → its last position in {@link names}; a truncation past a position drops that entry. */
-  private readonly lastPosition = new Map<string, number>()
+  /**
+   * Name → every position it holds in {@link names}, innermost last. Keeping the whole run is what
+   * lets an inner close leave the outer element of the same name reachable: the stack only ever
+   * shrinks by truncation, so each position is pushed once and popped once.
+   */
+  private readonly positions = new Map<string, number[]>()
   /** How many `svg`/`math` elements are open, which is what makes a nested tag foreign content. */
   private foreignDepth = 0
 
@@ -655,21 +659,28 @@ class HtmlElementStack {
   }
 
   openTag(name: string): void {
-    this.lastPosition.set(name, this.names.length)
+    const held = this.positions.get(name)
+    if (held) held.push(this.names.length)
+    else this.positions.set(name, [this.names.length])
     this.names.push(name)
     if (name === 'svg' || name === 'math') this.foreignDepth += 1
   }
 
   /** Close the innermost element with this name, and everything nested inside it. */
   closeTag(name: string): void {
-    this.truncateTo(this.lastPosition.get(name) ?? this.names.length)
+    const held = this.positions.get(name)
+    this.truncateTo(held?.length ? held[held.length - 1] : this.names.length)
   }
 
   /** Drop every element above `depth`, for a block that ended with the container holding it. */
   truncateTo(depth: number): void {
     for (let position = this.names.length - 1; position >= depth; position -= 1) {
       const name = this.names[position]
-      if (this.lastPosition.get(name) === position) this.lastPosition.delete(name)
+      const held = this.positions.get(name)
+      if (held) {
+        held.pop()
+        if (held.length === 0) this.positions.delete(name)
+      }
       if (name === 'svg' || name === 'math') this.foreignDepth -= 1
     }
     this.names.length = depth
@@ -1186,9 +1197,14 @@ const MAX_HEADING_LABEL_CHARS = 64 * 1024
  */
 const HTML_HEADING_TAG = /<h([1-6])(?:[ \t][^>]*)?>([\s\S]*?)<\/h\1\s*>/gi
 
-/** The text an HTML heading renders — its content with its own tags stripped and entities read. */
+/**
+ * The text an HTML heading renders — its content with its own tags stripped and entities read. A
+ * raw-text element the sanitizer strips (`script`, `style`) takes its content with it, so the text
+ * it holds is no part of the id the renderer numbers.
+ */
 function htmlHeadingText(content: string): string {
   return content
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/<[^>]*>/g, '')
     .replace(
       /&(#(?:\d{1,7}|x[\dA-Fa-f]{1,6})|[\dA-Za-z]{1,31});/g,
@@ -1209,8 +1225,14 @@ const ASCII_PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/
  * @param source - The heading's inline source.
  * @param definesLabel - Whether the document defines a reference label. A reference it does not
  *   define is not a link: the whole construct stays literal text, brackets included.
+ * @param footnoteNumber - The number the renderer gives a defined footnote reference, which its
+ *   superscript renders; undefined for a reference the document does not define, which stays text.
  */
-function headingRenderedText(source: string, definesLabel: (label: string) => boolean): string {
+function headingRenderedText(
+  source: string,
+  definesLabel: (label: string) => boolean,
+  footnoteNumber: (label: string) => number | undefined
+): string {
   let text = ''
   // Label content read so far, against the budget below.
   let labelChars = 0
@@ -1263,6 +1285,13 @@ function headingRenderedText(source: string, definesLabel: (label: string) => bo
         }
       } else if (character === '<') {
         const rest = segment.slice(index)
+        // A raw-text element the sanitizer strips keeps none of the text it holds — `A<style>x</style>B`
+        // renders `AB`, and a heading id keyed on `axb` would take the id a later `# AB` should get.
+        const stripped = /^<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/i.exec(rest)
+        if (stripped) {
+          index += stripped[0].length
+          continue
+        }
         const autolink =
           /^<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*)>/.exec(rest) ?? /^<([^\s<>@]+@[^\s<>@]+)>/.exec(rest)
         // An autolink renders its URL; a tag, comment or declaration renders no text of its own.
@@ -1292,6 +1321,18 @@ function headingRenderedText(source: string, definesLabel: (label: string) => bo
         // renderer keys `foobarbaz`, and a later duplicate takes the id a link resolves to.
         if (!(highlights ??= highlightSpans(segment)).has(index)) text += run
         index += run.length
+      } else if (character === '[' && segment[index + 1] === '^') {
+        const reference = /^\[\^([^\]\s]+)\]/.exec(segment.slice(index))
+        const number = reference ? footnoteNumber(reference[1]) : undefined
+        // A defined footnote reference renders its number as a superscript; one the document never
+        // defines is not a reference and keeps its brackets as text, exactly as the renderer prints it.
+        if (reference && number !== undefined) {
+          text += String(number)
+          index += reference[0].length
+        } else {
+          text += character
+          index += 1
+        }
       } else if ((character === '[' && !entry.label) || (character === '!' && segment[index + 1] === '[')) {
         const open = index + (character === '!' ? 1 : 0)
         const label = pastBracketRun(segment, open)
@@ -1372,6 +1413,57 @@ function headingRenderedText(source: string, definesLabel: (label: string) => bo
     }
   }
   return text
+}
+
+/** A footnote reference's label: no whitespace and no bracket, inside `[^…]`. */
+const FOOTNOTE_REFERENCE = /\[\^([^\]\s]+)\]/y
+
+/**
+ * The footnote references a line of body text carries, in the order they appear — the order the
+ * renderer numbers the notes in. An escaped bracket is text, and a code span's content is literal,
+ * so neither opens a reference.
+ */
+function footnoteReferences(text: string): string[] {
+  const labels: string[] = []
+  let index = 0
+  while (index < text.length) {
+    const character = text[index]
+    if (character === '\\') {
+      index += 2
+      continue
+    }
+    if (character === '`') {
+      let run = 1
+      while (text[index + run] === '`') run += 1
+      // Only a run of the opener's own length closes the span; a longer one is content, and the
+      // walk resumes past it.
+      let closed = -1
+      for (let next = index + run; next < text.length;) {
+        const open = text.indexOf('`', next)
+        if (open < 0) break
+        let at = open
+        while (text[at] === '`') at += 1
+        if (at - open === run) {
+          closed = at
+          break
+        }
+        next = at
+      }
+      index = closed < 0 ? index + run : closed
+      continue
+    }
+    if (character === '[' && text[index + 1] === '^') {
+      FOOTNOTE_REFERENCE.lastIndex = index
+      const match = FOOTNOTE_REFERENCE.exec(text)
+      if (match) {
+        labels.push(match[1].toLowerCase())
+        index += match[0].length
+        continue
+      }
+    }
+    index += 1
+  }
+  return labels
 }
 
 /**
@@ -1889,6 +1981,11 @@ export function splitMarkdownChunks(
   // Every reference label the document defines, in the form references are matched by. A heading
   // may sit above the definition it references, so the set is only complete once the walk ends.
   const definedLabels = new Set<string>()
+  // The footnote labels the document defines, and the body references it carries in document order:
+  // the renderer numbers each note by its first reference, so a heading that holds one renders that
+  // number as text and its id can only be keyed once both are known.
+  const definedFootnotes = new Set<string>()
+  const footnoteOrder: string[] = []
   // A raw HTML block's lines are the tags the renderer parses into elements, so a complete heading
   // tag anywhere in the block numbers the document's ids the same way an ATX heading does — one a
   // single line may hold several of. The block is scanned whole, since its tag, text and closing
@@ -2151,12 +2248,13 @@ export function splitMarkdownChunks(
     }
     const footnoteStart = containerHoldsCode ? null : FOOTNOTE_DEFINITION_START.exec(uncontained)
     if (footnoteStart) {
+      definedFootnotes.add(footnoteStart[1].toLowerCase())
       definitions.push(uncontained)
       definitionLines += 1
       inDefinition = true
       footnoteDefinition = true
       sawBlankInDefinition = false
-      footnoteParagraphOpen = continuesFootnoteParagraph(footnoteStart[1])
+      footnoteParagraphOpen = continuesFootnoteParagraph(footnoteStart[2])
       // The definition keeps the container it was written behind: its continuation lines must
       // lose that container the same way the opening line did, or the carried prefix holds only
       // the first line and a truncated copy shadows the complete definition.
@@ -2191,6 +2289,10 @@ export function splitMarkdownChunks(
       continue
     }
     inDefinition = false
+    // The renderer numbers the document's footnotes in the order the body first references them —
+    // a definition's own content is written after the body — so each reference a body line carries
+    // is recorded here, and the numbers are handed out once every definition is known.
+    for (const label of footnoteReferences(uncontained)) footnoteOrder.push(label)
     // Heading ids are numbered over the whole document, so a heading is recorded where it renders:
     // an ATX heading where it stands, a setext one on the paragraph its underline turns into one —
     // which the parser reads whole, line after line.
@@ -2277,12 +2379,20 @@ export function splitMarkdownChunks(
   // Every definition the walk found is now known, so each heading's text can be read the way the
   // renderer reads it and the document's ids numbered in the order the headings stand.
   const definesLabel = (label: string): boolean => definedLabels.has(label)
+  // A note is numbered by the first body reference that resolves to it; a reference to a label the
+  // document never defines stays literal text, so it takes no number.
+  const footnoteNumbers = new Map<string, number>()
+  for (const label of footnoteOrder) {
+    if (!definedFootnotes.has(label) || footnoteNumbers.has(label)) continue
+    footnoteNumbers.set(label, footnoteNumbers.size + 1)
+  }
+  const footnoteNumber = (label: string): number | undefined => footnoteNumbers.get(label.toLowerCase())
   const slugOrder = new Map<string, string[]>()
   const lineSlugs = new Array<{ base: string; slug: string }[] | undefined>(lines.length)
   for (let i = 0; i < lines.length; i++) {
     for (const heading of lineHeadings[i] ?? []) {
       const base = normalizeHeadingText(
-        heading.plain ? heading.source : headingRenderedText(heading.source, definesLabel)
+        heading.plain ? heading.source : headingRenderedText(heading.source, definesLabel, footnoteNumber)
       )
       const seen = slugOrder.get(base) ?? []
       const slug = seen.length === 0 ? base : `${base}-${seen.length}`

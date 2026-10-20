@@ -3029,3 +3029,18 @@ describe('a document written with bare CR line endings', () => {
     }
   })
 })
+
+describe('nested HTML of one element name', () => {
+  it('closes only the innermost element, so a balanced pair still frees the boundaries below it', () => {
+    // A closing `</div>` deleted the lookup for every open `div`, so the outer close was a no-op and
+    // the document never found a boundary again: the whole body came back as one oversized chunk and
+    // the preview fell back to the source view.
+    const paragraphs = Array.from({ length: 800 }, (_, i) => `paragraph ${i} lorem ipsum dolor sit amet`).join('\n\n')
+    const content = ['<div>', '<div>', '', 'inner', '', '</div>', '', 'outer', '', '</div>', '', paragraphs].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.every((chunk) => chunk.text.length <= MARKDOWN_MAX_BLOCK_CHARS)).toBe(true)
+  })
+})
