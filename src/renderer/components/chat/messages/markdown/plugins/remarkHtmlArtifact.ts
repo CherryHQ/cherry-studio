@@ -112,10 +112,7 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
       if (end === undefined) return undefined
       position = end + 1
       state.inTag = false
-      if (state.pendingRawText !== undefined) {
-        state.rawText = state.pendingRawText
-        state.pendingRawText = undefined
-      }
+      applyCompletedTag(value, undefined, 0, end + 1, state)
       continue
     }
     const lt = value.indexOf('<', position)
@@ -140,8 +137,12 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
       position = end + 3
       continue
     }
-    // A close tag of anything else: its interior holds no boundary, skip past the marker.
+    // A close tag of anything else: its interior holds no boundary, skip past the marker. A
+    // foreign-content namespace close leaves that context.
     if (value.startsWith('</', lt)) {
+      if (/^<\/(?:svg|math)[\s>]/i.test(value.slice(lt))) {
+        state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
+      }
       position = lt + 2
       continue
     }
@@ -161,10 +162,7 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
     if (end === undefined) return undefined
     position = end + 1
     state.inTag = false
-    if (state.pendingRawText !== undefined) {
-      state.rawText = state.pendingRawText
-      state.pendingRawText = undefined
-    }
+    applyCompletedTag(value, tagName, lt, end + 1, state)
   }
   return undefined
 }
@@ -240,7 +238,7 @@ const SAME_NODE_RAW_TEXT_ELEMENT_NAMES = RAW_TEXT_ELEMENT_NAMES.filter(
 // (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
 // tag does the same so a quoted `>` never ends the tag early.
 const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
-  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
+  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
   'gi'
 )
 
@@ -332,6 +330,45 @@ interface ContainerScanState {
   /** Script data tokenizer region flags, carried while `rawText === 'script'`. */
   scriptEscaped?: boolean
   scriptDoubleEscaped?: boolean
+  /** Foreign-content (SVG/MathML) namespace depth: the raw-text algorithm never applies inside. */
+  foreignDepth?: number
+}
+
+// A completed tag whose `>` is preceded by the self-closing marker. In foreign content it
+// genuinely ends the element (`<svg><title/>` has no `</title>` coming); a tag continued from
+// a previous node passes the tag text present in `value` — the marker is at the tail or absent.
+function isSelfClosingTag(value: string, start: number, end: number): boolean {
+  return /\/\s*>$/.test(value.slice(start, end))
+}
+
+function isForeignContext(state: ContainerScanState): boolean {
+  return (state.foreignDepth ?? 0) > 0
+}
+
+/**
+ * Applies a tag that just completed at offset `tagEnd`: a non-self-closing `<svg>` / `<math>`
+ * opens a foreign-content namespace, and a raw-text opener recorded in `pendingRawText` enters
+ * its raw-text body — but never inside foreign content and never when it self-closed. `tagName`
+ * is undefined for a tag continued from a previous node, whose opener text is not in `value`.
+ */
+function applyCompletedTag(
+  value: string,
+  tagName: string | undefined,
+  tagStart: number,
+  tagEnd: number,
+  state: ContainerScanState
+): void {
+  const name = tagName?.toLowerCase()
+  if (name === 'svg' || name === 'math') {
+    if (!isSelfClosingTag(value, tagStart, tagEnd)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
+    return
+  }
+  if (state.pendingRawText !== undefined) {
+    if (!isSelfClosingTag(value, tagStart, tagEnd) && !isForeignContext(state)) {
+      state.rawText = state.pendingRawText
+    }
+    state.pendingRawText = undefined
+  }
 }
 
 interface ContainerScanResult {
@@ -361,6 +398,7 @@ function resetStreamState(state: ContainerScanState): void {
   state.pendingRawText = undefined
   state.scriptEscaped = undefined
   state.scriptDoubleEscaped = undefined
+  state.foreignDepth = undefined
 }
 
 // Detects a tag OPENer (`<div`, `<details`, …) — close tags (`</div>`) are complete by
@@ -454,10 +492,7 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
       if (end === undefined) return { closed: false }
       position = end + 1
       state.inTag = false
-      if (state.pendingRawText !== undefined) {
-        state.rawText = state.pendingRawText
-        state.pendingRawText = undefined
-      }
+      applyCompletedTag(value, undefined, 0, end + 1, state)
       continue
     }
 
@@ -499,10 +534,7 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
       if (end === undefined) return { closed: false }
       position = end + 1
       state.inTag = false
-      if (state.pendingRawText !== undefined) {
-        state.rawText = state.pendingRawText
-        state.pendingRawText = undefined
-      }
+      applyCompletedTag(value, tagName, tagStart, end + 1, state)
       continue
     }
     const cdataFirst =
@@ -528,8 +560,23 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
     // only the details boundaries themselves open and close the disclosure. A generic match on
     // a raw-text open means its end tag is not in this node: the body continues in later nodes.
     if (!token.startsWith('<details') && !token.startsWith('</details')) {
+      if (token.startsWith('</svg') || token.startsWith('</math')) {
+        state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
+        continue
+      }
       const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
-      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name)) state.rawText = name
+      if (name === 'svg' || name === 'math') {
+        if (!isSelfClosingTag(token, 0, token.length)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
+        continue
+      }
+      if (
+        name !== undefined &&
+        RAW_TEXT_CLOSE_REGEXES.has(name) &&
+        !isSelfClosingTag(token, 0, token.length) &&
+        !isForeignContext(state)
+      ) {
+        state.rawText = name
+      }
       continue
     }
     if (token[1] === '/') {
@@ -558,6 +605,7 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
   let depth = 0
   let scanned = 0
   let rawText: string | undefined
+  let foreignDepth = 0
   CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = 0
   let match: RegExpExecArray | null
   while (true) {
@@ -593,8 +641,23 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
     if (match[1] !== undefined) continue // a same-node raw-text body holds no real boundary
     const token = match[0].toLowerCase()
     if (!token.startsWith('<details') && !token.startsWith('</details')) {
+      if (token.startsWith('</svg') || token.startsWith('</math')) {
+        foreignDepth = Math.max(foreignDepth - 1, 0)
+        continue
+      }
       const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
-      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name)) rawText = name
+      if (name === 'svg' || name === 'math') {
+        if (!isSelfClosingTag(token, 0, token.length)) foreignDepth += 1
+        continue
+      }
+      if (
+        name !== undefined &&
+        RAW_TEXT_CLOSE_REGEXES.has(name) &&
+        !isSelfClosingTag(token, 0, token.length) &&
+        foreignDepth === 0
+      ) {
+        rawText = name
+      }
       continue
     }
     if (token[1] === '/') {
@@ -605,6 +668,16 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
       depth += 1
     }
   }
+}
+
+// End offset (just past the first `</summary>`) of the summary element starting `value`, or
+// undefined when the open tag never completes in this node. The open tag consumes its quoted
+// attribute list, so a decoy `</summary>` inside it cannot end the label early.
+function findSummaryElementEnd(value: string): number | undefined {
+  const open = /^<summary(?=[\s>])(?:"[^"]*"|'[^']*'|[^>"'])*>/i.exec(value)
+  if (!open) return undefined
+  const close = /<\/summary\s*>/i.exec(value.slice(open[0].length))
+  return close ? open[0].length + close.index + close[0].length : undefined
 }
 
 interface PairedContainerClose {
@@ -860,8 +933,24 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         let bodyStart = 0
         const firstBody = body[0]
         if (firstBody?.type === 'html' && HTML_SUMMARY_OPEN_REGEX.test(stripLeadingHtmlMetadata(firstBody.value))) {
-          children.push(firstBody)
-          bodyStart = 1
+          const summaryEnd = findSummaryElementEnd(firstBody.value)
+          const rest = summaryEnd !== undefined ? firstBody.value.slice(summaryEnd) : ''
+          // Leading whitespace on the remainder is insignificant inside the html block.
+          const restStart = summaryEnd !== undefined ? summaryEnd + (rest.length - rest.trimStart().length) : 0
+          if (
+            summaryEnd !== undefined &&
+            restStart < firstBody.value.length &&
+            HTML_CONTAINER_OPEN_REGEX.test(firstBody.value.slice(restStart))
+          ) {
+            // The label shares its node with an inner disclosure opener (no blank line between
+            // them): only the label stays raw, the opener re-enters pairing — skipping the
+            // whole node orphaned the inner close onto the artifact path.
+            children.push(sliceHtmlNode(firstBody, 0, summaryEnd))
+            body[0] = sliceHtmlNode(firstBody, restStart, firstBody.value.length)
+          } else {
+            children.push(firstBody)
+            bodyStart = 1
+          }
         }
         // The paired close closes the outermost opening of the opening node; every opening
         // retained next to it has no matching open inside the body, so its close arrives as an
