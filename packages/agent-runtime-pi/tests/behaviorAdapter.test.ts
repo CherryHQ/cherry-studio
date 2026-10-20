@@ -123,6 +123,47 @@ describe('coding-agent behavior adapter', () => {
     expect(facts.history.some((entry) => entry.kind === 'assistant' && entry.text === 'never')).toBe(false)
   })
 
+  // Catches a retried stop that names an earlier turn aborting the run a person started after it while Pi still
+  // prepares that run: its message is not on the branch yet, so the branch's last person's message is the earlier one.
+  it('leaves a later run going when a retried stop names an earlier turn', async () => {
+    const gate = latch()
+    const pi = await openPiHarness(() => {}, [
+      (api) => {
+        api.on('input', async (event) => {
+          if (event.text === 'second') await gate.promise
+          return { action: 'continue' as const }
+        })
+      }
+    ])
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'first done' }, { text: 'second done' }])
+    await pi.harness.sendUser(t, 'first')
+    await pi.harness.settle()
+    const turn = (await read(pi, t)).history.find((entry) => entry.kind === 'user')!.id
+    await pi.harness.sendUser(t, 'second')
+    const stopping = pi.harness.withCall(t, (ports) => ports.turns.stop(t, 'user', turn))
+    gate.release()
+    await stopping
+    await pi.harness.settle()
+    const facts = await read(pi, t)
+    expect(facts.live.runEnd?.outcome).toBe('completed')
+    expect(facts.history.some((entry) => entry.kind === 'assistant' && entry.text === 'second done')).toBe(true)
+  })
+
+  // Catches a stop that cannot tell a run began with a turn input (a goal round, a notification), whose first entry is
+  // its custom message rather than a person's message: a person's stop naming that round would leave it running.
+  it('stops the run a turn input began when a stop names its message', async () => {
+    const hold = holdTool()
+    const pi = await openPiHarness((ports) => ports.tools.register(hold.tool))
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: '', toolCalls: [{ name: 'hold', args: {} }] }, { text: 'never' }])
+    await pi.harness.withCall(t, (ports) => ports.turns.start(t, input('go'), key('round')))
+    await hold.started
+    const turn = (await read(pi, t)).history.find((entry) => entry.kind === 'marker' && entry.key === key('round'))!.id
+    await pi.harness.withCall(t, (ports) => ports.turns.stop(t, 'user', turn))
+    expect((await read(pi, t)).live.runEnd?.outcome).toBe('aborted')
+  })
+
   // Catches a message that reaches a child while Pi settles its run (after Pi's last steering check) being started by
   // Pi as a run of its own, stranded in Pi's queue, or carried into the child's next run, a run nobody recorded (H3).
   it('withdraws a message that reaches a child while its run settles', async () => {

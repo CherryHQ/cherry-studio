@@ -42,6 +42,10 @@ export type Submission = {
 /** One run: from the input that starts it to Pi's `agent_settled`. */
 export type RunState = {
   readonly run: number
+  /** The submission that started the run. */
+  readonly key: string
+  /** The branch's leaf when the run started: the run's input is written after it. */
+  readonly after: string | null
   /** Kind of the input that started the run; `undefined` for a person's text. */
   readonly startedBy: string | undefined
   /** Pi has not entered the run yet. */
@@ -73,6 +77,8 @@ export type Conversation = {
   /** Steers handed to Pi at a turn's end that Pi has not placed yet. */
   readonly steered: Set<string>
   active?: RunState
+  /** The latest run in this process, active or ended. */
+  latest?: RunState
   runs: number
   readonly ends: Map<number, RunEnding>
   lastEnd?: RunEnding['live']
