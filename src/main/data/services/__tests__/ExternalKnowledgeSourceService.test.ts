@@ -21,6 +21,7 @@ describe('ExternalKnowledgeSourceService', () => {
     dbh.db
       .insert(knowledgeBaseTable)
       .values({
+        orderKey: 'a0',
         id,
         name: `Base ${id}`,
         dimensions: null,

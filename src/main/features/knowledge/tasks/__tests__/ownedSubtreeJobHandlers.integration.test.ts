@@ -111,6 +111,7 @@ describe('owned subtree job handler admission', () => {
     vi.mocked(scheduler.scheduleFileProcessingCheck).mockResolvedValue(undefined)
 
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       id: BASE_ID,
       name: 'External KB',
       groupId: null,
