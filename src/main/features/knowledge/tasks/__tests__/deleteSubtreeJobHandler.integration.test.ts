@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { DbOrTx } from '@data/db/types'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
@@ -21,7 +22,7 @@ vi.mock('@application', async () => {
     JobManager: {
       ...mockJobManager,
       list: vi.fn(async () => []),
-      enqueue: vi.fn((_type: string, input: KnowledgeDeleteSubtreePayload) => {
+      enqueueTx: vi.fn((_tx: DbOrTx, _type: string, input: KnowledgeDeleteSubtreePayload) => {
         recoveredInputs.push(input)
         return { id: 'delete-job', snapshot: {}, finished: Promise.resolve({}) }
       })
