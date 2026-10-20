@@ -447,6 +447,50 @@ describe('ComposerToken', () => {
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toBeInTheDocument()
   })
 
+  it('keeps screenshot previews usable across token removal and undo without leaking URLs', async () => {
+    const user = userEvent.setup()
+    const createUrl = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValueOnce('blob:first')
+      .mockReturnValueOnce('blob:undo')
+    const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const blob = new Blob(['image'], { type: 'image/png' })
+    const token = {
+      id: 'file:shot',
+      kind: 'file' as const,
+      label: 'shot.png',
+      payload: {
+        fileTokenSourceId: 'shot',
+        name: 'shot.png',
+        origin_name: 'shot.png',
+        type: FILE_TYPE.IMAGE,
+        ext: '.png',
+        size: blob.size,
+        blob
+      }
+    }
+
+    try {
+      const first = render(<FileComposerToken token={token} imageIconPreview />)
+      expect(first.container.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'blob:first')
+      await openFileTokenPopover(first.container)
+      expect(screen.getByAltText('shot.png')).toHaveAttribute('src', 'blob:first')
+      first.unmount()
+      expect(revokeUrl).toHaveBeenCalledWith('blob:first')
+
+      const restored = render(<FileComposerToken token={token} imageIconPreview />)
+      expect(restored.container.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'blob:undo')
+      expect(createUrl).toHaveBeenLastCalledWith(blob)
+      await user.click(getFileTokenTrigger(restored.container))
+      expect(imagePreviewShowMock).toHaveBeenCalledWith(blob)
+      restored.unmount()
+      expect(revokeUrl).toHaveBeenCalledWith('blob:undo')
+    } finally {
+      createUrl.mockRestore()
+      revokeUrl.mockRestore()
+    }
+  })
+
   it('renders input raster images as chips with a thumbnail in the icon slot', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()

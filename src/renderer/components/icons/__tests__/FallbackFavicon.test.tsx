@@ -5,8 +5,7 @@ import FallbackFavicon from '../FallbackFavicon'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 
-// Each test uses its own hostname: the component keeps its resolution caches in module scope, so a
-// shared hostname would leak a resolved source (and the call count) from one test into the next.
+// Each test uses its own hostname so the favicon service's shared cache cannot leak across tests.
 beforeEach(() => {
   localStorage.clear()
   fetchMock.mockReset()
@@ -79,9 +78,28 @@ describe('FallbackFavicon', () => {
     first.unmount()
 
     fetchMock.mockClear()
-    render(<FallbackFavicon hostname={hostname} alt="" />)
+    const second = render(<FallbackFavicon hostname={hostname} alt="" />)
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const recoveredImage = await findFaviconImage(second.container, hostname)
+    expect(recoveredImage).toHaveAttribute('src', `https://favicon.splitbee.io/?url=${hostname}`)
+  })
+
+  it('recovers through another provider after an offline mount and image failure', async () => {
+    const hostname = 'offline-recovery.example'
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    const first = render(<FallbackFavicon hostname={hostname} alt="" />)
+    const image = await findFaviconImage(first.container, hostname)
+    fireEvent.error(image)
+    first.unmount()
+
+    fetchMock.mockImplementation(async (url: string) => ({
+      ok: url.startsWith('https://favicon.splitbee.io/'),
+      status: url.startsWith('https://favicon.splitbee.io/') ? 200 : 503
+    }))
+    const second = render(<FallbackFavicon hostname={hostname} alt="" />)
+
+    const recoveredImage = await findFaviconImage(second.container, hostname)
+    expect(recoveredImage).toHaveAttribute('src', `https://favicon.splitbee.io/?url=${hostname}`)
   })
 
   it('falls back to the hostname initial when the icon cannot load', async () => {
