@@ -7,6 +7,7 @@ import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
   resolveEffectiveEndpoint,
+  resolveRequestEndpoint,
   resolveProviderOptionsKey,
   resolveProviderVariant,
   resolveWireModelId
@@ -604,5 +605,67 @@ describe('inherited endpoint preference', () => {
       endpointType: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
       baseUrl: 'https://relay.example/v1'
     })
+  })
+})
+
+describe('request endpoint selection', () => {
+  const provider = makeProvider({
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      'openai-chat-completions': { baseUrl: 'https://chat.example/v1' },
+      'openai-image-generation': { baseUrl: 'https://images.example/v1' },
+      'openai-image-edit': { baseUrl: 'https://edit.example/v1' }
+    }
+  })
+  it('uses the image address without rewriting LLM ordering', () => {
+    const model = makeModel({
+      capabilities: ['image-generation'],
+      endpointTypes: ['openai-chat-completions', 'openai-image-generation']
+    })
+    expect(resolveRequestEndpoint(provider, model, 'image')).toMatchObject({
+      endpointType: 'openai-image-generation',
+      baseUrl: 'https://images.example/v1'
+    })
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: 'openai-chat-completions',
+      baseUrl: 'https://chat.example/v1'
+    })
+  })
+  it('uses an explicit edit endpoint and keeps generation on its own endpoint', () => {
+    const model = makeModel({
+      capabilities: ['image-generation'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    })
+    expect(resolveRequestEndpoint(provider, model, 'image-edit').baseUrl).toBe('https://edit.example/v1')
+    expect(resolveRequestEndpoint(provider, model, 'image').baseUrl).toBe('https://images.example/v1')
+  })
+  it('preserves declared ordering between native Google and dedicated image transports', () => {
+    const multiProvider = makeProvider({
+      ...provider,
+      endpointConfigs: {
+        ...provider.endpointConfigs,
+        'google-generate-content': { baseUrl: 'https://google.example/v1beta' }
+      }
+    })
+    const model = makeModel({
+      capabilities: ['image-generation'],
+      endpointTypes: ['google-generate-content', 'openai-image-generation']
+    })
+    expect(resolveRequestEndpoint(multiProvider, model, 'image')).toMatchObject({
+      endpointType: 'google-generate-content',
+      baseUrl: 'https://google.example/v1beta'
+    })
+    expect(
+      resolveRequestEndpoint(
+        multiProvider,
+        { ...model, endpointTypes: ['openai-image-generation', 'google-generate-content'] },
+        'image'
+      ).baseUrl
+    ).toBe('https://images.example/v1')
+  })
+  it('rejects an unrelated request instead of choosing the first model endpoint', () => {
+    expect(() =>
+      resolveRequestEndpoint(provider, makeModel({ endpointTypes: ['anthropic-messages'] }), 'embedding')
+    ).toThrow('no endpoint')
   })
 })

@@ -10,6 +10,7 @@ export const MODEL_ENDPOINT_OPTIONS = [
   { id: ENDPOINT_TYPE.OPENAI_EMBEDDINGS, label: 'endpoint_type.openai-embeddings' },
   { id: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, label: 'endpoint_type.image-generation' },
   { id: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, label: 'endpoint_type.image-edit' },
+  { id: ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH, label: 'settings.voice.speech.title' },
   { id: ENDPOINT_TYPE.JINA_RERANK, label: 'endpoint_type.jina-rerank' }
 ] as const
 
