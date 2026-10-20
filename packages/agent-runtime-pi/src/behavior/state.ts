@@ -85,6 +85,8 @@ export type Conversation = {
   compacted: Promise<void>
   /** The adapter's summarizer declined the latest compaction: `onCompacting` declined or the meter refused it. */
   declined: boolean
+  /** The adapter's summarizer was asked for the compaction in progress; the extension's guard reads and clears it. */
+  summarized: boolean
 }
 export type JobRecord = {
   readonly key: Key
@@ -139,7 +141,8 @@ export function newConversation(
     waiters: [],
     hostCompacts: 0,
     compacted: Promise.resolve(),
-    declined: false
+    declined: false,
+    summarized: false
   }
 }
 

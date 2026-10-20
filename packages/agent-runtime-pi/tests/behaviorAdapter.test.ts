@@ -15,7 +15,7 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { AgentRuntimeEvent, BehaviorSessionRequest } from '../src'
+import type { AgentRuntimeEvent, BehaviorSessionRequest, CompactionSummarizer } from '../src'
 import { type OpenSession, openPiHarness, type PiHarness } from './behaviorHarness'
 
 const read = (pi: PiHarness, thread: ThreadId): Promise<ConversationFacts> =>
@@ -385,6 +385,40 @@ describe('coding-agent behavior adapter', () => {
     expect(compacted).toBe(0)
     expect(ends).toEqual([expect.objectContaining({ error: 'The summary is empty' })])
     expect(facts.live.runEnd?.outcome).toBe('completed')
+  })
+
+  // Catches a session whose compaction bypasses the adapter's summarizer (the host left out `compaction.summarize` or
+  // passed its own): Pi would compact with its own or the host's summary and never ask onCompacting (H12).
+  it.each<[string, CompactionSummarizer | undefined]>([
+    ['without a summarizer', undefined],
+    ['with its own summarizer', async () => 'host summary']
+  ])('refuses to compact a session built %s', async (_label, summarize) => {
+    let asked = 0
+    const pi = await openPiHarness(
+      (ports) =>
+        ports.lifecycle.register({
+          ...noLifecycle,
+          onCompacting: async () => {
+            asked += 1
+            return { summary: 'summary' }
+          }
+        }),
+      [],
+      (request, open) =>
+        open(request, {
+          compaction: { enabled: false, reserveTokens: 1, keepRecentTokens: 1, ...(summarize && { summarize }) }
+        })
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'first' }, { text: 'a summary from the session model' }])
+    await pi.harness.sendUser(t, 'before')
+    await pi.harness.settle()
+    await expect(pi.harness.compact(t)).rejects.toThrow()
+    expect((await read(pi, t)).history.map((entry) => entry.kind)).toEqual(['user', 'assistant'])
+    expect(asked).toBe(0)
+    // Pi's own summarizer would have taken the second scripted reply.
+    expect(pi.requests(t)).toHaveLength(1)
+    expect(pi.errors).toEqual([expect.objectContaining({ message: expect.stringContaining('compaction.summarize') })])
   })
 
   // Catches a job ensured in onOpen that starts while onOpen is still deciding, instead of once it has run (H12).
