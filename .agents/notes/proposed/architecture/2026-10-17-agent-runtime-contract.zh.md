@@ -444,13 +444,13 @@ Pi 没有持久输入去重，不自动重试不确定的 Pi 调用。用户明�
 
 ##### 迁移、恢复与保留
 
-追加新的生产 migration，不改写已发布 migration。SQL 迁移创建记录／可空关联，保留既有消息 ID、内容、搜索字段、状态、投递字段和 resume token；不执行文件或 harness 调用，也不补造接纳／终态事实。
+追加新的生产 migration，不改写已发布 migration。SQL 迁移增加表／可空列，保留既有消息 ID、内容、搜索字段、状态、投递字段和 resume token；不执行文件或 harness 调用，也不补造接纳／终态事实。
 
 将三个迁移范围分开：
 
 | 范围 | 数据变更 | 切换条件 |
 | --- | --- | --- |
-| 原生关联与提交事实 — P1 | 增加 backend/context 记录，以及既有消息上必要的 Main 私有提交元数据。不新增输入表或复制输入正文。仅回填可验证原生绑定，不补造接纳事实。 | 既有归档和 API 仍可使用，原生恢复具有唯一选定执行写入者。无需等待会话成员关系或物理合表。 |
+| 原生关联与提交事实 — P1 | 增加 backend/context 记录，以及既有消息上必要的 Main 私有提交元数据。不新增输入表或复制输入正文。先回填候选身份，只确认验证通过的原生绑定，不补造接纳事实。 | 既有归档和 API 仍可使用，原生恢复具有唯一选定执行写入者。无需等待会话成员关系或物理合表。 |
 | Agent 树与分支操作 — P2 产品切换前 | 为 Agent 消息增加 parent/root 语义，由产品所有者保存选择状态。一起替换平铺历史/删除尾部的读写路径，增加稀疏分支/原生绑定。 | 选中路径查询、保留分支的编辑、附件、投影路由及原生 fork 通过验收。在此之前保留当前平铺路径，不能把新树压平交给旧写入者。 |
 | 物理归档合并/显式成员关系 — 独立设计 | 确定归档所有权；选择合表时迁移表引用和消费者。显式用户成员关系与 #20635 协调，后台/child 归档不自动进入侧栏。 | 每个已迁移所有者只有一套归档写入/读取模型，保留 ID 或具备完整映射，导航/保留语义得到验证。不长期双写完整消息。 |
 
@@ -468,7 +468,11 @@ Pi 没有持久输入去重，不自动重试不确定的 Pi 调用。用户明�
 | 导航与成员关系 | 协同迁移收藏、保存的路由/标签页、排序、活跃时间、回收站及占位会话复用。保留 agent/workspace、task-schedule 和 channel 绑定；`agentId` 不能当作 `assistantId`。通用 topic 导航纳入 Agent 归档前，必须明确成员关系。 |
 | 备份与清理 | 一起捕获映射、产品元数据和原生关联；移除旧所有者前，恢复/永久删除必须理解新所有者。共享原生 store 仍受全部保留绑定保护。 |
 
-Main 单独执行可重入的关联回填。对于既有 Pi 行，按当前 checkpoint／fork 规则检查 `runtimeResumeToken` 和编辑后的 `data.nativeSessionId`，验证原生 header 与位置后，再提交已确认的上下文关联。候选证据冲突时保持未解决，不盲选最新 assistant token，也不按每条旧消息新造原生上下文。展示内容和文本匹配都不是身份依据。将进展保存为已绑定／未解决记录，使回填重启后仍幂等。
+数据库回填通过已注册的 [AgentSessionContextSeeder](../../../../src/main/data/db/seeding/seeders/AgentSessionContextSeeder.ts) 执行，顺序在旧 runtime 迁移 seeder 之后。它采用 `run-on-change`，覆盖已有安装，并在 `DbService` 尚在初始化时，使用传入的 `db` 执行同步事务。对于已知 Pi 会话，收集去重后的 `runtimeResumeToken` 和编辑后的 `data.nativeSessionId` 候选；待执行的 DSH 转换仅提供预先分配的新 Pi 身份，不使用旧 DSH token。其他 harness 和无法确定所有者的孤立历史保留归档，不猜测 Pi 关联。保留已有关联不变；新候选只设置 `intendedThreadId`，`nativeThreadId` 保持 null。
+
+Seeder 事务只操作数据库，不读取原生文件、不创建 harness、不选择写入者、不改写消息历史，也不补造提交事实。Seeder journal 表示候选登记完成，不表示原生历史可用。事务失败不会留下部分回填；写入已提交但 journal 丢失时，重跑仍保留已有身份。
+
+原生上下文层单独验证原生 header 与位置，再由 `confirmPiContext` 提交已确认的关联。文件缺失或证据冲突时保持未解决，并可独立于 Seeder journal 重试。不盲选最新 assistant token，也不按每条旧消息新造原生上下文。展示内容和文本匹配都不是身份依据。生产确认流程以及旧路径继续运行期间新增身份的登记，仍属于 P2 生命周期切换。
 
 未迁移上下文保持既有执行路径。切换在原生派发前选定唯一写入者；发生错误或未知结果后，不能退回旧 driver 再调用一次。对于已迁移上下文，用原生对账替代现有 crash-orphan 扫描的一律报错／清 token 行为。无法验证原生上下文的既有 v2 历史仍可读取；这不是 v1 迁移兼容路径。
 
@@ -499,7 +503,7 @@ P1 沿用既有产品所有者，覆盖 backend/原生关联、消息上必要�
 | 终态先于确认接纳到达；两个输入共享一个响应 | 晚到回执保留终态；已确认时，两条关联指向同一产品响应。 | 消息提交/投影集成测试；AC7、AC9。 |
 | 被动重开 Durable 并查询 | 不启动模型／工具工作；强制退出进程后的恢复另由 P4 验证。 | P1 真实 Harness fixture，P4 worker 进程崩溃测试；AC8、AC11。 |
 
-P1 基础现已包含 backend/context 的增量 migration、现有消息上的私有 `submission` 列、已提交内容保护、显式原生创建、严格打开和被动对账。[原生存储 fixture](../../../../src/main/ai/agentSession/__tests__/nativeContext.test.ts)、[消息提交测试](../../../../src/main/data/services/__tests__/AgentSessionSubmission.test.ts) 和[已有数据迁移 fixture](../../../../src/main/data/db/__tests__/agentNativeContextMigration.test.ts) 使用真实适配器和 SQLite。回填记录不同的既有 Pi 身份，不选择写入者，也不重建历史。Durable 会话创建后的关联若丢失且无法恢复原生身份，则保留未解决的创建意图。
+P1 基础现已包含 backend/context 的增量 migration、现有消息上的私有 `submission` 列、已提交内容保护、显式原生创建、严格打开和被动对账。[原生存储 fixture](../../../../src/main/ai/agentSession/__tests__/nativeContext.test.ts)、[消息提交测试](../../../../src/main/data/services/__tests__/AgentSessionSubmission.test.ts) 和[已有数据迁移 fixture](../../../../src/main/data/db/__tests__/agentNativeContextMigration.test.ts) 使用真实适配器和 SQLite。[Seeder 测试](../../../../src/main/data/db/seeding/seeders/__tests__/AgentSessionContextSeeder.test.ts) 覆盖已注册的升级路径、初始化时机、事务回滚、重复执行和待转换 DSH 的目标身份。原生 fixture 单独验证 Seeder 完成后的确认与重试。Durable 会话创建后的关联若丢失且无法恢复原生身份，则保留未解决的创建意图。
 
 严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Main 观察器保留写入失败的事实供 `flush()` 补写，由调用者持有至停止；这些辅助模块不注册第二个生命周期服务，也不切换桌面执行。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
 
