@@ -932,6 +932,52 @@ describe('agent right pane projections', () => {
     expect(status.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
   })
 
+  // The live cache keeps only the latest edge per task, so the start that revived a settled run is
+  // replaced by its progress edge: the revival must survive that, vouched by the runtime.
+  it('keeps a revived run alive when the live cache advances past its start', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          title: 'Fetch latest',
+          taskType: 'subagent'
+        }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'bg-1', status: 'completed', summary: 'done' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+    const lateProgress: AgentSessionTaskEvents = {
+      'bg-1': { event: 'progress', taskId: 'bg-1', status: 'in_progress', description: 'Fetch latest' }
+    }
+
+    // The runtime still reports the task, so the progress edge is the current run's own belief.
+    const live = buildAgentRightPaneStatus(messages, { m1: parts }, lateProgress, {
+      activeMessageIds: new Set(),
+      liveBackgroundTaskIds: new Set(['bg-1'])
+    })
+    expect(live.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
+
+    // A settled run's origin turn that is still active vouches too.
+    const foreground = buildAgentRightPaneStatus(messages, { m1: parts }, lateProgress, {
+      activeMessageIds: new Set(['m1']),
+      liveBackgroundTaskIds: new Set()
+    })
+    expect(foreground.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
+
+    // No voucher: the stale edge must not un-settle the row (the #17440 guard).
+    const stale = buildAgentRightPaneStatus(messages, { m1: parts }, lateProgress, {
+      activeMessageIds: new Set(),
+      liveBackgroundTaskIds: new Set()
+    })
+    expect(stale.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'completed' })])
+  })
+
   it('keeps a stopped task terminal when liveness no longer reports it', () => {
     const parts = [
       {

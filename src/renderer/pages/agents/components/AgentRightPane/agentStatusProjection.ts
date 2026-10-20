@@ -192,7 +192,8 @@ function applyAgentTaskEvent(
   data: AgentTaskEventPartData,
   dshTaskRootCallIds: ReadonlySet<string>,
   originMessageId?: string,
-  originMessageIds?: Map<string, string>
+  originMessageIds?: Map<string, string>,
+  liveEdge = false
 ): void {
   const existing = runTaskMap.get(data.taskId)
   // A completion's summary is prose, not a name — it must never become the row title.
@@ -200,7 +201,7 @@ function applyAgentTaskEvent(
   if (!title) return
 
   // A stale pre-completion event can apply after the completion did; a new run's start revives.
-  const status = resolveTaskStatusAfter(existing?.status, data)
+  const status = resolveTaskStatusAfter(existing?.status, data, liveEdge)
 
   runTaskMap.set(data.taskId, {
     id: data.taskId,
@@ -298,7 +299,14 @@ export function buildAgentRightPaneStatus(
   }
 
   for (const data of Object.values(lateTaskEvents)) {
-    applyAgentTaskEvent(runTaskMap, data, dshTaskRootCallIds)
+    // A cache edge may revive a settled run only while the runtime vouches the task is live —
+    // unlike parts, an unvouched cache edge must not un-settle a settled row (#17440).
+    const originMessageId = runTaskOriginMessageIds.get(data.taskId)
+    const live =
+      liveness !== undefined &&
+      ((originMessageId !== undefined && liveness.activeMessageIds.has(originMessageId)) ||
+        liveness.liveBackgroundTaskIds.has(data.taskId))
+    applyAgentTaskEvent(runTaskMap, data, dshTaskRootCallIds, undefined, undefined, live)
   }
 
   // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
