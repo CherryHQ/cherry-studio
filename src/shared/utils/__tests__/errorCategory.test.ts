@@ -127,3 +127,44 @@ describe('classifyErrorCategory client refusals', () => {
     expect(classifyErrorCategory({ text: 'authentication required' })).toBe('auth')
   })
 })
+
+// Protocol failures need the existing parse diagnosis without swallowing request or transport failures.
+describe('classifyErrorCategory provider response protocol', () => {
+  const phrases = [
+    'Invalid input: expected object, received undefined',
+    'Type validation failed:',
+    "Expected 'function.name' to be a string.",
+    "Expected 'id' to be a string.",
+    'Response stream ended without a finish reason.'
+  ]
+
+  it.each(phrases)('classifies %s as parse case-insensitively', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('parse')
+    expect(classifyErrorCategory({ text: `Provider: ${text.toUpperCase()} Details` })).toBe('parse')
+  })
+
+  it.each([
+    'Invalid input: temperature must be positive',
+    'Validation failed for request parameter',
+    'Expected a function result',
+    'Streaming is not supported for this model'
+  ])('does not broaden matching to unrelated text: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+  })
+
+  it.each([
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [500, 'server']
+  ] as const)('preserves HTTP %i precedence over protocol phrases', (status, category) => {
+    for (const text of phrases) expect(classifyErrorCategory({ status, text })).toBe(category)
+  })
+
+  it('preserves transport and request classifications', () => {
+    expect(classifyErrorCategory({ text: 'ECONNRESET' })).toBe('stream')
+    expect(classifyErrorCategory({ text: 'ETIMEDOUT' })).toBe('network')
+    expect(classifyErrorCategory({ status: 400, text: 'Invalid input: temperature must be positive' })).toBe(
+      'bad_request'
+    )
+  })
+})

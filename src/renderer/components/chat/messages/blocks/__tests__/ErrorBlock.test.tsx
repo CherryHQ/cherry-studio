@@ -82,6 +82,32 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
+  // Main-side copy and mapping are asserted in src/main/features/apiGateway/__tests__/bindError.test.ts.
+  // This only guards that providerErrorText keeps the serialized message visible.
+  it.each([
+    {
+      message:
+        '操作系统拒绝内部 API 网关在 ::1，请求的 TCP 端口 49152 上监听（EACCES）。请重试请求。如果仍然失败，请联系系统管理员检查对回环监听的限制。',
+      diagnosis: '操作系统拒绝内部 API 网关',
+      recovery: '请重试请求'
+    },
+    {
+      message:
+        '操作系统拒绝 API 网关在 ::1，TCP 端口 49152 上监听（EACCES）。请在“设置 → API 网关”中选择其他“端口”，离开输入框以保存，然后点击“启动”。请将客户端的连接地址更新为新地址。',
+      diagnosis: '操作系统拒绝 API 网关',
+      recovery: '离开输入框以保存，然后点击“启动”'
+    }
+  ])('keeps serialized Chinese IPv6 bind recovery visible through providerErrorText: $diagnosis', (copy) => {
+    const error = { name: 'Error', message: copy.message, stack: null, cause: null }
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    const diagnostic = screen.getByText(copy.message)
+    expect(diagnostic).toHaveTextContent(copy.diagnosis)
+    expect(diagnostic).toHaveTextContent('::1')
+    expect(diagnostic).toHaveTextContent('49152')
+    expect(diagnostic).toHaveTextContent('EACCES')
+    expect(diagnostic).toHaveTextContent(copy.recovery)
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')

@@ -44,7 +44,8 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
-  FUNASR_BUNDLE_ID,
+  QWEN3_ASR_MODEL_ID,
+  DOWNLOADABLE_TRANSCRIPTION_BUNDLES,
   QWEN3_TTS_MODEL_ID,
   KOKORO_TTS_MODEL_ID,
   DOWNLOADABLE_SPEECH_BUNDLES,
@@ -113,6 +114,7 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [QWEN3_TTS_MODEL_ID]: 'settings.voice.model.qwen3_tts',
   [KOKORO_TTS_MODEL_ID]: 'settings.voice.model.kokoro_tts',
   [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
+  [QWEN3_ASR_MODEL_ID]: 'settings.voice.model.qwen3_asr',
   [WINDOWS_ASR_MODEL_ID]: 'settings.voice.model.windows_asr',
   [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
 }
@@ -273,9 +275,10 @@ function VoiceSettings() {
     speechPlaybackService.getSnapshot
   )
   const [models, setModels] = useState<readonly LocalVoiceModelDescriptor[]>([])
-  const asrInstallationStatus = useSharedCacheSelector(
-    [LOCAL_MODEL_STATUS_CACHE_KEY],
-    ([snapshots]) => snapshots?.[FUNASR_BUNDLE_ID]?.status
+  const asrInstallationStatus = useSharedCacheSelector([LOCAL_MODEL_STATUS_CACHE_KEY], ([snapshots]) =>
+    Object.values(DOWNLOADABLE_TRANSCRIPTION_BUNDLES)
+      .map((id) => snapshots?.[id]?.status)
+      .join(',')
   )
   const ttsInstallationStatus = useSharedCacheSelector([LOCAL_MODEL_STATUS_CACHE_KEY], ([snapshots]) =>
     Object.values(DOWNLOADABLE_SPEECH_BUNDLES)
@@ -1053,9 +1056,13 @@ function VoiceSettings() {
             disabled={installingLocale}
             onValueChange={(value) => {
               if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
-                void navigate({ to: '/settings/local-models', hash: 'voice-resources' }).catch((error: unknown) =>
-                  reportActionFailure(error)
-                )
+                const selected = value.slice(DOWNLOAD_MODEL_PREFIX.length)
+                const bundleId = Object.entries(DOWNLOADABLE_TRANSCRIPTION_BUNDLES).find(([id]) => id === selected)?.[1]
+                if (bundleId)
+                  void navigate({
+                    to: '/settings/local-models',
+                    hash: bundleId === 'funasr-nano-int8' ? 'voice-resources' : bundleId
+                  }).catch((error: unknown) => reportActionFailure(error))
                 return
               }
               savePreference(async () => {

@@ -287,7 +287,7 @@ function SkillSearchBody({
   const getResultKey = useCallback(
     (index: number) => {
       const result = results[index]
-      return result ? `${result.sourceRegistry}:${result.slug}` : index
+      return result ? result.installSource : index
     },
     [results]
   )
