@@ -10,6 +10,7 @@ import {
   decideMessage,
   decideRunEnd,
   decideSpawn,
+  decideSteerWithdrawn,
   decideStop,
   decideUserStopSubagent,
   reportTarget
@@ -135,7 +136,7 @@ describe('messaging and stopping', () => {
   // place as its next run.
   it('steers a running child and continues a finished one in the background', () => {
     expect(message([runEntry(run('a'))], live)).toMatchObject({
-      ops: [],
+      ops: [{ record: { type: 'subagent-steer', value: { sessionId: 'a', run: 1 } }, key: 'subagent-steer:k1:1' }],
       effects: [{ type: 'message-child', key: 'subagent-steer:k1:1', run: 1 }]
     })
     const interrupted = [runEntry(run('a', { status: 'finished', outcome: 'interrupted' }))]
@@ -150,6 +151,21 @@ describe('messaging and stopping', () => {
       }
     ])
     expect(message(apply(interrupted, continued))).toMatchObject({ ops: [], result: { run: 2 } })
+  })
+
+  // Catches a rerun of a steer the child took and then finished with (H3): deciding afresh found the child finished
+  // and continued it with the same message, so the child received it twice. Only a withdrawn steer is decided again.
+  it('sends a recorded steer again on a rerun and decides afresh only once it was withdrawn', () => {
+    const steered = message([runEntry(run('a'))], live)
+    const finished = [
+      ...apply([runEntry(run('a'))], steered),
+      runEntry(run('a', { status: 'finished', outcome: 'completed' }))
+    ]
+    const rerun = message(finished)
+    expect(rerun.result).toMatchObject({ kind: 'queued', child: 'a' })
+    expect(rerun.effects).toEqual(steered.effects)
+    const withdrawn = apply(finished, decideSteerWithdrawn(facts(finished), k))
+    expect(message(withdrawn).result).toMatchObject({ kind: 'continued', child: 'a', run: 2 })
   })
 
   // Catches a message sent into a run that is being stopped, where the stop would drop it (Y5): the call waits for

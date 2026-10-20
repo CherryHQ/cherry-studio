@@ -22,6 +22,7 @@ import {
   decideMessage,
   decideRunEnd,
   decideSpawn,
+  decideSteerWithdrawn,
   decideStop,
   decideUserStopSubagent,
   reportTarget
@@ -273,6 +274,16 @@ describe('purity (AC7)', () => {
     },
     ({ f, i }) => decideMessage(f, i, call('k'))
   )
+  add(
+    'decideMessage (steer)',
+    { f: facts([runEntry(run('a'))], live), i: inputs({ args: { id: 'a', message: 'm' } }) },
+    ({ f, i }) => decideMessage(f, i, call('k'))
+  )
+  const steered = apply(
+    [runEntry(run('a'))],
+    decideMessage(facts([runEntry(run('a'))], live), inputs({ args: { id: 'a', message: 'm' } }), call('k'))
+  )
+  add('decideSteerWithdrawn', facts(steered, live), (f: ConversationFacts) => decideSteerWithdrawn(f, call('k')))
   add('decideStop', { f: facts([runEntry(run('a'))], live), i: inputs({ args: { id: 'a' } }) }, ({ f, i }) =>
     decideStop(f, i)
   )
@@ -368,7 +379,8 @@ describe('entry kinds', () => {
     'cherry.subagent-message': "{ type: 'subagent-message' }",
     'cherry.plan': "record.type === 'plan'",
     'cherry.turn-stop': "record.type === 'turn-stop'",
-    'cherry.idle-driver-exit': "type: 'idle-driver-exit', value"
+    'cherry.idle-driver-exit': "type: 'idle-driver-exit', value",
+    'cherry.subagent-steer': "record.type === 'subagent-steer'"
   }
   // Catches a kind added to ENTRY_KINDS that no rule writes or reads: adapters would store it for nothing. The map
   // fails to compile until a new kind is listed.
