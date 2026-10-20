@@ -6,7 +6,7 @@
 import { ENDPOINT_CONNECTION_FAMILY } from '@cherrystudio/provider-registry'
 import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
@@ -65,6 +65,57 @@ export function resolveEffectiveEndpoint(
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return { endpointType, baseUrl: resolveEndpointBaseUrl(provider, endpointType), providerOptionsKey }
+}
+
+export type ModelRequestKind = 'image' | 'image-edit' | 'embedding' | 'speech' | 'rerank'
+
+/** Select the target before constructing SDK settings, without changing the model's chat ordering. */
+export function resolveRequestEndpoint(provider: Provider, model: Model, kind: ModelRequestKind): ResolvedEndpoint {
+  const dedicated: Record<ModelRequestKind, EndpointType[]> = {
+    image: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+    'image-edit': [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+    embedding: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+    speech: [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH],
+    rerank: [ENDPOINT_TYPE.JINA_RERANK]
+  }
+  const capability = {
+    image: MODEL_CAPABILITY.IMAGE_GENERATION,
+    'image-edit': MODEL_CAPABILITY.IMAGE_GENERATION,
+    embedding: MODEL_CAPABILITY.EMBEDDING,
+    speech: MODEL_CAPABILITY.AUDIO_GENERATION,
+    rerank: MODEL_CAPABILITY.RERANK
+  }[kind]
+  const declared = model.endpointTypes?.length
+    ? model.endpointTypes
+    : [resolveEffectiveEndpoint(provider, model).endpointType].filter((ep): ep is EndpointType => !!ep)
+  const general = declared.filter((ep) => {
+    if (!model.capabilities.includes(capability)) return false
+    if (kind === 'speech') {
+      return (
+        ep === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT &&
+        model.inputModalities?.length === 1 &&
+        model.inputModalities[0] === 'text' &&
+        model.outputModalities?.length === 1 &&
+        model.outputModalities[0] === 'audio'
+      )
+    }
+    return [
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.OLLAMA_CHAT,
+      ENDPOINT_TYPE.OLLAMA_GENERATE
+    ].some((candidate) => candidate === ep)
+  })
+  const applicable = declared.filter(
+    (ep) => dedicated[kind].includes(ep) || (ep === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && general.includes(ep))
+  )
+  const endpointType =
+    (kind === 'image-edit' && declared.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)
+      ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+      : applicable[0]) ?? general[0]
+  if (!endpointType) throw new Error(`Model ${model.id} has no endpoint for ${kind}`)
+  return resolveEffectiveEndpoint(provider, { ...model, endpointTypes: [endpointType] })
 }
 
 /** Maps base id → variant id (`openai` + `openai-chat-completions` → `openai-chat`). No-op when no variant exists. */

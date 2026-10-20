@@ -1,4 +1,4 @@
-import { ENDPOINT_CONNECTION_FAMILY, canInheritEndpointConnection } from '@cherrystudio/provider-registry'
+import { resolveEndpointConnection } from '@cherrystudio/provider-registry'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -6,24 +6,11 @@ type ProviderConnection = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfig
 
 /** Resolves connection addresses only; adapter, dialect and request path remain target-owned. */
 export function resolveEndpointBaseUrl(provider: ProviderConnection, endpointType: EndpointType | undefined): string {
-  if (!endpointType) return ''
-  const configs = provider.endpointConfigs
-  const ownUrl = configs?.[endpointType]?.baseUrl?.trim()
-  if (ownUrl) return ownUrl
-
-  const candidates = [provider.defaultChatEndpoint, ...(Object.keys(ENDPOINT_CONNECTION_FAMILY) as EndpointType[])]
-  for (const candidate of candidates) {
-    if (
-      !candidate ||
-      !canInheritEndpointConnection(endpointType, candidate, configs?.[endpointType], configs?.[candidate])
-    )
-      continue
-    const baseUrl = configs?.[candidate]?.baseUrl?.trim()
-    if (!baseUrl) continue
-    const route = routeToEndpoint(baseUrl)
-    return route.endpoint ? `${route.baseURL}#` : baseUrl
-  }
-  return ''
+  const connection = resolveEndpointConnection(provider, endpointType)
+  if (!connection) return ''
+  if (connection.source === endpointType) return connection.baseUrl
+  const route = routeToEndpoint(connection.baseUrl)
+  return route.endpoint ? `${route.baseURL}#` : connection.baseUrl
 }
 
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {

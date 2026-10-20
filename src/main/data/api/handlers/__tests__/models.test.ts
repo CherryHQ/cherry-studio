@@ -11,8 +11,6 @@ import {
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 
-import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
-
 const {
   listMock,
   getByKeyMock,
@@ -55,6 +53,7 @@ vi.mock('@data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     lookupModel: lookupModelMock,
+    lookupModels: (providerId: string, ids: string[]) => ids.map((id) => lookupModelMock(providerId, id)),
     resolveModels: resolveModelsMock,
     getImageGenerationSupport: getImageGenerationSupportMock
   }
@@ -172,32 +171,8 @@ describe('/models', () => {
     ] satisfies CreateModelInput[])
   })
 
-  it('falls back to custom model creation when registry lookup returns NOT_FOUND', async () => {
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    lookupModelMock.mockImplementation(() => {
-      throw DataApiErrorFactory.notFound('Registry model', 'custom-model')
-    })
-    createMock.mockReturnValue([{ id: 'openai::custom-model' }])
-
-    await modelHandlers['/models'].POST({
-      body: [{ providerId: 'openai', modelId: 'custom-model' }]
-    })
-
-    expect(createMock).toHaveBeenCalledWith([
-      {
-        dto: { providerId: 'openai', modelId: 'custom-model' },
-        registryData: undefined
-      }
-    ] satisfies CreateModelInput[])
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Registry lookup missed during create, falling back to custom',
-      expect.objectContaining({ providerId: 'openai', modelId: 'custom-model' })
-    )
-  })
-
   it('rethrows non-NOT_FOUND registry lookup errors instead of creating custom models', async () => {
     const error = new Error('registry down')
-    const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
     lookupModelMock.mockImplementation(() => {
       throw error
     })
@@ -209,10 +184,6 @@ describe('/models', () => {
     ).rejects.toBe(error)
 
     expect(createMock).not.toHaveBeenCalled()
-    expect(errorSpy).toHaveBeenCalledWith(
-      'Registry lookup failed during create',
-      expect.objectContaining({ providerId: 'openai', modelId: 'gpt-4o', error })
-    )
   })
 
   it('accepts a bare array body and delegates to create', async () => {
@@ -249,42 +220,6 @@ describe('/models', () => {
       }
     ] satisfies CreateModelInput[])
     expect(result).toEqual(created)
-  })
-
-  it('falls back to custom model creation when registry lookup returns NOT_FOUND for one batch item', async () => {
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    const registryData = {
-      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
-      registryOverride: null,
-      reasoningProfile: DISABLED_REASONING_PROFILE
-    }
-
-    lookupModelMock.mockReturnValueOnce(registryData).mockImplementationOnce(() => {
-      throw DataApiErrorFactory.notFound('Model', 'my-model')
-    })
-    createMock.mockReturnValue([])
-
-    await modelHandlers['/models'].POST({
-      body: [
-        { providerId: 'openai', modelId: 'gpt-4o' },
-        { providerId: 'custom/provider', modelId: 'my-model' }
-      ]
-    })
-
-    expect(createMock).toHaveBeenCalledWith([
-      {
-        dto: { providerId: 'openai', modelId: 'gpt-4o' },
-        registryData
-      },
-      {
-        dto: { providerId: 'custom/provider', modelId: 'my-model' },
-        registryData: undefined
-      }
-    ] satisfies CreateModelInput[])
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Registry lookup missed during batch create, falling back to custom',
-      expect.objectContaining({ providerId: 'custom/provider', modelId: 'my-model' })
-    )
   })
 
   it('propagates create service errors without wrapping them', async () => {

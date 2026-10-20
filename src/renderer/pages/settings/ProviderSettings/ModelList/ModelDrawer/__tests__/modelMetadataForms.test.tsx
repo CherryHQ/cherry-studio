@@ -1,10 +1,11 @@
+import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelSchema } from '@shared/data/types/model'
+import { ModelSchema, type Model } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import { isAudioModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
@@ -47,8 +48,21 @@ beforeAll(async () => {
   Element.prototype.scrollIntoView = () => {}
 })
 beforeEach(() => {
+  mockDataApiService.get.mockImplementation(async (_path, options) =>
+    (options?.query?.ids ?? []).map((id: string) =>
+      ModelSchema.parse({
+        ...model,
+        id: `${provider.id}::${id}`,
+        apiModelId: id,
+        capabilities: [],
+        inputModalities: undefined,
+        outputModalities: undefined,
+        presetModelId: null
+      })
+    )
+  )
   create.mockClear()
-  update.mockClear()
+  update.mockReset().mockResolvedValue(model)
   mockUseQuery.mockImplementation((path) => ({
     data: path === '/providers/:providerId' ? provider : [],
     isLoading: false,
@@ -65,6 +79,54 @@ const groupButton = (group: string, name: string) =>
   within(screen.getByRole('group', { name: group })).getByRole('button', { name })
 
 describe('model metadata persistence', () => {
+  it('shows known defaults without submitting them as explicit overrides', async () => {
+    const user = userEvent.setup()
+    mockDataApiService.get.mockResolvedValue([{ ...model, presetModelId: 'image-model' }])
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/models', create)
+    render(<AddModelFormPanel providerId={provider.id} prefill={null} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await user.type(screen.getByRole('textbox', { name: 'Model ID' }), 'image-model')
+    await user.click(screen.getByRole('button', { name: 'More Settings' }))
+    await waitFor(() =>
+      expect(groupButton('Model Capabilities', 'Image generation')).toHaveAttribute('aria-pressed', 'true')
+    )
+    await user.click(screen.getByRole('button', { name: 'Add Model' }))
+    await waitFor(() => expect(create.mock.calls.length).toBe(1))
+    const saved = create.mock.calls[0][0].body[0]
+    expect(saved).not.toHaveProperty('capabilities')
+    expect(saved).not.toHaveProperty('endpointTypes')
+  })
+
+  it('retains explicit clearing while a delayed default lookup completes', async () => {
+    const user = userEvent.setup()
+    let finish!: (models: unknown[]) => void
+    mockDataApiService.get.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    render(<AddModelFormPanel providerId={provider.id} prefill={null} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await user.type(screen.getByRole('textbox', { name: 'Model ID' }), 'image-model')
+    await user.click(screen.getByRole('button', { name: 'More Settings' }))
+    await user.click(groupButton('Model Capabilities', 'Image generation'))
+    await user.click(groupButton('Model Capabilities', 'Image generation'))
+    finish([{ ...model, presetModelId: 'image-model' }])
+    await waitFor(() =>
+      expect(groupButton('Model Capabilities', 'Image generation')).toHaveAttribute('aria-pressed', 'false')
+    )
+  })
+
+  it('does not create when default resolution fails', async () => {
+    const user = userEvent.setup()
+    mockDataApiService.get.mockRejectedValue(new Error('registry unavailable'))
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/models', create)
+    render(<AddModelFormPanel providerId={provider.id} prefill={null} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await user.type(screen.getByRole('textbox', { name: 'Model ID' }), 'known-model')
+    await user.click(screen.getByRole('button', { name: 'Add Model' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(create.mock.calls).toEqual([])
+  })
+
   it('creates a Gemini image model by independently configuring capabilities and modalities', async () => {
     const user = userEvent.setup()
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/models', create)
@@ -82,7 +144,6 @@ describe('model metadata persistence', () => {
       expect(create).toHaveBeenCalledWith({
         body: [
           expect.objectContaining({
-            endpointTypes: ['google-generate-content'],
             capabilities: ['image-generation', 'function-call'],
             inputModalities: ['image'],
             outputModalities: ['image']
@@ -103,15 +164,119 @@ describe('model metadata persistence', () => {
       expect(create).toHaveBeenCalledWith({
         body: [
           expect.objectContaining({
-            endpointTypes: [...model.endpointTypes!, 'anthropic-messages'],
-            capabilities: model.capabilities,
-            inputModalities: model.inputModalities,
-            outputModalities: model.outputModalities
+            endpointTypes: [...model.endpointTypes!, 'anthropic-messages']
           })
         ]
       })
     )
   })
+  it('orders a reset after an in-flight save and before subsequent edits', async () => {
+    const user = userEvent.setup()
+    let saved = { ...model, capabilities: [] as Model['capabilities'] }
+    const writes: string[] = []
+    let finish!: () => void
+    let first = true
+    update.mockImplementation(async ({ body }) => {
+      if (first) {
+        first = false
+        await new Promise<void>((resolve) => {
+          finish = resolve
+        })
+      }
+      if (body.resetFields) {
+        writes.push('reset')
+        saved = { ...saved, capabilities: model.capabilities }
+      } else {
+        writes.push(body.name ? 'name' : 'capabilities')
+        saved = { ...saved, ...body }
+      }
+      return saved
+    })
+    mockDataApiService.get.mockResolvedValue([{ ...model, presetModelId: 'image-model' }])
+    render(<EditModelDrawer providerId={provider.id} model={saved} open onClose={vi.fn()} />)
+    const name = screen.getByRole('textbox', { name: 'Model Name' })
+    await user.clear(name)
+    await user.type(name, 'Renamed')
+    await user.click(screen.getByRole('button', { name: 'Restore model defaults' }))
+    await user.click(await screen.findByRole('checkbox', { name: /Model Capabilities/ }))
+    await user.click(screen.getByRole('button', { name: 'Restore selected fields' }))
+    await user.click(groupButton('Model Capabilities', 'Tool'))
+    await act(async () => finish())
+    await waitFor(() => expect(saved.capabilities).toEqual(['function-call']))
+    expect(saved.name).toBe('Renamed')
+    const resetIndex = writes.indexOf('reset')
+    expect(resetIndex).toBeGreaterThan(0)
+    expect(writes.slice(0, resetIndex).every((write) => write === 'name')).toBe(true)
+    expect(writes.slice(resetIndex)).toEqual(['reset', 'capabilities'])
+    expect(groupButton('Model Capabilities', 'Tool')).toHaveAttribute('aria-pressed', 'true')
+    expect(groupButton('Model Capabilities', 'Image generation')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('discards a preview that arrives after the model ID changes', async () => {
+    const user = userEvent.setup()
+    let finish!: (models: unknown[]) => void
+    mockDataApiService.get.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    render(<AddModelFormPanel providerId={provider.id} prefill={null} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    const id = screen.getByRole('textbox', { name: 'Model ID' })
+    await user.type(id, 'old-model')
+    await user.click(screen.getByRole('button', { name: 'More Settings' }))
+    await user.clear(id)
+    await user.type(id, 'new-model')
+    await user.tab()
+    await act(async () => finish([{ ...model, presetModelId: 'old-model' }]))
+    expect(groupButton('Model Capabilities', 'Image generation')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('keeps the draft and selected reset fields available when restoration fails', async () => {
+    const user = userEvent.setup()
+    update.mockRejectedValue(new Error('write failed'))
+    mockDataApiService.get.mockResolvedValue([{ ...model, presetModelId: 'image-model' }])
+    render(<EditModelDrawer providerId={provider.id} model={{ ...model, capabilities: [] }} open onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Restore model defaults' }))
+    await user.click(await screen.findByRole('checkbox', { name: /Model Capabilities/ }))
+    await user.click(screen.getByRole('button', { name: 'Restore selected fields' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restore selected fields' })).toBeEnabled())
+    expect(screen.getByRole('checkbox', { name: /Model Capabilities/ })).toBeChecked()
+    expect(groupButton('Model Capabilities', 'Image generation')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('failed'))).toBe(true)
+  })
+
+  it('finishes a pending reset for its original model without replacing the newly opened draft', async () => {
+    const user = userEvent.setup()
+    const other: Model = { ...model, id: 'custom-relay::other-model', name: 'Other', capabilities: [] }
+    const rows = new Map<string, Model>([
+      [model.id, { ...model, capabilities: [] as Model['capabilities'] }],
+      [other.id, other]
+    ])
+    let finish!: () => void
+    update.mockImplementation(async ({ params }) => {
+      await new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      const saved = { ...rows.get(params.uniqueModelId)!, capabilities: model.capabilities }
+      rows.set(params.uniqueModelId, saved)
+      return saved
+    })
+    mockDataApiService.get.mockResolvedValue([{ ...model, presetModelId: 'image-model' }])
+    const { rerender } = render(
+      <EditModelDrawer providerId={provider.id} model={rows.get(model.id)!} open onClose={vi.fn()} />
+    )
+    await user.click(screen.getByRole('button', { name: 'Restore model defaults' }))
+    await user.click(await screen.findByRole('checkbox', { name: /Model Capabilities/ }))
+    await user.click(screen.getByRole('button', { name: 'Restore selected fields' }))
+    rerender(<EditModelDrawer providerId={provider.id} model={other} open onClose={vi.fn()} />)
+    await act(async () => finish())
+    expect(rows.get(model.id)?.capabilities).toEqual(model.capabilities)
+    expect(rows.get(other.id)?.capabilities).toEqual([])
+    expect(screen.getByRole('textbox', { name: 'Model Name' })).toHaveValue('Other')
+    expect(groupButton('Model Capabilities', 'Image generation')).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('saves only the name when renaming a catalog-backed model', async () => {
     const user = userEvent.setup()
     render(<EditModelDrawer providerId={provider.id} model={model} open onClose={vi.fn()} />)

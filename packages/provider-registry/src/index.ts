@@ -141,6 +141,8 @@ export {
   buildPersistedEndpointConfigs,
   endpointImpliedCapability,
   canInheritEndpointConnection,
+  resolveEndpointConnection,
+  suggestModelEndpoints,
   ENDPOINT_CONNECTION_FAMILY,
   getSpeechGenerationEndpoint,
   getNewApiSpeechEndpoint,

@@ -86,6 +86,9 @@ export const CreateModelsSchema = z.array(CreateModelSchema).min(1).max(MODELS_B
 export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 
 /** DTO for updating an existing model — CreateModelDto minus identity fields, all optional, plus status fields */
+export const MODEL_RESET_FIELDS = ['capabilities', 'inputModalities', 'outputModalities', 'endpointTypes'] as const
+export type ModelResetField = (typeof MODEL_RESET_FIELDS)[number]
+
 export const UpdateModelSchema = CreateModelSchema.omit({
   providerId: true,
   modelId: true,
@@ -100,7 +103,15 @@ export const UpdateModelSchema = CreateModelSchema.omit({
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),
-    notes: z.string().optional()
+    notes: z.string().optional(),
+    resetFields: z.array(z.enum(MODEL_RESET_FIELDS)).min(1).max(4).optional()
+  })
+  .superRefine((value, ctx) => {
+    for (const field of value.resetFields ?? []) {
+      if (value[field] !== undefined) {
+        ctx.addIssue({ code: 'custom', path: [field], message: 'Cannot set and reset the same field' })
+      }
+    }
   })
 export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
 

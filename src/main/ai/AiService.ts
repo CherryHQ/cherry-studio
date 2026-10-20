@@ -71,7 +71,12 @@ import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/c
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
+import {
+  resolveEffectiveEndpoint,
+  resolveRequestEndpoint,
+  resolveWireModelId,
+  type ModelRequestKind
+} from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
@@ -1036,7 +1041,10 @@ export class AiService extends BaseService {
       return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(
+      request,
+      inputImages?.length ? 'image-edit' : 'image'
+    )
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1253,7 +1261,10 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(
+      request,
+      'embedding'
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1286,7 +1297,10 @@ export class AiService extends BaseService {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(
+      request,
+      'rerank'
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1553,12 +1567,12 @@ export class AiService extends BaseService {
   // ── Shared agent parameter resolution ──
 
   /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
-  private async resolveTransportFor(request: AsInProcess<AiRequest>) {
+  private async resolveTransportFor(request: AsInProcess<AiRequest>, kind: ModelRequestKind) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
       provider,
       model,
-      resolveEffectiveEndpoint(provider, model),
+      resolveRequestEndpoint(provider, model, kind),
       request.apiKeyOverride
     )
     applyHttpTrace(sdkConfig.providerSettings, { modelName: model.name ?? model.id })

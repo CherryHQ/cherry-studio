@@ -8,7 +8,7 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import type { UpdateModelDto } from '@shared/data/api/schemas/models'
+import type { UpdateModelDto, ModelResetField } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
@@ -18,7 +18,9 @@ import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses, ProviderHelpText } from '../../primitives/ProviderSettingsPrimitives'
 import { getModelApiId } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
+import { ModelConnectionDetails } from './ModelConnectionDetails'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
+import { ModelDefaultsControls } from './ModelDefaultsControls'
 import { ModelMetadataControls } from './ModelMetadataControls'
 import { ModelPricingFields } from './ModelPricingFields'
 import type { ModelMetadata } from './types'
@@ -34,6 +36,7 @@ interface AutoSaveQueueItem {
   providerId: string
   modelId: string
   patch: UpdateModelDto
+  complete: Array<(model: Model | undefined) => void>
 }
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
@@ -58,8 +61,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(null)
   const [pricing, setPricing] = useState<Model['pricing']>()
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
-  const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
+  const autoSavePendingItemsRef = useRef<AutoSaveQueueItem[]>([])
   const autoSaveRunningRef = useRef(false)
+  const currentModelIdRef = useRef(model?.id)
+  currentModelIdRef.current = model?.id
+  const fieldVersionsRef = useRef<Partial<Record<ModelResetField, number>>>({})
 
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
 
@@ -87,7 +93,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const handleUpdateModel = useCallback(
     async ({ providerId, modelId, patch }: AutoSaveQueueItem) => {
-      await updateModel(providerId, modelId, patch)
+      return await updateModel(providerId, modelId, patch)
     },
     [updateModel]
   )
@@ -99,14 +105,15 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     autoSaveRunningRef.current = true
     try {
-      while (autoSavePendingItemsRef.current.size > 0) {
-        const [key, item] = autoSavePendingItemsRef.current.entries().next().value!
-        autoSavePendingItemsRef.current.delete(key)
+      while (autoSavePendingItemsRef.current.length > 0) {
+        const item = autoSavePendingItemsRef.current.shift()!
 
         try {
-          await handleUpdateModel(item)
+          const saved = await handleUpdateModel(item)
+          item.complete.forEach((complete) => complete(saved))
         } catch {
           toast.error(t('common.error'))
+          item.complete.forEach((complete) => complete(undefined))
         }
       }
     } finally {
@@ -115,32 +122,61 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   }, [handleUpdateModel, t])
 
   const autoSave = useCallback(
-    (patch: UpdateModelDto) => {
-      if (!model) {
-        return
+    (patch: UpdateModelDto): Promise<Model | undefined> => {
+      if (!model) return Promise.resolve(undefined)
+      for (const field of ['capabilities', 'inputModalities', 'outputModalities', 'endpointTypes'] as const) {
+        if (patch[field] !== undefined || patch.resetFields?.includes(field)) {
+          fieldVersionsRef.current[field] = (fieldVersionsRef.current[field] ?? 0) + 1
+        }
       }
-
-      const { modelId } = parseUniqueModelId(model.id)
-      const item: AutoSaveQueueItem = {
-        providerId: model.providerId ?? providerId,
-        modelId,
-        patch
-      }
-      const queueKey = `${item.providerId}/${item.modelId}`
-      const pendingItem = autoSavePendingItemsRef.current.get(queueKey)
-      autoSavePendingItemsRef.current.set(
-        queueKey,
-        pendingItem ? { ...item, patch: { ...pendingItem.patch, ...item.patch } } : item
-      )
-      void processAutoSaveQueue()
+      return new Promise((complete) => {
+        const { modelId } = parseUniqueModelId(model.id)
+        const item: AutoSaveQueueItem = {
+          providerId: model.providerId ?? providerId,
+          modelId,
+          patch,
+          complete: [complete]
+        }
+        const previous = autoSavePendingItemsRef.current.at(-1)
+        if (
+          previous &&
+          previous.providerId === item.providerId &&
+          previous.modelId === item.modelId &&
+          !previous.patch.resetFields &&
+          !patch.resetFields
+        ) {
+          previous.patch = { ...previous.patch, ...patch }
+          previous.complete.push(complete)
+        } else autoSavePendingItemsRef.current.push(item)
+        void processAutoSaveQueue()
+      })
     },
     [model, processAutoSaveQueue, providerId]
+  )
+
+  const resetFields = useCallback(
+    async (fields: ModelResetField[]) => {
+      const id = model?.id
+      const pending = autoSave({ resetFields: fields })
+      const versions = { ...fieldVersionsRef.current }
+      const saved = await pending
+      if (!saved) return false
+      if (currentModelIdRef.current === id) {
+        for (const field of fields) {
+          if (fieldVersionsRef.current[field] !== versions[field]) continue
+          if (field === 'endpointTypes') setEndpointTypes(saved.endpointTypes ?? [])
+          else setMetadata((current) => ({ ...current, [field]: saved[field] }))
+        }
+      }
+      return true
+    },
+    [autoSave, model?.id]
   )
 
   const handlePricingCommit = useCallback(
     (pricing: NonNullable<Model['pricing']>) => {
       setPricing(pricing)
-      autoSave({ pricing })
+      void autoSave({ pricing })
     },
     [autoSave]
   )
@@ -193,18 +229,19 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               }}
               onNameChange={setName}
               onNameBlur={() => {
-                autoSave({ name: name || model.name })
+                void autoSave({ name: name || model.name })
               }}
               onGroupChange={setGroup}
               onGroupBlur={() => {
-                autoSave({ group })
+                void autoSave({ group })
               }}
               onEndpointTypesChange={(next) => {
                 const nextEndpointTypes = [...next]
                 setEndpointTypes(nextEndpointTypes)
-                autoSave({ endpointTypes: nextEndpointTypes })
+                void autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
+            <ModelConnectionDetails provider={provider} endpoints={endpointTypes} />
           </div>
         </ProviderSection>
 
@@ -222,12 +259,18 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         {showMoreSettings && (
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
+              <ModelDefaultsControls
+                key={model.id}
+                providerId={model.providerId}
+                modelId={apiModelId}
+                onReset={resetFields}
+              />
               <div className={drawerClasses.sectionCard}>
                 <ModelMetadataControls
                   value={metadata}
                   onChange={(patch) => {
                     setMetadata((current) => ({ ...current, ...patch }))
-                    autoSave(patch)
+                    void autoSave(patch)
                   }}
                 />
                 <ProviderHelpText className="mt-2">
@@ -243,11 +286,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   onContextWindowChange={setContextWindow}
                   // The committed value is passed through rather than read back
                   // from state, which has not re-rendered yet at this point.
-                  onContextWindowCommit={(contextWindow) => autoSave({ contextWindow })}
+                  onContextWindowCommit={(contextWindow) => void autoSave({ contextWindow })}
                   onMaxInputTokensChange={setMaxInputTokens}
-                  onMaxInputTokensCommit={(maxInputTokens) => autoSave({ maxInputTokens })}
+                  onMaxInputTokensCommit={(maxInputTokens) => void autoSave({ maxInputTokens })}
                   onMaxOutputTokensChange={setMaxOutputTokens}
-                  onMaxOutputTokensCommit={(maxOutputTokens) => autoSave({ maxOutputTokens })}
+                  onMaxOutputTokensCommit={(maxOutputTokens) => void autoSave({ maxOutputTokens })}
                 />
               </div>
 
@@ -269,7 +312,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     checked={supportsStreaming ?? false}
                     onCheckedChange={(checked) => {
                       setSupportsStreaming(checked)
-                      autoSave({ supportsStreaming: checked })
+                      void autoSave({ supportsStreaming: checked })
                     }}
                   />
                 </div>

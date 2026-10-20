@@ -12,7 +12,7 @@ import { customFetch } from '../utils/customFetch'
 import { routeToEndpoint } from '../utils/provider'
 import { providerToAiSdkConfig } from './config'
 import { createGeminiSpeechModel, geminiSpeechVoices } from './custom/geminiSpeechModel'
-import { resolveEffectiveEndpoint, resolveWireModelId } from './endpoint'
+import { resolveEffectiveEndpoint, resolveRequestEndpoint, resolveWireModelId } from './endpoint'
 
 const openaiVoices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse']
 function speechEndpoint(provider: Provider, model: Model) {
@@ -26,10 +26,14 @@ function speechEndpoint(provider: Provider, model: Model) {
     const endpointType = getNewApiSpeechEndpoint(model, presetModel)
     return endpointType ? resolveEffectiveEndpoint(provider, { ...model, endpointTypes: [endpointType] }) : undefined
   }
-  const endpoint = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH)
-  return getSpeechGenerationEndpoint({ ...model, endpointTypes: endpoint.endpointType ? [endpoint.endpointType] : [] })
-    ? endpoint
-    : undefined
+  const declared = model.endpointTypes?.length
+    ? model
+    : {
+        ...model,
+        endpointTypes: [resolveEffectiveEndpoint(provider, model).endpointType].filter((ep) => ep !== undefined)
+      }
+  if (!getSpeechGenerationEndpoint(declared)) return undefined
+  return resolveRequestEndpoint(provider, model, 'speech')
 }
 
 function resolveCloudModel(id: UniqueModelId) {
