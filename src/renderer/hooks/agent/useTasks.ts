@@ -90,7 +90,8 @@ export const useTask = (taskId: string | null) => {
   return {
     task: data,
     error,
-    isLoading
+    isLoading,
+    refetch
   }
 }
 
