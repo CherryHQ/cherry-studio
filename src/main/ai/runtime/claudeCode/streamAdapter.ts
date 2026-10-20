@@ -476,8 +476,11 @@ function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] 
       return 'completed'
     case 'stopped':
       return 'stopped'
-    case 'failed':
     case 'killed':
+      // A kill has no successor delivery, unlike a failure — the SDK queues a parent failure
+      // notification for `failed` only, so the two must stay distinguishable downstream.
+      return 'killed'
+    case 'failed':
       return 'error'
     default:
       return undefined

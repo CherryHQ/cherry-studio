@@ -242,6 +242,40 @@ describe('subagent settlement wake (incident replay)', () => {
     await service.closeSession('session-1')
   })
 
+  // A FAILED task is not a cancellation: the SDK queues a parent failure notification for it, so the
+  // chat still owes a delivery. Retiring the debt here dropped every recipient and the requesting
+  // chat received its acknowledgment but never learned the task failed.
+  it('keeps the stashed obligation when a task fails rather than being killed', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      },
+      occupancy: {}
+    }
+    service.markTurnTerminal('session-1', 'success')
+
+    const emit = (event: unknown) => (service as any).handleRuntimeEvent(entry, event)
+    emit({
+      type: 'background-task-event',
+      data: { event: 'started', taskId: 'child-1', status: 'in_progress', taskType: 'subagent' }
+    })
+    emit({ type: 'background-task-event', data: { event: 'notification', taskId: 'child-1', status: 'error' } })
+    expect(mocks.retireStashedWakeTaskIds).not.toHaveBeenCalled()
+
+    // A kill is the cancellation-shaped one: no successor delivery is queued for it.
+    emit({ type: 'background-task-event', data: { event: 'notification', taskId: 'child-2', status: 'killed' } })
+    expect(mocks.retireStashedWakeTaskIds).toHaveBeenCalledWith('agent-session:session-1', new Set(['child-2']))
+    await service.closeSession('session-1')
+  })
+
   it('delivers wake-turn chunks into the receive-only stream under background occupancy', async () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)

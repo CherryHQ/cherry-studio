@@ -483,6 +483,44 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  // A killed task and a failed task are different events to the requesting chat: the SDK queues a
+  // parent failure notification for a failure, so the chat's delivery debt must survive it, while a
+  // kill has no successor delivery and may be retired. Collapsing both into `error` retired the
+  // failure's obligation and the chat never learned the task failed.
+  it('keeps a killed task distinct from a failed one', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_updated',
+      session_id: 'sdk-task',
+      uuid: 'task-killed-uuid',
+      task_id: 'task-7',
+      patch: { status: 'killed' }
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_updated',
+      session_id: 'sdk-task',
+      uuid: 'task-failed-uuid',
+      task_id: 'task-8',
+      patch: { status: 'failed', error: 'render crashed' }
+    } as any)
+
+    expect(parts).toEqual([
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-7-updated-task-killed-uuid',
+        data: expect.objectContaining({ event: 'updated', taskId: 'task-7', status: 'killed' })
+      },
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-8-updated-task-failed-uuid',
+        data: expect.objectContaining({ event: 'updated', taskId: 'task-8', status: 'error' })
+      }
+    ])
+  })
+
   it('maps text content block deltas', () => {
     const { adapter, parts } = createAdapter()
 
