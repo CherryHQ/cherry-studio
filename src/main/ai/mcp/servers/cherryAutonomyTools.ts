@@ -67,6 +67,12 @@ export interface AutonomyToolsContext {
   trustedNotifyChannels: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel: boolean
+  /**
+   * True when {@link agentId} is the owner of the turn this context was mounted for rather than the
+   * agent the Session row currently names — a top-bar switch re-pointed the row mid-turn. Delivery
+   * admission reads the row, so it needs this to keep the executing turn's own tools working.
+   */
+  servesAcceptedTurn?: boolean
 }
 
 /**
@@ -506,6 +512,7 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     sessionName: title,
     workspace: ctx.workspaceSource,
     content,
+    ...(ctx.servesAcceptedTurn ? { senderExecutionOwnerId: ctx.agentId } : {}),
     ...(targetAgentId ? { targetAgentId } : {})
   })
   return {
@@ -535,7 +542,8 @@ function sendSessionMessage(ctx: AutonomyToolsContext, args: z.output<typeof Ses
     senderSessionId: ctx.sessionId,
     receiverSessionId,
     content,
-    replyPolicy: args.reply ?? 'none'
+    replyPolicy: args.reply ?? 'none',
+    ...(ctx.servesAcceptedTurn ? { senderExecutionOwnerId: ctx.agentId } : {})
   })
   return {
     content: [

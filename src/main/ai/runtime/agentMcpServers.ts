@@ -65,7 +65,13 @@ export function buildAgentMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
+  /**
+   * True when `agent` owns the accepted turn being served rather than the agent the session row
+   * currently names. The tool context then carries that ownership, which delivery admission needs
+   * because it re-reads the row.
+   */
+  servesAcceptedTurn = false
 ): Record<string, AgentMcpServer> {
   const interactionContext = {
     sessionId: session.id,
@@ -121,6 +127,7 @@ export function buildAgentMcpServers(
         workspacePath: session.workspace.path,
         trustedNotifyChannels: notificationContext.channels,
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
+        ...(servesAcceptedTurn ? { servesAcceptedTurn: true } : {}),
         getKnowledgeAccess: () => {
           const liveAgent = agentService.getAgent(agent.id)
           return {

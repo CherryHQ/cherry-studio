@@ -679,6 +679,50 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionMessageService.listSessionDeliveries('target')).toEqual([])
     })
 
+    it('still rejects a forged sender that only claims a third-party execution owner', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedAgent('agent-c', 'Agent C')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+
+      // The owner field only excuses a mismatch the runtime validated; it must never make an
+      // arbitrary sender identity acceptable, nor let a sender adopt another agent's ownership.
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-c',
+          senderSessionId: 'sender',
+          receiverSessionId: 'target',
+          content: 'forged with a borrowed owner',
+          senderExecutionOwnerId: 'agent-a'
+        })
+      ).toThrowError(expect.objectContaining<Partial<AgentSessionDeliveryRoutingError>>({ code: 'SENDER_FORBIDDEN' }))
+      expect(agentSessionMessageService.listSessionDeliveries('target')).toEqual([])
+    })
+
+    it('accepts a delivery from an agent the row no longer names but whose turn still owns it', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-b', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+
+      // A top-bar switch re-points the row at B while the accepted turn still runs on A's
+      // connection, so the tool context keeps naming A and its Session tools must keep working.
+      const accepted = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'retained owner work',
+        senderExecutionOwnerId: 'agent-a'
+      })
+
+      expect(accepted.delivery).toMatchObject({
+        sender: { agentId: 'agent-a', sessionId: 'sender' },
+        status: 'accepted'
+      })
+      expect(agentSessionMessageService.listSessionDeliveries('target')).toHaveLength(1)
+    })
+
     it('returns stable errors for missing, orphaned, and deleted targets', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-deleted', 'Deleted', Date.now())

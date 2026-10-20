@@ -2709,6 +2709,51 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeDefined()
   })
 
+  it("names the connection's agent as the accepted-turn owner once the row has moved to it", () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [], agentId: 'agent-1' }
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    // The switch lands mid-turn: adoption retains A in the entry, and A also owns the connection,
+    // so only the session row has moved. The turn A was accepted under still executes here.
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', model: baseTurnInput.modelId })
+    expect(getEntry(service).agentId).toBe('agent-1')
+
+    // Authorization reads the row, so it must still accept the executing turn's own tools.
+    expect(service.getAcceptedTurnAgentId('session-1')).toBe('agent-1')
+  })
+
+  it("names the connection's agent as the accepted-turn owner after the turn boundary adopted it", () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [], agentId: 'agent-1' }
+    entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+
+    // The turn settles at the boundary, then the switch lands: adoption moves the entry to the
+    // row's agent, but the connection still belongs to the agent the accepted turn ran under.
+    service.markTurnTerminal('session-1', 'success')
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-2', type: 'test-runtime', model: baseTurnInput.modelId })
+    ;(service as any).adoptSessionAgent(entry)
+    expect(getEntry(service).agentId).toBe('agent-2')
+
+    expect(service.getAcceptedTurnAgentId('session-1')).toBe('agent-1')
+  })
+
+  it('returns no accepted-turn owner once the row and the connection agree', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [], agentId: 'agent-1' }
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+
+    expect(service.getAcceptedTurnAgentId('session-1')).toBeUndefined()
+  })
+
   it('still reconciles a warm connection whose owner matches the new turn', async () => {
     const events = createAsyncQueue<any>()
     const connection = {

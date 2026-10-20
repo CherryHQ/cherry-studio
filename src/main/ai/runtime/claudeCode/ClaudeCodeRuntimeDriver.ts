@@ -374,7 +374,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
-      this.input.agentId
+      this.input.agentId,
+      this.input.servesAcceptedTurn === true
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)

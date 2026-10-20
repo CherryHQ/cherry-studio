@@ -151,7 +151,8 @@ const clients: Client[] = []
 async function createServer(
   agentId = 'agent_test',
   workspacePath = WORKSPACE_PATH,
-  notifyChannelIds: string | string[] | null = 'ch1'
+  notifyChannelIds: string | string[] | null = 'ch1',
+  servesAcceptedTurn = false
 ): Promise<Client> {
   const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
     (id) => (id ? [{ id, type: 'telegram' as const }] : [])
@@ -164,7 +165,8 @@ async function createServer(
       workspaceSource: WORKSPACE_SOURCE,
       workspacePath,
       trustedNotifyChannels,
-      allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string'
+      allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string',
+      ...(servesAcceptedTurn ? { servesAcceptedTurn: true } : {})
     })
     return server
   })
@@ -571,6 +573,47 @@ describe('cherry-tools autonomy tools', () => {
       )
 
       expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(expect.objectContaining({ replyPolicy: 'completion' }))
+    })
+
+    it('carries the executing turn owner into delivery admission after a reassignment', async () => {
+      // Delivery admission re-reads the sender row, which the switch already moved off this turn's
+      // agent — so the context has to hand it the ownership it was validated against.
+      mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent-b' })
+      mockGetAcceptedTurnAgentId.mockReturnValue('agent_test')
+      mockAcceptSessionDelivery.mockReturnValue({
+        id: 'request-1',
+        sessionId: 'session_b',
+        delivery: { status: 'accepted' }
+      })
+
+      const result = await callTool(
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', true),
+        { target_session_id: 'session_b', message: 'Continue' },
+        'session_send'
+      )
+
+      expect(result.isError).toBeFalsy()
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ senderExecutionOwnerId: 'agent_test' })
+      )
+    })
+
+    it('leaves delivery admission on the row when the context is not a retained owner', async () => {
+      mockAcceptSessionDelivery.mockReturnValue({
+        id: 'request-1',
+        sessionId: 'session_b',
+        delivery: { status: 'accepted' }
+      })
+
+      await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Ordinary' },
+        'session_send'
+      )
+
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(
+        expect.not.objectContaining({ senderExecutionOwnerId: expect.anything() })
+      )
     })
 
     it('returns message evidence for session search candidates', async () => {

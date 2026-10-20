@@ -490,7 +490,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
    *  (adoption never runs mid-turn), so after a mid-session reassignment the request must be
    *  built from that agent — not the session row's current one — for configuration and
    *  attribution to stay consistent. Defaults to the session row. */
-  connectionAgentId?: string
+  connectionAgentId?: string,
+  /** Mirrors the connect flag: the request serves a turn already accepted under `connectionAgentId`,
+   *  so the tool context carries that execution ownership past the session-row check. */
+  servesAcceptedTurn?: boolean
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   const agentId = connectionAgentId ?? session?.agentId
@@ -557,7 +560,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
-        effectiveLanguage
+        effectiveLanguage,
+        ...(servesAcceptedTurn ? { servesAcceptedTurn: true } : {})
       },
       agent
     ),

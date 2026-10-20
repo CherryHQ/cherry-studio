@@ -574,12 +574,18 @@ export class AgentSessionRuntimeService extends BaseService {
    * tool calls, so callers accept this owner alongside the row while the turn is live. Undefined
    * whenever the row is authoritative: no entry, no connection, or the connection already serves
    * the row's agent.
+   *
+   * Ownership is resolved against the row rather than the entry: `adoptSessionAgent` moves the
+   * entry to the row's agent at the boundary, which would otherwise hide the owner that the still
+   * executing connection belongs to.
    */
   getAcceptedTurnAgentId(sessionId: string): string | undefined {
     const entry = this.entries.get(sessionId)
     if (!entry) return undefined
     const connectionAgentId = this.currentConnection(entry)?.agentId
-    if (!connectionAgentId || connectionAgentId === entry.agentId) return undefined
+    if (!connectionAgentId) return undefined
+    const rowAgentId = agentSessionService.getById(sessionId)?.agentId
+    if (rowAgentId === connectionAgentId) return undefined
     return connectionAgentId
   }
 

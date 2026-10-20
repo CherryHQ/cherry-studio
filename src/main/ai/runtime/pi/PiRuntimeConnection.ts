@@ -368,7 +368,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         initialSnapshot.mcpServerSnapshots,
         linkedChannel,
         agentDataPath,
-        this.input.knowledgeBaseIds
+        this.input.knowledgeBaseIds,
+        undefined,
+        this.input.servesAcceptedTurn === true
       )
       const resourceLoader = new pi.DefaultResourceLoader({
         cwd: workspacePath,
