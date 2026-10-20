@@ -98,6 +98,7 @@ describe('ExternalKnowledgeSyncService', () => {
     dbh.db
       .insert(knowledgeBaseTable)
       .values({
+        orderKey: 'a0',
         id: BASE_ID,
         name: 'Engineering KB',
         groupId: null,

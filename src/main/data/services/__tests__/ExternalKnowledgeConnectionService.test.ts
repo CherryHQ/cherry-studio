@@ -280,6 +280,7 @@ describe('ExternalKnowledgeConnectionService', () => {
       dbh.db
         .insert(knowledgeBaseTable)
         .values({
+          orderKey: 'a0',
           id: baseId,
           name: 'External Knowledge',
           dimensions: null,
