@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
+
 import ChannelDetail from '../ChannelDetail'
 import type { AvailableChannel } from '../channelTypes'
 
@@ -82,7 +84,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUiModule>()
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void } | null>(null)
 
   const passthrough =
@@ -103,6 +106,7 @@ vi.mock('@cherrystudio/ui', () => {
     }
 
   return {
+    ...actual,
     Badge: passthrough('span'),
     Button: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
       <button type="button" onClick={onClick} {...props}>
@@ -249,6 +253,26 @@ describe('ChannelDetail', () => {
         })
       )
     })
+  })
+
+  it('passes independent WeCom field patches through the settings save boundary', async () => {
+    const config = { bot_id: 'old-bot', secret: 'old-secret', allowed_chat_ids: [], allowed_user_ids: [] }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'wecom', config, isActive: false }]
+    render(<ChannelDetail channelDef={{ ...channelDef, type: 'wecom', name: 'WeCom', defaultConfig: config }} />)
+    const tooltip = await screen.findByText('common.edit')
+    fireEvent.click(within(tooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button'))
+    for (const [key, value] of [
+      ['botId', 'new-bot'],
+      ['secret', ' secret ']
+    ]) {
+      const input = await screen.findByLabelText(`agent.channels.wecom.${key}`)
+      fireEvent.change(input, { target: { value } })
+      fireEvent.blur(input)
+    }
+    expect(channelMocks.updateChannel.mock.calls).toEqual([
+      ['channel-1', { configPatch: { bot_id: 'new-bot' } }],
+      ['channel-1', { configPatch: { secret: ' secret ' } }]
+    ])
   })
 
   it('sends null permissionMode when clearing an existing override to inherit', async () => {

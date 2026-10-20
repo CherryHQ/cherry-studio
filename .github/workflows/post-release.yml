@@ -210,10 +210,6 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           BODY="$(printf '%s\n' \
-            '> ### Branch strategy' \
-            '>' \
-            '> - Active development targets `main`.' \
-            '' \
             '### What this PR does' \
             '' \
             'Before this PR:' \

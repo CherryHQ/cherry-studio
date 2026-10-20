@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Trusted reference to test: main, release/*, or a v* release tag"
+        description: "Branch in this repository or a v* release tag to test"
         required: true
         default: "main"
         type: string
@@ -21,6 +21,7 @@ on:
           - custom-provider-chat
           - provider-model-scroll
           - custom-assistant
+          - chat-stream-failure
           - translation
           - quick-assistant
           - knowledge
@@ -32,7 +33,6 @@ on:
           - image-generation
           - claude-agent-runtime
           - pi-runtime
-          - deepseek-harness-runtime
           - agent-basic-task
 
 permissions:
@@ -44,7 +44,7 @@ concurrency:
 
 jobs:
   resolve:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.ref.outputs.mode }}
@@ -64,7 +64,7 @@ jobs:
         uses: pnpm/action-setup@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -129,7 +129,7 @@ jobs:
         uses: pnpm/action-setup@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -170,6 +170,11 @@ jobs:
           codex --version
           openclaw --version
 
+      - name: Prepare Everything MCP package
+        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp'
+        shell: bash
+        run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
+
       - name: Initialize isolated test directory
         shell: bash
         env:
@@ -202,7 +207,7 @@ jobs:
           CHERRY_TEST_CHERRYIN_IMAGE_MODEL: ${{ vars.CHERRY_TEST_CHERRYIN_IMAGE_MODEL }}
           CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
           CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
-        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight
+        run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --task '${{ needs.resolve.outputs.task }}'
 
       - name: Install application dependencies
         if: needs.resolve.outputs.mode == 'branch'
@@ -447,7 +452,7 @@ jobs:
         uses: pnpm/action-setup@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: pnpm

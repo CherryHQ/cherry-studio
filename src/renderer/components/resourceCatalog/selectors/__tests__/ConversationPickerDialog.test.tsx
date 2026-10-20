@@ -71,6 +71,22 @@ afterEach(() => {
 })
 
 describe('ConversationPickerDialog', () => {
+  it('matches initials in names without romanizing hidden prompt text', async () => {
+    const user = userEvent.setup()
+    const items: ConversationPickerItem[] = [
+      { id: 'name', name: '知识库助手', icon: null },
+      { id: 'prompt', name: 'Other', searchText: '知识库助手', icon: null }
+    ]
+    render(<ConversationPickerDialog open onOpenChange={vi.fn()} items={items} labels={LABELS} onSelect={vi.fn()} />)
+    const search = screen.getByRole('combobox')
+    await user.type(search, 'ZSKZS')
+    expect(screen.getByRole('option', { name: '知识库助手' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Other' })).not.toBeInTheDocument()
+    await user.clear(search)
+    await user.type(search, '知识')
+    expect(screen.getByRole('option', { name: 'Other' })).toBeInTheDocument()
+  })
+
   it('renders items in order and selects an item', () => {
     const onSelect = vi.fn()
 

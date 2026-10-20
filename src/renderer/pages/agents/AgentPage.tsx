@@ -29,7 +29,7 @@ import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTab, useCurrentTabId, useTabs } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -41,7 +41,6 @@ import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
@@ -110,6 +109,11 @@ const AgentPage = () => {
   const isSkillIntent = routeSearch.intent === 'skill'
   const isPreparedIntent = isFeedbackIntent || isSkillIntent
   const currentTabId = useCurrentTabId()
+  const currentTab = useCurrentTab()
+  const agentPinPending = currentTab?.metadata?.agentPinPending === true
+  const currentTabRef = useRef(currentTab)
+  currentTabRef.current = currentTab
+  const { updateTab } = useTabs()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
@@ -301,7 +305,6 @@ const AgentPage = () => {
     sessionSource: activeSessionSource,
     agentHint: visibleAgentFromList
   })
-  const visibleAgent = conversationBootstrap.resources.agent
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
@@ -370,16 +373,11 @@ const AgentPage = () => {
     return unsubscribe
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
   }, [currentTabId])
-  // Label this tab with its agent emoji + session name so multiple agent tabs
-  // are distinguishable (every tab labels itself — not gated on active).
-  // While the bound session is still loading, keep the tab's stored title/icon instead of stamping
-  // a generic one.
   const targetSessionId = activeSessionId ?? undefined
   const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
-  const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -515,9 +513,19 @@ const AgentPage = () => {
 
   useEffect(() => {
     const generation = ++routeAgentActivationGenerationRef.current
-    if (!routeAgentId || routeSessionId || activeSessionId || isAgentsLoading || !routeAgentExists) return
+    const enteredByPin = agentPinPending
+    const activationResolved = Boolean(routeAgentId) && !routeSessionId
 
-    closeSurface()
+    if (enteredByPin || activationResolved) {
+      closeSurface()
+    }
+    if (enteredByPin && currentTabRef.current) {
+      const metadata = { ...currentTabRef.current.metadata }
+      delete metadata.agentPinPending
+      updateTab(currentTabRef.current.id, { metadata })
+    }
+    if (!routeAgentId || routeSessionId) return
+    if (activeSessionId || isAgentsLoading || !routeAgentExists) return
     const pendingRequest = routeAgentSessionRequestRef.current
     const sessionPromise =
       pendingRequest?.agentId === routeAgentId
@@ -549,13 +557,16 @@ const AgentPage = () => {
   }, [
     activeSessionId,
     activateSession,
+    agentPinPending,
     closeSurface,
+    currentTabId,
     isAgentsLoading,
     resolveEmptySession,
     routeAgentExists,
     routeAgentId,
     routeSessionId,
-    t
+    t,
+    updateTab
   ])
 
   const showMissingAgentSelection = useCallback(() => {
@@ -1059,9 +1070,6 @@ const AgentPage = () => {
   return (
     <>
       <AgentTabRuntime
-        title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
-        emoji={visibleAgent?.configuration?.avatar}
-        preserveVisuals={preserveTabVisuals}
         activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}
         onToggleSidebar={toggleShellPane}
