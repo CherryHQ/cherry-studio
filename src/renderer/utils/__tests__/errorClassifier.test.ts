@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { SerializedError } from '@renderer/types/error'
 
 import { classifyError } from '../errorClassifier'
+import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
@@ -20,6 +21,22 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
 }
 
 describe('classifyError', () => {
+  it.each([
+    [new Error('OpenAI API key is missing. Pass it using the apiKey parameter.'), 'auth'],
+    [
+      Object.assign(new Error('Forbidden'), {
+        statusCode: 403,
+        responseBody: '{"error":{"message":"insufficient_user_quota"}}'
+      }),
+      'quota'
+    ],
+    [Object.assign(new Error('Too many requests'), { status: 429 }), 'rate_limit'],
+    [{ name: 'Error', message: 'Process exited', stack: null, claudeCodeExitCategory: 'proxy' }, 'proxy'],
+    ['net::ERR_INTERNET_DISCONNECTED', 'network'],
+    ['Unexplained failure', 'unknown']
+  ] as const)('preserves the diagnosis when a thrown value enters a toast (%s)', (error, category) => {
+    expect(classifyError(serializeToastError(error)).category).toBe(category)
+  })
   it.each([
     ['auth', '/settings/provider?id=anthropic'],
     ['model', '/settings/provider?id=anthropic'],
@@ -196,6 +213,23 @@ describe('classifyError', () => {
   it('classifies forbidden message as permission', () => {
     const result = classifyError(makeError({ message: 'Forbidden: access denied' }))
     expect(result.category).toBe('permission')
+  })
+
+  // An OCR-fallback failure must not be re-owned by the chat provider: even when the
+  // failing OCR processor's diagnostic carries auth-flavored tokens, the error text is
+  // the generic non-vision headline, so recovery never points at provider settings (#20343).
+  it('keeps an app-owned non-vision OCR error out of the provider auth routing', () => {
+    const result = classifyError(
+      makeError({
+        name: 'NonVisionImageOcrError',
+        i18nKey: 'image_unreadable_for_non_vision_model',
+        message:
+          "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+      }),
+      'anthropic'
+    )
+    expect(result.category).not.toBe('auth')
+    expect(result.navTarget).toBeNull()
   })
 
   // Model

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+
 const { listByEntityTypeMock, getByIdMock, pinMock, unpinMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
   listByEntityTypeMock: vi.fn(),
   getByIdMock: vi.fn(),
@@ -113,6 +115,15 @@ describe('pinHandlers', () => {
       ).resolves.toMatchObject(row)
 
       expect(pinMock).toHaveBeenCalledWith({ entityType: 'agent', entityId: AGENT_ID })
+    })
+
+    it('should accept the built-in Support Agent id for agent pins', async () => {
+      const body = { entityType: 'agent', entityId: CHERRY_SUPPORT_AGENT_ID } as const
+      const row = { id: PIN_ID, ...body, orderKey: 'a0' }
+      pinMock.mockResolvedValue(row)
+
+      await expect(pinHandlers['/pins'].POST({ body })).resolves.toMatchObject(row)
+      expect(pinMock).toHaveBeenCalledWith(body)
     })
 
     it('should accept UniqueModelId entityId values for model pins', async () => {

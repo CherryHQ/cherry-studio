@@ -105,6 +105,7 @@ export class WebContentsListener implements StreamListener {
     this.flushPending()
     this.emit('ai.stream.done', {
       topicId: this.topicId,
+      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
       ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
@@ -122,6 +123,7 @@ export class WebContentsListener implements StreamListener {
     this.flushPending()
     this.emit('ai.stream.done', {
       topicId: this.topicId,
+      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
       ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
@@ -140,6 +142,7 @@ export class WebContentsListener implements StreamListener {
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
     this.emit('ai.stream.error', {
       topicId: this.topicId,
+      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
       executionId: result.modelId,
       ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
       ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),

@@ -1,5 +1,6 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -101,6 +102,68 @@ describe('MarkdownFilePreview', () => {
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
   })
 
+  it.each(['file', 'artifact'] as const)(
+    'resolves parsed images beside the document in %s mode without navigation',
+    async (type) => {
+      mocks.readText.mockResolvedValue(
+        '![](images/diagram.png)\n\n![](./icon.svg)\n\n![reference][x]\n\n[x]: ../images/diagram.png?v=1#detail'
+      )
+      const { container } = renderPreview({ filePath: '/tmp/docs/note.md' as AbsoluteFilePath, type })
+
+      await waitFor(() => expect(container.querySelectorAll('img')).toHaveLength(3))
+      expect(Array.from(container.querySelectorAll('img'), (image) => image.getAttribute('src'))).toEqual([
+        'file:///tmp/docs/images/diagram.png',
+        'file:///tmp/docs/icon.svg',
+        'file:///tmp/images/diagram.png?v=1#detail'
+      ])
+    }
+  )
+
+  it('keeps authored image destinations in source mode', async () => {
+    const source = '![](images/diagram.png)\n\n![](./icon.svg)'
+    mocks.readText.mockResolvedValue(source)
+    const user = userEvent.setup()
+    renderPreview()
+    await user.click(await screen.findByRole('button', { name: 'file_preview.markdown.mode.source' }))
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('![](images/diagram.png) ![](./icon.svg)')
+  })
+
+  it.each([
+    ['', 'images/missing.png'],
+    ['Architecture', 'Architecture']
+  ])('names a failed relative image with alt %j', async (alt, label) => {
+    mocks.readText.mockResolvedValue(`![${alt}](images/missing.png)`)
+    const { container } = renderPreview()
+    await waitFor(() => expect(container.querySelector('img')).not.toBeNull())
+    fireEvent.error(container.querySelector('img')!)
+
+    const placeholder = screen.getByRole('img', { name: label })
+    expect(placeholder).toHaveTextContent(label)
+    expect(placeholder.tagName).toBe('SPAN')
+  })
+
+  it('uses the new document directory after an image failed in the previous document', async () => {
+    mocks.readText.mockResolvedValue('![diagram](images/diagram.png)')
+    const view = renderPreview()
+    fireEvent.error(await screen.findByRole('img', { name: 'diagram' }))
+    expect(screen.getByRole('img', { name: 'diagram' }).tagName).toBe('SPAN')
+
+    view.rerender(
+      <MarkdownFilePreview
+        filePath={'/tmp/other/note.md' as AbsoluteFilePath}
+        fileName="note.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={0}
+      />
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('img', { name: 'diagram' })).toHaveAttribute(
+        'src',
+        'file:///tmp/other/images/diagram.png'
+      )
+    )
+  })
+
   it('shows the empty state for empty content', async () => {
     mocks.readText.mockResolvedValueOnce('')
 
@@ -162,11 +225,11 @@ describe('MarkdownFilePreview', () => {
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
 
-  it('reloads when the path or refresh key changes', async () => {
+  it('reloads content when the path or refresh key changes', async () => {
     const secondPath = '/tmp/workspace/CHANGELOG.md' as AbsoluteFilePath
     const view = renderPreview()
-    await screen.findByRole('heading')
-
+    expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
+    mocks.readText.mockResolvedValueOnce('# Second document')
     view.rerender(
       <MarkdownFilePreview
         filePath={secondPath}
@@ -175,8 +238,8 @@ describe('MarkdownFilePreview', () => {
         refreshKey={0}
       />
     )
-    await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(secondPath))
-
+    expect(await screen.findByRole('heading')).toHaveTextContent('Second document')
+    mocks.readText.mockResolvedValueOnce('# Refreshed document')
     view.rerender(
       <MarkdownFilePreview
         filePath={secondPath}
@@ -185,7 +248,7 @@ describe('MarkdownFilePreview', () => {
         refreshKey={1}
       />
     )
-    await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
+    expect(await screen.findByRole('heading')).toHaveTextContent('Refreshed document')
   })
 
   it('ignores a stale read after the path changes', async () => {

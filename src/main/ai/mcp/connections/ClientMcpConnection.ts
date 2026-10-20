@@ -17,9 +17,13 @@ import {
   isJSONRPCResponse,
   isInputRequiredResult,
   type Prompt,
+  ProtocolError,
+  ProtocolErrorCode,
   type ReadResourceRequest,
   type ReadResourceResult,
   type Resource,
+  SdkError,
+  SdkErrorCode,
   type JsonSchemaValidator,
   type Tool,
   type Transport
@@ -41,6 +45,7 @@ import { ResourceObservations } from './ResourceObservations'
 
 const INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 const HEALTH_CHECK_TIMEOUT_MS = 5_000
+type HealthCatalogMethod = 'listTools' | 'listPrompts' | 'listResources'
 
 interface ActiveInteraction {
   context: McpInteractionContext
@@ -68,6 +73,7 @@ export class ClientMcpConnection implements McpConnection {
   private readonly closeHooks: Array<() => Promise<void>> = []
   private readonly activeRequests = new Map<ActiveInteraction, AbortController>()
   private closePromise: Promise<void> | undefined
+  private healthCatalogMethod: HealthCatalogMethod | undefined
   private readonly resourceObservations: ResourceObservations
   private readonly subscriptionAbort = new AbortController()
 
@@ -141,6 +147,7 @@ export class ClientMcpConnection implements McpConnection {
   }
 
   public async connect(transport: Transport, options?: ConnectOptions): Promise<void> {
+    this.healthCatalogMethod = undefined
     await this.client.connect(transport, options)
     const subscriptions = this.recoverCatalogSubscription()
     this.addCloseHook(() => subscriptions)
@@ -444,11 +451,51 @@ export class ClientMcpConnection implements McpConnection {
   }
 
   public async health(): Promise<void> {
-    if (this.era === 'modern') {
-      await this.client.discover({ timeout: HEALTH_CHECK_TIMEOUT_MS })
+    const era = this.era
+    const method = this.healthCatalogMethod ?? (era === 'modern' ? 'discover' : 'ping')
+    const check = async (selected: 'discover' | 'ping' | HealthCatalogMethod) => {
+      if (selected === 'discover' || selected === 'ping') {
+        await this.client[selected]({ timeout: HEALTH_CHECK_TIMEOUT_MS })
+      } else {
+        await this.client[selected](this.paramsWithLogLevel({}), {
+          cacheMode: 'refresh',
+          timeout: HEALTH_CHECK_TIMEOUT_MS,
+          signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS)
+        })
+      }
+    }
+    const details = { era, protocolVersion: this.client.getNegotiatedProtocolVersion(), method }
+    try {
+      await check(method)
+    } catch (error) {
+      this.events.log('warning', 'health', { ...details, error })
+      const canConfirm =
+        !this.healthCatalogMethod &&
+        this.client.transport &&
+        ((ProtocolError.isInstance(error) && error.code === ProtocolErrorCode.MethodNotFound) ||
+          (SdkError.isInstance(error) &&
+            (error.code === SdkErrorCode.RequestTimeout ||
+              error.code === SdkErrorCode.MethodNotSupportedByProtocolVersion)))
+      const capabilities = this.client.getServerCapabilities()
+      const confirmation: HealthCatalogMethod | undefined = capabilities?.tools
+        ? 'listTools'
+        : capabilities?.prompts
+          ? 'listPrompts'
+          : capabilities?.resources
+            ? 'listResources'
+            : undefined
+      if (!canConfirm || !confirmation) throw error
+      try {
+        await check(confirmation)
+      } catch (confirmationError) {
+        this.events.log('warning', 'health', { ...details, confirmation, error: confirmationError })
+        throw confirmationError
+      }
+      this.healthCatalogMethod = confirmation
+      this.events.log('info', 'health', { ...details, confirmation, result: 'confirmed' })
       return
     }
-    await this.client.ping({ timeout: HEALTH_CHECK_TIMEOUT_MS })
+    this.events.log('debug', 'health', { ...details, result: 'healthy' })
   }
 
   public observeResource(uri: string, onState: (state: McpResourceObservationState) => void) {
