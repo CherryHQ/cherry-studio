@@ -659,6 +659,7 @@
   "chat.compaction.compacted": "Ngữ cảnh được nén, ~{{count}} token đã được tiết kiệm",
   "chat.compaction.compacted_plain": "Ngữ cảnh được nén lại",
   "chat.compaction.compacting": "Đang nén ngữ cảnh…",
+  "chat.compaction.failed": "Nén ngữ cảnh thất bại",
   "chat.conversation.new": "Cuộc trò chuyện mới",
   "chat.default.name": "Trợ lý Cherry",
   "chat.default.topic.name": "Chủ đề Mặc định",

@@ -659,6 +659,7 @@
   "chat.compaction.compacted": "บีบอัดคอนเท็กซ์แล้ว ประหยัด ~{{count}} โทเค็น",
   "chat.compaction.compacted_plain": "บีบอัดคอนเท็กซ์แล้ว",
   "chat.compaction.compacting": "กำลังบีบอัดคอนเท็กซ์…",
+  "chat.compaction.failed": "การบีบอัดบริบทล้มเหลว",
   "chat.conversation.new": "แชทใหม่",
   "chat.default.name": "ผู้ช่วย Cherry",
   "chat.default.topic.name": "สนทนาเริ่มต้น",
