@@ -613,7 +613,7 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_1px_var(--border)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
+              'bg-white/78 text-sidebar-foreground shadow-[inset_0_0_0_0.5px_var(--border-subtle)] backdrop-blur-sm dark:bg-white/10 dark:text-sidebar-foreground',
             // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
             // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
@@ -621,7 +621,8 @@ export const AppShellTabBar = ({
             closingClass: 'bg-accent text-accent-foreground'
           }
         : {
-            activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
+            activeClass:
+              'bg-black/8 text-sidebar-foreground shadow-[inset_0_0_0_0.5px_var(--border-subtle)] dark:bg-sidebar-accent dark:text-sidebar-foreground',
             hoverClass:
               'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground',
             closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
