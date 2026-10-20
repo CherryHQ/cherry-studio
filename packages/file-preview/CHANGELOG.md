@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.1.3
+
+### Patch Changes
+
+- [#22031](https://github.com/CherryHQ/cherry-studio/pull/22031) [`0041d52`](https://github.com/CherryHQ/cherry-studio/commit/0041d522ff6856036ef008255c451d3291e4ac7d) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - DOCX preview now honours the OOXML default lineRule (auto) when w:spacing omits it.
+
 ## 0.1.2
 
 ### Patch Changes

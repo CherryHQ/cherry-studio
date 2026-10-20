@@ -1,0 +1,209 @@
+name: QA On-Demand Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Hosted platform"
+        type: choice
+        options: [windows, macos]
+        default: windows
+      mode:
+        description: "branch builds source; tag installs a release"
+        type: choice
+        options: [branch, tag]
+        default: branch
+      profile:
+        description: "clean onboarding or authenticated with repository test providers"
+        type: choice
+        options: [clean, authenticated]
+        default: clean
+      ref:
+        description: "Repository branch or v* release tag"
+        type: string
+        required: true
+        default: main
+      spec:
+        description: "Report name; reviewed spec name when plan is empty (smoke uses JSON)"
+        type: string
+        default: smoke
+      plan:
+        description: "Optional data-only JSON plan, maximum 10,240 UTF-8 bytes"
+        type: string
+        default: ""
+      timeout_minutes:
+        description: "Job timeout: branch 15–360, tag 1–360 minutes"
+        type: string
+        default: "45"
+
+permissions:
+  contents: read
+
+env:
+  LANG: zh_CN.UTF-8
+  TZ: Asia/Shanghai
+  QA_PLATFORM: ${{ inputs.platform }}
+  QA_MODE: ${{ inputs.mode }}
+  QA_PROFILE: ${{ inputs.profile }}
+  QA_REF: ${{ inputs.ref }}
+  QA_SPEC: ${{ inputs.spec }}
+  QA_PLAN: ${{ inputs.plan }}
+  QA_TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.ref.outputs.sha }}
+      short_sha: ${{ steps.ref.outputs.short_sha }}
+      name: ${{ steps.ref.outputs.name }}
+      mode: ${{ steps.ref.outputs.mode }}
+      spec: ${{ steps.ref.outputs.spec }}
+      platform: ${{ steps.ref.outputs.platform }}
+      runner: ${{ steps.ref.outputs.runner }}
+      timeout: ${{ steps.ref.outputs.timeout }}
+    steps:
+      - name: Define isolated run directories
+        shell: bash
+        run: |
+          echo "QA_RUN_DIR=$RUNNER_TEMP/qa-ondemand" >> "$GITHUB_ENV"
+          echo "QA_OUT=$RUNNER_TEMP/qa-ondemand/report" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate request and pin application SHA
+        id: ref
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
+        run: pnpm exec tsx scripts/e2e/ondemand/run.ts resolve
+      - name: Upload input failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-ondemand-input-errors-${{ github.run_id }}
+          path: ${{ env.QA_OUT }}
+          retention-days: 30
+          if-no-files-found: warn
+
+  test:
+    needs: resolve
+    runs-on: ${{ needs.resolve.outputs.runner }}
+    timeout-minutes: ${{ fromJSON(needs.resolve.outputs.timeout) }}
+    concurrency:
+      group: qa-ondemand-${{ needs.resolve.outputs.platform }}-${{ needs.resolve.outputs.spec }}
+      cancel-in-progress: false
+      queue: max
+    env:
+      QA_SHA: ${{ needs.resolve.outputs.sha }}
+      QA_REF: ${{ needs.resolve.outputs.name }}
+      QA_RUNNER: ${{ needs.resolve.outputs.runner }}
+      QA_TARGET_ROOT: ${{ github.workspace }}/target-app
+    steps:
+      - name: Define isolated run directories
+        shell: bash
+        run: |
+          echo "QA_RUN_DIR=$RUNNER_TEMP/qa-ondemand" >> "$GITHUB_ENV"
+          echo "QA_OUT=$RUNNER_TEMP/qa-ondemand/report" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout application under test
+        if: needs.resolve.outputs.mode == 'branch'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+          path: target-app
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install controller dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Initialize interruption-safe result
+        shell: bash
+        run: pnpm exec tsx scripts/e2e/ondemand/run.ts initialize
+      - name: Prepare branch runtime
+        if: needs.resolve.outputs.mode == 'branch'
+        shell: bash
+        run: |
+          pnpm --dir "$QA_TARGET_ROOT" install --frozen-lockfile
+          pnpm --dir "$QA_TARGET_ROOT" download:binaries
+          pnpm --dir "$QA_TARGET_ROOT" rebuild:electron
+          pnpm --dir "$QA_TARGET_ROOT" run build:utility-process
+      - name: Install release and wait for completion
+        if: needs.resolve.outputs.mode == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm exec tsx scripts/e2e/ondemand/run.ts release
+      - name: Run one test
+        shell: bash
+        env:
+          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL }}
+        run: pnpm exec tsx scripts/e2e/ondemand/run.ts run
+      - name: Finalize and clean up owned application
+        if: always()
+        shell: bash
+        env:
+          QA_CANCELLED: ${{ job.status == 'cancelled' }}
+          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
+          CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY }}
+        run: pnpm exec tsx scripts/e2e/ondemand/run.ts finalize
+      - name: Record bootstrap failure and publish summary
+        if: always()
+        shell: bash
+        env:
+          QA_CANCELLED: ${{ job.status == 'cancelled' }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const out = process.env.QA_OUT;
+          const file = path.join(out, 'results.json');
+          fs.mkdirSync(out, {recursive: true});
+          if (!fs.existsSync(file)) {
+            const interrupted = process.env.QA_CANCELLED === 'true';
+            fs.writeFileSync(file, JSON.stringify({schemaVersion: 1, status: interrupted ? 'interrupted' : 'failed', exitCode: interrupted ? null : 2, failureStage: 'prepare', errors: [{stage: 'prepare', exitCode: 2, code: 'BOOTSTRAP_FAILED', message: 'Controller could not initialize; inspect job logs'}], metadata: {spec: process.env.QA_SPEC, platform: process.env.QA_PLATFORM, mode: process.env.QA_MODE, ref: process.env.QA_REF, controllerSha: process.env.GITHUB_SHA, applicationSha: process.env.QA_SHA, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString()}, environment: {runner: process.env.QA_RUNNER, imageOS: process.env.ImageOS ?? null, imageVersion: process.env.ImageVersion ?? null, os: process.platform, arch: process.arch, appVersion: null, appLocale: null, browserLocale: null, mainLocale: null, timezone: {inherited: process.env.TZ ?? null, controller: Intl.DateTimeFormat().resolvedOptions().timeZone, main: null, renderer: null}, unavailable: ['Application was not inspected']}, timings: {preparationSeconds: 0, readinessSeconds: 0, stepsSeconds: 0}, steps: [], artifacts: []}, null, 2));
+          }
+          const result = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const markdown = path.join(out, 'results.md');
+          if (!fs.existsSync(markdown)) fs.writeFileSync(markdown, `QA ${result.status}: exitCode=${result.exitCode}\n${result.errors.map(e => e.message).join('\n')}\n`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, fs.readFileSync(markdown));
+          JS
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-ondemand-${{ needs.resolve.outputs.spec }}-${{ needs.resolve.outputs.platform }}-${{ needs.resolve.outputs.short_sha }}
+          path: ${{ env.QA_OUT }}
+          retention-days: 30
+          overwrite: true
+          if-no-files-found: error
+      - name: Enforce recorded verdict
+        if: always()
+        shell: bash
+        run: |
+          node -e 'const r=require(process.env.QA_OUT+"/results.json"); process.exit(r.status==="interrupted"?130:r.exitCode ?? 2)'

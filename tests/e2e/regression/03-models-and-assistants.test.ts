@@ -308,3 +308,18 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
     )
   }
 })
+
+test(...caseDefinition('SET-05'), async ({ app, mainWindow: page }) => {
+  await openSettingsSection(page, 'About')
+
+  // The About page must name the product and show a real version number.
+  await expect(page.getByText(/Cherry Studio/i).first()).toBeVisible()
+  const version = page.getByText(/\bv?\d+\.\d+\.\d+\b/).first()
+  await expect(version).toBeVisible()
+  const before = (await version.textContent())?.trim()
+
+  // The value comes from the running build, so it must survive a restart unchanged.
+  const restarted = await app.restart('authenticated')
+  await openSettingsSection(restarted, 'About')
+  await expect(restarted.getByText(/\bv?\d+\.\d+\.\d+\b/).first()).toHaveText(before ?? '')
+})

@@ -1,3 +1,14 @@
+import { execFileSync } from 'node:child_process'
+
+export function resolveRepositoryRef(requested: string, repository: string): ResolvedRef {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error('Invalid GitHub repository slug')
+  const output = execFileSync('git', ['ls-remote', '--heads', '--tags', `https://github.com/${repository}.git`], {
+    encoding: 'utf8',
+    timeout: 60_000
+  })
+  return resolveTrustedRef(requested, parseRemoteRefs(output))
+}
+
 export interface RemoteRef {
   name: string
   sha: string

@@ -1,5 +1,16 @@
 # @cherrystudio/remote-protocol
 
+## 0.6.0
+
+### Minor Changes
+
+- [#21992](https://github.com/CherryHQ/cherry-studio/pull/21992) [`8bf2fe2`](https://github.com/CherryHQ/cherry-studio/commit/8bf2fe28d50170eb7b04c99dd5f8bfcf1913f2ae) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add the opt-in `agentMessageSummariesVersion: 1` capability and `agent.messages.list`
+  `partsMode: 'paged'` request. Summaries omit `partIds` and retain message identity,
+  revision and outcome metadata; clients enumerate complete parts through
+  `agent.parts.list`. Requests without the mode retain the full-message contract.
+  The list result type now includes `AgentMessageSummary`; consumers must narrow
+  list items before treating them as full `AgentMessage` recovery snapshots.
+
 ## 0.5.0
 
 ### Minor Changes
