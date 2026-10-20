@@ -27,6 +27,8 @@ import type { AgentRuntimeSession } from '../session'
 
 /** The parent run whose tool call spawned a foreground child; stopping that run stops the child. */
 export type Owner = { readonly thread: ThreadId; readonly run: number }
+/** What a call's ports are bound to: the run of a tool call that owns its foreground children, and its abort signal. */
+export type CallScope = { readonly owner?: Owner; readonly signal?: AbortSignal }
 /** How a run ended: what the conversation reports as `live.runEnd`, and what `awaitAnswer` answers. */
 export type RunEnding = { readonly live: 'completed' | 'error' | 'aborted'; readonly answer: RunEndFacts }
 export type Submission = {
@@ -66,9 +68,9 @@ export type Conversation = {
   readonly submissions: Map<string, Submission>
   /** Keys waiting for a run of their own. */
   readonly inbox: string[]
-  /** Messages for the active run that Pi could not take yet. */
+  /** Steers waiting for the active run's next turn end, in the order they were sent. */
   readonly held: string[]
-  /** Messages in Pi's steering queue that Pi has not placed yet. */
+  /** Steers handed to Pi at a turn's end that Pi has not placed yet. */
   readonly steered: Set<string>
   active?: RunState
   runs: number
@@ -108,7 +110,7 @@ export interface Adapter {
   /** Counts `work` as pending for `settled()` until it settles. */
   track<T>(work: Promise<T>): Promise<T>
   report(error: unknown): void
-  withScope<T>(owner: Owner | undefined, use: (ports: BoundPorts) => Promise<T>): Promise<T>
+  withScope<T>(call: CallScope, use: (ports: BoundPorts) => Promise<T>): Promise<T>
   lifecycle(call: (handlers: LifecycleHandlers, ports: BoundPorts) => Promise<void>): Promise<void>
 }
 

@@ -8,13 +8,14 @@ import {
   type ConversationFacts,
   decodeEntry,
   encodeEntry,
+  FORK_PLACEHOLDER_RESULT,
   type Key,
   type Step,
   type TxOp
 } from '@cherrystudio/agent-behavior'
 import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import { historyOf, keysOf, omittedMarkers, withoutMarkers } from './history'
+import { historyOf, keysOf, omittedMarkers, resultFor, unansweredCalls, withoutMarkers } from './history'
 import {
   type Adapter,
   type Conversation,
@@ -44,7 +45,6 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
   for (const child of adapter.conversations.values()) {
     if (child.lineage.kind !== 'subagent' || child.lineage.parent !== thread) continue
     children.set(child.thread, {
-      thread: child.thread,
       running: child.active !== undefined,
       runUsage: [...child.runUsage],
       // Never empty: the child's origin record is written with it.
@@ -67,7 +67,6 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
         conv.native?.session.isCompacting === true ||
         (run?.pending === true && run.startedBy === undefined),
       ...(conv.lastEnd && { runEnd: { outcome: conv.lastEnd } }),
-      reopened: conv.reopened,
       pendingLaunches
     },
     children,
@@ -125,7 +124,11 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
       // Before any write: forkFrom/create touch the disk and can throw, which must reject the whole commit.
       const child = runtimeId<'thread'>(randomUUID())
       const manager = childManager(parent.manager, child, fork)
+      // A fork subagent's fork point holds calls that run on in this conversation; an S-j fork's ended (H3).
+      const copied = manager.getBranch()
+      const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
       return (applied) => {
+        for (const call of placeholders) manager.appendMessage(resultFor(call, FORK_PLACEHOLDER_RESULT, false))
         const origin = encodeEntry({ type: 'subagent-origin', value: spec.origin }, key)
         manager.appendCustomEntry(origin.kind, origin.data)
         const record = encodeEntry({ type: 'subagent-run', value: { ...spec.record, sessionId: child } }, key)
