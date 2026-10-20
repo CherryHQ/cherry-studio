@@ -1,7 +1,7 @@
 import { promises as fs, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
-import { app, dialog, session, shell } from 'electron'
+import { dialog, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -183,7 +183,9 @@ export class DownloadManagerService extends BaseService {
     const preferenceService = application.get('PreferenceService')
     const connections = clamp(preferenceService.get(PREF.connections), 1, MAX_SEGMENT_CONNECTIONS)
     const policy = parsePolicy(preferenceService.get(PREF.conflict))
-    const baseDir = preferenceService.get(PREF.dir) || app.getPath('downloads')
+    // The path registry supplies the conventional Downloads fallback when the
+    // OS lookup fails; `app.getPath` throws instead.
+    const baseDir = preferenceService.get(PREF.dir) || application.getPath('sys.downloads')
     let fileName = sanitizeDownloadFileName(input.fileName || fileNameFromUrl(input.url))
     let dir = baseDir
 
@@ -258,10 +260,12 @@ export class DownloadManagerService extends BaseService {
     }
     for (let attempt = 0; attempt < 10_000; attempt++) {
       const candidate = await resolveDownloadPath(dir, uniquifyFileName(fileName, attempt), policy)
-      if (!(await this.pathTaken(candidate))) {
-        this.reserved.add(candidate)
-        return candidate
-      }
+      if (await this.pathTaken(candidate)) continue
+      // Claim synchronously: another start may have completed its own
+      // filesystem checks while this one was awaiting them.
+      if (this.reserved.has(candidate)) continue
+      this.reserved.add(candidate)
+      return candidate
     }
     throw new Error('could not reserve a free file name')
   }

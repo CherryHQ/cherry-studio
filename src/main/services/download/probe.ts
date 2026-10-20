@@ -57,9 +57,13 @@ async function probeRange(
   const etag = header(response, 'etag')
   const lastModified = header(response, 'last-modified')
   if (response.status === 206) {
-    const total = totalFromContentRange(header(response, 'content-range')) ?? contentLength(response)
+    const total = totalFromContentRange(header(response, 'content-range'))
     await response.body?.cancel()
-    return { totalBytes: total ?? 0, supportsRanges: true, etag, lastModified }
+    // `bytes 0-0/*` (RFC 9110) and a missing Content-Range both leave the
+    // resource length unknown; the partial body's Content-Length describes one
+    // byte, not the file. Keep it unknown so the caller downloads one stream.
+    if (total === undefined) return { totalBytes: 0, supportsRanges: false, etag, lastModified }
+    return { totalBytes: total, supportsRanges: true, etag, lastModified }
   }
   // A server that ignores Range answers 200 with the whole body; do not drain it.
   await response.body?.cancel()
@@ -112,6 +116,8 @@ export async function probeDownload(url: string, fetchImpl: FetchLike, signal?: 
       return {
         ...result,
         ...confirmed,
+        // A failed or partial confirmation reports 0; HEAD's length still holds.
+        totalBytes: confirmed.totalBytes || result.totalBytes,
         finalUrl: result.finalUrl,
         etag: confirmed.etag ?? result.etag,
         lastModified: confirmed.lastModified ?? result.lastModified

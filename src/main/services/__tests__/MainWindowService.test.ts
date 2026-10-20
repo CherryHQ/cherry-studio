@@ -8,6 +8,8 @@ import { pathToFileURL } from 'node:url'
 import { createMockApplication } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { browserRequestMethods } from '@main/services/download/requestMethods'
+
 // Hoisted state lets individual tests mutate platform flags / preferences without
 // re-mocking modules. The mock factories below read these via getters, preserving
 // live-binding semantics so each test sees the current value.
@@ -849,6 +851,18 @@ describe('MainWindowService', () => {
       await expect(dispatch('blob:https://example.com/fixture', 'image')).resolves.toEqual({ cancel: false })
       expect(agentBrowserSessionMock.setPermissionCheckHandler.mock.calls[0][0]()).toBe(false)
       expect(agentBrowserSessionMock.on.mock.calls.some(([event]) => event === 'will-download')).toBe(false)
+    })
+
+    it('records request methods for the download takeover while enforcing the policy', async () => {
+      await (svc as any).onInit()
+      const handler = agentBrowserSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+      if (!handler) throw new Error('Agent browser request handler was not registered')
+
+      const callback = vi.fn()
+      handler({ url: 'https://example.com/export', resourceType: 'mainFrame', method: 'POST' }, callback)
+
+      expect(callback).toHaveBeenCalledWith({ cancel: false })
+      expect(browserRequestMethods.methodFor('https://example.com/export')).toBe('POST')
     })
 
     it('enforces the bound dev origin for programmatic main-frame loads', async () => {

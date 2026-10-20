@@ -50,6 +50,27 @@ beforeAll(async () => {
       return
     }
 
+    if (mode === 'unknown-total' || mode === 'unknown-total-with-head') {
+      if (request.method === 'HEAD') {
+        if (mode === 'unknown-total') {
+          response.writeHead(405).end()
+        } else {
+          response.writeHead(200, {
+            'content-length': String(CONTENT.length),
+            'accept-ranges': 'bytes'
+          })
+          response.end()
+        }
+        return
+      }
+      response.writeHead(206, {
+        'content-range': 'bytes 0-0/*',
+        'content-length': '1'
+      })
+      response.end(CONTENT.subarray(0, 1))
+      return
+    }
+
     // Default: a well-behaved range server.
     if (request.method === 'HEAD') {
       response.writeHead(200, {
@@ -112,5 +133,19 @@ describe('probeDownload', () => {
     expect(probe.supportsRanges).toBe(false)
     expect(probe.totalBytes).toBe(CONTENT.length)
     expect(probe.etag).toBe('"v1"')
+  })
+
+  it('keeps the total unknown when Content-Range ends in *', async () => {
+    const probe = await probeDownload(`${baseUrl}/unknown-total`, fetch)
+
+    expect(probe.supportsRanges).toBe(false)
+    expect(probe.totalBytes).toBe(0)
+  })
+
+  it('keeps HEAD length but drops segmentation when the range total is unknown', async () => {
+    const probe = await probeDownload(`${baseUrl}/unknown-total-with-head`, fetch)
+
+    expect(probe.supportsRanges).toBe(false)
+    expect(probe.totalBytes).toBe(CONTENT.length)
   })
 })

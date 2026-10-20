@@ -15,6 +15,7 @@ import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/win
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
+import { browserRequestMethods } from '@main/services/download/requestMethods'
 import { openRequestPath } from '@main/services/file'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
@@ -401,6 +402,10 @@ export class MainWindowService extends BaseService {
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
     if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      // The download manager cannot read the method from a DownloadItem, and
+      // this listener must stay the only one on the session: record here rather
+      // than letting another module replace the policy.
+      browserRequestMethods.record(details.url, details.method)
       try {
         const result = isAllowed(details)
         if (typeof result === 'boolean') {

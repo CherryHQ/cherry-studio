@@ -258,7 +258,45 @@ describe('DownloadTask', () => {
     })
 
     const run = runner.run(controller.signal)
-    await vi.waitFor(() => expect(store.get(task.id)?.task.state).toBe('downloading'))
+    await vi.waitFor(() => expect(store.get(task.id)?.task.receivedBytes).toBe(3))
+    controller.abort()
+
+    await expect(run).resolves.toBe('paused')
+    expect(store.get(task.id)?.task.state).toBe('paused')
+  })
+
+  it('settles a pause that lands before the response headers', async () => {
+    const fileName = 'headers.bin'
+    const filePath = join(dir, fileName)
+    const tempPath = `${filePath}.crdownload`
+    const { task, segments } = store.create({
+      url: `${baseUrl}/headers`,
+      finalUrl: `${baseUrl}/headers`,
+      fileName,
+      filePath,
+      tempPath,
+      totalBytes: 0,
+      connections: 1,
+      source: 'manual',
+      supportsRanges: false,
+      ranges: [{ index: 0, start: 0, end: 0 }]
+    })
+    const controller = new AbortController()
+    const fetchImpl: FetchLike = (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const abort = () => reject(new DOMException('Aborted', 'AbortError'))
+        if (init?.signal?.aborted) return abort()
+        init?.signal?.addEventListener('abort', abort, { once: true })
+      })
+    const runner = new DownloadTask({
+      task,
+      segments,
+      probe: { finalUrl: task.url, totalBytes: 0, supportsRanges: false },
+      store,
+      fetchImpl
+    })
+
+    const run = runner.run(controller.signal)
     controller.abort()
 
     await expect(run).resolves.toBe('paused')
