@@ -1,5 +1,11 @@
+import { Client, LoggerLevel, withUserAccessToken } from '@larksuiteoapi/node-sdk'
+import axios from 'axios'
 import { net } from 'electron'
 import * as z from 'zod'
+
+import { loggerService } from '@logger'
+
+const logger = loggerService.withContext('feishuKnowledgeProvider')
 
 export const FEISHU_KNOWLEDGE_USER_SCOPES = [
   'wiki:node:read',
@@ -106,6 +112,7 @@ const docxMarkdownResponseSchema = z.object({
 })
 
 export type FeishuApplicationCredentials = { appId: string; appSecret: string }
+export type FeishuUserAuthorization = FeishuApplicationCredentials & { accessToken: string }
 
 export type FeishuDeviceAuthorization = {
   deviceCode: string
@@ -251,6 +258,41 @@ async function request(
   return body
 }
 
+function createReadClient(authorization: FeishuUserAuthorization, signal?: AbortSignal) {
+  // Generated SDK methods drop per-call signals; bind cancellation to this request's transport.
+  const httpInstance = axios.create({
+    adapter: async (config) => ({
+      data: await request(axios.getUri(config), {
+        method: config.method,
+        headers: Object.fromEntries(
+          Object.entries(config.headers.toJSON()).map(([key, value]) => [key, String(value)])
+        ),
+        signal
+      }),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config
+    })
+  })
+  httpInstance.interceptors.response.use((response) => response.data)
+  const client = new Client({
+    appId: authorization.appId,
+    appSecret: authorization.appSecret,
+    disableTokenCache: true,
+    httpInstance,
+    loggerLevel: LoggerLevel.error,
+    logger: {
+      error: () => logger.warn('Feishu SDK request failed'),
+      warn: () => {},
+      info: () => {},
+      debug: () => {},
+      trace: () => {}
+    }
+  })
+  return { client, options: withUserAccessToken(authorization.accessToken) }
+}
+
 export async function beginDeviceAuthorization(
   credentials: FeishuApplicationCredentials,
   signal?: AbortSignal
@@ -334,12 +376,12 @@ export function refreshUserToken(
   )
 }
 
-export async function getUserIdentity(accessToken: string, signal?: AbortSignal): Promise<FeishuUserIdentity> {
-  const body = await request('https://open.feishu.cn/open-apis/authen/v1/user_info', {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}` },
-    signal
-  })
+export async function getUserIdentity(
+  authorization: FeishuUserAuthorization,
+  signal?: AbortSignal
+): Promise<FeishuUserIdentity> {
+  const { client, options } = createReadClient(authorization, signal)
+  const body = await client.authen.v1.userInfo.get({}, options)
   const userId = (body as { data?: { user_id?: unknown } } | null)?.data?.user_id
   if (typeof userId !== 'string' || userId.trim().length === 0) {
     throw new FeishuProviderError('identity-unverifiable', true)
@@ -357,19 +399,13 @@ export async function getUserIdentity(accessToken: string, signal?: AbortSignal)
 }
 
 export async function getWikiNode(
-  accessToken: string,
+  authorization: FeishuUserAuthorization,
   input: { token: string; objType: 'wiki' | 'docx' },
   signal?: AbortSignal
 ): Promise<FeishuWikiNode> {
-  const url = new URL('https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node')
-  url.searchParams.set('token', input.token)
-  url.searchParams.set('obj_type', input.objType)
+  const { client, options } = createReadClient(authorization, signal)
   const parsed = wikiNodeResponseSchema.safeParse(
-    await request(url.toString(), {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal
-    })
+    await client.wiki.v2.space.getNode({ params: { token: input.token, obj_type: input.objType } }, options)
   )
   if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
   return normalizeWikiNode(parsed.data.data.node)
@@ -392,22 +428,21 @@ function normalizeWikiNode(node: z.infer<typeof wikiNodeSchema>): FeishuWikiNode
 }
 
 export async function listWikiChildNodes(
-  accessToken: string,
+  authorization: FeishuUserAuthorization,
   spaceId: string,
   parentNodeToken?: string,
   pageToken?: string,
   signal?: AbortSignal
 ): Promise<FeishuWikiNodePage> {
-  const url = new URL(`https://open.feishu.cn/open-apis/wiki/v2/spaces/${encodeURIComponent(spaceId)}/nodes`)
-  url.searchParams.set('page_size', '50')
-  if (parentNodeToken) url.searchParams.set('parent_node_token', parentNodeToken)
-  if (pageToken) url.searchParams.set('page_token', pageToken)
+  const { client, options } = createReadClient(authorization, signal)
   const parsed = wikiNodePageResponseSchema.safeParse(
-    await request(url.toString(), {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal
-    })
+    await client.wiki.v2.spaceNode.list(
+      {
+        path: { space_id: encodeURIComponent(spaceId) },
+        params: { page_size: 50, parent_node_token: parentNodeToken, page_token: pageToken }
+      },
+      options
+    )
   )
   if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
   return {
@@ -417,20 +452,16 @@ export async function listWikiChildNodes(
 }
 
 export async function getDocxMarkdown(
-  accessToken: string,
+  authorization: FeishuUserAuthorization,
   documentToken: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const url = new URL('https://open.feishu.cn/open-apis/docs/v1/content')
-  url.searchParams.set('doc_token', documentToken)
-  url.searchParams.set('doc_type', 'docx')
-  url.searchParams.set('content_type', 'markdown')
+  const { client, options } = createReadClient(authorization, signal)
   const parsed = docxMarkdownResponseSchema.safeParse(
-    await request(url.toString(), {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal
-    })
+    await client.docs.v1.content.get(
+      { params: { doc_token: documentToken, doc_type: 'docx', content_type: 'markdown' } },
+      options
+    )
   )
   if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
   return parsed.data.data.content
