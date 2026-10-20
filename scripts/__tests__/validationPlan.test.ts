@@ -64,6 +64,12 @@ describe('validation selection', () => {
   ])('rebuilds the browser Core Worker when its sources or bundled data services change: %s', (file) => {
     expect(createPlan([file]).tasks).toEqual(expect.arrayContaining(['types-web-core', 'bundle-web-core']))
   })
+  it.each(['src/renderer/components/settingsMenu.ts', 'src/preload/preload.ts', 'packages/web-core/app/main.ts'])(
+    'rebuilds the Web app when the desktop window it runs or its own sources change: %s',
+    (file) => {
+      expect(createPlan([file]).tasks).toEqual(expect.arrayContaining(['types-web-core', 'bundle-web-core-app']))
+    }
+  )
   it('selects no Vitest project for browser-only Core Worker changes', () => {
     expect(createPlan(['packages/web-core/src/database/openDatabase.ts']).projects).toEqual([])
   })

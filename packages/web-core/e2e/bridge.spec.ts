@@ -52,7 +52,8 @@ test('runs the desktop preload in the page over the Core Worker IPC', async ({ p
     }
   })
   expect(result.unregistered).toContain("No handler registered for 'no-such-channel'")
-  expect(result.topics).toMatchObject({ items: [] })
+  // The desktop seeders give a new account one empty topic.
+  expect(result.topics).toMatchObject({ items: [{ name: '' }] })
   expect(result.attach).toEqual({ status: 'not-found' })
 })
 

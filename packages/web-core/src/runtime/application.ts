@@ -43,9 +43,12 @@ class WebApplication {
     return instance as WebServices[K]
   }
 
-  /** Paths name files the desktop keeps under its data folder; the Worker never opens them. */
+  /**
+   * Paths name files the desktop keeps under its data folder; the Worker never opens them. They are
+   * absolute POSIX paths because services store and validate them (e.g. agent workspace paths).
+   */
   getPath(namespace: string, filename?: string): string {
-    return filename ? `web://${namespace}/${filename}` : `web://${namespace}`
+    return filename ? `/web/${namespace}/${filename}` : `/web/${namespace}`
   }
 
   isReady(): boolean {

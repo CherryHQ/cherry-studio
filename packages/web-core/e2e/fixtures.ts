@@ -21,9 +21,9 @@ declare global {
  * and WebKit's ephemeral contexts fail to open OPFS files at all.
  */
 export const test = base.extend<{ context: BrowserContext; page: Page; account: string }>({
-  context: async ({ playwright, browserName, baseURL }, provide) => {
+  context: async ({ playwright, browserName, baseURL, locale }, provide) => {
     const profile = mkdtempSync(join(tmpdir(), 'web-core-e2e-'))
-    const context = await playwright[browserName].launchPersistentContext(profile, { baseURL })
+    const context = await playwright[browserName].launchPersistentContext(profile, { baseURL, locale })
     await provide(context)
     await context.close()
     rmSync(profile, { recursive: true, force: true })

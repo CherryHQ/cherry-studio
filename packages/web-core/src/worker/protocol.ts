@@ -1,5 +1,8 @@
 import type { DataRequest, DataResponse } from '@shared/data/api/types'
 
+/** `ipcRenderer.send` channel on which the page reports its color scheme (`ThemeMode`). */
+export const NATIVE_THEME_CHANNEL = 'web:native-theme'
+
 export interface OpenResult {
   path: string
   openMs: number

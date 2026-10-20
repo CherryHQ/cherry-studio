@@ -9,10 +9,12 @@
   "include": [
     "src/**/*.ts",
     "harness/**/*.ts",
+    "app/**/*.ts",
     "e2e/**/*.ts",
     "vite.config.ts",
+    "vite.app.config.ts",
     "playwright.config.ts",
     "../../src/main/env.d.ts"
   ],
-  "exclude": ["src/page/**", "harness/bridge.ts"]
+  "exclude": ["src/page/**", "harness/bridge.ts", "app/main.ts"]
 }
