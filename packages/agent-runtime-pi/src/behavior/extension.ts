@@ -17,6 +17,7 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 
 import {
+  type CompactionRequest,
   ENTRY_KINDS,
   type GateCall,
   type GateFacts,
@@ -27,6 +28,7 @@ import {
 } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 
+import type { CompactionSummarizer } from '../compaction'
 import { zeroUsage } from '../subagentRun'
 import { BLOCKED_PREFIX, callKeyFor, historyOf, latestPlan, omittedMarkers, textOf, withoutMarkers } from './history'
 import { readFacts } from './ledger'
@@ -178,24 +180,61 @@ function replaceArgs(input: Record<string, unknown>, args: JsonValue): void {
   Object.assign(input, args)
 }
 
-/**
- * H11: the meter decides before each model request of a run, with the conversation's lineage; a refusal fails the
- * request before it goes out. Pi's own summarizer streams through it too; a host summarizer's requests bypass it (D4).
- */
+/** H11: the meter's answer for the next request of `conv`'s run, with the conversation's lineage. */
+function allow(adapter: Adapter, conv: Conversation, requestsInRun: number): RequestAllowance {
+  const lineage = conv.lineage.kind === 'subagent' ? 'child' : 'root'
+  return adapter.installation.meter?.allow(conv.thread, requestsInRun, lineage) ?? { ok: true }
+}
+
+/** H11: the meter decides before each model request of a run; a refusal fails the request before it goes out. */
 export function meterRequests(adapter: Adapter, conv: Conversation, session: AgentSession): void {
   const stream = session.agent.streamFunction
-  const lineage = conv.lineage.kind === 'subagent' ? 'child' : 'root'
   session.agent.streamFunction = (model, context, options) => {
     const run = conv.active
-    const allowance: RequestAllowance = adapter.installation.meter?.allow(conv.thread, run?.requests ?? 0, lineage) ?? {
-      ok: true
-    }
+    const allowance = allow(adapter, conv, run?.requests ?? 0)
     if (!allowance.ok) {
       if (run) run.refused = allowance.text
       return refusal(model, allowance.text)
     }
     if (run) run.requests += 1
     return stream(model, context, options)
+  }
+}
+
+/**
+ * H12: every compaction asks `onCompacting` first, and one during a run is one of its metered requests (H11). What it
+ * throws cancels the compaction and becomes its `compaction-end` error: a decline's reason or a refusal's text.
+ */
+export function compactionSummarizer(adapter: Adapter, conv: Conversation): CompactionSummarizer {
+  const decline = (reason: string): never => {
+    conv.declined = true
+    throw new Error(reason)
+  }
+  return async (request) => {
+    conv.declined = false
+    const run = conv.active
+    if (run) {
+      const allowance = allow(adapter, conv, run.requests)
+      if (!allowance.ok) return decline(allowance.text)
+      run.requests += 1
+    }
+    const handlers = adapter.installation.lifecycle
+    if (!handlers) throw new Error('No onCompacting handler is registered')
+    const compaction: CompactionRequest = {
+      // The entry the compaction will follow: Pi appends it after the branch's last entry.
+      key: `${conv.thread}:${conv.manager.getLeafId()}`,
+      reason: request.reason,
+      messages: JSON.parse(JSON.stringify(request.messages)) as JsonValue[],
+      ...(request.previousSummary === undefined ? {} : { previousSummary: request.previousSummary }),
+      ...(request.instructions === undefined ? {} : { instructions: request.instructions }),
+      signal: request.signal
+    }
+    const verdict = await handlers.onCompacting(conv.thread, compaction, adapter.gatePorts).catch((error: unknown) => {
+      // A host compact() rejects (the compaction is cancelled); an automatic compaction has no caller.
+      if (conv.hostCompacts === 0) adapter.report(error)
+      throw error
+    })
+    return 'decline' in verdict ? decline(verdict.reason) : verdict.summary
   }
 }
 

@@ -20,6 +20,7 @@ import type { ContractHarness, HarnessPorts, ScriptedReply, UsageFact } from '@c
 
 import {
   type AgentRuntimeSession,
+  type AgentRuntimeSessionOptions,
   type BehaviorSessionRequest,
   createAgentRuntimeSession,
   createPiBehavior,
@@ -90,12 +91,16 @@ function replyOf(reply: ScriptedReply, nextCallId: () => string): Partial<Assist
   }
 }
 
-type OpenSession = (request: BehaviorSessionRequest) => Promise<AgentRuntimeSession>
+/** Builds a session as the host would; `options` replace the harness's own (compaction, an event listener). */
+export type OpenSession = (
+  request: BehaviorSessionRequest,
+  options?: Partial<AgentRuntimeSessionOptions>
+) => Promise<AgentRuntimeSession>
 
 /**
  * The coding-agent harness the contract drives: real sessions from `createAgentRuntimeSession` over a provider that
  * answers each conversation from its own script. `extensions` go ahead of the adapter's in every session; `openSession`
- * wraps how each session is built (to hold or fail a build).
+ * wraps how each session is built (to hold or fail a build, or to change its options).
  */
 export async function openPiHarness(
   install: (ports: HarnessPorts) => void,
@@ -148,7 +153,7 @@ export async function openPiHarness(
   })
   const model = modelRuntime.getModel('contract', 'model')!
   const errors: unknown[] = []
-  const open: OpenSession = ({ sessionManager, extension }) =>
+  const open: OpenSession = ({ sessionManager, extension, summarize }, options) =>
     createAgentRuntimeSession({
       cwd,
       agentDir: cwd,
@@ -157,13 +162,9 @@ export async function openPiHarness(
       sessionManager,
       extensionFactories: [...extensions, extension],
       settings: { retry: { enabled: false }, cacheWarming: 'off' },
-      // Manual compaction only, summarized without a model request, so it never takes a scripted reply.
-      compaction: {
-        enabled: false,
-        reserveTokens: 1,
-        keepRecentTokens: 1,
-        summarize: async () => 'Contract summary.'
-      }
+      // Manual compaction only, summarized by the adapter through onCompacting, so it never takes a scripted reply.
+      compaction: { enabled: false, reserveTokens: 1, keepRecentTokens: 1, summarize },
+      ...options
     })
   const behavior = createPiBehavior({
     install,

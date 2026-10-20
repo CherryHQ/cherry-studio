@@ -15,7 +15,8 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import { openPiHarness, type PiHarness } from './behaviorHarness'
+import type { AgentRuntimeEvent, BehaviorSessionRequest } from '../src'
+import { type OpenSession, openPiHarness, type PiHarness } from './behaviorHarness'
 
 const read = (pi: PiHarness, thread: ThreadId): Promise<ConversationFacts> =>
   pi.harness.withCall(thread, (ports) => ports.ledger.read(thread))
@@ -80,6 +81,13 @@ function holdTool(name = 'hold') {
 }
 const markerKeys = (facts: ConversationFacts) =>
   facts.history.flatMap((entry) => (entry.kind === 'marker' ? [entry.key] : []))
+/** Sessions that compact on their own after a reply: the threshold sits one token above an empty context. */
+const autoCompacting =
+  (onEvent?: (event: AgentRuntimeEvent) => void) => (request: BehaviorSessionRequest, open: OpenSession) =>
+    open(request, {
+      compaction: { reserveTokens: 31_999, keepRecentTokens: 1, summarize: request.summarize },
+      ...(onEvent && { onEvent })
+    })
 async function spawn(pi: PiHarness, parent: ThreadId, fork?: ChildSpec['fork']): Promise<ThreadId> {
   const { spawned } = await pi.harness.withCall(parent, (ports) =>
     ports.ledger.transact(parent, () => ({
@@ -276,6 +284,107 @@ describe('coding-agent behavior adapter', () => {
     await pi.harness.settle()
     await pi.harness.compact(t)
     expect((await read(pi, t)).keysSeen.has(key('after-compaction'))).toBe(true)
+  })
+
+  // Catches a compaction during a run that the meter never sees or that does not count toward the run's requests, so a
+  // child's compactions escape its request cap, a refused one that still asks onCompacting or compacts, or a key that
+  // is not the entry the compaction follows, so two compactions would share one memoized summary (H11, H12).
+  it('meters a compaction during a run as one of its requests', async () => {
+    const metered: number[] = []
+    const keys: string[] = []
+    const errors: (string | undefined)[] = []
+    let refuse = false
+    const pi = await openPiHarness(
+      (ports) => {
+        ports.tools.register(tool('echo'))
+        ports.requestMeter.register({
+          allow: (_thread, requestsInRun) => {
+            metered.push(requestsInRun)
+            if (!refuse || requestsInRun !== 1) return { ok: true }
+            refuse = false
+            return { ok: false, text: 'request cap reached' }
+          }
+        })
+        ports.lifecycle.register({
+          ...noLifecycle,
+          onCompacting: async (_thread, request) => {
+            keys.push(request.key)
+            return { summary: 'summary' }
+          }
+        })
+      },
+      [],
+      autoCompacting((event) => {
+        if (event.type === 'compaction-end') errors.push(event.error)
+      })
+    )
+    const t = await pi.harness.createThread()
+    // The last reply's usage keeps the context under the threshold: only the compaction before the second request runs.
+    const usage = { input: 1, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 1, costUsd: 0 }
+    const round = [
+      { text: '', toolCalls: [{ name: 'echo', args: {} }] },
+      { text: 'done', usage }
+    ]
+    pi.harness.script(t, round)
+    await pi.harness.sendUser(t, 'go')
+    await pi.harness.settle()
+    // The tool round's request, the compaction before the next request, that request.
+    expect(metered).toEqual([0, 1, 2])
+    const first = await read(pi, t)
+    expect(first.history.map((entry) => entry.kind)).toEqual([
+      'user',
+      'assistant',
+      'tool-result',
+      'compaction',
+      'assistant'
+    ])
+    expect(keys).toEqual([`${t}:${first.history[2].id}`])
+    refuse = true
+    pi.harness.script(t, round)
+    await pi.harness.sendUser(t, 'again')
+    await pi.harness.settle()
+    // The refused compaction asks nothing and counts nothing: the next request still sees one.
+    expect(metered).toEqual([0, 1, 2, 0, 1, 1])
+    expect(keys).toHaveLength(1)
+    const second = await read(pi, t)
+    expect(second.history.slice(first.history.length).map((entry) => entry.kind)).toEqual([
+      'user',
+      'assistant',
+      'tool-result',
+      'assistant'
+    ])
+    expect(errors).toEqual([undefined, 'request cap reached'])
+    expect(second.live.runEnd?.outcome).toBe('completed')
+  })
+
+  // Catches an automatic compaction that still happens after onCompacting declined it (Pi falls back to its own
+  // summarizer on the session model), or a decline whose reason never reaches the host as the compaction's error (H12).
+  it('compacts nothing when onCompacting declines an automatic compaction', async () => {
+    let compacted = 0
+    const ends: AgentRuntimeEvent[] = []
+    const pi = await openPiHarness(
+      (ports) =>
+        ports.lifecycle.register({
+          ...noLifecycle,
+          onCompacting: async () => ({ decline: true, reason: 'The summary is empty' }),
+          onCompacted: async () => {
+            compacted += 1
+          }
+        }),
+      [],
+      autoCompacting((event) => {
+        if (event.type === 'compaction-end') ends.push(event)
+      })
+    )
+    const t = await pi.harness.createThread()
+    pi.harness.script(t, [{ text: 'done' }])
+    await pi.harness.sendUser(t, 'go')
+    await pi.harness.settle()
+    const facts = await read(pi, t)
+    expect(facts.history.map((entry) => entry.kind)).toEqual(['user', 'assistant'])
+    expect(compacted).toBe(0)
+    expect(ends).toEqual([expect.objectContaining({ error: 'The summary is empty' })])
+    expect(facts.live.runEnd?.outcome).toBe('completed')
   })
 
   // Catches a job ensured in onOpen that starts while onOpen is still deciding, instead of once it has run (H12).
