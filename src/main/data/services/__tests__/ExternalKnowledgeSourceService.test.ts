@@ -62,7 +62,6 @@ describe('ExternalKnowledgeSourceService', () => {
         lastStartedAt: 100,
         lastFinishedAt: 200,
         lastOutcome: 'completed-with-warnings',
-        lastScannedCount: 10,
         lastIndexedCount: 2,
         lastUnchangedCount: 7,
         lastSkippedCount: 1,
