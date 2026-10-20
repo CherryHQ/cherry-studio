@@ -88,7 +88,7 @@ schema version 1 内只允许新增可选字段，不删除、不改名、不改
 
 ### 审批与 Linux 跟进
 
-这是最底层的 proposed testing Spec。依据 [Agent Note 规则](../../README.md)，只有非作者的人工维护者审批了当前 Spec PR 提交，实现层才能开始。发起需求的维护者负责安排审批人；实现负责人提供 PR URL 和精确 SHA。最终实现层为所有验收条件提供实际证据前，本记录保持 proposed。研发负责实现和 hosted 验证；QA 验收报告与派发契约。
+需求方明确要求 #22055 直接进入实现，不等待正式的 Spec Approval 门槛。此项任务授权仅针对本次变更，覆盖默认的 [Agent Note 规则](../../README.md)。最终实现为所有验收条件提供实际证据前，本记录保持 proposed。研发负责实现和 hosted 验证；QA 验收报告与派发契约。
 
 本次 Spec 交付时在 #22055 记录 Linux 进入条件：工作流从 `main` 派发，Windows 的 branch/main 和 tag smoke 在连续三个运行日全部通过，每日至少各一次，合计至少六次成功，并有完整证据。按 `Asia/Shanghai` 的派发日期划分运行日。没有 smoke 派发的日期不计；运行日缺任一模式不能计入或跨过。相关失败或取消重置计数；等待中的运行和不完整证据不满足条件。控制器 SHA 可以变化，每次运行仍须记录。满足条件后，Linux 成为下一开发项，覆盖平台处理、AppImage 安装和启动、显示环境、进程管理及独立验收。这是进入条件，不代表增加一个平台常量就完成 Linux 支持。
 
@@ -115,7 +115,7 @@ schema version 1 内只允许新增可选字段，不删除、不改名、不改
 - AC10 — 强制中断在可保存证据时体现为 null exitCode 和 interrupted 状态；缺失证据且 job 取消或超时时，绝不变成通过或虚构的控制器结果。(verification: unit + workflow contract; owner: development)
 - AC11 — 已完成的 Windows/macOS branch/tag smoke 和临时 plan 验收运行提供可下载、保留 30 天的 JSON/Markdown、遮罩截图、脱敏日志及摘要，不包含原始 plan、凭据或 profile。(verification: packaged artifact + Electron; owner: development with QA acceptance)
 - AC12 — 同平台和 spec 的请求保留等待任务且不取消运行中任务；#22055 记录 Linux 的三个运行日进入条件及逐次 SHA 和完整证据要求。(verification: workflow contract + docs gate + issue readback; owner: development)
-- AC13 — 双语 Spec 通过文档和配对检查，且非作者人工 APPROVED review 与当前 Spec head 匹配前，不开始任何实现层。(verification: docs gate + GitHub review; owner: development and requesting maintainer)
+- AC13 — 双语 Spec 通过文档和配对检查，记录需求方授权 #22055 跳过 Spec-first 实现门槛的例外，并在 hosted 验收证据完整前保持 proposed。(verification: docs gate + hosted evidence; owner: development and requesting maintainer)
 
 ## Risks
 

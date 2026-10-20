@@ -88,7 +88,7 @@ Within schema version 1, only add optional fields. Do not delete, rename, change
 
 ### Approval and Linux follow-up
 
-This is the bottom proposed testing Spec. Under the [Agent Note rules](../../README.md), implementation layers start only after a non-author human maintainer approves the current Spec PR commit. The requesting maintainer arranges that reviewer; the implementation owner supplies the PR URL and exact SHA. Keep this note proposed until the final implementation layer has actual evidence for every acceptance criterion. Development owns implementation and hosted verification; QA accepts the report and dispatch contract.
+The requester explicitly directed implementation of #22055 without waiting for the formal Spec Approval gate. This task-specific authorization overrides the default [Agent Note rules](../../README.md) for this change only. Keep this note proposed until the final implementation has actual evidence for every acceptance criterion. Development owns implementation and hosted verification; QA accepts the report and dispatch contract.
 
 Record Linux's entry condition in #22055 during this Spec delivery: workflows dispatched from `main` must have Windows branch/main and tag smoke all green over three consecutive running days, with at least one of each mode each day, at least six successful runs total, and complete evidence. Group days by dispatch date in `Asia/Shanghai`. Dates with no smoke dispatch do not count; a running day missing either mode cannot count or be skipped. Related failures or cancellations reset the streak; pending runs and incomplete evidence do not satisfy it. Controller SHAs may change and remain recorded per run. When the condition is met, Linux becomes the next development item, including platform handling, AppImage installation/launch, display setup, process management, and separate acceptance. This is an entry condition, not a claim that adding one platform constant completes Linux support.
 
@@ -115,7 +115,7 @@ Record Linux's entry condition in #22055 during this Spec delivery: workflows di
 - AC10 — Forced interruption is represented by null exitCode and interrupted status when evidence can be saved; missing evidence plus a canceled/timed-out job never becomes a passing or fabricated controller result. (verification: unit + workflow contract; owner: development)
 - AC11 — Completed Windows/macOS branch/tag smoke and temporary-plan acceptance runs provide downloadable 30-day JSON/Markdown, masked screenshots, sanitized logs, and summaries without raw plans, credentials, or profiles. (verification: packaged artifact + Electron; owner: development with QA acceptance)
 - AC12 — Same-platform/spec requests retain pending work without canceling active runs, and #22055 records the three-running-day Linux entry condition with per-run SHAs and complete evidence requirements. (verification: workflow contract + docs gate + issue readback; owner: development)
-- AC13 — The bilingual Spec passes documentation/pairing checks, and no implementation layer starts before a non-author human APPROVED review matches the current Spec head. (verification: docs gate + GitHub review; owner: development and requesting maintainer)
+- AC13 — The bilingual Spec passes documentation/pairing checks, records the requester-authorized exception to Spec-first implementation for #22055, and remains proposed until hosted acceptance evidence is complete. (verification: docs gate + hosted evidence; owner: development and requesting maintainer)
 
 ## Risks
 
