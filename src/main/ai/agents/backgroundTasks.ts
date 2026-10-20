@@ -364,8 +364,10 @@ if ($job -eq [IntPtr]::Zero) { exit 2 }
 $runner = [int]$env:CHERRY_BG_JOB_RUNNER
 if (-not [CherryBackgroundJob]::Assign($job, $runner)) { exit 3 }
 $target = $env:CHERRY_BG_JOB_FILE
+$request = $env:CHERRY_BG_JOB_REQUEST
 $staging = $target + '.staging'
 [System.IO.File]::WriteAllText($env:CHERRY_BG_JOB_READY, 'ready')
+$answered = ''
 $missed = 0
 try {
   while ($true) {
@@ -373,21 +375,28 @@ try {
       $members = [CherryBackgroundJob]::Pids($job)
       # A failed read proves nothing; a repeated absence does, since the runner is a member while
       # it lives. The keeper may not outlive it, and must not kill the task on one bad read.
-      if ($null -eq $members) { Start-Sleep -Milliseconds 200; continue }
+      if ($null -eq $members) { Start-Sleep -Milliseconds 50; continue }
       if ($members -contains $runner) { $missed = 0 }
       else {
         $missed++
-        if ($missed -ge 3) { break }
-        Start-Sleep -Milliseconds 200
+        if ($missed -ge 20) { break }
+        Start-Sleep -Milliseconds 50
         continue
       }
-      $parts = @()
-      foreach ($member in $members) { $parts += [string]$member }
-      [System.IO.File]::WriteAllText($staging, '[' + ($parts -join ',') + ']')
-      [void][CherryBackgroundJob]::Publish($staging, $target)
+      # The runner asks for the list once its own probe has been reaped, so a supervision process
+      # it already released cannot be answered as the task's work.
+      $nonce = ''
+      try { $nonce = [System.IO.File]::ReadAllText($request) } catch {}
+      if ($nonce -ne '' -and $nonce -ne $answered) {
+        $answered = $nonce
+        $parts = @()
+        foreach ($member in $members) { $parts += [string]$member }
+        [System.IO.File]::WriteAllText($staging, '{"nonce":"' + $nonce + '","pids":[' + ($parts -join ',') + ']}')
+        [void][CherryBackgroundJob]::Publish($staging, $target)
+      }
     } catch {
     }
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 50
   }
 } finally {
   [void][CherryBackgroundJob]::CloseHandle($job)
@@ -418,22 +427,44 @@ delete env.ELECTRON_RUN_AS_NODE
 // when that handle goes, so a stop that destroys the keeper kills what a walk could never name.
 const jobFile = process.argv[2] + '.job'
 const jobReady = jobFile + '.ready'
+const jobRequest = jobFile + '.request'
 const jobScript = jobFile + '.ps1'
 let keeper = null
 let jobActive = false
 let started = false
+let jobNonce = 0
+const jobSleep = (ms) => {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+  } catch (error) {}
+}
+// The membership is read on request, never from the last snapshot: the runner's own probes are job
+// members too, and one this call has already reaped would otherwise still read as work.
+const jobMembers = () => {
+  const nonce = Date.now().toString(36) + '-' + ++jobNonce
+  try {
+    fs.writeFileSync(jobRequest + '.staging', nonce)
+    fs.renameSync(jobRequest + '.staging', jobRequest)
+  } catch (error) {
+    return null
+  }
+  const deadline = Date.now() + 2000
+  while (Date.now() < deadline) {
+    try {
+      const answer = JSON.parse(fs.readFileSync(jobFile, 'utf8'))
+      if (answer && answer.nonce === nonce && Array.isArray(answer.pids)) return answer.pids
+    } catch (error) {}
+    jobSleep(25)
+  }
+  return null
+}
 // A member the job still holds is work no walk may have seen: a walk reads a table, and a worker
 // whose intermediate parent exited between samples has no row that names it.
 const jobHoldsWork = (rows) => {
   if (!jobActive) return false
-  let members
-  try {
-    members = JSON.parse(fs.readFileSync(jobFile, 'utf8'))
-  } catch (error) {
-    // Unreadable proves nothing either way, so it may never be what calls the task done.
-    return true
-  }
-  if (!Array.isArray(members)) return true
+  const members = jobMembers()
+  // No answer proves nothing either way, so it may never be what calls the task done.
+  if (!members) return true
   // Everything this runner starts is its own supervision, not the task's work.
   const supervision = new Set()
   for (const row of rows) if (row.ppid === process.pid) supervision.add(row.pid)
@@ -601,11 +632,13 @@ const start = () => {
     }
     // An empty walk is not proof on its own: the intermediate that forked a survivor may never
     // have been sampled, so no row names the survivor. The job holds that membership from before
-    // the shell existed, and only its drain may certify the task is done.
+    // the shell existed: an empty answer is the certificate, and without one the walk must read
+    // empty twice.
     if (jobHoldsWork(rows)) {
       emptyReadings = 0
       return
     }
+    if (jobActive) settle()
     if (++emptyReadings < 2) return
     settle()
   }
@@ -642,6 +675,7 @@ const boot = () => {
           ...env,
           CHERRY_BG_JOB_RUNNER: String(process.pid),
           CHERRY_BG_JOB_READY: jobReady,
+          CHERRY_BG_JOB_REQUEST: jobRequest,
           CHERRY_BG_JOB_FILE: jobFile
         }
       }

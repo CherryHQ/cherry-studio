@@ -86,10 +86,18 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
         ? ['  exit 3']
         : [
             '  printf \'ready\' > "$CHERRY_BG_JOB_READY"',
+            '  last=""',
             '  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do',
-            '    cp "$BG_FAKE_MEMBERS" "$CHERRY_BG_JOB_FILE.staging" 2>/dev/null &&',
-            '      mv "$CHERRY_BG_JOB_FILE.staging" "$CHERRY_BG_JOB_FILE" 2>/dev/null',
-            '    sleep 0.1',
+            '    if [ -f "$CHERRY_BG_JOB_REQUEST" ]; then',
+            '      nonce=$(cat "$CHERRY_BG_JOB_REQUEST" 2>/dev/null)',
+            '      if [ -n "$nonce" ] && [ "$nonce" != "$last" ]; then',
+            '        last="$nonce"',
+            '        members=$(cat "$BG_FAKE_MEMBERS" 2>/dev/null)',
+            '        printf \'{"nonce":"%s","pids":%s}\' "$nonce" "${members:-[]}" > "$CHERRY_BG_JOB_FILE.staging" &&',
+            '          mv "$CHERRY_BG_JOB_FILE.staging" "$CHERRY_BG_JOB_FILE" 2>/dev/null',
+            '      fi',
+            '    fi',
+            '    sleep 0.05',
             '  done'
           ]),
       '  ;;',

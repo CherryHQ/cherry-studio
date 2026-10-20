@@ -35,8 +35,18 @@ case "$*" in
 *-File*)
   # The job keeper: the job exists for the runner's lifetime and holds nothing but supervision.
   printf 'ready' > "$CHERRY_BG_JOB_READY"
-  printf '[]' > "$CHERRY_BG_JOB_FILE"
-  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do sleep 0.1; done
+  last=""
+  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do
+    if [ -f "$CHERRY_BG_JOB_REQUEST" ]; then
+      nonce=$(cat "$CHERRY_BG_JOB_REQUEST" 2>/dev/null)
+      if [ -n "$nonce" ] && [ "$nonce" != "$last" ]; then
+        last="$nonce"
+        printf '{"nonce":"%s","pids":[]}' "$nonce" > "$CHERRY_BG_JOB_FILE.staging" &&
+          mv "$CHERRY_BG_JOB_FILE.staging" "$CHERRY_BG_JOB_FILE" 2>/dev/null
+      fi
+    fi
+    sleep 0.05
+  done
   ;;
 *) cat "$BG_FAKE_TABLE" ;;
 esac
