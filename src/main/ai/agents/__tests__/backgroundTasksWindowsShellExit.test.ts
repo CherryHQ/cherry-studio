@@ -25,6 +25,7 @@ vi.mock('node:child_process', async (importOriginal) => {
 
 import {
   BACKGROUND_TASK_EVIDENCE_EXT,
+  BACKGROUND_TASK_LOG_EXT,
   getDetachedBackgroundTask,
   startDetachedBackgroundTask,
   stopDetachedBackgroundTask
@@ -42,21 +43,26 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
   let storageDir: string
   let shimDir: string
   let fakeTable: string
+  let fakeMembers: string
   let realPlatform: NodeJS.Platform
   let realPath: string | undefined
 
   /**
-   * Puts a stand-in `powershell.exe` on PATH that prints a fake process table. `withStamps: false`
-   * answers the spawn-time identity query with a header only, the way a failed query reads, and
-   * `fingerprintDelayMs` holds the answer back the way a loaded runner's five-second query is.
+   * Puts a stand-in `powershell.exe` on PATH that prints a fake process table and serves the job
+   * keeper protocol. `withStamps: false` answers the spawn-time identity query with a header only,
+   * the way a failed query reads, and `fingerprintDelayMs` holds the answer back the way a loaded
+   * runner's five-second query is. `members` seeds the OS-held job membership, the list the runner
+   * may not settle while it is non-empty.
    */
   const useFakeProbe = async (
     rows: string,
-    opts: { fingerprintDelayMs?: number; withStamps?: boolean } = {}
+    opts: { fingerprintDelayMs?: number; keepJob?: boolean; members?: string; withStamps?: boolean } = {}
   ): Promise<void> => {
     shimDir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-probe-'))
     fakeTable = path.join(shimDir, 'table.csv')
     await writeFile(fakeTable, rows)
+    fakeMembers = path.join(shimDir, 'members.json')
+    await writeFile(fakeMembers, opts.members ?? '[]')
     const shim = path.join(shimDir, 'powershell.exe')
     // The spawn-time identity query (a `-Filter` select of the creation stamps) is answered from
     // the runner's own pid — the shim's $PPID — and the shell pid named in the filter itself.
@@ -73,6 +79,20 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
             '  if [ -n "$shell_pid" ]; then printf \'"%s","20261017000000.000000+480"\\n\' "$shell_pid"; fi'
           ]),
       '  ;;',
+      // The job keeper: it reports itself ready once the membership is held, then republishes the
+      // controlled membership until the runner it belongs to is gone.
+      '*-File*)',
+      ...(opts.keepJob === false
+        ? ['  exit 3']
+        : [
+            '  printf \'ready\' > "$CHERRY_BG_JOB_READY"',
+            '  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do',
+            '    cp "$BG_FAKE_MEMBERS" "$CHERRY_BG_JOB_FILE.staging" 2>/dev/null &&',
+            '      mv "$CHERRY_BG_JOB_FILE.staging" "$CHERRY_BG_JOB_FILE" 2>/dev/null',
+            '    sleep 0.1',
+            '  done'
+          ]),
+      '  ;;',
       '*)',
       '  sed "s/@PPID@/$PPID/g" "$BG_FAKE_TABLE" 2>/dev/null',
       '  ;;',
@@ -83,10 +103,16 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await chmod(shim, 0o755)
     process.env.PATH = `${shimDir}${path.delimiter}${process.env.PATH}`
     process.env.BG_FAKE_TABLE = fakeTable
+    process.env.BG_FAKE_MEMBERS = fakeMembers
   }
 
   const writeFakeRows = async (rows: string): Promise<void> => {
     await writeFile(fakeTable, rows)
+  }
+
+  /** Replaces the OS-held membership the runner may not publish completion past. */
+  const writeFakeMembers = async (members: string): Promise<void> => {
+    await writeFile(fakeMembers, members)
   }
 
   /** The shell pid the runner recorded at spawn — the root of everything the shell left behind. */
@@ -124,6 +150,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     if (fakeTable) await writeFile(fakeTable, `${TABLE_HEADER}\n`).catch(() => undefined)
     if (realPath !== undefined) process.env.PATH = realPath
     delete process.env.BG_FAKE_TABLE
+    delete process.env.BG_FAKE_MEMBERS
     Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
     taskkillMock.mockReset()
     const deadline = Date.now() + 10_000
@@ -244,6 +271,28 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     )
   })
 
+  it('refuses to start a task whose durable membership cannot be held', async () => {
+    // PowerShell answers, but the job cannot be established — Add-Type blocked, or the process
+    // already inside a job that refuses the assignment. Without the membership no completion can
+    // ever be certified, so the runner must fail the start rather than run work that could be
+    // published as done while it still runs.
+    await useFakeProbe(TABLE_HEADER, { keepJob: false })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "process.exit(0)"`,
+      cwd: storageDir
+    })
+
+    await vi.waitFor(
+      async () => {
+        await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'failed' })
+      },
+      { timeout: 10_000, interval: 100 }
+    )
+    // The command never ran, so there is no work the refusal could have stranded.
+    await expect(readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_LOG_EXT}`), 'utf8')).resolves.toBe('')
+  }, 20_000)
+
   it('refuses to force-kill a recorded pid an unrelated process has taken over', async () => {
     // The shell exited and Windows handed its pid to a stranger, which has since forked a child
     // of its own; the task's real orphan worker was created before the takeover. A closure that
@@ -333,6 +382,46 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     )
     expect(await readKnownPids()).not.toContain(7_777)
     expect(await readKnownPids()).not.toContain(4_444)
+  }, 20_000)
+
+  it('does not adopt a stranger subtree when the shell stamp was never captured', async () => {
+    // A short-lived shell can exit before the startup identity query stamps it, and the OS then
+    // hands its number to a stranger while the task's own worker lives on. A live occupant this
+    // app holds no stamp for proves nothing about the children it has forked: only a row created
+    // before that occupant existed cannot be its child, so only those stay attributable.
+    await useFakeProbe(TABLE_HEADER, { withStamps: false })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    // `shellPid` now names the replacement, `8888` is the replacement's own child, and `999999`
+    // is the task's orphan worker, created before the replacement took the number.
+    await writeFakeRows(
+      [
+        TABLE_HEADER,
+        `"${shellPid}","4","20261017000010.000000+480"`,
+        `"8888","${shellPid}","20261017000011.000000+480"`,
+        `"999999","${shellPid}","20261017000005.000000+480"`
+      ].join('\n') + '\n'
+    )
+
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+
+    // The pre-takeover orphan is the task's own work; the replacement's child is not.
+    await vi.waitFor(
+      async () => {
+        expect(await readKnownPids()).toContain(999_999)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
+    expect(await readKnownPids()).not.toContain(8_888)
   }, 20_000)
 
   it('spares a replacement whose recorded root carries no identity stamp', async () => {
@@ -563,6 +652,37 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
 
     // The worker is gone too: the tree reads empty and the runner may settle.
     await writeFakeRows(`${TABLE_HEADER}\n`)
+    await vi.waitFor(
+      async () => {
+        await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({
+          status: 'completed'
+        })
+      },
+      { timeout: 10_000, interval: 100 }
+    )
+  }, 30_000)
+
+  it('keeps a job member the ancestry walk never saw before publishing completion', async () => {
+    // shell → intermediate → worker can run entirely between two samples: the intermediate is
+    // never in the table, so no reading ties the surviving worker to the task. The OS records the
+    // membership when the worker is created, though, so an empty ancestry walk is not proof while
+    // the job still holds a process — and two empty readings may not end the runner.
+    await useFakeProbe(TABLE_HEADER, { members: '[400]' })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "process.exit(0)"`,
+      cwd: storageDir
+    })
+    await waitForShellPid(record.id)
+
+    // The shell and its command are gone; only the unsampled worker survives, and only the job
+    // knows it. Completion would remove its controls and its deletion/restore safeguards.
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
+
+    // The worker exits: the durable membership drains and the runner may settle on the shell's
+    // own status.
+    await writeFakeMembers('[]')
     await vi.waitFor(
       async () => {
         await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({

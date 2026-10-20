@@ -212,6 +212,190 @@ export interface StartDetachedBackgroundTaskInput {
 }
 
 /**
+ * The keeper that gives a Windows task durable membership. A process-table walk can only see what
+ * a sample happens to contain, so a worker whose intermediate parent starts and exits between two
+ * samples is unattributable no matter how the walk is written. A Job Object is the OS holding the
+ * membership instead: a process joins by inheriting it from its creator, so it stays a member
+ * however briefly or invisibly its parents lived.
+ *
+ * It is written to the task directory before the runner starts; the runner hands the keeper its
+ * own pid and waits for it to report the job held before it spawns the shell, because membership
+ * is inherited at creation and never retroactively. `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` makes the
+ * keeper the task's containment: the stop destroys it together with the runner, the last handle
+ * closes, and every member still alive goes with it.
+ */
+const WINDOWS_DETACHED_TASK_JOB_KEEPER = `
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class CherryBackgroundJob
+{
+    [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+    [DllImport("kernel32", SetLastError = true)]
+    static extern bool SetInformationJobObject(IntPtr job, int infoClass, IntPtr info, uint length);
+    [DllImport("kernel32", SetLastError = true)]
+    static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+    [DllImport("kernel32", SetLastError = true)]
+    static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32", SetLastError = true)]
+    static extern bool QueryInformationJobObject(IntPtr job, int infoClass, IntPtr info, uint length, out uint returned);
+    [DllImport("kernel32", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool MoveFileEx(string existing, string replacement, uint flags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct IoCounters
+    {
+        public ulong ReadOperationCount;
+        public ulong WriteOperationCount;
+        public ulong OtherOperationCount;
+        public ulong ReadTransferCount;
+        public ulong WriteTransferCount;
+        public ulong OtherTransferCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct BasicLimitInformation
+    {
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public uint LimitFlags;
+        public UIntPtr MinimumWorkingSetSize;
+        public UIntPtr MaximumWorkingSetSize;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint PriorityClass;
+        public uint SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct ExtendedLimitInformation
+    {
+        public BasicLimitInformation BasicLimitInformation;
+        public IoCounters IoInfo;
+        public UIntPtr ProcessMemoryLimit;
+        public UIntPtr JobMemoryLimit;
+        public UIntPtr PeakProcessMemoryUsed;
+        public UIntPtr PeakJobMemoryUsed;
+    }
+
+    const int ExtendedLimitInformationClass = 9;
+    const int BasicProcessIdListClass = 3;
+    const uint KillOnJobClose = 0x2000;
+    const uint MoveFileReplaceExisting = 0x1;
+    const uint MoveFileWriteThrough = 0x8;
+    const uint ProcessSetQuota = 0x0100;
+    const uint ProcessTerminate = 0x0001;
+
+    public static IntPtr Create()
+    {
+        IntPtr job = CreateJobObject(IntPtr.Zero, null);
+        if (job == IntPtr.Zero) return IntPtr.Zero;
+        ExtendedLimitInformation limits = new ExtendedLimitInformation();
+        limits.BasicLimitInformation.LimitFlags = KillOnJobClose;
+        int size = Marshal.SizeOf(typeof(ExtendedLimitInformation));
+        IntPtr buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(limits, buffer, false);
+            if (!SetInformationJobObject(job, ExtendedLimitInformationClass, buffer, (uint)size))
+            {
+                CloseHandle(job);
+                return IntPtr.Zero;
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+        return job;
+    }
+
+    public static bool Assign(IntPtr job, int pid)
+    {
+        IntPtr process = OpenProcess(ProcessSetQuota | ProcessTerminate, false, pid);
+        if (process == IntPtr.Zero) return false;
+        try
+        {
+            return AssignProcessToJobObject(job, process);
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
+    public static int[] Pids(IntPtr job)
+    {
+        int capacity = 4096;
+        int size = 8 + capacity * IntPtr.Size;
+        IntPtr buffer = Marshal.AllocHGlobal(size);
+        try
+        {
+            for (int i = 0; i < size; i++) Marshal.WriteByte(buffer, i, 0);
+            uint returned;
+            if (!QueryInformationJobObject(job, BasicProcessIdListClass, buffer, (uint)size, out returned))
+                return null;
+            int count = Marshal.ReadInt32(buffer, 4);
+            if (count > capacity) count = capacity;
+            int[] pids = new int[count];
+            for (int i = 0; i < count; i++)
+                pids[i] = (int)Marshal.ReadIntPtr(buffer, 8 + i * IntPtr.Size).ToInt64();
+            return pids;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    public static bool Publish(string staging, string target)
+    {
+        return MoveFileEx(staging, target, MoveFileReplaceExisting | MoveFileWriteThrough);
+    }
+}
+'@
+$job = [CherryBackgroundJob]::Create()
+if ($job -eq [IntPtr]::Zero) { exit 2 }
+$runner = [int]$env:CHERRY_BG_JOB_RUNNER
+if (-not [CherryBackgroundJob]::Assign($job, $runner)) { exit 3 }
+$target = $env:CHERRY_BG_JOB_FILE
+$staging = $target + '.staging'
+[System.IO.File]::WriteAllText($env:CHERRY_BG_JOB_READY, 'ready')
+$missed = 0
+try {
+  while ($true) {
+    try {
+      $members = [CherryBackgroundJob]::Pids($job)
+      # A failed read proves nothing; a repeated absence does, since the runner is a member while
+      # it lives. The keeper may not outlive it, and must not kill the task on one bad read.
+      if ($null -eq $members) { Start-Sleep -Milliseconds 200; continue }
+      if ($members -contains $runner) { $missed = 0 }
+      else {
+        $missed++
+        if ($missed -ge 3) { break }
+        Start-Sleep -Milliseconds 200
+        continue
+      }
+      $parts = @()
+      foreach ($member in $members) { $parts += [string]$member }
+      [System.IO.File]::WriteAllText($staging, '[' + ($parts -join ',') + ']')
+      [void][CherryBackgroundJob]::Publish($staging, $target)
+    } catch {
+    }
+    Start-Sleep -Milliseconds 200
+  }
+} finally {
+  [void][CherryBackgroundJob]::CloseHandle($job)
+}
+exit 0
+`
+
+/**
  * Windows detach and log capture cannot share one shell hop: a `DETACHED_PROCESS` `cmd.exe`
  * never hands its stdio to the processes it starts, while an attached task dies with the app.
  * Running the command from a detached Node process keeps the shell ordinary, so both hold.
@@ -224,172 +408,290 @@ export interface StartDetachedBackgroundTaskInput {
  */
 export const WINDOWS_DETACHED_TASK_RUNNER = `
 const { spawn, execFileSync } = require('node:child_process')
+const fs = require('node:fs')
 const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
-const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
-// The shell pid is the one member of the tree the app cannot rediscover once the shell has
-// exited — taskkill follows live parents only — so the app records it and seeds its own walk
-// with it, reaching the work the shell left behind across the dead link. The creation stamps
-// ride along: a pid is only a number, and one that has turned over reads a different stamp,
-// so a stop can refuse an occupant that is not the process this app spawned.
-const stamps = {}
-try {
-  const identities = execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      'Get-CimInstance Win32_Process -Filter "ProcessId=' +
-        process.pid +
-        ' or ProcessId=' +
-        task.pid +
-        '" | Select-Object ProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
-    ],
-    { encoding: 'utf8', timeout: 5000, windowsHide: true }
-  )
-  for (const row of String(identities).split('\\n')) {
-    const fields = row.replace(/"/g, '').trim().split(',')
-    if (fields.length !== 2 || !Number(fields[0]) || !fields[1]) continue
-    if (Number(fields[0]) === process.pid) stamps.runnerCreatedAt = fields[1]
-    else if (task.pid && Number(fields[0]) === task.pid) stamps.shellCreatedAt = fields[1]
+// Durable membership the ancestry walk cannot give: the runner joins a Job Object before it
+// starts the shell, so every process it creates stays a member for as long as it lives — a worker
+// whose intermediate parent starts and exits between two samples included. The keeper holds the
+// job's only handle and republishes its process list; KILL_ON_JOB_CLOSE ends the task's whole tree
+// when that handle goes, so a stop that destroys the keeper kills what a walk could never name.
+const jobFile = process.argv[2] + '.job'
+const jobReady = jobFile + '.ready'
+const jobScript = jobFile + '.ps1'
+let keeper = null
+let jobActive = false
+let started = false
+// A member the job still holds is work no walk may have seen: a walk reads a table, and a worker
+// whose intermediate parent exited between samples has no row that names it.
+const jobHoldsWork = (rows) => {
+  if (!jobActive) return false
+  let members
+  try {
+    members = JSON.parse(fs.readFileSync(jobFile, 'utf8'))
+  } catch (error) {
+    // Unreadable proves nothing either way, so it may never be what calls the task done.
+    return true
   }
-} catch (error) {}
-// The evidence is read by the app while this runner keeps writing it, so every write lands
-// through a sibling and a rename: a torn read must never be what a stop walks from.
-const writeEvidence = (payload) => {
-  try {
-    const staging = process.argv[2] + '.tmp'
-    require('node:fs').writeFileSync(staging, JSON.stringify(payload))
-    require('node:fs').renameSync(staging, process.argv[2])
-  } catch (error) {}
+  if (!Array.isArray(members)) return true
+  // Everything this runner starts is its own supervision, not the task's work.
+  const supervision = new Set()
+  for (const row of rows) if (row.ppid === process.pid) supervision.add(row.pid)
+  return members.some((member) => {
+    const pid = Number(member)
+    return Number.isInteger(pid) && pid > 0 && pid !== process.pid && !supervision.has(pid)
+  })
 }
-writeEvidence({ shellPid: task.pid || 0, ...stamps })
-task.on('error', () => process.exit(1))
-// The ancestry probe runs from spawn, not from the shell's exit: an intermediate process can
-// fork a worker and exit before any post-exit poll, leaving the worker parented to a pid no
-// live row names. Only the settle rule waits for the shell.
-let exitStatus = 0
-let shellExited = false
-let emptyReadings = 0
-let timer = null
-// Members an earlier poll verified as the task's work, each under the creation stamp it was
-// seen with. A worker's death orphans the children it forked — their parent pid no longer
-// reaches any live row — so this memory is what keeps such a descendant counted after the
-// parent that would have vouched for it is gone.
-const known = new Map()
-const settle = () => {
-  if (timer) clearInterval(timer)
-  process.exit(exitStatus)
-}
-const probe = () => {
-  let table
+const start = () => {
+  if (started) return
+  started = true
+  const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
+  // The shell pid is the one member of the tree the app cannot rediscover once the shell has
+  // exited — taskkill follows live parents only — so the app records it and seeds its own walk
+  // with it, reaching the work the shell left behind across the dead link. The creation stamps
+  // ride along: a pid is only a number, and one that has turned over reads a different stamp,
+  // so a stop can refuse an occupant that is not the process this app spawned.
+  const stamps = {}
   try {
-    table = execFileSync(
+    const identities = execFileSync(
       'powershell.exe',
       [
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
+        'Get-CimInstance Win32_Process -Filter "ProcessId=' +
+          process.pid +
+          ' or ProcessId=' +
+          task.pid +
+          '" | Select-Object ProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
       ],
       { encoding: 'utf8', timeout: 5000, windowsHide: true }
     )
-  } catch (error) {
-    // A probe that cannot run at all will never read evidence, so it cannot hold the anchor
-    // open once the shell is gone; a read that failed or timed out proves nothing and keeps
-    // waiting. While the shell still runs, the anchor is its own.
-    if (error.code === 'ENOENT' && shellExited) settle()
-    return
-  }
-  const shellPid = Number(task.pid) || 0
-  const rows = []
-  for (const row of String(table).split('\\n')) {
-    const fields = row.replace(/"/g, '').trim().split(',')
-    const pid = Number(fields[0])
-    if (fields.length !== 3 || !pid || !fields[2]) continue
-    rows.push({ pid, ppid: Number(fields[1]), created: fields[2] })
-  }
-  const byPid = new Map(rows.map((row) => [row.pid, row]))
-  const keep = new Set()
-  for (const row of rows) {
-    // This runner itself, and every row it parents except the shell, is the task's own
-    // supervision — this very probe — not the task's work.
-    if (row.pid === process.pid) continue
-    if (row.ppid === process.pid && row.pid !== shellPid) continue
-    // A member still reading the stamp it was verified under is still the work; the same pid
-    // reading a different stamp is a reuse, refused like any stranger.
-    if (known.get(row.pid) === row.created) {
-      keep.add(row.pid)
-      continue
+    for (const row of String(identities).split('\\n')) {
+      const fields = row.replace(/"/g, '').trim().split(',')
+      if (fields.length !== 2 || !Number(fields[0]) || !fields[1]) continue
+      if (Number(fields[0]) === process.pid) stamps.runnerCreatedAt = fields[1]
+      else if (task.pid && Number(fields[0]) === task.pid) stamps.shellCreatedAt = fields[1]
     }
-    // A pid this walk remembers is only a number, and one whose occupant now reads a stamp the
-    // walk never recorded is a process the OS handed the freed number to. It is not this task's
-    // work and may never be re-verified: re-admitting it would extend the task's ownership to
-    // whatever that stranger has since forked, which is what a stop would then take down.
-    if (known.has(row.pid)) continue
-    // A row the shell left behind, or one whose parent an earlier poll verified, is work from
-    // across a dead link. A child is always created after the parent it was created under, so a
-    // live parent is what proves the row is that parent's own — and a row is refused when a live
-    // replacement took the parent's pid after it appeared: such a replacement is stamped later
-    // than the row, which is therefore not the replacement's child but this task's orphan. The
-    // shell pid is not exempt: the OS can hand its number to a stranger, and a row parented to
-    // that number is only the task's own while the occupant still reads the stamp captured at
-    // spawn — everything the replacement forked afterwards belongs to the replacement.
-    if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
-      const parent = byPid.get(row.ppid)
-      if (!parent) keep.add(row.pid)
-      else if (row.ppid === shellPid) {
-        if (!stamps.shellCreatedAt || parent.created === stamps.shellCreatedAt) keep.add(row.pid)
-      } else if (known.get(row.ppid) === parent.created) keep.add(row.pid)
-    }
+  } catch (error) {}
+  // The evidence is read by the app while this runner keeps writing it, so every write lands
+  // through a sibling and a rename: a torn read must never be what a stop walks from.
+  const writeEvidence = (payload) => {
+    try {
+      const staging = process.argv[2] + '.tmp'
+      fs.writeFileSync(staging, JSON.stringify(payload))
+      fs.renameSync(staging, process.argv[2])
+    } catch (error) {}
   }
-  let grew = true
-  while (grew) {
-    grew = false
+  writeEvidence({ shellPid: task.pid || 0, ...stamps })
+  task.on('error', () => process.exit(1))
+  // The ancestry probe runs from spawn, not from the shell's exit: an intermediate process can
+  // fork a worker and exit before any post-exit poll, leaving the worker parented to a pid no
+  // live row names. Only the settle rule waits for the shell.
+  let exitStatus = 0
+  let shellExited = false
+  let emptyReadings = 0
+  let timer = null
+  // Members an earlier poll verified as the task's work, each under the creation stamp it was
+  // seen with. A worker's death orphans the children it forked — their parent pid no longer
+  // reaches any live row — so this memory is what keeps such a descendant counted after the
+  // parent that would have vouched for it is gone.
+  const known = new Map()
+  const settle = () => {
+    if (timer) clearInterval(timer)
+    process.exit(exitStatus)
+  }
+  const probe = () => {
+    let table
+    try {
+      table = execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CreationDate | ConvertTo-Csv -NoTypeInformation'
+        ],
+        { encoding: 'utf8', timeout: 5000, windowsHide: true }
+      )
+    } catch (error) {
+      // A probe that cannot run at all will never read evidence, so it cannot hold the anchor
+      // open once the shell is gone; a read that failed or timed out proves nothing and keeps
+      // waiting. While the shell still runs, the anchor is its own.
+      if (error.code === 'ENOENT' && shellExited) settle()
+      return
+    }
+    const shellPid = Number(task.pid) || 0
+    const rows = []
+    for (const row of String(table).split('\\n')) {
+      const fields = row.replace(/"/g, '').trim().split(',')
+      const pid = Number(fields[0])
+      if (fields.length !== 3 || !pid || !fields[2]) continue
+      rows.push({ pid, ppid: Number(fields[1]), created: fields[2] })
+    }
+    const byPid = new Map(rows.map((row) => [row.pid, row]))
+    const keep = new Set()
     for (const row of rows) {
-      if (keep.has(row.pid) || row.pid === process.pid) continue
+      // This runner itself, and every row it parents except the shell, is the task's own
+      // supervision — this very probe — not the task's work.
+      if (row.pid === process.pid) continue
       if (row.ppid === process.pid && row.pid !== shellPid) continue
-      // A remembered pid whose occupant now reads a different stamp is a stranger, so it may
-      // not be adopted here either — this loop extends ownership, it never re-establishes it.
-      if (known.has(row.pid)) continue
-      // A member is only extended through a parent that is still the process this walk
-      // verified: a pid whose occupant now reads a different stamp is a stranger, and its
-      // descendants belong to whatever the OS handed that pid to.
-      const parent = byPid.get(row.ppid)
-      if (keep.has(row.ppid) && (!parent || known.get(row.ppid) === parent.created)) {
+      // A member still reading the stamp it was verified under is still the work; the same pid
+      // reading a different stamp is a reuse, refused like any stranger.
+      if (known.get(row.pid) === row.created) {
         keep.add(row.pid)
-        grew = true
+        continue
+      }
+      // A pid this walk remembers is only a number, and one whose occupant now reads a stamp the
+      // walk never recorded is a process the OS handed the freed number to. It is not this task's
+      // work and may never be re-verified: re-admitting it would extend the task's ownership to
+      // whatever that stranger has since forked, which is what a stop would then take down.
+      if (known.has(row.pid)) continue
+      // A row the shell left behind, or one whose parent an earlier poll verified, is work from
+      // across a dead link. A child is always created after the parent it was created under, so a
+      // live parent is what proves the row is that parent's own — and a row is refused when a live
+      // replacement took the parent's pid after it appeared: such a replacement is stamped later
+      // than the row, which is therefore not the replacement's child but this task's orphan. The
+      // shell pid is not exempt, and a stamp that was never captured — a shell that exited before
+      // the identity query — vouches for nothing: the occupant there is only an occupant, and the
+      // rows it has forked since belong to whoever the OS gave that number to.
+      if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
+        const parent = byPid.get(row.ppid)
+        if (!parent) keep.add(row.pid)
+        else if (row.ppid === shellPid) {
+          if (parent.created === stamps.shellCreatedAt || row.created < parent.created) keep.add(row.pid)
+        } else if (known.get(row.ppid) === parent.created || row.created < parent.created) keep.add(row.pid)
       }
     }
+    let grew = true
+    while (grew) {
+      grew = false
+      for (const row of rows) {
+        if (keep.has(row.pid) || row.pid === process.pid) continue
+        if (row.ppid === process.pid && row.pid !== shellPid) continue
+        // A remembered pid whose occupant now reads a different stamp is a stranger, so it may
+        // not be adopted here either — this loop extends ownership, it never re-establishes it.
+        if (known.has(row.pid)) continue
+        // A member is only extended through a parent that is still the process this walk
+        // verified: a pid whose occupant now reads a different stamp is a stranger, and its
+        // descendants belong to whatever the OS handed that pid to.
+        const parent = byPid.get(row.ppid)
+        if (keep.has(row.ppid) && (!parent || known.get(row.ppid) === parent.created)) {
+          keep.add(row.pid)
+          grew = true
+        }
+      }
+    }
+    for (const row of rows) {
+      if (keep.has(row.pid)) known.set(row.pid, row.created)
+    }
+    // The ancestry memory rides in the evidence file: a kill destroys this runner together with
+    // it, and the stamps recorded here are what keep its observations attributable afterwards.
+    writeEvidence({
+      shellPid: task.pid || 0,
+      ...stamps,
+      known: Array.from(known, ([pid, created]) => ({ pid, created }))
+    })
+    // A job the shell just backgrounded can surface a beat late, so the tree must read empty
+    // twice before the anchor may leave. The shell's own life is not evidence of work.
+    if (!shellExited) return
+    if (keep.size > 0) {
+      emptyReadings = 0
+      return
+    }
+    // An empty walk is not proof on its own: the intermediate that forked a survivor may never
+    // have been sampled, so no row names the survivor. The job holds that membership from before
+    // the shell existed, and only its drain may certify the task is done.
+    if (jobHoldsWork(rows)) {
+      emptyReadings = 0
+      return
+    }
+    if (++emptyReadings < 2) return
+    settle()
   }
-  for (const row of rows) {
-    if (keep.has(row.pid)) known.set(row.pid, row.created)
-  }
-  // The ancestry memory rides in the evidence file: a kill destroys this runner together with
-  // it, and the stamps recorded here are what keep its observations attributable afterwards.
-  writeEvidence({
-    shellPid: task.pid || 0,
-    ...stamps,
-    known: Array.from(known, ([pid, created]) => ({ pid, created }))
+  task.on('exit', (code, signal) => {
+    exitStatus = signal ? 1 : (code == null ? 1 : code)
+    shellExited = true
+    probe()
   })
-  // A job the shell just backgrounded can surface a beat late, so the tree must read empty
-  // twice before the anchor may leave. The shell's own life is not evidence of work.
-  if (!shellExited) return
-  if (keep.size > 0) {
-    emptyReadings = 0
+  probe()
+  timer = setInterval(probe, 500)
+}
+const refuse = () => {
+  if (started) return
+  started = true
+  process.exit(1)
+}
+const boot = () => {
+  // Only a file can be executed, and the keeper must exist before anything is started, so the
+  // runner writes it itself rather than depending on a caller that may have failed to.
+  try {
+    fs.writeFileSync(jobScript, ${JSON.stringify(WINDOWS_DETACHED_TASK_JOB_KEEPER)})
+  } catch (error) {
+    start()
     return
   }
-  if (++emptyReadings < 2) return
-  settle()
+  try {
+    keeper = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', jobScript],
+      {
+        stdio: 'inherit',
+        windowsHide: true,
+        env: {
+          ...env,
+          CHERRY_BG_JOB_RUNNER: String(process.pid),
+          CHERRY_BG_JOB_READY: jobReady,
+          CHERRY_BG_JOB_FILE: jobFile
+        }
+      }
+    )
+  } catch (error) {
+    keeper = null
+    start()
+    return
+  }
+  keeper.on('error', (error) => {
+    keeper = null
+    // No PowerShell at all is the one environment the walk already handled alone: nothing can be
+    // read there either, so the shell's own status is all the runner has ever had to go on.
+    if (error.code === 'ENOENT') start()
+    else refuse()
+  })
+  // The keeper's exit closes the job, and KILL_ON_JOB_CLOSE takes the members with it: from then
+  // on there is no durable membership left to consult.
+  keeper.on('exit', () => {
+    const established = jobActive
+    keeper = null
+    jobActive = false
+    // A keeper that exits without holding the job — Add-Type blocked, the assignment refused —
+    // would leave a task whose completion nothing can ever certify. Refuse before any work is
+    // created rather than start something that may be published as done while it still runs.
+    if (!established && !started) refuse()
+  })
+  keeper.unref()
+  // The runner must be a member before the shell is created — membership is inherited at creation
+  // and never retroactively — so the command waits for the keeper to report the job held.
+  const deadline = Date.now() + 15000
+  const waitForJob = () => {
+    if (started) return
+    // A failed spawn or an exited keeper is decided by its own handler: starting here would strip
+    // the job from a runner that could still have one.
+    if (!keeper) return
+    if (fs.existsSync(jobReady)) {
+      jobActive = true
+      start()
+      return
+    }
+    if (Date.now() >= deadline) {
+      refuse()
+      return
+    }
+    setTimeout(waitForJob, 50)
+  }
+  waitForJob()
 }
-task.on('exit', (code, signal) => {
-  exitStatus = signal ? 1 : (code == null ? 1 : code)
-  shellExited = true
-  probe()
-})
-probe()
-timer = setInterval(probe, 500)
+boot()
 `
 
 /**

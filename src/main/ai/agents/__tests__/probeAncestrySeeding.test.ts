@@ -32,6 +32,12 @@ case "$*" in
   shell_pid=$(printf '%s' "$*" | sed -n "s/.*ProcessId=[0-9][0-9]* or ProcessId=\\([0-9][0-9]*\\).*/\\1/p")
   if [ -n "$shell_pid" ]; then printf '"%s","${T_SHELL}"\\n' "$shell_pid"; fi
   ;;
+*-File*)
+  # The job keeper: the job exists for the runner's lifetime and holds nothing but supervision.
+  printf 'ready' > "$CHERRY_BG_JOB_READY"
+  printf '[]' > "$CHERRY_BG_JOB_FILE"
+  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do sleep 0.1; done
+  ;;
 *) cat "$BG_FAKE_TABLE" ;;
 esac
 exit 0`
