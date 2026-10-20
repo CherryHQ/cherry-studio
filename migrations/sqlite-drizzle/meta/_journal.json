@@ -203,6 +203,13 @@
       "when": 1792495399819,
       "tag": "0028_absurd_maximus",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1792500178325,
+      "tag": "0029_classy_cyclops",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
+import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -48,6 +49,8 @@ type Props = {
   openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   previewInputFile?: MessageListActions['previewInputFile']
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
@@ -75,6 +78,8 @@ const AgentSessionMessages = ({
   openDiagnosticReport,
   previewInputFile,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval
@@ -158,6 +163,8 @@ const AgentSessionMessages = ({
     openDiagnosticReport,
     diagnosticReport,
     previewInputFile,
+    getMessageSiblings,
+    setActiveBranch,
     deleteMessage,
     startEditing,
     editBusy,

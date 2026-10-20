@@ -290,6 +290,7 @@ type AgentSessionRuntimeEntry = {
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
   lastResumeToken?: string
+  branchHead?: string
   idleTimer?: ReturnType<typeof setTimeout>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
@@ -458,7 +459,10 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private runtimeActivity?: Disposable
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
-  private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
+  private readonly closingSessions = new Map<
+    string,
+    { promise: Promise<void>; resumeToken?: string; branchHead?: string }
+  >()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -620,6 +624,17 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  getExecutionHead(sessionId: string): string | undefined {
+    return this.entries.get(sessionId)?.branchHead
+  }
+
+  async prepareBranch(sessionId: string, messageId: string): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    if (!entry?.branchHead || agentSessionMessageService.sharesBranch(sessionId, entry.branchHead, messageId)) return
+    this.assertSessionEditable(sessionId)
+    await this.closeSession(sessionId)
+  }
+
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     this.assertSessionWritable(input.sessionId)
     const turnId = crypto.randomUUID()
@@ -655,6 +670,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.modelId = input.modelId
       existing.interactionWindowId = undefined
       existing.messageSnapshot = messageSnapshot
+      existing.branchHead = input.assistantMessageId
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
       this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
@@ -673,6 +689,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const entry: AgentSessionRuntimeEntry = {
       sessionId: input.sessionId,
+      branchHead: input.assistantMessageId,
       topicId: input.topicId,
       sessionTraceId: input.traceId,
       agentId: input.agentId,
@@ -1108,7 +1125,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (connectionAttempt) fallbackClosings.push(connectionAttempt)
       closing = Promise.allSettled(fallbackClosings).then(() => undefined)
     }
-    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken)
+    const barrier = this.trackSessionClosing(sessionId, closing, entry.lastResumeToken, entry.branchHead)
     if (this.entries.get(sessionId) === entry) {
       this.entries.delete(sessionId)
       this._onRuntimeIdle.fire({ sessionId })
@@ -1131,7 +1148,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
+  private trackSessionClosing(
+    sessionId: string,
+    closing: Promise<void>,
+    resumeToken?: string,
+    branchHead?: string
+  ): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const barrier = {
       promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
@@ -1141,6 +1163,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         this.syncRuntimeActivity()
       }),
+      branchHead: resumeToken ? branchHead : priorClosing?.branchHead,
       resumeToken: resumeToken ?? priorClosing?.resumeToken
     }
     this.closingSessions.set(sessionId, barrier)
@@ -1709,12 +1732,19 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
+    entry.branchHead ??= agentSessionMessageService.captureHead(entry.sessionId)
     while (this.isCurrentEntry(entry)) {
       this.assertSessionWritable(entry.sessionId)
       const closing = this.closingSessions.get(entry.sessionId)
       if (closing) {
         await closing.promise
-        if (this.isCurrentEntry(entry) && !entry.lastResumeToken && closing.resumeToken) {
+        if (
+          this.isCurrentEntry(entry) &&
+          !entry.lastResumeToken &&
+          closing.resumeToken &&
+          closing.branchHead &&
+          agentSessionMessageService.sharesBranch(entry.sessionId, entry.branchHead, closing.branchHead)
+        ) {
           entry.lastResumeToken = closing.resumeToken
         }
         continue
@@ -1850,7 +1880,7 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
-      nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId),
+      nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
@@ -1895,7 +1925,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.lastResumeToken = migration.resumeToken
       return
     }
-    const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
+    const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId, entry.branchHead)
     if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
 
@@ -2913,6 +2943,7 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
         sessionId: entry.sessionId,
+        parentId: agentSessionMessageService.branchTip(entry.sessionId, nextMessage.id),
         message: {
           role: 'assistant',
           status: 'pending',
@@ -2936,6 +2967,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const assistantMessageId = assistantMessage.id
+    entry.branchHead = assistantMessageId
     const headless = pendingTurn.headless === true
 
     const turnId = crypto.randomUUID()
@@ -3088,6 +3120,9 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
         sessionId: entry.sessionId,
+        parentId: entry.branchHead
+          ? agentSessionMessageService.branchTip(entry.sessionId, entry.branchHead)
+          : undefined,
         message: {
           role: 'assistant',
           status: 'pending',
@@ -3107,6 +3142,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const assistantMessageId = assistantMessage.id
+    entry.branchHead = assistantMessageId
     // No user message explains this turn; the badge reads the origin off the live session cache.
     application
       .get('CacheService')
@@ -3206,6 +3242,10 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
         sessionId: entry.sessionId,
+        parentId: agentSessionMessageService.branchTip(
+          entry.sessionId,
+          transition.inputs[0]?.message.id ?? entry.branchHead!
+        ),
         message: {
           ...(reservation ? { id: reservation.assistantMessageId } : {}),
           role: 'assistant',
@@ -3225,6 +3265,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const assistantMessageId = assistantMessage.id
+    entry.branchHead = assistantMessageId
     const turnId = crypto.randomUUID()
     const continuationTurn: AgentSessionTurn = {
       turnId,
@@ -3515,12 +3556,13 @@ export class AgentSessionRuntimeService extends BaseService {
     strict = false
   ): Promise<void> {
     if (!connection) return
+    const entry = this.entries.get(sessionId)
+    const priorClosing = this.closingSessions.get(sessionId)
     const resumeToken =
-      this.entries.get(sessionId)?.lastResumeToken ??
-      this.closingSessions.get(sessionId)?.resumeToken ??
-      this.failedClosureResumeTokens.get(connection)
+      entry?.lastResumeToken ?? priorClosing?.resumeToken ?? this.failedClosureResumeTokens.get(connection)
+    const branchHead = entry?.lastResumeToken ? entry.branchHead : priorClosing?.branchHead
     const settled = Promise.withResolvers<void>()
-    void this.trackSessionClosing(sessionId, settled.promise, resumeToken)
+    void this.trackSessionClosing(sessionId, settled.promise, resumeToken, branchHead)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()

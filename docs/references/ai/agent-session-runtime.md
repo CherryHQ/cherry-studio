@@ -157,6 +157,25 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
 
 ## Live follow-up
 
+### Message branches and execution targets
+
+Agent archives have one hidden root and `parentId` links. `agent_session.activeNodeId`
+selects the displayed path; it is separate from a runtime entry's captured execution
+head. The shared sibling navigator chooses the latest descendant of a sibling.
+Selection is a SQLite operation and never opens or resumes a harness.
+
+Dispatch captures its parent before asynchronous validation. If the parent has
+already advanced, a fresh send is rejected; merely viewing another branch does
+not retarget it. Before sending to another branch, the runtime closes an idle
+connection or rejects the send if work remains unsettled. Pending placeholders,
+queued turns and late output retain their originating branch.
+
+Renderer acknowledgements refresh the selected path from Main. Live assistant
+overlays apply only to messages on that path, so a late acknowledgement or stream
+chunk cannot insert another branch's answer into the current view.
+
+### Follow-up admission
+
 If the same topic already has a live stream, `AgentChatContextProvider`
 does **not** create a new assistant placeholder and does **not** call
 `beginTurn()` again. It persists the new user row, hands the message to
@@ -291,7 +310,8 @@ access by itself. `session_list` pages only addressable Sessions and returns an 
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
 cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
-retain their existing pagination. Temporary conversations retain their in-memory lifetime and list
+page the selected path, or the prefix ending at an explicit message anchor.
+Temporary conversations retain their in-memory lifetime and list
 semantics. Exact message reads check conversation membership. A `tool_call_id` with `message_id`
 uses the same persisted tool-output reconstruction as the renderer, including its explicit fallback
 when an offloaded blob is missing. Reading history does not grant filesystem attachment access.
@@ -302,6 +322,10 @@ The target Session id remains the message row's existing `sessionId`. Trusted se
 reply policy, optional display snapshots, result provenance, outcome, error, and status
 timestamp live in the Main-authored `delivery` JSON. Names are display-only snapshots and never
 participate in routing or authorization.
+
+Completion requests also retain a Main-private `deliveryReplyAnchor` in message
+data. Results and failure replies append to that sending branch's tip even if the
+caller later selects another branch. Public message reads omit this routing field.
 
 Only state used by queries, indexes, compare-and-set transitions, or constraints is promoted to a
 regular column:
@@ -500,8 +524,11 @@ This also covers error turns: if a driver emitted a resume token and then
 failed, the assistant error row still records that token so the next
 connection can recover from the newest driver-known state.
 
-User rows do not need a resume token. The durable recovery anchor is the
-latest assistant row with `runtimeResumeToken`.
+User rows do not need a resume token. Resume lookup follows the captured branch,
+not the globally newest assistant row. An edited Pi input carries its intended
+native identity and resolves through its branch binding, without falling back to
+the shared prefix's original context. Confirmed native progress records the
+binding's native identity and published message head.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
@@ -933,8 +960,8 @@ Repeated `closeSession()` calls join the in-flight close; if a replacement entry
 its close is chained behind the prior one so callers wait for every connection generation to settle.
 An immediate retry may create its entry while that close is still draining, but it cannot connect until
 the predecessor has closed. Teardown also joins an in-flight `driver.connect()` and closes any stale
-connection it produces before releasing the successor; the predecessor's observed resume token is handed
-to that successor directly.
+connection it produces before releasing the successor. The predecessor's observed resume token is handed
+to that successor only when both belong to the same message branch.
 
 `ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
 through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,

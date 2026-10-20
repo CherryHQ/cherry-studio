@@ -1364,13 +1364,14 @@ describe('AgentSessionService', () => {
     agentSessionService.delete(session.id)
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
-    expect(await dbh.db.select().from(agentSessionMessageTable)).toHaveLength(2)
+    expect((await dbh.db.select().from(agentSessionMessageTable)).filter((row) => row.role !== 'root')).toHaveLength(2)
 
     const restored = agentSessionService.restore(session.id)
 
     expect(restored).toMatchObject({ id: session.id, workspaceId: session.workspaceId })
     expect(
       (await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id)))
+        .filter((row) => row.role !== 'root')
         .map((row) => row.id)
         .sort()
     ).toEqual(['msg-trash-1', 'msg-trash-2'])
