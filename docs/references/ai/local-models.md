@@ -11,7 +11,7 @@ sources:
 # Local Models
 
 Cherry Studio can run four model capabilities on the user's own machine: knowledge-base
-embedding, PaddleOCR text recognition, FunASR Nano speech recognition, and speech synthesis with Qwen3-TTS or Kokoro. Their model
+embedding, PaddleOCR text recognition, speech recognition with FunASR Nano or Qwen3-ASR, and speech synthesis with Qwen3-TTS or Kokoro. Their model
 bundles and required native runtimes are fetched on demand rather than shipped in the installer.
 
 One module owns the whole path: what can be installed, how bytes get onto disk safely,
@@ -45,14 +45,15 @@ src/main/ai/localModel/
     ├── capabilityHooks.ts         ← removal behavior keyed by capability
     ├── embedding/                 ← facade, protocol, pooling, model paths, limits
     ├── ocr/                       ← facade, protocol, model paths
-    └── asr/                       ← facade, protocol, FunASR model paths
+    ├── asr/                       ← facade, discriminated engine requests, selected model paths
+    └── tts/                       ← facade, complete WAV and bounded PCM contracts
 ```
 
 ## The catalog is the only per-model code
 
-Everything about a model is one entry in `catalog/catalog.ts`. Nothing else in the
-subsystem branches per model, which is the property that keeps a third or fourth model
-from adding a third or fourth copy of the download machinery.
+Installation metadata belongs in `catalog/catalog.ts`. Downloads and removal are generic over
+that catalog. Inference dispatches on the selected bundle’s engine architecture; a new engine
+adds its own typed handler without duplicating installation machinery.
 
 ### Bundles
 
@@ -102,7 +103,7 @@ names its runtime artifacts directly; it does not resolve them through a default
 ### Shared artifacts
 
 A **shared artifact** is a pinned native runtime. Embedding and OCR use
-`onnxruntime-node`; ASR and Kokoro use `sherpa-onnx`; Qwen3-TTS uses a Cherry-distributed mlx-node archive. Bundles declare what they need in `requires`, and
+`onnxruntime-node`; FunASR and Kokoro use `sherpa-onnx`; Qwen3-ASR and Qwen3-TTS share a Cherry-distributed mlx-node archive. Bundles declare what they need in `requires`, and
 that declaration is what makes the runtime removable: it outlives a bundle exactly as long
 as another *installed* bundle still requires it.
 
@@ -252,7 +253,8 @@ runtime profile; `UtilityProcessManager` owns spawning, cancellation, idle relea
   a process's execution provider is fixed at session creation.
 - **One request at a time** through a `concurrency: 1` queue. A single native inference
   session gains nothing from concurrent calls, and this lets several callers reach the same
-  instance with no other coordination.
+  instance with no other coordination. A streamed execution retains its slot until `closed`,
+  including cancellation cleanup; returning its handle does not release the queue.
 - **Terminate cancellation** for inference, so aborting a native call cannot leave it running.
 - **Idle release** after 60s and process teardown during application shutdown.
 
@@ -352,8 +354,8 @@ rather than on a user's machine.
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
-- No streaming inference. Every request is one round trip with a complete result; a
-  transcription capability that wants partial output would add a response frame type.
+- ASR, embedding and OCR still return complete results. Qwen3-TTS also supports bounded PCM
+  output; continuous ASR input and transcription revisions are separate capabilities.
 
 
 ## Downloadable Qwen3-TTS
@@ -383,10 +385,82 @@ providers; Sherpa 1.13.6 does not implement Qwen3-TTS.
 
 The MLX utility process loads one model directory at a time and exits after 60 seconds idle.
 Cancellation terminates and awaits the process so native work and its allocator cannot outlive
-ownership. The adapter currently returns a complete WAV through the existing media/playback
-path; native audio chunks do not imply application-level streaming (#21662).
+ownership. The adapter offers both complete WAV and `pcm-stream` output. Preview and read-aloud
+prefer PCM when the selected model declares it; other adapters retain complete audio.
+
+`TtsInferenceService.stream()` publishes a typed execution handle while keeping its queue slot
+through child cleanup. The child sends the authoritative format before interleaved Float32 PCM,
+applies speed conversion once, and splits writes into at most 4,096 source frames. MLX uses a
+one-second native audio buffer and two queued text segments. Utility-process output is capped at
+four messages / 131,072 bytes, with one pending writer and a 65,536-byte message limit.
+
+Qwen3-TTS also declares `TextStream → PcmStream`. Automatic reading submits stable
+assistant body text before completion through one speech execution; reasoning is excluded.
+Plain sentences can commit early, while incomplete Markdown stays pending until a safe
+block boundary or EOF. Complete-text models retain completion-time automatic reading.
+
+`ai.voice.text.write` accepts sequenced text/flush events for the owning session/request;
+`ai.voice.text.finish` closes input without cancelling the remaining audio. Main permits
+one pending write, at most 2,048 characters per text event and 5,000 cumulative characters.
+The renderer additionally bounds pending text to 5,000 characters / 64 events and raw
+snapshots to 20,000 characters. Overflow stops automatic reading with a localized notice;
+chat generation continues. The utility input has one 32,768-byte frame and one pending
+writer. The native engine owns segmentation, with flush marking a stable commit boundary.
+Cancellation, scope exit, disabling automatic reading and preemption invalidate the attempt,
+close its text input and release voice resources; late snapshots cannot restart it.
+Incremental speech has no retry-from-start control because some text may already be audible.
+
+Playback attaches after installing its listener and Worklet. Main limits outstanding renderer
+audio to one second of source frames; cumulative acknowledgements represent actual Worklet
+consumption, so pausing propagates backpressure to inference. Playback starts after 500 ms of
+source audio, or EOF for shorter clips, within the same one-second capacity. The AudioContext uses the source
+sample rate and lets the browser resample for the output device. Producer EOF and playback drain
+are separate: the session remains owned until the final source frame is consumed and the output
+timestamp passes the tail. PCM does not create a full WAV or enter the media cache.
+
+Model loading and unblocked producer reads have 120-second budgets. Attachment has a 15-second
+budget, and a stream retains resources for at most 15 minutes, including pauses. The existing
+five-minute generated-audio limit still applies to complete WAV requests; PCM is bounded by stream retention. Explicit playback retry closes the previous
+execution before generating a new attempt with the frozen voice, language and speed.
 
 Voice identity and synthesis language are separate. `locale` is the voice's default; optional
 `languages` enumerates its supported synthesis languages. Without `languages`, a system voice
 supports only its locale. Resolution preserves a supported explicit language, and UI language
 changes preserve compatible voices. Unsupported combinations remain unavailable.
+
+## Downloadable Qwen3-ASR
+
+`qwen3-asr-1.7b-8bit` provides complete-audio and streaming PCM recognition on Apple Silicon with macOS 26.2+.
+It uses the existing MLX native artifact shared with Qwen3-TTS and an application-owned
+`@cherrystudio/mlx-asr` JavaScript package. Its official 1.7B checkpoint, conversion revision,
+standard safetensors shards and checksums are pinned in `catalog/qwen3AsrRelease.json`.
+The audio encoder stays dense; the decoder uses affine 8-bit/group-size 64 quantization.
+Model files use pinned GitHub release assets and a pinned ModelScope revision, with the same
+SHA-256 at both sources. China egress prefers ModelScope; other regions prefer GitHub.
+
+Voice selection preserves the bundle ID through status, installation, inference and removal.
+`inference.asr` dispatches discriminated Sherpa/MLX requests and lazily loads only the selected
+engine. MLX receives 16 kHz mono Float32 PCM decoded from the existing bounded WAV/WebM path;
+it does not require Sherpa for decoding. Language is detected automatically. Complete recognition returns final text; streaming recognition
+returns replaceable full-text revisions. The model has no reliable timestamps, so segments remain empty. Truncated native
+results fail instead of returning partial text as complete recognition.
+
+The ASR queue owns one resident model. Switching models, cancelling native work or removing
+resident weights waits for process exit. Successful calls may reuse the warm model until idle
+release. The pinned native API has no model-dispose method; process exit releases its model
+thread and allocations. ASR removal preserves the MLX artifact while installed TTS still
+requires it, and does not stop the independent TTS process.
+
+Streaming dictation uses the same ASR queue for the full stream lifetime. Renderer `PcmCapture`
+owns the microphone, AudioContext and worklet. Web Audio continuously converts device input to
+mono 16 kHz; the application checks the actual context rate. The worklet sends 100 ms batches,
+with at most two seconds of unacknowledged audio. Main uses a single pending batch and the
+utility transport bounds input to ten frames / 65,536 bytes. A sustained overload fails explicitly.
+The model's default two-second decoding interval is independent of the transport batch size.
+
+Normal stop drains accepted worklet samples before input EOF and final recognition. Cancellation
+stops capture, discards queued PCM and terminates native work. Revisions are previews; only
+execution completion commits text, once, to the captured target. A lost target uses existing
+recovery. Streaming failures have no saved recording to retry. Models without the PCM/revisions
+capability retain complete-recording recognition. Microphone waveform updates use the capture
+analyser and do not wait for recognition. The existing five-minute recording limit still applies.

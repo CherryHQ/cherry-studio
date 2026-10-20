@@ -327,8 +327,8 @@ export interface AtomicWriteStream extends Writable {
 }
 
 export interface ReadableFileSnapshot {
-  readonly dev: number
-  readonly ino: number
+  readonly dev: bigint
+  readonly ino: bigint
   readonly modifiedAt: number
   readonly size: number
   createReadStream(bytes?: number): Readable
@@ -341,20 +341,22 @@ export interface ReadableFileSnapshot {
  * replacement.
  */
 export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promise<ReadableFileSnapshot> {
-  const pathStat = await fsLstat(target)
+  const pathStat = await fsLstat(target, { bigint: true })
   if (!pathStat.isFile()) throw new Error('Snapshot source is not a regular file')
 
   const handle: FileHandle = await fsOpen(target, 'r')
   try {
-    const handleStat = await handle.stat()
+    const handleStat = await handle.stat({ bigint: true })
     if (!handleStat.isFile() || pathStat.dev !== handleStat.dev || pathStat.ino !== handleStat.ino) {
       throw new Error('Snapshot source changed before it could be opened')
     }
-    const size = handleStat.size
+    const size = Number(handleStat.size)
+    if (!Number.isSafeInteger(size)) throw new RangeError('Snapshot source is too large to read safely')
+    const { mtimeMs } = await handle.stat()
     return {
       dev: handleStat.dev,
       ino: handleStat.ino,
-      modifiedAt: Math.floor(handleStat.mtimeMs),
+      modifiedAt: Math.floor(mtimeMs),
       size,
       createReadStream: (bytes = size) => {
         if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > size) {

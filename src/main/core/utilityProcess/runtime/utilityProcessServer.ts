@@ -21,11 +21,13 @@ import type {
   LogLevel,
   ResultFrame,
   RemoteErrorShape,
-  Unstamped
+  Unstamped,
+  StreamOpenFrame
 } from '../protocol/frames'
 import { isConnectFrame, isMainFrame, matchesIdentity } from '../protocol/guards'
 import { toRemoteError } from '../protocol/remoteError'
-import type { UtilityProcessContract } from '../types'
+import { StreamChannel } from '../StreamChannel'
+import type { UtilityProcessContract, UtilityProcessStreamFrame, UtilityProcessStreams } from '../types'
 
 export interface UtilityProcessLogger {
   debug(message: string, fields?: Record<string, unknown>): void
@@ -50,7 +52,21 @@ export type UtilityProcessHandlers<Contract extends UtilityProcessContract> = {
   ) => Contract['methods'][M]['output'] | Promise<Contract['methods'][M]['output']>
 }
 
-export interface ServeUtilityProcessOptions<Contract extends UtilityProcessContract, InitData = void> {
+export interface UtilityProcessStreamContext<Input, Output> {
+  signal: AbortSignal
+  input: AsyncIterable<Input>
+  write(frame: Output): Promise<void>
+  logger: UtilityProcessLogger
+}
+
+export type UtilityProcessStreamHandlers<C extends UtilityProcessContract> = {
+  [M in keyof UtilityProcessStreams<C>]: (
+    input: UtilityProcessStreams<C>[M]['request'],
+    context: UtilityProcessStreamContext<UtilityProcessStreams<C>[M]['input'], UtilityProcessStreams<C>[M]['output']>
+  ) => UtilityProcessStreams<C>[M]['result'] | Promise<UtilityProcessStreams<C>[M]['result']>
+}
+
+export type ServeUtilityProcessOptions<Contract extends UtilityProcessContract, InitData = void> = {
   /** Must equal the definition's id; the connect frame is rejected otherwise. */
   id: string
   /** Wiring only (paths, bindings). `ready` is sent after it completes; heavy work belongs in handlers. */
@@ -58,7 +74,9 @@ export interface ServeUtilityProcessOptions<Contract extends UtilityProcessContr
   handlers: UtilityProcessHandlers<Contract>
   /** Graceful-shutdown hook, run once after all handlers have settled. */
   dispose?: (context: { logger: UtilityProcessLogger }) => void | Promise<void>
-}
+} & (keyof UtilityProcessStreams<Contract> extends never
+  ? { streams?: UtilityProcessStreamHandlers<Contract> }
+  : { streams: UtilityProcessStreamHandlers<Contract> })
 
 /** Structural subset of Electron's MessagePortMain used by the runtime. */
 export interface PortLike {
@@ -82,6 +100,7 @@ export interface UtilityProcessServerIo {
 }
 
 interface ActiveRequest {
+  stream?: StreamChannel
   controller: AbortController
   settled: boolean
   done: Promise<void>
@@ -102,6 +121,15 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   io: UtilityProcessServerIo
 ): void {
   const handlers = options.handlers as Record<string, Handler>
+  const streams = options.streams as
+    | Record<
+        string,
+        (
+          input: unknown,
+          context: UtilityProcessStreamContext<UtilityProcessStreamFrame, UtilityProcessStreamFrame>
+        ) => unknown
+      >
+    | undefined
   const active = new Map<number, ActiveRequest>()
   const tombstones = new Set<number>()
   let port: PortLike | null = null
@@ -238,6 +266,49 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
     })()
   }
 
+  const dispatchStream = (frame: StreamOpenFrame): void => {
+    const { requestId, method, input } = frame
+    const controller = new AbortController()
+    const channel = new StreamChannel(
+      frame.outputLimits,
+      frame.inputLimits,
+      (message) => post({ ...message, requestId }),
+      async () => {
+        controller.abort(abortError(REQUEST_CANCELLED_CODE, 'input consumer stopped'))
+      }
+    )
+    const abort = () => channel.abort(controller.signal.reason)
+    controller.signal.addEventListener('abort', abort, { once: true })
+    const request: ActiveRequest = {
+      controller,
+      stream: channel,
+      settled: false,
+      done: Promise.resolve(),
+      hostReplies: new Map()
+    }
+    active.set(requestId, request)
+    request.done = (async () => {
+      try {
+        const output = await streams![method](input, {
+          signal: controller.signal,
+          input: channel.output,
+          write: (value) => channel.write(value),
+          logger: createLogger(requestId)
+        })
+        controller.signal.throwIfAborted()
+        await channel.finish()
+        sendTerminal(requestId, request, { kind: 'result', requestId, output })
+      } catch (error) {
+        sendTerminal(requestId, request, { kind: 'error', requestId, error: toRemoteError(error) })
+      } finally {
+        controller.abort(new Error('Stream handler finished'))
+        channel.detach()
+        active.delete(requestId)
+        if (!failed) post({ kind: 'stream-closed', requestId })
+      }
+    })()
+  }
+
   const violation = (message: string, requestId?: number): void => {
     failed = true
     const frame: Unstamped<ChildFrame> = { kind: 'protocol-error', message }
@@ -271,6 +342,43 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
       return
     }
     switch (data.kind) {
+      case 'stream-open': {
+        if (
+          shuttingDown ||
+          data.requestId <= lastRequestId ||
+          !streams ||
+          !Object.hasOwn(streams, data.method) ||
+          typeof streams[data.method] !== 'function'
+        ) {
+          violation('invalid stream request', data.requestId)
+          return
+        }
+        lastRequestId = data.requestId
+        dispatchStream(data)
+        return
+      }
+      case 'stream-data':
+      case 'stream-credit':
+      case 'stream-end':
+      case 'stream-end-ack': {
+        const request = active.get(data.requestId)
+        if (!request) {
+          // Main may have sent input or returned credit before observing the close acknowledgement.
+          if (data.requestId <= lastRequestId) return
+          violation('stream frame for unknown request', data.requestId)
+          return
+        }
+        if (!request.stream) {
+          violation('stream frame for ordinary request', data.requestId)
+          return
+        }
+        try {
+          request.stream.receive(data)
+        } catch (error) {
+          violation(toRemoteError(error).message, data.requestId)
+        }
+        return
+      }
       case 'request': {
         if (shuttingDown) {
           violation('request after shutdown', data.requestId)
