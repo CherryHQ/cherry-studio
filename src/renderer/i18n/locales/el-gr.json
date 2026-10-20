@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Αναγνώριση ομιλίας συστήματος Windows",
   "settings.voice.model.windows_tts": "Ομιλία συστήματος Windows",
+  "settings.voice.mouse_hold.description": "Κρατήστε πατημένο το αριστερό κουμπί του ποντικιού σε πεδίο υπαγόρευσης για 800 ms για να μιλήσετε. Αφήστε το για εισαγωγή κειμένου. Η επιλογή κειμένου με σύρσιμο δεν ενεργοποιεί την υπαγόρευση.",
+  "settings.voice.mouse_hold.label": "Παρατεταμένο πάτημα ποντικιού για υπαγόρευση",
   "settings.voice.playback.error.aborted": "Η αναπαραγωγή φωνής ακυρώθηκε.",
   "settings.voice.playback.error.busy": "Η φωνητική λειτουργία χρησιμοποιείται από άλλη τοπική εργασία.",
   "settings.voice.playback.long_text.description": "Αυτή η απάντηση έχει {{count}} αναγνώσιμους χαρακτήρες. Συνέχεια με τοπική αναπαραγωγή;",

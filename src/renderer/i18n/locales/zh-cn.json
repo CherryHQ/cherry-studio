@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice（8-bit）",
   "settings.voice.model.windows_asr": "Windows 系统语音识别",
   "settings.voice.model.windows_tts": "Windows 系统语音",
+  "settings.voice.mouse_hold.description": "在听写输入框内按住鼠标左键 800 毫秒开始说话，松开后插入文字。拖动选择文字不会触发。",
+  "settings.voice.mouse_hold.label": "长按鼠标语音输入",
   "settings.voice.playback.error.aborted": "语音播放已取消。",
   "settings.voice.playback.error.busy": "语音功能正被另一项本地操作占用。",
   "settings.voice.playback.long_text.description": "此回复包含 {{count}} 个可朗读字符。是否继续使用本地语音播放？",

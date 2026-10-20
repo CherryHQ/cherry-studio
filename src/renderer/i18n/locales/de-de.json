@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Windows-Systemspracherkennung",
   "settings.voice.model.windows_tts": "Windows-Systemsprache",
+  "settings.voice.mouse_hold.description": "Halten Sie die linke Maustaste in einem Diktierfeld 800 ms lang gedrückt, um zu sprechen. Beim Loslassen wird der Text eingefügt. Ziehen zur Textauswahl startet kein Diktat.",
+  "settings.voice.mouse_hold.label": "Zum Diktieren die Maustaste gedrückt halten",
   "settings.voice.playback.error.aborted": "Die Sprachausgabe wurde abgebrochen.",
   "settings.voice.playback.error.busy": "Die Sprachfunktion wird von einem anderen lokalen Vorgang verwendet.",
   "settings.voice.playback.long_text.description": "Diese Antwort enthält {{count}} vorlesbare Zeichen. Mit lokaler Wiedergabe fortfahren?",

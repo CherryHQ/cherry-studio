@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Recunoaștere vocală de sistem Windows",
   "settings.voice.model.windows_tts": "Voce de sistem Windows",
+  "settings.voice.mouse_hold.description": "Ține apăsat butonul stâng al mouse-ului într-un câmp de dictare timp de 800 ms pentru a vorbi. Eliberează-l pentru a insera textul. Tragerea pentru selectarea textului nu activează dictarea.",
+  "settings.voice.mouse_hold.label": "Ține apăsat butonul mouse-ului pentru dictare",
   "settings.voice.playback.error.aborted": "Redarea vocală a fost anulată.",
   "settings.voice.playback.error.busy": "Funcția vocală este ocupată cu o altă operațiune locală.",
   "settings.voice.playback.long_text.description": "Acest răspuns are {{count}} caractere care pot fi citite. Continui cu redarea locală?",

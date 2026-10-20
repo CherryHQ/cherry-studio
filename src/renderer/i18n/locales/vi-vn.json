@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Nhận dạng giọng nói hệ thống Windows",
   "settings.voice.model.windows_tts": "Giọng nói hệ thống Windows",
+  "settings.voice.mouse_hold.description": "Nhấn giữ nút chuột trái trong ô nhập giọng nói trong 800 mili giây để bắt đầu nói. Thả nút để chèn văn bản. Kéo để chọn văn bản sẽ không kích hoạt nhập giọng nói.",
+  "settings.voice.mouse_hold.label": "Nhấn giữ chuột để nhập giọng nói",
   "settings.voice.playback.error.aborted": "Đã hủy phát giọng nói.",
   "settings.voice.playback.error.busy": "Tính năng giọng nói đang bận với một thao tác cục bộ khác.",
   "settings.voice.playback.long_text.description": "Phản hồi này có {{count}} ký tự có thể đọc. Tiếp tục phát cục bộ?",

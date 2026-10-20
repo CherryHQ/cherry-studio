@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice（8-bit）",
   "settings.voice.model.windows_asr": "Windows 系統語音辨識",
   "settings.voice.model.windows_tts": "Windows 系統語音",
+  "settings.voice.mouse_hold.description": "在聽寫輸入框內按住滑鼠左鍵 800 毫秒開始說話，放開後插入文字。拖曳選取文字不會觸發。",
+  "settings.voice.mouse_hold.label": "長按滑鼠語音輸入",
   "settings.voice.playback.error.aborted": "語音播放已取消。",
   "settings.voice.playback.error.busy": "語音功能正由另一項本機操作使用。",
   "settings.voice.playback.long_text.description": "此回覆包含 {{count}} 個可朗讀字元。是否繼續使用本機語音播放？",

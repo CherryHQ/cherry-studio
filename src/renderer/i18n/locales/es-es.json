@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Reconocimiento de voz del sistema Windows",
   "settings.voice.model.windows_tts": "Voz del sistema Windows",
+  "settings.voice.mouse_hold.description": "Mantén pulsado el botón izquierdo del ratón en un campo de dictado durante 800 ms para hablar. Suéltalo para insertar el texto. Arrastrar para seleccionar texto no activa el dictado.",
+  "settings.voice.mouse_hold.label": "Mantener pulsado el ratón para dictar",
   "settings.voice.playback.error.aborted": "Se canceló la reproducción de voz.",
   "settings.voice.playback.error.busy": "La función de voz está ocupada con otra operación local.",
   "settings.voice.playback.long_text.description": "Esta respuesta tiene {{count}} caracteres legibles. ¿Continuar con la reproducción local?",

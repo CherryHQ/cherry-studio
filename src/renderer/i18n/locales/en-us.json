@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Windows System Speech Recognition",
   "settings.voice.model.windows_tts": "Windows System Speech",
+  "settings.voice.mouse_hold.description": "Hold the left mouse button in a dictation input for 800 ms to start speaking. Release to insert text. Dragging to select text does not activate dictation.",
+  "settings.voice.mouse_hold.label": "Press and hold the mouse to dictate",
   "settings.voice.playback.error.aborted": "Voice playback was canceled.",
   "settings.voice.playback.error.busy": "Voice is busy with another local operation.",
   "settings.voice.playback.long_text.description": "This response has {{count}} readable characters. Continue with local playback?",

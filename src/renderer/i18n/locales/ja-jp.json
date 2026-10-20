@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Windows システム音声認識",
   "settings.voice.model.windows_tts": "Windows システム音声",
+  "settings.voice.mouse_hold.description": "音声入力欄でマウスの左ボタンを 800 ミリ秒長押しすると録音を開始し、離すとテキストを挿入します。文字をドラッグして選択しても音声入力は開始しません。",
+  "settings.voice.mouse_hold.label": "マウスの長押しで音声入力",
   "settings.voice.playback.error.aborted": "音声の再生がキャンセルされました。",
   "settings.voice.playback.error.busy": "音声機能は別のローカル操作で使用中です。",
   "settings.voice.playback.long_text.description": "この回答には読み上げ可能な文字が {{count}} 文字あります。ローカル再生を続けますか？",

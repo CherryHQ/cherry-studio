@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "การจดจำเสียงระบบของ Windows",
   "settings.voice.model.windows_tts": "เสียงระบบของ Windows",
+  "settings.voice.mouse_hold.description": "กดปุ่มซ้ายของเมาส์ค้างไว้ในช่องป้อนข้อความด้วยเสียงเป็นเวลา 800 มิลลิวินาทีเพื่อเริ่มพูด ปล่อยปุ่มเพื่อแทรกข้อความ การลากเพื่อเลือกข้อความจะไม่เริ่มการป้อนข้อความด้วยเสียง",
+  "settings.voice.mouse_hold.label": "กดเมาส์ค้างไว้เพื่อป้อนข้อความด้วยเสียง",
   "settings.voice.playback.error.aborted": "การเล่นเสียงถูกยกเลิก",
   "settings.voice.playback.error.busy": "ระบบเสียงกำลังทำงานอื่นในเครื่องอยู่",
   "settings.voice.playback.long_text.description": "คำตอบนี้มี {{count}} ตัวอักษรที่อ่านได้ ต้องการเล่นด้วยระบบเสียงในเครื่องต่อหรือไม่?",

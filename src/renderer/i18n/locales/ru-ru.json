@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Системное распознавание речи Windows",
   "settings.voice.model.windows_tts": "Системный голос Windows",
+  "settings.voice.mouse_hold.description": "Удерживайте левую кнопку мыши в поле диктовки 800 мс, чтобы начать говорить. Отпустите, чтобы вставить текст. Перетаскивание для выделения текста не запускает диктовку.",
+  "settings.voice.mouse_hold.label": "Удерживайте кнопку мыши для диктовки",
   "settings.voice.playback.error.aborted": "Воспроизведение речи отменено.",
   "settings.voice.playback.error.busy": "Голосовая функция занята другой локальной операцией.",
   "settings.voice.playback.long_text.description": "В этом ответе {{count}} символов для чтения. Продолжить локальное воспроизведение?",

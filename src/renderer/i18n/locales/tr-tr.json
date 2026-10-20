@@ -5868,6 +5868,8 @@
   "settings.voice.model.qwen3_tts": "Qwen3-TTS CustomVoice (8-bit)",
   "settings.voice.model.windows_asr": "Windows Sistem Konuşma Tanıma",
   "settings.voice.model.windows_tts": "Windows Sistem Sesi",
+  "settings.voice.mouse_hold.description": "Konuşmaya başlamak için dikte alanında sol fare düğmesini 800 ms basılı tutun. Metni eklemek için bırakın. Metin seçmek için sürüklemek dikteyi başlatmaz.",
+  "settings.voice.mouse_hold.label": "Dikte etmek için fare düğmesini basılı tut",
   "settings.voice.playback.error.aborted": "Ses oynatma iptal edildi.",
   "settings.voice.playback.error.busy": "Ses özelliği başka bir yerel işlemle meşgul.",
   "settings.voice.playback.long_text.description": "Bu yanıtta okunabilir {{count}} karakter var. Yerel oynatmaya devam edilsin mi?",
