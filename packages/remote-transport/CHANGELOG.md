@@ -1,5 +1,12 @@
 # @cherrystudio/remote-transport
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`8bf2fe2`](https://github.com/CherryHQ/cherry-studio/commit/8bf2fe28d50170eb7b04c99dd5f8bfcf1913f2ae)]:
+  - @cherrystudio/remote-protocol@0.6.0
+
 ## 0.2.2
 
 ### Patch Changes

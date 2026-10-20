@@ -476,11 +476,7 @@ export const toMarkdownOutputSchema = z.object({
 })
 
 export const TO_MARKDOWN_DESCRIPTION =
-  'Convert one supported local document to Markdown. Relative paths resolve from the session workspace. ' +
-  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
-  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
-  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
-  'file instead of being returned; read the returned path in slices as needed.'
+  'Convert a local document to Markdown in a temp file; scan-only PDFs need OCR. See path for supported formats.'
 
 export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
 export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
@@ -506,10 +502,7 @@ export const reportArtifactsInputSchema = z.object({
 })
 
 export const REPORT_ARTIFACTS_DESCRIPTION =
-  'Declare the final deliverable file(s) produced for the user. Call this once, at the end of the task, ' +
-  'after the requested file(s) are finished — pass the final path(s) and an optional one-line summary. ' +
-  'List only final deliverables; omit intermediate, scratch, or temporary files. Skip the call entirely ' +
-  'if the task produced no files.'
+  'Declare final deliverable files once, at the end of the task. Omit scratch files; skip if none were produced.'
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
