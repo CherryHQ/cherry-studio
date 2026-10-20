@@ -20,6 +20,7 @@ export interface ClaudeCodeExitInfo {
 
 const PROVIDER_SETTINGS_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>([
   'auth',
+  'bad_request',
   'permission',
   'model',
   'quota',
@@ -37,7 +38,7 @@ function navTargetFor(category: ErrorCategory, providerSuffix: string): string |
     case 'mcp':
       return '/settings/mcp/servers'
     case 'knowledge':
-      return '/knowledge'
+      return '/app/knowledge'
     default:
       return null
   }
@@ -84,6 +85,27 @@ function unwrapNestedErrors(error: SerializedError): SerializedError[] {
   )
 }
 
+/** `statusCode` or `status`, numeric or a numeric string. Unparseable values count as absent. */
+function readStructuredStatus(value: unknown): number | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const status = record.statusCode ?? record.status
+  const parsed = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
+  return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined
+}
+
+/**
+ * A status-less RetryError copies the terminal phrase. Return that attempt's HTTP 5xx;
+ * earlier attempts do not supply a status.
+ */
+export function getErrorHttpStatus(error: SerializedError): number | undefined {
+  const outer = readStructuredStatus(error)
+  if (outer !== undefined) return outer
+  if (!isSerializedAiSdkRetryError(error)) return undefined
+  const terminalStatus = readStructuredStatus(error.lastError)
+  return terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600 ? terminalStatus : undefined
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
   const classify = (category: ErrorCategory): ErrorClassification => ({
@@ -101,8 +123,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
     return classify(errorBag.providerErrorCategory)
   }
-  const status = errorBag.statusCode ?? errorBag.status
-  const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
+  const numStatus = getErrorHttpStatus(error)
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
   let dataText = ''
@@ -119,27 +140,18 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     status: numStatus,
     finishReason: String(errorBag.finishReason ?? '')
   })
-  if (category !== 'unknown') return classify(category)
+  if (category !== 'unknown' && category !== 'bad_request') return classify(category)
 
-  // A wrapper carries no status of its own. Prefer any diagnosis over a generic recovery-only fallback.
+  // Prefer a specific diagnosis over a generic request failure in another attempt.
   let nestedRecovery: ErrorClassification | null = null
   for (const nested of unwrapNestedErrors(error)) {
     const nestedClassification = classifyError(nested, providerId)
-    if (nestedClassification.category !== 'unknown') {
+    if (nestedClassification.category !== 'unknown' && nestedClassification.category !== 'bad_request') {
       return nestedClassification
     }
     if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
   }
   if (nestedRecovery) return nestedRecovery
 
-  // A generic 400 has no safe diagnosis, but its active provider settings remain a valid recovery path.
-  if (numStatus === 400) {
-    return {
-      category: 'unknown',
-      i18nKey: 'error.diagnosis.unknown',
-      navTarget: `/settings/provider${providerSuffix}`
-    }
-  }
-
-  return classify('unknown')
+  return classify(category)
 }

@@ -1,3 +1,4 @@
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,11 +6,14 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import { addSidebarShortcut, normalizeSidebarShortcutItems } from '@renderer/utils/sidebar'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import CodeCliPage from '../CodeCliPage'
+
+type MockCommandMenuItem = { type: string; id?: string; onSelect?: () => void }
 
 const {
   clearCliConfigMock,
@@ -171,7 +175,32 @@ vi.mock('@cherrystudio/ui', () => ({
     value: string
     placeholder?: string
     onChange: (event: { target: { value: string } }) => void
-  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />
+  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />,
+  Tooltip: ({ children }: { children: ReactNode }) => children
+}))
+
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({ children }: { children: ReactNode }) => children,
+  CommandPopupMenu: ({
+    children,
+    extraItems = []
+  }: {
+    children: ReactNode
+    extraItems?: readonly MockCommandMenuItem[]
+  }) => (
+    <div>
+      {children}
+      {extraItems.map((item) =>
+        item.type === 'item' && item.id && item.onSelect ? (
+          <button key={item.id} type="button" data-testid={`popup-${item.id}`} onClick={item.onSelect} />
+        ) : null
+      )}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/icons/CliIcon', () => ({
+  CliIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
 }))
 
 vi.mock('@data/DataApiService', () => ({
@@ -528,6 +557,7 @@ describe('CodeCliPage', () => {
     mockProviders.splice(0, mockProviders.length, provider)
     providersLoadingState.value = false
     unsupportedProviderIds.clear()
+    mockPreferenceState.set('ui.sidebar_shortcut', normalizeSidebarShortcutItems([]))
     gatewayState.bundle = null
     gatewayState.defaultModelId = undefined
     gatewayState.modelsById.clear()
@@ -561,6 +591,25 @@ describe('CodeCliPage', () => {
     expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
   })
 
+  it('pins an installed CLI with its localized fallback label', async () => {
+    const user = userEvent.setup()
+    render(<CodeCliPage />)
+
+    await user.click(screen.getByTestId(`popup-code-cli.toggle-sidebar.${CodeCli.CLAUDE_CODE}`))
+
+    await waitFor(() =>
+      expect(mockPreferenceState.get('ui.sidebar_shortcut')).toContainEqual(
+        expect.objectContaining({
+          target: {
+            kind: 'resource',
+            locator: { providerId: 'core.code-cli', resourceId: CodeCli.CLAUDE_CODE }
+          },
+          fallbackLabel: 'Claude Code'
+        })
+      )
+    )
+  })
+
   // A broken managed install is installed:false with no shim, so the `installed` filter hid the
   // tool entirely — taking the Retry/Remove that repair or undo it out of reach for good.
   it('keeps a broken Gemini installation reachable so it can be repaired or removed', () => {
@@ -575,6 +624,23 @@ describe('CodeCliPage', () => {
 
     expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps an uninstalled pinned Gemini CLI reachable from its sidebar deep link', () => {
+    mockPreferenceState.set(
+      'ui.sidebar_shortcut',
+      addSidebarShortcut(normalizeSidebarShortcutItems([]), {
+        kind: 'resource',
+        locator: { providerId: 'core.code-cli', resourceId: CodeCli.GEMINI_CLI }
+      })
+    )
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
     expect(selectToolMock).not.toHaveBeenCalled()
   })
 

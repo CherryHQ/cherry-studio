@@ -12,7 +12,9 @@ import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } fro
 
 const logger = loggerService.withContext('useArtifactFileTreeModel')
 
-const ARTIFACT_TREE_INITIAL_MAX_DEPTH = 3
+// Level 1 is all a collapsed tree renders, so a deeper initial scan only buys prefetch; a deep
+// watcher over a real workspace exhausts file descriptors (EMFILE) and stalls the main thread.
+const ARTIFACT_TREE_INITIAL_MAX_DEPTH = 1
 /** Handshake rounds before a lazy watcher gives up — see `useDirectoryTree`'s copy. */
 const MAX_ACTIVATION_ATTEMPTS = 3
 const ARTIFACT_FILE_SEARCH_DEBOUNCE_MS = 200
@@ -21,6 +23,7 @@ const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH
 }
 export const ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
+  maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH,
   watchMissingRoot: true
 }
 

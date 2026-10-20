@@ -1,8 +1,11 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import { ipcApi } from '@renderer/ipc'
 
 import SettingsPage from '../SettingsPage'
 
@@ -11,7 +14,10 @@ const { isMacTransparentWindowMock, navigateMock } = vi.hoisted(() => ({
   navigateMock: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryUiModule>()),
   MenuDivider: () => <hr data-testid="menu-divider" />,
   MenuItem: ({ icon, label, onClick }: { icon?: ReactNode; label: string; onClick?: () => void }) => (
     <button type="button" data-testid="menu-item" onClick={onClick}>
@@ -42,16 +48,19 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
-}))
-
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => isMacTransparentWindowMock()
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Outlet: () => null,
+  Outlet: () => (
+    <>
+      <a href="https://open.cherryin.ai" target="_blank" rel="noreferrer">
+        <span>Provider website</span>
+      </a>
+      <a href="#provider">Internal settings</a>
+    </>
+  ),
   useLocation: () => ({ pathname: '/settings/provider' }),
   useNavigate: () => navigateMock,
   useRouter: () => ({ history: { canGoBack: () => false, back: vi.fn() } }),
@@ -64,8 +73,10 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
+        'deviceConnections.title': '设备互联',
         'selection.name': '划词助手',
         'settings.appearance.title': '外观',
+        'settings.voice.title': '语音',
         'settings.channels.title': '频道',
         'settings.dependencies.title': '环境依赖',
         'settings.dependencies.localModels.title': '本地模型',
@@ -91,8 +102,33 @@ vi.mock('react-i18next', () => ({
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
     isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
+    vi.mocked(ipcApi.request).mockClear()
+  })
+
+  it.each(['click', 'auxclick'])(
+    'opens settings websites externally on %s even when internal browsing is enabled',
+    (type) => {
+      MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', true)
+      render(<SettingsPage />)
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: type === 'auxclick' ? 1 : 0 })
+      fireEvent(screen.getByText('Provider website'), event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(ipcApi.request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://open.cherryin.ai/')
+    }
+  )
+
+  it('leaves internal settings navigation and right-click menus alone', () => {
+    render(<SettingsPage />)
+    const internalClick = new MouseEvent('click', { bubbles: true, cancelable: true })
+    fireEvent(screen.getByText('Internal settings'), internalClick)
+    const rightClick = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 2 })
+    fireEvent(screen.getByText('Provider website'), rightClick)
+    expect(internalClick.defaultPrevented).toBe(false)
+    expect(rightClick.defaultPrevented).toBe(false)
+    expect(ipcApi.request).not.toHaveBeenCalled()
   })
 
   it('mounts the full-width search field from the header icon only on demand', () => {
@@ -129,6 +165,24 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/general' })
     fireEvent.click(localModelsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
+  })
+
+  it('exposes device connections as its own settings destination without developer mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+    render(<SettingsPage />)
+
+    const deviceConnectionsItem = screen.getByRole('button', { name: '设备互联' })
+    fireEvent.click(deviceConnectionsItem)
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/device-connections' })
+  })
+
+  it('exposes Voice as a searchable personal settings destination', () => {
+    render(<SettingsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: '语音' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/voice' })
   })
 
   it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
@@ -171,7 +225,7 @@ describe('SettingsPage', () => {
     expect(screen.getByText('效率')).toBeInTheDocument()
     expect(screen.queryByText('快捷入口')).not.toBeInTheDocument()
 
-    const efficiencyItems = ['频道', '定时任务', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
+    const efficiencyItems = ['频道', '设备互联', '定时任务', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
       screen.getByRole('button', { name })
     )
     const menuItems = screen.getAllByTestId('menu-item')

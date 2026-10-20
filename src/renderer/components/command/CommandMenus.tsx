@@ -561,7 +561,15 @@ export function CommandContextMenu({
         <ContextMenuContent
           className={contentClassName}
           onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}>
+          onMouseDown={(e) => e.stopPropagation()}
+          onCloseAutoFocus={(e) => {
+            // 菜单卸载时 Radix 会把焦点还原到打开前的元素（右键聚焦的行），
+            // 打掉刚挂载的 rename 输入框。仅当关闭瞬间焦点已被菜单外元素持有时拦截。
+            const active = document.activeElement
+            if (active && active !== document.body && !(e.target as HTMLElement).contains(active)) {
+              e.preventDefault()
+            }
+          }}>
           {combinedItems.map((item, index) =>
             isExtraMenuItem(item) ? (
               <CommandContextMenuExtraItemView

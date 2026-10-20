@@ -203,6 +203,198 @@ describe('MessageService', () => {
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
 
+  describe('trashed Topic message addressability', () => {
+    const topicId = 'topic-message-gate'
+    const attachmentFileId = '019606a0-0000-7000-8000-00000000fd01'
+    const toolOutputFileId = '019606a0-0000-7000-8000-00000000fd02'
+
+    const approvalPart = {
+      type: 'tool-fetch_url',
+      toolCallId: 'gate-call',
+      state: 'approval-requested',
+      input: {},
+      approval: { id: 'gate-approval' }
+    } as unknown as NonNullable<MessageData['parts']>[number]
+
+    async function seedTrashedTopic() {
+      const rootId = await seedTopicWithRoot(topicId)
+      await seedFileEntry(attachmentFileId)
+      await seedFileEntry(toolOutputFileId)
+      const user = messageService.create(topicId, {
+        parentId: rootId,
+        role: 'user',
+        data: partsWithFile(attachmentFileId),
+        status: 'success'
+      })
+      const assistant = messageService.create(topicId, {
+        parentId: user.id,
+        role: 'assistant',
+        data: { parts: [approvalPart] },
+        status: 'error'
+      })
+      const awaitingInput = messageService.create(topicId, {
+        parentId: assistant.id,
+        role: 'user',
+        data: { parts: [] },
+        status: 'success'
+      })
+      topicService.delete(topicId)
+      return { rootId, user, assistant, awaitingInput }
+    }
+
+    async function storedSnapshot() {
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+      const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topicId))
+      const refs = await dbh.db.select().from(chatMessageFileRefTable)
+      return {
+        topic,
+        messages: messages.sort((a, b) => a.id.localeCompare(b.id)),
+        refs: refs.sort((a, b) => `${a.sourceId}:${a.fileEntryId}`.localeCompare(`${b.sourceId}:${b.fileEntryId}`))
+      }
+    }
+
+    function captureError(run: () => unknown): unknown {
+      try {
+        run()
+      } catch (error) {
+        return error
+      }
+      return undefined
+    }
+
+    function expectNotFound(run: () => unknown): void {
+      expect(captureError(run)).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    }
+
+    it('hides messages owned by a trashed topic from normal reads', async () => {
+      const { user, assistant, awaitingInput } = await seedTrashedTopic()
+
+      for (const read of [
+        () => messageService.getTree(topicId),
+        () => messageService.getBranchMessages(topicId),
+        () => messageService.getById(user.id),
+        () => messageService.getPathThrough(topicId, user.id),
+        () => messageService.getPathToNode(user.id)
+      ]) {
+        expectNotFound(read)
+      }
+      expect(messageService.getChildrenByParentId(assistant.id)).toEqual([])
+      expect(messageService.isAwaitingInputLeaf(awaitingInput.id, topicId)).toBe(false)
+    })
+
+    type TrashedWriteCase = {
+      name: string
+      run: (fixture: Awaited<ReturnType<typeof seedTrashedTopic>>) => unknown
+      missingResult?: false | null
+    }
+
+    const trashedWriteCases: TrashedWriteCase[] = [
+      {
+        name: 'create',
+        run: () =>
+          messageService.create(topicId, {
+            role: 'system',
+            data: mainText('late system message'),
+            status: 'success',
+            setAsActive: false
+          })
+      },
+      {
+        name: 'createUserMessageWithPlaceholders',
+        run: () =>
+          messageService.createUserMessageWithPlaceholders({
+            topicId,
+            userMessage: {
+              mode: 'create',
+              dto: { role: 'system', data: mainText('late reservation'), status: 'success' }
+            },
+            placeholders: [],
+            preserveActiveNode: true
+          })
+      },
+      { name: 'update', run: ({ user }) => messageService.update(user.id, { data: mainText('changed') }) },
+      {
+        name: 'updateSiblingsGroupId',
+        run: ({ user }) => messageService.updateSiblingsGroupId(user.id, 999)
+      },
+      { name: 'createSibling', run: ({ user }) => messageService.createSibling(user.id, mainText('late sibling')) },
+      { name: 'reserveBranch', run: ({ assistant }) => messageService.reserveBranch(assistant.id) },
+      {
+        name: 'setCompactionSummary',
+        run: ({ user }) => messageService.setCompactionSummary(user.id, 'late summary')
+      },
+      {
+        name: 'finalizeAssistantMessage',
+        run: ({ assistant }) =>
+          messageService.finalizeAssistantMessage(assistant.id, {
+            data: mainText('late final content'),
+            status: 'error'
+          })
+      },
+      {
+        name: 'resetAssistantForRetry',
+        run: ({ assistant }) => messageService.resetAssistantForRetry(assistant.id)
+      },
+      { name: 'deleteReplyGroup', run: ({ assistant }) => messageService.deleteReplyGroup(assistant.id) },
+      { name: 'delete', run: ({ user }) => messageService.delete(user.id) },
+      { name: 'clearTopicMessages', run: () => messageService.clearTopicMessages(topicId) },
+      {
+        name: 'addToolOutputFileRef',
+        run: ({ assistant }) => messageService.addToolOutputFileRef(assistant.id, toolOutputFileId),
+        missingResult: false
+      },
+      {
+        name: 'applyToolApprovalDecisions',
+        run: ({ assistant }) =>
+          messageService.applyToolApprovalDecisions(assistant.id, [{ approvalId: 'gate-approval', approved: true }]),
+        missingResult: null
+      }
+    ]
+
+    it.each(trashedWriteCases)('rejects $name writes owned by a trashed topic', async (testCase) => {
+      const fixture = await seedTrashedTopic()
+      const before = await storedSnapshot()
+      notifyDataApiDataChangeMock.mockClear()
+
+      if ('missingResult' in testCase) {
+        expect(testCase.run(fixture)).toBe(testCase.missingResult)
+      } else {
+        expectNotFound(() => testCase.run(fixture))
+      }
+
+      expect(await storedSnapshot()).toEqual(before)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('restores the unchanged message tree and still permits permanent purge', async () => {
+      const { user } = await seedTrashedTopic()
+      const trashed = await storedSnapshot()
+
+      topicService.restore(topicId)
+
+      expect(messageService.getById(user.id).data).toEqual(user.data)
+      expect(messageService.getTree(topicId).nodes.map((node) => node.id)).toContain(user.id)
+      expect((await storedSnapshot()).messages).toEqual(trashed.messages)
+
+      topicService.delete(topicId)
+      topicService.delete(topicId, { permanent: true })
+
+      expect(await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topicId))).toEqual([])
+      expect(await dbh.db.select().from(chatMessageFileRefTable)).toEqual([])
+    })
+
+    it('keeps boot reconciliation as an explicit raw maintenance path', async () => {
+      const { assistant } = await seedTrashedTopic()
+      await dbh.db.update(messageTable).set({ status: 'pending' }).where(eq(messageTable.id, assistant.id))
+
+      expect(messageService.findPendingAssistantMessageIds()).toContain(assistant.id)
+      messageService.markMessagesError([assistant.id])
+
+      const [stored] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
+      expect(stored.status).toBe('error')
+    })
+  })
+
   it('tracks conversation activity independently from metadata and later assistant rewrites', async () => {
     await dbh.db.insert(topicTable).values({
       id: 'topic-activity',
@@ -355,7 +547,7 @@ describe('MessageService', () => {
       dbh.db
         .update(messageTable)
         .set({
-          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] },
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }], modelSelection: 'explicit' },
           status: 'error',
           stats: {
             totalTokens: 42,
@@ -390,7 +582,7 @@ describe('MessageService', () => {
         siblingsGroupId: before.siblingsGroupId,
         modelId: before.modelId,
         status: 'pending',
-        data: { parts: [] }
+        data: { parts: [], modelSelection: 'explicit' }
       })
       expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
       expect(reset.stats).not.toHaveProperty('runtimeTiming')
@@ -1602,6 +1794,91 @@ describe('MessageService', () => {
     })
   })
 
+  describe('update — parent validation', () => {
+    it('rejects a self-parent without persisting any part of the patch', async () => {
+      const rootId = await seedTopicWithRoot('topic-parent')
+      const message = messageService.create('topic-parent', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('original'),
+        status: 'success'
+      })
+      const before = messageService.getById(message.id)
+
+      expect(() =>
+        messageService.update(message.id, { parentId: message.id, data: mainText('must not persist') })
+      ).toThrowError(expect.objectContaining({ code: ErrorCode.INVALID_OPERATION }))
+      expect(messageService.getById(message.id)).toEqual(before)
+    })
+
+    it.each(['message', 'virtual root'])('rejects a foreign-topic %s without changing either tree', async (kind) => {
+      const rootId = await seedTopicWithRoot('topic-parent')
+      const foreignRootId = await seedTopicWithRoot('topic-foreign')
+      const message = messageService.create('topic-parent', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('original'),
+        status: 'success'
+      })
+      const foreignMessage = messageService.create('topic-foreign', {
+        parentId: foreignRootId,
+        role: 'user',
+        data: mainText('foreign'),
+        status: 'success'
+      })
+      const originalTree = messageService.getTree('topic-parent', { depth: -1 })
+      const foreignTree = messageService.getTree('topic-foreign', { depth: -1 })
+      const before = messageService.getById(message.id)
+      const parentId = kind === 'message' ? foreignMessage.id : foreignRootId
+
+      expect(() => messageService.update(message.id, { parentId, data: mainText('must not persist') })).toThrowError(
+        expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
+      )
+      expect(messageService.getById(message.id)).toEqual(before)
+      expect(messageService.getTree('topic-parent', { depth: -1 })).toEqual(originalTree)
+      expect(messageService.getTree('topic-foreign', { depth: -1 })).toEqual(foreignTree)
+      messageService.clearTopicMessages('topic-foreign')
+      expect(messageService.getById(message.id)).toEqual(before)
+    })
+
+    it('rejects a descendant parent without changing the branch', async () => {
+      const { prompt, anchor, awaitingInput } = await seedAwaitingInputBranch('topic-parent')
+
+      expect(() => messageService.update(prompt.id, { parentId: awaitingInput.id })).toThrowError(
+        expect.objectContaining({ code: ErrorCode.INVALID_OPERATION })
+      )
+      expect(messageService.getPathToNode(awaitingInput.id).map((message) => message.id)).toEqual([
+        prompt.id,
+        anchor.id,
+        awaitingInput.id
+      ])
+    })
+
+    it.each(['message', 'virtual root'])('allows moving to a same-topic %s', async (kind) => {
+      const { prompt, anchor, awaitingInput } = await seedAwaitingInputBranch('topic-parent')
+      const rootId = messageService.getRootMessageIdTx(dbh.db, 'topic-parent')
+      const parentId = kind === 'message' ? prompt.id : rootId
+
+      const updated = messageService.update(awaitingInput.id, { parentId })
+
+      expect(updated.parentId).toBe(parentId)
+      expect(messageService.getById(awaitingInput.id).parentId).toBe(parentId)
+      expect(messageService.getPathToNode(awaitingInput.id).map((message) => message.id)).toEqual(
+        kind === 'message' ? [prompt.id, awaitingInput.id] : [awaitingInput.id]
+      )
+      expect(messageService.getById(anchor.id).parentId).toBe(prompt.id)
+    })
+
+    it('allows keeping the current parent while editing message data', async () => {
+      const { prompt, anchor } = await seedAwaitingInputBranch('topic-parent')
+
+      const updated = messageService.update(anchor.id, { parentId: prompt.id, data: mainText('edited') })
+
+      expect(updated.parentId).toBe(prompt.id)
+      expect(messageService.getById(anchor.id).data.parts).toEqual(mainText('edited').parts)
+    })
+  })
+
   describe('update — partial data patches', () => {
     it('preserves turnOptions when a patch sends only parts', async () => {
       const topicId = 'topic-turn-options'
@@ -2283,6 +2560,7 @@ describe('MessageService', () => {
       await seedChain('topic-deep-purge')
 
       topicService.delete('topic-deep-purge')
+      topicService.delete('topic-deep-purge', { permanent: true })
 
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
     })

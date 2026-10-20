@@ -114,7 +114,8 @@ function useTitleLabel(toolResponse: NormalToolResponse): string {
       return `tool_invoke · ${targetName}`
     }
     case 'tool_exec':
-      return 'tool_exec'
+    case 'codemode':
+      return name
   }
 }
 
@@ -129,6 +130,7 @@ const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = (
     case 'tool_invoke':
       return <ToolInvokeBody toolResponse={toolResponse} />
     case 'tool_exec':
+    case 'codemode':
       return <ToolExecBody toolResponse={toolResponse} />
   }
 }
@@ -136,6 +138,7 @@ const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = (
 // ── tool_search ────────────────────────────────────────────────────
 
 interface SearchOutput {
+  loaded?: string[]
   matchedNamespaces?: Array<{
     namespace: string
     tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
@@ -151,7 +154,9 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const out = (toolResponse.response ?? undefined) as SearchOutput | undefined
-  const matchedNamespaces = out?.matchedNamespaces ?? []
+  const matchedNamespaces =
+    out?.matchedNamespaces ??
+    (out?.loaded?.length ? [{ namespace: 'pi', tools: out.loaded.map((name) => ({ name })) }] : [])
 
   return (
     <BodyContainer>
@@ -241,7 +246,9 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const code = typeof args?.code === 'string' ? args.code : ''
-  const out = (toolResponse.response ?? undefined) as ExecOutput | undefined
+  const out = (
+    typeof toolResponse.response === 'string' ? { result: toolResponse.response } : (toolResponse.response ?? undefined)
+  ) as ExecOutput | undefined
 
   const { highlightCode } = useCodeStyle()
   const [highlighted, setHighlighted] = useState<string>('')

@@ -87,7 +87,6 @@ describe('CitationsPanel', () => {
         }
       }
     })
-    window.open = vi.fn()
   })
 
   it('renders citations in a page side panel and forwards platform actions', () => {
@@ -96,8 +95,9 @@ describe('CitationsPanel', () => {
       { number: 2, url: '', title: 'doc.md', type: 'knowledge' }
     ]
     const onClose = vi.fn()
+    const openBrowserUrl = vi.fn()
 
-    render(<CitationsPanel open={true} onClose={onClose} citations={citations} />)
+    render(<CitationsPanel open={true} onClose={onClose} citations={citations} openBrowserUrl={openBrowserUrl} />)
 
     expect(screen.getByText('message.citations')).toBeInTheDocument()
     expect(screen.getByLabelText('common.close')).toBeInTheDocument()
@@ -110,8 +110,7 @@ describe('CitationsPanel', () => {
     contentProps.actions?.openPath?.('/tmp/example.md')
     expect(mocks.fileOpenPath).toHaveBeenCalledWith('/tmp/example.md')
 
-    contentProps.actions?.openExternalUrl?.('https://example.com')
-    expect(window.open).toHaveBeenCalledTimes(1)
-    expect(window.open).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
+    contentProps.actions?.openBrowserUrl?.('https://example.com')
+    expect(openBrowserUrl).toHaveBeenCalledExactlyOnceWith('https://example.com')
   })
 })

@@ -4,6 +4,35 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  describe('unknown thrown values', () => {
+    it('serializes only the safe message from a structured provider event', () => {
+      const result = serializeError({
+        type: 'error',
+        sequence_number: 2,
+        error: {
+          code: 'credit_balance_exhausted',
+          message: 'You have no credits remaining.'
+        },
+        apiKey: 'object-secret',
+        prompt: 'private prompt'
+      })
+
+      expect(result).toEqual({
+        name: null,
+        message: 'You have no credits remaining.',
+        stack: null
+      })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|private prompt/)
+    })
+
+    it('drops an opaque object instead of stringifying it', () => {
+      const result = serializeError({ apiKey: 'object-secret', nested: { token: 'nested-secret' } })
+
+      expect(result).toEqual({ name: null, message: null, stack: null })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|nested-secret|\[object Object\]/)
+    })
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',
@@ -17,6 +46,31 @@ describe('serializeError', () => {
     )
     expect(serialized.lastError).toMatchObject({ providerErrorCategory: 'quota', responseBody: null, data: null })
     expect(JSON.stringify(serialized)).not.toContain('private prompt')
+  })
+
+  // The renderer consumer (ErrorBlock description + ErrorDetailModal detail row)
+  // reads these fields to tell empty OCR output apart from a failing processor;
+  // dropping them at the IPC boundary would reintroduce the generic unknown
+  // error the diagnostic detail exists to replace (#20343).
+  it('retains the OCR diagnostic detail fields across the serialization boundary', () => {
+    const error = new Error(
+      "The selected model isn't configured for image input, and Cherry Studio couldn't extract readable text from the attachment. Enable Vision for this model in Provider Settings, choose another vision-capable model, or remove the image and try again."
+    )
+    Object.assign(error, {
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_failed',
+      detailI18nValues: { reason: 'Unauthorized' },
+      providerErrorCategory: 'ocr'
+    })
+    const serialized = serializeError(error)
+    expect(serialized).toMatchObject({
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model',
+      detailI18nKey: 'ocr_detail_failed',
+      detailI18nValues: { reason: 'Unauthorized' },
+      providerErrorCategory: 'ocr'
+    })
   })
 
   describe('null preservation (FIX error-1)', () => {

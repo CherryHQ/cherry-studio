@@ -791,6 +791,99 @@ describe('ExportService', () => {
     })
   })
 
+  describe('force dollar math', () => {
+    beforeEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', true)
+    })
+
+    afterEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', false)
+    })
+
+    it('converts math delimiters in prose but leaves inline and fenced code untouched', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            'Euler: \\(e^{i\\pi}+1=0\\) and inline `re.match(r"\\(\\d+\\)", s)`',
+            '```bash',
+            'if \\[ -f x \\]; then echo "\\(ok\\)"; fi',
+            '```',
+            '\\[ a^2+b^2=c^2 \\]'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Euler: $e^{i\\pi}+1=0$')
+      expect(markdown).toContain('$$ a^2+b^2=c^2 $$')
+      expect(markdown).toContain('`re.match(r"\\(\\d+\\)", s)`')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo "\\(ok\\)"; fi')
+    })
+
+    it('leaves code inside the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n```bash\nif \\[ -f x \\]; then echo hi; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('keeps a stray backtick in the reasoning trace from pairing with a later fence', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'the ` char\nmath \\(x\\)\n```bash\nif \\[ -f x \\]; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('math $x$')
+      expect(markdown).toContain('if \\[ -f x \\]; fi')
+    })
+
+    it('leaves a tilde-fenced block in the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n~~~bash\nif \\[ -f x \\]; then echo hi; fi\n~~~' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('converts prose between code blocks when the first block contains a literal fence', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            '```python',
+            'print("```")',
+            '```',
+            '',
+            'Formula: \\(x\\)',
+            '',
+            '```python',
+            're.match(r"\\(\\d+\\)", s)',
+            '```'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Formula: $x$')
+      expect(markdown).toContain('print("```")')
+      expect(markdown).toContain('re.match(r"\\(\\d+\\)", s)')
+    })
+  })
+
   describe('messagesToMarkdown', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock
@@ -1336,15 +1429,6 @@ describe('Notion export alert callout wiring', () => {
 describe('ExportService image capture serialization', () => {
   let captureService: ExportService
 
-  const rect = (left: number, top: number, width: number, height: number) =>
-    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect
-
-  const stubGeometry = (el: HTMLElement, width: number, height: number) => {
-    Object.defineProperty(el, 'scrollWidth', { value: width, configurable: true })
-    Object.defineProperty(el, 'scrollHeight', { value: height, configurable: true })
-    el.getBoundingClientRect = () => rect(10, 20, width, height)
-  }
-
   const createNoteSurface = (noteId: string) => {
     const editor = document.createElement('div')
     editor.dataset.noteId = noteId
@@ -1371,266 +1455,110 @@ describe('ExportService image capture serialization', () => {
     }
   }
 
-  const captureState = (root: HTMLElement, artifact: HTMLElement) => ({
-    overflow: root.style.overflow,
-    height: root.style.height,
-    maxHeight: root.style.maxHeight,
-    captureMarker: root.getAttribute(IMAGE_CAPTURE_ATTRIBUTE),
-    artifactDisplay: artifact.style.display
-  })
+  const captureMarker = (root: HTMLElement) => root.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
-  const originalDocumentElementRect = document.documentElement.getBoundingClientRect.bind(document.documentElement)
+  const canvasStub = (dataUrl: string) => ({ toDataURL: vi.fn(() => dataUrl) }) as unknown as HTMLCanvasElement
 
   beforeEach(() => {
     captureService = new ExportService()
     vi.mocked(htmlToImage.toCanvas).mockReset()
-    vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
-      Promise.resolve({
-        toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
-        toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
-      } as unknown as HTMLCanvasElement)
-    )
-  })
-
-  afterEach(() => {
-    document.documentElement.getBoundingClientRect = originalDocumentElementRect
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => canvasStub('data:image/png;base64,xxx'))
   })
 
   it('serializes capture lifecycles across roots and restores each root before the next starts', async () => {
     const rootA = document.createElement('div')
-    const artifactA = document.createElement('div')
-    artifactA.setAttribute('data-html-artifact', '')
-    rootA.appendChild(artifactA)
-    rootA.style.overflow = 'auto'
-    rootA.style.height = '120px'
-    rootA.style.maxHeight = '240px'
     rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
-    artifactA.style.display = 'inline-block'
-    stubGeometry(rootA, 800, 600)
-
     const rootB = document.createElement('div')
-    const artifactB = document.createElement('div')
-    artifactB.setAttribute('data-html-artifact', '')
-    rootB.appendChild(artifactB)
-    rootB.style.overflow = 'scroll'
-    rootB.style.height = '180px'
-    rootB.style.maxHeight = '360px'
-    rootB.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
-    artifactB.style.display = 'grid'
-    stubGeometry(rootB, 800, 600)
+    const initialMarkerA = captureMarker(rootA)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-    const initialA = captureState(rootA, artifactA)
-    const initialB = captureState(rootB, artifactB)
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    let markerAWhenSecondCaptureStarted: string | null | undefined
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
       }
-
-      stateWhenSecondStarted = captureState(rootA, artifactA)
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
+      if (canvasCalls === 3) markerAWhenSecondCaptureStarted = captureMarker(rootA)
+      return canvasStub(`data:image/png;base64,call-${canvasCalls}`)
     })
 
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
-    })
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
+    await firstCanvasStarted.promise
 
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
-      await firstNativeEntered.promise
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
+    await flushMicrotasks()
 
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
-      await flushMicrotasks()
+    // The queued capture must not rasterize while the first one is in flight
+    expect(canvasCalls).toBe(1)
 
-      expect(nativeCalls).toBe(1)
+    releaseFirstCanvas.resolve()
+    await expect(firstCapture).resolves.toBe('data:image/png;base64,call-2')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,call-4')
 
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      await firstCapture
-      await secondCapture
-
-      expect(stateWhenSecondStarted).toEqual(initialA)
-      expect(captureState(rootA, artifactA)).toEqual(initialA)
-      expect(captureState(rootB, artifactB)).toEqual(initialB)
-    } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      requestAnimationFrameSpy.mockRestore()
-    }
+    // rootA's marker was already restored when rootB's rasterization started
+    expect(markerAWhenSecondCaptureStarted).toBe(initialMarkerA)
+    expect(captureMarker(rootA)).toBe(initialMarkerA)
+    expect(captureMarker(rootB)).toBe(null)
   })
 
   it('serializes same-root captures and restores the original state after both complete', async () => {
     const root = document.createElement('div')
-    const artifact = document.createElement('div')
-    artifact.setAttribute('data-html-artifact', '')
-    root.appendChild(artifact)
-    root.style.overflow = 'auto'
-    root.style.height = '120px'
-    root.style.maxHeight = '240px'
     root.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-capture')
-    artifact.style.display = 'inline-block'
-    stubGeometry(root, 800, 600)
+    const initialMarker = captureMarker(root)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-    const initial = captureState(root, artifact)
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
-      }
-
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
-    })
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
-    })
-
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: root })
-      await firstNativeEntered.promise
-
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: root })
-      await flushMicrotasks()
-
-      expect(nativeCalls).toBe(1)
-
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      await firstCapture
-      await secondCapture
-
-      expect(captureState(root, artifact)).toEqual(initial)
-    } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      requestAnimationFrameSpy.mockRestore()
-    }
-  })
-
-  it('runs the next queued capture after native failure and html-to-image fallback complete', async () => {
-    const rootA = document.createElement('div')
-    const artifactA = document.createElement('div')
-    artifactA.setAttribute('data-html-artifact', '')
-    rootA.appendChild(artifactA)
-    rootA.style.overflow = 'auto'
-    rootA.style.height = '120px'
-    rootA.style.maxHeight = '240px'
-    rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
-    artifactA.style.display = 'inline-block'
-    stubGeometry(rootA, 800, 600)
-
-    const rootB = document.createElement('div')
-    stubGeometry(rootB, 800, 600)
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-    const initialA = captureState(rootA, artifactA)
-    const fallbackStarted = deferred<void>()
-    const releaseFallback = deferred<void>()
-    let nativeCalls = 0
-    let htmlToImageCalls = 0
-    let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) throw new Error('CDP attach failed')
-
-      stateWhenSecondStarted = captureState(rootA, artifactA)
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
-    })
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
-      htmlToImageCalls += 1
-      if (htmlToImageCalls === 1) {
-        fallbackStarted.resolve()
-        await releaseFallback.promise
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
       }
-      return { toDataURL: vi.fn(() => 'data:image/png;base64,ZmFsbGJhY2s=') } as unknown as HTMLCanvasElement
+      return canvasStub(`data:image/png;base64,call-${canvasCalls}`)
     })
 
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
-    })
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: root })
+    await firstCanvasStarted.promise
 
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
-      await fallbackStarted.promise
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: root })
+    await flushMicrotasks()
 
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
-      await flushMicrotasks()
+    expect(canvasCalls).toBe(1)
+    // The in-flight capture owns the marker; the queued one must not clear it
+    expect(captureMarker(root)).toBe('')
 
-      expect(nativeCalls).toBe(1)
-      expect(htmlToImageCalls).toBe(1)
-
-      releaseFallback.resolve()
-      await expect(firstCapture).resolves.toBe('data:image/png;base64,ZmFsbGJhY2s=')
-      await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
-
-      expect(stateWhenSecondStarted).toEqual(initialA)
-      expect(captureState(rootA, artifactA)).toEqual(initialA)
-      expect(nativeCalls).toBe(2)
-      expect(htmlToImageCalls).toBe(2)
-    } finally {
-      releaseFallback.resolve()
-      requestAnimationFrameSpy.mockRestore()
-    }
+    releaseFirstCanvas.resolve()
+    // Each capture rasterizes twice (resource-cache warmup + final canvas)
+    await expect(firstCapture).resolves.toBe('data:image/png;base64,call-2')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,call-4')
+    expect(captureMarker(root)).toBe(initialMarker)
   })
 
   it('continues with a later capture when an earlier queued capture rejects', async () => {
     const rootA = document.createElement('div')
-    stubGeometry(rootA, 800, 600)
     const rootB = document.createElement('div')
-    stubGeometry(rootB, 800, 600)
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
 
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
-      }
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
-    })
-    vi.mocked(htmlToImage.toCanvas).mockRejectedValue(new Error('fallback failed'))
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
+    let canvasCalls = 0
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) throw new Error('rasterization failed')
+      return canvasStub('data:image/png;base64,c2Vjb25k')
     })
 
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
-      await firstNativeEntered.promise
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
-      await flushMicrotasks()
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
 
-      expect(nativeCalls).toBe(1)
-
-      firstNative.reject(new Error('native failed'))
-      await expect(firstCapture).rejects.toThrow('fallback failed')
-      await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
-      expect(nativeCalls).toBe(2)
-    } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      requestAnimationFrameSpy.mockRestore()
-    }
+    await expect(firstCapture).rejects.toThrow('rasterization failed')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
+    expect(canvasCalls).toBe(3)
   })
 
   it('resolves a queued note surface after a same-note rerender', async () => {
     const blocker = document.createElement('div')
-    stubGeometry(blocker, 800, 600)
     document.body.appendChild(blocker)
 
     const notesPage = document.createElement('div')
@@ -1639,8 +1567,6 @@ describe('ExportService image capture serialization', () => {
     notesPage.appendChild(originalNote.editor)
     document.body.appendChild(notesPage)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
     const readExternal = vi.fn().mockResolvedValue('')
     const saveImage = vi.fn().mockResolvedValue(true)
     Object.defineProperty(window, 'api', {
@@ -1651,31 +1577,24 @@ describe('ExportService image capture serialization', () => {
       configurable: true
     })
 
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
     let capturedNoteSurface: HTMLElement | undefined
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
-      }
-      throw new Error('CDP attach failed')
-    })
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async (element) => {
-      capturedNoteSurface = element
-      return { toDataURL: vi.fn(() => 'data:image/png;base64,note') } as unknown as HTMLCanvasElement
-    })
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
+      } else {
+        capturedNoteSurface = element
+      }
+      return canvasStub('data:image/png;base64,note')
     })
 
     try {
       const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
-      await firstNativeEntered.promise
+      await firstCanvasStarted.promise
 
       const noteCapture = exportNote({
         node: { id: 'note-a', name: 'Note', externalPath: '/notes/note.md' },
@@ -1683,29 +1602,30 @@ describe('ExportService image capture serialization', () => {
       })
       await flushMicrotasks()
 
-      expect(nativeCalls).toBe(1)
+      // The note capture stays queued behind the in-flight blocker capture
+      expect(canvasCalls).toBe(1)
 
       const replacementNote = createNoteSurface('note-a')
       originalNote.editor.replaceWith(replacementNote.editor)
 
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       await firstCapture
       await noteCapture
 
+      // The queued capture resolved its ref after the rerender, so it
+      // rasterized the replacement surface, not the detached original
       expect(capturedNoteSurface).toBe(replacementNote.scrollable)
       expect(capturedNoteSurface).not.toBe(originalNote.scrollable)
       expect(saveImage).toHaveBeenCalledWith('Note', 'data:image/png;base64,note')
     } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       blocker.remove()
       notesPage.remove()
-      requestAnimationFrameSpy.mockRestore()
     }
   })
 
   it('does not capture a different note when the requested note changes while queued', async () => {
     const blocker = document.createElement('div')
-    stubGeometry(blocker, 800, 600)
     document.body.appendChild(blocker)
 
     const notesPage = document.createElement('div')
@@ -1714,8 +1634,6 @@ describe('ExportService image capture serialization', () => {
     notesPage.appendChild(requestedNote.editor)
     document.body.appendChild(notesPage)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
     const readExternal = vi.fn().mockResolvedValue('')
     const saveImage = vi.fn().mockResolvedValue(true)
     Object.defineProperty(window, 'api', {
@@ -1726,26 +1644,21 @@ describe('ExportService image capture serialization', () => {
       configurable: true
     })
 
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
       }
-      return { dataUrl: 'data:image/png;base64,unexpected' }
-    })
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
+      return canvasStub('data:image/png;base64,YmxvY2tlcg==')
     })
 
     try {
       const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
-      await firstNativeEntered.promise
+      await firstCanvasStarted.promise
 
       const noteCapture = exportNote({
         node: { id: 'note-a', name: 'Note A', externalPath: '/notes/a.md' },
@@ -1756,18 +1669,18 @@ describe('ExportService image capture serialization', () => {
       const activeNote = createNoteSurface('note-b')
       requestedNote.editor.replaceWith(activeNote.editor)
 
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       await firstCapture
       await noteCapture
 
-      expect(nativeCalls).toBe(1)
-      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+      // Only the blocker capture rasterized; the queued note capture found
+      // its note gone and skipped rasterization and saving entirely
+      expect(canvasCalls).toBe(2)
       expect(saveImage).not.toHaveBeenCalled()
     } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       blocker.remove()
       notesPage.remove()
-      requestAnimationFrameSpy.mockRestore()
     }
   })
 })

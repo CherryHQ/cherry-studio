@@ -11,7 +11,7 @@ sources:
 
 Canonical spec for any sortable resource in the DataApi system. Uses a single fractional-indexing design ([fractional-indexing](https://www.npmjs.com/package/fractional-indexing), Rocicorp, ~2 KB gzip) — `PATCH /{resource}/:id/order` with an anchor body. Scales from tens to thousands of rows without background rebalancing; applies uniformly whether the view is paginated or not. Replaces the two incompatible predecessors (`PATCH /mini-apps` absolute `sortOrder` integers and `PATCH /mcp-servers` full `orderedIds` list).
 
-Provider enablement is transition-aware: `PATCH /providers/:providerId` moves a provider to the first position in the same transaction only when `isEnabled` changes from `false` to `true`. Redundant `true` updates preserve the user's existing order, while explicit reorder requests continue to use the canonical order routes.
+Enabling or disabling an existing provider via `PATCH /providers/:providerId` preserves its current order. Only `POST /providers` inserts at the first position. Explicit reorder requests continue to use the canonical order routes.
 
 Every sortable resource stores its position as a string `order_key` column. A reorder is always **relative** against an anchor (another row's id, or a `first` / `last` sentinel), never an absolute index. The server computes a new key between neighbours in one transaction; the renderer optimistically reorders its local cache and revalidates on completion.
 
@@ -275,6 +275,20 @@ Single field only — composite keys like `${providerId}:${modelName}` are out o
 | **Naked items wrapper** `{ items: T[] }` | `GET /knowledges/:id/items` | Reads `cache.items`. |
 
 No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged. For the pagination model itself, see the [Pagination Guide](./data-pagination-guide.md).
+
+For query-filtered collections, pass the same `query` as the read hook. For `useInfiniteQuery`, also pass `infinite: { limit }` with the same page limit:
+
+```tsx
+useReorder('/groups', { query: { entityType: 'knowledge' } })
+useReorder('/knowledge-bases', {
+  query: { sortBy: 'orderKey', sortOrder: 'asc' },
+  infinite: { limit: 100 }
+})
+```
+
+Infinite collections reorder the items across loaded pages, preserving page sizes and cursor metadata. Writes update both the aggregate and individual page caches through `useWriteInfiniteCache`; components render the cached result without a separate pending list.
+
+`move` accepts either an anchor directly or an extended request such as `{ anchor, groupId }`, forwarding the complete body to the server. A resource's `computeOptimistic(items, id, anchor, idKey, request)` reducer can use the fifth argument to update membership and reorder within the destination scope. Batch/list-diff operations continue to send ordinary anchor moves; use `move` for cross-scope changes.
 
 ### 4.4 Using accessors for nested shapes
 

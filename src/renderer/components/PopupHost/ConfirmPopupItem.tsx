@@ -1,6 +1,6 @@
 import { AlertCircle, Info, TriangleAlert, XCircle } from 'lucide-react'
 import type React from 'react'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 import {
   Button,
@@ -77,6 +77,7 @@ function getCancelText(props: ConfirmPopupProps) {
  */
 export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }) {
   const { props, confirmType: type, instanceId, open } = entry
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
 
   const icon = getIcon(type, props.icon)
   const showOkButton = shouldShowOkButton(props)
@@ -109,6 +110,12 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
         overlayClassName="z-[90]"
         className={cn('confirm-popup z-[90] gap-5 sm:max-w-lg', props.rootClassName, props.className)}
         style={getContentStyle(props)}
+        onOpenAutoFocus={(event) => {
+          if (props.autoFocusConfirm && confirmButtonRef.current && !confirmButtonRef.current.disabled) {
+            event.preventDefault()
+            confirmButtonRef.current.focus()
+          }
+        }}
         onCloseAutoFocus={
           props.focusOnClose
             ? (event) => {
@@ -159,6 +166,7 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
             {showOkButton && (
               <Button
                 variant={props.okButtonProps?.danger ? 'destructive' : 'default'}
+                ref={confirmButtonRef}
                 onClick={handleConfirm}
                 disabled={props.okButtonProps?.disabled}
                 className={props.okButtonProps?.className}

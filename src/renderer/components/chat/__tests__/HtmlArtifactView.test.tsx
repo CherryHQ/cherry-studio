@@ -8,7 +8,6 @@ import { ScrollOwnershipProvider } from '../messages/list/ScrollOwnershipContext
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
-  htmlPreviewRestrictedCsp: "default-src 'none'",
   resizeObserverCallbacks: [] as ResizeObserverCallback[],
   CodeViewer: vi.fn(({ value }) => <pre data-testid="code-viewer">{value}</pre>),
   HtmlPreviewFrame: vi.fn(
@@ -67,11 +66,13 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer }))
 vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ default: mocks.HtmlArtifactsPopup }))
-vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
-  HTML_PREVIEW_RESTRICTED_CSP: mocks.htmlPreviewRestrictedCsp,
-  injectHtmlPreviewHeadElement: (html: string, element: string) => `${element}${html}`,
-  default: mocks.HtmlPreviewFrame
-}))
+vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    default: mocks.HtmlPreviewFrame
+  }
+})
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ error: mocks.loggerError })
@@ -441,6 +442,14 @@ describe('HtmlArtifactView', () => {
     expect(instrumentedHtml).toContain('element.clientHeight + 1')
     expect(instrumentedHtml).toContain("style.overscrollBehaviorY === 'contain'")
     expect(instrumentedHtml).toContain('element.scrollHeight - 1')
+    expect(instrumentedHtml).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(instrumentedHtml).toContain('let scrollbarRoot = null')
+    expect(instrumentedHtml).toContain('const applyScrollbarGutter = () => {')
+    expect(instrumentedHtml).toContain(
+      'const nextScrollbarRoot = document.scrollingElement ?? document.documentElement'
+    )
+    expect(instrumentedHtml).toContain("scrollbarRoot.style.scrollbarGutter = 'stable'")
+    expect(instrumentedHtml).toContain("document.addEventListener('DOMContentLoaded', applyScrollbarGutter, true)")
   })
 
   it('routes webview boundary wheels through the scroll runtime', () => {
@@ -474,7 +483,8 @@ describe('HtmlArtifactView', () => {
       expect.objectContaining({
         html,
         sandbox: 'allow-same-origin',
-        csp: expect.stringContaining("default-src 'none'")
+        csp: expect.stringContaining("default-src 'none'"),
+        stableScrollbarGutter: true
       }),
       undefined
     )

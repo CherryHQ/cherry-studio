@@ -19,8 +19,8 @@ type Arch = 'x64' | 'arm64'
 
 const projectRoot = path.resolve(__dirname, '..', '..')
 const metadata = {
-  electronVersion: '41.8.0',
-  electronAbi: '145',
+  electronVersion: '44.2.0',
+  electronAbi: '149',
   betterSqlite3Version: '12.11.1'
 }
 
@@ -75,7 +75,7 @@ function downloadFixture(arch: Arch) {
   const config = {
     schemaVersion: 1,
     repository: 'CherryHQ/cherry-studio-better-sqlite3',
-    tag: 'better-sqlite3-v12.11.1-electron-v41.8.0-r1',
+    tag: 'better-sqlite3-v12.11.1-electron-v44.2.0-r2',
     metadata,
     artifacts: { [arch]: assets }
   }

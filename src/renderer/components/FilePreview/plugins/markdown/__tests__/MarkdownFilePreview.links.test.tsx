@@ -44,7 +44,7 @@ function renderArtifactPreview(openFile: (path: AbsoluteFilePath) => void) {
       <MarkdownFilePreview
         filePath={filePath}
         fileName="DESIGN.md"
-        metadata={{ size: 128 }}
+        metadata={{ size: 128, modifiedAt: 1 }}
         refreshKey={0}
         type="artifact"
       />
@@ -94,6 +94,20 @@ describe('MarkdownFilePreview links', () => {
 
     expect(openFile).toHaveBeenCalledWith('/tmp/workspace/packages/ui/docs/design-token-system.md')
     expect(screen.queryByText('Open external link?')).not.toBeInTheDocument()
+  })
+
+  it('uses the document directory for images while links keep the workspace root', async () => {
+    mocks.readText.mockResolvedValue('![diagram](images/diagram.png)\n\n[Guide](./guide.md)')
+    const openFile = vi.fn()
+    const user = userEvent.setup()
+    renderArtifactPreview(openFile)
+
+    expect(await screen.findByRole('img', { name: 'diagram' })).toHaveAttribute(
+      'src',
+      'file:///tmp/workspace/docs/images/diagram.png'
+    )
+    await user.click(screen.getByRole('link', { name: 'Guide' }))
+    expect(openFile).toHaveBeenCalledWith('/tmp/workspace/guide.md')
   })
 
   it('opens a Windows drive-form Markdown link through the host', async () => {

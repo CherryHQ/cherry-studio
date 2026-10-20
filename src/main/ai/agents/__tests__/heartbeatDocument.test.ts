@@ -1,0 +1,76 @@
+import { mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { PathStaleVersionError } from '@main/utils/file'
+
+import { readHeartbeatDocument, writeHeartbeatDocument } from '../heartbeatDocument'
+
+// Protect saved instructions against lost edits and writes outside the agent's storage.
+describe('heartbeatDocument', () => {
+  const dbh = setupTestDatabase()
+  let root: string
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), 'heartbeat-editor-'))
+    vi.mocked(application.getPath).mockReturnValue(root)
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'a1', name: 'Test', type: 'claude-code', instructions: '', orderKey: 'a0' })
+      .run()
+  })
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true })
+    vi.mocked(application.getPath).mockReset()
+  })
+
+  it('creates the missing file and persists editable Markdown without changing agent configuration', async () => {
+    const initial = await readHeartbeatDocument('a1')
+    const saved = await writeHeartbeatDocument('a1', { ...initial, content: '- Check my inbox\n' })
+    expect((await readHeartbeatDocument('a1')).content).toBe('- Check my inbox\n')
+    expect(await readFile(path.join(root, 'a1', 'heartbeat.md'), 'utf8')).toBe(saved.content)
+    expect(dbh.db.select().from(agentTable).all()[0].configuration).toEqual({})
+  })
+
+  it('saves an unchanged document after reading a sub-millisecond modification time', async () => {
+    await readHeartbeatDocument('a1')
+    const target = path.join(root, 'a1', 'heartbeat.md')
+    const modifiedAtSeconds = 1_700_000_000 + 0.1239999
+    await utimes(target, modifiedAtSeconds, modifiedAtSeconds)
+
+    const document = await readHeartbeatDocument('a1')
+    expect(document.version.mtime).toBe(Math.floor((await stat(target)).mtimeMs))
+    const saved = await writeHeartbeatDocument('a1', { ...document, content: '- Updated checklist\n' })
+
+    expect(await readFile(target, 'utf8')).toBe('- Updated checklist\n')
+    expect(saved.version.mtime).toBe(Math.floor((await stat(target)).mtimeMs))
+  })
+
+  it('rejects a stale edit without overwriting externally updated tasks', async () => {
+    const initial = await readHeartbeatDocument('a1')
+    await writeFile(path.join(root, 'a1', 'heartbeat.md'), '- external changes\n')
+    await expect(writeHeartbeatDocument('a1', { ...initial, content: '- stale changes' })).rejects.toBeInstanceOf(
+      PathStaleVersionError
+    )
+    expect((await readHeartbeatDocument('a1')).content).toBe('- external changes\n')
+  })
+
+  it('refuses a symlink replacing the checklist', async () => {
+    const initial = await readHeartbeatDocument('a1')
+    const outside = path.join(root, 'other.md')
+    await writeFile(outside, 'Keep me')
+    await rm(path.join(root, 'a1', 'heartbeat.md'))
+    await symlink(outside, path.join(root, 'a1', 'heartbeat.md'))
+    await expect(writeHeartbeatDocument('a1', { ...initial, content: 'Overwrite' })).rejects.toThrow()
+    await expect(readHeartbeatDocument('a1')).rejects.toThrow()
+    expect(await readFile(outside, 'utf8')).toBe('Keep me')
+  })
+
+  it('does not provision files for a missing agent', async () => {
+    await expect(readHeartbeatDocument('../escape')).rejects.toThrow('unavailable')
+  })
+})
