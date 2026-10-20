@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/testing/2026-10-20-on-demand-qa.md
-2026-10-20-on-demand-qa.md: 125a67ba8a03d6c53a234d417b48e67c2ad7faf3
-2026-10-20-on-demand-qa.zh.md: 63036020c5eaf558859531bbf483c6d902bb6bb5
