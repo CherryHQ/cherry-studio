@@ -6,6 +6,7 @@ import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/ty
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
+import type { AgentSubmission } from './agentSubmission'
 import { userModelTable } from './userModel'
 
 export const agentSessionMessageTable = sqliteTable(
@@ -25,6 +26,7 @@ export const agentSessionMessageTable = sqliteTable(
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
+    submission: text({ mode: 'json' }).$type<AgentSubmission>(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
