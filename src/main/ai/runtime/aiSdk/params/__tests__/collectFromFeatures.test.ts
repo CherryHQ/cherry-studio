@@ -23,7 +23,8 @@ function makeScope(): RequestScope {
     requestContext: { requestId: 'req-1', abortSignal: new AbortController().signal },
     mcpToolIds: new Set(),
     contextSettings: DEFAULT_CONTEXT_SETTINGS,
-    compressionModel: null
+    compressionModel: null,
+    hasMessageAnchor: false
   }
 }
 

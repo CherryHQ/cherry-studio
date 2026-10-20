@@ -67,16 +67,15 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
 
-function toCompactionSink(messageIds: string[], subscriber: StreamListener): CompactionSink {
-  return (anchorId, data) => {
-    // Preparation has no execution identity yet, so its progress cannot use the execution stream.
+function toCompactionProgressSink(messageIds: string[]): CompactionSink {
+  return (_anchorId, data) => {
+    // Preparation has no execution identity yet; only the shared cache carries live progress.
     const cache = application.get('CacheService')
     for (const messageId of messageIds) {
       const key = `message.context.compacting.${messageId}` as const
       if (data.status === 'compacting') cache.setShared(key, true)
       else cache.deleteShared(key)
     }
-    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data })
   }
 }
 
@@ -469,16 +468,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(
-          assistantPlaceholders.map(({ placeholder }) => placeholder.id),
-          subscriber
-        )
+        toCompactionProgressSink(assistantPlaceholders.map(({ placeholder }) => placeholder.id))
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
@@ -511,6 +511,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return {
         topicId: req.topicId,
         models: models_,
+        compactionAnchors,
         listeners,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
@@ -565,13 +566,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
 
     try {
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(
         parent.id,
         req.topicId,
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink([target.id], subscriber)
+        toCompactionProgressSink([target.id])
       )
       const request = this.buildStreamRequest(
         req.topicId,
@@ -626,6 +631,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return {
         topicId: req.topicId,
         models: [{ modelId: model.id, request, seedFromEmpty: true, rootSpan }],
+        compactionAnchors,
         listeners,
         reservedMessages: [toReservedUIMessage(resetMessage)],
         siblingsGroupId: target.siblingsGroupId || undefined,
@@ -711,16 +717,21 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(
         anchor.id,
         req.topicId,
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink([anchor.id], subscriber)
+        toCompactionProgressSink([anchor.id])
       )
       return {
         topicId: req.topicId,
+        compactionAnchors,
         models: [
           {
             modelId: model.id,
@@ -812,17 +823,22 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: compactedHistory,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink([placeholder.id], subscriber)
+        toCompactionProgressSink([placeholder.id])
       )
       const history = withSteerReminder(compactedHistory)
       return {
         topicId: req.topicId,
+        compactionAnchors,
         models: [
           {
             modelId: model.id,
@@ -907,9 +923,19 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     models: Model[],
     assistantId: string | undefined,
     assistantContextOverride?: ContextSettingsOverride | null,
-    /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
-    compactionSink?: CompactionSink
-  ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
+    compactionProgressSink?: CompactionSink
+  ): Promise<{
+    messages: CherryUIMessage[]
+    retainedContext: RetainedContext
+    compactionAnchors: Array<{ id: string; data: CompactionAnchorData }>
+  }> {
+    const compactionAnchors: Array<{ id: string; data: CompactionAnchorData }> = []
+    const compactionSink: CompactionSink = (id, data) => {
+      const at = compactionAnchors.findIndex((anchor) => anchor.id === id)
+      if (at >= 0) compactionAnchors[at] = { id, data }
+      else compactionAnchors.push({ id, data })
+      compactionProgressSink?.(id, data)
+    }
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
@@ -953,14 +979,25 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantContextOverride
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
-    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    const serve = (rows_: typeof effective) => ({
+      messages: rows_.map((r) => this.toServed(r)),
+      retainedContext,
+      compactionAnchors
+    })
     // NOT gated on `contextSettings.enabled`: that switch owns the overflow
     // policy, while this decides how much history is sent at all.
     if (contextSettings.maxMessages != null) {
       // RAW rows, no compaction state: a summary covers everything up to its
       // boundary, so serving one would carry pre-window content back in.
       const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
-      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
+      return {
+        messages: windowed.map((r) => this.toServed(r)),
+        retainedContext: retainedForWindow(windowed),
+        compactionAnchors
+      }
+    }
+    if (contextSettings.enabled && contextSettings.compress.enabled && !compressionModel) {
+      compactionSink(`compression-model:${topicId}`, { status: 'failed', phase: 'turn-start' })
     }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
@@ -1074,9 +1111,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
-      // Un-compacted history served → settle `skipped`, not `done` (no false marker).
       compactionSink?.(anchorId, {
-        status: 'skipped',
+        status: 'failed',
         phase: 'turn-start',
         startedAt,
         completedAt: new Date().toISOString()

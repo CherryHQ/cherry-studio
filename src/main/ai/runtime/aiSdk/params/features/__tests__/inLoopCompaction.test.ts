@@ -33,6 +33,8 @@ const provider = (adapterFamily = 'anthropic') =>
 
 const scope = (overrides: {
   chatId?: string
+  assistant?: boolean
+  hasMessageAnchor?: boolean
   contextOwner?: 'cherry' | 'caller'
   contextWindow?: number
   enabled?: boolean
@@ -46,6 +48,8 @@ const scope = (overrides: {
       conversation: { id: overrides.chatId ?? 'no-topic', topicId: overrides.chatId },
       contextOwner: overrides.contextOwner
     },
+    assistant: overrides.assistant === false ? undefined : { id: 'assistant-1', settings: {} },
+    hasMessageAnchor: overrides.hasMessageAnchor ?? true,
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -109,12 +113,6 @@ describe('inLoopCompactionFeature', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ contextWindow: CONTEXT_WINDOW }))).toBe(false)
   })
 
-  it('does not gate on contextWindow — required input guaranteed upstream, not checked here', () => {
-    // The compaction layer treats contextWindow as a required precondition (the model
-    // layer's contract); it neither fabricates a fallback nor excludes when absent.
-    expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: undefined }))).toBe(true)
-  })
-
   it('does not apply for agent-session topics', () => {
     expect(
       inLoopCompactionFeature.applies?.(scope({ chatId: 'agent-session:s1', contextWindow: CONTEXT_WINDOW }))
@@ -147,12 +145,66 @@ describe('inLoopCompactionFeature', () => {
     ).toBe(false)
   })
 
-  it('does not apply when there is no compression model', () => {
-    expect(
-      inLoopCompactionFeature.applies?.(
-        scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, compressionModel: null })
-      )
-    ).toBe(false)
+  it.each([
+    { chatId: 'topic-1', expectedWarnings: 1 },
+    { chatId: 'topic-1', assistant: false, expectedWarnings: 1 },
+    { chatId: 'translation-stream', assistant: false, hasMessageAnchor: false, expectedWarnings: 0 },
+    { chatId: 'prompt-stream', assistant: false, hasMessageAnchor: false, expectedWarnings: 0 },
+    { chatId: 'prompt-stream', hasMessageAnchor: false, expectedWarnings: 0 },
+    { chatId: 'temp:t1', expectedWarnings: 0 },
+    { chatId: 'agent-session:s1', expectedWarnings: 0 },
+    { chatId: undefined, expectedWarnings: 0 },
+    { chatId: 'gateway-request-1', contextOwner: 'caller' as const, expectedWarnings: 0 },
+    { chatId: 'topic-1', enabled: false, expectedWarnings: 0 },
+    { chatId: 'topic-1', compressEnabled: false, expectedWarnings: 0 }
+  ])('reports an unavailable compressor only where compression applies: %j', (testCase) => {
+    const warnings: unknown[] = []
+    const requestScope = scope({ ...testCase, contextWindow: CONTEXT_WINDOW, compressionModel: null })
+    requestScope.compactionSink = (id: string, data: unknown) => warnings.push({ id, data })
+    const hooks = inLoopCompactionFeature.applies!(requestScope)
+      ? inLoopCompactionFeature.contributeHooks!(requestScope)
+      : {}
+
+    expect(hooks).toEqual({})
+    expect(warnings).toEqual(
+      testCase.expectedWarnings
+        ? [
+            {
+              id: 'compression-model:topic-1',
+              data: { status: 'failed', phase: 'turn-start' }
+            }
+          ]
+        : []
+    )
+  })
+
+  it('does not compact assistant-less prompt streams even with a valid compressor', () => {
+    const requestScope = scope({
+      chatId: 'translation-stream',
+      assistant: false,
+      hasMessageAnchor: false,
+      contextWindow: CONTEXT_WINDOW
+    })
+    const hooks = inLoopCompactionFeature.applies!(requestScope)
+      ? inLoopCompactionFeature.contributeHooks!(requestScope)
+      : {}
+
+    expect(hooks).toEqual({})
+  })
+
+  it.each([true, false])('compacts persistent history with assistant presence %s', async (assistant) => {
+    compactModelMessages.mockClear()
+    const compacted = [assistantMessage(10), userMessage(10)]
+    compactModelMessages.mockResolvedValue(compacted)
+    const requestScope = scope({ chatId: 'topic-1', assistant, contextWindow: CONTEXT_WINDOW })
+    const hooks = inLoopCompactionFeature.applies!(requestScope)
+      ? inLoopCompactionFeature.contributeHooks!(requestScope)
+      : {}
+    const messages = [userMessage(90_000), assistantMessage(10), userMessage(10)]
+
+    const result = await hooks.prepareStep?.({ messages } as any)
+
+    expect(result).toEqual({ messages: compacted })
   })
 
   // --- contributeHooks: prepareStep ---
@@ -318,9 +370,10 @@ describe('inLoopCompactionFeature', () => {
       compactModelMessages.mockClear()
       compactModelMessages.mockRejectedValue(new Error('429 rate limited'))
       const { events, prepareStep } = withSink()
-      await prepareStep({ messages: [userMessage(90_000)] } as any)
-      // Nothing was folded, so the spinner clears as `skipped` rather than claiming a compaction.
-      expect(events.map((e) => e.status)).toEqual(['compacting', 'skipped'])
+      const messages = [userMessage(90_000)]
+      await expect(prepareStep({ messages } as any)).resolves.toBeUndefined()
+      expect(events.map((e) => e.status)).toEqual(['compacting', 'failed'])
+      expect(events[0].id).toBe(events[1].id)
     })
 
     // #17837's second half: the `done` anchor was emitted BEFORE the `compacted === candidate`

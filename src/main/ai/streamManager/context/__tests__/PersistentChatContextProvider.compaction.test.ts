@@ -17,7 +17,7 @@ import type * as AiCore from '@cherrystudio/ai-core'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { makeProvider } from '../../../__tests__/fixtures'
+import { makeAssistant, makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
 import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
 import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
@@ -717,38 +717,41 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     ])
   }
 
-  it.each(['success', 'empty', 'error'] as const)(
-    'publishes progress before summarization settles and clears it after %s',
-    async (outcome) => {
-      fiveBigTurns()
-      compressionOn()
-      const summary = Promise.withResolvers<string>()
-      mockSummarizeModelMessages.mockReturnValueOnce(summary.promise)
-      const preparation = makeHistory('u3', [DEFAULT_MODEL_ID, createUniqueModelId('openai', 'other-model')])
-      const keys = ['message.context.compacting.ph0', 'message.context.compacting.ph1'] as const
+  it.each([
+    { outcome: 'success', status: 'done', messageIds: ['compaction:a2', 'u3'] },
+    { outcome: 'empty', status: 'skipped', messageIds: ['u1', 'a1', 'u2', 'a2', 'u3'] },
+    { outcome: 'error', status: 'failed', messageIds: ['u1', 'a1', 'u2', 'a2', 'u3'] }
+  ])('keeps live progress separate from execution anchors after $outcome', async ({ outcome, status, messageIds }) => {
+    fiveBigTurns()
+    compressionOn()
+    const summary = Promise.withResolvers<string>()
+    mockSummarizeModelMessages.mockReturnValueOnce(summary.promise)
+    const preparation = makeHistory('u3', [DEFAULT_MODEL_ID, createUniqueModelId('openai', 'other-model')])
+    const keys = ['message.context.compacting.ph0', 'message.context.compacting.ph1'] as const
 
-      try {
-        await vi.waitFor(() => {
-          for (const key of keys) expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBe(true)
-        })
-        expect(capturedChunks.filter((chunk) => chunk.type === 'data-compaction-anchor')).toEqual([
-          expect.objectContaining({ data: expect.objectContaining({ status: 'compacting' }) })
-        ])
-      } finally {
-        if (outcome === 'error') summary.reject(new Error('summarizer failed'))
-        else summary.resolve(outcome === 'success' ? 'SUMMARY_TEXT' : '')
-        await preparation
-      }
-
-      for (const key of keys) expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBeUndefined()
-      const anchors = capturedChunks.filter((chunk) => chunk.type === 'data-compaction-anchor')
-      expect(anchors.map((chunk) => chunk.data.status)).toEqual([
-        'compacting',
-        outcome === 'success' ? 'done' : 'skipped'
-      ])
-      expect(new Set(anchors.map((chunk) => chunk.id)).size).toBe(1)
+    try {
+      await vi.waitFor(() => {
+        for (const key of keys) expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBe(true)
+      })
+      expect(capturedChunks).toEqual([])
+    } finally {
+      if (outcome === 'error') summary.reject(new Error('summarizer failed'))
+      else summary.resolve(outcome === 'success' ? 'SUMMARY_TEXT' : '')
     }
-  )
+
+    const { prepared, messages } = await preparation
+
+    for (const key of keys) expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toBeUndefined()
+    expect(capturedChunks).toEqual([])
+    expect(prepared.compactionAnchors).toEqual([
+      {
+        id: expect.any(String),
+        data: expect.objectContaining({ status, phase: 'turn-start' })
+      }
+    ])
+    expect(messages.map((message) => message.id)).toEqual(messageIds)
+    if (outcome !== 'success') expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+  })
 
   it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {
     // a1 carries a persisted tool-output envelope and is folded behind a2's
@@ -1114,10 +1117,12 @@ const estimateModelMessages = (messages: Array<{ content: unknown }>) =>
 function inLoopScope(contextWindow: number): RequestScope {
   return {
     request: { conversation: { id: 'topic-1', topicId: 'topic-1' } },
+    assistant: makeAssistant(),
     model: makeModel(DEFAULT_MODEL_ID, contextWindow),
     provider: makeProvider({ id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} }),
     contextSettings: DEFAULT_CONTEXT_SETTINGS,
     compressionModel: { languageModel: new MockLanguageModelV3({ modelId: 'compression-model' }), contextWindow },
+    hasMessageAnchor: true,
     signal: undefined,
     registry: new ToolRegistry(),
     mcpToolIds: new Set(),
