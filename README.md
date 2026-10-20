@@ -54,6 +54,10 @@ Cherry Studio is an AI workstation for Windows, macOS, and Linux. Chat with mult
 
 ![Cherry Studio conversation displaying a Mermaid chart](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/chat-light-en.webp)
 
+**Model providers — configure services, API keys, and models in one place.**
+
+![Cherry Studio model provider settings in light mode](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/provider-light-en.webp)
+
 **Knowledge bases — organize sources for retrieval and agent workflows.**
 
 ![Cherry Studio knowledge base with folders and documents](https://raw.githubusercontent.com/CherryHQ/cherry-studio-website/ce6b0721959ad7d58c51d1bdc4a08a362314db3a/src/assets/images/screenshots/product-features-0819/knowledge-light-en.webp)
