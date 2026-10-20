@@ -557,7 +557,7 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
+  const { isPending, status, turnId, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
@@ -1510,7 +1510,7 @@ const ChatComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload) => {
+    async (payload: ComposerQueuedMessagePayload, showErrorToast = true) => {
       setIsSending(true)
 
       try {
@@ -1529,7 +1529,7 @@ const ChatComposerInner = ({
         return true
       } catch (error) {
         logger.warn('send failed', { error })
-        toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
+        if (showErrorToast) toast.errorFromException(error ?? new Error(t('chat.input.send_failed')))
         return false
       } finally {
         setIsSending(false)
@@ -1567,9 +1567,12 @@ const ChatComposerInner = ({
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
-    isFulfilled,
+    status,
+    turnId,
+    autoSendEnabled: true,
     markSeen,
-    onDrain: sendQueuedPayload
+    onDrain: (payload) => sendQueuedPayload(payload, false),
+    onDrainFailed: () => toast.warning(t('chat.input.followup_queue.auto_send_stopped'))
   })
   releaseFollowupEditRef.current = releaseEdit
   const followupScopeRef = useLatest(selectedKnowledgeBasesScopeKey)

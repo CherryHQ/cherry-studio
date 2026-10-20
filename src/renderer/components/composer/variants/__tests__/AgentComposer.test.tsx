@@ -1,5 +1,6 @@
 import { basename } from 'node:path'
 
+import { createMockCacheService } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
@@ -88,7 +89,7 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
-  topicFulfilled: false,
+  topicStatus: undefined as 'done' | 'error' | 'aborted' | undefined,
   markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
@@ -559,7 +560,8 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({
     isPending: false,
-    isFulfilled: mocks.topicFulfilled,
+    status: mocks.topicStatus,
+    turnId: 'agent-turn-1',
     markSeen: mocks.markTopicSeen
   })
 }))
@@ -830,7 +832,7 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
-    mocks.topicFulfilled = false
+    mocks.topicStatus = undefined
     mocks.markTopicSeen.mockReset()
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
@@ -4826,7 +4828,7 @@ describe('AgentComposer', () => {
     const { rerender } = render(<AgentComposer {...props(true)} />)
 
     fireEvent.click(screen.getByText('send'))
-    mocks.topicFulfilled = true
+    mocks.topicStatus = 'done'
     rerender(<AgentComposer {...props(false)} />)
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
@@ -5588,6 +5590,9 @@ describe('AgentComposer', () => {
   })
   describe('queued edit switching', () => {
     async function setup(texts = ['A', 'B']) {
+      const queueCache = createMockCacheService()
+      vi.mocked(cacheService.getCasual).mockImplementation(queueCache.getCasual)
+      vi.mocked(cacheService.setCasual).mockImplementation(queueCache.setCasual)
       mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
       const send = mocks.sendMessage
       send.mockResolvedValue(undefined)
@@ -5615,6 +5620,119 @@ describe('AgentComposer', () => {
       }
       return { dock, originals, edit, view, component, send }
     }
+
+    it.each(['error', 'aborted'] as const)(
+      'does not strand stored payloads on %s or overwrite the unsent editor',
+      async (status) => {
+        const {
+          dock,
+          originals: [a, b],
+          view,
+          component,
+          send
+        } = await setup()
+        await act(async () => {
+          mocks.surfaceProps?.onTextChange('unsent D')
+        })
+        mocks.topicStatus = status
+        view.rerender(component(false))
+        await waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+        expect(send).toHaveBeenCalledWith(
+          { text: a.payload.text },
+          {
+            body: expect.objectContaining({
+              agentId: 'agent-1',
+              sessionId: 'session-1',
+              userMessageParts: a.payload.userMessageParts,
+              reasoningEffort: a.payload.reasoningEffort,
+              serviceTier: a.payload.serviceTier
+            })
+          }
+        )
+        expect(dock().items).toEqual([b])
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+      }
+    )
+
+    it.each(['false', 'reject'] as const)(
+      'retains a failed automatic payload (%s) with exactly one stopped notice',
+      async (outcome) => {
+        const {
+          dock,
+          originals: [a, b],
+          view,
+          component,
+          send
+        } = await setup()
+        if (outcome === 'false') send.mockResolvedValueOnce(false)
+        else send.mockRejectedValueOnce(new Error('automatic failure'))
+        await act(async () => {
+          mocks.surfaceProps?.onTextChange('unsent D')
+        })
+        mocks.topicStatus = 'error'
+        view.rerender(component(false))
+        await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('chat.input.followup_queue.auto_send_stopped'))
+        expect(toast.warning).toHaveBeenCalledTimes(1)
+        expect(toast.errorFromException).not.toHaveBeenCalled()
+        expect(dock().items).toEqual([a, b])
+        expect(dock().paused).toBe(true)
+        expect(mocks.surfaceProps?.text).toBe('unsent D')
+      }
+    )
+
+    it.each(['done', 'error', 'aborted'] as const)(
+      'does not drain %s while disabled or in an edit scope',
+      async (status) => {
+        const {
+          dock,
+          originals: [a, b],
+          view,
+          component,
+          send
+        } = await setup()
+        mocks.topicStatus = status
+        await act(async () => {
+          view.rerender(
+            <AgentComposer
+              agentId="agent-1"
+              sessionId="session-1"
+              sendMessage={send}
+              stop={mocks.stop}
+              isStreaming={false}
+              sendDisabled
+            />
+          )
+        })
+        expect(send).not.toHaveBeenCalled()
+        expect(dock().items).toEqual([a, b])
+        cacheService.setCasual('followup-queue.agent-session:session-1:edit:editing-message', [a, b])
+        await act(async () => {
+          view.rerender(
+            <AgentComposer
+              agentId="agent-1"
+              sessionId="session-1"
+              sendMessage={send}
+              stop={mocks.stop}
+              isStreaming={false}
+              launchOptions={{
+                initialDraft: { text: 'editing D', tokens: [] },
+                editing: { messageId: 'editing-message', onCancel: vi.fn() }
+              }}
+            />
+          )
+        })
+        expect(send).not.toHaveBeenCalled()
+        expect(
+          cacheService.getCasual('followup-queue-last-drained-turn.agent-session:session-1:edit:editing-message')
+        ).toBeUndefined()
+        expect(cacheService.getCasual('followup-queue.agent-session:session-1:edit:editing-message')).toEqual([a, b])
+        await act(async () => {
+          view.rerender(component(false))
+        })
+        expect(send).toHaveBeenCalledTimes(1)
+        expect(dock().items).toEqual([b])
+      }
+    )
 
     it('rebuilds live controls without reviving removed Fast mode', async () => {
       mocks.modelResult = { ...model, supportsFastMode: true }
@@ -5819,7 +5937,7 @@ describe('AgentComposer', () => {
       await edit(a.id)
       act(() => mocks.surfaceProps?.onTextChange('A-prime'))
       await edit(b.id)
-      mocks.topicFulfilled = true
+      mocks.topicStatus = 'done'
       await act(async () => {
         view.rerender(component(false))
       })
