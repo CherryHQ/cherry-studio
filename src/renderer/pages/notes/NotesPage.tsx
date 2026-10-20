@@ -206,7 +206,9 @@ const NotesPage: FC = () => {
 
   // Notes-root transitions (migration / fallback): remembered until the new
   // tree is projected so the active selection can follow the moved library.
-  const notesRootTransitionRef = useRef<{ from: string; to: string } | null>(null)
+  // The chain ends at the live root, so a selection parked on any earlier root
+  // still maps even after several consecutive migrations.
+  const notesRootTransitionRef = useRef<string[] | null>(null)
   const lastSeenNotesPathRef = useRef<string | undefined>(notesPath)
 
   // Project the FS tree (from `useDirectoryTree`) into the legacy
@@ -215,18 +217,11 @@ const NotesPage: FC = () => {
   // the initial mount triggers when `treeRoot` first becomes non-null.
   useEffect(() => {
     if (lastSeenNotesPathRef.current !== notesPath) {
-      const from = lastSeenNotesPathRef.current
-      const migrationTransition = from && notesPath ? consumeNotesDirectoryRootTransition(notesPath) : null
       notesRootTransitionRef.current =
-        migrationTransition && from && normalizePathValue(migrationTransition.from) === normalizePathValue(from)
-          ? migrationTransition
-          : null
+        notesPath && lastSeenNotesPathRef.current ? consumeNotesDirectoryRootTransition(notesPath) : null
       lastSeenNotesPathRef.current = notesPath
     } else if (notesPath && !notesRootTransitionRef.current) {
-      const migrationTransition = consumeNotesDirectoryRootTransition(notesPath)
-      if (migrationTransition) {
-        notesRootTransitionRef.current = migrationTransition
-      }
+      notesRootTransitionRef.current = consumeNotesDirectoryRootTransition(notesPath)
     }
     if (!treeRoot || !notesPath) {
       setNotesTree([])
@@ -404,12 +399,14 @@ const NotesPage: FC = () => {
     if (shouldClearPath) {
       // A notes-root change may have moved the selected note to the same
       // relative location in the new directory — follow it instead of clearing.
-      const transition = notesRootTransitionRef.current
+      const chain = notesRootTransitionRef.current
       const activePath = activeFilePath ? normalizePathValue(activeFilePath) : ''
-      const mappedPath =
-        transition && activePath.startsWith(`${normalizePathValue(transition.from)}/`)
-          ? `${normalizePathValue(transition.to)}${activePath.slice(normalizePathValue(transition.from).length)}`
-          : undefined
+      // The selection can sit on any root the library has occupied; hops are
+      // non-nesting, so at most one contains it. Map that one to the live root so
+      // a window lagging a migration behind still follows instead of clearing.
+      const sourceRoot = chain?.find((root) => activePath.startsWith(`${root}/`))
+      const liveRoot = chain?.at(-1)
+      const mappedPath = sourceRoot && liveRoot ? `${liveRoot}${activePath.slice(sourceRoot.length)}` : undefined
       if (mappedPath && findNodeByPath(notesTree, mappedPath)?.type === 'file') {
         notesRootTransitionRef.current = null
         requestFileTransition(() => setActiveFilePath(AbsoluteFilePathSchema.parse(mappedPath)))

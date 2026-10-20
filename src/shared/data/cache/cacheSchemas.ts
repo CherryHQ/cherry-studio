@@ -360,8 +360,12 @@ export type SharedCacheSchema = {
   // mirrors the linked file-processing job's progress here every poll round so the row can
   // show a percentage during the 'processing' wait; absence means no progress was reported.
   'knowledge.item.file_processing_progress.${itemId}': number | null
-  /** Set after a successful directory migration so selection can follow the new root. */
-  'notes.directory_root_transition': { id: string; from: string; to: string } | undefined
+  /**
+   * Roots a notes library has occupied in this session, oldest first, ending at
+   * the live one. Lets a selection parked on any earlier root follow the library
+   * across several consecutive migrations.
+   */
+  'notes.directory_root_transition': { roots: string[] } | undefined
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {

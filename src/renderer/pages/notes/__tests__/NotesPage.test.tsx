@@ -690,9 +690,7 @@ describe('NotesPage print payloads', () => {
 
     const newNode = { ...mocks.noteNode, externalPath: '/new/notes/note.md', treePath: '/note' }
     cacheService.setShared('notes.directory_root_transition', {
-      id: 'transition-1',
-      from: '/old/notes',
-      to: '/new/notes'
+      roots: ['/old/notes', '/new/notes']
     })
     mocks.notesPath = '/new/notes'
     mocks.projectedNodes = [newNode]
@@ -701,6 +699,43 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/new/notes/note.md'))
     // the selection follows the migration instead of being cleared
     expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+
+  it('follows the active note across a second migration from the intermediate root', async () => {
+    // This window already applied A→B, so its selection sits in B while the
+    // shared chain has moved on to C.
+    cacheService.setShared('notes.directory_root_transition', {
+      roots: ['/a/notes', '/b/notes', '/c/notes']
+    })
+    mocks.activeFilePath = '/b/notes/note.md'
+    mocks.notesPath = '/b/notes'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/b/notes/note.md', treePath: '/note' }]
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.notesPath = '/c/notes'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/c/notes/note.md', treePath: '/note' }]
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/c/notes/note.md'))
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+  })
+
+  it('ignores a cached transition when the active file is outside every migrated root', async () => {
+    // A reset to the default root (or a fallback) is not a migration, so the
+    // selection must clear instead of being rewritten onto the live library.
+    cacheService.setShared('notes.directory_root_transition', {
+      roots: ['/a/notes', '/b/notes']
+    })
+    mocks.activeFilePath = '/elsewhere/unrelated.md'
+    mocks.notesPath = '/elsewhere'
+    mocks.projectedNodes = [{ ...mocks.noteNode, externalPath: '/elsewhere/unrelated.md', treePath: '/unrelated' }]
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.notesPath = '/b/notes'
+    mocks.projectedNodes = []
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith(undefined))
   })
 
   it('clears the active note when the notes root changes without the same relative note', async () => {
