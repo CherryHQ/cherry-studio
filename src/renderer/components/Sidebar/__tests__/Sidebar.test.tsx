@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type * as MenuListModule from '@cherrystudio/ui/components/composites/menu-list'
+import type * as ButtonModule from '@cherrystudio/ui/components/primitives/button'
 import type * as PopoverModule from '@cherrystudio/ui/components/primitives/popover'
+import type * as TooltipModule from '@cherrystudio/ui/components/primitives/tooltip'
 
 import {
   getSidebarDisplayWidth,
@@ -36,7 +38,10 @@ vi.mock('@cherrystudio/ui', async () => {
   const menuList = await vi.importActual<typeof MenuListModule>('@cherrystudio/ui/components/composites/menu-list')
   const popover = await vi.importActual<typeof PopoverModule>('@cherrystudio/ui/components/primitives/popover')
 
+  const { Button } = await vi.importActual<typeof ButtonModule>('@cherrystudio/ui/components/primitives/button')
   return {
+    Button,
+    Tooltip: (await vi.importActual<typeof TooltipModule>('@cherrystudio/ui/components/primitives/tooltip')).Tooltip,
     ...menuList,
     ...popover,
     Sortable: ({ items, itemKey, renderItem, ...props }: any) => {

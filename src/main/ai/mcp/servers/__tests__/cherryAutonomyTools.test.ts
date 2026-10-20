@@ -211,7 +211,7 @@ describe('cherry-tools autonomy tools', () => {
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
     })
-    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('Files are first-class deliverables')
+    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('workspace file')
     expect(tools.find((tool) => tool.name === 'notify')?.description).toContain(
       'Configured recipients: telegram (ch1).'
     )

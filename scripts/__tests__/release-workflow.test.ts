@@ -380,26 +380,35 @@ describe('hotfix release notes', () => {
     expect(() => extractHotfixReleaseNote(hotfixBody(english, chinese))).toThrow('one [Component] release-note line')
   })
 
-  it('adds the hotfix to installer notes and stable release history exactly once', () => {
-    const fixture = createGitFixture()
-    const notes = releaseNotes('1.0.0', 'Existing fix.')
-    const builderPath = path.join(fixture.repo, 'electron-builder.yml')
-    const historyPath = path.join(fixture.repo, 'release-history.json')
-    write(fixture.repo, 'electron-builder.yml', builderYaml(notes))
-    write(
-      fixture.repo,
-      'release-history.json',
-      `${JSON.stringify([{ version: '1.0.0', releaseNotes: notes }], null, 2)}\n`
-    )
+  it.each(['\n', '', '\nextraMetadata:\n  cherryEdition: global\n'])(
+    'adds hotfix notes idempotently while keeping valid YAML formatting (suffix %j)',
+    (suffix) => {
+      const fixture = createGitFixture()
+      const notes = releaseNotes('1.0.0', 'Existing fix.')
+      const builderPath = path.join(fixture.repo, 'electron-builder.yml')
+      const historyPath = path.join(fixture.repo, 'release-history.json')
+      write(fixture.repo, 'electron-builder.yml', builderYaml(notes).trimEnd() + suffix)
+      write(
+        fixture.repo,
+        'release-history.json',
+        `${JSON.stringify([{ version: '1.0.0', releaseNotes: notes }], null, 2)}\n`
+      )
 
-    updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
-    updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
+      updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
+      const firstUpdate = fs.readFileSync(builderPath, 'utf8')
+      expect(firstUpdate.endsWith('\n')).toBe(true)
+      if (suffix.includes('extraMetadata')) {
+        expect(parse(firstUpdate).extraMetadata).toEqual({ cherryEdition: 'global' })
+      }
+      updateHotfixReleaseMetadata({ builderPath, historyPath, prBody: HOTFIX_BODY, version: '1.0.0' })
+      expect(fs.readFileSync(builderPath, 'utf8')).toBe(firstUpdate)
 
-    const updatedNotes = readBuilderReleaseNotes(fs.readFileSync(builderPath, 'utf8')).releaseNotes
-    expect(updatedNotes.match(/Fix messages disappearing/g)).toHaveLength(1)
-    expect(updatedNotes.match(/修复重启后消息消失/g)).toHaveLength(1)
-    expect(JSON.parse(fs.readFileSync(historyPath, 'utf8'))[0].releaseNotes).toBe(updatedNotes)
-  })
+      const updatedNotes = readBuilderReleaseNotes(fs.readFileSync(builderPath, 'utf8')).releaseNotes
+      expect(updatedNotes.match(/Fix messages disappearing/g)).toHaveLength(1)
+      expect(updatedNotes.match(/修复重启后消息消失/g)).toHaveLength(1)
+      expect(JSON.parse(fs.readFileSync(historyPath, 'utf8'))[0].releaseNotes).toBe(updatedNotes)
+    }
+  )
 
   it.each(['```release-note\nNONE\n```', 'No release note block.'])(
     'leaves release metadata unchanged when no hotfix note is provided',
