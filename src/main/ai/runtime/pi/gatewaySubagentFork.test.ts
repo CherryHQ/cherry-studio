@@ -11,8 +11,8 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, plain, streamTextPort, tempDir, textParts } from './aiSdkSupport'
+} from './gatewaySubagentSupport'
+import { createTestSession, finish, hostStore, plain, gatewayModel, tempDir, textParts } from './gatewaySupport'
 
 const forkA = { description: 'Check A', prompt: 'TASK-A', fork: true }
 const forkB = { description: 'Check B', prompt: 'TASK-B', fork: true }
@@ -39,7 +39,7 @@ describe('subagent fork', () => {
       const { session } = await createTestSession({
         cwd,
         sessionManager: manager,
-        port: streamTextPort(model).port,
+        port: gatewayModel(model).upstream,
         tools: [noteTool],
         subagents: host.port
       })
@@ -91,7 +91,7 @@ describe('subagent fork', () => {
         : [subagentCall('call_a', { description: 'One', prompt: 'TASK-ONE' }), finish('tool-calls')]
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: recordingSubagentPort().port
     })
 
@@ -133,7 +133,7 @@ describe('subagent fork', () => {
         : [...textParts('l', 'Loaded.'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [weather],
       builtinTools: ['tool_search'],
       extensionFactories: [createToolSearchExtension()],
@@ -167,7 +167,7 @@ describe('subagent fork', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const host = recordingSubagentPort()
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
 
     await session.prompt('Check module A')
 
@@ -189,11 +189,11 @@ describe('subagent fork', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const host = recordingSubagentPort()
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     await session.prompt('Check module A with the codename ORCHID')
 
     const stored = host.sessions.get(host.subagents[0].sessionId)!.sessionManager.getBranch()
-    const rebuilt = await createTestSession({ port: streamTextPort(model).port, entries: plain(stored) })
+    const rebuilt = await createTestSession({ port: gatewayModel(model).upstream, entries: plain(stored) })
     await rebuilt.session.prompt('FOLLOW-UP')
 
     const request = calls.at(-1)!
@@ -206,7 +206,7 @@ describe('subagent fork', () => {
   it('forks a session rebuilt from the host transcript with the replayed history', async () => {
     const earlier = routedModel(() => [...textParts('a', 'Noted.'), finish('stop')])
     const host = hostStore()
-    const first = await createTestSession({ port: streamTextPort(earlier.model).port, onEvent: host.onEvent })
+    const first = await createTestSession({ port: gatewayModel(earlier.model).upstream, onEvent: host.onEvent })
     await first.session.prompt('Remember the codename ORCHID')
 
     const { model, calls } = routedModel(({ userText, lastRole }) => {
@@ -216,7 +216,7 @@ describe('subagent fork', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       entries: host.entries,
       subagents: recordingSubagentPort().port
     })

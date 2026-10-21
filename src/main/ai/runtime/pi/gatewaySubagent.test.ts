@@ -13,16 +13,16 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './aiSdkSubagentSupport'
+} from './gatewaySubagentSupport'
 import {
   createTestSession,
   finish,
   hostStore,
   NATIVE_MODEL,
   scriptedModel,
-  streamTextPort,
+  gatewayModel,
   textParts
-} from './aiSdkSupport'
+} from './gatewaySupport'
 
 const DELEGATE_A = 'Delegate the check of module A'
 const TASK_A = { description: 'Check module A', prompt: 'TASK-A: inspect module A' }
@@ -45,7 +45,7 @@ describe('subagent', () => {
     const { model, calls } = delegateOnce()
     const host = recordingSubagentPort()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: host.port
     })
@@ -72,7 +72,7 @@ describe('subagent', () => {
 
   it('offers subagent only when the host passes a subagent port', async () => {
     const { model, calls } = scriptedModel([[...textParts('a', 'Hi'), finish('stop')]])
-    const { session } = await createTestSession({ port: streamTextPort(model).port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream })
 
     await session.prompt('Hello')
 
@@ -85,7 +85,7 @@ describe('subagent', () => {
     const host = recordingSubagentPort()
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -132,7 +132,7 @@ describe('subagent', () => {
         })
     }))
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: host.port
     })
@@ -154,7 +154,7 @@ describe('subagent', () => {
       ]
     }))
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: host.port
     })
@@ -194,7 +194,7 @@ describe('subagent', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [waitTool],
       subagents: recordingSubagentPort().port
     })
@@ -212,7 +212,7 @@ describe('subagent', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: recordingSubagentPort().port
     })
 
@@ -233,7 +233,7 @@ describe('subagent', () => {
     }
     const { model, calls } = delegateOnce(['R'.repeat(20_000)])
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: recordingSubagentPort().port,
       offload: { store, thresholdChars: 5_000 }
@@ -252,13 +252,13 @@ describe('subagent', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     )
     const host = recordingSubagentPort()
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
 
     await session.prompt(DELEGATE_A)
 
     expect(host.subagents).toEqual([])
     const [result] = toolResults(calls.at(-1)!)
-    expect(result.output.type).toBe('error-text')
+    expect(result.output.type).toBe('text')
     expect(outputText(result.output)).toMatch(/non-empty description and prompt/)
   })
 
@@ -274,7 +274,7 @@ describe('subagent', () => {
         : ['functions.subagent:0', 'functions.subagent-0', 'call_a']
       return [...ids.map(check), finish('tool-calls')]
     })
-    const { port, requests } = streamTextPort(model)
+    const { upstream: port, requests } = gatewayModel(model)
     const host = recordingSubagentPort()
     const { session } = await createTestSession({ port, subagents: host.port })
 
@@ -319,7 +319,7 @@ describe('subagent', () => {
     const host = recordingSubagentPort()
     const summarizedSessions: string[] = []
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: host.port,
       // Threshold 32_000 - 16_384 tokens: the second reply crosses it and the compaction folds the first.
@@ -377,7 +377,7 @@ describe('subagent', () => {
     })
     const host = recordingSubagentPort(() => ({ extensionFactories: [createAskUserExtension(askPort)] }))
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       extensionFactories: [createAskUserExtension(askPort)]
     })
@@ -386,7 +386,7 @@ describe('subagent', () => {
 
     expect(asked).toEqual([])
     const [answer] = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1])
-    expect(answer.output.type).toBe('error-text')
+    expect(answer.output.type).toBe('text')
     expect(outputText(answer.output)).toMatch(/No one can answer/)
   })
 })

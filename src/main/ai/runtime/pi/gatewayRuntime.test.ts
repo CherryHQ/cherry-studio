@@ -9,10 +9,10 @@ import {
 } from '@cherrystudio/agent-runtime'
 import { createPiRuntime, type PiSessionOptions } from '@cherrystudio/agent-runtime-pi'
 
-import { createAiSdkModelBinding } from './aiSdkModelBinding'
-import { gate, reply, routedModel, storingSubagentPort, subagentCall, toolCallPart } from './aiSdkSubagentSupport'
-import { finish, MODEL, scriptedModel, streamTextPort, tempDir, textParts } from './aiSdkSupport'
-import type { ModelCallPort } from './aiSdkTypes'
+import { gate, reply, routedModel, storingSubagentPort, subagentCall, toolCallPart } from './gatewaySubagentSupport'
+import { createTestBinding } from './gatewaySupport'
+import { finish, MODEL, scriptedModel, gatewayModel, tempDir, textParts } from './gatewaySupport'
+import type { GatewayFixture } from './gatewaySupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
@@ -24,8 +24,8 @@ const draft = (text: string, whenBusy: 'reject' | 'steer' | 'follow-up' = 'rejec
   text,
   whenBusy
 })
-const config = async (port: ModelCallPort): Promise<PiSessionOptions> => ({
-  ...(await createAiSdkModelBinding({ port, model: MODEL, requestOptions: undefined })),
+const config = async (port: GatewayFixture): Promise<PiSessionOptions> => ({
+  ...(await createTestBinding({ port, model: MODEL })),
   cwd: tempDir('cwd'),
   agentDir: tempDir('agent'),
   systemPrompt: 'Test'
@@ -56,7 +56,7 @@ describe('Pi runtime contract', () => {
   it('shares normalized streaming IDs, and releasing one access leaves execution and another observer alive', async () => {
     const model = scriptedModel([[...textParts('text', 'hello ', 'world'), finish('stop')]], 5)
     const owner = await runtime()
-    const first = confirmed(await owner.create(await config(streamTextPort(model.model).port)))
+    const first = confirmed(await owner.create(await config(gatewayModel(model.model).upstream)))
     const second = confirmed(await owner.open(first.thread))
     const left = await observe(first)
     const right = await observe(second)
@@ -89,7 +89,7 @@ describe('Pi runtime contract', () => {
     const owner = await runtime()
     const access = confirmed(
       await owner.create({
-        ...(await config(streamTextPort(model).port)),
+        ...(await config(gatewayModel(model).upstream)),
         extensionFactories: [
           (pi) => {
             pi.registerCommand('local', { description: 'Local command', handler: async () => {} })
@@ -113,7 +113,7 @@ describe('Pi runtime contract', () => {
 
   it('reopens the same native file after shutdown and keeps its model context', async () => {
     const initial = scriptedModel([[...textParts('first', 'stored reply'), finish('stop')]])
-    const settings = await config(streamTextPort(initial.model).port)
+    const settings = await config(gatewayModel(initial.model).upstream)
     const manager = SessionManager.create(settings.cwd, tempDir('sessions'))
     const firstRuntime = await runtime()
     const first = confirmed(await firstRuntime.create({ ...settings, sessionManager: manager }))
@@ -124,7 +124,7 @@ describe('Pi runtime contract', () => {
     await firstRuntime.shutdown()
 
     const continued = scriptedModel([[...textParts('next', 'continued reply'), finish('stop')]])
-    const nextConfig = await config(streamTextPort(continued.model).port)
+    const nextConfig = await config(gatewayModel(continued.model).upstream)
     const reopened = confirmed(
       await createPiRuntime({
         backendId: first.thread.backendId,
@@ -146,7 +146,7 @@ describe('Pi runtime contract', () => {
 
   it('refuses a loader that returns a different native identity', async () => {
     const model = scriptedModel([[...textParts('unused', 'unused'), finish('stop')]])
-    const settings = await config(streamTextPort(model.model).port)
+    const settings = await config(gatewayModel(model.model).upstream)
     const owner = confirmed(
       await createPiRuntime({
         backendId: runtimeId('test-pi'),
@@ -168,7 +168,7 @@ describe('Pi runtime contract', () => {
     const preflight = gate()
     const { model, calls } = scriptedModel([[...textParts('answer', 'done'), finish('stop')]])
     const sessionOptions = {
-      ...(await config(streamTextPort(model).port)),
+      ...(await config(gatewayModel(model).upstream)),
       sessionManager: SessionManager.inMemory(tempDir('saved'), { id: 'saved' }),
       extensionFactories: [
         (pi: Parameters<NonNullable<PiSessionOptions['extensionFactories']>[number]>[0]) => {
@@ -225,7 +225,9 @@ describe('Pi runtime contract', () => {
       return reply('parent done')
     })
     const owner = await runtime()
-    const root = confirmed(await owner.create({ ...(await config(streamTextPort(model).port)), subagents: child.port }))
+    const root = confirmed(
+      await owner.create({ ...(await config(gatewayModel(model).upstream)), subagents: child.port })
+    )
     const parentEvents = await observe(root)
     await root.submit(draft('start'))
     await expect.poll(() => texts(parentEvents)).toContain('parent done')

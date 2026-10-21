@@ -15,7 +15,7 @@ import {
   type SubagentView
 } from '@cherrystudio/agent-runtime-pi'
 
-import { finish, textParts } from './aiSdkSupport'
+import { finish, textParts } from './gatewaySupport'
 
 export interface RoutedCall {
   /** Role of the last prompt message: `user` on a new request, `tool` after tool results. */
