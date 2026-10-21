@@ -29,11 +29,11 @@ import { completeSpeechOperation } from './sdkOperations'
 
 const LANGUAGES = ['zh-CN', 'en-US', 'en-GB'] as const
 
-/** English voices are English-only; the v1.1-zh voices are trained on mixed zh/en. */
+/** English voices are English-only; the v1.1-zh voices are Chinese-only. */
 function voiceLanguages(id: string): readonly string[] {
   if (id.startsWith('af_')) return ['en-US']
   if (id.startsWith('bf_')) return ['en-GB']
-  return ['zh-CN', 'en-US']
+  return ['zh-CN']
 }
 
 const VOICES: LocalSpeechVoice[] = [
@@ -62,29 +62,44 @@ const DEFAULT_ENGLISH_VOICE: Readonly<Record<string, string>> = { 'en-US': 'af_m
 const DEFAULT_CHINESE_VOICE = 'zf_001'
 
 type KokoroSpeechSegment = { text: string; voice: string }
+type KokoroLanguageRun = { text: string; language: 'zh' | 'en' }
 
-function splitSentences(text: string): string[] {
-  // English sentence punctuation is only a boundary when whitespace follows it,
-  // so `1.5` or `example.com` stays inside its sentence.
-  const normalized = text.replace(/([.!?])(\s+)/g, '$1\n')
-  const parts = normalized.match(/[^。！？!?\n]+[。！？!?]?|\n+/g) ?? [text]
-  return parts.map((part) => part.trim()).filter(Boolean)
-}
+const HAN_CHARACTER = /^\p{Script=Han}$/u
+const LATIN_LETTER = /^[A-Za-z]$/
 
-function sentenceKind(sentence: string): 'zh' | 'en' | 'mixed' {
-  const han = sentence.match(/\p{Script=Han}/gu)?.length ?? 0
-  const letters = sentence.match(/[A-Za-z]/g)?.length ?? 0
-  const words = sentence.match(/[A-Za-z]+(?:['’-][A-Za-z]+)*/g)?.length ?? 0
-  if (han === 0 && words >= 4 && letters >= 20) return 'en'
-  if (letters < 3 && han > 0) return 'zh'
-  return 'mixed'
+/**
+ * Splits text into runs of one script. Punctuation, digits and spaces stick to
+ * the run before them, so a full stop stays with the sentence it closes.
+ */
+export function splitKokoroLanguageRuns(text: string): KokoroLanguageRun[] {
+  const runs: KokoroLanguageRun[] = []
+  let buffer = ''
+  let language: 'zh' | 'en' | undefined
+  const flush = () => {
+    const value = buffer.trim()
+    if (value && language) runs.push({ text: value, language })
+    buffer = ''
+    language = undefined
+  }
+  for (const character of Array.from(text)) {
+    const script = HAN_CHARACTER.test(character) ? 'zh' : LATIN_LETTER.test(character) ? 'en' : undefined
+    if (!script) {
+      buffer += character
+      continue
+    }
+    if (language && language !== script) flush()
+    language = script
+    buffer += character
+  }
+  flush()
+  return runs
 }
 
 /**
- * Whole English sentences go to an English voice and whole Chinese sentences
- * to a Chinese one. Sentences that mix both stay with the primary voice:
- * Kokoro v1.1-zh is trained on mixed text, and switching voices inside one
- * sentence would jump timbre and pacing mid-clause.
+ * Every run is synthesized with a voice trained on its own language: Chinese
+ * characters with the Chinese voice, Latin words with the English one. This
+ * includes terms embedded in a Chinese sentence, because a Chinese speaker
+ * reading English carries an accent and its frontend may not cover the word.
  */
 export function planKokoroSpeechSegments(
   text: string,
@@ -92,15 +107,14 @@ export function planKokoroSpeechSegments(
   englishVoice: string
 ): KokoroSpeechSegment[] {
   const primaryIsChinese = VOICES.find((voice) => voice.id === primaryVoice)?.locale === 'zh-CN'
+  const chineseVoice = primaryIsChinese ? primaryVoice : DEFAULT_CHINESE_VOICE
+  const englishVoiceForRun = primaryIsChinese ? englishVoice : primaryVoice
   const segments: KokoroSpeechSegment[] = []
-  for (const sentence of splitSentences(text)) {
-    const kind = sentenceKind(sentence)
-    let voice = primaryVoice
-    if (primaryIsChinese && kind === 'en') voice = englishVoice
-    else if (!primaryIsChinese && (kind === 'zh' || kind === 'mixed')) voice = DEFAULT_CHINESE_VOICE
+  for (const run of splitKokoroLanguageRuns(text)) {
+    const voice = run.language === 'zh' ? chineseVoice : englishVoiceForRun
     const last = segments.at(-1)
-    if (last && last.voice === voice) last.text += `\n${sentence}`
-    else segments.push({ text: sentence, voice })
+    if (last && last.voice === voice) last.text += `\n${run.text}`
+    else segments.push({ text: run.text, voice })
   }
   return segments.length > 0 ? segments : [{ text, voice: primaryVoice }]
 }
@@ -162,7 +176,7 @@ export function createKokoroSpeechModel(options: SpeechOptions): SpeechModelV3 {
       const speed = options.speed ?? DEFAULT_SPEECH_SPEED
       if (
         speaker < 0 ||
-        !LANGUAGES.some((locale) => locale === language) ||
+        !VOICES[speaker]?.languages?.includes(language) ||
         !Number.isFinite(speed) ||
         speed < MIN_SPEECH_SPEED ||
         speed > MAX_SPEECH_SPEED ||

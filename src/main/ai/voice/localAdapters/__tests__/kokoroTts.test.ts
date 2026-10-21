@@ -71,7 +71,7 @@ describe('Kokoro Chinese-English speech', () => {
 
     const chinese = voices.filter((voice) => voice.id.startsWith('zf_') || voice.id.startsWith('zm_'))
     expect(chinese).toHaveLength(100)
-    expect(chinese.every((voice) => voice.languages?.includes('zh-CN'))).toBe(true)
+    expect(chinese.every((voice) => voice.languages?.length === 1 && voice.languages[0] === 'zh-CN')).toBe(true)
   })
 
   it('picks the explicit preferred voice for each language', async () => {
@@ -80,12 +80,14 @@ describe('Kokoro Chinese-English speech', () => {
     expect((await kokoroSpeechDefinition.getDefaultVoice('en-GB'))?.id).toBe('bf_vale')
   })
 
-  it('routes whole English sentences to the English voice and keeps mixed sentences on the Chinese voice', () => {
+  it('routes each script run to a voice trained on that language', () => {
     const text = '这是中文。This is an English sentence. 这是混合 React 句子。'
     expect(planKokoroSpeechSegments(text, 'zf_001', 'af_maple')).toEqual([
       { text: '这是中文。', voice: 'zf_001' },
       { text: 'This is an English sentence.', voice: 'af_maple' },
-      { text: '这是混合 React 句子。', voice: 'zf_001' }
+      { text: '这是混合', voice: 'zf_001' },
+      { text: 'React', voice: 'af_maple' },
+      { text: '句子。', voice: 'zf_001' }
     ])
   })
 
@@ -96,7 +98,9 @@ describe('Kokoro Chinese-English speech', () => {
 
   it.each([
     { voice: 'missing', language: 'zh-CN' },
-    { voice: 'zf_001', language: 'ja-JP' }
+    { voice: 'zf_001', language: 'ja-JP' },
+    { voice: 'zf_001', language: 'en-US' },
+    { voice: 'af_maple', language: 'zh-CN' }
   ])('rejects unsupported voice or language %j before inference', async (options) => {
     await expect(createKokoroSpeechModel(options).doGenerate({ text: '你好' })).rejects.toMatchObject({
       reason: 'invalid_request'
