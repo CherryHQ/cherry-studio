@@ -101,6 +101,39 @@ describe('ExternalMcpConnection transport fallback policy', () => {
 })
 
 describe('ExternalMcpConnection legacy probe rejection', () => {
+  it('connects as legacy when server/discover returns a JSON-RPC error with a null id', async () => {
+    const handler = createLegacyHandler()
+    const log = createLog()
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+        return Response.json({
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32700, message: 'Parse Error' }
+        })
+      }
+      return fetchMcpHandler(handler, input, init)
+    })
+    try {
+      const connection = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log,
+        connectTimeoutMs: 5_000
+      })
+      try {
+        expect(connection.era).toBe('legacy')
+        expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+      } finally {
+        await connection.close()
+      }
+    } finally {
+      await handler.close()
+    }
+  })
+
   it('connects and lists tools when a legacy server rejects server/discover with HTTP 500', async () => {
     const handler = createLegacyHandler()
     const log = createLog()

@@ -1,0 +1,52 @@
+diff --git a/dist/auth-Anm-lwWi.d.mts b/dist/auth-Anm-lwWi.d.mts
+index e87cfa249803783faf9e2d61f078a1f1bf1fc394..c7df92ad37a37472d9ceb0fe4664a4d88b1e968d 100644
+--- a/dist/auth-Anm-lwWi.d.mts
++++ b/dist/auth-Anm-lwWi.d.mts
+@@ -265,7 +265,7 @@ declare const JSONRPCResultResponseSchema: z.ZodObject<{
+  */
+ declare const JSONRPCErrorResponseSchema: z.ZodObject<{
+   jsonrpc: z.ZodLiteral<"2.0">;
+-  id: z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodNumber]>>;
++  id: z.ZodOptional<z.ZodNullable<z.ZodUnion<readonly [z.ZodString, z.ZodNumber]>>>;
+   error: z.ZodObject<{
+     code: z.ZodNumber;
+     message: z.ZodString;
+diff --git a/dist/auth-BNDyLTqp.mjs b/dist/auth-BNDyLTqp.mjs
+index b8af1e39cb1c9f9027ecf0944720422f7c2282a5..f2bc51eb14d40138a8ffde3c11a12b880c5a7fde 100644
+--- a/dist/auth-BNDyLTqp.mjs
++++ b/dist/auth-BNDyLTqp.mjs
+@@ -198,7 +198,7 @@ const JSONRPCResultResponseSchema = z.object({
+ */
+ const JSONRPCErrorResponseSchema = z.object({
+ 	jsonrpc: z.literal(JSONRPC_VERSION),
+-	id: RequestIdSchema.optional(),
++	id: RequestIdSchema.nullable().optional(),
+ 	error: z.object({
+ 		code: z.number().int(),
+ 		message: z.string(),
+diff --git a/dist/auth-D1CeV_Jr.cjs b/dist/auth-D1CeV_Jr.cjs
+index 35335a4a29b4d2e3e5d1f75909fab8037050691b..e51c35a70a777896c8643bd24652355f8d636062 100644
+--- a/dist/auth-D1CeV_Jr.cjs
++++ b/dist/auth-D1CeV_Jr.cjs
+@@ -226,7 +226,7 @@ const JSONRPCResultResponseSchema = zod_v4.object({
+ */
+ const JSONRPCErrorResponseSchema = zod_v4.object({
+ 	jsonrpc: zod_v4.literal(JSONRPC_VERSION),
+-	id: RequestIdSchema.optional(),
++	id: RequestIdSchema.nullable().optional(),
+ 	error: zod_v4.object({
+ 		code: zod_v4.number().int(),
+ 		message: zod_v4.string(),
+diff --git a/dist/auth-V9XJSCfa.d.cts b/dist/auth-V9XJSCfa.d.cts
+index ccd15cfd527afb55211f62dde9b693755cc6423a..798ebc2b3bea08193d94c57387f8e63ca68fa388 100644
+--- a/dist/auth-V9XJSCfa.d.cts
++++ b/dist/auth-V9XJSCfa.d.cts
+@@ -265,7 +265,7 @@ declare const JSONRPCResultResponseSchema: z.ZodObject<{
+  */
+ declare const JSONRPCErrorResponseSchema: z.ZodObject<{
+   jsonrpc: z.ZodLiteral<"2.0">;
+-  id: z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodNumber]>>;
++  id: z.ZodOptional<z.ZodNullable<z.ZodUnion<readonly [z.ZodString, z.ZodNumber]>>>;
+   error: z.ZodObject<{
+     code: z.ZodNumber;
+     message: z.ZodString;

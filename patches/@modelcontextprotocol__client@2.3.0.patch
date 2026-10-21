@@ -1,0 +1,28 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 71cf63076b073284aa14f63cd41efa653e8def0f..842559dbd7c3d3c0809b2fca69b0a7dd3d404908 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -5811,7 +5811,8 @@ var StreamableHTTPClientTransport = class {
+ 			else if (responseMediaType === "application/json") {
+ 				const data = await response.json();
+ 				const responseMessages = Array.isArray(data) ? data.map((msg) => _modelcontextprotocol_core_internal.JSONRPCMessageSchema.parse(msg)) : [_modelcontextprotocol_core_internal.JSONRPCMessageSchema.parse(data)];
+-				for (const msg of responseMessages) this.onmessage?.(msg);
++				const requests = (Array.isArray(message) ? message : [message]).filter((msg) => require_src.isJSONRPCRequest(msg));
++				for (const msg of responseMessages) this.onmessage?.(responseMessages.length === 1 && requests.length === 1 && require_src.isJSONRPCErrorResponse(msg) && msg.id === null ? { ...msg, id: requests[0].id } : msg);
+ 			} else {
+ 				await response.text?.().catch(() => {});
+ 				throw new require_src.SdkError(require_src.SdkErrorCode.ClientHttpUnexpectedContent, `Unexpected content type: ${contentType}`, { contentType });
+diff --git a/dist/index.mjs b/dist/index.mjs
+index c1a09a82b8121d6a1b038ccc6d02bae46d55dbcf..329e7b43ab1cf527227d6330b7aaeaefcc3db92c 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -5808,7 +5808,8 @@ var StreamableHTTPClientTransport = class {
+ 			else if (responseMediaType === "application/json") {
+ 				const data = await response.json();
+ 				const responseMessages = Array.isArray(data) ? data.map((msg) => JSONRPCMessageSchema.parse(msg)) : [JSONRPCMessageSchema.parse(data)];
+-				for (const msg of responseMessages) this.onmessage?.(msg);
++				const requests = (Array.isArray(message) ? message : [message]).filter((msg) => isJSONRPCRequest(msg));
++				for (const msg of responseMessages) this.onmessage?.(responseMessages.length === 1 && requests.length === 1 && isJSONRPCErrorResponse(msg) && msg.id === null ? { ...msg, id: requests[0].id } : msg);
+ 			} else {
+ 				await response.text?.().catch(() => {});
+ 				throw new SdkError(SdkErrorCode.ClientHttpUnexpectedContent, `Unexpected content type: ${contentType}`, { contentType });
