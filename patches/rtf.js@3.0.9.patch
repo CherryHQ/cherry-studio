@@ -1,5 +1,5 @@
 diff --git a/dist/RTFJS.bundle.js b/dist/RTFJS.bundle.js
-index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..13ae76d2dbfbfa519804971711946b49a47c01a1 100644
+index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..ceb06d196b3d4a1cc522e8b86d610d5e6977cf25 100644
 --- a/dist/RTFJS.bundle.js
 +++ b/dist/RTFJS.bundle.js
 @@ -5918,9 +5918,6 @@ var Parser = /** @class */ (function () {
@@ -43,3 +43,19 @@ index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..13ae76d2dbfbfa519804971711946b49
                              }
                              break;
                      }
+@@ -7942,9 +7954,15 @@ var RtfDestination = /** @class */ (function (_super) {
+                 _Helper__WEBPACK_IMPORTED_MODULE_0__.Helper.log("[rtf] reset to section defaults");
+                 _this.parser.state.sep = new _Containers__WEBPACK_IMPORTED_MODULE_3__.Sep(null);
+             },
++            deff: function (param) {
++                _this._defaultFont = param;
++                _this.parser.state.chp.fontfamily = param;
++            },
+             plain: function () {
+                 _Helper__WEBPACK_IMPORTED_MODULE_0__.Helper.log("[rtf] reset to character defaults");
+                 _this.parser.state.chp = new _Containers__WEBPACK_IMPORTED_MODULE_3__.Chp(null);
++                _this.parser.state.chp.fontfamily = _this._defaultFont;
++                _this._addFormatIns("chp", _this.parser.state.chp);
+             },
+             pard: function () {
+                 _Helper__WEBPACK_IMPORTED_MODULE_0__.Helper.log("[rtf] reset to paragraph defaults");

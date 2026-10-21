@@ -253,7 +253,7 @@ patchedDependencies:
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
-  rtf.js@3.0.9: af4b0b39f548a2c63f553bda11a50ebf1d4b713ded6f9eb9cc619367a5f091a0
+  rtf.js@3.0.9: 3e0fb6d1d4d5dd6be333b23ad45fadd94c32ba12cf5cc702cb160b809f6fd007
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
   streamdown@2.5.0: e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
@@ -1820,7 +1820,7 @@ importers:
         version: 0.27.14(oxc-resolver@11.21.2)(rolldown@1.2.6)(typescript@5.9.3)
       rtf.js:
         specifier: 3.0.9
-        version: 3.0.9(patch_hash=af4b0b39f548a2c63f553bda11a50ebf1d4b713ded6f9eb9cc619367a5f091a0)
+        version: 3.0.9(patch_hash=3e0fb6d1d4d5dd6be333b23ad45fadd94c32ba12cf5cc702cb160b809f6fd007)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -29493,7 +29493,7 @@ snapshots:
 
   rrweb-cssom@0.8.0: {}
 
-  rtf.js@3.0.9(patch_hash=af4b0b39f548a2c63f553bda11a50ebf1d4b713ded6f9eb9cc619367a5f091a0):
+  rtf.js@3.0.9(patch_hash=3e0fb6d1d4d5dd6be333b23ad45fadd94c32ba12cf5cc702cb160b809f6fd007):
     dependencies:
       codepage: 1.15.0
 

@@ -64,6 +64,22 @@ describe('RTF preview', () => {
     expect(await screen.findByRole('document')).toHaveTextContent('中文')
   })
 
+  it.each([0, 7])('restores default font %s and its encoding after character resets', async (defaultFont) => {
+    const header = String.raw`{\rtf1\ansi\ansicpg1252\deff${defaultFont}{\fonttbl{\f${defaultFont}\fnil\fcharset134 SimSun;}{\f1\fnil\fcharset0 Arial;}}`
+    const prefix = new TextEncoder().encode(header + String.raw`\f${defaultFont}\b Bold\plain `)
+    const suffix = new TextEncoder().encode(String.raw` {\f1 Caf\'e9 \plain \'d6\'d0\'ce\'c4} \'d6\'d0\'ce\'c4}`)
+    const bytes = new Uint8Array([...prefix, 0xd6, 0xd0, 0xce, 0xc4, ...suffix])
+    render(<Preview source={source('', 'default-font.rtf', { size: bytes.length, readRange: async () => bytes })} />)
+
+    const body = await screen.findByRole('document')
+    expect(body).toHaveTextContent('Bold中文 Café 中文 中文')
+    expect(within(body).getByText('Bold')).toHaveStyle({ fontWeight: 'bold' })
+    for (const text of within(body).getAllByText('中文')) {
+      expect(text).toHaveStyle({ fontFamily: 'SimSun' })
+      expect(text).not.toHaveStyle({ fontWeight: 'bold' })
+    }
+  })
+
   it('renders embedded PNG images and keeps markup-like text inert', async () => {
     const png =
       '89504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c020000000b4944415478da6364f80f00010501012718e3660000000049454e44ae426082'
