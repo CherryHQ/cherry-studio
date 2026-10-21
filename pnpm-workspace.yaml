@@ -11,6 +11,8 @@ packageExtensions:
       devlop: "1.1.0"
 
 overrides:
+  # Linux x64 must stay usable without AVX/AVX2; the fork's prebuilt vec0.so requires them (#22048).
+  "@aiany/sqlite-vec-linux-x64": "npm:sqlite-vec-linux-x64@0.1.9"
   "@earendil-works/pi-ai@1.0.0>@google/genai": "2.23.0"
   picomatch: "4.0.4"
   "concurrently>shell-quote": "1.8.4"
