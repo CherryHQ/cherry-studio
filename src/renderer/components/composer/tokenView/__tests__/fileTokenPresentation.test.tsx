@@ -1,11 +1,15 @@
+import { _api } from '@iconify/react'
+import { render, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { getFileTokenPresentation } from '../fileTokenPresentation'
+
+vi.unmock('@iconify/react')
 
 const iconNameOf = (presentation: { icon: unknown }) =>
   (presentation.icon as ReactElement<{ icon: string }>).props.icon.replace(/^material-icon-theme:/, '')
@@ -73,10 +77,28 @@ describe('getFileTokenPresentation icon', () => {
     expect(iconNameOf(renamed)).toBe('markdown')
   })
 
-  it('sizes the chip icon to the chip slot and the popover icon for the preview card', () => {
-    const presentation = presentationFor('notes.md')
+  it.each(['offline.md', 'unknown.xyz'])('keeps chip and preview glyphs visible offline for %s', async (name) => {
+    const originalFetch = _api.getFetch()
+    const offlineFetch = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
+    _api.setFetch(offlineFetch)
+    const presentation = presentationFor(name)
+    const view = render(
+      <>
+        <span data-testid="chip">{presentation.icon}</span>
+        <span data-testid="preview">{presentation.previewIcon}</span>
+      </>
+    )
 
-    expect((presentation.icon as ReactElement<{ className: string }>).props.className).toBe('size-full shrink-0')
-    expect((presentation.previewIcon as ReactElement<{ className: string }>).props.className).toBe('size-7')
+    try {
+      await waitFor(() => expect(offlineFetch).toHaveBeenCalled())
+      for (const slot of ['chip', 'preview']) {
+        const glyph = view.getByTestId(slot).querySelector('svg')
+        expect(glyph).toBeVisible()
+        expect(glyph?.querySelector('path')).not.toBeNull()
+      }
+    } finally {
+      view.unmount()
+      if (originalFetch) _api.setFetch(originalFetch)
+    }
   })
 })

@@ -122,7 +122,10 @@ class FaviconService {
     )
 
     return new Promise<string>((resolve) => {
-      const timer = setTimeout(() => resolve(urls[0]), FAVICON_PROBE_TIMEOUT_MS)
+      const timer = setTimeout(() => {
+        controller.abort()
+        resolve(urls[0])
+      }, FAVICON_PROBE_TIMEOUT_MS)
 
       Promise.any(probes)
         .then((url) => resolve(url))

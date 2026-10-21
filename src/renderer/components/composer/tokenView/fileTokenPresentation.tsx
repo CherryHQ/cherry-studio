@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react'
+import { FileText } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
@@ -158,7 +159,14 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
  */
 function getFileTokenIcon(file: ComposerAttachment | undefined, fallbackLabel: string, className: string) {
   const iconName = getFileIconName(file?.origin_name || file?.name || fallbackLabel || file?.path || '')
-  return <Icon icon={`${MATERIAL_ICON_PREFIX}${iconName}`} className={className} aria-hidden />
+  return (
+    <Icon
+      icon={`${MATERIAL_ICON_PREFIX}${iconName}`}
+      className={className}
+      aria-hidden
+      fallback={<FileText className={className} aria-hidden />}
+    />
+  )
 }
 
 export function getFileTokenPresentation(
