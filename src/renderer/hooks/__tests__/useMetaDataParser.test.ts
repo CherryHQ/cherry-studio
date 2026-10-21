@@ -64,15 +64,18 @@ describe('useMetaDataParser', () => {
       (_url, config) =>
         new Promise((_resolve, reject) => {
           rejectFirst = (reason) => reject(reason)
-          config?.signal?.addEventListener(
-            'abort',
-            () => rejectFirst(new DOMException('aborted', 'AbortError')),
-            { once: true }
-          )
+          config?.signal?.addEventListener?.('abort', () => rejectFirst(new DOMException('aborted', 'AbortError')), {
+            once: true
+          })
         })
     )
     let resolveSecond!: (value: { data: string }) => void
-    axiosMock.get.mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve }))
+    axiosMock.get.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        })
+    )
 
     const { result } = renderHook(() => useMetaDataParser('https://example.com/post', ['title']))
 
