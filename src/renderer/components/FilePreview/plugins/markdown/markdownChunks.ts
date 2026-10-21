@@ -149,6 +149,9 @@ function htmlBlockTerminator(line: string): RegExp | null {
  */
 const FOOTNOTE_DEFINITION_START = /^ {0,3}\[\^([^\][\s]+)]:(.*)$/
 
+/** A link reference definition's opening line, which is hoisted rather than read where it stands. */
+const LINK_DEFINITION_LINE = /^ {0,3}\[[^\]]*]:/
+
 /**
  * An ATX heading: up to three columns of indent, one to six `#`, then the heading's text — which
  * may be empty, the bare `#` the parser still reads as a heading.
@@ -795,11 +798,13 @@ const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-+)[ \t]*$/
 function containerOpensBlock(container: string, previous: string): boolean {
   const quotes = quoteDepth(container)
   if (quotes !== quoteDepth(previous)) return quotes > quoteDepth(previous)
-  const marker = /(?:[-+*]|(\d{1,9})[.)])[ \t]+$/.exec(container)
+  const marker = /(?:[-+*]|(\d{1,9})([.)]))[ \t]+$/.exec(container)
   if (!marker) return false
   // An ordered item interrupts an open paragraph only when it starts at one — `123.` below a
-  // paragraph is prose the parser keeps, so a definition shape inside it is not a definition.
-  return marker[1] === undefined || marker[1] === '1'
+  // paragraph is prose the parser keeps, so a definition shape inside it is not a definition. A
+  // sibling item of the list the paragraph already sits in continues that list at any number.
+  if (marker[1] === undefined || marker[1] === '1') return true
+  return new RegExp(`\\d{1,9}\\${marker[2]}[ \\t]+$`).test(previous)
 }
 
 /**
@@ -975,7 +980,12 @@ function emphasisFlanks(before: number, run: string, after: number): { opens: bo
   // The `!before`/`!after` tests above already cover whitespace, which classifies as its own group
   // here; micromark asks the same question of every non-punctuation neighbour, whitespace included.
   if (run[0] === '*') return { opens: open, closes: close }
-  return { opens: open && (left === undefined || !close), closes: close && (right === undefined || !open) }
+  // `_` opens or closes only when the marker beside it is punctuation (or the run can do only
+  // one of the two): a run between two word characters is the intraword underscore, plain text.
+  return {
+    opens: open && (left === 'punctuation' || !close),
+    closes: close && (right === 'punctuation' || !open)
+  }
 }
 
 /**
@@ -2440,7 +2450,9 @@ export function splitMarkdownChunks(
   }
   const footnoteNumber = (label: string): number | undefined => footnoteNumbers.get(label.toLowerCase())
   const slugOrder = new Map<string, string[]>()
-  const lineSlugs = new Array<{ base: string; slug: string }[] | undefined>(lines.length)
+  // Each occurrence keeps its source beside the document-wide slug: the chunk's own lookup key is
+  // read again below, because a chunk numbers its footnotes only from the references it carries.
+  const lineSlugs = new Array<{ source: string; plain: boolean; slug: string }[] | undefined>(lines.length)
   for (let i = 0; i < lines.length; i++) {
     for (const heading of lineHeadings[i] ?? []) {
       const base = normalizeHeadingText(
@@ -2450,7 +2462,7 @@ export function splitMarkdownChunks(
       const slug = seen.length === 0 ? base : `${base}-${seen.length}`
       seen.push(slug)
       slugOrder.set(base, seen)
-      ;(lineSlugs[i] ??= []).push({ base, slug })
+      ;(lineSlugs[i] ??= []).push({ source: heading.source, plain: heading.plain, slug })
     }
   }
 
@@ -2460,12 +2472,35 @@ export function splitMarkdownChunks(
   let start = 0
   for (const end of [...boundaries, lines.length]) {
     if (end <= start) continue
+    // A chunk renders on its own, so its footnotes are numbered from the references it carries —
+    // the hoisted definitions' own references are read last — while the slugs stay document-wide.
+    const localFootnotes = new Map<string, number>()
+    const localFootnoteNumber = (label: string): number | undefined => localFootnotes.get(label.toLowerCase())
     const chunkSlugs = new Map<string, string[]>()
+    let inFence: Fence | null = null
     for (let i = start; i < end; i++) {
+      const line = lines[i]
+      if (inFence) {
+        if (isClosingFence(line, inFence)) inFence = null
+        continue
+      }
+      const opened = parseFence(line)
+      if (opened) {
+        inFence = opened
+        continue
+      }
+      // A definition line is hoisted and read with the footnotes, not where it stands; its label is
+      // not a reference, and its content takes whatever numbers the notes still ahead receive.
+      if (!FOOTNOTE_DEFINITION_START.test(line) && !LINK_DEFINITION_LINE.test(line))
+        for (const label of footnoteReferences(line))
+          if (!localFootnotes.has(label)) localFootnotes.set(label, localFootnotes.size + 1)
       for (const heading of lineSlugs[i] ?? []) {
-        const assigned = chunkSlugs.get(heading.base) ?? []
+        const base = normalizeHeadingText(
+          heading.plain ? heading.source : headingRenderedText(heading.source, definesLabel, localFootnoteNumber)
+        )
+        const assigned = chunkSlugs.get(base) ?? []
         assigned.push(heading.slug)
-        chunkSlugs.set(heading.base, assigned)
+        chunkSlugs.set(base, assigned)
       }
     }
     chunks.push({

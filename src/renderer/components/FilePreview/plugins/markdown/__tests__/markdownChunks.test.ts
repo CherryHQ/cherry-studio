@@ -3087,3 +3087,14 @@ describe('pathological footnote and definition input', () => {
     expect(hoistedDefinition(content)).toBe('[x]: /right')
   })
 })
+
+describe('definition shapes inside list items', () => {
+  it('keeps a definition in a sibling ordered item instead of rejecting it as an interruption', () => {
+    // `2.` cannot interrupt a plain paragraph, but it continues the list an item above opened —
+    // rejecting it dropped the intended definition and hoisted the later duplicate in its place.
+    const content =
+      '1. introduction\n2. [guide]: https://example.com/intended\n\n[guide]: https://example.com/other\n\n[open guide][guide]'
+
+    expect(hoistedDefinition(content)).toContain('https://example.com/intended')
+  })
+})
