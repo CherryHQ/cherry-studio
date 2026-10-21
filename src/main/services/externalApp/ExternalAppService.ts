@@ -91,6 +91,16 @@ export class ExternalAppService {
 
   async openTarget(inputPath: string, targetId: string, pathKindHint?: ExternalOpenTargetPathKind): Promise<void> {
     const targetPath = this.resolveTargetPath(inputPath)
+    if (targetId.startsWith(KNOWN_TARGET_PREFIX)) {
+      const pathKind = this.getPathKind(targetPath, pathKindHint)
+      const apps = await this.detectInstalledApps()
+      const app = apps.find(
+        (item) => item.id === targetId.slice(KNOWN_TARGET_PREFIX.length) && item.pathKinds.includes(pathKind)
+      )
+      if (!app) throw new Error(`Open target "${targetId}" is not available for this path`)
+      await this.openKnownApplication(app.id, targetPath, pathKind)
+      return
+    }
     const result = await this.listOpenTargets(targetPath, pathKindHint)
     const target = result.targets.find((item) => item.id === targetId)
     if (!target) throw new Error(`Open target "${targetId}" is not available for this path`)
@@ -102,14 +112,6 @@ export class ExternalAppService {
     if (target.id === FILE_MANAGER_TARGET_ID) {
       if (result.pathKind === 'file') await showInFolder(targetPath)
       else await safeOpen(targetPath)
-      return
-    }
-    if (target.id.startsWith(KNOWN_TARGET_PREFIX)) {
-      await this.openKnownApplication(
-        target.id.slice(KNOWN_TARGET_PREFIX.length) as KnownExternalAppId,
-        targetPath,
-        result.pathKind
-      )
       return
     }
     throw new Error(`Open target "${targetId}" cannot be launched on this platform`)
@@ -241,7 +243,7 @@ export class ExternalAppService {
   }
 
   private getCacheKey(targetPath: AbsoluteFilePath, pathKind: 'file' | 'directory'): string {
-    return pathKind === 'directory' ? pathKind : `file:${normalizeExt(path.extname(targetPath)) ?? 'no_extension'}`
+    return pathKind === 'directory' ? pathKind : `file:${targetPath}`
   }
 
   private detectExecutableApp(config: KnownExternalAppConfig): InstalledKnownExternalApp | null {

@@ -142,6 +142,70 @@ describe('ExternalAppService', () => {
     expect(result.recommendedTargetId).toBe('system_default')
   })
 
+  it.each([
+    ['/tmp/a.md', '/tmp/b.md'],
+    ['/tmp/b.md', '/tmp/a.md']
+  ])('keeps per-file defaults and editor availability independent when listing %s before %s', async (first, second) => {
+    mocks.resolveDefaultApplication.mockImplementation(async (targetPath: string) =>
+      targetPath === '/tmp/a.md'
+        ? {
+            name: 'Visual Studio Code.app',
+            path: '/Applications/Visual Studio Code.app',
+            iconDataUrl: 'data:image/png;base64,code'
+          }
+        : { name: 'Other.app', path: '/Applications/Other.app', iconDataUrl: 'data:image/png;base64,other' }
+    )
+    const { ExternalAppService } = await import('../ExternalAppService')
+    const service = new ExternalAppService()
+    const results = new Map([
+      [first, await service.listOpenTargets(first)],
+      [second, await service.listOpenTargets(second)]
+    ])
+
+    expect(results.get('/tmp/a.md')?.targets).toEqual([
+      {
+        id: 'system_default',
+        kind: 'system_default',
+        name: 'Visual Studio Code.app',
+        iconDataUrl: 'data:image/png;base64,code'
+      },
+      { id: 'file_manager', kind: 'file_manager' }
+    ])
+    expect(results.get('/tmp/b.md')?.targets).toEqual([
+      {
+        id: 'system_default',
+        kind: 'system_default',
+        name: 'Other.app',
+        iconDataUrl: 'data:image/png;base64,other'
+      },
+      { id: 'file_manager', kind: 'file_manager' },
+      { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' }
+    ])
+    await service.listOpenTargets('/tmp/./a.md')
+    await service.listOpenTargets('/tmp/b.md')
+    expect(mocks.resolveDefaultApplication.mock.calls).toEqual([[first], [second]])
+  })
+
+  it('shares one directory cache entry without resolving file default metadata', async () => {
+    mocks.statSync.mockReturnValue({ isDirectory: () => true })
+    const { ExternalAppService } = await import('../ExternalAppService')
+    const service = new ExternalAppService()
+
+    const first = await service.listOpenTargets('/tmp/first')
+    const second = await service.listOpenTargets('/tmp/second')
+
+    expect(second).toBe(first)
+    expect(second).toEqual({
+      pathKind: 'directory',
+      recommendedTargetId: 'file_manager',
+      targets: [
+        { id: 'file_manager', kind: 'file_manager' },
+        { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' }
+      ]
+    })
+    expect(mocks.resolveDefaultApplication).not.toHaveBeenCalled()
+  })
+
   describe('macOS default application reconciliation', () => {
     beforeEach(() => {
       mocks.resolveDefaultApplication.mockResolvedValue({
@@ -332,16 +396,18 @@ describe('ExternalAppService', () => {
       expect(mocks.realpath).not.toHaveBeenCalled()
     })
 
-    it('rejects a removed known target and dispatches the merged default through the current OS association', async () => {
+    it('launches a merged-away known editor and dispatches the default through the current OS association', async () => {
       mocks.realpath.mockResolvedValue('/Applications/Default.app')
       const { ExternalAppService } = await import('../ExternalAppService')
       const service = new ExternalAppService()
 
-      await expect(service.openTarget('/tmp/README.md', 'known:vscode', 'file')).rejects.toThrow('is not available')
+      const result = await service.listOpenTargets('/tmp/README.md')
+      expect(result.targets.map(({ id }) => id)).toEqual(['system_default', 'file_manager'])
+      await service.openTarget('/tmp/README.md', 'known:vscode', 'file')
       await service.openTarget('/tmp/README.md', 'system_default', 'file')
 
       expect(mocks.safeOpen).toHaveBeenCalledWith('/tmp/README.md')
-      expect(mocks.openExternal).not.toHaveBeenCalled()
+      expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith('vscode://file//tmp/README.md?windowId=_blank')
     })
   })
 
@@ -394,6 +460,19 @@ describe('ExternalAppService', () => {
     expect(mocks.openExternal).toHaveBeenCalledWith('vscode://file//tmp/README.md?windowId=_blank')
     await expect(service.openTarget('/tmp/report.pdf', 'known:wt', 'file')).rejects.toThrow('is not available')
   })
+
+  it.each(['known:wt', 'known:arbitrary', 'unknown', 'known:cursor'])(
+    'rejects unavailable file target %s without launching anything',
+    async (targetId) => {
+      const { ExternalAppService } = await import('../ExternalAppService')
+
+      await expect(new ExternalAppService().openTarget('/tmp/README.md', targetId, 'file')).rejects.toThrow(
+        `Open target "${targetId}" is not available for this path`
+      )
+      expect(mocks.openExternal).not.toHaveBeenCalled()
+      expect(mocks.safeOpen).not.toHaveBeenCalled()
+    }
+  )
 
   it('encodes spaces and non-ASCII directory names in editor URLs', async () => {
     mocks.statSync.mockReturnValue({ isDirectory: () => true })
