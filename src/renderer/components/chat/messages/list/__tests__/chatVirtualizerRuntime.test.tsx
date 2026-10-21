@@ -279,6 +279,7 @@ describe('useChatVirtualizerRuntime', () => {
       })
       setElementMetric(scroller, 'scrollHeight', () => Math.max(viewport, height + slack()))
       setElementMetric(scroller, 'clientHeight', () => viewport)
+      runtime.contentRef.current!.getBoundingClientRect = () => ({ height }) as DOMRect
       runtime.vlistHandleRef.current = createHandle({
         getItemOffset: () => itemOffset,
         getItemSize: () => measuredHeight - itemOffset
@@ -396,6 +397,31 @@ describe('useChatVirtualizerRuntime', () => {
         list.scrollTo(2150)
         expect(list.scroller.scrollTop).toBe(2150)
         expect(list.slack()).toBe(150)
+      }
+    )
+
+    it.each([false, true])(
+      'preserves short-content reading offsets when the viewport expands (scroll first: %s)',
+      (scrollFirst) => {
+        const list = setupReading(80)
+        list.replace('new', 300)
+        expect(list.scroller.scrollTop).toBe(80)
+        expect(list.slack()).toBe(180)
+        list.changeLayout(300, 600, scrollFirst)
+        list.flushClamp()
+        expect(list.scroller.scrollTop).toBe(80)
+        expect(list.slack()).toBe(380)
+        list.changeLayout(300, 400, false)
+        expect(list.scroller.scrollTop).toBe(80)
+        expect(list.slack()).toBe(180)
+        list.scrollTo(40)
+        expect(list.scroller.scrollTop).toBe(40)
+        expect(list.slack()).toBe(140)
+        list.scrollTo(0)
+        act(() => list.runtime.scrollerProps.onScrollEnd())
+        list.changeLayout(300, 600, false)
+        expect(list.scroller.scrollTop).toBe(0)
+        expect(list.slack()).toBe(0)
       }
     )
 

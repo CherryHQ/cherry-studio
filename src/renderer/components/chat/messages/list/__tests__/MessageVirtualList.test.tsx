@@ -467,6 +467,33 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.scrollToBottom).toHaveBeenCalledTimes(1)
   })
 
+  it('chains End through every nested scroll owner before taking outer-list ownership', () => {
+    renderMessageList(() => (
+      <div data-testid="reasoning-scroll" style={{ overflowY: 'auto' }}>
+        <div data-testid="code-scroll" style={{ overflowY: 'auto' }}>
+          code
+        </div>
+      </div>
+    ))
+    const reasoning = screen.getByTestId('reasoning-scroll')
+    const code = screen.getByTestId('code-scroll')
+    for (const element of [reasoning, code]) {
+      Object.defineProperty(element, 'clientHeight', { value: 100, configurable: true })
+      Object.defineProperty(element, 'scrollHeight', { value: 300, configurable: true })
+    }
+    code.scrollTop = 200
+    expect(fireEvent.keyDown(code, { key: 'End' })).toBe(true)
+    expect(runtimeMockState.scrollToBottom).not.toHaveBeenCalled()
+    expect(runtimeMockState.markUserInput).not.toHaveBeenCalled()
+    reasoning.scrollTop = 200
+    reasoning.style.overscrollBehaviorY = 'contain'
+    expect(fireEvent.keyDown(code, { key: 'End' })).toBe(true)
+    expect(runtimeMockState.scrollToBottom).not.toHaveBeenCalled()
+    reasoning.style.overscrollBehaviorY = 'auto'
+    expect(fireEvent.keyDown(code, { key: 'End' })).toBe(false)
+    expect(runtimeMockState.scrollToBottom).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves End with an editable message', () => {
     renderMessageList(() => <textarea aria-label="End editor" />)
     expect(fireEvent.keyDown(screen.getByRole('textbox', { name: 'End editor' }), { key: 'End' })).toBe(true)

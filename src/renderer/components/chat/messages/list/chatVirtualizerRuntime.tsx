@@ -396,8 +396,10 @@ export function useChatVirtualizerRuntime<T>({
       }
       const growth = Math.max(0, height - replacement.heightPeak)
       replacement.heightPeak = Math.max(replacement.heightPeak, height)
-      // Use committed layout, not a virtualizer measurement that may precede the DOM update.
-      const required = Math.max(0, replacement.readingTop + scroller.clientHeight - getNaturalScrollHeight())
+      // The wrapper excludes freeze space and, unlike scrollHeight, has no viewport floor.
+      const committedHeight = contentRef.current?.getBoundingClientRect().height ?? 0
+      const required =
+        replacement.readingTop > 0 ? Math.max(0, replacement.readingTop + scroller.clientHeight - committedHeight) : 0
       const minimum = Math.ceil(required * 64) / 64
       const requested = scroller.scrollTop === 0 && upwardDistance > 0 ? replacement.remaining : upwardDistance + growth
       replacement.remaining = Math.min(replacement.remaining, Math.max(minimum, replacement.remaining - requested))
@@ -406,7 +408,6 @@ export function useChatVirtualizerRuntime<T>({
     },
     [
       getMeasuredContentHeight,
-      getNaturalScrollHeight,
       isUserScrollIntentPending,
       resolveFreezeTarget,
       setFreezeSpacerHeight,
