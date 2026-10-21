@@ -133,17 +133,22 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
           enter(scope, async () => {
             const { step, applied } = commit(adapter, thread, decide, scope.owner)
             if (scope.opening) scope.opening.push(...applied.jobs)
-            else for (const job of applied.jobs) startJob(job)
-            // H1 coding-agent: the commit reserved the children; their sessions are built right after it.
-            await Promise.all(
-              applied.children.map((child) =>
-                track(openNative(child)).catch((error: unknown) => {
-                  // Never launched: drop it so it is no pending launch forever (D3).
-                  conversations.delete(child.thread)
-                  throw error
-                })
+            try {
+              // H1 coding-agent: the commit reserved the children; their sessions are built right after it.
+              await Promise.all(
+                applied.children.map((child) =>
+                  track(openNative(child)).catch((error: unknown) => {
+                    // Never launched: drop it so it is no pending launch forever (D3).
+                    conversations.delete(child.thread)
+                    throw error
+                  })
+                )
               )
-            )
+            } finally {
+              // A job may message the commit's children, so it starts once they are open; one whose child never
+              // launched fails at its first call to it.
+              if (!scope.opening) for (const job of applied.jobs) startJob(job)
+            }
             return { result: step.result, effects: step.effects, spawned: applied.spawned }
           }),
         modelContext: (thread) => enter(scope, () => modelContext(adapter, thread))
