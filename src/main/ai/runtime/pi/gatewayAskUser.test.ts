@@ -8,8 +8,8 @@ import {
   createAskUserExtension
 } from '@cherrystudio/agent-runtime-pi'
 
-import { createTestSession, finish, hostStore, plain, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
-import { textOf, toolOutputs, toolResults } from './aiSdkToolResults'
+import { createTestSession, finish, hostStore, plain, scriptedModel, gatewayModel, textParts } from './gatewaySupport'
+import { textOf, toolOutputs, toolResults } from './gatewayToolResults'
 
 const question = (text: string, extra: Record<string, unknown> = {}) => ({
   question: text,
@@ -52,7 +52,7 @@ function hostPort(respond: (request: AskUserRequest) => AskUserResponse | Promis
 async function run(port: AskUserPort, scripts: LanguageModelV3StreamPart[][], host = hostStore()) {
   const { model, calls } = scriptedModel(scripts)
   const runtime = await createTestSession({
-    port: streamTextPort(model).port,
+    port: gatewayModel(model).upstream,
     extensionFactories: [createAskUserExtension(port)],
     onEvent: host.onEvent
   })
@@ -139,7 +139,7 @@ describe('ask-user extension', () => {
     expect(textOf(result)).toMatch(text)
     expect(result.details).toEqual({ questions: state.requests[0].questions, answers: {} })
     expect(calls).toHaveLength(2)
-    expect(toolOutputs(calls[1].prompt).ask_1).toEqual({ type: 'error-text', value: textOf(result) })
+    expect(toolOutputs(calls[1].prompt).ask_1).toEqual({ type: 'text', value: textOf(result) })
   })
 
   it('stops waiting when the turn is aborted, withdraws the question and ignores a late answer', async () => {
@@ -260,7 +260,7 @@ describe('ask-user extension', () => {
 
     const rebuilt = scriptedModel([reply('Postgres, as you said.')])
     const { session } = await createTestSession({
-      port: streamTextPort(rebuilt.model).port,
+      port: gatewayModel(rebuilt.model).upstream,
       extensionFactories: [createAskUserExtension(hostPort(() => ({ status: 'unavailable' })).port)],
       entries: plain(live.host.entries)
     })

@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest'
 
 import { createTodoExtension } from '@cherrystudio/agent-runtime-pi'
 
-import { createTestSession, finish, hostStore, plain, scriptedModel, streamTextPort, textParts } from './aiSdkSupport'
-import { textOf, toolOutputs, toolResults } from './aiSdkToolResults'
+import { createTestSession, finish, hostStore, plain, scriptedModel, gatewayModel, textParts } from './gatewaySupport'
+import { textOf, toolOutputs, toolResults } from './gatewayToolResults'
 
 const todoCall = (id: string, todos: unknown): LanguageModelV3StreamPart[] => [
   { type: 'tool-call', toolCallId: id, toolName: 'todo_write', input: JSON.stringify({ todos }) },
@@ -37,7 +37,7 @@ describe('todo extension', () => {
       [...textParts('t', 'Done.'), finish('stop')]
     ])
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       extensionFactories: [createTodoExtension()]
     })
     await session.prompt('Plan the trip')
@@ -87,7 +87,7 @@ describe('todo extension', () => {
   ])('rejects $name and tells the model why', async ({ todos, reason }) => {
     const { model, calls } = scriptedModel([todoCall('call_bad', todos), [...textParts('t', 'Sorry.'), finish('stop')]])
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       extensionFactories: [createTodoExtension()]
     })
     await session.prompt('Plan it')
@@ -95,7 +95,7 @@ describe('todo extension', () => {
     const [result] = toolResults(session)
     expect(result.isError).toBe(true)
     expect(textOf(result)).toMatch(reason)
-    expect(toolOutputs(calls[1].prompt).call_bad).toEqual({ type: 'error-text', value: textOf(result) })
+    expect(toolOutputs(calls[1].prompt).call_bad).toEqual({ type: 'text', value: textOf(result) })
   })
 
   it('keeps the latest accepted list across a rebuild, for the host and for the model', async () => {
@@ -118,7 +118,7 @@ describe('todo extension', () => {
     ])
     const host = hostStore()
     const earlier = await createTestSession({
-      port: streamTextPort(live.model).port,
+      port: gatewayModel(live.model).upstream,
       extensionFactories: [createTodoExtension()],
       onEvent: host.onEvent
     })
@@ -132,7 +132,7 @@ describe('todo extension', () => {
 
     const rebuilt = scriptedModel([[...textParts('c', 'Still on the hotel.'), finish('stop')]])
     const { session } = await createTestSession({
-      port: streamTextPort(rebuilt.model).port,
+      port: gatewayModel(rebuilt.model).upstream,
       extensionFactories: [createTodoExtension()],
       entries: plain(host.entries)
     })
@@ -146,7 +146,7 @@ describe('todo extension', () => {
     expect(sentCalls[1].input).toEqual({ todos: latest })
     expect(toolOutputs(prompt)).toMatchObject({
       call_2: { type: 'text', value: 'Updated todo list: 0 pending, 1 in progress, 1 completed.' },
-      call_3: { type: 'error-text' }
+      call_3: { type: 'text' }
     })
     expect(rebuilt.calls[0].tools?.map((tool) => tool.name)).toContain('todo_write')
   })
