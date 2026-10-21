@@ -5,7 +5,6 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 import { type ObservationPayload, type OperationResult, runtimeId, type Thread } from '@cherrystudio/agent-runtime'
 import { createPiRuntime, type PiSessionOptions } from '@cherrystudio/agent-runtime-pi'
 
-import { createAiSdkModelBinding } from './aiSdkModelBinding'
 import {
   gate,
   NOTE,
@@ -21,9 +20,10 @@ import {
   toolResults,
   untilStopped,
   waitFor
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, MODEL, plain, streamTextPort, tempDir, textParts } from './aiSdkSupport'
-import { textOf } from './aiSdkToolResults'
+} from './gatewaySubagentSupport'
+import { createTestBinding } from './gatewaySupport'
+import { createTestSession, finish, hostStore, MODEL, plain, gatewayModel, tempDir, textParts } from './gatewaySupport'
+import { textOf } from './gatewayToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const BG_B = { description: 'Check B', prompt: 'TASK-B', background: true }
@@ -47,7 +47,7 @@ describe('stopping subagents', () => {
       return reply('OK.')
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [work.tool],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -82,7 +82,7 @@ describe('stopping subagents', () => {
         return [toolCallPart('call_stop', 'stop_subagent', { id: host.subagents[0].sessionId }), finish('tool-calls')]
       return reply('OK.')
     })
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     await session.prompt('Check A')
     await session.prompt('Stop A')
 
@@ -104,7 +104,7 @@ describe('stopping subagents', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [work.tool],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -159,7 +159,7 @@ describe('stopping subagents', () => {
       return reply('OK.')
     })
     const created = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [work.tool, pressStop],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -199,7 +199,7 @@ describe('stopping subagents', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [work.tool],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -236,7 +236,7 @@ describe('stopping subagents', () => {
         return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls')]
       return reply('OK.')
     })
-    const created = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const created = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     runtime.stopSubagent = created.stopSubagent
     const run = created.prompt('Check A')
     await held.reached
@@ -280,7 +280,7 @@ describe('stopping subagents', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [slowWork],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -293,7 +293,7 @@ describe('stopping subagents', () => {
     await closed
 
     const rebuilt = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [slowWork],
       subagents: host.port,
       entries: plain(parent.entries)
@@ -346,7 +346,7 @@ describe('stopping subagents', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [slowWork],
       subagents: host.port,
       extensionFactories: [windDownAfterModelStop],
@@ -368,7 +368,7 @@ describe('stopping subagents', () => {
     expect(subagentStates(parent.entries).at(-1)).toMatchObject({ outcome: 'stopped', stoppedBy: 'user' })
 
     const rebuilt = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [slowWork],
       subagents: host.port,
       entries: plain(parent.entries)
@@ -383,11 +383,10 @@ describe('stopping subagents', () => {
       return result.value
     }
     /** A Pi runtime whose root session runs `model` with the parent's subagents and the `work` tool. */
-    async function rootThread(model: Parameters<typeof streamTextPort>[0], subagents: PiSessionOptions['subagents']) {
-      const binding = await createAiSdkModelBinding({
-        port: streamTextPort(model).port,
-        model: MODEL,
-        requestOptions: undefined
+    async function rootThread(model: Parameters<typeof gatewayModel>[0], subagents: PiSessionOptions['subagents']) {
+      const binding = await createTestBinding({
+        port: gatewayModel(model).upstream,
+        model: MODEL
       })
       const runtime = confirmed(await createPiRuntime({ backendId: runtimeId('test-pi') }))
       onTestFinished(async () => {

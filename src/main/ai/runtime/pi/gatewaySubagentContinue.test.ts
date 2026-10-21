@@ -19,9 +19,9 @@ import {
   toolResults,
   untilStopped,
   waitFor
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, NATIVE_MODEL, streamTextPort, tempDir } from './aiSdkSupport'
-import { textOf } from './aiSdkToolResults'
+} from './gatewaySubagentSupport'
+import { createTestSession, finish, hostStore, NATIVE_MODEL, gatewayModel, tempDir } from './gatewaySupport'
+import { textOf } from './gatewayToolResults'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
@@ -48,7 +48,7 @@ describe('continuing a finished subagent', () => {
       const { session } = await createTestSession({
         cwd,
         sessionManager: persistent ? SessionManager.create(cwd, tempDir('children')) : undefined,
-        port: streamTextPort(model).port,
+        port: gatewayModel(model).upstream,
         subagents: host.port,
         onEvent: parent.onEvent
       })
@@ -115,7 +115,7 @@ describe('continuing a finished subagent', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [work.tool],
       subagents: host.port,
       onEvent: parent.onEvent
@@ -204,7 +204,7 @@ describe('continuing a finished subagent', () => {
       return reply('OK.')
     })
     const created = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [work.tool, linger],
       subagents: host.port,
       extensionFactories: [pressStop]
@@ -237,7 +237,7 @@ describe('continuing a finished subagent', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurnTool(parent)],
       subagents: host.port
     })
@@ -256,7 +256,7 @@ describe('continuing a finished subagent', () => {
     const resumed = calls.filter((call) => call.userText.includes('TASK-A')).at(-1)!
     const [answer] = toolResults(resumed)
     expect(answer.toolCallId).toBe('work_1')
-    expect(answer.output.type).toBe('error-text')
+    expect(answer.output.type).toBe('text')
     expect(outputText(answer.output)).toBe(
       'This tool call was interrupted (the app closed or the turn was stopped); its result is unknown. Check the current state before relying on it.'
     )
@@ -277,8 +277,8 @@ describe('continuing a finished subagent', () => {
       if (lastText === 'Ask their A') return message('call_msg', host.subagents[0].sessionId, 'hello')
       return reply('OK.')
     })
-    const first = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
-    const second = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const first = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const second = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     await first.prompt('Check A')
     await second.prompt('Ask their A')
 
@@ -308,7 +308,7 @@ describe('continuing a finished subagent', () => {
       return reply('OK.')
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: { ...host.port, maxBackground: 1 }
     })
     await session.prompt('Check A')
@@ -339,7 +339,7 @@ describe('continuing a finished subagent', () => {
       }
       return reply(lastText.startsWith(NOTE) ? 'Read it.' : 'OK.')
     })
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     await session.prompt('Check A')
     await session.prompt('Tell A two things')
     await waitFor(() => notified(calls).length === 1)
@@ -372,7 +372,7 @@ describe('continuing a finished subagent', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: { ...host.port, load: (id) => loading.wait(undefined).then(() => load(id)) }
     })
     await runtime.prompt('Check A')

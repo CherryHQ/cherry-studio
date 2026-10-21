@@ -17,9 +17,9 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort } from './aiSdkSupport'
-import { textOf } from './aiSdkToolResults'
+} from './gatewaySubagentSupport'
+import { createTestSession, finish, hostStore, gatewayModel } from './gatewaySupport'
+import { textOf } from './gatewayToolResults'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
@@ -44,7 +44,7 @@ describe('moving a foreground subagent to the background', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool, stopTurnTool(parent)],
       subagents: host.port,
       onEvent: store.onEvent
@@ -94,7 +94,7 @@ describe('moving a foreground subagent to the background', () => {
     })
     const parent = hostStore()
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: parent.onEvent
     })
