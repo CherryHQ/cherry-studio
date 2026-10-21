@@ -18,6 +18,16 @@ describe('dictation shortcut settings', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.hold_shortcut', 'AltLeft')
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.mouse_hold_enabled', true)
+  })
+  it('shows mouse hold enabled and saves the toggle', async () => {
+    render(<DictationShortcutSettings />)
+    const toggle = screen.getByRole('switch', { name: 'Press and hold the mouse to dictate' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.mouse_hold_enabled')).toBe(false)
+    )
   })
   it.each([false, true])('respects whether a configured screenshot shortcut is enabled (%s)', async (enabled) => {
     render(
