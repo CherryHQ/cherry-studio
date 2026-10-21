@@ -3088,7 +3088,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
-      const entries = options.entries ?? { [recipe]: [mcodeEntry] }
+      const entries = options.entries ?? { node: [{ version: '24.16.0', active: true }], [recipe]: [mcodeEntry] }
       let moved = false
       const primaryError = new Error('primary install failure')
       ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === '/mock/cherry.bin/uv')
@@ -3096,10 +3096,24 @@ describe('BinaryManager', () => {
         if (bin === '/mock/cherry.bin/uv') return { stdout: '/mock/feature.binary.data.uv_python/python\n', stderr: '' }
         if (bin === '/mock/feature.binary.data.uv_python/python') return { stdout: 'Python 3.12.13\n', stderr: '' }
         if (args.join(' ') === 'ls --installed --json node') {
-          const version = moved ? (options.after ?? '24.16.0') : (options.before ?? '22.23.2')
+          const version = moved ? (options.after ?? '24.16.0') : (options.before ?? '22.23.4')
           if (version === 'unreadable') throw new Error('runtime query failed')
           if (version === 'invalid') return { stdout: '{', stderr: '' }
-          return { stdout: JSON.stringify({ node: version === 'none' ? [] : [{ version, active: true }] }), stderr: '' }
+          return {
+            stdout: JSON.stringify(
+              version === 'none'
+                ? []
+                : version === 'inactive'
+                  ? [{ version: '24.16.0', installed: true, active: false }]
+                  : moved
+                    ? [
+                        { version: '22.23.4', installed: true, active: false },
+                        { version, requested_version: '24.16', installed: true, active: true }
+                      ]
+                    : [{ version, installed: true, active: true }]
+            ),
+            stderr: ''
+          }
         }
         if (args.join(' ') === 'ls --installed --json') {
           if (options.failEnumeration) throw new Error('enumeration failed')
@@ -3115,9 +3129,7 @@ describe('BinaryManager', () => {
             node: [{ version: moved ? '24.16.0' : '22.23.2', active: true }]
           }
           return {
-            stdout: JSON.stringify(
-              args.length === 2 ? listing : { [args[2]]: listing[args[2].replace(/^core:/, '')] ?? [] }
-            ),
+            stdout: JSON.stringify(args.length === 2 ? listing : (listing[args[2].replace(/^core:/, '')] ?? [])),
             stderr: ''
           }
         }
@@ -3145,6 +3157,70 @@ describe('BinaryManager', () => {
         name === 'mcode' ? '0.6.12' : undefined,
         []
       )
+
+    it.each<[string, unknown, { status: string; version?: string }]>([
+      ['filtered array', [{ version: '24.16.0', installed: true, active: true }], { status: 'ok', version: '24.16.0' }],
+      [
+        'keyed inventory',
+        { node: [{ version: '24.16.0', active: true }], 'npm:other': [{ version: '1.0.0', active: true }] },
+        { status: 'ok', version: '24.16.0' }
+      ],
+      [
+        'metadata',
+        [
+          {
+            version: '24.16.0',
+            active: true,
+            requested_version: '24.16',
+            source: { type: 'config' },
+            install_path: '/mise/node/24.16.0'
+          }
+        ],
+        { status: 'ok', version: '24.16.0' }
+      ],
+      ['empty array', [], { status: 'none' }],
+      ['empty map', {}, { status: 'none' }],
+      ['empty Node', { node: [] }, { status: 'none' }],
+      ['other tool only', { 'npm:other': [{ version: '1.0.0', active: true }] }, { status: 'none' }],
+      ['inactive', [{ version: '24.16.0', installed: true, active: false }], { status: 'none' }],
+      ['no active flag', [{ version: '24.16.0' }], { status: 'none' }],
+      ['empty entry', [{}], { status: 'none' }],
+      ...[
+        null,
+        true,
+        42,
+        'node',
+        { node: {} },
+        { node: [], other: null },
+        [null],
+        [[]],
+        ['node'],
+        [42],
+        [false],
+        [{ version: 24 }],
+        [{ install_path: null }],
+        [{ active: 'true' }],
+        [{ installed: 1 }],
+        [{ active: true }],
+        [{ active: true, version: '' }],
+        [{ active: true, version: '24.16' }],
+        [{ active: true, version: 'latest' }],
+        [{ active: true, version: '24.16.0' }, { installed: 'true' }],
+        [
+          { active: true, version: '24.16.0' },
+          { active: true, version: 'latest' }
+        ],
+        { node: [], other: [null] }
+      ].map((listing): [string, unknown, { status: string }] => [
+        JSON.stringify(listing),
+        listing,
+        { status: 'unreadable' }
+      ])
+    ])('classifies the active Node response: %s', async (_label, listing, expected) => {
+      const { service } = makeTransition()
+      mockExecFileAsync.mockResolvedValue({ stdout: JSON.stringify(listing), stderr: '' })
+      await expect((service as any).readActiveNode()).resolves.toEqual(expected)
+    })
 
     it('prevents restoring native artifacts from another ABI only in the installer env', async () => {
       const service = new BinaryManager()
@@ -3182,7 +3258,7 @@ describe('BinaryManager', () => {
       }
     )
 
-    it.each(['none', 'unreadable', 'invalid'])(
+    it.each(['none', 'inactive', 'unreadable', 'invalid'])(
       'keeps the install successful without repairing with %s after',
       async (after) => {
         const { service } = makeTransition({ after })
@@ -3236,7 +3312,7 @@ describe('BinaryManager', () => {
       let queries = 0
       mockExecFileAsync.mockImplementation(async (...args: any[]) => {
         if (args[1].join(' ') === 'ls --installed --json node' && queries++ === 0) {
-          return { stdout: JSON.stringify({ node: [{ version: '24.16.0', active: false }] }), stderr: '' }
+          return { stdout: JSON.stringify([{ version: '24.16.0', installed: true, active: false }]), stderr: '' }
         }
         return exec(...args)
       })

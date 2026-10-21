@@ -1442,20 +1442,34 @@ export class BinaryManager extends BaseService {
     try {
       const { stdout } = await this.runMise(['ls', '--installed', '--json', 'node'])
       const listing: unknown = JSON.parse(stdout)
-      if (
-        !listing ||
-        typeof listing !== 'object' ||
-        Array.isArray(listing) ||
-        Object.values(listing).some((entries) => !Array.isArray(entries))
-      ) {
+      if (!listing || typeof listing !== 'object') {
         throw new Error('mise returned invalid active Node state')
       }
-      const entries = Object.values(listing as Record<string, MiseInstallEntry[]>).flat()
-      const active = entries.find((entry) => entry.active === true)
-      if (!active) return { status: 'none' }
-      if (!active.version || !semverValid(active.version))
+      const groups = Array.isArray(listing) ? { node: listing } : listing
+      for (const entries of Object.values(groups)) {
+        if (!Array.isArray(entries)) throw new Error('mise returned invalid active Node entries')
+        for (const entry of entries) {
+          if (
+            !entry ||
+            typeof entry !== 'object' ||
+            Array.isArray(entry) ||
+            ('version' in entry && typeof entry.version !== 'string') ||
+            ('install_path' in entry && typeof entry.install_path !== 'string') ||
+            ('active' in entry && typeof entry.active !== 'boolean') ||
+            ('installed' in entry && typeof entry.installed !== 'boolean')
+          ) {
+            throw new Error('mise returned an invalid active Node entry')
+          }
+        }
+      }
+      const entries = (groups as Record<string, MiseInstallEntry[]>).node ?? []
+      const activeEntries = entries.filter((entry) => entry.active === true)
+      if (activeEntries.some((entry) => !entry.version || !semverValid(entry.version))) {
         throw new Error('mise returned no concrete active Node version')
-      return { status: 'ok', version: active.version }
+      }
+      const version = activeEntries[0]?.version
+      if (!version) return { status: 'none' }
+      return { status: 'ok', version }
     } catch (error) {
       logger.warn('Could not read active Node runtime for native repair', { error: sanitizedCommandError(error) })
       return { status: 'unreadable' }
