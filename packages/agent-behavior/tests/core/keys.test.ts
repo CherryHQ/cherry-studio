@@ -168,6 +168,7 @@ describe('keys', () => {
       keys.subagentContinue(call),
       keys.subagentStop(child, 1, 'model'),
       keys.subagentStop(child, 1, 'user'),
+      keys.subagentUserStop('task-7'),
       keys.subagentStatus(item),
       keys.reopenStop(item)
     ]

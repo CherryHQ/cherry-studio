@@ -2,7 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
-import { callTool, holds, latch, markersWith, reply, toolResults } from '../../src/contract/fixtures'
+import {
+  callTool,
+  message as childInput,
+  holds,
+  key,
+  latch,
+  markersWith,
+  reply,
+  toolResults
+} from '../../src/contract/fixtures'
 import { offloadName } from '../../src/core/context/offload'
 import { type CallKey, callKeyOf } from '../../src/core/facts'
 import { keys } from '../../src/core/keys'
@@ -582,5 +591,93 @@ describe('stopSubagent entry', () => {
     expect(stopped).toBe('not-running')
     expect(facts.live.runEnd?.outcome).toBe('completed')
     expect(records(facts, 'turn-stop')).toEqual([])
+  })
+
+  // Catches a repeated request routed by liveness again: it answered not-running for the finished child, and its
+  // repeat after message_subagent continued that child stopped the new run.
+  it('answers a repeated stop of a finished child not-running and leaves its next run alone', async () => {
+    const hold = holds()
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (_t, lineage) =>
+        lineage.kind === 'subagent' ? [reply('first'), callTool('hold', { id: 'second' }), reply('second')] : []
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', BACKGROUND),
+      reply('waiting'),
+      reply('read first'),
+      callTool('message_subagent', { id: CHILD, message: 'more' }),
+      reply('waiting again'),
+      reply('read second')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await w.fake.settle()
+    const first = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
+    await w.fake.sendUser(t, 'continue it')
+    await hold.started('second')
+    const again = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
+    hold.release('second')
+    await w.fake.settle()
+    expect([first, again]).toEqual(['not-running', 'not-running'])
+    expect(runRecords(await w.read(t)).at(-1)).toMatchObject({ run: 2, status: 'finished', outcome: 'completed' })
+  })
+
+  // Catches a repeated request that stops whatever run the child has now: the first one stopped run 1, and its
+  // repeat after run 2 began must answer the same and leave run 2 alone.
+  it('answers a repeated stop of a stopped run stopped-child and leaves a later run alone', async () => {
+    const hold = holds()
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (_t, lineage) =>
+        lineage.kind === 'subagent'
+          ? [callTool('hold', { id: 'one' }), callTool('hold', { id: 'two' }), reply('second')]
+          : []
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('subagent', BACKGROUND), reply('waiting')])
+    await w.fake.sendUser(t, 'go')
+    await hold.started('one')
+    const first = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
+    await w.fake.settle()
+    // The rules refuse to continue a child the person stopped, so run 2 starts through the harness itself.
+    await w.enter(t, (_entries, ports) => ports.helpers.message(CHILD, childInput('again'), key('run-2')))
+    await hold.started('two')
+    const again = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
+    hold.release('two')
+    await w.fake.settle()
+    expect([first, again]).toEqual(['stopped-child', 'stopped-child'])
+    expect((await w.read(CHILD)).live.runEnd?.outcome).toBe('completed')
+  })
+
+  // Catches a repeated request whose first one stopped the parent's turn (a live foreground child) answering
+  // not-running once the child was continued in the background, as if it had stopped nothing.
+  it('answers a repeated stop that stopped the parent turn stopped-turn and leaves the continuation running', async () => {
+    const hold = holds()
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      scripts: (thread, lineage) =>
+        lineage.kind === 'subagent' ? [callTool('hold', { id: thread }), reply(`${thread} done`)] : []
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [
+      callTool('subagent', SPAWN),
+      callTool('message_subagent', { id: CHILD, message: 'go on' }),
+      reply('waiting'),
+      reply('read it')
+    ])
+    await w.fake.sendUser(t, 'go')
+    await hold.started(CHILD)
+    const first = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
+    await w.fake.settle()
+    await w.fake.sendUser(t, 'continue it')
+    await hold.started('thread-3')
+    const again = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
+    hold.release('thread-3')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect([first, again]).toEqual(['stopped-turn', 'stopped-turn'])
+    expect(runRecords(facts).at(-1)).toMatchObject({ sessionId: 'thread-3', status: 'finished', outcome: 'completed' })
+    expect(records(facts, 'turn-stop')).toHaveLength(1)
   })
 })

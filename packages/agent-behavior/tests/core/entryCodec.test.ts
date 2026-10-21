@@ -46,7 +46,9 @@ const records: PolicyRecord[] = [
   { type: 'plan', value: { active: true, at: 7 } },
   { type: 'turn-stop', value: { cause: 'goal-command', at: 9 } },
   { type: 'idle-driver-exit', value: { generation: 2 } },
-  { type: 'subagent-steer', value: { sessionId: child, run: 1, digest: 'ab12', withdrawn: false } }
+  { type: 'subagent-steer', value: { sessionId: child, run: 1, digest: 'ab12', withdrawn: false } },
+  { type: 'subagent-user-stop', value: { sessionId: child, run: 2, at: 11 } },
+  { type: 'subagent-user-stop', value: { sessionId: child, at: 11 } }
 ]
 const markers: MarkerFact[] = [
   {
@@ -60,7 +62,7 @@ const markers: MarkerFact[] = [
 
 describe('entry kinds', () => {
   // Catches a renamed kind (every stored session entry of the old name is orphaned) or a pi.* kind Durable refuses.
-  it('keeps today’s cherry.* kinds and adds plan, turn-stop, idle-driver-exit and subagent-steer', () => {
+  it('keeps today’s cherry.* kinds and adds plan, turn-stop, idle-driver-exit, subagent-steer and subagent-user-stop', () => {
     expect(ENTRY_KINDS).toEqual({
       goal: 'cherry.goal',
       goalRound: 'cherry.goal-round',
@@ -73,7 +75,8 @@ describe('entry kinds', () => {
       plan: 'cherry.plan',
       turnStop: 'cherry.turn-stop',
       idleDriverExit: 'cherry.idle-driver-exit',
-      subagentSteer: 'cherry.subagent-steer'
+      subagentSteer: 'cherry.subagent-steer',
+      subagentUserStop: 'cherry.subagent-user-stop'
     })
   })
 })
@@ -182,7 +185,12 @@ describe('entry codec', () => {
     ],
     // Catches a stop cause outside its union, or none, decoded as one, which the rules would then trust.
     ['a turn stop with an unknown cause', { kind: 'cherry.turn-stop', data: { at: 1, cause: 'cat' } }],
-    ['a turn stop without a cause', { kind: 'cherry.turn-stop', data: { at: 1 } }]
+    ['a turn stop without a cause', { kind: 'cherry.turn-stop', data: { at: 1 } }],
+    // Catches a stopped run that is not a number decoded as one, which a repeated stop would then stop.
+    [
+      'a user stop with a run that is no number',
+      { kind: 'cherry.subagent-user-stop', data: { sessionId: 'c', run: '1', at: 1 } }
+    ]
   ] as const)('skips %s without throwing', (_name, raw) => {
     expect(decodeEntry({ id, ...raw })).toBeUndefined()
   })
