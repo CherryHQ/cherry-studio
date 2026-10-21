@@ -323,6 +323,35 @@ describe('Querit and Crawl4AI deployment contracts', () => {
     }
   )
 
+  it('defaults an omitted Crawl4AI host to the authenticated Cloud scrape protocol', async () => {
+    const { client, requests } = setup(crawl4ai, JSON.stringify({ ok: true, markdown: '  # Example Domain  ' }))
+    const url = 'https://example.com'
+    const result = await client.execute({
+      providerId: 'crawl4ai',
+      capability: 'fetchUrls',
+      input: url,
+      config: {},
+      credentials: { apiKey: 'cloud-key' }
+    })
+    expect(requests[0].url).toBe('https://api.crawl4ai.com/scrape')
+    expect(JSON.parse(requests[0].body!)).toEqual({ url, format: 'md' })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer cloud-key')
+    expect(result.results).toEqual([{ title: url, content: '# Example Domain', url, sourceInput: url }])
+  })
+
+  it('rejects an omitted Crawl4AI host without a key before making a network request', async () => {
+    const { client, requests } = setup(crawl4ai, '{}')
+    await expect(
+      client.execute({
+        providerId: 'crawl4ai',
+        capability: 'fetchUrls',
+        input: 'https://example.com',
+        config: {}
+      })
+    ).rejects.toMatchObject({ kind: 'configuration', code: 'api_key_missing' })
+    expect(requests).toEqual([])
+  })
+
   it.each(['https://crawl4ai.com', 'https://api.crawl4ai.com'])(
     'uses the authenticated Cloud scrape protocol for %s',
     async (apiHost) => {
