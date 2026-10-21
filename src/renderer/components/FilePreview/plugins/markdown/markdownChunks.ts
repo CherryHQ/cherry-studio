@@ -795,7 +795,11 @@ const SETEXT_UNDERLINE = /^ {0,3}(?:=+|-+)[ \t]*$/
 function containerOpensBlock(container: string, previous: string): boolean {
   const quotes = quoteDepth(container)
   if (quotes !== quoteDepth(previous)) return quotes > quoteDepth(previous)
-  return /(?:[-+*]|\d{1,9}[.)])[ \t]+$/.test(container)
+  const marker = /(?:[-+*]|(\d{1,9})[.)])[ \t]+$/.exec(container)
+  if (!marker) return false
+  // An ordered item interrupts an open paragraph only when it starts at one — `123.` below a
+  // paragraph is prose the parser keeps, so a definition shape inside it is not a definition.
+  return marker[1] === undefined || marker[1] === '1'
 }
 
 /**
@@ -1268,10 +1272,24 @@ function headingRenderedText(
           index += 1
         }
       } else if (character === '`') {
-        // A code span's content is literal, and only a run of the opener's own length closes it.
-        const run = /^`+/.exec(segment.slice(index))?.[0] ?? '`'
-        const close = segment.indexOf(run, index + run.length)
-        const closed = close >= 0 && segment[close + run.length] !== '`'
+        // A code span's content is literal, and only a run of the opener's own length closes it —
+        // a longer run inside the span is content, so the scan continues past it.
+        let opening = 1
+        while (segment[index + opening] === '`') opening += 1
+        const run = '`'.repeat(opening)
+        let close = -1
+        for (let next = index + opening; next < segment.length;) {
+          const at = segment.indexOf('`', next)
+          if (at < 0) break
+          let end = at
+          while (segment[end] === '`') end += 1
+          if (end - at === opening) {
+            close = at
+            break
+          }
+          next = end
+        }
+        const closed = close >= 0
         // The renderer drops one space or line ending from each end of a closed code span that
         // carries both, so `` ` bar ` `` renders `bar` — the slug has to read the same text.
         let content = segment.slice(index + run.length, closed ? close : index + run.length)
@@ -1330,7 +1348,7 @@ function headingRenderedText(
         if (!(highlights ??= highlightSpans(segment)).has(index)) text += run
         index += run.length
       } else if (character === '[' && segment[index + 1] === '^') {
-        const reference = /^\[\^([^\]\s]+)\]/.exec(segment.slice(index))
+        const reference = /^\[\^([^[\]\s]+)\]/.exec(segment.slice(index))
         const number = reference ? footnoteNumber(reference[1]) : undefined
         // A defined footnote reference renders its number as a superscript; one the document never
         // defines is not a reference and keeps its brackets as text, exactly as the renderer prints it.
@@ -1423,8 +1441,8 @@ function headingRenderedText(
   return text
 }
 
-/** A footnote reference's label: no whitespace and no bracket, inside `[^…]`. */
-const FOOTNOTE_REFERENCE = /\[\^([^\]\s]+)\]/y
+/** A footnote reference's label: no whitespace and no bracket of either kind, inside `[^…]`. */
+const FOOTNOTE_REFERENCE = /\[\^([^[\]\s]+)\]/y
 
 /**
  * The footnote references a line of body text carries, in the order they appear — the order the

@@ -111,6 +111,20 @@ describe('MarkdownChunkPreview', () => {
     expect(ids.map((id) => id?.split('--')[1])).toEqual(['foobarbaz', 'foobarbaz-1'])
   })
 
+  it('finds a closer past a longer backtick run, so duplicate heading ids stay distinct', async () => {
+    // The two-backtick run inside the span is content; stopping there left the heading keyed by the
+    // raw span text, so both chunks numbered the same id and the fragment link had no target.
+    const filler = 'filler\n\n'.repeat(3072)
+    const content = `# a\`b\`\`*c*\`d\n\n${filler}# ab-c-d\n\n[jump](#ab-c-d-1)\n`
+    const chunks = splitMarkdownChunks(content, 1).chunks
+    mocks.range = chunks.map((_, index) => index)
+    const { container } = render(<MarkdownChunkPreview chunks={chunks} id="backtick-runs" />)
+
+    const ids = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
+
+    expect(ids.map((id) => id?.split('--')[1])).toEqual(['ab-c-d', 'ab-c-d-1'])
+  })
+
   it('resolves a footnote backlink inside the chunk that was clicked', async () => {
     // Each mounted chunk numbers its footnotes from the same reference, so every chunk emits the
     // same reference id and a preview-wide search always finds the first chunk's — a later chunk's

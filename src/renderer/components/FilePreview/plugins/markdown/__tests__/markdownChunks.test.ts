@@ -3066,3 +3066,24 @@ describe('a raw HTML block full of unmatched heading tags', () => {
     ])
   })
 })
+
+describe('pathological footnote and definition input', () => {
+  it('rejects an opening bracket inside a footnote label instead of rescanning the suffix', () => {
+    // `[^` repeated is not a reference: a label cannot hold a bracket, so each opener fails at
+    // once. Allowing it made every failed opener scan the rest of the line.
+    const content = '[^'.repeat(64_000)
+    const started = performance.now()
+
+    splitMarkdownChunks(content)
+
+    expect(performance.now() - started).toBeLessThan(1_500)
+  })
+
+  it('does not hoist a definition shape an ordered marker cannot interrupt', () => {
+    // `123.` does not interrupt a paragraph, so the line below it stays prose and the definition
+    // inside it must not shadow the document's real one.
+    const content = 'paragraph\n123. [x]: /wrong\n\n[x]: /right\n\nsee [x]'
+
+    expect(hoistedDefinition(content)).toBe('[x]: /right')
+  })
+})
