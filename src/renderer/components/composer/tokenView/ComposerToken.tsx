@@ -15,7 +15,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
@@ -41,25 +41,8 @@ import { type FileTokenPresentation, getFileTokenPresentation } from './fileToke
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 
-/**
- * Inline entity chips (file / folder) are words inside prose, not standalone controls,
- * so both share one geometry contract:
- *
- * - everything that must track the text is em-based. The composer font size comes from the
- *   `chat.message.font_size` preference (`--composer-editor-font-size`), while `h-6` / `text-xs` /
- *   `px-*` resolve against the root font size — a fixed chip drifts away from the paragraph as soon
- *   as the user scales the font up.
- * - `items-baseline` puts the label on the paragraph baseline by construction, instead of centring
- *   an oversized box (`align-middle`, which depends on the font's x-height) somewhere near it.
- * - the label inherits the paragraph line-height and the chip adds no vertical padding, margin or
- *   border: the chip box is then exactly the paragraph's line box, so a line holding a token stays as
- *   tall as a plain text line. `leading-none` would look tighter but clips the label's box to 1em,
- *   which cuts descenders (`g`, `y`, `p`) off inside `truncate`'s `overflow: hidden`.
- * - the surface is the neutral quiet fill with no resting border, so the chip reads as an entity
- *   rather than a button. Hover is expressed by the icon → remove swap, not by a fill change
- *   (`muted` and `accent` currently resolve to the same value); selection and focus use an inset ring,
- *   which draws without adding layout pixels.
- */
+// Keep chip geometry em-based and baseline-aligned so tokens follow prose size.
+// Selection uses an inset ring so it does not change the line height.
 const composerChipClassName = cn(
   'group/composer-token mx-0.5 inline-flex max-w-[calc(100%_-_0.25rem)] items-baseline gap-1',
   'rounded-xs bg-muted px-1.5',
@@ -78,8 +61,9 @@ const composerChipIconClassName = 'size-full shrink-0 text-current'
 const composerChipProvidedIconClassName =
   'inline-flex size-full items-center justify-center [&>svg]:size-full [&>img]:size-full'
 const composerChipLabelClassName = 'max-w-full min-w-0 truncate break-normal whitespace-nowrap! leading-[inherit]'
-const composerChipRemoveButtonClassName = 'size-full rounded-xs bg-muted text-foreground'
-const composerChipRemoveIconClassName = 'size-[0.6em]'
+const composerChipRemoveButtonClassName =
+  '-inset-0.5 size-auto rounded-xs bg-transparent text-foreground hover:text-foreground focus-visible:text-foreground dark:text-foreground'
+const composerChipRemoveIconClassName = 'size-[1em]'
 
 // 链接 chip 的图标槽：站点图标填满 1em（图片和 FallbackFavicon 自带的方块兜底都交给子选择器撑满）
 const composerLinkFaviconClassName =
@@ -122,7 +106,6 @@ export interface ComposerTokenProps {
     token: ChatTokenView
   ) => void | Promise<void>
   onFilePreviewActivate?: ComposerInputFilePreviewAction
-  imageIconPreview?: boolean
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -177,13 +160,17 @@ function InlineTokenRemoveButton({
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       aria-label={label}
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'pointer-events-none absolute inset-0 size-auto min-h-0 border-0 bg-transparent p-0 text-[length:inherit] text-current leading-none opacity-0 transition-opacity dark:text-current',
+        'hover:bg-transparent hover:text-current focus-visible:bg-transparent focus-visible:text-current',
+        'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -193,7 +180,7 @@ function InlineTokenRemoveButton({
       onClick={handleRemove}
       onKeyDown={(event) => event.stopPropagation()}>
       <X className={cn(tokenRemoveIconClassName, iconClassName)} aria-hidden />
-    </button>
+    </Button>
   )
 }
 
@@ -234,28 +221,6 @@ function InlineTokenIconSlot({
       />
     </span>
   )
-}
-
-function FileTokenImageIcon({ previewUrl, fallbackIcon }: { previewUrl?: string; fallbackIcon: ReactNode }) {
-  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string>()
-  if (!previewUrl || previewUrl === failedPreviewUrl) return fallbackIcon
-
-  return (
-    <img
-      src={previewUrl}
-      alt=""
-      aria-hidden
-      draggable={false}
-      className="block size-full shrink-0 rounded-xs object-cover"
-      data-file-token-icon-thumbnail=""
-      onError={() => setFailedPreviewUrl(previewUrl)}
-    />
-  )
-}
-
-function isSvgFile(file: ComposerAttachment | undefined, label: string) {
-  const extension = file?.ext || label.match(/\.[^.]+$/)?.[0] || ''
-  return extension.replace(/^\./, '').toLowerCase() === 'svg'
 }
 
 function renderActiveComposerTokenElement({
@@ -837,7 +802,6 @@ const ComposerTokenActivationTrigger = function ComposerTokenActivationTrigger({
 
 export function FileComposerToken(props: FileComposerTokenProps) {
   const {
-    imageIconPreview = false,
     onFilePreviewActivate,
     onReadOnlyFilePreviewActivate,
     onRemove,
@@ -928,20 +892,13 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     [canOpenFilePreview, openFilePreview]
   )
   const shouldShowPathTooltip = Boolean(pathTooltipPath) && !shouldShowFileTokenPopover(file)
-  const shouldRenderImageThumbnail = imageIconPreview && presentation.variant === 'image'
-  const tokenIcon = token.icon ? (
-    token.icon
-  ) : shouldRenderImageThumbnail && !isSvgFile(file, label) ? (
-    <FileTokenImageIcon previewUrl={presentation.previewUrl} fallbackIcon={presentation.icon} />
-  ) : (
-    presentation.icon
-  )
+  const tokenIcon = token.icon ?? presentation.icon
 
   const chipElement = (
     <span
       className={cn(
         composerChipClassName,
-        'bg-transparent font-normal',
+        'rounded-md font-normal',
         (readOnly || canOpenFilePreview) &&
           'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none',
         (canOpenFilePreview || readOnlyFilePreviewActivation) && 'cursor-pointer',
@@ -963,7 +920,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           removeLabel={removeLabel}
           onRemove={onRemove}
           slotClassName="size-full items-center justify-center"
-          removeButtonClassName={cn(composerChipRemoveButtonClassName, 'bg-transparent')}
+          removeButtonClassName={composerChipRemoveButtonClassName}
           removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>
