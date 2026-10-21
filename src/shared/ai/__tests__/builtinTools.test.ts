@@ -4,6 +4,7 @@ import * as z from 'zod'
 import { isHttpUrl } from '@shared/utils/url'
 
 import {
+  userMemoryInputSchema,
   KB_LIST_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
@@ -176,5 +177,25 @@ describe('builtin tool contracts', () => {
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [] }).success).toBe(false)
     expect(reportArtifactsInputSchema.safeParse({ artifacts: [{ path: '   ' }] }).success).toBe(false)
     expect(REPORT_ARTIFACTS_DESCRIPTION).toContain('final deliverable')
+  })
+})
+
+describe('memory paging and patch contracts', () => {
+  it('accepts first reads and bounded continuation coordinates', () => {
+    expect(userMemoryInputSchema.parse({ action: 'read' })).toEqual({ action: 'read' })
+    expect(userMemoryInputSchema.safeParse({ action: 'read', offset: -1 }).success).toBe(false)
+    expect(userMemoryInputSchema.parse({ action: 'read', offset: 100, expectedRevision: 'revision' })).toMatchObject({
+      offset: 100
+    })
+  })
+  it('requires an exact nonempty match and revision for patch, but permits deletion', () => {
+    expect(userMemoryInputSchema.safeParse({ action: 'patch', oldText: 'old', newText: '' }).success).toBe(false)
+    expect(
+      userMemoryInputSchema.safeParse({ action: 'patch', oldText: '', newText: 'new', expectedRevision: 'v' }).success
+    ).toBe(false)
+    expect(
+      userMemoryInputSchema.safeParse({ action: 'patch', oldText: 'old', newText: '', expectedRevision: 'v' }).success
+    ).toBe(true)
+    expect(userMemoryInputSchema.safeParse({ action: 'read', scope: 'agent' }).success).toBe(false)
   })
 })

@@ -564,4 +564,37 @@ describe('Desktop shared memory', () => {
       facts.replace('Fact 0\n', 'Edited fact\n')
     )
   })
+  it('bounds Assistant recall and tool reads while preserving complete shared files through patches', async () => {
+    const { context, execute, tool, options } = seedAssistantMemory()
+    await ensureUserMemory()
+    const content = 'unique header\n' + '中😀'.repeat(6000) + '\nretained tail'
+    const file = path.join(root, 'Memory', 'USER_FACT.md')
+    await writeFile(file, content)
+    const prompt = await buildAssistantMemorySection(context, true)
+    expect(prompt).toContain('Partial facts')
+    expect(prompt).not.toContain('retained tail')
+    const first = (await execute({ action: 'read' })) as MemoryFacts & { nextOffset: number }
+    expect(Buffer.byteLength(first.content, 'utf8')).toBeLessThanOrEqual(25_000)
+    const second = await execute({ action: 'read', offset: first.nextOffset, expectedRevision: first.revision })
+    expect(first.content + second.content).toBe(content)
+    await expect(
+      execute({ action: 'update', content: first.content, expectedRevision: first.revision })
+    ).rejects.toThrow('full-replacement limit')
+    const approval = tool.needsApproval as (input: unknown, options: ToolExecutionOptions) => boolean
+    expect(approval({ action: 'patch' }, options())).toBe(true)
+    await execute({
+      action: 'patch',
+      oldText: 'unique header',
+      newText: 'new header',
+      expectedRevision: first.revision
+    })
+    expect(await readFile(file, 'utf8')).toBe(content.replace('unique header', 'new header'))
+    await expect(
+      execute({ action: 'read', offset: first.nextOffset, expectedRevision: first.revision })
+    ).rejects.toMatchObject({ code: 'MEMORY_CONFLICT' })
+    assistantDataService.update(context.assistantId, { settings: { userMemoryEnabled: false } })
+    await expect(
+      execute({ action: 'patch', oldText: 'new header', newText: 'blocked', expectedRevision: first.revision })
+    ).rejects.toThrow('unavailable')
+  })
 })

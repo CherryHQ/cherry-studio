@@ -73,7 +73,7 @@ Ordinary Assistants opt in with `settings.userMemoryEnabled: true` in their exis
 
 Only non-headless persistent desktop chat dispatch grants access. Temporary chats, channel/Agent dispatch, and auxiliary requests do not receive that grant. The main process validates the topic/Assistant association and the live setting before loading facts, and again whenever a memory operation resolves its directory. Reassigning or deleting the topic, deleting the Assistant, or disabling the setting rejects subsequent operations.
 
-Each eligible request adds a fresh `User-Level Facts` section without persisting that section as a chat message. The built-in `user_memory` tool supports read, revision-checked update, append, and journal search. Updates and appends require the existing tool approval flow; reads and searches do not. Models without function calling, and requests with tools disabled, can receive facts but cannot write through the tool. Clearing facts withdraws future snapshots, not content already present in historical conversations or an in-flight request. No filesystem MCP configuration is required.
+Each eligible request adds a fresh `User-Level Facts` section without persisting that section as a chat message. The built-in `user_memory` tool supports paged read, revision-checked update or exact-text patch, append, and journal search. Updates, patches, and appends require the existing tool approval flow; reads and searches do not. Models without function calling, and requests with tools disabled, can receive facts but cannot write through the tool. Clearing facts withdraws future snapshots, not content already present in historical conversations or an in-flight request. No filesystem MCP configuration is required.
 
 ## Choosing
 
