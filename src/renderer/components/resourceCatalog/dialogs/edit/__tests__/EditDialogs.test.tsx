@@ -818,21 +818,6 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('switch', { name: 'settings.user_memory.enabled' })).toBeChecked()
   })
 
-  it('flushes the memory preference before opening shared memory settings', async () => {
-    updateAssistantMock.mockResolvedValue({
-      ...ASSISTANT,
-      settings: { ...ASSISTANT.settings, userMemoryEnabled: true }
-    })
-    function Host() {
-      const [open, setOpen] = useState(true)
-      return <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} />
-    }
-    render(<Host />)
-    fireEvent.click(screen.getByRole('switch', { name: 'settings.user_memory.enabled' }))
-    fireEvent.click(screen.getByRole('button', { name: 'settings.user_memory.title' }))
-    await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/user-memory'))
-    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { userMemoryEnabled: true } } })
-  })
   it.each(['agent', 'assistant'] as const)(
     'opens global prompt settings from an empty %s prompt panel',
     async (type) => {

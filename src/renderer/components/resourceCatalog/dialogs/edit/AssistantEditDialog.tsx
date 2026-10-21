@@ -600,22 +600,13 @@ function AssistantBasicFields({
         render={({ field }) => (
           <FormItem className={editDialogFormRowClassName}>
             <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.user_memory.enabled')}</FormLabel>
-            <div className="flex items-center justify-between gap-3">
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  aria-label={t('settings.user_memory.enabled')}
-                />
-              </FormControl>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onSettingsNavigate?.(() => openSettingsTab('/settings/user-memory'))}>
-                {t('settings.user_memory.title')}
-              </Button>
-            </div>
+            <FormControl>
+              <Switch
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                aria-label={t('settings.user_memory.enabled')}
+              />
+            </FormControl>
           </FormItem>
         )}
       />
