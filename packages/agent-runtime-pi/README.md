@@ -17,12 +17,6 @@ dependency and imports no Cherry application code.
 owns credentials and provider registration, and closing a session does not unregister its providers.
 Settings, including retries and thinking level, retain native Pi semantics.
 
-The owner of a model runtime can require things of every session built on it with
-`setSessionRequirements(modelRuntime, { extensionFactories, settings })`: the builder installs those
-extension factories ahead of the session's own and applies those settings over the session's,
-whichever host builds the session. Cherry's AI SDK binding uses it for its tool-call guard and to
-keep Pi's retry off.
-
 The builder uses in-memory settings, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
 Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
