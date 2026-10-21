@@ -6,7 +6,6 @@ const {
   listAgentsMock,
   getAgentMock,
   updateAgentMock,
-  deleteAgentMock,
   reorderMock,
   reorderBatchMock,
   listAllTasksMock,
@@ -14,12 +13,12 @@ const {
   listTasksMock,
   getTaskMock,
   listSkillsMock,
-  getSkillByIdMock
+  getSkillByIdMock,
+  archiveAgentMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
-  deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   listAllTasksMock: vi.fn(),
@@ -27,7 +26,8 @@ const {
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
-  getSkillByIdMock: vi.fn()
+  getSkillByIdMock: vi.fn(),
+  archiveAgentMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -35,7 +35,6 @@ vi.mock('@data/services/AgentService', () => ({
     listAgents: listAgentsMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
-    deleteAgent: deleteAgentMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -58,6 +57,14 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
+
+// DELETE routes through AgentLifecycleService; other handlers never resolve it,
+// so the stub returns a minimal object for every name.
+vi.mock('@application', () => ({
+  application: {
+    get: () => ({ archiveAgent: archiveAgentMock })
+  }
+}))
 
 import { agentHandlers } from '../agents'
 import { skillHandlers } from '../skills'
@@ -189,19 +196,19 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates DELETE and returns undefined on success', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+    it('delegates DELETE to AgentLifecycleService.archiveAgent and returns undefined', async () => {
+      archiveAgentMock.mockResolvedValueOnce({ deleted: true })
 
       const result = await agentHandlers['/agents/:agentId'].DELETE({
         params: { agentId: AGENT_ID }
       })
 
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+      expect(archiveAgentMock).toHaveBeenCalledWith(AGENT_ID, { archiveSessions: false })
       expect(result).toBeUndefined()
     })
 
     it('throws notFound when agent does not exist on DELETE', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: false })
+      archiveAgentMock.mockResolvedValueOnce({ deleted: false })
 
       await expect(agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND

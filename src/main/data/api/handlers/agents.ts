@@ -6,6 +6,7 @@
  * to the appropriate service method.
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -76,9 +77,10 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     DELETE: async ({ params }) => {
-      // `{ deleteSessions: false }` keeps this route out of the cascade-deletion
-      // territory covered by the dedicated `ai.agent.sessions.delete` IPC.
-      const result = agentService.deleteAgent(params.agentId, { deleteSessions: false })
+      // Route through AgentLifecycleService so retained session runtimes are
+      // properly paused and closed — mirrors the ai.agent.delete IPC path.
+      const lifecycle = application.get('AgentLifecycleService')
+      const result = await lifecycle.archiveAgent(params.agentId, { archiveSessions: false })
       if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }
