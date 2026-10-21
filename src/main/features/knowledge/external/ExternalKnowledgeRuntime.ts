@@ -412,6 +412,10 @@ export class ExternalKnowledgeRuntime {
     const applicationCredentials = replacement
       ? await this.resolveApplicationCredentials(replacement)
       : await this.readStoredApplicationCredentials(connection, { state, generation: currentGeneration })
+    // A consumed refresh token must be replaced on disk before fencing the active credential.
+    while (state.refreshFlight && this.isCurrentCredentialGeneration(state, currentGeneration)) {
+      await Promise.allSettled([state.refreshFlight])
+    }
     this.assertAccepting()
     this.assertCredentialGeneration(state, currentGeneration)
     connection = this.requireConnection(connectionId)
@@ -453,6 +457,9 @@ export class ExternalKnowledgeRuntime {
     this.clearSessionExpiry(session)
     session.controller.abort()
     const state = this.credentialStates.get(session.stateCredentialReference)
+    while (state?.refreshFlight && this.isCurrentCredentialGeneration(state, session.generation)) {
+      await Promise.allSettled([state.refreshFlight])
+    }
     const cleanupGeneration =
       state && this.isCurrentCredentialGeneration(state, session.generation)
         ? this.advanceCredentialGeneration(session.stateCredentialReference, state)

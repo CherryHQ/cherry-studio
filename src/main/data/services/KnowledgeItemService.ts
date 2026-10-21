@@ -478,7 +478,7 @@ export class KnowledgeItemService {
     )
   }
 
-  updateCompletedExternalMetadataTx(
+  updateSettledExternalMetadataTx(
     tx: Pick<DbType, 'select' | 'update'>,
     id: string,
     input: { baseId: string; source: string; title: string }
@@ -491,7 +491,7 @@ export class KnowledgeItemService {
           eq(knowledgeItemTable.id, id),
           eq(knowledgeItemTable.baseId, input.baseId),
           eq(knowledgeItemTable.type, 'external'),
-          eq(knowledgeItemTable.status, 'completed')
+          inArray(knowledgeItemTable.status, ['completed', 'failed'])
         )
       )
       .limit(1)
@@ -508,7 +508,7 @@ export class KnowledgeItemService {
           eq(knowledgeItemTable.id, id),
           eq(knowledgeItemTable.baseId, input.baseId),
           eq(knowledgeItemTable.type, 'external'),
-          eq(knowledgeItemTable.status, 'completed')
+          inArray(knowledgeItemTable.status, ['completed', 'failed'])
         )
       )
       .returning()
