@@ -28,7 +28,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 
 - 依赖只有一个方向。本包不导入任何适配器、Pi 或宿主代码，适配器之间也互不依赖（[harness 边界](2026-10-17-agent-harness-boundaries.md) AC1）。
 - 每个适配器在自己的包里同时实现公共的 `AgentRuntime` 访问和我们的 harness 端口。它翻译原生事实、执行决策给出的操作，从不重写规则。
-- 与 `@cherrystudio/agent-runtime` 的关系是单向的。我们只导入类型：不透明 ID、`JsonValue` 和 `ContentPart`。`MessageItem` 和 `ToolCallItem` 是带 completeness、不带用量的观察协议，所以历史模型由我们定义。我们导出 `delegationStatus()` 和 `delegationTrigger()`；适配器投影 `Delegation` 时调用它们，替换两个适配器今天发布的 `unknown` 状态。子会话的一次运行对应一个 `DelegationId`。
+- 与 `@cherrystudio/agent-runtime` 的关系是单向的。我们只导入类型：不透明 ID、`JsonValue` 和 `ContentPart`。`MessageItem` 和 `ToolCallItem` 是带 completeness、不带用量的观察协议，所以历史模型由我们定义。我们导出 `delegationStatus()`、`subagentViews()` 和 `turnOrigin()`；适配器投影子会话运行的 `Delegation` 状态、宿主展示的后台子会话和一个 turn 的来源时调用它们，而不是从原生状态自行推导。子会话的一次运行对应一个 `DelegationId`。
 - 模型侧的子智能体操作不走 `ThreadHandle.submit`，它对托管的子会话仍然拒绝。如果[子智能体控制](2026-10-18-agent-runtime-subagent-control.md)提议的 `spawn` 和 `cancel` 控制落地，由适配器接到我们的入口上，语义仍由本包定义。
 
 ### 事实、决策与记录
@@ -64,7 +64,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 | harness 侧，入站 | `Tools`、`ToolGate`、`ContextFilter`、`RequestMeter`、`Lifecycle`、`Jobs` | coding-agent 适配器、Durable 适配器、fake |
 | 宿主侧 | `Approvals`、`Questions`、`Models`、`Verifier`、`OutputStore`、`Summarizer`、`Observation`、`Settings`；`Workspaces` 随 worktree PR 加入 | Cherry 宿主；fake 里是脚本化实现 |
 
-端口实例绑定在一次工具调用、一个作业或一次宿主入口上，随之失效，与 Durable 绑定调用的 handle 同形。在 Durable 上不安装 `ContextFilter`，请求上限由模型桥执行，这条需求交给模型桥的负责人。
+端口实例绑定在一次工具调用、一个作业或一次宿主入口上，随之失效，与 Durable 绑定调用的 handle 同形。在 Durable 上，`ContextFilter` 与其他入站端口一样都要提供（包会无条件注册它的处理器），只是从不被查询，因为提交只有被接纳后才进入历史；请求上限由模型桥执行，这条需求交给模型桥的负责人。
 
 ### 所有权
 
@@ -111,7 +111,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 | 8 | 子智能体每次运行的请求上限 | 没有原语；`beforeRequest` 抛出的错误会被跳过。 | 模型桥按会话计数，第 201 次请求以不可重试的 `quota exceeded` 错误失败；适配器报告 `limit_reached`。 | 可以提：请求预算，或允许 `beforeRequest` 拒绝 | 能 |
 | 9 | 交互的身份、有效期与迟到的回答；崩溃后不重复提问 | 没有交互原语；`beforeTool` 在 intent 之前等待，崩溃后会重跑。 | 宿主持久记录审批结局，`cherry.approval:` memo 记下每个答复；用户答复之前崩溃，就再问一次。 | 可以提：交互原语 | 部分能：memo 消除了「答过还问」；等待中崩溃仍会再问一次 |
 | 10 | 在 harness 内拦下 `/goal` | 没有输入钩子；Durable spec 自己的 `/plan` 也由宿主路由。 | 宿主把 `/goal` 交给 goal 命令入口；被当成普通输入提交的 `/goal`，模型会当文本读到。 | 不需要，上游有意如此设计 | 不适用 |
-| 11 | 把尚未接纳的 goal 轮对模型隐藏（`ContextFilter`） | 没有上下文钩子；Durable 的提交只有被接纳后才进入历史，未接纳的轮根本到不了模型 | Durable 上不安装 `ContextFilter`（已声明差异）；coding-agent 适配器安装它 | 不需要 | 不适用 |
+| 11 | 把尚未接纳的 goal 轮对模型隐藏（`ContextFilter`） | 没有上下文钩子；Durable 的提交只有被接纳后才进入历史，未接纳的轮根本到不了模型 | Durable 提供 `ContextFilter` 但从不查询它的处理器（已声明差异）；coding-agent 适配器会查询它 | 不需要 | 不适用 |
 
 ## Alternatives considered
 
