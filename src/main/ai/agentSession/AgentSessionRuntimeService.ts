@@ -2407,6 +2407,10 @@ export class AgentSessionRuntimeService extends BaseService {
     const drained = this.drainedTaskIdsFor(entry)
     const turn = this.currentTurn(entry)
     const spawnedHeadless = turn === undefined || turn.headless === true
+    // A completion drained into a streaming generation is consumed by that reply, so it never opens
+    // a wake of its own; owing it would hand its authority to a later, unrelated wake.
+    const consumer = this.liveTurn(entry)
+    const consumed = consumer !== undefined && hasAgentSessionRuntimeOpenStream(entry.runtimeState, consumer)
     const authorities = this.backgroundTaskAuthorities.get(entry.sessionId) ?? new Map<string, boolean>()
     const completed = this.completedBackgroundTasks.get(entry.sessionId) ?? new Map<string, boolean>()
     for (const id of live) if (!authorities.has(id)) authorities.set(id, spawnedHeadless)
@@ -2415,7 +2419,7 @@ export class AgentSessionRuntimeService extends BaseService {
       drained.add(id)
       const authority = authorities.get(id)
       authorities.delete(id)
-      if (authority !== undefined) completed.set(id, authority)
+      if (authority !== undefined && !consumed) completed.set(id, authority)
     }
     this.backgroundTaskAuthorities.set(entry.sessionId, authorities)
     this.completedBackgroundTasks.set(entry.sessionId, completed)

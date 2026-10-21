@@ -337,6 +337,55 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 
+  // A headless completion delivered into a live desktop turn is consumed there: it never opens a
+  // wake of its own. Keeping its authority owed made a LATER interactive completion's wake run
+  // headless, denying the user's questions and approvals for work the desktop requested.
+  it('does not let a headless completion consumed by a desktop turn deny a later interactive wake', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    // A headless delivery spawns task A and settles; A keeps running.
+    service.beginTurn({ ...baseTurnInput, headless: true })
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: { send: vi.fn(), close: vi.fn(), events: [], reconcile: vi.fn() },
+      occupancy: {}
+    }
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [{ id: 'task-a', type: 'task', description: 'delivery' }] })
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    service.markTurnTerminal('session-1', 'success')
+
+    // A running desktop turn is streaming when A's notification arrives: that generation consumes
+    // it, so no wake will ever report it.
+    service.beginTurn(baseTurnInput)
+    const desktopTurn = currentTurn(entry)
+    const desktopReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: desktopTurn.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(desktopReader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [] })
+    handleRuntimeEvent({ type: 'background-work-state', active: false })
+    service.markTurnTerminal('session-1', 'success')
+    await desktopReader.cancel().catch(() => undefined)
+
+    // A later desktop turn's own task completes with no generation left to consume it, so its
+    // completion wakes the agent.
+    service.beginTurn(baseTurnInput)
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [{ id: 'task-c', type: 'task', description: 'desktop' }] })
+    service.markTurnTerminal('session-1', 'success')
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [] })
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(currentTurn(getEntry(service)).headless).toBe(false)
+    expect(service.getInteractionState('session-1')).toMatchObject({
+      currentTurn: 'interactive',
+      userResponse: 'message'
+    })
+    void service.closeSession('session-1')
+  })
+
   // A connection-wide ledger of every id the session ever published made an EARLIER fire's
   // completed task count as debt for a later one. That task's absence then "discharged" the new
   // stash, so an unrelated desktop task's wake claimed the external chat and posted its output
