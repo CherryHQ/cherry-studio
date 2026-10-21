@@ -135,6 +135,41 @@ describe('DownloadManagerService recovery', () => {
     expect(new Set(picked).size).toBe(picked.length)
   })
 
+  it('keeps overwrite destinations exclusive between live tasks', async () => {
+    const service = new DownloadManagerService()
+    await service._doInit()
+
+    const first = await internals(service).reservePath(dir, 'same.bin', 'overwrite')
+    const second = await internals(service).reservePath(dir, 'same.bin', 'overwrite')
+
+    expect(first).toBe(join(dir, 'same.bin'))
+    expect(second).toBe(join(dir, 'same (1).bin'))
+  })
+
+  it('does not let a download alias another task temporary path', async () => {
+    const service = new DownloadManagerService()
+    await service._doInit()
+
+    const first = await internals(service).reservePath(dir, 'report.bin', 'uniquify')
+    const second = await internals(service).reservePath(dir, 'report.bin.crdownload', 'uniquify')
+
+    expect(first).toBe(join(dir, 'report.bin'))
+    expect(second).not.toBe(`${first}.crdownload`)
+    expect(second).toBe(join(dir, 'report.bin (1).crdownload'))
+  })
+
+  it('keeps a failed task destination reserved across restart', async () => {
+    const { task } = createTask('payload.bin')
+    store.setState(task.id, 'failed', 'probe failed')
+
+    BaseService.resetInstances()
+    const restarted = new DownloadManagerService()
+    await restarted._doInit()
+
+    const next = await internals(restarted).reservePath(dir, 'payload.bin', 'uniquify')
+    expect(next).toBe(join(dir, 'payload (1).bin'))
+  })
+
   it('drops a paused queued task from the pending queue', async () => {
     const { task } = createTask()
     store.setState(task.id, 'queued')

@@ -77,7 +77,7 @@ export class DownloadManagerService extends BaseService {
   private store!: DownloadStore
   private readonly queue: string[] = []
   private readonly running = new Map<string, AbortController>()
-  /** Paths claimed by tasks that have not touched the disk yet. */
+  /** Final and temporary paths claimed by tasks, including failed rows that can retry. */
   private readonly reserved = new Set<string>()
   private readonly speeds = new SpeedMeter()
   private active = 0
@@ -101,8 +101,12 @@ export class DownloadManagerService extends BaseService {
     // only sees files on disk, and an interrupted task usually has nothing but a
     // `.crdownload`, so without this a new download of the same name would claim
     // the same final and temporary paths and two writers would share one file.
+    // Failed rows are included because Retry reuses their original paths.
     for (const task of this.store.listResumable()) {
-      if (task.filePath) this.reserved.add(task.filePath)
+      if (task.filePath) this.claim(task.filePath)
+    }
+    for (const task of this.store.listFailed()) {
+      if (task.filePath) this.claim(task.filePath)
     }
     if (!application.get('PreferenceService').get(PREF.autoResume)) return
     for (const task of this.store.listResumable()) {
@@ -254,20 +258,51 @@ export class DownloadManagerService extends BaseService {
    */
   private async reservePath(dir: string, fileName: string, policy: DownloadConflictPolicy): Promise<string> {
     if (policy === 'overwrite') {
-      const target = await resolveDownloadPath(dir, fileName, policy)
-      this.reserved.add(target)
-      return target
+      for (let attempt = 0; attempt < 10_000; attempt++) {
+        // Only the requested name may overwrite; the alternatives allocated
+        // around a live task must not clobber an unrelated existing file.
+        const candidate = await resolveDownloadPath(
+          dir,
+          uniquifyFileName(fileName, attempt),
+          attempt === 0 ? 'overwrite' : 'uniquify'
+        )
+        if (this.isReserved(candidate)) continue
+        this.claim(candidate)
+        return candidate
+      }
+      throw new Error('could not reserve a free file name')
     }
     for (let attempt = 0; attempt < 10_000; attempt++) {
       const candidate = await resolveDownloadPath(dir, uniquifyFileName(fileName, attempt), policy)
       if (await this.pathTaken(candidate)) continue
       // Claim synchronously: another start may have completed its own
       // filesystem checks while this one was awaiting them.
-      if (this.reserved.has(candidate)) continue
-      this.reserved.add(candidate)
+      if (this.isReserved(candidate)) continue
+      this.claim(candidate)
       return candidate
     }
     throw new Error('could not reserve a free file name')
+  }
+
+  /**
+   * Reserves both roles: a task owns its final path and its `.crdownload`, so a
+   * download literally named `report.bin.crdownload` cannot alias the temporary
+   * file of `report.bin`.
+   */
+  private claim(filePath: string): void {
+    this.reserved.add(filePath)
+    this.reserved.add(`${filePath}.crdownload`)
+  }
+
+  private release(filePath: string | null | undefined): void {
+    if (!filePath) return
+    this.reserved.delete(filePath)
+    this.reserved.delete(`${filePath}.crdownload`)
+  }
+
+  /** True when `candidate` is any task's final or temporary path. */
+  private isReserved(candidate: string): boolean {
+    return this.reserved.has(candidate) || this.reserved.has(`${candidate}.crdownload`)
   }
 
   /**
@@ -275,7 +310,7 @@ export class DownloadManagerService extends BaseService {
    * `.crdownload` still holds the name even though no task row points at it.
    */
   private async pathTaken(candidate: string): Promise<boolean> {
-    if (this.reserved.has(candidate)) return true
+    if (this.isReserved(candidate)) return true
     return fs.stat(`${candidate}.crdownload`).then(
       () => true,
       () => false
@@ -309,7 +344,7 @@ export class DownloadManagerService extends BaseService {
     this.running.get(taskId)?.abort(DOWNLOAD_CANCELLED)
     this.dequeue(taskId)
     const entry = this.store.get(taskId)
-    if (entry?.task.filePath) this.reserved.delete(entry.task.filePath)
+    this.release(entry?.task.filePath)
     this.store.setState(taskId, 'cancelled')
     if (entry?.task.tempPath) void fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
   }
@@ -339,7 +374,7 @@ export class DownloadManagerService extends BaseService {
   async remove(taskId: string): Promise<void> {
     this.running.get(taskId)?.abort()
     const entry = this.store.get(taskId)
-    if (entry?.task.filePath) this.reserved.delete(entry.task.filePath)
+    this.release(entry?.task.filePath)
     if (entry?.task.tempPath) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
     this.store.delete(taskId)
   }
@@ -403,7 +438,7 @@ export class DownloadManagerService extends BaseService {
       })
       const result = await runner.run(controller.signal)
       if (result === 'completed') {
-        this.reserved.delete(task.filePath)
+        this.release(task.filePath)
         logger.info('Download completed', { taskId, bytes: task.totalBytes })
       }
     } catch (error) {

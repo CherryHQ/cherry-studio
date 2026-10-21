@@ -102,6 +102,16 @@ export class DownloadStore {
       .all()
   }
 
+  /** Failed rows still own their paths until they are retried or removed. */
+  listFailed(): DownloadTaskRecord[] {
+    return this.db
+      .select()
+      .from(downloadTaskTable)
+      .where(eq(downloadTaskTable.state, 'failed'))
+      .orderBy(asc(downloadTaskTable.createdAt))
+      .all()
+  }
+
   listAll(limit = 200): DownloadTaskRecord[] {
     return this.db.select().from(downloadTaskTable).orderBy(desc(downloadTaskTable.createdAt)).limit(limit).all()
   }
