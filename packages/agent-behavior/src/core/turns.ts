@@ -24,6 +24,16 @@ export function stoppedTurn(history: readonly HistoryEntry[], key: string): Item
   return turn
 }
 
+/** A stop is recorded for the turn begun last; every stop writes its record in its deciding commit (R5). */
+export function turnStopping(history: readonly HistoryEntry[]): boolean {
+  let stopped: boolean | undefined
+  for (const entry of history) {
+    if (startsTurn(entry)) stopped = false
+    else if (stopped === false && entry.kind === 'record' && entry.record.type === 'turn-stop') stopped = true
+  }
+  return stopped === true
+}
+
 export type Turn = 'human' | 'round' | 'notification'
 /** Which turn `entry` starts, by `startsTurn`; `undefined` for an entry that starts none (a quiet marker included). */
 export function turnKind(entry: HistoryEntry): Turn | undefined {
