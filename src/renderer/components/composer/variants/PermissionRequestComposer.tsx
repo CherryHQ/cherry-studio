@@ -248,6 +248,10 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           </div>
         </div>
 
+        {request.approvalReason ? (
+          <p className="mt-2 whitespace-pre-wrap break-words px-1 text-foreground text-sm">{request.approvalReason}</p>
+        ) : null}
+
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>

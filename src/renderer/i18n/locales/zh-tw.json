@@ -2228,6 +2228,8 @@
   "lmstudio.keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）",
   "lmstudio.keep_alive_time.placeholder": "分鐘",
   "lmstudio.keep_alive_time.title": "保持活躍時間",
+  "mcp.skills.unavailable": "MCP 技能無法使用",
+  "mcp.skills.use": "使用來自 {{server}} 的 MCP 技能「{{name}}」（{{origin}}）。",
   "message.agents.import.error": "匯入失敗",
   "message.agents.imported": "已成功匯入 {{count}} 位助理",
   "message.api.check.model.title": "請選擇要偵測的模型",

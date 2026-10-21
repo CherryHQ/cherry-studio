@@ -29,6 +29,7 @@ import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { resolveDelegationApproval } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -145,16 +146,21 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       return { block: true, reason: sqliteDecision.reason }
     }
 
+    const skillDenial = application.get('McpSkillService').guardTool(ctx.sessionId, toolName)
+    if (skillDenial) return { block: true, reason: skillDenial }
+
     const mode = ctx.getPermissionMode() ?? 'default'
+    const skillApproval = application.get('McpSkillService').toolApproval(ctx.sessionId, toolName, input, mode)
+    if (skillApproval) signal = AbortSignal.any([skillApproval.signal, ...(signal ? [signal] : [])])
     const delegationApproval = ctx.delegationTools.has(toolName)
       ? resolveDelegationApproval(mode, ctx.getInteractionState())
       : undefined
     if (delegationApproval === 'deny') {
       return { block: true, reason: 'Cross-Session delegation requires an interactive user turn.' }
     }
-    if (delegationApproval === 'allow') return
-    const approvalRequired = delegationApproval === 'ask' || ctx.approvalRequiredTools.has(toolName)
-    const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
+    if (delegationApproval === 'allow' && !skillApproval) return
+    const approvalRequired = !!skillApproval || delegationApproval === 'ask' || ctx.approvalRequiredTools.has(toolName)
+    const bypass = mode === 'bypassPermissions' && !skillApproval && !ctx.nonBypassableApprovalTools.has(toolName)
     // Classify what the model wrote: `rtk git …` hides the real command word from detection.
     const modelInput = { ...input }
 
@@ -238,7 +244,13 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
             toolName,
             input: { ...input },
             presentation,
-            providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName } satisfies CherryToolMeta }
+            providerMetadata: {
+              cherry: {
+                transport: PI_TRANSPORT,
+                toolName,
+                ...(skillApproval && { approvalReason: skillApproval.reason })
+              } satisfies CherryToolMeta
+            }
           }
         })
       })
@@ -254,6 +266,14 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
             ? withUserDenialFeedback(decision.reason)
             : (decision.reason ?? 'User denied permission for this tool.')
       }
+    }
+    if (skillApproval) {
+      try {
+        skillApproval.validate()
+      } catch (error) {
+        return { block: true, reason: error instanceof Error ? error.message : String(error) }
+      }
+      if (decision.updatedInput) return { block: true, reason: 'Retry the edited call for a new skill approval.' }
     }
     if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
     return

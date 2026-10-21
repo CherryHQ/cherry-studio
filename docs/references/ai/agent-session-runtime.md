@@ -847,8 +847,10 @@ through `searchTools`, `describeTool`, `describeNamespace`, or `ALL_TOOLS`.
 Native file and shell tools remain available both directly and from scripts.
 Every nested call emits its own tool events and passes Cherry's `tool_call`
 approval extension, including disabled-tool, SQLite, global-install, and
-permission-mode policies. The script itself needs no separate approval because
-all outward effects pass through those tool calls.
+permission-mode policies. The script itself normally needs no separate approval because
+all outward effects pass through those tool calls. A loaded MCP skill requires
+explicit per-call tool approval for code mode outside Full Access; the builtin skills server is directly
+exposed so verified reads remain available. See [MCP Skills Client](./mcp-skills-client.md).
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP

@@ -85,6 +85,21 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  it('shows the skill origin with the execution request before the user approves', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          approvalReason: 'Execute with reports from Server A (server-a), skill://reports/SKILL.md'
+        })}
+        onRespond={onRespond}
+      />
+    )
+    expect(screen.getByText('Execute with reports from Server A (server-a), skill://reports/SKILL.md')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: /Allow/ }))
+    expect(onRespond).toHaveBeenCalledWith(expect.objectContaining({ approved: true }))
+  })
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 

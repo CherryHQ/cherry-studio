@@ -62,6 +62,7 @@ import {
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { McpSkillEntrySchema, type McpSkillEntry } from '@shared/types/mcpSkills'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -93,7 +94,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId'),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.mcpSkills'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -291,6 +292,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   const result = { ...data }
   delete result.runtimeAnchor
   delete result.nativeSessionId
+  delete result.mcpSkills
   return result
 }
 
@@ -754,6 +756,37 @@ export class AgentSessionMessageService {
     return { items, nextCursor }
   }
 
+  recordMcpSkill(sessionId: string, messageId: string, skill: McpSkillEntry): void {
+    application.get('DbService').withWriteTx((tx) => {
+      this.assertActiveSession(tx, sessionId)
+      const row = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
+      const skills = (row.data.mcpSkills ?? []).filter(
+        (entry) => entry.serverId !== skill.serverId || entry.uri !== skill.uri
+      )
+      tx.update(sessionMessagesTable)
+        .set({ data: { ...row.data, mcpSkills: [...skills, skill] } })
+        .where(eq(sessionMessagesTable.id, messageId))
+        .run()
+    })
+  }
+
+  listMcpSkills(sessionId: string): McpSkillEntry[] {
+    const db = application.get('DbService').getDb()
+    this.assertActiveSession(db, sessionId)
+    return db
+      .select({ data: sessionMessagesTable.data })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`json_type(${sessionMessagesTable.data}, '$.mcpSkills') = 'array'`
+        )
+      )
+      .all()
+      .flatMap(({ data }) => McpSkillEntrySchema.array().parse(data.mcpSkills))
+  }
+
   listApprovalMessages(sessionId: string): AgentSessionMessageEntity[] {
     const database = application.get('DbService').getDb()
     this.assertActiveSession(database, sessionId)
@@ -783,6 +816,13 @@ export class AgentSessionMessageService {
     this.assertActiveSession(database, sessionId)
 
     const existing = this.findExistingMessageRow(database, sessionId, messageId)
+    if (existing?.data.mcpSkills?.length) {
+      throw DataApiErrorFactory.resourceLocked(
+        'Message',
+        messageId,
+        'MCP skill instructions retained in native session history'
+      )
+    }
     if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
     }
@@ -821,10 +861,11 @@ export class AgentSessionMessageService {
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      const data = { ...mergedData, ...(existing.data.mcpSkills ? { mcpSkills: existing.data.mcpSkills } : {}) }
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
-        .set({ data: mergedData, updatedAt })
+        .set({ data, updatedAt })
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
@@ -1042,6 +1083,7 @@ export class AgentSessionMessageService {
     if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
+      if (existingRow.data.mcpSkills) data.mcpSkills = existingRow.data.mcpSkills
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs

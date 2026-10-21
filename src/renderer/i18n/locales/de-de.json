@@ -2228,6 +2228,8 @@
   "lmstudio.keep_alive_time.description": "Zeit, die das Modell nach dem Gespräch im Speicher bleibt (Standard: 5 Minuten)",
   "lmstudio.keep_alive_time.placeholder": "Minuten",
   "lmstudio.keep_alive_time.title": "Aktiv-Haltezeit",
+  "mcp.skills.unavailable": "MCP-Skills nicht verfügbar",
+  "mcp.skills.use": "Verwende den MCP-Skill „{{name}}“ von {{server}} ({{origin}}).",
   "message.agents.import.error": "Import fehlgeschlagen",
   "message.agents.imported": "{{count}} Assistenten erfolgreich importiert",
   "message.api.check.model.title": "Bitte zu testendes Modell auswählen",

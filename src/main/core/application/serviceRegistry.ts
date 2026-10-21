@@ -23,6 +23,7 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { McpSkillService } from '@main/ai/skills/McpSkillService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
@@ -170,6 +171,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   McpCatalogService,
+  McpSkillService,
   BinaryManager,
   OpenClawService,
   PdfTranslationService,

@@ -82,6 +82,10 @@
       "sources": ["src/main/ai/localModel","src/renderer/hooks/useLocalModel.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/presets/localModel.ts","src/shared/ipc/schemas/localModel.ts"]
     },
     {
+      "path": "docs/references/ai/mcp-skills-client.md",
+      "sources": ["src/main/ai/mcp/connections/ClientMcpConnection.ts","src/main/ai/mcp/servers/skills.ts","src/main/ai/skills/McpSkillService.ts","src/main/ai/skills/mcpSkillContent.ts","src/main/data/services/AgentSessionMessageService.ts","src/renderer/components/composer/variants/AgentComposer.tsx","src/renderer/hooks/useMcpSkills.ts","src/shared/types/mcpSkills.ts"]
+    },
+    {
       "path": "docs/references/ai/model-retry.md",
       "sources": ["src/main/ai/runtime/aiSdk/retry","src/renderer/pages/settings/ModelSettings/ModelSettings.tsx"]
     },

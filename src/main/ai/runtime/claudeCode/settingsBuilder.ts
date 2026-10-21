@@ -542,7 +542,13 @@ async function buildToolPermissions(
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
+    const skillDenial = application.get('McpSkillService').guardTool(session.id, toolName)
+    if (skillDenial) return { behavior: 'deny', message: skillDenial }
+    const skillApproval = application
+      .get('McpSkillService')
+      .toolApproval(session.id, toolName, input, snapshot.getPermissionMode())
     const approvalHoldsInThisMode =
+      !!skillApproval ||
       policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&
         !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
@@ -610,8 +616,19 @@ async function buildToolPermissions(
         toolName,
         originalInput: input,
         presentation,
-        signal: opts.signal,
-        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
+        signal: skillApproval ? AbortSignal.any([opts.signal, skillApproval.signal]) : opts.signal,
+        resolve: (decision) => {
+          if (decision.approved && skillApproval) {
+            try {
+              skillApproval.validate()
+              if (decision.updatedInput) throw new Error('Retry the edited call for a new skill approval.')
+            } catch (error) {
+              resolve({ behavior: 'deny', message: error instanceof Error ? error.message : String(error) })
+              return
+            }
+          }
+          resolve(decisionToPermissionResult(decision, input))
+        }
       })
       if (!pending) return
       emit({
@@ -621,7 +638,11 @@ async function buildToolPermissions(
         input,
         presentation,
         providerMetadata: {
-          cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
+          cherry: {
+            transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+            toolName,
+            ...(skillApproval && { approvalReason: skillApproval.reason })
+          } satisfies CherryToolMeta
         }
       })
     })

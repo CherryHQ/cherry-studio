@@ -174,6 +174,8 @@ export interface CherryReasoningMeta {
 
 /** Cherry metadata on a ToolUIPart / DynamicToolUIPart. */
 export interface CherryToolMeta {
+  /** Host-owned explanation for a contextual tool approval. */
+  approvalReason?: string
   /** Approval bridge transport. */
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
@@ -303,6 +305,7 @@ export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.objec
 })
 
 export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
+  approvalReason: z.string().optional(),
   transport: z.string().optional(),
   toolName: z.string().optional(),
   tool: z

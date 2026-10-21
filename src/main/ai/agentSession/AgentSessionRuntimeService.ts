@@ -28,6 +28,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -65,6 +66,7 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { McpSkillEntry } from '@shared/types/mcpSkills'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -349,7 +351,8 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   'ClaudeCodeProcessManager',
   'ClaudeCodeWarmQueryManager',
   'AutomationReplService',
-  'RuntimeActivityService'
+  'RuntimeActivityService',
+  'McpSkillService'
 ])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
@@ -1093,6 +1096,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   closeSession(sessionId: string): Promise<void> {
+    application.get('McpSkillService').closeSession(sessionId)
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
@@ -1506,6 +1510,49 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  async requestToolApproval(
+    sessionId: string,
+    request: { toolName: string; input: Record<string, unknown>; reason: string; signal: AbortSignal }
+  ): Promise<DispatchDecision> {
+    request.signal.throwIfAborted()
+    const entry = this.entries.get(sessionId)
+    if (entry && agentService.getAgent(entry.agentId)?.configuration?.permission_mode === 'bypassPermissions')
+      return { approved: true }
+    if (!entry || this.getInteractionState(sessionId).userResponse === 'unavailable')
+      return { approved: false, reason: 'This operation requires interactive tool approval.' }
+    const approvalId = uuidv7()
+    const toolCallId = uuidv7()
+    return new Promise((resolve) => {
+      if (
+        !toolApprovalRegistry.register({
+          approvalId,
+          sessionId,
+          toolCallId,
+          toolName: request.toolName,
+          originalInput: request.input,
+          presentation: 'message',
+          signal: request.signal,
+          resolve
+        })
+      )
+        return
+      this.handleToolApprovalRequest(entry, {
+        approvalId,
+        toolCallId,
+        toolName: request.toolName,
+        input: request.input,
+        presentation: 'message',
+        providerMetadata: {
+          cherry: {
+            transport: AGENT_RUNTIME_CAPABILITIES[entry.agentType].transport,
+            toolName: request.toolName,
+            approvalReason: request.reason
+          }
+        }
+      })
+    })
+  }
+
   /**
    * Resolve a Claude `canUseTool` approval registered against this runtime session. Persisted
    * interaction messages are settled before their SDK promise; live overlays are cleared after it.
@@ -1832,6 +1879,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
+    application.get('McpSkillService').openSession(entry.sessionId, entry.agentId)
     const connection = await driver.connect({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
@@ -2573,6 +2621,17 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
     if (request.presentation === 'stream') {
+      if (request.providerMetadata?.cherry?.approvalReason) {
+        this.deliverRuntimeChunk(entry, {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          dynamic: true,
+          providerExecuted: true,
+          providerMetadata: request.providerMetadata
+        })
+      }
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
@@ -2702,6 +2761,7 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.refreshTurnTraceContext(entry, turn)
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
+    if (!this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
@@ -3276,6 +3336,13 @@ export class AgentSessionRuntimeService extends BaseService {
         new TraceFlushListener(entry.topicId)
       ]
     })
+  }
+
+  recordMcpSkillLoad(sessionId: string, skill: McpSkillEntry): void {
+    const entry = this.entries.get(sessionId)
+    const turn = entry && this.liveTurn(entry)
+    if (!turn) throw new Error('MCP skill loading requires an active turn')
+    agentSessionMessageService.recordMcpSkill(sessionId, turn.userMessage.id, skill)
   }
 
   getMcpInteractionHost(sessionId: string): { windowId: string; topicId: string; model: string } | undefined {

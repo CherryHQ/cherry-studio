@@ -2227,6 +2227,57 @@ describe('AiStreamManager', () => {
       )
     })
 
+    it('updates approval context on the original dynamic tool without losing origin or parent metadata', async () => {
+      const manager = createManager()
+      const listener = new FakeListener('approval-context')
+      startSingle(manager, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+      manager.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'bash',
+        dynamic: true,
+        providerExecuted: true,
+        input: { command: 'echo ready' },
+        providerMetadata: {
+          cherry: { transport: 'pi-agent', parentToolCallId: 'parent-1', tool: { serverId: 'origin' } }
+        }
+      })
+      manager.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'bash',
+        input: { command: 'echo ready' },
+        providerMetadata: { cherry: { approvalReason: 'Execute with reports from Server A' } }
+      })
+      manager.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'call-1'
+      })
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const chunk of listener.chunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      let message
+      for await (const current of readUIMessageStream({ stream })) message = current
+      const parts = message?.parts.filter((part) => part.type === 'dynamic-tool')
+      expect(parts).toHaveLength(1)
+      expect(parts?.[0]).toMatchObject({
+        state: 'approval-requested',
+        approval: { id: 'approval-1' },
+        providerExecuted: true,
+        callProviderMetadata: {
+          cherry: {
+            approvalReason: 'Execute with reports from Server A',
+            parentToolCallId: 'parent-1',
+            tool: { serverId: 'origin' }
+          }
+        }
+      })
+    })
+
     it('attaches when the surviving ring contains a complete pending approval', () => {
       const approvalMgr = createManager({ maxBufferChunks: 3 })
       startSingle(approvalMgr, {

@@ -3287,6 +3287,41 @@ describe('AgentComposer', () => {
     expect(inputAdapter.focus).toHaveBeenCalled()
   })
 
+  it('keeps same-named local and remote skills independently selectable and surfaces a failed origin', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) => {
+      if (route !== 'mcp.server.list_skills') return {}
+      if (serverId === 'offline') throw new Error('Origin unavailable')
+      return (
+        serverId === 'one' ? ['skill://pdf/SKILL.md', 'skill://team/pdf/SKILL.md'] : ['skill://pdf/SKILL.md']
+      ).map((uri) => ({
+        serverId,
+        serverName: serverId,
+        uri,
+        frontmatter: { name: 'pdf', description: 'Read PDFs' },
+        resources: 'dynamic'
+      }))
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['one', 'two', 'offline'] }}
+      />
+    )
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(5))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => item.id)).size).toBe(5)
+    expect(items.filter((item) => item.label === 'pdf · one')).toHaveLength(2)
+    expect(items.find((item) => item.label === 'pdf · two')?.description).toContain('skill://pdf/SKILL.md')
+    expect(items.find((item) => item.id === 'skill:pdf')?.label).toBe('pdf')
+    expect(items.find((item) => item.disabled)?.description).toContain('Origin unavailable')
+  })
+
   it('stops excluding the skills launcher when the toolbar shortcut is unpinned in place', () => {
     const renderComposer = () => (
       <AgentComposer

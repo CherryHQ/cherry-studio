@@ -17,6 +17,10 @@ Main is the single writer of approval state. The renderer surfaces an
 to Main. Main applies the decision to the DB-authoritative anchor parts,
 persists, and resumes the stream.
 
+MCP skill loading uses the same tool approval path. While remote skills are active,
+host code-execution calls require per-call approval identifying those skills outside
+Full Access; see [MCP Skills Client](./mcp-skills-client.md).
+
 ## End-to-end flow
 
 1. **Tool needs approval** — at `execute` time, the wrapper checks

@@ -2228,6 +2228,8 @@
   "lmstudio.keep_alive_time.description": "Tempo in minuti per mantenere attiva la connessione; il valore predefinito è 5 minuti.",
   "lmstudio.keep_alive_time.placeholder": "Minuti",
   "lmstudio.keep_alive_time.title": "Durata della connessione attiva",
+  "mcp.skills.unavailable": "Skill MCP non disponibili",
+  "mcp.skills.use": "Usa la skill MCP «{{name}}» di {{server}} ({{origin}}).",
   "message.agents.import.error": "Importazione non riuscita",
   "message.agents.imported": "{{count}} assistenti importati",
   "message.api.check.model.title": "Seleziona il modello da usare per il rilevamento",

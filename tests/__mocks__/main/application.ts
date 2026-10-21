@@ -95,6 +95,15 @@ export const defaultServiceInstances = {
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
   JobManager: mockJobManager,
+  McpSkillService: {
+    openSession: vi.fn(),
+    closeSession: vi.fn(),
+    guardTool: vi.fn(() => undefined),
+    toolApproval: vi.fn<() => { reason: string; signal: AbortSignal; validate: () => void } | undefined>(
+      () => undefined
+    ),
+    guardResourceRead: vi.fn(async (_sessionId, _serverId, _uri, signal, run) => run(signal))
+  },
   PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const

@@ -133,7 +133,9 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) =>
-    name === 'DbService' || name === 'RuntimeActivityService' ? get(name) : mocks.applicationGet(name)
+    name === 'DbService' || name === 'RuntimeActivityService' || name === 'McpSkillService'
+      ? get(name)
+      : mocks.applicationGet(name)
   )
   result.application.getPath.mockImplementation(forkRecoveryMocks.getPath)
   return result
@@ -658,6 +660,43 @@ describe('AgentSessionRuntimeService', () => {
       await closing
       expect(activities.size).toBe(0)
     })
+  })
+
+  it('passes host resource approvals in Full Access even without an interactive responder', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'pi',
+      configuration: { permission_mode: 'bypassPermissions' }
+    })
+    vi.spyOn(service, 'getInteractionState').mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+    await expect(
+      service.requestToolApproval('session-1', {
+        toolName: 'mcp__skills__read_mcp_skill_file',
+        input: { server_id: 'other' },
+        reason: 'Cross-origin read',
+        signal: new AbortController().signal
+      })
+    ).resolves.toEqual({ approved: true })
+    expect(toolApprovalRegistry.hasSession('session-1')).toBe(false)
+  })
+
+  it('routes a resource approval through the existing pending registry and persisted card', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi' })
+    vi.spyOn(service, 'getInteractionState').mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    const pending = service.requestToolApproval('session-1', {
+      toolName: 'mcp__skills__read_mcp_skill_file',
+      input: { server_id: 'b', resource_uri: 'skill://reports/SKILL.md' },
+      reason: 'Read from B while skill from A is active',
+      signal: new AbortController().signal
+    })
+    const card = mocks.saveMessage.mock.lastCall![0].message.data.parts[0]
+    expect(card.callProviderMetadata.cherry.approvalReason).toContain('from A')
+    expect(service.respondToolApproval(card.approval.id, { approved: false }, 'approval-message')).toBe(true)
+    await expect(pending).resolves.toMatchObject({ approved: false, reasonSource: 'user' })
+    expect(toolApprovalRegistry.hasSession('session-1')).toBe(false)
   })
 
   describe('respondToolApproval', () => {

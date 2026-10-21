@@ -2228,6 +2228,8 @@
   "lmstudio.keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
   "lmstudio.keep_alive_time.placeholder": "Минуты",
   "lmstudio.keep_alive_time.title": "Время жизни модели",
+  "mcp.skills.unavailable": "Навыки MCP недоступны",
+  "mcp.skills.use": "Используй навык MCP «{{name}}» с {{server}} ({{origin}}).",
   "message.agents.import.error": "Импорт не выполнен",
   "message.agents.imported": "Успешно импортировано ассистентов: {{count}}",
   "message.api.check.model.title": "Выберите модель для проверки",
