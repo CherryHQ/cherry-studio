@@ -1,4 +1,4 @@
-import { mkdir, readFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { safeStorage } from 'electron'
@@ -299,6 +299,7 @@ export class ExternalKnowledgeCredentialStore {
   private async replace(file: CredentialFile): Promise<void> {
     const filePath = AbsoluteFilePathSchema.parse(this.filePath)
     await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 })
+    if (process.platform !== 'win32') await chmod(path.dirname(filePath), 0o700)
     await atomicWriteFile(filePath, `${JSON.stringify(credentialFileSchema.parse(file), null, 2)}\n`, { mode: 0o600 })
   }
 }
