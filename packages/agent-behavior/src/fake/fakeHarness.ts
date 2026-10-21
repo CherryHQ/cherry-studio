@@ -311,6 +311,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       }
       const handlers = epoch.lifecycle
       if (handlers) {
+        const asking = epoch
         const key = `${thread}:${target.entries.at(-1)?.entry.id ?? 'start'}`
         const request = {
           key,
@@ -319,6 +320,8 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
           signal: new AbortController().signal
         } as const
         if ('decline' in (await within((ports) => handlers.onCompacting(thread, request, ports)))) return
+        // A restart while onCompacting ran retired the epoch that asked; its compaction must not land in the next one.
+        if (!alive(asking)) return
       }
       append(target, { kind: 'compaction', id: nextItem(state) })
       await lifecycle((handlers, ports) => handlers.onCompacted(thread, ports))
