@@ -22,12 +22,6 @@ Native deltas accumulate once into ordered SDK messages, including preliminary/f
 owns credentials and provider registration, and closing a session does not unregister its providers.
 Settings, including retries and thinking level, retain native Pi semantics.
 
-The owner of a model runtime can require things of every session built on it with
-`setSessionRequirements(modelRuntime, { extensionFactories, settings })`: the builder installs those
-extension factories ahead of the session's own and applies those settings over the session's,
-whichever host builds the session. Cherry's AI SDK binding uses it for its tool-call guard and to
-keep Pi's retry off.
-
 The builder uses in-memory settings and session state, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
 Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
@@ -41,14 +35,15 @@ Known gap: Pi's resource loader still resolves its discovery directories while i
 
 ## Cherry integration
 
-Cherry's AI SDK provider bridge lives in `src/main/ai/runtime/pi/aiSdkModelBinding.ts`. It supplies
-native model configuration and, through session requirements, its tool-call guard ahead of approval
-handlers. AI SDK conversion, retries, provider metadata and request side channels stay in Cherry.
+Cherry registers a native Pi provider pointed at its internal gateway in
+`src/main/ai/runtime/pi/gatewayModelBinding.ts`. Pi owns protocol encoding, streaming, replay and
+tool execution; the gateway owns Cherry provider resolution, credentials and usage records.
+No model-call interface or session requirements are needed in this package.
 
-This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
-bridge; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+The desktop cutover is a later stack layer. Gateway integration tests live in Cherry's Main
+process project; `tests/nativeSession.test.ts` verifies native providers and borrowed-runtime ownership.
 
 ```bash
-pnpm test:agent-runtime packages/agent-runtime-pi/tests/nativeSession.test.ts
-pnpm --filter @cherrystudio/agent-runtime typecheck
+pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/nativeSession.test.ts
+pnpm --filter @cherrystudio/agent-runtime-pi typecheck
 ```

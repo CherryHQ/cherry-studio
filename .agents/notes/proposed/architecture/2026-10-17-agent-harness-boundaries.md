@@ -86,11 +86,15 @@ Current Pi uses native `SessionManager` for files and branches, with an in-memor
 | [agent-runtime](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime/README.md) | Common contracts, opaque IDs, and `ThreadFeed` observation delivery. No execution loop, SDK, Electron, AI SDK, or product entities. |
 | [agent-runtime-pi](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/README.md) | Pi coding-agent access and our Pi-specific goal, tools, and subagent extensions, using native sessions and storage. |
 | [agent-runtime-pi-durable](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/README.md) | Independent integration with Pi Durable's `Harness`, conversation and task APIs, scheduler, and storage. |
-| [Cherry model bridge](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md) | Host model selection and AI SDK request/response translation through native `ModelRuntime`. Pi retains the model/tool loop. |
+| [Cherry model bridge](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md) | Host model selection and native Pi provider registration against the internal gateway. Pi retains protocol streaming, replay and the tool loop; Cherry retains credentials and provider-call billing. |
 
-Pi Durable is a separate execution system, not a persistence switch on coding-agent. Both adapters depend on the common package and do not depend on each other. The Cherry model binding owns request retries and disables Pi retries on bound sessions; it does not add a second agent loop. Native compaction, verifier context, and child continuation use native messages and managers, not reconstruction from public display items.
+Pi Durable is a separate execution system, not a persistence switch on coding-agent. Both adapters depend on the common package and do not depend on each other. Pi's session owns request retries; the native HTTP client and internal gateway do not add retries or execute Pi's tools. Native compaction, verifier context, and child continuation use native messages and managers, not reconstruction from public display items.
 
 The desktop services still use their existing runtime path. The [runtime contract](2026-10-17-agent-runtime-contract.md) records the implemented access protocol and its limitations; the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md) separates five native samples, historical probes, source coverage, and remaining acceptance. The [goal note](https://github.com/CherryHQ/cherry-studio/pull/21607) and [background subagent note](https://github.com/CherryHQ/cherry-studio/pull/21693) own the Pi-specific decisions.
+
+### Use native Pi providers through the internal gateway
+
+The approved deletion removes the host `ModelCallPort`, custom AI SDK stream protocol, metadata codec and binding-enforced session settings. The host registers a native Pi provider against the existing internal gateway. Gateway execution owns provider credentials and billing; native session events own display usage. This change does not redesign the gateway pipeline. Preserve tool ownership, native history, compaction, abort and retry behavior with HTTP integration tests, then verify the desktop cutover in its owning layer.
 
 ## Alternatives considered
 

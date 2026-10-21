@@ -11,9 +11,9 @@ import {
   lastAssistant,
   MODEL,
   scriptedModel,
-  streamTextPort,
+  gatewayModel,
   textParts
-} from './aiSdkSupport'
+} from './gatewaySupport'
 
 const PAGE_CHARS = 9_000 // ~2.6k tokens per tool result
 
@@ -39,7 +39,7 @@ describe('Pi compaction through the port', () => {
       [...textParts('c', 'Answer three.'), finish('stop')]
     ])
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       settings: { compaction: { keepRecentTokens: 1 } }
     })
     await session.prompt('Question one, my name is Li')
@@ -98,7 +98,7 @@ describe('Pi compaction through the port', () => {
       }
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       model: { ...MODEL, contextWindow: 9_000 },
       tools: [fetchPage],
       // threshold = contextWindow - reserveTokens = 7k tokens; three pages (~8k) cross it.
