@@ -1,5 +1,47 @@
 # @cherrystudio/provider-registry
 
+## 0.2.3
+
+### Patch Changes
+
+- [#21999](https://github.com/CherryHQ/cherry-studio/pull/21999) [`5967cf3`](https://github.com/CherryHQ/cherry-studio/commit/5967cf357a4f619b6e01b4c21d8e0d024400989c) Thanks [@SaladDay](https://github.com/SaladDay)! - Rename MiniMax-M3.1-Flash-Preview to MiniMax-M3.1-Flash, preserve documented temperature support for MiniMax-M3 and MiniMax-M3.1-Flash, and refresh catalog content versions.
+
+## 0.2.2
+
+### Patch Changes
+
+- [#21776](https://github.com/CherryHQ/cherry-studio/pull/21776) [`14d63eb`](https://github.com/CherryHQ/cherry-studio/commit/14d63eb93a65e0ea03df84722317bd9e6ec97404) Thanks [@ousugo](https://github.com/ousugo)! - Add Muse Spark Open BF16 and NVFP4 model recognition with multimodal capabilities and the official reasoning levels and default.
+
+## 0.2.1
+
+### Patch Changes
+
+- [#21715](https://github.com/CherryHQ/cherry-studio/pull/21715) [`1b0c69f`](https://github.com/CherryHQ/cherry-studio/commit/1b0c69f9d9f086b3aaace631b187b427aac18aaf) Thanks [@1lck](https://github.com/1lck)! - Add widescreen, portrait, 16:10, and 4K size presets for GPT-Image-2 while preserving the existing sizes for GPT-Image-1 models.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#21675](https://github.com/CherryHQ/cherry-studio/pull/21675) [`a6e7c0f`](https://github.com/CherryHQ/cherry-studio/commit/a6e7c0fcdc0fe0f43e3c63702bf18cf56e72a5ae) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add optional billing URLs to provider website metadata and include billing destinations for OpenAI, Anthropic, CherryIN, and DeepSeek so applications can offer quota-recovery actions.
+
+## 0.1.4
+
+### Patch Changes
+
+- [#19786](https://github.com/CherryHQ/cherry-studio/pull/19786) [`9ef4b13`](https://github.com/CherryHQ/cherry-studio/commit/9ef4b130f343dc4288dbf36dc49d32c35c7ddf15) Thanks [@kennyzheng-builds](https://github.com/kennyzheng-builds)! - Expose the Hugging Face router's Chat Completions endpoint alongside Anthropic Messages and Responses while preserving the default inherited by existing configurations.
+
+## 0.1.3
+
+### Patch Changes
+
+- [#21633](https://github.com/CherryHQ/cherry-studio/pull/21633) [`fda831e`](https://github.com/CherryHQ/cherry-studio/commit/fda831efece6a963c5cdb706cc84767dc1af66dc) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini Embedding 2 Preview, Nano Banana 2.1 and Pro alias metadata, and classify Gemini Omni 1.1 Flash as a video generation model.
+
+## 0.1.2
+
+### Patch Changes
+
+- [#21625](https://github.com/CherryHQ/cherry-studio/pull/21625) [`7a7a424`](https://github.com/CherryHQ/cherry-studio/commit/7a7a4247185a8187e54bb09b77f407bd0c04981c) Thanks [@DeJeune](https://github.com/DeJeune)! - Support Gemini 4 Argon with the updated Google adapter and model catalog. Export context usage helpers that exclude repeated continuation prompts from context occupancy while preserving billed token counts, and allow catalog generation to refresh selected models.
+
 ## 0.1.1
 
 ### Patch Changes

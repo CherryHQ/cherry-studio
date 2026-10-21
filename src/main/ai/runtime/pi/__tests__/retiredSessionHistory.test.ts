@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -131,7 +132,16 @@ describe('retired DSH session migration', () => {
             nativeSessionId: 'old-edit-id',
             parts: [
               { type: 'text', text: 'Remember the migration marker: cherry-pi-928.' },
-              { type: 'file', mediaType: 'text/plain', filename: 'notes.txt', url: 'file:///tmp/cherry-notes.txt' }
+              // Built via pathToFileURL so the fixture is a valid absolute file
+              // URL on every host — a hardcoded `file:///tmp/…` URL makes
+              // `fileURLToPath` throw on Windows ("File URL path must be
+              // absolute"), failing the whole migration suite there.
+              {
+                type: 'file',
+                mediaType: 'text/plain',
+                filename: 'notes.txt',
+                url: pathToFileURL(path.join(directory, 'cherry-notes.txt')).href
+              }
             ]
           },
           runtimeResumeToken: 'old-dsh-token'
@@ -269,7 +279,9 @@ describe('retired DSH session migration', () => {
     expect(manager.getSessionId()).toBe(migration.resumeToken)
     const serialized = JSON.stringify(manager.buildContextEntries())
     expect(serialized).toContain('cherry-pi-928')
-    expect(serialized).toContain('/tmp/cherry-notes.txt')
+    // Basename only: the serialized JSON escapes Windows path separators, so a
+    // full host path would not match across platforms.
+    expect(serialized).toContain('cherry-notes.txt')
     expect(serialized).toContain('finished previously')
     expect(serialized).not.toContain('"type":"toolCall"')
     expect(existsSync(path.join(directory, 'forbidden-replay'))).toBe(false)

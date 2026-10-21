@@ -5,6 +5,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
@@ -49,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   cacheDeleteShared: vi.fn(),
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
+  closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
@@ -131,7 +133,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) =>
-    name === 'DbService' ? get(name) : mocks.applicationGet(name)
+    name === 'DbService' || name === 'RuntimeActivityService' ? get(name) : mocks.applicationGet(name)
   )
   result.application.getPath.mockImplementation(forkRecoveryMocks.getPath)
   return result
@@ -535,7 +537,11 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'ClaudeCodeBinaryService') return { getStatus: () => ({ phase: 'ready' }) }
       if (name === 'ClaudeCodeWarmQueryManager')
-        return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
+        return {
+          closeAll: mocks.closeWarmQueries,
+          closeAgentSessionWarm: mocks.closeAgentSessionWarm,
+          close: mocks.closeWarmSession
+        }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
@@ -553,6 +559,105 @@ describe('AgentSessionRuntimeService', () => {
     expect(() => service.assertSessionEditable('session-2')).not.toThrow()
     await settled
     expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+  })
+
+  describe('runtime activity for detached work', () => {
+    const activities = new Set<symbol>()
+    let registration: MockInstance
+
+    beforeEach(() => {
+      activities.clear()
+      registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+        const token = Symbol()
+        activities.add(token)
+        return {
+          dispose: () => {
+            activities.delete(token)
+          }
+        }
+      })
+    })
+
+    afterEach(() => registration.mockRestore())
+
+    it.each(['success', 'failure', 'cancellation'] as const)(
+      'holds activity until an idle-source fork settles with %s',
+      async (outcome) => {
+        const service = new AgentSessionRuntimeService()
+        const gate = createDeferred<string>()
+        const run = vi.spyOn(service['forks'] as any, 'run').mockReturnValue(gate.promise)
+        try {
+          const fork = service.forkSession('session-1', 'assistant-1')
+          const settled = fork.catch(() => undefined)
+          expect(service.isSessionBusy('session-1')).toBe(false)
+          expect(activities.size).toBe(1)
+          await Promise.resolve()
+          const cancellation = outcome === 'cancellation' ? service.cancelSessionForks('session-1') : undefined
+          expect(activities.size).toBe(1)
+          if (outcome === 'success') gate.resolve('forked-session')
+          else gate.reject(new Error(outcome))
+          await settled
+          await cancellation
+          expect(activities.size).toBe(0)
+        } finally {
+          run.mockRestore()
+        }
+      }
+    )
+
+    it('keeps the hold until concurrent forks have all settled', async () => {
+      const service = new AgentSessionRuntimeService()
+      const first = createDeferred<string>()
+      const second = createDeferred<string>()
+      const run = vi
+        .spyOn(service['forks'] as any, 'run')
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise)
+      try {
+        const a = service.forkSession('session-1', 'assistant-1')
+        const b = service.forkSession('session-2', 'assistant-2')
+        expect(activities.size).toBe(1)
+        first.resolve('fork-a')
+        await a
+        expect(activities.size).toBe(1)
+        second.resolve('fork-b')
+        await b
+        expect(activities.size).toBe(0)
+      } finally {
+        run.mockRestore()
+      }
+    })
+
+    it('keeps detached background work active without making the session busy, then releases on completion', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(activities.size).toBe(1)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+      await vi.waitFor(() => expect(activities.size).toBe(0))
+      await service.closeSession('session-1')
+      expect(activities.size).toBe(0)
+    })
+
+    it('retains detached activity through session teardown until the connection closes', async () => {
+      const service = new AgentSessionRuntimeService()
+      const gate = createDeferred<void>()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.connection = { close: () => gate.promise, send: vi.fn(), events: [] }
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true, awaitingReply: false })
+      service.markTurnTerminal('session-1', 'success')
+      expect(activities.size).toBe(1)
+      const closing = service.closeSession('session-1')
+      expect(activities.size).toBe(1)
+      gate.resolve()
+      await closing
+      expect(activities.size).toBe(0)
+    })
   })
 
   describe('respondToolApproval', () => {
@@ -2828,6 +2933,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(true)
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeDefined()
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
@@ -2839,6 +2945,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
       expect(service.isSessionBusy('session-1')).toBe(false)
+      expect(service.isSessionBusyForArchive('session-1')).toBe(false)
       expect(entry.runtimeState.execution.kind).not.toBe('autonomous-turn')
       service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
@@ -3735,6 +3842,90 @@ describe('AgentSessionRuntimeService', () => {
     expect(onIdle).toHaveBeenCalledWith({ sessionId: 'session-1' })
   })
 
+  it('waits for pending warm preparation even when runtime maps are empty', async () => {
+    const service = new AgentSessionRuntimeService()
+    const prepared = createDeferred<void>()
+    mocks.closeWarmSession.mockReturnValueOnce(prepared.promise)
+    let closed = false
+    const closing = service.closeSessionForArchive('session-1').then(() => {
+      closed = true
+    })
+    await vi.waitFor(() => expect(mocks.closeWarmSession).toHaveBeenCalledWith('session-1'))
+    expect(closed).toBe(false)
+    prepared.resolve()
+    await closing
+    expect(closed).toBe(true)
+  })
+
+  it('blocks archiving after native close failure even after the runtime entry disappears', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connection = { close: vi.fn().mockRejectedValue(new Error('still running')), send: vi.fn(), events: [] }
+    getEntry(service).connection = connection
+
+    await service.closeSession('session-1')
+    expect(service.inspect('session-1')).toBeUndefined()
+    await expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+    await expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+
+    connection.close.mockResolvedValue(undefined)
+    await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+  })
+
+  it('keeps timed-out native shutdown unsafe until shutdown is positively confirmed', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const nativeClose = createDeferred<void>()
+      getEntry(service).connection = { close: () => nativeClose.promise, send: vi.fn(), events: [] }
+
+      const closing = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closing
+      expect(service.inspect('session-1')).toBeUndefined()
+      const archiveClose = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await archiveClose
+      const retry = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await retry
+
+      nativeClose.resolve()
+      await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('keeps every timed-out predecessor unsafe when a later connection finishes closing', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = new AgentSessionRuntimeService()
+      const firstClose = createDeferred<void>()
+      const secondClose = createDeferred<void>()
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = { close: () => firstClose.promise, send: vi.fn(), events: [] }
+      const closingFirst = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closingFirst
+
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = { close: () => secondClose.promise, send: vi.fn(), events: [] }
+      const closingSecond = service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(20_000)
+      await closingSecond
+      secondClose.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+
+      const blocked = expect(service.closeSessionForArchive('session-1')).rejects.toThrow()
+      await vi.advanceTimersByTimeAsync(20_000)
+      await blocked
+      firstClose.resolve()
+      await expect(service.closeSessionForArchive('session-1')).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
     ServiceContainer.reset()
     const container = ServiceContainer.getInstance()
@@ -3902,8 +4093,31 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeUndefined()
 
     firstConnectionClose.resolve()
+    await firstClose
+    expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.closing.session-1', false)
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
     secondConnectionClose.resolve()
-    await expect(Promise.all([firstClose, secondClose])).resolves.toBeDefined()
+    await secondClose
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.closing.session-1', false)
+    expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+  })
+
+  it('publishes the closing session to the edit gate until the teardown settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const closed = createDeferred<void>()
+    getEntry(service).connection = { close: vi.fn(() => closed.promise), send: vi.fn(), events: [] }
+
+    const closing = service.closeSession('session-1')
+
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.closing.session-1', true)
+    expect(() => service.assertSessionEditable('session-1')).toThrow('busy')
+
+    closed.resolve()
+    await closing
+
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.closing.session-1', false)
+    expect(() => service.assertSessionEditable('session-1')).not.toThrow()
   })
 
   it('does not throw and logs a warning when the connection close rejects on closeSession (REGRESSION agent-session-5)', async () => {
@@ -3934,6 +4148,16 @@ describe('AgentSessionRuntimeService', () => {
 
   it('blocks history rewrites after the close deadline and allows them once native teardown completes', async () => {
     vi.useFakeTimers()
+    const activities = new Set<symbol>()
+    const registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+      const token = Symbol()
+      activities.add(token)
+      return {
+        dispose: () => {
+          activities.delete(token)
+        }
+      }
+    })
     try {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -3943,13 +4167,49 @@ describe('AgentSessionRuntimeService', () => {
       await vi.advanceTimersByTimeAsync(20_001)
       await closing
       expect(() => service.assertSessionEditable('session-1')).toThrow('close_failed')
+      expect(activities.size).toBe(1)
       teardown.resolve()
       await vi.advanceTimersByTimeAsync(0)
+      expect(activities.size).toBe(0)
       expect(() => service.assertSessionEditable('session-1')).not.toThrow()
     } finally {
+      registration.mockRestore()
       vi.useRealTimers()
     }
   })
+
+  it.each(['resolve', 'reject'] as const)(
+    'releases runtime activity when an idle session edit ends with %s',
+    async (outcome) => {
+      const service = new AgentSessionRuntimeService()
+      const editing = createDeferred<void>()
+      const runEdit = vi.spyOn(service['forks'] as any, 'runEdit').mockReturnValue(editing.promise)
+      const activities = new Set<symbol>()
+      const registration = vi.spyOn(defaultServiceInstances.RuntimeActivityService, 'begin').mockImplementation(() => {
+        const token = Symbol()
+        activities.add(token)
+        return {
+          dispose: () => {
+            activities.delete(token)
+          }
+        }
+      })
+      try {
+        const operation = service.editSession('session-1', { messageId: 'user-1', version: 'v1' }, () => undefined)
+        const settled = operation.catch(() => undefined)
+        expect(service.hasBusySessions()).toBe(true)
+        expect(activities.size).toBe(1)
+        if (outcome === 'resolve') editing.resolve()
+        else editing.reject(new Error('edit failed'))
+        await settled
+        expect(service.hasBusySessions()).toBe(false)
+        expect(activities.size).toBe(0)
+      } finally {
+        runEdit.mockRestore()
+        registration.mockRestore()
+      }
+    }
+  )
 
   it('persists assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()
@@ -4563,9 +4823,10 @@ describe('AgentSessionRuntimeService', () => {
     // still true. An in-flight compaction is settled to idle (not deleted) so a re-open doesn't
     // briefly observe a stale compacting status.
     expect(mocks.cacheDeleteShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1')
-    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
-      status: 'idle'
-    })
+    const compactionPublishes = mocks.cacheSetShared.mock.calls.filter(
+      ([key]) => key === 'agent.session.compaction.session-1'
+    )
+    expect(compactionPublishes.at(-1)).toEqual(['agent.session.compaction.session-1', { status: 'idle' }])
   })
 
   it('enqueues a compaction anchor into the current turn and refreshes context usage on completion', async () => {

@@ -315,6 +315,7 @@ const dataApiMocks = vi.hoisted(() => ({
   refetchAgents: vi.fn().mockResolvedValue(undefined),
   refetchChannels: vi.fn().mockResolvedValue(undefined),
   reorderAgent: vi.fn().mockResolvedValue(undefined),
+  reorderPin: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   restoreAgent: vi.fn().mockResolvedValue(undefined),
   updateWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -566,13 +567,15 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
             ? dataApiMocks.reorderAgent
             : method === 'PATCH' && path === '/agent-workspaces/:workspaceId'
               ? dataApiMocks.updateWorkspace
-              : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
-                ? dataApiMocks.deleteWorkspace
-                : method === 'DELETE' && path === '/agents/:agentId'
-                  ? dataApiMocks.deleteAgent
-                  : method === 'DELETE' && path === '/agents/:agentId/sessions'
-                    ? dataApiMocks.deleteAgentSessions
-                    : dataApiMocks.findOrCreateWorkspace,
+              : method === 'PATCH' && path === '/pins/:id/order'
+                ? dataApiMocks.reorderPin
+                : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
+                  ? dataApiMocks.deleteWorkspace
+                  : method === 'DELETE' && path === '/agents/:agentId'
+                    ? dataApiMocks.deleteAgent
+                    : method === 'DELETE' && path === '/agents/:agentId/sessions'
+                      ? dataApiMocks.deleteAgentSessions
+                      : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -982,6 +985,9 @@ describe('Sessions', () => {
       }
       if (route === 'ai.agent.workspace.delete') {
         return dataApiMocks.deleteWorkspace({ params: { workspaceId: input.workspaceId } })
+      }
+      if (route === 'ai.agent.workspace.register') {
+        return dataApiMocks.findOrCreateWorkspace({ body: { path: input.path as string } })
       }
       return Promise.resolve(undefined)
     })
@@ -1620,23 +1626,37 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
   })
 
-  it('keeps a pinned session in its expanded agent group', () => {
+  it.each([false, true])('keeps a pinned session above its agent group (collapsed: %s)', (collapsed) => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: collapsed ? ['session:agent:agent-a'] : []
+    })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
       isLoading: false,
       error: undefined
     })
     setupSessions({
-      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a' })],
+      sessions: [
+        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a' }),
+        createSession({ id: 'session-regular', name: 'Regular session', agentId: 'agent-a' })
+      ],
       pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
     })
 
     render(<SessionsForTest />)
 
-    expect(screen.queryByRole('button', { name: 'Pinned' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
-    expect(screen.getByText('Pinned session')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' })
+    const pinnedSession = screen.getByText('Pinned session')
+    expect(screen.getAllByText('Pinned session')).toHaveLength(1)
+    expect(pinnedSession.compareDocumentPosition(agentGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    if (collapsed) {
+      expect(screen.queryByText('Regular session')).not.toBeInTheDocument()
+    } else {
+      expect(screen.getByText('Regular session')).toBeInTheDocument()
+    }
     expect(screen.queryByText('No tasks')).not.toBeInTheDocument()
   })
 
@@ -1656,6 +1676,25 @@ describe('Sessions', () => {
     expect(
       within(unlinkedAgentGroupRow as HTMLElement).queryByRole('button', { name: 'New task' })
     ).not.toBeInTheDocument()
+  })
+
+  it('labels an all-pinned orphan session list', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-orphan', name: 'Orphan session', agentId: null })],
+      pinIdBySessionId: new Map([['session-orphan', 'pin-session-orphan']])
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+    expect(screen.getByText('Orphan session')).toBeInTheDocument()
   })
 
   it('defaults agent display groups to collapsed before the user changes expansion', () => {
@@ -2457,7 +2496,7 @@ describe('Sessions', () => {
     expect(menuContent).toHaveTextContent('Open in New Window')
   })
 
-  it('keeps a pinned session aligned with its agent icon', () => {
+  it('does not reserve an agent icon slot for a pinned session', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }]
     setupSessions({
@@ -2468,11 +2507,10 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
-    // The leading slot is the horizontal alignment contract shared with the agent header icon.
-    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
   })
 
-  it('keeps the leading slot when agent icons are hidden', () => {
+  it('does not reserve a leading slot for a pinned session when agent icons are hidden', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     preferenceMocks.values.set('agent.icon_type', 'none')
     dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }]
@@ -2484,7 +2522,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
-    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
   })
 
   it('hides the inline delete action for pinned sessions', () => {
@@ -3326,7 +3364,10 @@ describe('Sessions', () => {
     )
   })
 
-  it('rejects drops onto pinned sessions within an agent group', () => {
+  // Would catch: a pinned move being sent to `/agent-sessions/:id/order`, which
+  // writes the session's own orderKey and leaves the pinned order untouched, or
+  // the anchor being sent as a session id where the pin id is required.
+  it('reorders a pinned session through the pin order endpoint using pin ids', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
@@ -3335,30 +3376,75 @@ describe('Sessions', () => {
     })
     setupSessions({
       sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
-        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'b' })
+        createSession({ id: 'session-pinned-a', name: 'Alpha pinned', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-pinned-b', name: 'Beta pinned', agentId: 'agent-a', orderKey: 'b' })
       ],
-      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+      pinIdBySessionId: new Map([
+        ['session-pinned-a', 'pin-a'],
+        ['session-pinned-b', 'pin-b']
+      ])
     })
 
     render(<SessionsForTest />)
-    startDraggingSession('session-a')
+    startDraggingSession('session-pinned-a')
 
     act(() => {
       dndMocks.onDragEnd?.({
         active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
+          data: sortableData('item:session-pinned-a'),
+          id: 'item:session-pinned-a',
           rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
         },
         over: {
-          data: sortableData('item:session-pinned'),
-          id: 'item:session-pinned',
+          data: sortableData('item:session-pinned-b'),
+          id: 'item:session-pinned-b',
           rect: { top: 10, height: 20 }
         }
       })
     })
 
+    await vi.waitFor(() =>
+      expect(dataApiMocks.reorderPin).toHaveBeenCalledWith({ params: { id: 'pin-a' }, body: { after: 'pin-b' } })
+    )
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
+  })
+
+  // Would catch: dragging across the pinned boundary, which would silently pin or
+  // unpin a task — pin state must only change through the star button.
+  it('rejects dragging a pinned session onto an unpinned one', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-plain', name: 'Plain session', agentId: 'agent-a', orderKey: 'b' })
+      ],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+    startDraggingSession('session-pinned')
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-pinned'),
+          id: 'item:session-pinned',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: {
+          data: sortableData('item:session-plain'),
+          id: 'item:session-plain',
+          rect: { top: 10, height: 20 }
+        }
+      })
+    })
+
+    expect(dataApiMocks.reorderPin).not.toHaveBeenCalled()
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
   })
 

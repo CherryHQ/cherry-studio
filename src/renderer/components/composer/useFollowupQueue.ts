@@ -58,6 +58,11 @@ export interface FollowupQueueController {
   sendId: (id: string) => Promise<boolean>
   removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
+  takeForEdit(
+    id: string,
+    captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
+  ): FollowupQueueItem | null
+  releaseEdit(): void
   paused: boolean
   setPaused: (paused: boolean) => void
 }
@@ -85,15 +90,34 @@ export function useFollowupQueue({
     [scopeKey]
   )
   const [state, setState] = useState(readState)
+  const takenRef = useRef<{
+    scopeKey: string
+    item: FollowupQueueItem
+    slot: number
+    precedingIds: string[]
+  } | null>(null)
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
 
+  const reconcileEdit = useCallback(
+    (items: FollowupQueueItem[]) => {
+      const taken = takenRef.current
+      if (!taken || taken.scopeKey !== scopeKey) return
+      const ids = new Set(items.map((item) => item.id))
+      taken.slot -= taken.precedingIds.filter((id) => !ids.has(id)).length
+      taken.precedingIds = items.slice(0, taken.slot).map((item) => item.id)
+    },
+    [scopeKey]
+  )
+
   // The casual cache owns the queue across mounts, including sends finishing after a topic switch.
   useEffect(() => {
+    if (takenRef.current?.scopeKey !== scopeKey) takenRef.current = null
     const reload = () => {
       const next = readState()
+      reconcileEdit(next.items)
       setState((current) =>
         current.scopeKey === next.scopeKey &&
         current.items === next.items &&
@@ -112,7 +136,7 @@ export function useFollowupQueue({
       unsubscribePaused()
       unsubscribeCompletion()
     }
-  }, [readState, scopeKey])
+  }, [readState, reconcileEdit, scopeKey])
 
   const persist = useCallback(
     (next: FollowupQueueItem[]) => cacheService.setCasual(keyFor(scopeKey), next, QUEUE_TTL),
@@ -126,8 +150,38 @@ export function useFollowupQueue({
     [persist, scopeKey]
   )
   const removeId = useCallback(
-    (id: string) => persist(loadQueue(scopeKey).filter((item) => item.id !== id)),
+    (id: string) => {
+      if (takenRef.current?.scopeKey === scopeKey && takenRef.current.item.id === id) takenRef.current = null
+      const current = loadQueue(scopeKey)
+      if (current.some((item) => item.id === id)) persist(current.filter((item) => item.id !== id))
+    },
     [persist, scopeKey]
+  )
+
+  const releaseEdit = useCallback(() => {
+    if (takenRef.current?.scopeKey === scopeKey) takenRef.current = null
+  }, [scopeKey])
+
+  const takeForEdit = useCallback<FollowupQueueController['takeForEdit']>(
+    (id, captureOutgoing) => {
+      const current = loadQueue(scopeKey)
+      reconcileEdit(current)
+      const taken = takenRef.current?.scopeKey === scopeKey ? takenRef.current : null
+      if (taken?.item.id === id || loadCompletion(scopeKey).pendingIds.includes(id)) return null
+      if (!current.some((item) => item.id === id)) return null
+      const next = [...current]
+      if (taken) {
+        const outgoing = captureOutgoing(taken.item)
+        if (!outgoing) return null
+        next.splice(Math.min(taken.slot, next.length), 0, { ...taken.item, ...outgoing })
+      }
+      const slot = next.findIndex((item) => item.id === id)
+      const [incoming] = next.splice(slot, 1)
+      takenRef.current = { scopeKey, item: incoming, slot, precedingIds: next.slice(0, slot).map((item) => item.id) }
+      persist(next)
+      return incoming
+    },
+    [persist, reconcileEdit, scopeKey]
   )
 
   const sendItem = useCallback(
@@ -189,5 +243,15 @@ export function useFollowupQueue({
     void sendItem(head.id, lastCompletedAt)
   }, [scopeKey, status, lastCompletedAt, state, sendItem])
 
-  return { items: state.items, enqueue, sendId, removeId, reorder: persist, paused: state.paused, setPaused }
+  return {
+    items: state.items,
+    enqueue,
+    sendId,
+    removeId,
+    reorder: persist,
+    takeForEdit,
+    releaseEdit,
+    paused: state.paused,
+    setPaused
+  }
 }

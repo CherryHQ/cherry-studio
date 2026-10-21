@@ -155,7 +155,7 @@ const PaintingPage: FC = () => {
                 adding={busy}
               />
 
-              <div className={paintingClasses.centerPane}>
+              <div className={paintingClasses.centerPane} data-composer-stage="">
                 <div className={paintingClasses.centerStage}>
                   {!showTemplateShowcase && <Artboard painting={composerPainting} isLoading={generating} />}
                 </div>
@@ -200,7 +200,10 @@ const PaintingPage: FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <div className={paintingClasses.promptDock} data-testid="painting-prompt-dock">
+                  <div
+                    className={paintingClasses.promptDock}
+                    data-composer-dock-surface=""
+                    data-testid="painting-prompt-dock">
                     {canCollapsePromptDock && (
                       <div className="mx-auto mb-1 flex w-full max-w-5xl justify-center">
                         <button

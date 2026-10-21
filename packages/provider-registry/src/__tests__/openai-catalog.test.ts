@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { inferReasoningControls } from '../patterns/reasoning-heuristics'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
 import { RegistryLoader } from '../registry-loader'
+import { buildParamsSchema } from '../utils/buildParamsSchema'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const loader = new RegistryLoader({
@@ -15,6 +16,47 @@ const loader = new RegistryLoader({
 })
 
 describe('OpenAI catalog', () => {
+  it('offers widescreen, portrait, 16:10, and 4K GPT-Image-2 sizes within the API limits', () => {
+    const support = loader.findModel('gpt-image-2')?.imageGeneration
+    const size = support?.modes.generate?.supports.size
+    expect(size).toMatchObject({
+      default: '1024x1024',
+      options: expect.arrayContaining([
+        'auto',
+        '1024x1024',
+        '1536x1024',
+        '1024x1536',
+        '1536x864',
+        '864x1536',
+        '1536x960',
+        '3840x2160',
+        '2160x3840'
+      ])
+    })
+    if (size?.type !== 'enum') throw new Error('Expected size presets')
+    for (const value of size.options.filter((option) => option !== 'auto')) {
+      const [width, height] = value.split('x').map(Number)
+      expect(width % 16).toBe(0)
+      expect(height % 16).toBe(0)
+      expect(Math.max(width, height)).toBeLessThanOrEqual(3840)
+      expect(width / height).toBeGreaterThanOrEqual(1 / 3)
+      expect(width / height).toBeLessThanOrEqual(3)
+      expect(width * height).toBeGreaterThanOrEqual(655360)
+      expect(width * height).toBeLessThanOrEqual(8294400)
+      expect(buildParamsSchema(support, 'generate').parse({ size: value }).size).toBe(value)
+    }
+  })
+
+  it.each(['gpt-image-1', 'gpt-image-1-mini'])('keeps unsupported sizes out of %s requests', (id) => {
+    const support = loader.findModel(id)?.imageGeneration
+    const schema = buildParamsSchema(support, 'generate')
+    expect(support?.modes.generate?.supports.size).toMatchObject({
+      options: ['auto', '1024x1024', '1536x1024', '1024x1536']
+    })
+    expect(schema.parse({ size: '1536x864' }).size).toBeUndefined()
+    expect(schema.parse({ size: '3840x2160' }).size).toBeUndefined()
+  })
+
   it('resolves GPT-6.1 Sol with API pricing, limits, and supported reasoning', () => {
     expect(loader.findModel('gpt-6-1-sol')).toMatchObject({
       name: 'GPT-6.1 Sol',

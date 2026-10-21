@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Trusted reference to test: main, release/*, or a v* release tag"
+        description: "Branch in this repository or a v* release tag to test"
         required: true
         default: "main"
         type: string
@@ -22,6 +22,7 @@ on:
           - provider-model-scroll
           - custom-assistant
           - chat-stream-failure
+          - about
           - translation
           - quick-assistant
           - knowledge
@@ -44,7 +45,7 @@ concurrency:
 
 jobs:
   resolve:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'branch'
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.ref.outputs.mode }}
@@ -169,6 +170,11 @@ jobs:
           claude --version
           codex --version
           openclaw --version
+
+      - name: Prepare Everything MCP package
+        if: needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp'
+        shell: bash
+        run: npm exec --yes --package=@modelcontextprotocol/server-everything@1.0.0 -- node --version
 
       - name: Initialize isolated test directory
         shell: bash

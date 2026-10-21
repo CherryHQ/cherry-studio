@@ -160,3 +160,37 @@ it.each([false, true])('settles a manual send that started before completion (su
   }
   expect(attempts).toEqual(['A', sent ? 'B' : 'A'])
 })
+
+it('preserves the edited draft position when another mounted sender settles after unmount', async () => {
+  const scopeKey = crypto.randomUUID()
+  let finish!: (sent: boolean) => void
+  const useQueue = () =>
+    useFollowupQueue({
+      scopeKey,
+      status: 'streaming',
+      lastCompletedAt: null,
+      onDrain: () => new Promise<boolean>((resolve) => (finish = resolve))
+    })
+  const sender = renderHook(useQueue)
+  act(() => {
+    for (const text of ['A', 'B', 'C', 'D']) {
+      sender.result.current.enqueue({ text, tokens: [] }, { text, userMessageParts: [] })
+    }
+  })
+  const editor = renderHook(useQueue)
+  const [a, b, , d] = editor.result.current.items
+  const capture = () => ({ draft: b.draft, payload: b.payload })
+  act(() => {
+    void sender.result.current.sendId(a.id)
+    expect(editor.result.current.takeForEdit(b.id, capture)).toEqual(b)
+  })
+  sender.unmount()
+  await act(async () => finish(true))
+  act(() => {
+    editor.result.current.takeForEdit(d.id, () => ({
+      draft: { text: 'B edited', tokens: [] },
+      payload: { text: 'B edited', userMessageParts: [] }
+    }))
+  })
+  expect(editor.result.current.items.map(({ draft }) => draft.text)).toEqual(['B edited', 'C'])
+})

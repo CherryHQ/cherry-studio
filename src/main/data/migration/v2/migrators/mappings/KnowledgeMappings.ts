@@ -20,7 +20,7 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import { legacyStorageNames } from './legacyFileMappings'
 
-export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
+export type NewKnowledgeBase = Omit<typeof knowledgeBaseTable.$inferInsert, 'orderKey'>
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
 
 export type LegacyKnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory' | 'video'

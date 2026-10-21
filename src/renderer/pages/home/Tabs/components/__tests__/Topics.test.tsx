@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import type * as SessionHoverPreviewModule from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
@@ -19,7 +20,8 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
 // Metadata tests isolate the preview; its real hover lifecycle has dedicated coverage.
-vi.mock('@renderer/components/chat/resourceList/SessionHoverPreview', () => ({
+vi.mock('@renderer/components/chat/resourceList/SessionHoverPreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof SessionHoverPreviewModule>()),
   SessionHoverPreviewGroup: ({ children }: { children: ReactNode }) => children,
   SessionHoverPreview: ({ children, content }: { children: ReactNode; content: ReactNode }) => (
     <>
