@@ -22,33 +22,32 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 1. **Worker 里的文件系统。** `fs` 和 `fs/promises` 解析到 ZenFS 及其 OPFS 后端。账号打开时,把账号的 OPFS 目录挂载到 `/web`(`application.getPath` 的根目录),关闭时卸载。
    - ZenFS 会在内存里保留一份挂载内容的副本,所以调用 `existsSync`、`readFileSync` 的桌面端代码也能工作。异步写入要等 OPFS 写好后才返回。
    - ZenFS 的异步 `rename` 在目标路径不存在时,文件其实已经改名了,却会报 `ENOENT`。所以兼容层把它转给同步的 rename。
-2. **桌面端 Agent 会话宿主跑在 Worker 里。** `AgentSessionRuntimeService` 随账号启动。`AgentChatContextProvider`、工作区解析和工作区存储服务不再被替换。会话分叉换成替身,答复 Web 版不支持该功能。
+2. **桌面端 Agent 会话宿主跑在 Worker 里。** `AgentSessionRuntimeService` 随账号启动。`AgentChatContextProvider` 和工作区解析不再被替换。工作区存储服务(用户自选工作区)和生命周期服务(删除和归档,需要工作区打包)仍然替换掉。会话分叉换成替身,答复 Web 版不支持该功能。
 3. **一个以 `pi` 类型注册的浏览器运行时驱动**,替换 `registerDrivers.ts`。新建的 Agent 本来就默认是 Pi 类型,所以 Agent 界面、权限模式和工具卡片都不用改,Agent 数据也和桌面端兼容。每一轮:
    - 读取会话里保存的消息,用 `buildAgentRuntimePrompt` 构建提示词;
-   - 用会话选定的模型运行桌面端的 AI SDK Agent 循环(aiCore 的 `createAgent`),服务商解析方式和对话一样;
-   - 发出带 Pi 传输标记的内容片段、用量信息和 `turn-complete`。
+   - 用会话选定的模型运行桌面端的 AI SDK Agent 循环(`ai/runtime/aiSdk` 里的 `Agent`),服务商解析方式和对话一样;
+   - 把循环输出的内容片段转成 Pi 事件,交给桌面端的 `PiStreamAdapter`,所以片段带有 Pi 的传输标记,最后发出 `turn-complete`。
 
    工具审批通过共用的 `toolApprovalRegistry` 和现有的 `ai.tool.respond_approval` 路由完成。这个驱动没有恢复令牌、中途插话(steering)、上下文压缩和分叉;一轮进行中发来的消息排到下一轮,这是宿主本来就有的后备做法。
 4. **浏览器里的工具**,沿用 Pi 原生的工具名和参数格式:
-   - **会话工作区里的文件工具:** `read`、`write`、`edit`,另外用 `ls`、`find`、`grep` 代替 `bash`。
+   - **会话工作区里的文件工具:** `read`、`write`、`edit`、`ls`、`find`、`grep`。没有 `bash`。
    - **Python:** `python_execute`,由原样的桌面端 `PythonService` 提供。它通过桥接调用页面里的 Pyodide Worker。
-   - **JavaScript:** `js_execute` 在一个独立 Worker 中的 QuickJS-WASM 沙箱里运行,超时就直接终止这个 Worker。
+   - **JavaScript:** `js_execute` 在一个独立 Worker 中的 QuickJS-WASM(`quickjs-wasi`,桌面端已经在用)里运行,超时就直接终止这个 Worker。
 
-   审批规则和桌面端一样,取决于 Agent 的权限模式:
-   - 在工作区或 Agent 数据目录里读文件,不用询问;
+   审批直接用桌面端的 Pi 规则(`createPiToolAuthorizer`),按 Agent 的权限模式执行:
+   - 在工作区或 Agent 数据目录里使用读取类工具(`read`、`ls`、`find`、`grep`),不用询问;
    - 修改文件在 `default` 模式下要询问,在 `acceptEdits` 模式下不用询问;
-   - 运行代码要询问,除非是 `bypassPermissions` 模式。
+   - 运行代码在 `default` 和 `acceptEdits` 模式下要询问;
+   - `auto` 模式只在文件工具访问这些目录以外的路径时询问,`bypassPermissions` 模式从不询问。
+
+   规则里防止访问 Cherry SQLite 文件的检查被替换掉:数据库是 `/web` 以外的一个 OPFS 文件,任何工具路径都碰不到它。
 5. **预置一个 Web 版 Cherry 小助手。** 一个 Web 专用的 seeder 创建一个名为 Cherry 小助手的 Pi 类型 Agent,带一个系统工作区和第一个会话。桌面端的 Cherry 小助手和 Cherry Support seeder 不运行。
-6. **界面。** Web 版侧边栏加上 Agent。页面里的运行时能力表只提供 Pi,并为它隐藏心跳、技能、知识库和 MCP。
+6. **界面。** Web 版侧边栏加上 Agent。构建时替换两个 `src/shared` 模块,让运行时能力表只提供 Pi,为它隐藏心跳、技能、知识库和 MCP,并在 Agent 编辑器里列出浏览器里的工具。
 7. **测试。** 模拟服务商学会用工具调用来回复;`e2e/agent.spec.ts` 在 Chromium、WebKit 和 Firefox 中驱动 Agent 页面。
 
-实现分成三个 PR,接在本 Spec 之上:
+实现放在一个 PR 里,接在本 Spec 之上。
 
-1. 文件系统、宿主、驱动、文件工具、审批、内置 Agent 和界面;
-2. Python;
-3. JavaScript 沙箱。
-
-不在本 Spec 范围内:来自 `configurations` 的远程 MCP、技能、定时和心跳运行、IM 频道、会话分叉、附件,以及把工作区文件纳入备份(M4 阶段)。
+不在本 Spec 范围内:来自 `configurations` 的远程 MCP、技能、定时和心跳运行、IM 频道、会话分叉、删除和归档 Agent 及会话、用户自选工作区、附件,以及把工作区文件纳入备份(M4 阶段)。
 
 ## Alternatives considered
 
