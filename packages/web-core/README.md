@@ -70,7 +70,11 @@ and support seeders: it adds one Pi Cherry Assistant (no model yet) with a sessi
 The desktop `AgentSessionRuntimeService` hosts every session. `src/agent/registerDrivers.ts`
 registers `BrowserAgentDriver` as the `pi` runtime; each turn runs the desktop AI SDK `Agent`
 with the tools in `src/agent/fileTools.ts` (`read`, `write`, `edit`, `ls`, `find`, `grep` on
-the workspace, plus `report_artifacts`). Tool calls go through the desktop Pi approval rules
+the workspace, plus `report_artifacts`) and `src/agent/codeTools.ts`:
+`python_execute` is served by the desktop `PythonService`, which asks the page's Pyodide
+(`app/main.ts` loads its listener at start; Pyodide comes from jsDelivr), and `js_execute`
+runs in QuickJS (`quickjs-wasi`) in a Worker of its own, terminated when the run times out.
+Tool calls go through the desktop Pi approval rules
 (`createPiToolAuthorizer`), and the AI SDK chunks are fed to the desktop `PiStreamAdapter`,
 so tool cards, approvals and stored messages match the desktop's. `sharedModuleReplacements`
 swaps two `src/shared` modules in both the Worker and the page: the Pi tool catalog lists the
