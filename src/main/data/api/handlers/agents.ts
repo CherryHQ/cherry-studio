@@ -6,7 +6,6 @@
  * to the appropriate service method.
  */
 
-import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
