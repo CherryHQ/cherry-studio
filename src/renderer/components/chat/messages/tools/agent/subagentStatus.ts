@@ -40,8 +40,9 @@ export function getSubagentTaskStatusFromIndex(
       (originMessageId !== undefined && liveness.activeMessageIds.has(originMessageId)) ||
       liveness.liveBackgroundTaskIds.has(taskId)
     // An interrupted turn or a process exit leaves the last edge at in_progress forever, so an
-    // unvouched nonterminal edge must not override the row's own status.
-    if (!live) return undefined
+    // unvouched nonterminal edge must not override the historical terminal outcome — a stale
+    // progress edge over a stopped/error run must not read as the row's own done status.
+    if (!live) return mapTaskStatus(launchIndex?.terminalTaskStatusByTaskId.get(taskId), status)
   }
   return mapTaskStatus(eventStatus, status)
 }

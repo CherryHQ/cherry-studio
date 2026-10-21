@@ -435,6 +435,11 @@ export interface AgentLaunchIndex {
    * trustworthy while that message's own turn is active — or the task is still running.
    */
   taskOriginMessageIdByTaskId: ReadonlyMap<string, string>
+  /**
+   * Last terminal status the fold saw for a task, kept even when a later nonterminal edge revives
+   * it: a consumer that rejects an unvouched edge falls back to this outcome, not the row's own.
+   */
+  terminalTaskStatusByTaskId: ReadonlyMap<string, NonNullable<AgentTaskEventPartData['status']>>
 }
 
 /**
@@ -486,12 +491,12 @@ function computeAgentLaunchIndex(
   const taskIdByCallId = new Map<string, string>()
   const latestTaskEventByTaskId = new Map<string, AgentTaskEventPartData>()
   const taskOriginMessageIdByTaskId = new Map<string, string>()
+  const terminalTaskStatusByTaskId = new Map<string, NonNullable<AgentTaskEventPartData['status']>>()
   const applyTaskEvent = (data: AgentTaskEventPartData, liveEdge = false): void => {
     if (data.toolUseId && !taskIdByCallId.has(data.toolUseId)) taskIdByCallId.set(data.toolUseId, data.taskId)
-    latestTaskEventByTaskId.set(data.taskId, {
-      ...data,
-      status: resolveTaskStatusAfter(latestTaskEventByTaskId.get(data.taskId)?.status, data, liveEdge)
-    })
+    const status = resolveTaskStatusAfter(latestTaskEventByTaskId.get(data.taskId)?.status, data, liveEdge)
+    if (TERMINAL_TASK_STATUSES.has(status)) terminalTaskStatusByTaskId.set(data.taskId, status)
+    latestTaskEventByTaskId.set(data.taskId, { ...data, status })
   }
   if (!partsByMessageId)
     return {
@@ -502,7 +507,8 @@ function computeAgentLaunchIndex(
       dshTaskRootCallIds,
       taskIdByCallId,
       latestTaskEventByTaskId,
-      taskOriginMessageIdByTaskId
+      taskOriginMessageIdByTaskId,
+      terminalTaskStatusByTaskId
     }
   for (const [messageId, parts] of Object.entries(partsByMessageId)) {
     for (const part of parts) {
@@ -573,7 +579,8 @@ function computeAgentLaunchIndex(
     dshTaskRootCallIds,
     taskIdByCallId,
     latestTaskEventByTaskId,
-    taskOriginMessageIdByTaskId
+    taskOriginMessageIdByTaskId,
+    terminalTaskStatusByTaskId
   }
 }
 
