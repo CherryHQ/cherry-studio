@@ -352,6 +352,9 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       assertOpen()
       for (const thread of [...state.threads.values()])
         await lifecycle((handlers, ports) => handlers.onClose(thread.id, ports))
+      // Shut down like a restart: the epoch's runs write nothing more, and the host asks they hold are withdrawn.
+      epoch.dead = true
+      for (const loop of epoch.loops.values()) loop.abort.abort()
       closed = true
     },
     crashAt(n) {
