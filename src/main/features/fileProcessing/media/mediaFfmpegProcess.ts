@@ -86,13 +86,12 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   entry: 'media-ffmpeg',
   cancellation: 'cooperative',
   idleTimeoutMs: 5 * 60 * 1000,
-  // The packaged tree is immutable. cherry.bin is filled later by Background extraction.
   createInitData: () => {
     if (process.platform === 'linux') {
       return {
-        ffmpegPath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffmpeg')),
-        ffprobePath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffprobe')),
-        linuxLibraryDir: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.lib'))
+        ffmpegPath: application.getPath('cherry.bin.ffmpeg.bin', 'ffmpeg'),
+        ffprobePath: application.getPath('cherry.bin.ffmpeg.bin', 'ffprobe'),
+        linuxLibraryDir: application.getPath('cherry.bin.ffmpeg.lib')
       }
     }
     return {
