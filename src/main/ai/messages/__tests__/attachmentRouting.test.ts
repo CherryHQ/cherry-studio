@@ -481,6 +481,45 @@ describe('prepareChatMessages — routing', () => {
       ])
     })
 
+    it('analyzes m4a and opus when OpenAI chat rejects their dispatch MIME', async () => {
+      for (const [ext, mediaType] of [
+        ['m4a', 'audio/mp4'],
+        ['opus', 'audio/ogg']
+      ] as const) {
+        getByIdMock.mockResolvedValueOnce({ ext })
+        mediaAnalysisMock.mockResolvedValueOnce(`${ext} transcript`)
+
+        const [out] = await run([fileWithEntry('e1', `clip.${ext}`, mediaType)], openAiChatAudio)
+
+        expect(probeMock).not.toHaveBeenCalled()
+        expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+        expect(out.parts.some((part) => part.type === 'file')).toBe(false)
+        expect(textOf(out.parts)[0]).toBe(`Attached file "clip.${ext}":\n${ext} transcript`)
+        mediaAnalysisMock.mockClear()
+      }
+    })
+
+    it('keeps m4a native when the converter allows audio/mp4', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'm4a' })
+      readMock.mockResolvedValueOnce({ content: 'TQ==', mime: 'audio/mp4' })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.m4a', 'audio/mp4')], {
+        ...openAiChatAudio,
+        audioMediaTypes: ['audio/mp4']
+      })
+
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+      expect(out.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          filename: 'clip.m4a',
+          mediaType: 'audio/mp4',
+          url: 'data:audio/mp4;base64,TQ=='
+        })
+      ])
+    })
+
     it('analyzes a managed ogg file when OpenAI chat rejects audio/ogg', async () => {
       getByIdMock.mockResolvedValueOnce({ ext: 'ogg' })
       mediaAnalysisMock.mockResolvedValueOnce('ogg transcript')
