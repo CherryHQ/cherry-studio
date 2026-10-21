@@ -23,7 +23,7 @@ export async function verifyOnnxRuntimeIntegrity(
   const artifact = getSharedArtifact('onnxruntime-node')
   const platformKey = currentPlatformKey()
   const platform = artifact.platforms[platformKey]
-  const directory = application.getPath(artifact.installDirKey, platform?.installSubdir)
+  const directory = path.join(application.getPath(artifact.installDirKey), platform?.installSubdir ?? '')
   const unavailable = (file: string, cause?: unknown) =>
     new Error(t('local_model.ocr.runtime_unavailable', { version: artifact.version, directory, file }), { cause })
   const mismatch = (file: string) =>

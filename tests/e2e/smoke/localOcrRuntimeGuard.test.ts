@@ -85,6 +85,8 @@ const test = base.extend<{ profile: string; phase: 'install' | 'reject' | 'recov
   }
 })
 
+test.skip(!process.env.ISSUE_22383_PHASE, 'Manual scenario: set ISSUE_22383_PHASE=install|reject|recover')
+
 test.describe.configure({ retries: 0 })
 
 function ipcData<T>(response: unknown, schema: z.ZodType<T>): T {

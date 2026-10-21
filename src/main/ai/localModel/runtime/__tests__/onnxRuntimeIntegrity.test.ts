@@ -78,12 +78,17 @@ import type * as CatalogTypesModule from '../../catalog/types'
 import { verifyOnnxRuntimeIntegrity } from '../onnxRuntimeIntegrity'
 
 let directory: string
+const platformDir = () => path.join(directory, fixture.platform)
 beforeEach(async () => {
   fixture.platform = 'test-platform'
   MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
   directory = await mkdtemp(path.join(os.tmpdir(), 'ort-integrity-'))
   vi.spyOn(application, 'getPath').mockReturnValue(directory)
-  for (const [name, bytes] of Object.entries(fixture.files)) await writeFile(path.join(directory, name), bytes)
+  for (const platform of fixture.platforms) {
+    await mkdir(path.join(directory, platform), { recursive: true })
+    for (const [name, bytes] of Object.entries(fixture.files))
+      await writeFile(path.join(directory, platform, name), bytes)
+  }
   vi.mocked(createReadStream).mockClear()
 })
 afterEach(async () => {
@@ -110,12 +115,12 @@ describe('ONNX Runtime pinned bytes', () => {
     ['runtime.dll', 'short'],
     ['runtime.dll', 'Runtime!']
   ])('rejects altered bytes in %s (%s)', async (file, bytes) => {
-    await writeFile(path.join(directory, file), bytes)
+    await writeFile(path.join(platformDir(), file), bytes)
     await expect(verifyOnnxRuntimeIntegrity(undefined)).rejects.toThrow(/does not match.*1.25.1/)
   })
 
   it.each(['missing', 'directory'])('rejects a %s expected file with recovery guidance', async (kind) => {
-    const file = path.join(directory, 'runtime.dll')
+    const file = path.join(platformDir(), 'runtime.dll')
     await rm(file)
     if (kind === 'directory') await mkdir(file)
     const error = await verifyOnnxRuntimeIntegrity(undefined).catch((error: Error) => error)
@@ -127,8 +132,8 @@ describe('ONNX Runtime pinned bytes', () => {
   })
 
   it('ignores sibling platform files', async () => {
-    await mkdir(path.join(directory, 'sibling'))
-    await writeFile(path.join(directory, 'sibling', 'runtime.dll'), 'foreign')
+    await mkdir(path.join(platformDir(), '..', 'sibling'))
+    await writeFile(path.join(platformDir(), '..', 'sibling', 'runtime.dll'), 'foreign')
     await expect(verifyOnnxRuntimeIntegrity(undefined)).resolves.toHaveProperty('signature')
   })
 
@@ -136,7 +141,7 @@ describe('ONNX Runtime pinned bytes', () => {
     'invalidates a successful snapshot after %s replacement',
     async (mode) => {
       const snapshot = await verifyOnnxRuntimeIntegrity(undefined)
-      const file = path.join(directory, 'runtime.dll')
+      const file = path.join(platformDir(), 'runtime.dll')
       const before = await stat(file)
       await writeFile(file, mode === 'changed size' ? 'short' : 'foreign!')
       if (mode === 'restored mtime') await utimes(file, before.atime, before.mtime)
@@ -146,7 +151,7 @@ describe('ONNX Runtime pinned bytes', () => {
 
   it('re-evaluates deletion and restoration after success', async () => {
     const snapshot = await verifyOnnxRuntimeIntegrity(undefined)
-    const file = path.join(directory, 'runtime.dll')
+    const file = path.join(platformDir(), 'runtime.dll')
     await rm(file)
     await expect(verifyOnnxRuntimeIntegrity(snapshot)).rejects.toThrow(/missing or cannot be verified/)
     await writeFile(file, fixture.files['runtime.dll'])
@@ -169,9 +174,10 @@ describe('ONNX Runtime pinned bytes', () => {
 
   it('does not reuse a successful snapshot after changing the resolved directory', async () => {
     const previous = await verifyOnnxRuntimeIntegrity(undefined)
-    const moved = path.join(directory, 'moved')
-    await mkdir(moved)
-    for (const [name, bytes] of Object.entries(fixture.files)) await writeFile(path.join(moved, name), bytes)
+    const moved = path.join(platformDir(), 'moved')
+    const movedPlatform = path.join(moved, fixture.platform)
+    await mkdir(movedPlatform, { recursive: true })
+    for (const [name, bytes] of Object.entries(fixture.files)) await writeFile(path.join(movedPlatform, name), bytes)
     vi.mocked(application.getPath).mockReturnValue(moved)
     vi.mocked(createReadStream).mockClear()
     const next = await verifyOnnxRuntimeIntegrity(previous)
@@ -181,7 +187,7 @@ describe('ONNX Runtime pinned bytes', () => {
 
   it.each(['mismatch', 'unavailable'])('resolves Chinese recovery instructions for %s', async (kind) => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-    const file = path.join(directory, 'runtime.dll')
+    const file = path.join(platformDir(), 'runtime.dll')
     if (kind === 'mismatch') await writeFile(file, 'foreign!')
     else await rm(file)
     const error = await verifyOnnxRuntimeIntegrity(undefined).catch((error: Error) => error)
