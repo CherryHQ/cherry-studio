@@ -60,7 +60,8 @@ async function drainAdmittedStarts(): Promise<void> {
   // Admission is closed, so only operations admitted earlier are registered; the loop covers a
   // purge that queued behind one of them.
   while (agentTaskMutexes.size > 0) {
-    await Promise.all([...agentTaskMutexes.values()])
+    // A start that failed spawned nothing, so its rejection must not cut the wait short for the rest.
+    await Promise.allSettled([...agentTaskMutexes.values()])
   }
 }
 
