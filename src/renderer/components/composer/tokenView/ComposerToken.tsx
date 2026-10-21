@@ -440,7 +440,7 @@ function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?
         {path}
       </span>
       {sizeLabel && (
-        <span className="shrink-0 text-neutral-300" data-token-size="">
+        <span className="shrink-0" data-token-size="">
           {sizeLabel}
         </span>
       )}
@@ -941,6 +941,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     <span
       className={cn(
         composerChipClassName,
+        'bg-transparent font-normal',
         (readOnly || canOpenFilePreview) &&
           'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none',
         (canOpenFilePreview || readOnlyFilePreviewActivation) && 'cursor-pointer',
@@ -962,7 +963,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           removeLabel={removeLabel}
           onRemove={onRemove}
           slotClassName="size-full items-center justify-center"
-          removeButtonClassName={composerChipRemoveButtonClassName}
+          removeButtonClassName={cn(composerChipRemoveButtonClassName, 'bg-transparent')}
           removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>

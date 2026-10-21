@@ -511,7 +511,7 @@ describe('ComposerToken', () => {
     )
 
     const token = getRenderedFileToken(container)
-    expect(token).toHaveClass('items-baseline', 'rounded-xs', 'bg-muted', 'ring-border-selected', 'font-medium')
+    expect(token).toHaveClass('items-baseline', 'rounded-xs', 'ring-border-selected')
     expect(token).not.toHaveClass('h-6', 'align-middle', 'text-xs')
     expect(token).toHaveTextContent('avatar-preview.png')
 
@@ -630,7 +630,7 @@ describe('ComposerToken', () => {
     // hard-coded one, so the composer draft and the sent message agree in both contexts.
     const [draftToken, sentToken] = container.querySelectorAll('[data-composer-token-kind="file"]')
     for (const token of [draftToken, sentToken]) {
-      expect(token).toHaveClass('items-baseline', 'rounded-xs', 'bg-muted')
+      expect(token).toHaveClass('items-baseline', 'rounded-xs')
       expect(token).not.toHaveClass('h-6', 'leading-[1.4]', 'text-xs')
     }
     markdownStyles.remove()
