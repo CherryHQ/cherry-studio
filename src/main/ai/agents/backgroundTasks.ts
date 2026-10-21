@@ -420,12 +420,17 @@ const { spawn, execFileSync } = require('node:child_process')
 const fs = require('node:fs')
 const env = { ...process.env }
 delete env.ELECTRON_RUN_AS_NODE
+// This runner travels as a task-owned script file, not as an inline argument: the command alone
+// may reach 10,000 characters, and the runner's own source on the same command line would push
+// the launch past CreateProcessW's 32,767-character limit.
+const command = process.argv[2]
+const evidenceFile = process.argv[3]
 // Durable membership the ancestry walk cannot give: the runner joins a Job Object before it
 // starts the shell, so every process it creates stays a member for as long as it lives — a worker
 // whose intermediate parent starts and exits between two samples included. The keeper holds the
 // job's only handle and republishes its process list; KILL_ON_JOB_CLOSE ends the task's whole tree
 // when that handle goes, so a stop that destroys the keeper kills what a walk could never name.
-const jobFile = process.argv[2] + '.job'
+const jobFile = evidenceFile + '.job'
 const jobReady = jobFile + '.ready'
 const jobRequest = jobFile + '.request'
 const jobScript = jobFile + '.ps1'
@@ -483,7 +488,7 @@ const jobHoldsWork = (rows) => {
 const start = () => {
   if (started) return
   started = true
-  const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
+  const task = spawn(command, { shell: true, stdio: 'inherit', env })
   // The shell pid is the one member of the tree the app cannot rediscover once the shell has
   // exited — taskkill follows live parents only — so the app records it and seeds its own walk
   // with it, reaching the work the shell left behind across the dead link. The creation stamps
@@ -516,9 +521,9 @@ const start = () => {
   // through a sibling and a rename: a torn read must never be what a stop walks from.
   const writeEvidence = (payload) => {
     try {
-      const staging = process.argv[2] + '.tmp'
+      const staging = evidenceFile + '.tmp'
       fs.writeFileSync(staging, JSON.stringify(payload))
-      fs.renameSync(staging, process.argv[2])
+      fs.renameSync(staging, evidenceFile)
     } catch (error) {}
   }
   writeEvidence({ shellPid: task.pid || 0, ...stamps })
@@ -537,6 +542,13 @@ const start = () => {
   const known = new Map()
   const settle = () => {
     if (timer) clearInterval(timer)
+    // These files are the task's own supervision and serve nothing once it is done: its last
+    // moment is the only one that can take them away.
+    for (const leftover of [process.argv[1], jobReady, jobRequest, jobRequest + '.staging', jobScript]) {
+      try {
+        fs.rmSync(leftover, { force: true })
+      } catch (error) {}
+    }
     process.exit(exitStatus)
   }
   const probe = () => {
@@ -553,10 +565,10 @@ const start = () => {
         { encoding: 'utf8', timeout: 5000, windowsHide: true }
       )
     } catch (error) {
-      // A probe that cannot run at all will never read evidence, so it cannot hold the anchor
-      // open once the shell is gone; a read that failed or timed out proves nothing and keeps
-      // waiting. While the shell still runs, the anchor is its own.
-      if (error.code === 'ENOENT' && shellExited) settle()
+      // A probe that cannot run leaves no table to walk, but the job still holds the task's
+      // membership: only its answer may settle the task once the shell is gone. While the shell
+      // still runs, the anchor is its own.
+      if (error.code === 'ENOENT' && shellExited && (!jobActive || !jobHoldsWork([]))) settle()
       return
     }
     const shellPid = Number(task.pid) || 0
@@ -668,7 +680,7 @@ const boot = () => {
   try {
     fs.writeFileSync(jobScript, ${JSON.stringify(WINDOWS_DETACHED_TASK_JOB_KEEPER)})
   } catch (error) {
-    start()
+    refuse()
     return
   }
   try {
@@ -689,15 +701,14 @@ const boot = () => {
     )
   } catch (error) {
     keeper = null
-    start()
+    refuse()
     return
   }
-  keeper.on('error', (error) => {
+  keeper.on('error', () => {
     keeper = null
-    // No PowerShell at all is the one environment the walk already handled alone: nothing can be
-    // read there either, so the shell's own status is all the runner has ever had to go on.
-    if (error.code === 'ENOENT') start()
-    else refuse()
+    // No PowerShell means no job and no process table: a command started here could never be
+    // certified done, so the runner refuses to start one.
+    refuse()
   })
   // The keeper's exit closes the job, and KILL_ON_JOB_CLOSE takes the members with it: from then
   // on there is no durable membership left to consult.
@@ -816,9 +827,11 @@ export function buildDetachedBackgroundTaskSpawn(
   if (process.platform === 'win32') {
     return {
       file: process.execPath,
-      // The runner records the shell pid in `evidenceFile` at spawn: the root a stop walk seeds
-      // from once the shell has exited and taskkill's live-parent walk can no longer cross it.
-      args: ['-e', WINDOWS_DETACHED_TASK_RUNNER, command, evidenceFile],
+      // The runner is a task-owned script file, not an `-e` argument: the command may use its whole
+      // 10,000-character budget, and the runner's source on the same command line would exceed
+      // what CreateProcessW accepts. It records the shell pid in `evidenceFile` at spawn — the root
+      // a stop walk seeds from once the shell has exited and taskkill can no longer cross it.
+      args: [`${evidenceFile}.runner.js`, command, evidenceFile],
       options: { ...options, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
     }
   }
@@ -863,6 +876,11 @@ export async function startDetachedBackgroundTask(
   const evidenceFile = path.join(input.storageDir, `${id}${BACKGROUND_TASK_EVIDENCE_EXT}`)
   const startedAt = new Date().toISOString()
 
+  // The detached runner is a file rather than an `-e` argument so a command may use its whole
+  // length budget without pushing the launch past CreateProcessW's limit.
+  if (process.platform === 'win32') {
+    await writeFile(`${evidenceFile}.runner.js`, WINDOWS_DETACHED_TASK_RUNNER, { mode: 0o600 })
+  }
   const logHandle = await open(logFile, 'a', 0o600)
   try {
     const target = buildDetachedBackgroundTaskSpawn(command, input.cwd, logHandle.fd, logHandle.fd, evidenceFile)

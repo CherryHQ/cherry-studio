@@ -121,9 +121,12 @@ describe('backgroundTasks', () => {
         '/store/bt-x.pids'
       )
       expect(file).toBe(process.execPath)
-      // The runner is told where to record the shell pid: the root a stop walk seeds from once
-      // the shell has exited and taskkill's live-parent walk can no longer cross it.
-      expect(args).toEqual(['-e', WINDOWS_DETACHED_TASK_RUNNER, 'echo hi', '/store/bt-x.pids'])
+      // The runner travels as a task-owned script file: the command may use its whole length
+      // budget, and the runner's source on the command line would exceed CreateProcessW's limit.
+      // It is told where to record the shell pid — the root a stop walk seeds from once the shell
+      // has exited and taskkill's live-parent walk can no longer cross it.
+      expect(args).toEqual(['/store/bt-x.pids.runner.js', 'echo hi', '/store/bt-x.pids'])
+      expect(args).not.toContain(WINDOWS_DETACHED_TASK_RUNNER)
       expect(options.shell).toBeUndefined()
       expect(options.env?.ELECTRON_RUN_AS_NODE).toBe('1')
     })
@@ -213,6 +216,21 @@ describe('backgroundTasks', () => {
       expect(onExit.mock.calls[0][0].record.status).toBe('failed')
       expect(onExit.mock.calls[0][0].record.exitCode).toBe(3)
       expect(record.status).toBe('running') // the returned record is the start snapshot
+    })
+
+    it('starts a command at the top of its accepted length range', async () => {
+      // The runner is a file, not an `-e` argument, so the whole command budget stays usable:
+      // the runner's source plus this command would not fit on one Windows command line.
+      const onExit = vi.fn()
+      const command = 'echo ' + JSON.stringify(Array(2601).fill(''))
+      expect(command.length).toBeGreaterThan(7_800)
+      expect(command.length).toBeLessThan(MAX_BACKGROUND_TASK_COMMAND_LENGTH)
+
+      const record = await startDetachedBackgroundTask({ storageDir, command, cwd: storageDir, onExit })
+
+      await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      expect(onExit.mock.calls[0][0].record.status).toBe('completed')
+      expect(record.status).toBe('running')
     })
 
     it('reports a spawn failure through the error event instead of throwing', async () => {

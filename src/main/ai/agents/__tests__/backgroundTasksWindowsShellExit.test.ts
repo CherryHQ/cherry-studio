@@ -268,22 +268,26 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'stopped' })
   }, 20_000)
 
-  it('still completes when no process-table probe exists', async () => {
-    // No shim on PATH: the runner cannot read evidence at all, so it cannot hold the anchor open
-    // and settles on the shell's own status rather than never settling.
+  it('refuses to start a task when no PowerShell exists to supervise it', async () => {
+    // No shim on PATH: there is no process table and no Job Object, so a completion could only be
+    // read from the shell's own exit while a worker it backgrounded lives on. The runner must
+    // refuse before the command runs rather than publish that work as done.
     const record = await startDetachedBackgroundTask({
       storageDir,
-      command: `${nodeBin} -e "process.exit(0)"`,
+      command: `${nodeBin} -e "setInterval(() => {}, 60_000)" &`,
       cwd: storageDir
     })
+
     await vi.waitFor(
       async () => {
         await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({
-          status: 'completed'
+          status: 'failed'
         })
       },
       { timeout: 10_000, interval: 100 }
     )
+    // The backgrounded worker was never created: nothing ran without supervision.
+    await expect(readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_LOG_EXT}`), 'utf8')).resolves.toBe('')
   })
 
   it('refuses to start a task whose durable membership cannot be held', async () => {

@@ -86,7 +86,10 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
     await chmod(shim, 0o755)
 
     const command = `"${process.execPath}" -e "setTimeout(() => {}, ${opts.shellLifetimeMs})"`
-    const child = spawn(process.execPath, ['-e', WINDOWS_DETACHED_TASK_RUNNER, command, evidence], {
+    // The runner is a task-owned file now: `node <file> <command> <evidence>`.
+    const runnerFile = path.join(dir, 'runner.js')
+    await writeFile(runnerFile, WINDOWS_DETACHED_TASK_RUNNER)
+    const child = spawn(process.execPath, [runnerFile, command, evidence], {
       cwd: dir,
       env: { ...process.env, PATH: `${shimDir}${path.delimiter}${process.env.PATH}`, BG_FAKE_TABLE: tableFile },
       stdio: ['ignore', 'ignore', 'ignore']

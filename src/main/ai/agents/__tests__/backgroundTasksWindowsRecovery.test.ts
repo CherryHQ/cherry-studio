@@ -1,6 +1,6 @@
 import type * as NodeChildProcess from 'node:child_process'
 import type * as NodeFs from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -26,11 +26,40 @@ import { listDetachedBackgroundTasks, startDetachedBackgroundTask } from '../bac
 
 const nodeBin = `"${process.execPath}"`
 
-// The suite simulates the Windows runner on a POSIX host: it relies on no real PowerShell being
-// on PATH so the runner settles the moment its probe cannot run. A real Windows host answers the
-// probe for real, and the spawn-to-close timing the assertions rest on never holds there.
+// The suite simulates the Windows runner on a POSIX host: a stand-in `powershell.exe` answers the
+// identity query, the process table and the job keeper, so the runner can supervise and settle the
+// way it does on a real Windows host. A real host cannot run these assertions: its own timing does
+// not hold.
+const SHIM = `#!/bin/sh
+case "$*" in
+*-Filter*)
+  printf '"ProcessId","CreationDate"\n'
+  ;;
+*-File*)
+  printf 'ready' > "$CHERRY_BG_JOB_READY"
+  last=""
+  while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do
+    if [ -f "$CHERRY_BG_JOB_REQUEST" ]; then
+      nonce=$(cat "$CHERRY_BG_JOB_REQUEST" 2>/dev/null)
+      if [ -n "$nonce" ] && [ "$nonce" != "$last" ]; then
+        last="$nonce"
+        printf '{"nonce":"%s","pids":[]}' "$nonce" > "$CHERRY_BG_JOB_FILE.staging" &&
+          mv "$CHERRY_BG_JOB_FILE.staging" "$CHERRY_BG_JOB_FILE" 2>/dev/null
+      fi
+    fi
+    sleep 0.05
+  done
+  ;;
+*)
+  printf '"ProcessId","ParentProcessId","CreationDate"\n'
+  ;;
+esac
+exit 0`
+
 describe.skipIf(process.platform === 'win32')('a Windows task whose record write fails', () => {
   let storageDir: string
+  let shimDir: string
+  let realPath: string | undefined
   let realPlatform: NodeJS.Platform
 
   beforeEach(async () => {
@@ -39,6 +68,11 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose record write
     realPlatform = process.platform
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
     storageDir = await mkdtemp(path.join(tmpdir(), 'cherry-untracked-win-'))
+    shimDir = await mkdtemp(path.join(tmpdir(), 'cherry-untracked-shim-'))
+    await writeFile(path.join(shimDir, 'powershell.exe'), SHIM)
+    await chmod(path.join(shimDir, 'powershell.exe'), 0o755)
+    realPath = process.env.PATH
+    process.env.PATH = `${shimDir}${path.delimiter}${process.env.PATH}`
     const real = (await vi.importActual<typeof NodeFs>('node:fs')).writeFileSync
     let writes = 0
     writeFileSyncMock.mockImplementation((...args: unknown[]) => {
@@ -47,17 +81,20 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose record write
       return (real as unknown as (...a: unknown[]) => void)(...args)
     })
     // `taskkill` is a real process spawn, so it outlives a task that finishes quickly and then
-    // reports the process it was asked to kill is already gone. The delay is what opens the window.
+    // reports the process it was asked to kill is already gone. The delay is what opens the window
+    // wide enough for the supervised runner to observe the exit and settle inside it.
     execFileMock.mockImplementation((...args: unknown[]) => {
       const callback = args.at(-1) as (error: Error) => void
-      setTimeout(() => callback(new Error('ERROR: The process could not be terminated.')), 300)
+      setTimeout(() => callback(new Error('ERROR: The process could not be terminated.')), 4_000)
     })
   })
 
   afterEach(async () => {
     Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
+    if (realPath !== undefined) process.env.PATH = realPath
     writeFileSyncMock.mockReset()
     execFileMock.mockReset()
+    await rm(shimDir, { recursive: true, force: true })
     await rm(storageDir, { recursive: true, force: true })
   })
 
@@ -114,7 +151,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose record write
       },
       (error: Error) => error
     )
-    // The taskkill window is 300ms and the task exits at 50ms, so this only waits out the spawn.
+    // The taskkill window is 4s and the task exits at 50ms, so this only waits out the spawn.
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     expect(await listDetachedBackgroundTasks(storageDir)).toEqual([])
