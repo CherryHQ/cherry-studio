@@ -252,7 +252,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('stream closed') ||
     msg.includes('stream aborted') ||
     msg.includes('stream ended unexpectedly') ||
-    msg.includes('premature close')
+    msg.includes('premature close') ||
+    msg.includes('stream ended without a terminal frame')
   ) {
     return 'stream'
   }
