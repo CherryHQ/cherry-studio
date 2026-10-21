@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { omit } from 'es-toolkit'
 import * as z from 'zod'
 
@@ -217,7 +217,7 @@ export class ExternalKnowledgeConnectionService {
         and(
           eq(externalKnowledgeConnectionTable.id, id),
           eq(externalKnowledgeConnectionTable.credentialReference, parsed.expectedCredentialReference),
-          eq(externalKnowledgeConnectionTable.authorizationStatus, 'reauthorization-required')
+          inArray(externalKnowledgeConnectionTable.authorizationStatus, ['connected', 'reauthorization-required'])
         )
       )
       .returning()
