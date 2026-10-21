@@ -43,6 +43,16 @@ describe('readFile — text-only', () => {
     })
   })
 
+  it('extracts XML text with an unrecognized extension', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'lrmx' })
+    const text = '<XingMing>张三</XingMing>'
+    extractMock.mockResolvedValueOnce(text)
+    expect(await readFile(input({ filename: 'a.lrmx' }), ctx([att('a.lrmx')]))).toEqual({
+      text,
+      totalChars: 23
+    })
+  })
+
   it('extracts an extensionless text file', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     extractMock.mockResolvedValueOnce('license body')
@@ -78,9 +88,10 @@ describe('readFile — text-only', () => {
 
   it('returns a note for unsupported binary types (no garbage decode)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
+    extractMock.mockResolvedValueOnce(null)
     const r = await readFile(input({ filename: 'a.zip' }), ctx([att('a.zip')]))
     expect(r).toMatchObject({ text: 'Cannot read the attached file "a.zip" as text (unsupported file type).' })
-    expect(extractMock).not.toHaveBeenCalled()
+    expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
     expect(ocrMock).not.toHaveBeenCalled()
   })
 

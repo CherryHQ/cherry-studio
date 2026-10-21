@@ -495,10 +495,6 @@ jobs:
           MAIN_GAP="$(printf 'The fix from %s exists on `main` but not on `%s`.' "$SOURCE_URL" "$RELEASE_BRANCH")"
           APPLIED_FIX="$(printf 'The source pull request change set and any provided bilingual hotfix note are applied to `%s` for %s.' "$RELEASE_BRANCH" "$TAG")"
           BODY="$(printf '%s\n' \
-            '> ### Branch strategy' \
-            '>' \
-            '> - Active development targets `main`.' \
-            '' \
             '### What this PR does' \
             '' \
             'Before this PR:' \

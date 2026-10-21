@@ -14,7 +14,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { buildDshProviderInjection } from '@main/ai/runtime/dsh/modelInjection'
+import { buildPiProviderInjection } from '@main/ai/runtime/pi/modelInjection'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -104,9 +104,9 @@ describe('provider billing through AiService and the real SDK', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses frozen peak pricing for DSH while preserving trusted reported costs', () => {
+  it('uses frozen peak pricing for Pi while preserving trusted reported costs', () => {
     vi.setSystemTime(new Date('2026-10-11T23:00:00+08:00'))
-    const injection = buildDshProviderInjection(
+    const injection = buildPiProviderInjection(
       providerService.getByProviderId('billing-group'),
       modelService.getByKey('billing-group', 'model'),
       'test-only-key'
@@ -123,7 +123,7 @@ describe('provider billing through AiService and the real SDK', () => {
     })
     for (const providerCost of [undefined, { amount: 0.7, currency: 'USD' as const }]) {
       aiUsageRecordService.recordInvocation({
-        requestId: providerCost ? 'dsh:reported' : 'dsh:computed',
+        requestId: providerCost ? 'pi:reported' : 'pi:computed',
         context,
         modality: 'language',
         usage: { inputTokens: 1000, outputTokens: 1000 },

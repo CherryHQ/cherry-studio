@@ -86,6 +86,7 @@ const unnamedTranslations = [
   'locales/pt-pt',
   'locales/ro-ro',
   'locales/ru-ru',
+  'locales/th-th',
   'locales/tr-tr',
   'locales/vi-vn',
   'locales/zh-tw'

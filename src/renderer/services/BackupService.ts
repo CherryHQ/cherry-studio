@@ -308,17 +308,6 @@ export async function restoreFromS3(fileName?: string) {
   }
 }
 
-// Data producer for the export-to-phone file flow, consumed by main's
-// LegacyBackupManager.createLanTransferBackup. The feature's UI is offline until
-// the mobile side ships; kept with the rest of the dormant lan-transfer plumbing.
-export async function getBackupData() {
-  return JSON.stringify({
-    time: new Date().getTime(),
-    version: 5,
-    localStorage
-  })
-}
-
 /**
  * Backup to local directory
  */

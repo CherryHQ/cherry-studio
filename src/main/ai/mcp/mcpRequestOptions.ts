@@ -23,7 +23,7 @@ export function resolveMcpRequestOptions(policy?: McpCallPolicy): RequestOptions
 
 /**
  * setTimeout-safe maximum (~24.8 days) standing in for "no timeout" — the SDK offers no way
- * to disable the request timer. The Pi/dsh forwarding clients impose no budget of their own:
+ * to disable the request timer. The Pi forwarding clients impose no budget of their own:
  * McpRuntimeService owns every timeout decision on the live per-server config (#20266).
  */
 export const MCP_FORWARDING_TIMEOUT_MS = 2 ** 31 - 1

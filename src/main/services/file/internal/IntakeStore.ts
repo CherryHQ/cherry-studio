@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { FileEntryIdSchema } from '@shared/data/types/file'
+import { AsyncInitializer } from '@shared/utils/async'
 
 import { fileIntakeLimits } from '../intakeTypes'
 
@@ -26,6 +27,7 @@ export const metadataSchema = z.object({
         Buffer.byteLength(name) <= 255
     ),
   mediaType: z.string().max(128),
+  checksumAlgorithm: z.literal('sha256').optional(),
   byteLength: z.number().int().min(0).max(fileIntakeLimits.fileBytes)
 })
 export const recordSchema = metadataSchema
@@ -34,6 +36,11 @@ export const recordSchema = metadataSchema
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
+    expectedSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    failureCode: z.enum(['CHECKSUM_MISMATCH', 'VERIFICATION_FAILED']).optional(),
     ownerId: z.string(),
     quotaKey: z.string(),
     offset: z.number().int().nonnegative(),
@@ -45,12 +52,19 @@ export const recordSchema = metadataSchema
     expiresAt: z.number()
   })
   .refine((record) => Boolean(record.sha256) || record.state !== 'ready', 'Missing upload digest')
+  .refine(
+    (record) =>
+      record.checksumAlgorithm !== 'sha256' ||
+      !['verifying', 'ready'].includes(record.state) ||
+      Boolean(record.expectedSha256),
+    'Missing source digest'
+  )
 export type Upload = z.infer<typeof recordSchema>
 
 export class IntakeStore {
   readonly uploads = new Map<string, Upload>()
   readonly pins = new Map<string, number>()
-  private loading?: Promise<void>
+  private readonly initialization = new AsyncInitializer(() => this.loadOnce())
   private uncertain = false
 
   root(): string {
@@ -93,27 +107,27 @@ export class IntakeStore {
   }
 
   load(): Promise<void> {
-    return (this.loading ??= (async () => {
-      await mkdir(this.root(), { recursive: true })
-      for (const key of await readdir(this.root())) {
-        if (!/^[a-f0-9]{64}$/.test(key)) continue
-        try {
-          const upload = recordSchema.parse(
-            JSON.parse(await readFile(path.join(this.root(), key, 'state.json'), 'utf8'))
-          )
-          if (
-            this.key(upload, upload.uploadId) !== key ||
-            upload.offset > upload.byteLength ||
-            (upload.state === 'ready' && !upload.entryId)
-          )
-            throw new Error('Invalid intake checkpoint')
-          this.uploads.set(key, upload)
-        } catch (error) {
-          this.uncertain = true
-          logger.error('Intake checkpoint recovery failed; automatic file cleanup deferred', { key, error })
-        }
+    return this.initialization.get()
+  }
+
+  private async loadOnce(): Promise<void> {
+    await mkdir(this.root(), { recursive: true })
+    for (const key of await readdir(this.root())) {
+      if (!/^[a-f0-9]{64}$/.test(key)) continue
+      try {
+        const upload = recordSchema.parse(JSON.parse(await readFile(path.join(this.root(), key, 'state.json'), 'utf8')))
+        if (
+          this.key(upload, upload.uploadId) !== key ||
+          upload.offset > upload.byteLength ||
+          (upload.state === 'ready' && !upload.entryId)
+        )
+          throw new Error('Invalid intake checkpoint')
+        this.uploads.set(key, upload)
+      } catch (error) {
+        this.uncertain = true
+        logger.error('Intake checkpoint recovery failed; automatic file cleanup deferred', { key, error })
       }
-    })())
+    }
   }
 
   isProtected(entryId: string): boolean {

@@ -3,7 +3,6 @@ description: Identity-based remote connectivity design and first implementation 
 sources:
   - src/main/features/apiGateway
   - src/main/services/remoteAccess
-  - src/main/services/lanTransfer
   - packages/remote-protocol
   - packages/remote-transport
 ---

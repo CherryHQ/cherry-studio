@@ -29,15 +29,29 @@ export const uploadMetadataSchema = z.strictObject({
     .string()
     .regex(/^[a-zA-Z0-9!#$&^_.+-]+\/[a-zA-Z0-9!#$&^_.+-]+$/)
     .max(128),
+  checksumAlgorithm: z.literal('sha256').optional(),
   byteLength: z.number().int().min(0).max(agentUploadLimits.fileBytes)
 })
 export const uploadReferenceSchema = z.strictObject({ uploadId: opaqueId })
 export const uploadWriterSchema = uploadReferenceSchema.extend({ writerEpoch: decimal })
+export const uploadCompleteSchema = uploadWriterSchema.extend({
+  expectedSha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional()
+})
+export type AgentUploadComplete = z.infer<typeof uploadCompleteSchema>
 export const uploadStateSchema = z.looseObject({
   uploadId: opaqueId,
   state: z.enum(['receiving', 'verifying', 'ready', 'failed']),
   committedOffset: decimal,
   writerEpoch: decimal,
+  checksumAlgorithm: z.literal('sha256').optional(),
+  sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
+  failureCode: z.enum(['CHECKSUM_MISMATCH', 'VERIFICATION_FAILED']).optional(),
   expiresAt: timestamp
 })
 export const uploadResumeSchema = uploadReferenceSchema.extend({ resumeId: opaqueId, expectedWriterEpoch: decimal })

@@ -66,7 +66,9 @@ export class RemoteConnection {
       return {
         protocolVersion: channel.protocolVersion,
         agentFailureVersion: 1,
+        agentMessageSummariesVersion: 1,
         agentUploadsVersion: 1,
+        agentUploadChecksum: 'sha256' as const,
         agentAttachmentSelections: true,
         connectionEndpointsVersion: 1,
         limits: {
