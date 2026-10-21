@@ -377,13 +377,31 @@ export const stoppedResult = (child: ThreadId, run: number, answer: RunEndFacts)
   details: { sessionId: child, stopped: true, run }
 })
 
-/** `entries.stopSubagent` (D18, D27): the user stops a background child; false when it is not running. */
-export function decideUserStopSubagent(facts: Facts, child: ThreadId): Step<boolean> {
+/**
+ * `entries.stopSubagent` (D18, D27): the user stops a background child; false when it is not running. The request is
+ * recorded with the run it stopped, or with none, in the same commit, so a repeat answers the same (`decideStopSubagent`).
+ */
+export function decideUserStopSubagent(
+  facts: Facts,
+  inputs: CallInputs,
+  child: ThreadId,
+  requestKey: string
+): Step<boolean> {
+  const request = (run?: number): TxOp => ({
+    type: 'append-record',
+    thread: facts.thread,
+    record: {
+      type: 'subagent-user-stop',
+      value: { sessionId: child, ...(run === undefined ? {} : { run }), at: inputs.now }
+    },
+    key: keys.subagentUserStop(requestKey)
+  })
   const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
-  if (!ledger?.latest.background || !isLive(facts, ledger.latest)) return refuse(false)
+  if (!ledger?.latest.background || !isLive(facts, ledger.latest))
+    return { ops: [request()], effects: [], result: false }
   const { ops, effects, ended } = stopRun(facts, ledger.latest, 'user')
   // Like `decideRunEnd`: the driver delivers the end of a run nobody else will record.
-  return { ops: ended ? [...ops, ensureDriver(facts)] : ops, effects, result: true }
+  return { ops: [...ops, request(ledger.latest.run), ...(ended ? [ensureDriver(facts)] : [])], effects, result: true }
 }
 
 /** D10, §11.4: once the goal's budget is used up, its background children that are still running stop. */

@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest'
 
 import { decideAtIdle } from '../../../src/core/driver/idle'
-import { decideOnOpen, decidePermissionModeChanged, decideUserStop } from '../../../src/core/driver/lifecycle'
+import {
+  decideOnOpen,
+  decidePermissionModeChanged,
+  decideStopSubagent,
+  decideUserStop
+} from '../../../src/core/driver/lifecycle'
+import type { HistoryEntry } from '../../../src/core/facts'
 import { currentGoal } from '../../../src/core/goal/goalHistory'
 import { keys } from '../../../src/core/keys'
-import { apply, assistant, facts, goal, goalEntry, inputs, marker, run, runEntry, usage, user } from '../history'
+import {
+  apply,
+  assistant,
+  facts,
+  type FactsOptions,
+  goal,
+  goalEntry,
+  inputs,
+  marker,
+  run,
+  runEntry,
+  usage,
+  user
+} from '../history'
 
 const REOPEN = { reopened: true, supportsTools: true }
 
@@ -121,6 +140,65 @@ describe('decideUserStop (R5)', () => {
   // Catches a stop with no turn to name stopping whatever runs, which a repeated request would do to a later turn.
   it('stops nothing when no turn has begun', () => {
     expect(decideUserStop(facts([]), inputs(), 'req').effects).toEqual([])
+  })
+})
+
+describe('decideStopSubagent (D18, D27)', () => {
+  const stop = (history: HistoryEntry[], options: FactsOptions = {}) =>
+    decideStopSubagent(facts(history, options), inputs(), 'a' as never, 'req')
+  const running = { children: { a: { running: true, runUsage: [usage(1)] } } }
+
+  // Catches a repeat routed by liveness again: the first request stopped the parent's turn for a live foreground
+  // child, and the repeat after that child finished must name that turn again instead of answering not-running.
+  it('stops the turn a repeated request first stopped', () => {
+    const first = user('first')
+    const history = [first, assistant('x'), runEntry(run('a', { background: false }))]
+    const decided = stop(history, running)
+    expect(decided.result).toBe('stopped-turn')
+    const later = [
+      ...apply(history, decided),
+      runEntry(run('a', { background: false, status: 'finished', outcome: 'aborted' })),
+      user('second')
+    ]
+    const again = stop(later)
+    expect(again.result).toBe('stopped-turn')
+    expect(again.effects).toEqual([{ type: 'stop-turn', thread: 'parent', cause: 'user', turn: first.id }])
+    expect(apply(later, again)).toHaveLength(later.length)
+  })
+
+  // Catches a repeat that stops the child's current run: the first request stopped run 1, so the repeat stops run 1
+  // again, which the harness ignores once run 2 is the active one.
+  it('stops only the run a repeated request first stopped', () => {
+    const history = [runEntry(run('a'))]
+    const decided = stop(history, running)
+    expect(decided.result).toBe('stopped-child')
+    expect(decided.ops).toContainEqual(
+      expect.objectContaining({
+        record: { type: 'subagent-user-stop', value: { sessionId: 'a', run: 1, at: 1000 } },
+        key: 'subagent-user-stop:req'
+      })
+    )
+    const later = [
+      ...apply(history, decided),
+      runEntry(run('a', { status: 'finished', outcome: 'stopped', stoppedBy: 'user' })),
+      runEntry(run('a', { run: 2 }))
+    ]
+    const again = stop(later, { children: { a: { running: true, runUsage: [usage(1), usage(1)] } } })
+    expect(again).toEqual({ ops: [], effects: [{ type: 'stop-child', child: 'a', run: 1 }], result: 'stopped-child' })
+  })
+
+  // Catches a repeat that finds a later run of a child that was not running and stops it.
+  it('answers a repeated request not-running when nothing was running', () => {
+    const history = [runEntry(run('a', { status: 'finished', outcome: 'completed' }))]
+    const decided = stop(history)
+    expect(decided).toMatchObject({
+      ops: [{ record: { type: 'subagent-user-stop', value: { sessionId: 'a', at: 1000 } } }],
+      effects: [],
+      result: 'not-running'
+    })
+    const later = [...apply(history, decided), runEntry(run('a', { run: 2 }))]
+    const again = stop(later, { children: { a: { running: true, runUsage: [usage(1), usage(1)] } } })
+    expect(again).toEqual({ ops: [], effects: [], result: 'not-running' })
   })
 })
 
