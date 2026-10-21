@@ -2166,6 +2166,48 @@ describe('Copilot capability routing and cache', () => {
     vi.useRealTimers()
   })
 
+  it('keeps custom-host credentials out of token exchange for generation and listing', async () => {
+    const customProvider = makeProvider({
+      ...provider,
+      settings: { extraHeaders: { 'X-API-Key': 'private-host-key' } }
+    })
+    vi.mocked(net.fetch).mockImplementation(async () => catalog(['/responses']))
+    const config = await providerToAiSdkConfig(customProvider, model)
+    const { listModels } = await import('../listModels')
+    await listModels(customProvider)
+    for (const [, headers] of getCopilotTokenMock.mock.calls) {
+      expect(new Headers(headers).has('x-api-key')).toBe(false)
+      expect(new Headers(headers).get('editor-version')).toBeTruthy()
+    }
+    expect(new Headers((config.providerSettings as { headers: Record<string, string> }).headers).get('x-api-key')).toBe(
+      'private-host-key'
+    )
+    for (const [, init] of vi.mocked(net.fetch).mock.calls) {
+      expect(new Headers(init?.headers).get('x-api-key')).toBe('private-host-key')
+    }
+  })
+
+  it('preserves temperature and the dotted Copilot wire ID on Messages', async () => {
+    vi.mocked(net.fetch).mockImplementation(async (url) =>
+      String(url).endsWith('/models')
+        ? Response.json({ data: [{ id: 'claude-sonnet-4.6', supported_endpoints: ['/v1/messages'] }] })
+        : new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+    )
+    const alias = makeModel({ ...model, apiModelId: 'claude-sonnet-4.6' })
+    const config = await providerToAiSdkConfig(provider, alias)
+    const sdk = createAnthropic(config.providerSettings as Parameters<typeof createAnthropic>[0])
+    const result = await sdk.languageModel('claude-sonnet-4.6').doStream({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      temperature: 0.2,
+      providerOptions: { anthropic: { thinking: { type: 'disabled' } } }
+    })
+    await result.stream.cancel()
+    expect(JSON.parse(vi.mocked(net.fetch).mock.calls.at(-1)![1]?.body as string)).toMatchObject({
+      model: 'claude-sonnet-4.6',
+      temperature: 0.2
+    })
+  })
+
   it.each([
     [['/chat/completions', '/responses', '/v1/messages'], '/responses', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai'],
     [['/v1/messages', '/chat/completions'], '/v1/messages', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],

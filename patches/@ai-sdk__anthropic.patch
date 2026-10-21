@@ -45,6 +45,14 @@ diff --git a/dist/index.js b/dist/index.js
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -5770,6 +5770,7 @@ var AnthropicMessagesLanguageModel = class {
+   }
+ };
+ function getModelCapabilities(modelId) {
++  modelId = modelId.replace(/^(claude-(?:sonnet|opus|haiku)-\d+)\.(\d+)(?=-|$)/, "$1-$2");
+   if (modelId.includes("claude-sonnet-5-5")) {
+     return {
+       maxOutputTokens: 128e3,
 diff --git a/dist/index.mjs b/dist/index.mjs
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
@@ -92,6 +100,14 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -5826,6 +5826,7 @@ var AnthropicMessagesLanguageModel = class {
+   }
+ };
+ function getModelCapabilities(modelId) {
++  modelId = modelId.replace(/^(claude-(?:sonnet|opus|haiku)-\d+)\.(\d+)(?=-|$)/, "$1-$2");
+   if (modelId.includes("claude-sonnet-5-5")) {
+     return {
+       maxOutputTokens: 128e3,
 diff --git a/dist/internal/index.js b/dist/internal/index.js
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
@@ -157,6 +173,14 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -5764,6 +5764,7 @@ var AnthropicMessagesLanguageModel = class {
+   }
+ };
+ function getModelCapabilities(modelId) {
++  modelId = modelId.replace(/^(claude-(?:sonnet|opus|haiku)-\d+)\.(\d+)(?=-|$)/, "$1-$2");
+   if (modelId.includes("claude-sonnet-5-5")) {
+     return {
+       maxOutputTokens: 128e3,
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
@@ -222,3 +246,23 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -5810,6 +5810,7 @@ var AnthropicMessagesLanguageModel = class {
+   }
+ };
+ function getModelCapabilities(modelId) {
++  modelId = modelId.replace(/^(claude-(?:sonnet|opus|haiku)-\d+)\.(\d+)(?=-|$)/, "$1-$2");
+   if (modelId.includes("claude-sonnet-5-5")) {
+     return {
+       maxOutputTokens: 128e3,
+diff --git a/src/anthropic-messages-language-model.ts b/src/anthropic-messages-language-model.ts
+index fd5d6c86e177baaaf9b7905b74ec0d306566e18f..abcf3c8b1632f2aa467934ffe1691b27fefbaff2 100644
+--- a/src/anthropic-messages-language-model.ts
++++ b/src/anthropic-messages-language-model.ts
+@@ -2953,6 +2953,7 @@ export function getModelCapabilities(modelId: string): {
+   supportsBetweenToolsThinking: boolean;
+   isKnownModel: boolean;
+ } {
++  modelId = modelId.replace(/^(claude-(?:sonnet|opus|haiku)-\d+)\.(\d+)(?=-|$)/, '$1-$2');
+   if (modelId.includes('claude-sonnet-5-5')) {
+     return {
+       maxOutputTokens: 128000,

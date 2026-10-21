@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module'
+
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { describe, expect, it } from 'vitest'
 
@@ -37,4 +39,43 @@ describe('patched @ai-sdk/anthropic response schema tolerates a signature-less t
       { type: 'text', text: 'Trip planning' }
     ])
   })
+})
+
+const cjsAnthropic = createRequire(import.meta.url)('@ai-sdk/anthropic') as { createAnthropic: typeof createAnthropic }
+describe.each([
+  ['ESM', createAnthropic],
+  ['CJS', cjsAnthropic.createAnthropic]
+] as const)('Anthropic alias capabilities (%s)', (_format, createProvider) => {
+  it.each([
+    ['claude-sonnet-4.6', false, true],
+    ['claude-sonnet-4-6', false, true],
+    ['claude-sonnet-4.6', true, false],
+    ['claude-opus-4.7', false, false],
+    ['claude-opus-4-7', false, false],
+    ['claude-unknown-99.9', false, false]
+  ] as const)(
+    'preserves wire ID %s and respects thinking=%s sampling restrictions',
+    async (modelId, thinking, keepsTemperature) => {
+      let body: Record<string, unknown> = {}
+      const sdk = createProvider({
+        apiKey: 'test',
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body))
+          throw new Error('captured request')
+        }
+      }).languageModel(modelId)
+      await expect(
+        sdk.doGenerate({
+          prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+          providerOptions: {
+            anthropic: { thinking: thinking ? { type: 'enabled', budgetTokens: 1024 } : { type: 'disabled' } }
+          }
+        })
+      ).rejects.toThrow('captured request')
+      expect(body.model).toBe(modelId)
+      expect(body.temperature).toBe(keepsTemperature ? 0.2 : undefined)
+    }
+  )
 })

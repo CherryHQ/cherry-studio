@@ -59,6 +59,11 @@ uses the patched Copilot adapter with the `openai` options namespace; Messages
 uses the Anthropic adapter with Bearer authentication; Chat uses the Copilot
 adapter and provider-specific options namespace.
 
+Token exchange uses only Copilot client headers; provider extra headers are
+reserved for the configured model host. The Anthropic SDK patch recognizes
+dotted Claude version aliases for capability checks while preserving the original
+model ID in the request.
+
 The shared in-memory catalog expires after five minutes; an explicit model-list
 refresh bypasses the cached result. Concurrent callers share retrieval, while
 cancelling one caller does not cancel others. Credentials, provider configuration

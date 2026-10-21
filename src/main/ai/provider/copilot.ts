@@ -49,7 +49,7 @@ export async function getCopilotSession(provider: Provider, signal?: AbortSignal
   signal?.throwIfAborted()
   const revision = copilotService.authRevision
   const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, getExtraHeaders(provider))
-  const { token } = await withSignal(copilotService.getToken(null as never, headers), signal)
+  const { token } = await withSignal(copilotService.getToken(null as never, COPILOT_DEFAULT_HEADERS), signal)
   checkRevision(revision)
   return { token, headers: mergeHeaders(headers, { Authorization: `Bearer ${token}` }), revision }
 }
