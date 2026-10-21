@@ -17,9 +17,9 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort, textParts } from './aiSdkSupport'
-import { textOf } from './aiSdkToolResults'
+} from './gatewaySubagentSupport'
+import { createTestSession, finish, hostStore, gatewayModel, textParts } from './gatewaySupport'
+import { textOf } from './gatewayToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 
@@ -37,7 +37,7 @@ describe('background subagents', () => {
     const host = recordingSubagentPort()
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: parent.onEvent
     })
@@ -87,7 +87,7 @@ describe('background subagents', () => {
     })
     const store = hostStore()
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurnTool(parent, () => held.reached)],
       subagents: recordingSubagentPort().port,
       onEvent: store.onEvent
@@ -121,7 +121,7 @@ describe('background subagents', () => {
     })
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: recordingSubagentPort().port,
       onEvent: parent.onEvent
     })
@@ -164,7 +164,7 @@ describe('background subagents', () => {
     })
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: port,
       onEvent: parent.onEvent
     })
@@ -189,7 +189,7 @@ describe('background subagents', () => {
     })
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: recordingSubagentPort().port,
       onEvent: parent.onEvent
     })
@@ -226,7 +226,7 @@ describe('background subagents', () => {
     }))
     const store = hostStore()
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: store.onEvent
     })
@@ -237,7 +237,9 @@ describe('background subagents', () => {
     await runtime.dispose()
 
     expect(shutdowns).toBe(1)
-    expect(calls.find((call) => call.userText.includes('TASK-A'))!.options.abortSignal?.aborted).toBe(true)
+    await expect
+      .poll(() => calls.find((call) => call.userText.includes('TASK-A'))!.options.abortSignal?.aborted)
+      .toBe(true)
     expect(subagentStates(store.entries).map((state) => state.status)).toEqual(['running'])
     expect(store.events).toHaveLength(eventsBefore)
   })

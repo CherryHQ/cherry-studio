@@ -19,9 +19,9 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, plain, streamTextPort, tempDir } from './aiSdkSupport'
-import { textOf } from './aiSdkToolResults'
+} from './gatewaySubagentSupport'
+import { createTestSession, finish, hostStore, plain, gatewayModel, tempDir } from './gatewaySupport'
+import { textOf } from './gatewayToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
@@ -47,7 +47,7 @@ describe('subagents after a rebuild', () => {
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -58,7 +58,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       entries: plain(first.entries),
       onEvent: second.onEvent
@@ -76,7 +76,7 @@ describe('subagents after a rebuild', () => {
 
     const again = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       entries: plain([...first.entries, ...second.entries])
     })
@@ -104,7 +104,7 @@ describe('subagents after a rebuild', () => {
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -117,7 +117,7 @@ describe('subagents after a rebuild', () => {
 
     const rebuilt = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       entries: plain(first.entries)
     })
@@ -147,7 +147,7 @@ describe('subagents after a rebuild', () => {
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -157,7 +157,7 @@ describe('subagents after a rebuild', () => {
 
     const rebuilt = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       extensionFactories: [roundCommand],
       entries: plain(first.entries)
@@ -197,7 +197,7 @@ describe('subagents after a rebuild', () => {
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -208,7 +208,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       entries: plain(first.entries),
       onEvent: second.onEvent
@@ -242,7 +242,7 @@ describe('subagents after a rebuild', () => {
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurn],
       subagents: host.port,
       onEvent: first.onEvent
@@ -258,7 +258,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain(first.entries),
@@ -272,7 +272,7 @@ describe('subagents after a rebuild', () => {
 
     const again = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain([...first.entries, ...second.entries])
@@ -310,7 +310,7 @@ describe('subagents after a rebuild', () => {
     })
     const before = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurn],
       subagents: host.port,
       onEvent: first.onEvent
@@ -324,7 +324,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain(first.entries),
@@ -339,7 +339,7 @@ describe('subagents after a rebuild', () => {
 
     const again = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain([...first.entries, ...second.entries])
@@ -367,7 +367,7 @@ describe('subagents after a rebuild', () => {
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -376,7 +376,7 @@ describe('subagents after a rebuild', () => {
 
     const rebuilt = await createTestSession({
       cwd,
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       entries: plain(first.entries)
     })
@@ -399,7 +399,7 @@ describe('subagent status after a compaction', () => {
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: parent.onEvent,
       compaction: { reserveTokens: 16_384, keepRecentTokens: 1, summarize: async () => 'SUMMARY' }

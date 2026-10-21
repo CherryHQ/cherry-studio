@@ -14,7 +14,7 @@ import {
   rounds,
   roundStart,
   snapshots
-} from './aiSdkGoalSupport'
+} from './gatewayGoalSupport'
 import {
   gate,
   NOTE,
@@ -30,9 +30,9 @@ import {
   toolResults,
   untilStopped,
   waitFor
-} from './aiSdkSubagentSupport'
-import { finish, plain, tempDir } from './aiSdkSupport'
-import { textOf } from './aiSdkToolResults'
+} from './gatewaySubagentSupport'
+import { finish, plain, tempDir } from './gatewaySupport'
+import { textOf } from './gatewayToolResults'
 
 /** A background launch; the description never holds the task marker the routes look for. */
 const bg = (id: string, task: string) =>
@@ -356,7 +356,7 @@ describe('goal and background subagents', () => {
   // would run on through the person's turn.
   it("stops the goal's background subagent before a queued user message the settle yields to", async () => {
     const seen: { childStopped?: boolean } = {}
-    const run = await launchThenSpend('auto', 100, () => (seen.childStopped = run.child.signal?.aborted === true))
+    const run = await launchThenSpend('auto', 100, () => (seen.childStopped = run.finishedC()?.outcome === 'stopped'))
     askAtTurnEnd(run.session, 2)
     await promptIdle(run.session, '/goal Check C')
     await waitFor(() => seen.childStopped !== undefined)

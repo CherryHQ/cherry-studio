@@ -14,9 +14,9 @@ import {
   toolCallPart,
   toolResultOf,
   waitFor
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, hostStore, streamTextPort } from './aiSdkSupport'
-import { textOf } from './aiSdkToolResults'
+} from './gatewaySubagentSupport'
+import { createTestSession, finish, hostStore, gatewayModel } from './gatewaySupport'
+import { textOf } from './gatewayToolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 
@@ -47,7 +47,7 @@ describe('message_subagent to a running subagent', () => {
       return reply('OK.')
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [slow],
       subagents: host.port
     })
@@ -98,7 +98,7 @@ describe('message_subagent to a running subagent', () => {
       return reply('OK.')
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: parent.onEvent
     })
@@ -133,7 +133,7 @@ describe('message_subagent to a running subagent', () => {
     })
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: host.port,
       onEvent: parent.onEvent
     })
@@ -163,7 +163,7 @@ describe('message_subagent to a running subagent', () => {
         ]
       return reply('OK.')
     })
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     await session.prompt('Check A')
     await session.prompt('Ask A again')
 
