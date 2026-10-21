@@ -5727,6 +5727,7 @@
   "settings.tool.websearch.provider_description.searxng": "เมตาเสิร์ชเอนจินอินเทอร์เน็ตฟรีที่ติดตั้งเองได้จากหลายแหล่ง",
   "settings.tool.websearch.provider_description.serply": "Serply search API ส่งผลลัพธ์ Google เป็น JSON แบบมีโครงสร้างสำหรับแอป AI",
   "settings.tool.websearch.provider_description.tavily": "เสิร์ชเอนจินที่ปรับให้เหมาะกับ LLM",
+  "settings.tool.websearch.provider_description.yuanbao": "Tencent Yuanbao Search (WSA) ให้ข้อมูลสรุปผลการค้นหาเว็บและลิงก์ไปยังแหล่งข้อมูล",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search สำหรับการดึงข้อมูลเว็บและข้อมูลปัจจุบัน",
   "settings.tool.websearch.search_max_result.label": "จำนวนผลการค้นหา",
   "settings.tool.websearch.search_max_result.tooltip": "เมื่อปิดการบีบอัดผลการค้นหา จำนวนผลลัพธ์อาจมากเกินไป ซึ่งอาจทำให้โทเค็นไม่เพียงพอ",

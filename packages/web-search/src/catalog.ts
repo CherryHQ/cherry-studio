@@ -47,6 +47,9 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     deepseek: provider('deepseek', 'DeepSeek', [
       capability('searchKeywords', 'required', 'https://api.deepseek.com'),
       capability('fetchUrls', 'required', 'https://api.deepseek.com')
+    ]),
+    yuanbao: provider('yuanbao', 'Yuanbao', [
+      capability('searchKeywords', 'required', 'https://api.wsa.cloud.tencent.com')
     ])
   }
 )

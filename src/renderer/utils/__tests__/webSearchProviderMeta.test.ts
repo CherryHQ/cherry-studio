@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
+import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 
 import {
   createWebSearchMenuEntry,
@@ -49,6 +50,29 @@ const providers: WebSearchProvider[] = [
 ]
 
 describe('webSearchProviderMeta', () => {
+  it('shows Yuanbao metadata in keyword search without offering URL fetching', () => {
+    expect(getWebSearchProviderDescriptionKey('yuanbao')).toBe('settings.tool.websearch.provider_description.yuanbao')
+    expect(getWebSearchProviderIconRef('yuanbao')).toMatchObject({ kind: 'provider', key: 'yuanbao' })
+    expect(getWebSearchProviderOfficialWebsite('yuanbao')).toBe('https://cloud.tencent.com/product/wsa')
+    expect(getWebSearchProviderApiKeyWebsite('yuanbao')).toBe('https://console.cloud.tencent.com/wsa')
+    const sections = getWebSearchFeatureSections(
+      PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => ({
+        ...preset,
+        capabilities: [...preset.capabilities],
+        apiKeys: [],
+        engines: [],
+        basicAuthUsername: '',
+        basicAuthPassword: ''
+      }))
+    )
+    expect(
+      sections.find((section) => section.capability === 'searchKeywords')?.entries.map((entry) => entry.provider.id)
+    ).toContain('yuanbao')
+    expect(
+      sections.find((section) => section.capability === 'fetchUrls')?.entries.map((entry) => entry.provider.id)
+    ).not.toContain('yuanbao')
+  })
+
   it('returns provider display metadata', () => {
     expect(getWebSearchProviderDescriptionKey('exa-mcp')).toBe('settings.tool.websearch.provider_description.exa_mcp')
     expect(getWebSearchProviderIconRef('fetch')).toMatchObject({ kind: 'provider', key: 'cherryin' })

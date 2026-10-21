@@ -13,6 +13,27 @@ import {
 } from '../webSearchProviders'
 
 describe('web search provider schemas', () => {
+  it('keeps Yuanbao discoverable as key-required keyword search and accepts a host override', () => {
+    expect(PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'yuanbao')).toEqual({
+      id: 'yuanbao',
+      name: 'Yuanbao',
+      type: 'api',
+      capabilities: [
+        {
+          feature: 'searchKeywords',
+          requiresApiHost: true,
+          requiresApiKey: true,
+          apiHost: 'https://api.wsa.cloud.tencent.com'
+        }
+      ]
+    })
+    expect(
+      WebSearchProviderOverridesSchema.safeParse({
+        yuanbao: { apiKeys: ['key'], capabilities: { searchKeywords: { apiHost: 'https://service.example/proxy' } } }
+      }).success
+    ).toBe(true)
+  })
+
   it('accepts the current preset list', () => {
     expect(PRESETS_WEB_SEARCH_PROVIDERS.length).toBeGreaterThan(0)
     expect(PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)).toEqual(WEB_SEARCH_PROVIDER_IDS)

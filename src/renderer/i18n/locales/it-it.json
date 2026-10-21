@@ -5727,6 +5727,7 @@
   "settings.tool.websearch.provider_description.searxng": "Metamotore di ricerca Internet gratuito, installabile su server propri, che consulta molte fonti.",
   "settings.tool.websearch.provider_description.serply": "API di ricerca Serply che restituisce risultati Google in JSON strutturato per le app IA.",
   "settings.tool.websearch.provider_description.tavily": "Motore di ricerca ottimizzato per LLM.",
+  "settings.tool.websearch.provider_description.yuanbao": "Tencent Yuanbao Search (WSA) fornisce riepiloghi delle ricerche web e collegamenti alle fonti.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search per il recupero web in tempo reale e informazioni aggiornate.",
   "settings.tool.websearch.search_max_result.label": "Numero di risultati di ricerca",
   "settings.tool.websearch.search_max_result.tooltip": "Quando la compressione dei risultati di ricerca è disattivata, il numero di risultati potrebbe essere eccessivo e superare i token disponibili",

@@ -5727,6 +5727,7 @@
   "settings.tool.websearch.provider_description.searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
   "settings.tool.websearch.provider_description.serply": "API αναζήτησης Serply που επιστρέφει αποτελέσματα Google ως δομημένο JSON για εφαρμογές AI.",
   "settings.tool.websearch.provider_description.tavily": "Μηχανή αναζήτησης βελτιστοποιημένη για LLM.",
+  "settings.tool.websearch.provider_description.yuanbao": "Το Tencent Yuanbao Search (WSA) παρέχει περιλήψεις αποτελεσμάτων αναζήτησης στον ιστό και συνδέσμους πηγών.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search για ζωντανή ανάκτηση ιστού και τρέχουσες πληροφορίες.",
   "settings.tool.websearch.search_max_result.label": "Αριθμός αποτελεσμάτων αναζήτησης",
   "settings.tool.websearch.search_max_result.tooltip": "Σε περίπτωση που δεν είναι ενεργοποιημένη η συμπίεση αποτελεσμάτων αναζήτησης, μεγάλος αριθμός μπορεί να καταναλώσει πολλά tokens",

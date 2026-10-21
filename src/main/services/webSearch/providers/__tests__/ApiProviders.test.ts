@@ -57,6 +57,7 @@ import { SearxngProvider } from '../api/SearxngProvider'
 import { SerplyProvider } from '../api/SerplyProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
+import { createWebSearchProvider } from '../factory'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
 const { readFileSync } = await vi.importActual<typeof NodeFs>('node:fs')
@@ -184,6 +185,44 @@ describe('main web search API providers', () => {
     mocks.loggerWarn.mockReset()
     mocks.isInChina.mockReset()
     mocks.isInChina.mockResolvedValue(false)
+  })
+
+  it('routes Yuanbao through the registry without sending local exclusions and surfaces Tencent failures', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        Response: {
+          Pages: [JSON.stringify({ title: ' Tencent ', url: 'https://source.example', passage: 'Source summary' })]
+        }
+      })
+    )
+    const provider = createWebSearchProvider(
+      createProvider({ id: 'yuanbao', apiHost: 'https://yuanbao-proxy.example/proxy', apiKeys: ['yuanbao-key'] }),
+      new ApiKeyRotationState()
+    )
+    const controller = new AbortController()
+    const result = await provider.searchKeywords!('hello', runtimeConfig, { signal: controller.signal })
+    const [url, init] = fetchMock.mock.lastCall as [string, RequestInit]
+    expect(url).toBe('https://yuanbao-proxy.example/proxy/SearchPro')
+    expect(init.signal).toBe(controller.signal)
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer yuanbao-key')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe('{"Query":"hello"}')
+    expect(result).toMatchObject({
+      providerId: 'yuanbao',
+      capability: 'searchKeywords',
+      results: [{ title: 'Tencent', url: 'https://source.example', content: 'Source summary', sourceInput: 'hello' }]
+    })
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        Response: { Error: { Code: 'UnauthorizedOperation', Message: 'Yuanbao denied access' }, Pages: [] }
+      })
+    )
+    await expect(provider.searchKeywords!('hello', runtimeConfig)).rejects.toMatchObject({
+      kind: 'provider',
+      code: 'provider_error',
+      providerCode: 'UnauthorizedOperation',
+      message: 'Yuanbao denied access'
+    })
   })
 
   it('matches Exa request and normalized response snapshots from fixtures', async () => {

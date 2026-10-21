@@ -45,6 +45,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://api-docs.deepseek.com/guides/search',
     apiKeyWebsite: 'https://platform.deepseek.com/api_keys'
   },
+  yuanbao: {
+    descriptionKey: 'settings.tool.websearch.provider_description.yuanbao',
+    iconRef: providerIconRef('yuanbao'),
+    officialWebsite: 'https://cloud.tencent.com/product/wsa',
+    apiKeyWebsite: 'https://console.cloud.tencent.com/wsa'
+  },
   exa: {
     descriptionKey: 'settings.tool.websearch.provider_description.exa',
     iconRef: providerIconRef('exa'),

@@ -1,0 +1,11 @@
+{
+  "Response": {
+    "Query": "rewritten query",
+    "Pages": [
+      "{\"title\": \"  Tencent Cloud Search  \", \"url\": \"https://cloud.tencent.com/product/wsa\", \"content\": \"Search summaries from Tencent Cloud.\", \"passage\": \"Fallback text.\"}",
+      "{\"title\": \"WSA documentation\", \"url\": \"https://cloud.tencent.com/document/product/1772\", \"passage\": \"Service key authentication and SearchPro.\"}",
+      "{\"title\": \"Empty summary\", \"url\": \"https://example.com/empty\", \"content\": \"\", \"passage\": \"\"}",
+      "{\"title\": \"Source metadata\", \"url\": \"https://example.com/source\", \"published_at\": \"2026-10-21\", \"rank\": 4}"
+    ]
+  }
+}
