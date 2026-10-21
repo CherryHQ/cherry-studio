@@ -278,7 +278,8 @@ first identity through reconnect after interrupted initial authorization.
 Reconnect stages a new opaque credential reference while retaining the old
 reference, application metadata, identity, and credential bytes. A connected
 Connection stays usable while optional consent is pending; cancellation and
-transient failures do not invalidate it or pause its Sources. After token,
+candidate failures (including denial, expiry, scope and identity errors) do not
+invalidate it or pause its Sources. After token,
 scope, and identity validation, the runtime writes the complete candidate entry,
 then switches the Connection through a SQLite compare-and-swap on the expected
 old reference in connected or reauthorization-required state. The owning reauthorization transaction also restores dependent
