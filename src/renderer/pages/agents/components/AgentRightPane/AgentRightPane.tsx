@@ -1271,8 +1271,8 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const status = useAgentRightPaneStatus(active)
   const { t } = useTranslation()
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
-  // The resolved output feeds resume-round splitting only (the launch receipt carries the agent id
-  // that ties SendMessage continuations to this flow) — it is not rendered.
+  // The resolved output feeds resume-round splitting (its launch receipt names the agent) and a
+  // flow with no streamed child parts renders its answer body — but never the receipt trailer.
   const deferredToolResult = useMemo(
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]

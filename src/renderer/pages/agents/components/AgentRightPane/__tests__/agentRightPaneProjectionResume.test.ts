@@ -342,6 +342,69 @@ describe('agent right pane flow rounds', () => {
     expect(texts('call_launch:agent-flow-assistant-2')).toEqual(['Third round findings'])
   })
 
+  // A foreground launch's answer closes with the SDK's receipt trailer; the flow must show the
+  // report body, not swallow the whole answer as background metadata.
+  it('keeps a foreground answer body and drops only its receipt trailer', () => {
+    const report = 'Findings: the renderer now keeps the body.'
+    const trailer =
+      "agentId: agent-a1b2c3d4e5f6 (use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent)\n<usage>subagent_tokens: 180700\ntool_uses: 58</usage>"
+    const parts = [
+      toolPart(
+        'call_launch',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Run the audit' },
+        `${report}\n${trailer}`
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-assistant')).toEqual([report])
+  })
+
+  // The same answer hydrated from its deferred envelope must keep the body too.
+  it('keeps the body of a hydrated deferred foreground answer', () => {
+    const report = 'Findings: the renderer now keeps the body.'
+    const trailer =
+      "agentId: agent-a1b2c3d4e5f6 (use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent)\n<usage>subagent_tokens: 180700\ntool_uses: 58</usage>"
+    const deferred = { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'call_launch' } }
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Run the audit' }, deferred)
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch', `${report}\n${trailer}`)
+
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-assistant')).toEqual([report])
+  })
+
+  // A result that is only the trailer carries no body: nothing must be injected for it.
+  it('injects nothing for a result that is only the receipt trailer', () => {
+    const trailer =
+      "agentId: agent-a1b2c3d4e5f6 (use SendMessage with to: 'agent-a1b2c3d4e5f6', summary: '<5-10 word recap>' to continue this agent)\n<usage>subagent_tokens: 180700\ntool_uses: 58</usage>"
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Run the audit' }, trailer)
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect(projection.messages.map((item) => item.id)).toEqual(['call_launch:agent-flow-prompt'])
+  })
+
   // Prose that merely contains an `agentId:` token is not a launch receipt — it must not create
   // a fake continuation boundary inside an unrelated flow timeline.
   it('does not split rounds when text only mentions an agent id token', () => {

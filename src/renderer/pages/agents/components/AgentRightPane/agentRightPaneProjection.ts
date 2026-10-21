@@ -17,6 +17,7 @@ import {
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
+import { stripForegroundLaunchTrailer } from '@shared/ai/launchReceipt'
 import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -129,15 +130,6 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   // the message that receipt delivered.
   if (getCanonicalToolName(part) === AgentToolsType.SendMessage) return getResumeReceiptPromptText(part)
   return textFromContent(input.prompt) ?? textFromContent(input.description)
-}
-
-function isBackgroundAgentLaunchReceipt(output: unknown, text: string | undefined): boolean {
-  return (
-    isBackgroundAgentOutput(output as AgentToolOutput | undefined) ||
-    // Receipt wording varies across CLI versions (`Async agent launched successfully.` /
-    // `done.`), so the shared parser's structural markers decide, not a single prefix.
-    (typeof text === 'string' && extractLaunchReceiptId(text) !== undefined)
-  )
 }
 
 function createFlowTextMessage(
@@ -656,9 +648,8 @@ export function buildAgentToolFlowProjection(
     let currentRank = 0
     // The result text only fills a flow that has no streamed child parts at all (a runtime whose
     // foreground calls emit no detachable content); Claude Code streams them even for foreground
-    // runs, so injecting there would duplicate the report and leak its agentId trailer. Background
-    // launch receipts are control metadata and must never surface; an unresolved deferred envelope
-    // has no text to show yet.
+    // runs, so injecting there would duplicate the report. Background launch receipts are control
+    // metadata and must never surface; an unresolved deferred envelope has no text to show yet.
     const hasDetachedFlow = messageEntries.some(({ parts }) =>
       parts.some((part) => getPartParentToolCallId(part) === selectedToolCallId)
     )
@@ -673,13 +664,24 @@ export function buildAgentToolFlowProjection(
         isRecord(selectedOutput) && '$deferredToolResult' in selectedOutput
           ? undefined
           : textFromContent(selectedOutput)
+      // A foreground answer ends with the SDK's trailing receipt: keep its body, drop the trailer.
+      const foregroundBody =
+        typeof selectedOutputText === 'string' ? stripForegroundLaunchTrailer(selectedOutputText) : undefined
+      // A background acknowledgement is control metadata and must never surface — either a
+      // structured launch output, or text that is a receipt once any foreground trailer is removed.
+      const backgroundLaunch =
+        isBackgroundAgentOutput(selectedOutput as AgentToolOutput | undefined) ||
+        (typeof selectedOutputText === 'string' &&
+          foregroundBody === undefined &&
+          extractLaunchReceiptId(selectedOutputText) !== undefined)
       // A receipt's own text is delivery metadata, never the child's answer. Only the receipt is
-      // suppressed: a root whose result is the resumed run's answer keeps it.
+      // suppressed: a root whose result is the resumed run's answer keeps its body.
       const foregroundResultText =
-        getResumedAgentId(selectedOutput) !== undefined ||
-        isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
+        getResumedAgentId(selectedOutput) !== undefined || backgroundLaunch
           ? undefined
-          : selectedOutputText
+          : foregroundBody !== undefined
+            ? foregroundBody || undefined
+            : selectedOutputText
       if (foregroundResultText) {
         partsOfRound(0).push({ type: 'text', text: foregroundResultText })
       }
