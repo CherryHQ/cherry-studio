@@ -21,6 +21,8 @@ export class PiProjection {
   private inputIds = new WeakMap<object, InputId>()
   private active = new Map<string, string>()
   private calls = new Map<string, ItemRef>()
+  private readonly toolCallIds = new Map<string, string>()
+  private snapshotItems: ContentItem[] | undefined
   private unsubscribe: () => void = () => {}
 
   constructor(
@@ -57,12 +59,19 @@ export class PiProjection {
     this.active.clear()
     this.calls.clear()
     this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
+    this.snapshotItems = []
+    for (const message of session.messages) this.write(message, this.id(message), 'complete')
     this.feed.publish({
       ...this.feed.snapshot,
-      items: [],
+      items: this.snapshotItems,
       activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
     })
-    for (const message of session.messages) this.write(message, this.id(message), 'complete')
+    this.snapshotItems = undefined
+  }
+
+  toolCallId(ref: ItemRef): string | undefined {
+    if (ref.session.backendId !== this.ref.backendId || ref.session.id !== this.ref.id) return undefined
+    return this.toolCallIds.get(ref.id)
   }
 
   private bind(session: AgentSession): void {
@@ -71,7 +80,7 @@ export class PiProjection {
         this.event(event)
       } catch (error) {
         this.report(error)
-        this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
+        this.feed.publish({ type: 'gap', reason: 'disconnected' })
       }
     })
   }
@@ -113,6 +122,7 @@ export class PiProjection {
         if (part.type === 'toolCall') {
           const ref = this.itemRef(`${id}:call:${part.id}`)
           this.calls.set(part.id, ref)
+          this.toolCallIds.set(ref.id, part.id)
           items.push({
             ref,
             type: 'tool-call',
@@ -128,6 +138,7 @@ export class PiProjection {
         type: 'tool-result',
         call: this.calls.get(message.toolCallId),
         parts,
+        data: JSON.parse(JSON.stringify({ content: message.content, details: message.details })),
         outcome: message.isError ? 'error' : 'success'
       })
     } else if (message.role === 'user' || message.role === 'assistant' || message.role === 'system') {
@@ -151,7 +162,10 @@ export class PiProjection {
         ...(inputId === undefined ? {} : { inputId })
       })
     }
-    for (const item of items) this.feed.publish({ type: 'item.upsert', item })
+    for (const item of items) {
+      if (this.snapshotItems) this.snapshotItems.push(item)
+      else this.feed.publish({ type: 'item.upsert', item })
+    }
   }
 
   private event(event: AgentSessionEvent): void {

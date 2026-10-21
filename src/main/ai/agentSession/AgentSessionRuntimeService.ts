@@ -3,6 +3,7 @@ import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import type { InputState } from '@cherrystudio/agent-runtime'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
@@ -291,6 +292,7 @@ type AgentSessionRuntimeEntry = {
   connectionLoop?: Promise<void>
   lastResumeToken?: string
   branchHead?: string
+  inputResponses?: Map<string, InputState[]>
   idleTimer?: ReturnType<typeof setTimeout>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
@@ -1087,6 +1089,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
+      entry.inputResponses?.delete(completedTurn.assistantMessageId)
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
       this._onTurnTerminal.fire({
         sessionId: entry.sessionId,
@@ -1189,6 +1192,7 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   releaseIdleConnection(sessionId: string): void {
     const idleEntry = this.entries.get(sessionId)
+    if (idleEntry && this.currentConnection(idleEntry)?.retainWhileIdle) return
     if (idleEntry && hasAgentSessionRuntimeBackgroundWork(idleEntry.runtimeState)) return
     if (this.isSessionBusy(sessionId)) return
     void this.closeSession(sessionId)
@@ -1881,6 +1885,7 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
+      branchHead: entry.branchHead,
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
@@ -1957,6 +1962,17 @@ export class AgentSessionRuntimeService extends BaseService {
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)
         this.deliverRuntimeChunk(entry, event.chunk)
+        break
+      }
+      case 'input-response': {
+        const execution = entry.runtimeState.execution
+        const messageId =
+          execution.kind === 'steer-transition'
+            ? (execution.continuationTurn?.assistantMessageId ?? execution.reservation?.assistantMessageId)
+            : this.currentTurn(entry)?.assistantMessageId
+        if (!messageId) throw new Error('Runtime response has no product message owner')
+        const responses = (entry.inputResponses ??= new Map())
+        responses.set(messageId, [...(responses.get(messageId) ?? []), event.input])
         break
       }
       case 'tool-approval-request':
@@ -3443,6 +3459,7 @@ export class AgentSessionRuntimeService extends BaseService {
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
         forkAnchor: () => currentTurn.forkAnchor,
+        inputResponses: () => entry.inputResponses?.get(assistantMessageId) ?? [],
         afterPersist
       }),
       onPersistFailed: (error) =>
@@ -3452,6 +3469,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
+    if (this.currentConnection(entry)?.retainWhileIdle) return
     if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
       return
     }

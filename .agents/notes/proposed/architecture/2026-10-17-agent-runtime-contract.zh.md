@@ -8,7 +8,7 @@ Status: proposed
 
 Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次提交观察工作，并释放资源。要求所有 harness 采用 Cherry 的会话引擎，会重复实现原生调度和恢复；庞大的能力矩阵则会迫使每个消费者自行解释差异。
 
-本文接替栈中的 Runtime 所有权与行为设计，记录已实现的 v0 访问边界及其理由，以及接入时仍需履行的宿主责任。[公共类型](../../../../packages/agent-runtime/src/contracts.ts)、[Pi 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)和 [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)维护精确签名。包代码已存在；桌面接入及下述完整验收尚未完成。[Harness 边界](2026-10-17-agent-harness-boundaries.md)维护更上层的职责划分。
+本文接替栈中的 Runtime 所有权与行为设计，记录已实现的 v0 访问边界及其理由，以及接入时仍需履行的宿主责任。[公共类型](../../../../packages/agent-runtime/src/contracts.ts)、[Pi 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)和 [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)维护精确签名。包代码已存在，Pi 根会话的桌面调用现已使用公共 Runtime；独立 child 投影、Durable 桌面接入及下述完整验收仍未完成。[Harness 边界](2026-10-17-agent-harness-boundaries.md)维护更上层的职责划分。
 
 ## Proposal
 
@@ -157,7 +157,7 @@ Pi 可以重新打开已持久化的上下文，但不恢复被中断的执行�
 
 #### 起点与改动归属
 
-核对后的桌面路径仍是 `AgentChatContextProvider → AgentSessionRuntimeService → PiRuntimeDriver → PiRuntimeConnection → pi.createAgentSession`。三个包和 AI SDK 模型绑定已经存在，但桌面生产调用尚未使用其 Runtime 工厂。现有后台输出通过 `rootToolCallId` 找到父 assistant 行；没有该锚点就忽略输出，child parts 最终也写回父消息行。只替换工厂函数会保留这个所有权问题。
+Pi 根会话的桌面路径现为 `AgentChatContextProvider → AgentSessionRuntimeService → PiRuntimeDriver → PiRuntimeConnection → createPiRuntime`。连接通过公共输入和观察边界，接入 Cherry 的生产 AI SDK 模型 port。现有后台输出通过 `rootToolCallId` 找到父 assistant 行；没有该锚点就忽略输出，child parts 最终也写回父消息行。只替换工厂函数会保留这个所有权问题。
 
 | 位置 | 计划改动 | 继续保留的职责 |
 | --- | --- | --- |
@@ -165,7 +165,7 @@ Pi 可以重新打开已持久化的上下文，但不恢复被中断的执行�
 | [Pi Runtime](../../../../packages/agent-runtime-pi/src/runtime.ts)、[投影](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts)和[子智能体所有者](../../../../packages/agent-runtime-pi/src/subagent.ts) | 增加可验证的输入关联，并通过原生所有者恢复 child 访问。 | 原生会话、child 执行、结果交付和强类型 Pi 扩展。 |
 | [Durable Runtime](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) | 激活调度前，依据原生 submission/task 对账持久输入映射和 child 所有权。 | 原生 Harness/storage 所有权与恢复语义。 |
 | [桌面 Pi 接入](../../../../src/main/ai/runtime/pi/README.md) | 复用宿主配置与装配，接好生产 AI SDK 模型 port，逐步替换执行和输出路由。 | Prompt、skills、MCP、审批、shell 环境、模型政策、用量和 tracing。 |
-| [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) 及其持久化模块 | 持有已配置 Runtime 实例、逻辑输入投递和每个 Thread 的投影。在现有模块内提取 `threadProjection.ts` 这样的实例辅助模块。 | 产品生命周期、授权、持久化屏障，以及与投递、fork 操作的集成。 |
+| [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) 及其持久化模块 | 持有已配置 Runtime 实例、逻辑输入投递和每个 Thread 的投影。`ThreadProjection.ts` 在现有模块中转换实时内容。 | 产品生命周期、授权、持久化屏障，以及与投递、fork 操作的集成。 |
 | [数据 schema](../../../../src/main/data/db/schemas/agentSession.ts) 与[数据服务](../../../../src/main/data/services/README.md) | 用 `DbService` 增加上下文关联和输入投递记录，并追加 migration。 | 产品数据事务；不执行原生任务或解析 transcript。 |
 | [useAgentSessionParts](../../../../src/renderer/hooks/useAgentSessionParts.ts) 与共享 IPC 契约 | 独立于父 assistant 消息寻址某个上下文的投影。 | 展示和订阅；Main 继续负责持久化。 |
 
@@ -296,7 +296,7 @@ Child 内容可以复用消息存储和树形渲染，但界面上嵌套到父�
 
 ##### 已确认的编辑与分支行为
 
-用户已确认：编辑并重发时保留旧分支，并切换到新分支。既有桌面 driver 路径现已实现这一行为；公共 Runtime 投影接入仍是后续工作。
+用户已确认：编辑并重发时保留旧分支，并切换到新分支。桌面 driver 现已实现这一行为，并通过公共 Runtime 执行 Pi 根会话；独立 child 投影仍是后续工作。
 
 ```text
 root
@@ -513,7 +513,25 @@ Agent 树阶段现已增加追加式 schema migration 和注册的 `AgentSession
 
 [树 fixture](../../../../src/main/data/services/__tests__/agentSessionMessageTree.test.ts) 验证可重复迁移、选中路径分页、分支隔离和迟到投递。[原生发布 fixture](../../../../src/main/ai/agentSession/fork/__tests__/branchPublication.sdkContract.test.ts) 使用真实 Pi 会话文件与 SQLite，验证反复编辑和独立绑定，不改写公共前缀。这些 fixture 不证明 provider 执行或应用崩溃恢复。另外，已在受跟踪的开发版 Electron 实例中，经真实 UI/Main/Pi 路径及本地脚本 HTTP 模型验证后续输入编辑、兄弟分支切换、分别继续两套原生历史，以及首条输入编辑；原生请求仅包含选中分支的输入。这是开发环境接入证据，不等于真实 provider、打包构建、Durable 或强制退出进程后的恢复验收。
 
-文档仍为 proposed：公共 Runtime 的桌面所有者/投影接线、原生备份/删除集成及强制退出进程后的崩溃验收仍属于 P2–P4。原生正常关闭/重开和数据库故障注入不能替代应用崩溃门槛。
+文档仍为 proposed：独立 child 所有者/投影接线、Durable 桌面接入、原生备份/删除集成及强制退出进程后的崩溃验收仍未完成。原生正常关闭/重开和数据库故障注入不能替代应用崩溃门槛。
+
+#### Pi 根会话接入证据
+
+根连接现已持有配置好的 Pi Runtime，并保留其访问句柄。原生历史和实时快照与产品归档各自独立。
+Main 在已有用户行写入提交事实，再与 assistant 行一起提交最终响应关联。唯一的生产 AI SDK port
+负责提供商配置、请求凭据及用量记账；Pi 负责工具与执行循环。Pi facet 将历史、上下文用量、工具查找
+及手动压缩保留在公共 API 之外。停止或出错后仍未放入原生上下文的排队输入记录为 aborted，不自动重发。
+
+真实原生循环/SQLite fixture 覆盖创建、严格重开、流式输出、工具、steer、中断、文件缺失/歧义、附件、
+禁用工具、压缩及响应事务回滚。生产 port fixture 使用本地 HTTP 提供商，执行原生工具，并验证每次模型调用
+只记一条用量。这些 fixture 不证明真实提供商或强制退出进程后的恢复。CherryIN 工具调用回复的 thinking
+replay 现仅向相同原生 provider/API/model 转发已保存的响应身份；无法表达的提供商输出明确失败。
+提交文本保留既有附件文件路径，无需新增重复载荷列。
+
+受跟踪的开发版 Electron 实例使用本地脚本化 HTTP 模型，验证了公共 Runtime 路径的新建、正常重启后重开、
+保留旧分支的编辑、浏览时不调用模型，以及两条原生历史独立续写。运行中插入的消息依次记录 queued、placed
+与最终响应关联。停止尚未进入原生上下文的输入时记录 aborted；下一次显式发送没有重放它。SQLite 中还核对了
+已持久化的部分输出与逐次调用记账。这些检查覆盖 Pi 根会话接入，不涵盖独立 child 投影、打包产物或崩溃恢复。
 
 #### 实现阶段与验证门槛
 

@@ -102,8 +102,11 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    - Optional, with host fallbacks when omitted:
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
-       `steer-boundary` when a steer is injected and `steer-undelivered` for
-       steers the turn ended before injecting.
+       `steer-boundary` when a steer is injected. A driver that returns unplaced inputs
+       for the next turn emits `steer-undelivered`; Pi instead records native queued
+       inputs as aborted when execution ends without placing them, without automatic resend.
+     - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
+       explicit retirement and service shutdown still close it.
      - `getContextUsage()` — live context-window stats; without it the UI
        simply has no usage meter.
      - `compaction-start` / `compaction-complete` / `compaction-error`
@@ -161,7 +164,8 @@ These are the choices nothing enforces:
 - **Credentials never enter runtime config.** If the runtime persists or
   interpolates its config (env expansion, `$VAR` syntax), write a placeholder
   and inject the real key at runtime through the SDK's auth API. Rotate keys
-  per connection, not per validation.
+  when dispatching native requests, never during validation. Pi's AI SDK port resolves
+  credentials per model invocation; subprocess runtimes may bind them per connection.
 - **Fail-closed resource discovery, by trust class.** Do not let the runtime
   auto-import user-global resources or workspace **executable/code** resources
   (extensions, skills, prompt files) until Cherry has an explicit trust flow.

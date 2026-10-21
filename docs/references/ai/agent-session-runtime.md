@@ -49,7 +49,7 @@ driver internals behind the same host contract.
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
-| Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
+| Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses the AI SDK model port and one billing plugin; its native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
 
 ## Heartbeat execution deadline
@@ -196,7 +196,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    next tool runs). The message is folded into the current turn — no new
    turn, no queue entry. If the turn ends before the steer is injected
    (it called no tool after the steer arrived), the connection emits
-   `steer-undelivered` and the host queues it as the next turn.
+   `steer-undelivered` and the host queues it as the next turn. Pi consumes its own
+   queue: unplaced inputs remaining after stop/error become aborted submission
+   facts and are not automatically resent.
 2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
    appends the message to the session entry's `pendingTurns` (recording its id in
    `steerMessageIds` so the next turn wraps it in a steer system-reminder)
@@ -530,6 +532,14 @@ native identity and resolves through its branch binding, without falling back to
 the shared prefix's original context. Confirmed native progress records the
 binding's native identity and published message head.
 
+For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
+Main records submission facts privately on the existing user message; final response persistence
+commits response associations in the same transaction. Observation snapshots establish the live
+projection baseline and never replace or replay the product archive. Lost observations fail closed.
+A bound or previously submitted context requires exactly one existing native file with the expected
+ID. A missing or ambiguous file is an error, not permission to recreate from display history.
+Only a never-submitted intent can stay unflushed; its resume token is published after native persistence.
+
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
 checkpointing / `rewindFiles()` feature, which uses user-message UUIDs
@@ -677,8 +687,8 @@ Allowed in v1:
   These files are a **connection-lifetime snapshot**: editing them deliberately
   does not invalidate a warm connection or its provider prompt cache. Changes
   apply when that connection is naturally rebuilt or the session is reopened.
-- Inline Cherry-owned extensions required for the integration: provider
-  injection and tool approval/policy enforcement.
+- A Cherry AI SDK model binding for native requests, plus inline Cherry-owned
+  extensions for tool approval/policy enforcement.
 - The complete runtime-neutral result of `buildAgentMcpServers()` — Cherry
   knowledge, memory, skills, assistant/autonomy tools, plus the agent's selected
   MCP servers — converted uniformly to pi `customTools` through an in-memory MCP
@@ -753,11 +763,11 @@ user directory exists, preventing missing system directories from aborting start
 
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
-the runtime from that captured provider, model, enabled-key set, skill paths,
+the runtime from that captured provider, model, skill paths,
 MCP rows, and linked channel, then captures those facts again before publishing
 the connection.
-If the signatures differ, startup fails closed and cleans up the connection's
-generation-scoped provider registration. Prompt-file content is deliberately
+If the signatures differ, startup fails closed before publishing the connection.
+The model port resolves credentials for each request through Cherry's provider path. Prompt-file content is deliberately
 outside this signature because it follows the connection-lifetime cache
 contract above.
 
@@ -910,9 +920,9 @@ for other sessions; validation, connection, editing, and forking retry the impor
 using that session. No failed conversion silently starts an empty context. The original DSH
 files remain untouched. Restoring an older backup repeats the same conversion.
 
-Pi retains direct transport for supported models. Other gateway-routable chat models use
-the existing local Gateway's OpenAI-compatible route, preserving model identity, consent,
-credential invalidation, and provider-owned usage capture.
+Pi model calls use Cherry's AI SDK provider path, including its transport adapters, credential
+selection, provider options and billing. The Pi driver does not maintain a separate protocol whitelist
+or a local Gateway fallback. Pi remains the sole tool executor and loop owner.
 
 ## Internal Agent continuation normalization
 
@@ -949,7 +959,9 @@ For a short idle window it keeps:
 If a new turn arrives during that window, `beginTurn()` reuses the same
 entry and only swaps the current UI turn plus the UI pending queue.
 
-When the idle timer expires, the runtime closes the entry:
+Pi declares `retainWhileIdle`: its in-process owner remains available beyond the idle TTL.
+Explicit close, branch replacement, configuration rebuild, and service shutdown still retire it.
+For other connections, when the idle timer expires, the runtime closes the entry:
 
 - clears `pendingTurns`;
 - closes the runtime connection;
