@@ -22,8 +22,8 @@ export const skillAdapter: ResourceAdapter<SkillCatalogEntry> = {
 }
 
 /**
- * Unwrap the `SkillResult<T>` envelope returned by every `skill.*` IpcApi
- * route. Throws on failure so callers can use try/catch instead of branching on
+ * Unwrap the `SkillResult<T>` envelope returned by legacy `skill.*` IpcApi
+ * routes. Throws on failure so callers can use try/catch instead of branching on
  * `result.success` themselves — mirrors how DataApi mutations bubble errors.
  */
 function unwrapSkillResult<T>(
@@ -64,8 +64,7 @@ export function useSkillMutationsById(id: string) {
   /** Toggle whether the skill is projected into ~/.agents/skills for external agents. */
   const setMirrorEnabled = useCallback(
     async (mirrorEnabled: boolean): Promise<InstalledSkill> => {
-      const result = await ipcApi.request('skill.set_mirror_enabled', { skillId: id, mirrorEnabled })
-      const updated = unwrapSkillResult(result, 'Failed to update skill mirroring')
+      const updated = await ipcApi.request('skill.set_mirror_enabled', { skillId: id, mirrorEnabled })
       try {
         await invalidate()
       } catch (error) {

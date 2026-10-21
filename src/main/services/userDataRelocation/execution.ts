@@ -11,6 +11,7 @@ import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/cor
 import { bootConfigService } from '@main/data/bootConfig'
 import type { RelocationProgress } from '@shared/types/userDataRelocation'
 
+import { retargetSkillExports } from './skillExports'
 import type { FailedRelocation, PendingRelocation, RelocationState } from './types'
 import {
   assertEffectiveSeparation,
@@ -230,6 +231,7 @@ async function executeRelocation(
   const dataResetMarkerBasename = path.basename(application.getPath('feature.data_reset.marker_file'))
   let asideCreated = false
   let promoted = false
+  let restoreSkillExports: (() => Promise<void>) | undefined
 
   try {
     // The source scan can take minutes. Revalidate immediately before claiming
@@ -340,8 +342,14 @@ async function executeRelocation(
     promoted = true
     await fsp.rm(path.join(workPath, RELOCATION_OWNER_MARKER), { force: true })
     await fsp.rmdir(workPath)
+    restoreSkillExports = await retargetSkillExports(pending.from, pending.to)
     commit()
   } catch (error) {
+    try {
+      await restoreSkillExports?.()
+    } catch (recoveryError) {
+      throw new AggregateError([error, recoveryError], 'Failed to roll back relocated skill exports')
+    }
     const rollbackError = await rollbackCopy({
       target: pending.to,
       workPath,
@@ -421,7 +429,10 @@ async function recoverInterruptedCopy(pending: PendingRelocation): Promise<void>
     asidePath
   })
   if (hasWork) await removeOwnedRelocationTree(workPath, pending.taskId)
-  if (targetOwned) await fsp.rm(target, { recursive: true, force: true })
+  if (targetOwned) {
+    await retargetSkillExports(pending.to, pending.from)
+    await fsp.rm(target, { recursive: true, force: true })
+  }
 
   if (!hasAside) return
   assertEmptyDirectory(asidePath, 'relocation aside is no longer empty')

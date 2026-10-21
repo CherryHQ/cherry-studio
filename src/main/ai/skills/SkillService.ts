@@ -555,7 +555,7 @@ export class SkillService {
           ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
         })
       })
-      await this.linkMirror(destFolderName)
+      await this.linkMirror(destFolderName, { throwOnError: true })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
       return updated
@@ -597,7 +597,7 @@ export class SkillService {
       throw new Error(`Failed to insert skill: ${metadata.name}`)
     }
 
-    await this.linkMirror(destFolderName)
+    await this.linkMirror(destFolderName, { throwOnError: true })
     if (isBuiltin) {
       this.enableForAllAgents(inserted.id)
     }

@@ -95,10 +95,12 @@ resets the mocks.
 
 ```typescript
 export interface TestDatabaseOptions {
+  migrationsFolder?: string
   seeders?: ISeeder[]
 }
 ```
 
+- `migrationsFolder`: use a trimmed production migration journal for a genuine historical-schema fixture. Defaults to the complete production chain. Migrate forward with `applyMigrations()`; do not simulate an older schema by dropping columns and deleting journal rows from a fully migrated database.
 - `seeders`: run these after schema init. Useful for the small set of
   service tests that depend on seeded data (`ProviderRegistryService`,
   preset-aware flows).

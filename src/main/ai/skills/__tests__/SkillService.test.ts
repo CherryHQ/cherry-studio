@@ -2308,6 +2308,28 @@ describe('SkillService', () => {
       expect(agentGlobalSkillService.getByFolderName('skill-one')?.mirrorEnabled).toBe(false)
     })
 
+    it('reports export conflicts for installs and reinstalls while preserving both skill directories', async () => {
+      const source = await createTempDir('skill-export-conflict-')
+      await fs.promises.writeFile(path.join(source, 'SKILL.md'), '# installed internally')
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-one'))
+      const userSkill = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'skill-one')
+      await fs.promises.mkdir(userSkill, { recursive: true })
+      await fs.promises.writeFile(path.join(userSkill, 'SKILL.md'), '# user skill')
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await expect(skillService.installFromDirectory({ directoryPath: source })).rejects.toThrow('conflicts')
+        await expect(fs.promises.readFile(path.join(userSkill, 'SKILL.md'), 'utf-8')).resolves.toBe('# user skill')
+        await expect(fs.promises.readFile(path.join(mirrorRoot, 'skill-one', 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# installed internally'
+        )
+      }
+      const installed = agentGlobalSkillService.getByFolderName('skill-one')!
+      await skillService.setMirrorEnabled(installed.id, false)
+      await expect(skillService.installFromDirectory({ directoryPath: source })).resolves.toMatchObject({
+        mirrorEnabled: false
+      })
+    })
+
     it('syncBuiltinSkill honors a persisted mirror opt-out', async () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-creator'))

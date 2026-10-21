@@ -80,6 +80,26 @@ vi.mock('electron', () => ({
 
 const roots: string[] = []
 
+function prepareSkillExports() {
+  const root = makeRoot()
+  const source = path.join(root, 'source')
+  const target = path.join(root, 'target')
+  const relative = path.join('Data', 'Agents', '.claude', 'skills')
+  const sourceSkill = path.join(source, relative, 'owned')
+  const targetSkill = path.join(target, relative, 'owned')
+  const exports = path.join(root, 'home', '.agents', 'skills')
+  const exported = path.join(exports, 'owned')
+  fs.mkdirSync(sourceSkill, { recursive: true })
+  fs.writeFileSync(path.join(sourceSkill, 'SKILL.md'), '# original')
+  fs.mkdirSync(exports, { recursive: true })
+  fs.symlinkSync(sourceSkill, exported, process.platform === 'win32' ? 'junction' : 'dir')
+  relocationState['app.userdata'] = source
+  relocationState['feature.agents.claude.skills'] = path.join(source, relative)
+  relocationState['external.agents.skills'] = exports
+  relocationState['temp.user_data_relocation'] = pending(source, target)
+  return { root, source, target, sourceSkill, targetSkill, exports, exported }
+}
+
 const fsPromisesMocks = vi.hoisted(() => ({
   cp: vi.fn<typeof FsPromises.cp>(),
   statfs: vi.fn<typeof FsPromises.statfs>(),
@@ -173,6 +193,79 @@ afterEach(() => {
 })
 
 describe('userDataRelocation execution', () => {
+  it('retargets owned skill exports during a copy without changing user-owned entries', async () => {
+    const fixture = prepareSkillExports()
+    const userSkill = path.join(fixture.root, 'user-skill')
+    const userLink = path.join(fixture.exports, 'user-link')
+    const userDirectory = path.join(fixture.exports, 'user-directory')
+    fs.mkdirSync(userSkill)
+    fs.writeFileSync(path.join(userSkill, 'SKILL.md'), '# user')
+    fs.symlinkSync(userSkill, userLink, process.platform === 'win32' ? 'junction' : 'dir')
+    fs.mkdirSync(userDirectory)
+    fs.writeFileSync(path.join(userDirectory, 'SKILL.md'), '# user directory')
+    const { runUserDataRelocation } = await loadDomain()
+
+    await runUserDataRelocation()
+
+    expectCommitted(fixture.target)
+    fs.writeFileSync(path.join(fixture.sourceSkill, 'SKILL.md'), '# retained old profile')
+    expect(fs.realpathSync(fixture.exported)).toBe(fs.realpathSync(fixture.targetSkill))
+    expect(fs.readFileSync(path.join(fixture.exported, 'SKILL.md'), 'utf8')).toBe('# original')
+    expect(fs.realpathSync(userLink)).toBe(fs.realpathSync(userSkill))
+    expect(fs.readFileSync(path.join(userDirectory, 'SKILL.md'), 'utf8')).toBe('# user directory')
+  })
+
+  it('restores skill exports to the retained source if committing the new profile fails', async () => {
+    const fixture = prepareSkillExports()
+    bootConfigPersistMock.mockImplementationOnce(() => {
+      throw new Error('commit failed')
+    })
+    const { runUserDataRelocation } = await loadDomain()
+
+    await runUserDataRelocation()
+
+    expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed', error: 'commit failed' })
+    expect(fs.existsSync(fixture.target)).toBe(false)
+    expect(fs.realpathSync(fixture.exported)).toBe(fs.realpathSync(fixture.sourceSkill))
+    expect(fs.readFileSync(path.join(fixture.exported, 'SKILL.md'), 'utf8')).toBe('# original')
+  })
+
+  it('restores an export when creating its relocated link fails', async () => {
+    const fixture = prepareSkillExports()
+    fsPromisesMocks.symlink.mockRejectedValueOnce(new Error('export denied'))
+    const { runUserDataRelocation } = await loadDomain()
+
+    await runUserDataRelocation()
+
+    expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed', error: 'export denied' })
+    expect(fs.existsSync(fixture.target)).toBe(false)
+    expect(fs.realpathSync(fixture.exported)).toBe(fs.realpathSync(fixture.sourceSkill))
+  })
+
+  it('restores exports from an interrupted promotion even when the next copy fails', async () => {
+    const fixture = prepareSkillExports()
+    fs.mkdirSync(fixture.targetSkill, { recursive: true })
+    fs.writeFileSync(path.join(fixture.targetSkill, 'SKILL.md'), '# interrupted')
+    fs.writeFileSync(
+      path.join(fixture.target, '.cherry-relocation-owner.json'),
+      JSON.stringify({
+        kind: 'cherry-studio-user-data-relocation',
+        taskId: TASK_ID
+      })
+    )
+    fs.unlinkSync(fixture.exported)
+    fs.symlinkSync(fixture.targetSkill, fixture.exported, process.platform === 'win32' ? 'junction' : 'dir')
+    fsPromisesMocks.cp.mockRejectedValueOnce(new Error('retry copy failed'))
+    const { runUserDataRelocation } = await loadDomain()
+
+    await runUserDataRelocation()
+
+    expect(relocationState['temp.user_data_relocation']).toMatchObject({ status: 'failed', error: 'retry copy failed' })
+    expect(fs.existsSync(fixture.target)).toBe(false)
+    expect(fs.realpathSync(fixture.exported)).toBe(fs.realpathSync(fixture.sourceSkill))
+    expect(fs.readFileSync(path.join(fixture.exported, 'SKILL.md'), 'utf8')).toBe('# original')
+  })
+
   it('prepares a fresh temporary sessionData directory for a pending copy', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')

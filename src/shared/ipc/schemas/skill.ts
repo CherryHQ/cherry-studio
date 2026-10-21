@@ -33,7 +33,7 @@ export const skillRequestSchemas = {
   }),
   'skill.set_mirror_enabled': defineRoute({
     input: z.object({ skillId: z.string(), mirrorEnabled: z.boolean() }),
-    output: z.custom<SkillResult<InstalledSkill>>()
+    output: z.custom<InstalledSkill>()
   }),
   'skill.install_from_zip': defineRoute({
     input: z.object({ zipFilePath: z.string() }),

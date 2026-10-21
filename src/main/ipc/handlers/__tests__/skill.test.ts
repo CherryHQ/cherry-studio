@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   installMock,
+  setMirrorEnabledMock,
   uninstallMock,
   installFromZipMock,
   installFromDirectoryMock,
@@ -17,6 +18,7 @@ const {
   applyRemoteUpdateMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
+  setMirrorEnabledMock: vi.fn(),
   uninstallMock: vi.fn(),
   installFromZipMock: vi.fn(),
   installFromDirectoryMock: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   },
   skillService: {
     install: installMock,
+    setMirrorEnabled: setMirrorEnabledMock,
     uninstall: uninstallMock,
     installFromZip: installFromZipMock,
     installFromDirectory: installFromDirectoryMock,
@@ -71,6 +74,23 @@ beforeEach(() => {
 })
 
 describe('skillHandlers', () => {
+  it('returns mirror mutation data directly and propagates failures to IpcApi', async () => {
+    const skill = { id: 's1', mirrorEnabled: false }
+    setMirrorEnabledMock.mockResolvedValueOnce(skill)
+    await expect(
+      skillHandlers['skill.set_mirror_enabled']({ skillId: 's1', mirrorEnabled: false }, ctx)
+    ).resolves.toEqual(skill)
+    const error = new Error('export denied')
+    setMirrorEnabledMock.mockRejectedValueOnce(error)
+    await expect(skillHandlers['skill.set_mirror_enabled']({ skillId: 's1', mirrorEnabled: true }, ctx)).rejects.toBe(
+      error
+    )
+    setMirrorEnabledMock.mockResolvedValueOnce(null)
+    await expect(
+      skillHandlers['skill.set_mirror_enabled']({ skillId: 'missing', mirrorEnabled: true }, ctx)
+    ).rejects.toThrow('Skill not found')
+  })
+
   it('install wraps the installed skill in a success envelope', async () => {
     installMock.mockResolvedValue({ id: 's1' })
     expect(await skillHandlers['skill.install']({ installSource: 'src' }, ctx)).toEqual({
