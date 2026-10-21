@@ -192,8 +192,9 @@ describe('ExternalAppService', () => {
 
     await new ExternalAppService().openTarget('/tmp/My Workspace/开发', 'known:vscode', 'directory')
 
+    const drive = process.platform === 'win32' ? `${path.parse(process.cwd()).root[0]}%3A` : ''
     expect(mocks.openExternal).toHaveBeenCalledWith(
-      'vscode://file//tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank'
+      `vscode://file/${drive}/tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank`
     )
   })
 
