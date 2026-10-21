@@ -290,6 +290,10 @@ serve any call.
 | `AskUserQuestion`                        | safe     | sequential      | all            |
 | `todo_write`, `vcc_recall`               | safe     | parallel        | all            |
 
+`subagent` starts no child once its turn is stopping, that is once `call.signal` aborted or a stop is recorded after
+the turn began, because that stop already took the turn's children; it answers with an error instead.
+`message_subagent` refuses the same way to continue a finished child, and refuses a steer only once the signal aborted.
+
 Each schema carries the constraints today's tools have. The rules check the arguments again themselves, so a harness
 that does not validate against the schema loses nothing.
 

@@ -9,6 +9,8 @@ export const DEFAULT_MAX_BACKGROUND = 20
 const LISTED = 20
 
 export const IN_SUBAGENT = 'Subagents cannot start or manage subagents.'
+/** A subagent call whose turn is stopping starts no run: the stop already took the children the turn owned. */
+export const TURN_STOPPED = 'The turn was stopped; no subagent was started or continued.'
 const PREAMBLE =
   'You are a subagent working for another agent, not for the user. Do the task below with your tools, then finish with one final message that reports the result in full — the other agent sees only that final message. You cannot ask the user questions and you cannot start subagents.'
 const NO_FINAL_MESSAGE = 'The subagent finished without a final message.'

@@ -10,7 +10,7 @@ import {
   decideStop,
   stoppedResult
 } from '../../core/subagents/subagentDecisions'
-import { continuedText, notDeliveredText, startedText } from '../../core/subagents/subagentText'
+import { continuedText, notDeliveredText, startedText, TURN_STOPPED } from '../../core/subagents/subagentText'
 import type { ToolCall, ToolDefinition, ToolOutcome, TransactResult } from '../../ports/harness'
 import type { HostPorts } from '../../ports/host'
 import { runChild, SUBAGENT_TOOL_NAME } from '../childRuns'
@@ -81,6 +81,8 @@ async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
   const named = stringField(fieldsOf(call.args), 'model')?.trim() || undefined
   const models = await modelFacts(context.host, call.thread, named)
   const inputs = await gatherInputs(context, call.thread, { args: call.args, models })
+  // A turn stopped while the host answered has taken its children already; a child spawned now would run on.
+  if (call.signal.aborted) return { text: TURN_STOPPED, isError: true }
   const executed = await step(context, call.thread, (facts) => decideSpawn(facts, inputs, call.key))
   const decision = executed.result
   if (decision.kind === 'refused') return { text: decision.text, isError: true }
@@ -98,6 +100,7 @@ async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
 async function message(context: Context, call: ToolCall): Promise<ToolOutcome> {
   for (;;) {
     const inputs = await gatherInputs(context, call.thread, { args: call.args })
+    if (call.signal.aborted) return { text: TURN_STOPPED, isError: true }
     const executed = await step(context, call.thread, (facts) => decideMessage(facts, inputs, call.key))
     const decision = executed.result
     switch (decision.kind) {

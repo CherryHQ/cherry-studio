@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import {
+  aborted,
   callTool,
   message as childInput,
   holds,
@@ -15,8 +16,9 @@ import {
 import { offloadName } from '../../src/core/context/offload'
 import { type CallKey, callKeyOf } from '../../src/core/facts'
 import { keys } from '../../src/core/keys'
-import { capText, notDeliveredText, startedText } from '../../src/core/subagents/subagentText'
-import type { ToolDefinition } from '../../src/ports/harness'
+import { capText, notDeliveredText, startedText, TURN_STOPPED } from '../../src/core/subagents/subagentText'
+import type { Entries } from '../../src/orchestration/entries'
+import type { BoundPorts, ToolDefinition } from '../../src/ports/harness'
 import { markers, records, runRecords, world, wrapJob, wrapTool } from './world'
 
 const SPAWN = { description: 'scan', prompt: 'scan the repo' }
@@ -450,6 +452,53 @@ describe('subagent tools', () => {
     expect(runRecords(await w.read(t))).toHaveLength(2)
     hold.release('children')
     await w.fake.settle()
+  })
+
+  // Catches a spawn that runs on after its turn stopped: the stop came during Models.current and took the children so
+  // far, so the child spawned then ran unstopped. A stop bypassing userStop records nothing; only the signal shows it.
+  it.each([
+    ['the userStop entry', (entries: Entries, ports: BoundPorts, t: ThreadId) => entries.userStop(ports, t, 'stop-1')],
+    [
+      'a stop that bypasses the entry',
+      (_entries: Entries, ports: BoundPorts, t: ThreadId) => ports.turns.stop(t, 'user')
+    ]
+  ])('starts no subagent once %s stopped the turn during the model lookup', async (_name, stopTurn) => {
+    const lookup = latch()
+    let holding = false
+    let signal: AbortSignal | undefined
+    const w = world({
+      wrap: wrapTool('subagent', (run) => (call, ports) => {
+        signal = call.signal
+        return run(call, ports)
+      }),
+      patchHost: (host) => ({
+        ...host,
+        models: {
+          ...host.models,
+          current: async (thread) => {
+            if (holding) await lookup.promise
+            return host.models.current(thread)
+          }
+        }
+      }),
+      scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [reply('ran')] : [])
+    })
+    const t = await w.fake.createThread()
+    holding = true
+    w.fake.script(t, [callTool('subagent', SPAWN), reply('never')])
+    await w.fake.sendUser(t, 'go')
+    await vi.waitFor(() => expect(signal).toBeDefined())
+    const stopping = w.enter(t, (entries, ports) => stopTurn(entries, ports, t))
+    await aborted(signal!)
+    lookup.release()
+    await stopping
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect(facts.children.size).toBe(0)
+    expect(facts.live.runEnd?.outcome).toBe('aborted')
+    expect(toolResults(facts).filter(({ tool }) => tool === 'subagent')).toMatchObject([
+      { isError: true, text: TURN_STOPPED }
+    ])
   })
 
   // Catches a named model ignored: the child would run on the default model the host gave (D16).

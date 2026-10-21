@@ -18,6 +18,7 @@ import { currentGoal, goalCounts } from '../goal/goalHistory'
 import { BUDGET_REFUSAL, budgetExceeded } from '../goal/goalState'
 import type { CallInputs, SubagentModelCandidate } from '../hostFacts'
 import { type Key, keys, nextRun } from '../keys'
+import { turnStopping } from '../turns'
 import { awaitingApproval, isLive, readSubagents, resolveChild, runningBackground, runStarted } from './subagentLedger'
 import {
   capText,
@@ -32,6 +33,7 @@ import {
   statusText,
   stoppedText,
   taskText,
+  TURN_STOPPED,
   unknownIdText
 } from './subagentText'
 
@@ -87,7 +89,8 @@ export type SpawnDecision =
 /**
  * `subagent` (D15): foreground or background is fixed here (§15 Q1). A background spawn creates its report job in
  * the same commit; a foreground one is messaged and awaited by the calling tool. Only the last assistant entry can
- * hold the running call, so a fork starts there (Z1).
+ * hold the running call, so a fork starts there (Z1). Once a stop is recorded for the current turn nothing is spawned:
+ * that stop already took the turn's children.
  */
 export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): Step<SpawnDecision> {
   const args = fieldsOf(inputs.args)
@@ -103,6 +106,7 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
   if (spawned?.kind === 'record' && spawned.record.type === 'subagent-run')
     return refuse({ kind: 'spawn', key, child: spawned.record.value.sessionId, background, fork, input })
   if (facts.lineage.kind === 'subagent') return refuse({ kind: 'refused', text: IN_SUBAGENT })
+  if (turnStopping(facts.history)) return refuse({ kind: 'refused', text: TURN_STOPPED })
   if (!description || !prompt)
     return refuse({ kind: 'refused', text: 'A subagent needs a non-empty description and prompt.' })
   const named = stringField(args, 'model')?.trim()
@@ -162,7 +166,8 @@ export type MessageDecision =
  * cannot be continued. A steer only joins a running run (G-C5): one whose first input has not arrived refuses it, and
  * when the run ends before taking it the caller records that (`decideSteerWithdrawn`) and decides again. A steer is
  * recorded before it is sent, and a rerun sends that steer again under its key instead of deciding afresh: the
- * harness answers as it first did (H3), so a steer the child took is never delivered twice.
+ * harness answers as it first did (H3), so a steer the child took is never delivered twice. Once a stop is recorded
+ * for the current turn, no finished child is continued.
  */
 export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): Step<MessageDecision> {
   if (facts.lineage.kind === 'subagent') return refuse({ kind: 'refused', text: IN_SUBAGENT })
@@ -198,6 +203,7 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
   // A run being stopped would drop the message: it is answered once the stop is recorded (Y5).
   if (isLive(facts, latest))
     return refuse({ kind: 'stopping', child, run: latest.run, key: keys.subagentMessage(child, latest.run) })
+  if (turnStopping(facts.history)) return refuse({ kind: 'refused', text: TURN_STOPPED })
   const refusal = backgroundRefusal(facts, inputs)
   if (refusal) return refuse({ kind: 'refused', text: refusal })
   const interrupted = latest.outcome === 'interrupted' || latest.outcome === 'aborted'
