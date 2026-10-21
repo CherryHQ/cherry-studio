@@ -26,3 +26,22 @@ index c1a09a82b8121d6a1b038ccc6d02bae46d55dbcf..329e7b43ab1cf527227d6330b7aaeaef
  			} else {
  				await response.text?.().catch(() => {});
  				throw new SdkError(SdkErrorCode.ClientHttpUnexpectedContent, `Unexpected content type: ${contentType}`, { contentType });
+
+diff --git a/dist/src-DpAS0jfg.cjs b/dist/src-DpAS0jfg.cjs
+index f6a7ef3ead2e9c8b7b55f58269aa36dea06d6407..f09a5164a6067c1f1750c0cfa6e75e08aae273ea 100644
+--- a/dist/src-DpAS0jfg.cjs
++++ b/dist/src-DpAS0jfg.cjs
+@@ -6047,0 +6048,4 @@
++		if (response.id === null) {
++			this._onerror(/* @__PURE__ */ new Error(`Received a response with a null message ID: ${JSON.stringify(response)}`));
++			return;
++		}
+diff --git a/dist/src-WCy6ifGf.mjs b/dist/src-WCy6ifGf.mjs
+index 94589675eeb59b3ebdf05ac8dc8b44c9986a5b4a..72fb989e77aa99b2bcaabe4cdb65a5689f055e2e 100644
+--- a/dist/src-WCy6ifGf.mjs
++++ b/dist/src-WCy6ifGf.mjs
+@@ -6046,0 +6047,4 @@
++		if (response.id === null) {
++			this._onerror(/* @__PURE__ */ new Error(`Received a response with a null message ID: ${JSON.stringify(response)}`));
++			return;
++		}
