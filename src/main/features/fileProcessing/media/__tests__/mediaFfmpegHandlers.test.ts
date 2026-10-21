@@ -216,6 +216,8 @@ describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
     }
     expect(readSamples(3).every((sample) => sample === 0)).toBe(true)
     expect(readSamples(6.2).some((sample) => sample !== 0)).toBe(true)
+  })
+
   it('probes and extracts a 24-track MKV whose packet-count JSON exceeds the default stdio cap', async () => {
     const outputDir = join(root, 'twenty-four-audio')
     mkdirSync(outputDir)
