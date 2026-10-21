@@ -15,7 +15,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
@@ -61,8 +61,9 @@ const composerChipIconClassName = 'size-full shrink-0 text-current'
 const composerChipProvidedIconClassName =
   'inline-flex size-full items-center justify-center [&>svg]:size-full [&>img]:size-full'
 const composerChipLabelClassName = 'max-w-full min-w-0 truncate break-normal whitespace-nowrap! leading-[inherit]'
-const composerChipRemoveButtonClassName = 'size-full rounded-xs bg-muted text-foreground'
-const composerChipRemoveIconClassName = 'size-[0.6em]'
+const composerChipRemoveButtonClassName =
+  '-inset-0.5 size-auto rounded-xs bg-transparent text-foreground hover:text-foreground focus-visible:text-foreground dark:text-foreground'
+const composerChipRemoveIconClassName = 'size-[1em]'
 
 // 链接 chip 的图标槽：站点图标填满 1em（图片和 FallbackFavicon 自带的方块兜底都交给子选择器撑满）
 const composerLinkFaviconClassName =
@@ -159,13 +160,17 @@ function InlineTokenRemoveButton({
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       aria-label={label}
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'pointer-events-none absolute inset-0 inline-flex items-center justify-center border-0 bg-transparent p-0 text-current leading-none opacity-0 outline-none transition-opacity',
+        'pointer-events-none absolute inset-0 size-auto min-h-0 border-0 bg-transparent p-0 text-[length:inherit] text-current leading-none opacity-0 transition-opacity dark:text-current',
+        'hover:bg-transparent hover:text-current focus-visible:bg-transparent focus-visible:text-current',
+        'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
         'hover:opacity-100',
         'focus-visible:pointer-events-auto focus-visible:opacity-100',
         'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
@@ -175,7 +180,7 @@ function InlineTokenRemoveButton({
       onClick={handleRemove}
       onKeyDown={(event) => event.stopPropagation()}>
       <X className={cn(tokenRemoveIconClassName, iconClassName)} aria-hidden />
-    </button>
+    </Button>
   )
 }
 
@@ -915,7 +920,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
           removeLabel={removeLabel}
           onRemove={onRemove}
           slotClassName="size-full items-center justify-center"
-          removeButtonClassName={cn(composerChipRemoveButtonClassName, 'bg-transparent')}
+          removeButtonClassName={composerChipRemoveButtonClassName}
           removeIconClassName={composerChipRemoveIconClassName}
         />
       </span>

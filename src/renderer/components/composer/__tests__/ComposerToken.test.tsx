@@ -5,9 +5,10 @@ import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Folder } from 'lucide-react'
-import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
+import { type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUI from '@cherrystudio/ui'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -44,7 +45,8 @@ vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   )
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { Button } = await importOriginal<typeof CherryUI>()
   const React = await import('react')
   const PopoverContext = React.createContext<{
     open: boolean
@@ -52,21 +54,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }>({ open: false, triggerRef: { current: null } })
 
   return {
-    Button: ({
-      children,
-      size: _size,
-      variant: _variant,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
-      void _size
-      void _variant
-
-      return (
-        <button type="button" {...props}>
-          {children}
-        </button>
-      )
-    },
+    Button,
     Scrollbar: ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => (
       <div {...props} className={className} data-testid="composer-token-scrollbar">
         {children}
@@ -522,6 +510,12 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
 
     await user.click(removeButton)
+    expect(onRemove).toHaveBeenCalledTimes(1)
+    expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
+
+    onRemove.mockClear()
+    removeButton.focus()
+    await user.keyboard('{Enter}')
     expect(onRemove).toHaveBeenCalledTimes(1)
     expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
   })
