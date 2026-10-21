@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { applicationInput, setupCredentialStore } from '@data/credential/__tests__/credentialTestSetup'
-import type { CredentialStoreService } from '@data/credential/CredentialStoreService'
+import type { CredentialStoreService } from '@main/services/credential'
+import { applicationInput, setupCredentialStore } from '@main/services/credential/__tests__/credentialTestSetup'
 import { credentialErrorCodes } from '@shared/ipc/errors/credential'
 import { credentialRequestSchemas } from '@shared/ipc/schemas/credential'
 import { CredentialSummarySchema } from '@shared/types/credential'

@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { CredentialStoreError, type CredentialStoreErrorCode } from '@data/credential/CredentialStoreError'
+import { CredentialStoreError, type CredentialStoreErrorCode } from '@main/services/credential'
 import { credentialErrorCodes } from '@shared/ipc/errors/credential'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { credentialRequestSchemas } from '@shared/ipc/schemas/credential'

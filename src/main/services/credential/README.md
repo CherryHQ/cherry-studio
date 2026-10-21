@@ -1,7 +1,9 @@
 # Connector credentials
 
-`CredentialStoreService` owns main-process plaintext connector credentials. Resolve it through
+`CredentialStoreService` is a shared connector capability under `services/` and owns
+main-process plaintext credentials. Resolve it through
 `application.get('CredentialStoreService')` after its WhenReady lifecycle initialization.
+External imports use `@main/services/credential`; record schemas remain private.
 Channel and Knowledge still use their existing credential writers; their migration and cutover
 are a subsequent implementation layer.
 
