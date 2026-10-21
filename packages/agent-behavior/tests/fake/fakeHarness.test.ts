@@ -343,6 +343,40 @@ describe('fake harness', () => {
     expect(fake.persistentLog()).toEqual(before)
   })
 
+  // Catches a compaction that crosses a restart: the dead epoch's onCompacting answered after it, and the compaction
+  // still landed and ran the new epoch's onCompacted.
+  it('drops a compaction whose onCompacting answers after a restart', async () => {
+    const summary = latch()
+    const asked = latch()
+    const compacted: number[] = []
+    let installs = 0
+    const fake = createFakeHarness({
+      install: (p) => {
+        const epoch = ++installs
+        p.lifecycle.register({
+          onOpen: async () => {},
+          onCompacting: async () => {
+            asked.release()
+            await summary.promise
+            return { summary: 'late' }
+          },
+          onCompacted: async () => {
+            compacted.push(epoch)
+          },
+          onClose: async () => {}
+        })
+      }
+    })
+    const t = await fake.createThread()
+    const compacting = fake.compact(t)
+    await asked.promise
+    await fake.restart()
+    summary.release()
+    await compacting
+    expect((await read(fake, t)).history.filter((entry) => entry.kind === 'compaction')).toEqual([])
+    expect(compacted).toEqual([])
+  })
+
   // Catches compaction requests escaping a child's request cap (PR-2a ruling G5): a compaction during a run is one of
   // its model requests, so the meter sees it and counts it.
   it('meters a compaction during a run as one of its requests', async () => {
