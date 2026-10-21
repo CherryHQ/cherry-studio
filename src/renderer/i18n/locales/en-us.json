@@ -1470,6 +1470,8 @@
   "error.statusCode": "Status Code",
   "error.statusText": "Status Text",
   "error.stream_paused": "Paused",
+  "error.stream_unreadable.description": "No readable error details were received. Please retry; if it happens again, check the logs.",
+  "error.stream_unreadable.title": "Response failed",
   "error.text": "Text",
   "error.toolInput": "Tool Input",
   "error.toolName": "Tool Name",

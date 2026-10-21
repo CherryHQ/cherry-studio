@@ -1470,6 +1470,8 @@
   "error.statusCode": "状态码",
   "error.statusText": "状态文本",
   "error.stream_paused": "已中断",
+  "error.stream_unreadable.description": "未收到可读的错误详情。请重试；若再次发生，请查看日志。",
+  "error.stream_unreadable.title": "响应失败",
   "error.text": "文本",
   "error.toolInput": "工具输入",
   "error.toolName": "工具名",

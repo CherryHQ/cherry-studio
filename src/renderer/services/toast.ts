@@ -1,6 +1,6 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import { isAbortError, providerErrorText } from '@renderer/utils/error'
+import { getStreamFailureText, isAbortError, isUnreadableStreamFailure, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import { type ErrorToastAction, errorToastPresentations, serializeToastError } from '@renderer/utils/errorToast'
 import type { Provider } from '@shared/data/types/provider'
@@ -43,9 +43,10 @@ export interface ErrorToastContext {
 function errorFromException(error: unknown, context: ErrorToastContext = {}): string {
   const serialized = serializeToastError(error)
   const classification = classifyError(serialized, context.provider?.id)
+  const unreadable = context.category === 'stream' && isUnreadableStreamFailure(serialized)
   const category = context.category ?? classification.category
   const presentation = errorToastPresentations[category]
-  const details = providerErrorText(serialized)
+  const details = providerErrorText(serialized) || getStreamFailureText(serialized)
   const provider = context.provider
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
@@ -66,9 +67,14 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
-    title: category === 'unknown' ? details || i18n.t('error.unknown') : i18n.t(diagnosisKey),
+    title: unreadable
+      ? i18n.t('error.stream_unreadable.title')
+      : category === 'unknown'
+        ? details || i18n.t('error.unknown')
+        : i18n.t(diagnosisKey),
     description:
       [
+        unreadable ? i18n.t('error.stream_unreadable.description') : undefined,
         context.mcpServer?.name ?? provider?.name,
         context.modelName,
         category === 'rate_limit' && context.retryAfterSeconds !== undefined
@@ -77,7 +83,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    details: unreadable || category === 'unknown' ? undefined : details,
     action:
       run && actionKind
         ? {
@@ -108,7 +114,10 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
                   errorFromException(failure, {
                     ...context,
                     key,
-                    category: undefined,
+                    category:
+                      context.category === 'stream' && isUnreadableStreamFailure(serializeToastError(failure))
+                        ? 'stream'
+                        : undefined,
                     actions: tracksCompletion ? context.actions : {}
                   })
               } finally {

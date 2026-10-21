@@ -9,7 +9,12 @@ import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
+import {
+  formatErrorMessageWithPrefix,
+  getStreamFailureText,
+  isUnreadableStreamFailure,
+  providerErrorText
+} from '@renderer/utils/error'
 import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -50,7 +55,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         ((error as Record<string, unknown>).statusCode as number | undefined)
       : undefined
 
-  if (i18n.exists(i18nKey)) {
+  if (i18nKey !== 'error.unknown' && i18nKey !== 'error.diagnosis.unknown' && i18n.exists(i18nKey)) {
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
     if (providerId && typeof providerId === 'string') {
@@ -83,7 +88,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     return t(i18nKey)
   }
 
-  if (i18n.exists(errorKey)) {
+  if (errorKey !== 'error.unknown' && errorKey !== 'error.diagnosis.unknown' && i18n.exists(errorKey)) {
     return t(errorKey)
   }
 
@@ -95,7 +100,8 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     )
   }
 
-  return providerErrorText(error)
+  const text = providerErrorText(error) || getStreamFailureText(error)
+  return text || (errorStatus ? `${t('error.statusCode')}: ${errorStatus}` : '')
 }
 
 const MessageErrorInfo: React.FC<{
@@ -109,12 +115,17 @@ const MessageErrorInfo: React.FC<{
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
 
+  const unreadable = isUnreadableStreamFailure(error)
   const errorMessage = error?.message ?? undefined
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
-  const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
+  const hasAppOwnedI18nKey =
+    appOwnedErrorKey !== '' &&
+    appOwnedErrorKey !== 'error.unknown' &&
+    appOwnedErrorKey !== 'error.diagnosis.unknown' &&
+    i18n.exists(appOwnedErrorKey)
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
@@ -133,6 +144,7 @@ const MessageErrorInfo: React.FC<{
 
   useEffect(() => {
     if (
+      unreadable ||
       claudeCodeExitCategory !== undefined ||
       hasAppOwnedI18nKey ||
       classification.category !== 'unknown' ||
@@ -160,6 +172,7 @@ const MessageErrorInfo: React.FC<{
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    unreadable,
     claudeCodeExitCategory,
     classification.category,
     diagnoseMessageError,
@@ -233,14 +246,16 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">
+          {unreadable ? t('error.stream_unreadable.title') : aiSummary || localizedErrorMessage}
+        </div>
       </div>
 
       {/* Description */}
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        <ErrorMessage error={error} />
+        {unreadable ? t('error.stream_unreadable.description') : <ErrorMessage error={error} />}
       </div>
 
       {/* Footer */}

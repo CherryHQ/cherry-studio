@@ -103,4 +103,119 @@ describe('LoggerService window source resolution', () => {
       stack: error.stack
     })
   })
+  const forwarded = () => vi.mocked(window.electron.ipcRenderer.invoke).mock.calls.at(-1)!
+
+  it('[22243 RED] forwards nested stream diagnostics as safe enumerable data', () => {
+    const streamError = Object.assign(new Error('socket closed'), {
+      code: 'ECONNRESET',
+      statusCode: 503,
+      status: 502,
+      originalName: 'ProviderStreamError'
+    })
+    const metadata = { topicId: 't1', streamError }
+    new LoggerService().withContext('useChatWithHistory').error('AI stream error', metadata)
+    const projected = forwarded()[4][0].streamError
+    expect(Object.getPrototypeOf(projected)).toBe(Object.prototype)
+    expect(projected).not.toBeInstanceOf(Error)
+    expect(JSON.parse(JSON.stringify(projected))).toStrictEqual({
+      name: 'Error',
+      message: 'socket closed',
+      stack: streamError.stack,
+      code: 'ECONNRESET',
+      statusCode: 503,
+      status: 502,
+      originalName: 'ProviderStreamError'
+    })
+    expect(metadata.streamError).toBe(streamError)
+  })
+
+  it('[22243 RED] normalizes errors in arrays and source context before forwarding', () => {
+    const error = Object.assign(new Error('socket closed'), { code: 'ECONNRESET' })
+    new LoggerService().withContext('test', { failure: error }).error('failed', [error])
+    const call = forwarded()
+    const expected = { name: 'Error', message: 'socket closed', stack: error.stack, code: 'ECONNRESET' }
+    expect(JSON.parse(JSON.stringify(call[1].context))).toStrictEqual({ failure: expected })
+    expect(JSON.parse(JSON.stringify(call[4]))).toStrictEqual([[expected]])
+  })
+
+  it('[22243 RED] drops private error payloads and bounds diagnostic strings', () => {
+    const error = Object.assign(new Error('api_key=secret-sentinel\n' + 'm'.repeat(600)), {
+      name: 'n'.repeat(120),
+      stack: 'Authorization: Bearer secret-sentinel\n' + 's'.repeat(5000),
+      code: 'api_key=secret-sentinel',
+      originalName: 'x'.repeat(101),
+      statusCode: Infinity,
+      status: '503',
+      retry: () => true
+    })
+    const forbidden = [
+      'requestBodyValues',
+      'responseBody',
+      'data',
+      'response',
+      'responseHeaders',
+      'prompt',
+      'toolInput',
+      'originalMessage',
+      'cause',
+      'errors',
+      'lastError',
+      'url'
+    ]
+    for (const key of forbidden) Object.defineProperty(error, key, { value: 'private-sentinel', enumerable: true })
+    new LoggerService().error('failed', { streamError: error, requestId: 'r1' })
+    const output = forwarded()[4][0]
+    expect(output.requestId).toBe('r1')
+    const json = JSON.stringify(output)
+    for (const key of forbidden) expect(json).not.toContain('"' + key + '"')
+    expect(json).not.toMatch(/secret-sentinel|private-sentinel|retry/)
+    expect(output.streamError.name).toHaveLength(100)
+    expect(output.streamError.message).toHaveLength(501)
+    expect(output.streamError.message).toMatch(/…$/)
+    expect(output.streamError.stack).toHaveLength(4000)
+    expect(output.streamError.code).toBe('api_key="<redacted>"')
+    expect(output.streamError).not.toHaveProperty('originalName')
+    expect(output.streamError).not.toHaveProperty('statusCode')
+    expect(output.streamError).not.toHaveProperty('status')
+  })
+
+  it.each([undefined, 'ECONNRESET', 42])(
+    '[22243 invariant] preserves the exact top-level errorMessage contract (%s)',
+    (code) => {
+      const error = Object.assign(new Error('boom'), { code })
+      const reporter = vi.fn()
+      const logger = new LoggerService()
+      logger.setErrorReporter(reporter)
+      logger.error('prefix', error)
+      const projected = forwarded()[4][0]
+      expect(projected).toStrictEqual({
+        name: 'Error',
+        errorMessage: 'boom',
+        stack: error.stack,
+        code: typeof code === 'string' ? code : undefined
+      })
+      expect(Object.keys(projected)).toStrictEqual(['name', 'errorMessage', 'stack', 'code'])
+      expect(reporter.mock.calls[0][0]).toBe(error)
+    }
+  )
+
+  it('[22243 RED] bounds recursive metadata without mutating its input', () => {
+    const input: Record<string, unknown> = {}
+    input.self = input
+    const deep = { a: { b: { c: { d: { e: { f: 'hidden' } } } } } }
+    new LoggerService().error('failed', input, deep)
+    expect(forwarded()[4][0]).toStrictEqual({ self: '[Circular]' })
+    expect(forwarded()[4][1]).toStrictEqual({ a: { b: { c: { d: { e: '[Truncated]' } } } } })
+    expect(input.self).toBe(input)
+  })
+
+  it('[22243 invariant] strips force forwarding control metadata', () => {
+    const logger = new LoggerService().withContext('test', { requestId: 'r1' })
+    const reporter = vi.fn()
+    logger.setErrorReporter(reporter)
+    logger.error('failed', new Error('boom'), { logToMain: true })
+    expect(forwarded()[4]).toHaveLength(1)
+    expect(JSON.stringify(forwarded())).not.toContain('logToMain')
+    expect(JSON.stringify(reporter.mock.calls)).not.toContain('logToMain')
+  })
 })

@@ -1470,6 +1470,8 @@
   "error.statusCode": "Código de estado",
   "error.statusText": "Texto de estado",
   "error.stream_paused": "Interrumpido",
+  "error.stream_unreadable.description": "No se recibieron detalles legibles del error. Vuelve a intentarlo; si vuelve a ocurrir, revisa los registros.",
+  "error.stream_unreadable.title": "Error en la respuesta",
   "error.text": "Texto",
   "error.toolInput": "Herramienta de entrada",
   "error.toolName": "Nombre de la herramienta",
