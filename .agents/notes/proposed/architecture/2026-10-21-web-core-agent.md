@@ -22,33 +22,32 @@ Run the unmodified desktop agent-session host and agent UI over a browser runtim
 1. **A file system in the Worker.** `fs` and `fs/promises` resolve to ZenFS with its OPFS backend, mounted at `/web` (the root of `application.getPath`) on the account's OPFS directory when the account opens, and unmounted on close.
    - ZenFS keeps an in-memory copy of the mount, so desktop code that calls `existsSync` or `readFileSync` works. Async writes resolve after OPFS has them.
    - ZenFS's async `rename` to a new path renames the file but rejects with `ENOENT`, so the shim routes it through the sync rename.
-2. **The desktop agent-session host in the Worker.** `AgentSessionRuntimeService` starts with the account. `AgentChatContextProvider`, the workspace resolver and the workspace storage service are no longer replaced. Session forks are replaced by a stand-in that answers that the Web edition does not support them.
+2. **The desktop agent-session host in the Worker.** `AgentSessionRuntimeService` starts with the account. `AgentChatContextProvider` and the workspace resolver are no longer replaced. The workspace storage service (user-chosen workspaces) and the lifecycle service (deleting and archiving, which needs workspace archives) stay replaced. Session forks are replaced by a stand-in that answers that the Web edition does not support them.
 3. **A browser runtime driver registered as `pi`**, replacing `registerDrivers.ts`. New agents already default to Pi, so the agent UI, permission modes and tool cards need no change, and agent rows stay compatible with the desktop. Each turn:
    - reads the session's stored messages and builds the prompt with `buildAgentRuntimePrompt`;
-   - runs the desktop AI SDK agent loop (aiCore `createAgent`) with the session's model through the same provider resolution as chat;
-   - emits chunks stamped with Pi's transport tag, usage, and `turn-complete`.
+   - runs the desktop AI SDK agent loop (`Agent` in `ai/runtime/aiSdk`) with the session's model through the same provider resolution as chat;
+   - replays the loop's chunks as Pi events into the desktop `PiStreamAdapter`, so they carry Pi's transport tag, and ends with `turn-complete`.
 
    Tool approvals go through the shared `toolApprovalRegistry` and the existing `ai.tool.respond_approval` route. The driver has no resume token, steering, compaction or fork; follow-up messages queue as the next turn, the host's fallback.
 4. **Browser tools** with Pi's native names and input shapes:
-   - **File tools on the session workspace:** `read`, `write` and `edit`, plus `ls`, `find` and `grep` in place of `bash`.
+   - **File tools on the session workspace:** `read`, `write`, `edit`, `ls`, `find` and `grep`. There is no `bash`.
    - **Python:** `python_execute`, served by the unmodified desktop `PythonService`. It asks the page's Pyodide worker over the bridge.
-   - **JavaScript:** `js_execute` runs in a QuickJS-WASM sandbox inside its own Worker, which is terminated when the run times out.
+   - **JavaScript:** `js_execute` runs in QuickJS-WASM (`quickjs-wasi`, already a desktop dependency) inside its own Worker, which is terminated when the run times out.
 
-   Approval follows the agent's permission mode, as on the desktop:
-   - read tools inside the workspace or the agent data directory run without asking;
+   Approval is the desktop Pi policy (`createPiToolAuthorizer`), applied by the agent's permission mode:
+   - read tools (`read`, `ls`, `find`, `grep`) inside the workspace or the agent data directory run without asking;
    - edits ask in `default` mode and run without asking in `acceptEdits`;
-   - code execution asks unless the mode is `bypassPermissions`.
+   - code execution asks in `default` and `acceptEdits`;
+   - `auto` asks only for a file tool outside those directories, and `bypassPermissions` never asks.
+
+   The policy's guard against Cherry's SQLite files is replaced: the database is an OPFS file outside `/web`, so no tool path reaches it.
 5. **A pre-installed Web Cherry Assistant.** A Web seeder creates one Pi agent named Cherry Assistant, with a system workspace and a first session. The desktop Cherry Assistant and Cherry Support seeders are skipped.
-6. **UI.** The Web sidebar adds Agents. The page's runtime capability table offers only Pi and hides heartbeat, skills, knowledge bases and MCP for it.
+6. **UI.** The Web sidebar adds Agents. Build-time replacements of two `src/shared` modules make the runtime capability table offer only Pi, hide heartbeat, skills, knowledge bases and MCP for it, and list the browser tools in the agent editor.
 7. **Tests.** The mock provider learns to answer with tool calls, and `e2e/agent.spec.ts` drives the Agents page in Chromium, WebKit and Firefox.
 
-Implementation lands in three PRs on top of this Spec:
+Implementation lands in one PR on top of this Spec.
 
-1. the file system, the host, the driver, the file tools, approvals, the built-in agent and the UI;
-2. Python;
-3. the JavaScript sandbox.
-
-Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat runs, channels, session forks, attachments, and including workspace files in backups (milestone M4).
+Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat runs, channels, session forks, deleting and archiving agents and sessions, user-chosen workspaces, attachments, and including workspace files in backups (milestone M4).
 
 ## Alternatives considered
 
