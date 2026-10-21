@@ -245,7 +245,7 @@ export class DictationService {
       stop: () =>
         this.currentRunToken !== runToken
           ? Promise.resolve()
-          : this.active?.runToken === runToken && this.active.recorder
+          : this.active?.runToken === runToken && (this.active.recorder || this.active.streaming)
             ? this.stop()
             : this.cancelRun(runToken),
       cancel: () => this.cancelRun(runToken)

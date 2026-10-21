@@ -149,7 +149,8 @@ export function createProxyBypassMatcher(
     }
 
     if (isWildcardIp(cleanedHost)) {
-      const regexPattern = cleanedHost.replace(/\./g, '\\.').replace(/\*/g, '\\d+')
+      // `*` may span several octets: Windows exceptions like `192.168.*` must still match `192.168.1.10`.
+      const regexPattern = cleanedHost.replace(/\./g, '\\.').replace(/\*/g, '[\\d.]+')
       return {
         type: 'ip',
         matchType: 'generalWildcard',
