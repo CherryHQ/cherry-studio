@@ -324,6 +324,25 @@ describe('fake harness', () => {
     expect(facts.live.runEnd?.outcome).toBe('completed')
   })
 
+  // Catches a close that leaves the current epoch running: a tool released after close() returned still recorded its
+  // result and asked the model again, writing to a harness that had shut down.
+  it('retires its runs on close, so a call released afterwards writes nothing', async () => {
+    const hold = holds()
+    let held: Promise<unknown> | undefined
+    const tool: ToolDefinition = { ...hold.tool, run: (call, ports) => (held = hold.tool.run(call, ports)) }
+    const fake = createFakeHarness({ install: (p) => p.tools.register(tool) })
+    const t = await fake.createThread()
+    fake.script(t, [callTool('hold', { id: 'h' }), reply('after close')])
+    await fake.sendUser(t, 'go')
+    await hold.started('h')
+    const before = fake.persistentLog()
+    await fake.close()
+    expect(await pendingAfter(held!)).toBe('settled')
+    hold.release('h')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(fake.persistentLog()).toEqual(before)
+  })
+
   // Catches compaction requests escaping a child's request cap (PR-2a ruling G5): a compaction during a run is one of
   // its model requests, so the meter sees it and counts it.
   it('meters a compaction during a run as one of its requests', async () => {

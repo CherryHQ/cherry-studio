@@ -437,7 +437,8 @@ The fake fails fast on wiring mistakes. An `ensure-job` for a kind with no regis
 as does a foreground `spawn-child` outside a tool call; a call to a tool that is not registered, or to a
 `'parent-only'` tool from a child, returns an error result. Inside `onOpen` on reopen, every port method outside
 `ledger.*`, `turns.stop`, `helpers.stop` and `clock.now` rejects with an error naming it. A script that runs out fails
-the next model request with `script exhausted`. After `close()`, the harness and its ports fail.
+the next model request with `script exhausted`. After `close()`, the harness and its ports fail, and its runs stop as at
+a restart: their signals abort, so the host asks they hold are withdrawn, and nothing they do afterwards is written.
 
 To check that a flow survives a crash at any step, sweep the crash over every await point, as
 [`tests/fake/crashSweep.test.ts`](tests/fake/crashSweep.test.ts) does for a keyed report job:
