@@ -123,12 +123,12 @@ Pi 包通过原生扩展实现了这项能力。桌面仍使用现有的 `PiRunt
 | 证据位置 | 覆盖的契约 |
 | --- | --- |
 | [`goalState.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/goalState.test.ts) | 状态迁移、限额、分支解释、进展分类和提示及视图结构。 |
-| [`gatewayGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoal.test.ts) | 工具、命令语法、接纳、排队输入和自主模式。 |
-| [`gatewayGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalStops.test.ts) | 限额、陈旧预约、中止、审批、完成、进展及按请求时点统计。 |
-| [`gatewayGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalRebuild.test.ts) | 解除武装恢复、跨崩溃的预约身份、压缩、不支持的模型及 fork 隔离。 |
-| [`gatewayGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalSubagents.test.ts) | 后台等待、通知顺序、预算所有权、停止去重、续跑和审批隔离。 |
+| [`gatewayGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoal.test.ts) | 工具、命令语法、接纳、排队输入和自主模式。 |
+| [`gatewayGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalStops.test.ts) | 限额、陈旧预约、中止、审批、完成、进展及按请求时点统计。 |
+| [`gatewayGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalRebuild.test.ts) | 解除武装恢复、跨崩溃的预约身份、压缩、不支持的模型及 fork 隔离。 |
+| [`gatewayGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts) | 后台等待、通知顺序、预算所有权、停止去重、续跑和审批隔离。 |
 
-[目标测试辅助代码](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalSupport.ts) 以脚本模型通过真实 AI SDK 流式调用驱动原生 Pi，并将恢复后的目标视图与实时检查点比较。这些测试不证明真实提供商行为、桌面接线、UI 验收或已交付的权限策略。不能仅因文件存在就推断测试结果或批准。
+[目标测试辅助代码](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSupport.ts) 以脚本模型通过真实 AI SDK 流式调用驱动原生 Pi，并将恢复后的目标视图与实时检查点比较。这些测试不证明真实提供商行为、桌面接线、UI 验收或已交付的权限策略。不能仅因文件存在就推断测试结果或批准。
 
 ## Risks
 
