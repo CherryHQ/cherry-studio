@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { TSchema } from '@earendil-works/pi-ai'
@@ -14,7 +15,8 @@ import {
   type Key,
   type MessageResult,
   type ToolDefinition,
-  type TurnInput
+  type TurnInput,
+  type TxOp
 } from '@cherrystudio/agent-behavior'
 import { type ItemId, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
@@ -325,6 +327,69 @@ describe('coding-agent behavior adapter', () => {
     expect(await pi.harness.withCall(parent, (ports) => ports.helpers.awaitAnswer(child, sent.run, key('go')))).toEqual(
       { outcome: 'completed', text: 'forked' }
     )
+  })
+
+  // Catches a commit refused after a fork's storage was created: Pi writes a fork's session file as it creates it, so
+  // the rejected commit would leave an orphan session on disk instead of writing nothing (H1).
+  it('leaves no session file when a commit with a fork is refused', async () => {
+    const hold = holdTool()
+    const pi = await openPiHarness((ports) => ports.tools.register(hold.tool))
+    const sessions = join(pi.cwd, 'sessions')
+    const parent = await pi.behavior.openConversation(SessionManager.create(pi.cwd, sessions))
+    const commit = (ops: TxOp[]) =>
+      pi.harness.withCall(parent, (ports) => ports.ledger.transact(parent, () => ({ ops, effects: [], result: null })))
+    pi.harness.script(parent, [{ text: 'one' }, { text: '', toolCalls: [{ name: 'hold', args: {} }] }, { text: 'two' }])
+    await pi.harness.sendUser(parent, 'first')
+    await pi.harness.settle()
+    const at = (await read(pi, parent)).history.find((entry) => entry.kind === 'assistant')!.id
+    const fork: TxOp = { type: 'spawn-child', spec: { ...spec, fork: { from: parent, at } }, key: key('fork') }
+    // The parent's run keeps it busy, so a quiet input to it cannot apply.
+    await pi.harness.sendUser(parent, 'second')
+    await hold.started
+    const before = readdirSync(sessions)
+    const quiet: TxOp = { type: 'append-quiet', thread: parent, input: input('status'), key: key('quiet') }
+    await expect(commit([fork, quiet])).rejects.toThrow('append-quiet refused')
+    expect(readdirSync(sessions)).toEqual(before)
+    const { spawned } = await commit([fork])
+    expect(readdirSync(sessions).filter((file) => !before.includes(file))).toEqual([
+      expect.stringContaining(spawned[0].child)
+    ])
+    hold.release()
+  })
+
+  // Catches a commit whose later fork fails to create its storage leaving the session file of an earlier fork of the
+  // same commit on disk (H1).
+  it('removes the session files a commit created when a later fork fails', async () => {
+    const pi = await openPiHarness(() => {})
+    const sessions = join(pi.cwd, 'sessions')
+    const parent = await pi.behavior.openConversation(SessionManager.create(pi.cwd, sessions))
+    pi.harness.script(parent, [{ text: 'one' }])
+    await pi.harness.sendUser(parent, 'first')
+    await pi.harness.settle()
+    const at = (await read(pi, parent)).history.find((entry) => entry.kind === 'assistant')!.id
+    // Pi writes a stored session's file only once it holds a person's or the model's message; this one never does.
+    const unwritten = await pi.behavior.openConversation(SessionManager.create(pi.cwd, sessions))
+    const note: TxOp = {
+      type: 'append-record',
+      thread: unwritten,
+      record: { type: 'goal-notice', value: { text: 'note', level: 'info' } },
+      key: key('note')
+    }
+    await pi.harness.withCall(unwritten, (ports) =>
+      ports.ledger.transact(unwritten, () => ({ ops: [note], effects: [], result: null }))
+    )
+    const noteId = (await read(pi, unwritten)).history[0].id
+    const before = readdirSync(sessions)
+    const forks: TxOp[] = [
+      { type: 'spawn-child', spec: { ...spec, fork: { from: parent, at } }, key: key('first fork') },
+      { type: 'spawn-child', spec: { ...spec, fork: { from: unwritten, at: noteId } }, key: key('second fork') }
+    ]
+    await expect(
+      pi.harness.withCall(parent, (ports) =>
+        ports.ledger.transact(parent, () => ({ ops: forks, effects: [], result: null }))
+      )
+    ).rejects.toThrow('Cannot fork')
+    expect(readdirSync(sessions)).toEqual(before)
   })
 
   // Catches onCompacted running while Pi still compacts, where the quiet input it adds (the subagent status after a
