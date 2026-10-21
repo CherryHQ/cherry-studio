@@ -224,7 +224,9 @@ describe('messaging and stopping', () => {
       { record: { value: { stoppedBy: 'user', modelStopped: true } }, key: 'subagent-stop:a:1:model' }
     ])
     expect(stop.effects).toEqual([{ type: 'stop-child', child: 'a', run: 1 }])
-    expect(decideUserStopSubagent(facts([runEntry(run('f', { background: false }))]), 'f' as never).result).toBe(false)
+    expect(
+      decideUserStopSubagent(facts([runEntry(run('f', { background: false }))]), inputs(), 'f' as never, 'req').result
+    ).toBe(false)
   })
 
   // Catches a stop that waits for a run no input has reached (G-C4): the wait would never end, and the report job would
@@ -245,9 +247,10 @@ describe('messaging and stopping', () => {
   // anyway, while message_subagent waited on a message never sent (G-C4 for every stopper).
   it('ends a run no input has reached for the person and the budget too', () => {
     const history = [runEntry(run('a'))]
-    const user = decideUserStopSubagent(facts(history), 'a' as never)
+    const user = decideUserStopSubagent(facts(history), inputs(), 'a' as never, 'req')
     expect(user.ops).toMatchObject([
       { record: { value: { status: 'finished', outcome: 'stopped', stoppedBy: 'user' } }, key: 'subagent-end:a:1' },
+      { record: { type: 'subagent-user-stop', value: { sessionId: 'a', run: 1 } }, key: 'subagent-user-stop:req' },
       { type: 'ensure-job' }
     ])
     expect(user.effects).toEqual([])

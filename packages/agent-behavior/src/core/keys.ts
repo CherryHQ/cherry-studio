@@ -66,6 +66,8 @@ export const keys = {
   subagentSteerWithdrawn: (call: CallKey, run: number): Key => mint(`subagent-steer-withdrawn:${call}:${run}`),
   /** The record that run `run` of `child` was stopped by `by`. */
   subagentStop: (child: ThreadId, run: number, by: SubagentStopper): Key => mint(`subagent-stop:${child}:${run}:${by}`),
+  /** The record of what a person's request to stop a subagent stopped, so a repeat answers the same. */
+  subagentUserStop: (requestKey: string): Key => mint(`subagent-user-stop:${requestKey}`),
   /** The status message after the compaction entry `compaction`. */
   subagentStatus: (compaction: ItemId): Key => mint(`subagent-status:${compaction}`),
   /** The stop `onOpen` records for the goal round interrupted at `round` (the round's marker entry). */

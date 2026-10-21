@@ -8,7 +8,12 @@ import { answerVerdict, decideApproval, repeatBlock } from '../../src/core/appro
 import { offloadPlan } from '../../src/core/context/offload'
 import { recallText } from '../../src/core/context/recall'
 import { admitRound, decideAtIdle } from '../../src/core/driver/idle'
-import { decideOnOpen, decidePermissionModeChanged, decideUserStop } from '../../src/core/driver/lifecycle'
+import {
+  decideOnOpen,
+  decidePermissionModeChanged,
+  decideStopSubagent,
+  decideUserStop
+} from '../../src/core/driver/lifecycle'
 import { decodeEntry, encodeEntry } from '../../src/core/entryCodec'
 import { type ConversationFacts, ENTRY_KINDS, type EntryKind, type HistoryEntry } from '../../src/core/facts'
 import { decideGoalCommand } from '../../src/core/goal/goalCommand'
@@ -309,7 +314,14 @@ describe('purity (AC7)', () => {
   add('admitRound', fresh, (f) => admitRound(f, inputs(), started))
   add('decideUserStop', facts([user()]), (f) => decideUserStop(f, inputs(), 'r1'))
   add('decideUserStopSubagent', facts([runEntry(run('a'))], live), (f: ConversationFacts) =>
-    decideUserStopSubagent(f, 'a' as never)
+    decideUserStopSubagent(f, inputs(), 'a' as never, 'r1')
+  )
+  const userStopped = apply(
+    [runEntry(run('a'))],
+    decideStopSubagent(facts([runEntry(run('a'))], live), inputs(), 'a' as never, 'r1')
+  )
+  add('decideStopSubagent (repeat)', facts(userStopped, live), (f: ConversationFacts) =>
+    decideStopSubagent(f, inputs(), 'a' as never, 'r1')
   )
   add('budgetStops', facts([runEntry(run('a'))], live), (f: ConversationFacts) => budgetStops(f, ['a' as never]))
   add('subagentViews', facts([runEntry(run('a'))], live), (f) => subagentViews(f, []))
@@ -380,7 +392,8 @@ describe('entry kinds', () => {
     'cherry.plan': "record.type === 'plan'",
     'cherry.turn-stop': "record.type === 'turn-stop'",
     'cherry.idle-driver-exit': "type: 'idle-driver-exit', value",
-    'cherry.subagent-steer': "record.type === 'subagent-steer'"
+    'cherry.subagent-steer': "record.type === 'subagent-steer'",
+    'cherry.subagent-user-stop': "record.type === 'subagent-user-stop'"
   }
   // Catches a kind added to ENTRY_KINDS that no rule writes or reads: adapters would store it for nothing. The map
   // fails to compile until a new kind is listed.

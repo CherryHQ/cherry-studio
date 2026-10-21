@@ -1,11 +1,13 @@
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
-import type { Step } from '../core/decisions'
-import { decidePermissionModeChanged, decideUserStop } from '../core/driver/lifecycle'
+import {
+  decidePermissionModeChanged,
+  decideStopSubagent,
+  decideUserStop,
+  type SubagentStop
+} from '../core/driver/lifecycle'
 import type { GoalNotice } from '../core/facts'
 import { decideGoalCommand } from '../core/goal/goalCommand'
-import { decideUserStopSubagent } from '../core/subagents/subagentDecisions'
-import { interruptRoute } from '../core/subagents/subagentLedger'
 import type { BoundPorts } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { gatherInputs, step } from './step'
@@ -23,11 +25,11 @@ export type Entries = {
   permissionModeChanged(ports: BoundPorts, thread: ThreadId): Promise<void>
   /**
    * D18, D27: a person stops subagent `child` (the stop control, or a child thread's interrupt); a running foreground
-   * child is part of its parent's turn, so that turn stops instead. A finished child is `'not-running'`.
+   * child is part of its parent's turn, so that turn stops instead. A finished child is `'not-running'`. A repeated
+   * request answers what the first one answered and stops nothing it did not.
    */
   stopSubagent(ports: BoundPorts, child: ThreadId, requestKey: string): Promise<SubagentStop>
 }
-export type SubagentStop = 'stopped-child' | 'stopped-turn' | 'not-running'
 
 export function entries(host: HostPorts): Entries {
   return {
@@ -50,12 +52,9 @@ export function entries(host: HostPorts): Entries {
       const { lineage } = await ports.ledger.read(child)
       if (lineage.kind !== 'subagent') return 'not-running'
       const inputs = await gatherInputs(context, lineage.parent)
-      const executed = await step(context, lineage.parent, (facts): Step<SubagentStop> => {
-        if (interruptRoute(facts, child) === 'stop-parent-turn')
-          return { ...decideUserStop(facts, inputs, requestKey), result: 'stopped-turn' }
-        const stopped = decideUserStopSubagent(facts, child)
-        return { ...stopped, result: stopped.result ? 'stopped-child' : 'not-running' }
-      })
+      const executed = await step(context, lineage.parent, (facts) =>
+        decideStopSubagent(facts, inputs, child, requestKey)
+      )
       return executed.result
     }
   }
