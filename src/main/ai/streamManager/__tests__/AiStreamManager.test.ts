@@ -3421,6 +3421,49 @@ describe('AiStreamManager', () => {
         expect(mgr.inspect('a')!.status).toBe('error')
       }
     )
+    it.each(['Stream error', '', '   ', undefined])(
+      'preserves the readable thrown error and diagnostics for chunk text %j',
+      async (chunkText) => {
+        vi.useRealTimers()
+        const apiError = new APICallError({
+          message: 'Forbidden',
+          url: 'https://llm.example.com/v1/chat/completions',
+          requestBodyValues: {},
+          statusCode: 403,
+          responseHeaders: {},
+          responseBody: '{"detail":"no access to this model"}',
+          isRetryable: false
+        })
+        let pulls = 0
+        mockStreamText.mockResolvedValueOnce(
+          new ReadableStream({
+            pull(controller) {
+              if (++pulls === 1 && chunkText !== undefined) controller.enqueue({ type: 'error', errorText: chunkText })
+              else controller.error(apiError)
+            }
+          })
+        )
+        const listener = new FakeListener('l:a')
+        startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+
+        await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+        expect(listener.errorResults[0].error).toEqual({
+          name: 'AI_APICallError',
+          message: 'no access to this model',
+          providerErrorCategory: 'permission',
+          stack: null,
+          cause: null,
+          url: '',
+          requestBodyValues: null,
+          statusCode: 403,
+          responseHeaders: null,
+          responseBody: null,
+          isRetryable: false,
+          data: null
+        })
+      }
+    )
     it('keeps thrown diagnostics while showing the chunk text', async () => {
       vi.useRealTimers()
 

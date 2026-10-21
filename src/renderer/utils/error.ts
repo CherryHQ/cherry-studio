@@ -22,10 +22,13 @@ import {
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
+import { readableStreamText } from '@shared/utils/streamText'
 
 import { classifyError } from './errorClassifier'
 import { formatErrorDetails } from './errorDetails'
 import { parseJSON } from './json'
+
+export { isStreamPlaceholderText } from '@shared/utils/streamText'
 
 export { getErrorDetails } from './errorDetails'
 
@@ -354,27 +357,6 @@ export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
   return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
-}
-
-const STREAM_PLACEHOLDERS = new Set([
-  '',
-  'null',
-  'undefined',
-  '{}',
-  '[]',
-  '[object object]',
-  'unknown stream error',
-  'stream error',
-  'unknown error'
-])
-
-export function isStreamPlaceholderText(text: string): boolean {
-  return STREAM_PLACEHOLDERS.has(text.trim().toLowerCase())
-}
-
-function readableStreamText(text: string): string {
-  const trimmed = text.trim()
-  return isStreamPlaceholderText(trimmed) ? '' : trimmed
 }
 
 function streamFailureChildren(node: SerializedError): unknown[] {
