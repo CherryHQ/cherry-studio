@@ -12,7 +12,10 @@ const {
   listTasksMock,
   getTaskMock,
   listSkillsMock,
-  getSkillByIdMock
+  getSkillByIdMock,
+  agentExistsMock,
+  deleteAgentMock,
+  deliveryDeleteAgentMock
 } = vi.hoisted(() => ({
   listAgentsMock: vi.fn(),
   getAgentMock: vi.fn(),
@@ -24,7 +27,10 @@ const {
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
-  getSkillByIdMock: vi.fn()
+  getSkillByIdMock: vi.fn(),
+  agentExistsMock: vi.fn(),
+  deleteAgentMock: vi.fn(),
+  deliveryDeleteAgentMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -33,7 +39,22 @@ vi.mock('@data/services/AgentService', () => ({
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    agentExists: agentExistsMock,
+    deleteAgent: deleteAgentMock
+  }
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    AgentSessionDeliveryService: { deleteAgent: deliveryDeleteAgentMock }
+  })
+})
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({ warn: vi.fn() }))
   }
 }))
 
@@ -183,6 +204,59 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].PATCH({ params: { agentId: AGENT_ID }, body: {} } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('DELETE delegates to AgentSessionDeliveryService.deleteAgent', async () => {
+      deliveryDeleteAgentMock.mockResolvedValueOnce({ deleted: true })
+      agentExistsMock.mockReturnValueOnce(true)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      ).resolves.toBeUndefined()
+
+      // The delivery service captures affected session IDs before the FK's
+      // ON DELETE SET NULL nullifies them, so runtime cleanup still reaches
+      // the retained sessions. deleteSessions stays false to match the
+      // ai.agent.delete IPC owner.
+      expect(deliveryDeleteAgentMock).toHaveBeenCalledWith(AGENT_ID, false)
+      expect(deleteAgentMock).not.toHaveBeenCalled()
+    })
+
+    it('DELETE throws notFound when agent does not exist', async () => {
+      agentExistsMock.mockReturnValueOnce(false)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      expect(deliveryDeleteAgentMock).not.toHaveBeenCalled()
+    })
+
+    it('DELETE throws notFound when the delivery service reports no deletion', async () => {
+      deliveryDeleteAgentMock.mockResolvedValueOnce({ deleted: false })
+      agentExistsMock.mockReturnValueOnce(true)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('DELETE surfaces a conflict when delivery writes are paused', async () => {
+      deliveryDeleteAgentMock.mockRejectedValueOnce(new Error('Agent Session delivery writes are paused'))
+      agentExistsMock.mockReturnValueOnce(true)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
+    })
+
+    it('DELETE surfaces an internal error when the delivery service fails', async () => {
+      deliveryDeleteAgentMock.mockRejectedValueOnce(new Error('boom'))
+      agentExistsMock.mockReturnValueOnce(true)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.INTERNAL_SERVER_ERROR })
     })
   })
 

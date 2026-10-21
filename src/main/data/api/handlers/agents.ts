@@ -6,8 +6,10 @@
  * to the appropriate service method.
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -18,6 +20,8 @@ import {
   UpdateAgentSchema
 } from '@shared/data/api/schemas/agents'
 import type { HandlersFor } from '@shared/data/api/types'
+
+const logger = loggerService.withContext('DataApi:agents')
 
 function paginationFromQuery(query: ListQuery) {
   const page = query.page ?? 1
@@ -73,6 +77,34 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
+    },
+
+    DELETE: async ({ params }) => {
+      // Pre-check existence so not-found returns 404 instead of an opaque 204.
+      if (!agentService.agentExists(params.agentId)) {
+        throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      }
+      // Route through AgentSessionDeliveryService which captures affected
+      // session IDs before the FK's ON DELETE SET NULL nullifies them, so
+      // retained session runtimes get properly paused and closed. Mirrors the
+      // ai.agent.delete IPC owner (src/main/ipc/handlers/ai.ts:209).
+      try {
+        const result = await application.get('AgentSessionDeliveryService').deleteAgent(
+          params.agentId,
+          false
+        )
+        if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+        return undefined
+      } catch (error) {
+        if (error instanceof Error && error.message === 'Agent Session delivery writes are paused') {
+          throw DataApiErrorFactory.conflict('Agent deletion writes are paused', 'Agent')
+        }
+        logger.warn('Agent deletion failed via AgentSessionDeliveryService', {
+          agentId: params.agentId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        throw DataApiErrorFactory.internal(error as Error, 'Agent deletion')
+      }
     }
   },
 
