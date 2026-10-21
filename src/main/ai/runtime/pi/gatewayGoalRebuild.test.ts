@@ -19,7 +19,7 @@ import {
   roundStart,
   snapshots,
   working
-} from './aiSdkGoalSupport'
+} from './gatewayGoalSupport'
 import {
   outputText,
   recordingSubagentPort,
@@ -27,8 +27,8 @@ import {
   subagentCall,
   toolCallPart,
   toolResults
-} from './aiSdkSubagentSupport'
-import { finish, MODEL, plain, tempDir, textParts } from './aiSdkSupport'
+} from './gatewaySubagentSupport'
+import { finish, MODEL, plain, tempDir, textParts } from './gatewaySupport'
 
 describe('goal across sessions', () => {
   // Breaks when session_start restores the goal armed: the first message's settle would start round 2.
@@ -196,9 +196,9 @@ describe('goal inside a subagent', () => {
     expect(forkCalls).toHaveLength(3)
     const goalResults = toolResults(forkCalls.at(-1)!).filter((part) => part.toolCallId.startsWith('fork_'))
     expect(goalResults.map((part) => [part.toolName, part.output.type])).toEqual([
-      ['get_goal', 'error-text'],
-      ['create_goal', 'error-text'],
-      ['update_goal', 'error-text']
+      ['get_goal', 'text'],
+      ['create_goal', 'text'],
+      ['update_goal', 'text']
     ])
     for (const part of goalResults) expect(outputText(part.output)).toMatch(/belong to the main agent/)
   })
