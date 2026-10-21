@@ -628,7 +628,7 @@ describe('cherry-tools autonomy tools', () => {
       mockGetAcceptedTurnAgentId.mockReturnValue('agent-c')
 
       const result = await callTool(
-        createServer('agent_test', WORKSPACE_PATH, 'ch1', true),
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', WORKSPACE_SOURCE, true),
         { target_session_id: 'session_b', message: 'Continue' },
         'session_send'
       )
