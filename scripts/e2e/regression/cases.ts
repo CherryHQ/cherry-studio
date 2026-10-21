@@ -62,7 +62,7 @@ export const REGRESSION_CASES = [
     id: 'CHAT-02',
     capabilities: [],
     phase: '03-models-and-assistants',
-    title: 'Message actions regenerate a reply and delete it',
+    title: 'Message actions are offered on a reply and Delete removes it',
     task: 'custom-provider-chat'
   },
   {
