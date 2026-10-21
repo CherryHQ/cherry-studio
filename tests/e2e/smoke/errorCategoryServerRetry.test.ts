@@ -1,6 +1,3 @@
-import { copyFile, mkdir } from 'node:fs/promises'
-import path from 'node:path'
-
 import type { UnifiedPreferenceType } from '../../../src/shared/data/preference/preferenceTypes'
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { type MockChatRequest, startMockChatServer } from '../../helpers/http/mockChatServer'
@@ -126,10 +123,7 @@ test('Chat shows server retry guidance for a status-less streaming service failu
   } finally {
     try {
       const screenshot = testInfo.outputPath('error-category-server.png')
-      await page.screenshot({ path: testInfo.outputPath('error-category-server.png') })
-      const evidence = '/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-22181/round-1/evidence'
-      await mkdir(evidence, { recursive: true })
-      await copyFile(screenshot, path.join(evidence, 'error-category-server.png'))
+      await page.screenshot({ path: screenshot })
       await testInfo.attach('error-category-server', { path: screenshot, contentType: 'image/png' })
     } finally {
       try {
