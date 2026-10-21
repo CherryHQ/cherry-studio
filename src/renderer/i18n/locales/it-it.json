@@ -134,7 +134,7 @@
   "agent.delete.title": "Elimina agente",
   "agent.edit.title": "Modifica agente",
   "agent.edit_resend.error.attachment_unavailable": "Impossibile leggere un allegato. Rimuovilo o allegalo di nuovo.",
-  "agent.edit_resend.error.busy": "Prima interrompi le attività e rimuovi i messaggi in attesa.",
+  "agent.edit_resend.error.busy": "La sessione è ancora occupata: attendi che il lavoro in corso termini, poi riprova.",
   "agent.edit_resend.error.checkpoint_unsupported": "Questo punto di ripristino è stato creato da una versione precedente o non può essere ripristinato da quella attuale, quindi non è possibile modificare e inviare di nuovo da qui. La conversazione non subisce modifiche e può continuare.",
   "agent.edit_resend.error.close_failed": "L'ambiente di esecuzione precedente non si è chiuso correttamente. La conversazione originale è stata conservata.",
   "agent.edit_resend.error.history_changed": "La conversazione è cambiata. Annulla la modifica e riapri l'editor.",
