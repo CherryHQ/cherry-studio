@@ -37,7 +37,8 @@ case "$*" in
   if [ -n "$shell_pid" ]; then printf '"%s","${T_SHELL}"\\n' "$shell_pid"; fi
   ;;
 *-File*)
-  # The job keeper: the job exists for the runner's lifetime and holds nothing but supervision.
+  # The job keeper: membership is what the runner may cross a dead parent link through, so the
+  # test decides which simulated processes the OS recorded when it created them.
   printf 'ready' > "$CHERRY_BG_JOB_READY"
   last=""
   while kill -0 "$CHERRY_BG_JOB_RUNNER" 2>/dev/null; do
@@ -45,7 +46,8 @@ case "$*" in
       nonce=$(cat "$CHERRY_BG_JOB_REQUEST" 2>/dev/null)
       if [ -n "$nonce" ] && [ "$nonce" != "$last" ]; then
         last="$nonce"
-        printf '{"nonce":"%s","pids":[]}' "$nonce" > "$CHERRY_BG_JOB_FILE.staging" &&
+        members=$(cat "$BG_FAKE_MEMBERS" 2>/dev/null)
+        printf '{"nonce":"%s","pids":%s}' "$nonce" "\${members:-[]}" > "$CHERRY_BG_JOB_FILE.staging" &&
           mv "$CHERRY_BG_JOB_FILE.staging" "$CHERRY_BG_JOB_FILE" 2>/dev/null
       fi
     fi
@@ -74,12 +76,14 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
    */
   const runProbe = async (
     plan: Array<{ afterMs: number; rows: ProbeRow[] }>,
-    opts: { shellLifetimeMs: number; waitMs: number }
+    opts: { shellLifetimeMs: number; waitMs: number; members?: string }
   ): Promise<{ known: number[]; exitCode: number | null }> => {
     const tableFile = path.join(dir, 'table.csv')
     const evidence = path.join(dir, 'bt-probe.pids')
+    const membersFile = path.join(dir, 'members.json')
     const shimDir = path.join(dir, 'shim')
     await writeFile(tableFile, TABLE_HEADER)
+    await writeFile(membersFile, opts.members ?? '[]')
     await mkdir(shimDir, { recursive: true })
     const shim = path.join(shimDir, 'powershell.exe')
     await writeFile(shim, `${SHIM}\n`)
@@ -91,7 +95,12 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
     await writeFile(runnerFile, WINDOWS_DETACHED_TASK_RUNNER)
     const child = spawn(process.execPath, [runnerFile, command, evidence], {
       cwd: dir,
-      env: { ...process.env, PATH: `${shimDir}${path.delimiter}${process.env.PATH}`, BG_FAKE_TABLE: tableFile },
+      env: {
+        ...process.env,
+        PATH: `${shimDir}${path.delimiter}${process.env.PATH}`,
+        BG_FAKE_TABLE: tableFile,
+        BG_FAKE_MEMBERS: membersFile
+      },
       stdio: ['ignore', 'ignore', 'ignore']
     })
 
@@ -173,7 +182,9 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
         // The intermediate exits while the shell lives, leaving only the worker behind it.
         { afterMs: 700, rows: [[900_001, 900_002, T_WORKER]] }
       ],
-      { shellLifetimeMs: 1_500, waitMs: 4_000 }
+      // The worker is a member of the task's job, recorded when the OS created it — the membership
+      // that survives the intermediate's exit and ties the orphan to the task.
+      { shellLifetimeMs: 1_500, waitMs: 4_000, members: '[900001]' }
     )
 
     expect(known).toContain(900_001)

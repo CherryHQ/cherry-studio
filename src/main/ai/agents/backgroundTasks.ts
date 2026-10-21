@@ -581,6 +581,15 @@ const start = () => {
     }
     const byPid = new Map(rows.map((row) => [row.pid, row]))
     const keep = new Set()
+    // Read once per probe, and only when a dead link needs it. A row whose parent is gone may have
+    // been forked by whoever the OS handed that freed number to, so the job — held since before the
+    // parent existed — is the only membership that can still tie the row to the task.
+    let jobMembership
+    const jobAdmits = (pid) => {
+      if (!jobActive) return false
+      if (jobMembership === undefined) jobMembership = jobMembers()
+      return jobMembership !== null && jobMembership.some((member) => Number(member) === pid)
+    }
     for (const row of rows) {
       // This runner itself, and every row it parents except the shell, is the task's own
       // supervision — this very probe — not the task's work.
@@ -607,8 +616,11 @@ const start = () => {
       // rows it has forked since belong to whoever the OS gave that number to.
       if (row.pid !== shellPid && (row.ppid === shellPid || known.has(row.ppid))) {
         const parent = byPid.get(row.ppid)
-        if (!parent) keep.add(row.pid)
-        else if (row.ppid === shellPid) {
+        // Nothing in the table names the parent any more, so a matching number is the only link —
+        // and a reused number forks strangers. Only durable job membership may cross that link.
+        if (!parent) {
+          if (jobAdmits(row.pid)) keep.add(row.pid)
+        } else if (row.ppid === shellPid) {
           if (parent.created === stamps.shellCreatedAt || createdBefore(row.created, parent.created)) keep.add(row.pid)
         } else if (known.get(row.ppid) === parent.created || createdBefore(row.created, parent.created)) keep.add(row.pid)
       }
@@ -1502,7 +1514,12 @@ function collectTaskProcessPids(rows: WindowsProcessRow[], roots: WindowsTaskRoo
   for (const row of rows) {
     if (verified.has(row.pid) || !rootPids.has(row.ppid)) continue
     const occupant = byPid.get(row.ppid)
-    if (occupant && !verified.has(occupant.pid) && !createdBefore(row.created, occupant.created)) continue
+    // With the parent absent from the snapshot only its number links the row to the task, and the
+    // OS may have reused that number for an unrelated parent that forked this row and exited. Such
+    // a row is adopted only when it is itself a root the runner verified under its stamp (already
+    // collected above), never on the strength of the parent's number alone.
+    if (!occupant) continue
+    if (!verified.has(occupant.pid) && !createdBefore(row.created, occupant.created)) continue
     work.add(row.pid)
   }
   for (let grew = true; grew;) {

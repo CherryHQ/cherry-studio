@@ -51,6 +51,19 @@ async function withAgentTaskMutex<T>(agentId: string, operation: () => Promise<T
   }
 }
 
+/**
+ * Waits out every start already admitted. Such a start may still be opening its log — it has no
+ * record for an inventory to find yet — so listing tasks before it finishes would let it spawn
+ * after the reset's sweep and outlive the control path the commit erases.
+ */
+async function drainAdmittedStarts(): Promise<void> {
+  // Admission is closed, so only operations admitted earlier are registered; the loop covers a
+  // purge that queued behind one of them.
+  while (agentTaskMutexes.size > 0) {
+    await Promise.all([...agentTaskMutexes.values()])
+  }
+}
+
 export type StartAgentBackgroundTaskInput = StartDetachedBackgroundTaskInput & { agentId: string }
 
 export async function startAgentBackgroundTask(input: StartAgentBackgroundTaskInput): Promise<BackgroundTaskRecord> {
@@ -86,6 +99,9 @@ export async function withDetachedTasksStopped<T>(commit: () => Promise<T>): Pro
   if (backgroundTaskAdmissionClosed) throw new DetachedTasksBusyError('Background tasks are already being stopped')
   backgroundTaskAdmissionClosed = true
   try {
+    // Before inventorying: a start admitted just before admission closed may still be awaiting its
+    // log, so its record does not exist yet and the sweep would find nothing to stop.
+    await drainAdmittedStarts()
     try {
       await stopAllDetachedBackgroundTasks()
     } catch (error) {

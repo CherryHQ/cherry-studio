@@ -1,9 +1,36 @@
 import { spawn } from 'node:child_process'
+import type * as FsPromisesModule from 'node:fs/promises'
 import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { logOpenGate } = vi.hoisted(() => ({
+  logOpenGate: {
+    armed: false,
+    reached: undefined as (() => void) | undefined,
+    release: undefined as (() => void) | undefined
+  }
+}))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromisesModule>()
+  const actualOpen = actual.open as (...args: never[]) => unknown
+  return {
+    ...actual,
+    open: async (file: string, flags: string, mode?: number) => {
+      if (logOpenGate.armed && file.endsWith('.log')) {
+        logOpenGate.armed = false
+        logOpenGate.reached?.()
+        await new Promise<void>((resolve) => {
+          logOpenGate.release = resolve
+        })
+      }
+      return actualOpen(file as never, flags as never, mode as never)
+    }
+  }
+})
 
 const { getPathMock, sendMessageMock, sendMessageOtherMock, getAgentAdaptersMock, taskIndexMocks } = vi.hoisted(() => ({
   getPathMock: vi.fn(),
@@ -144,6 +171,51 @@ describe('withDetachedTasksStopped', () => {
       })
     ).rejects.toBeInstanceOf(DetachedTasksBusyError)
     expect(committed).toBe(false)
+  })
+
+  it('drains a start admitted before admission closed before inventorying what to stop', async () => {
+    // A start can pass both admission checks and then sit in its log open, with no record for the
+    // inventory to find. Closing admission does not touch that start, so a sweep that lists first
+    // finds nothing, commits, and lets the start spawn afterwards — after the reset erased the
+    // record, log and workspace that were its only control path.
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1' } as never)
+    const order: string[] = []
+    const reached = new Promise<void>((resolve) => {
+      logOpenGate.reached = resolve
+    })
+    logOpenGate.armed = true
+    const started = startAgentBackgroundTask({
+      agentId: 'agent-1',
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => {}, 5_000)"`,
+      cwd: storageDir
+    })
+    try {
+      await reached
+      // Admitted, and past the checks: nothing on disk names it yet.
+      await expect(readdir(storageDir)).resolves.toEqual([])
+
+      const resetting = withDetachedTasksStopped(async () => {
+        order.push('commit')
+      })
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(order).toEqual([])
+
+      logOpenGate.release?.()
+      const record = await started
+      await resetting
+
+      // The sweep saw the record the start wrote and stopped the task before the commit.
+      expect(order).toEqual(['commit'])
+      await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.not.toMatchObject({
+        status: 'running'
+      })
+    } finally {
+      logOpenGate.armed = false
+      logOpenGate.release?.()
+      vi.mocked(agentService.getAgent).mockReturnValue(null)
+      await stopAllAgentBackgroundTasks('agent-1').catch(() => undefined)
+    }
   })
 
   it('closes task admission while it runs and reopens it afterwards', async () => {

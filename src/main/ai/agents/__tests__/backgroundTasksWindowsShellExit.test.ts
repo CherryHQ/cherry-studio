@@ -226,7 +226,9 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // as `stopped` — reconciliation and the permanent purge trust that word, and a survivor
     // would lose its tracking and controls while its work goes on.
     const onExit = vi.fn()
-    await useFakeProbe(TABLE_HEADER)
+    // The escaped worker is a member of the task's job: that membership, not the dead shell's
+    // number, is what keeps it attributable once its parent is gone.
+    await useFakeProbe(TABLE_HEADER, { members: '[999999]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
@@ -234,6 +236,17 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     })
     const shellPid = await waitForShellPid(record.id)
     await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
+    // The worker is attributable only once a poll has seen it: the observation is what the app's
+    // own walk re-seeds from after the kill takes the runner's memory down.
+    await vi.waitFor(
+      async () => {
+        const evidence = JSON.parse(
+          await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+        )
+        expect(((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)).toContain(999_999)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
     await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({ status: 'running' })
 
     letTaskkillThrough()
@@ -361,7 +374,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // captured at spawn, so the walk must not extend the task's ownership through it to whatever
     // it has since forked. A walk that admits everything parented to the recorded pid persists a
     // stranger's subtree as this task's verified work, which is what a later kill then takes down.
-    await useFakeProbe(TABLE_HEADER)
+    await useFakeProbe(TABLE_HEADER, { members: '[999999]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setTimeout(() => process.exit(0), 300)"`,
@@ -401,6 +414,93 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     )
     expect(await readKnownPids()).not.toContain(7_777)
     expect(await readKnownPids()).not.toContain(4_444)
+  }, 20_000)
+
+  it('does not adopt or signal a child whose reused parent is absent from the table', async () => {
+    // After the shell exits, Windows hands its pid to an unrelated parent that forks a child and
+    // exits too. The snapshot then names only the child, parented to the recorded shell root, and
+    // the job holds nothing. A matching parent number is not membership: the runner may not persist
+    // the child as this task's ancestry and the stop's collector may not force-kill it.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER)
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 5_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(`${TABLE_HEADER}\n"300","${shellPid}","${REUSED_CHILD_STAMP}"\n`)
+
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+    // Several polls' worth: an ancestry walk that trusts the parent number would record it.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(await readKnownPids()).not.toContain(300)
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      requested.push(args[1] as string[])
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    // Nothing of the task is left in the table, so the stop publishes — without touching the
+    // stranger's child.
+    expect(stopped?.status).toBe('stopped')
+    expect(requested.flat()).not.toContain('300')
+    expect(requested.some((args) => args.includes(String(record.pid)))).toBe(true)
+    expect(onExit).toHaveBeenCalledTimes(1)
+  }, 20_000)
+
+  it('adopts a child across an absent parent only while the job holds it', async () => {
+    // The same shape, but the child is a member of the task's job: membership was recorded before
+    // the parent ever existed, so it is evidence the reused number is not. While the job holds the
+    // child the runner keeps it as ancestry and the stop can reach it.
+    const onExit = vi.fn()
+    const requested: string[][] = []
+    await useFakeProbe(TABLE_HEADER, { members: '[300]' })
+    const record = await startDetachedBackgroundTask({
+      storageDir,
+      command: `${nodeBin} -e "setTimeout(() => process.exit(0), 5_000)"`,
+      cwd: storageDir
+    })
+    const shellPid = await waitForShellPid(record.id)
+    await writeFakeRows(`${TABLE_HEADER}\n"300","${shellPid}","${REUSED_CHILD_STAMP}"\n`)
+
+    const readKnownPids = async (): Promise<number[]> => {
+      const evidence = JSON.parse(
+        await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+      )
+      return ((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)
+    }
+    await vi.waitFor(
+      async () => {
+        expect(await readKnownPids()).toContain(300)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
+
+    taskkillMock.mockImplementation((...args: unknown[]) => {
+      const called = args[1] as string[]
+      requested.push(called)
+      if (called.includes('300')) {
+        // The member's kill lands: both the table and the job's membership drain.
+        writeFileSync(fakeTable, `${TABLE_HEADER}\n`)
+        writeFileSync(fakeMembers, '[]')
+      }
+      const callback = args.at(-1) as (error: Error | null) => void
+      setTimeout(() => callback(null), 20)
+    })
+    const stopped = await stopDetachedBackgroundTask(storageDir, record.id, true, onExit)
+
+    expect(stopped?.status).toBe('stopped')
+    expect(requested.some((args) => args.includes('300'))).toBe(true)
+    expect(onExit).toHaveBeenCalledTimes(1)
   }, 20_000)
 
   it('does not adopt a stranger subtree when the shell stamp was never captured', async () => {
@@ -597,7 +697,8 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // down with it, so the app's own walk must re-seed from the evidence the runner wrote, or it
     // reports the tree empty while the grandchild survives past both dead links.
     const onExit = vi.fn()
-    await useFakeProbe(TABLE_HEADER)
+    // Both workers are job members, which is what ties them to the task after their parents exit.
+    await useFakeProbe(TABLE_HEADER, { members: '[999999,888888]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setTimeout(() => process.exit(0), 300)"`,
@@ -636,7 +737,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // close event must not convert the stop into a finished task. The completion may only
     // publish once the table verifies the worker is truly gone.
     const startOnExit = vi.fn()
-    await useFakeProbe(TABLE_HEADER)
+    await useFakeProbe(TABLE_HEADER, { members: '[999999]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setInterval(() => {}, 60_000)"`,
@@ -645,6 +746,15 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     })
     const shellPid = await waitForShellPid(record.id)
     await writeFakeRows(`${TABLE_HEADER}\n"999999","${shellPid}","${SPAWN_STAMP}"\n`)
+    await vi.waitFor(
+      async () => {
+        const evidence = JSON.parse(
+          await readFile(path.join(storageDir, `${record.id}${BACKGROUND_TASK_EVIDENCE_EXT}`), 'utf8')
+        )
+        expect(((evidence.known ?? []) as Array<{ pid: number }>).map((entry) => entry.pid)).toContain(999_999)
+      },
+      { timeout: 10_000, interval: 200 }
+    )
     letTaskkillThrough()
 
     const withheld = stopDetachedBackgroundTask(storageDir, record.id, true, vi.fn())
@@ -710,7 +820,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // that begins only at shell exit never sees the intermediate and cannot keep the worker: two
     // empty probes publish completion while it works. Tracking across the whole task lifetime
     // observes the intermediate while it lives, so its worker stays attributable afterwards.
-    await useFakeProbe(TABLE_HEADER)
+    await useFakeProbe(TABLE_HEADER, { members: '[999999,888888]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setTimeout(() => process.exit(0), 3_000)"`,
@@ -732,6 +842,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
 
     // The worker is gone too: the tree reads empty and the runner may settle.
     await writeFakeRows(`${TABLE_HEADER}\n`)
+    await writeFakeMembers('[]')
     await vi.waitFor(
       async () => {
         await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({
@@ -777,7 +888,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
     // shell → worker → child: once the worker exits, the surviving child's parent pid no longer
     // connects to any recorded root. The polls must remember the members they verified — the
     // worker's death may not drop its already-observed descendants from the tree.
-    await useFakeProbe(TABLE_HEADER)
+    await useFakeProbe(TABLE_HEADER, { members: '[999999,888888]' })
     const record = await startDetachedBackgroundTask({
       storageDir,
       command: `${nodeBin} -e "setTimeout(() => process.exit(0), 300)"`,
@@ -796,6 +907,7 @@ describe.skipIf(process.platform === 'win32')('a Windows task whose shell exits 
 
     // The child is gone too: the tree reads empty and the runner may settle.
     await writeFakeRows(`${TABLE_HEADER}\n`)
+    await writeFakeMembers('[]')
     await vi.waitFor(
       async () => {
         await expect(getDetachedBackgroundTask(storageDir, record.id)).resolves.toMatchObject({
