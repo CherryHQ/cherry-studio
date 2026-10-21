@@ -572,7 +572,7 @@ describe('Pi compaction across model context sizes', () => {
       {
         model,
         apiKey: 'synthetic-key',
-        signal: undefined,
+        signal: new AbortController().signal,
         customInstructions: instructions,
         streamFn: stream as unknown as Parameters<typeof generateSummary>[9]
       }
