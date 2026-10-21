@@ -73,6 +73,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
+    },
+
+    DELETE: async ({ params }) => {
+      // `{ deleteSessions: false }` keeps this route out of the cascade-deletion
+      // territory covered by the dedicated `ai.agent.sessions.delete` IPC.
+      const result = agentService.deleteAgent(params.agentId, { deleteSessions: false })
+      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return undefined
     }
   },
 
