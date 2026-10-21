@@ -1,0 +1,1022 @@
+import { spawnSync } from 'node:child_process'
+import type * as NodeChildProcess from 'node:child_process'
+import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { UtilityProcessHandlerContext } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
+
+const spawnControl = vi.hoisted(() => ({
+  calls: 0,
+  replacement: null as null | ((...args: unknown[]) => unknown)
+}))
+
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof NodeChildProcess>('node:child_process')
+  return {
+    ...actual,
+    spawn: (...args: Parameters<typeof actual.spawn>) => {
+      if (spawnControl.replacement) {
+        spawnControl.calls += 1
+        return spawnControl.replacement(...args) as ReturnType<typeof actual.spawn>
+      }
+      return actual.spawn(...args)
+    }
+  }
+})
+
+import { relativeInputSeekMs, videoTailProbePoint, videoTailReadInterval } from '../probeClassification'
+import {
+  applyMediaFfmpegInitData,
+  disposeMediaChildren,
+  mediaFfmpegHandlers,
+  packetPtsSeconds
+} from '../utilityEntries/mediaFfmpegHandlers'
+
+const bundleDir = join(process.cwd(), 'resources', 'binaries', `${process.platform}-${process.arch}`)
+const ffmpegPath = join(bundleDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')
+const ffprobePath = join(bundleDir, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe')
+const hasBundledFfmpeg = existsSync(ffmpegPath) && existsSync(ffprobePath)
+
+const logger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
+const context = (signal = new AbortController().signal): UtilityProcessHandlerContext<never> => ({
+  signal,
+  logger,
+  emit: () => {},
+  callHost: async () => {
+    throw new Error('Media FFmpeg handlers do not call the host')
+  }
+})
+
+describe('packetPtsSeconds', () => {
+  it('reads the timestamp when an empty side-data column leaves a trailing comma', () => {
+    expect(packetPtsSeconds('7.316667,')).toBe(7.316667)
+    expect(packetPtsSeconds('1.000000')).toBe(1)
+    expect(packetPtsSeconds('')).toBeUndefined()
+    expect(packetPtsSeconds(',')).toBeUndefined()
+    expect(packetPtsSeconds('N/A,')).toBeUndefined()
+  })
+})
+
+describe.skipIf(!hasBundledFfmpeg)('mediaFfmpegHandlers', () => {
+  let root: string
+  let tonePath: string
+  let webmPath: string
+  let videoPath: string
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), 'cherry-media-ffmpeg-test-'))
+    tonePath = join(root, 'tone.wav')
+    webmPath = join(root, 'tone.webm')
+    videoPath = join(root, 'portrait.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=3', '-ac', '1', '-ar', '48000', tonePath])
+    ).toBe(0)
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'sine=frequency=660:duration=1', '-strict', '-2', '-c:a', 'opus', webmPath])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'testsrc2=size=240x320:rate=10:duration=2',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=880:duration=2',
+        '-c:v',
+        'mpeg4',
+        '-c:a',
+        'aac',
+        '-shortest',
+        videoPath
+      ])
+    ).toBe(0)
+  })
+
+  beforeEach(() => {
+    applyMediaFfmpegInitData({ ffmpegPath, ffprobePath })
+  })
+
+  afterEach(() => {
+    disposeMediaChildren()
+  })
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('probes audio and splits normalized WAV output below the requested byte limit', async () => {
+    const probe = await mediaFfmpegHandlers.probe({ filePath: tonePath, fallbackExt: 'wav' }, context())
+    expect(probe).toMatchObject({ hasAudio: true, hasVideo: false, mime: 'audio/wav', kind: 'audio' })
+    expect(probe.durationMs).toBeGreaterThanOrEqual(2_900)
+
+    const outputDir = join(root, 'audio-chunks')
+    const result = await mediaFfmpegHandlers.extractAudio(
+      { filePath: tonePath, outputDir, maxChunkBytes: 10_000 },
+      context()
+    )
+    expect(result.chunks.length).toBeGreaterThan(1)
+    expect(result.chunks.every((chunk) => chunk.byteLength <= 10_000)).toBe(true)
+    expect(result.chunks.map((chunk) => chunk.startMs)).toEqual(
+      [...result.chunks.map((chunk) => chunk.startMs)].sort((a, b) => a - b)
+    )
+    expect(result).toMatchObject({ sampleRateHz: 16000, channels: 1 })
+  })
+
+  it('extracts a long commented recording into chunks at or below the byte limit', async () => {
+    const sourcePath = join(root, 'commented-800s.wav')
+    const comment = 'a'.repeat(10_000)
+    const maxChunkBytes = 25_000_000
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=800:sample_rate=16000',
+        '-ac',
+        '1',
+        '-c:a',
+        'pcm_s16le',
+        '-metadata',
+        `comment=${comment}`,
+        sourcePath
+      ])
+    ).toBe(0)
+    const sourceTags = JSON.parse(
+      spawnSync(ffprobePath, ['-v', 'error', '-show_entries', 'format_tags=comment', '-of', 'json', sourcePath], {
+        encoding: 'utf8'
+      }).stdout
+    )
+    expect(sourceTags.format.tags.comment).toHaveLength(comment.length)
+
+    const result = await mediaFfmpegHandlers.extractAudio(
+      { filePath: sourcePath, outputDir: join(root, 'commented-800s-chunks'), maxChunkBytes },
+      context()
+    )
+    expect(result.chunks.length).toBeGreaterThan(1)
+    expect(result.chunks.every((chunk) => chunk.byteLength <= maxChunkBytes)).toBe(true)
+    expect(result.chunks.every((chunk) => statSync(chunk.path).size <= maxChunkBytes)).toBe(true)
+  }, 120_000)
+
+  it('preserves an internal audio timestamp gap in the normalized WAV', async () => {
+    const sourcePath = join(root, 'gapped-audio.mka')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=7',
+        '-af',
+        'aselect=lt(t\\,1)+gte(t\\,6)',
+        '-c:a',
+        'pcm_s16le',
+        sourcePath
+      ])
+    ).toBe(0)
+
+    const result = await mediaFfmpegHandlers.extractAudio(
+      { filePath: sourcePath, outputDir: join(root, 'gapped-audio-output'), maxChunkBytes: 1_000_000 },
+      context()
+    )
+    expect(result.chunks).toHaveLength(1)
+    expect(result.chunks[0].endMs).toBeGreaterThanOrEqual(6_900)
+
+    const readSamples = (startSeconds: number): Buffer => {
+      const read = spawnSync(
+        ffmpegPath,
+        ['-v', 'error', '-ss', String(startSeconds), '-t', '0.5', '-i', result.chunks[0].path, '-f', 's16le', '-'],
+        { encoding: null }
+      )
+      expect(read.status).toBe(0)
+      return read.stdout
+    }
+    expect(readSamples(3).every((sample) => sample === 0)).toBe(true)
+    expect(readSamples(6.2).some((sample) => sample !== 0)).toBe(true)
+  })
+
+  it('distinguishes audio-only WebM and extracts bounded portrait video frames', async () => {
+    await expect(
+      mediaFfmpegHandlers.probe({ filePath: webmPath, fallbackExt: 'webm' }, context())
+    ).resolves.toMatchObject({
+      hasAudio: true,
+      hasVideo: false,
+      mime: 'audio/webm',
+      kind: 'audio'
+    })
+    await expect(
+      mediaFfmpegHandlers.probe({ filePath: videoPath, fallbackExt: 'mp4' }, context())
+    ).resolves.toMatchObject({
+      hasAudio: true,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: videoPath,
+        outputDir: join(root, 'frames'),
+        timestampsMs: [0, 1_000],
+        maxEdgePx: 120,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([0, 1_000])
+    for (const frame of frames.frames) {
+      const dimensions = JSON.parse(
+        spawnSync(ffprobePath, ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'json', frame.path], {
+          encoding: 'utf8'
+        }).stdout
+      ).streams[0]
+      expect(Math.max(dimensions.width, dimensions.height)).toBeLessThanOrEqual(120)
+    }
+  })
+
+  it('returns the last decodable frame when the end anchor is past its PTS', async () => {
+    const sparsePath = join(root, 'sparse-12fps.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:r=12:d=6', '-c:v', 'mpeg4', '-q:v', '8', sparsePath])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: sparsePath, fallbackExt: 'mp4' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const rawSeek = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        (endAnchorMs / 1000).toFixed(3),
+        '-i',
+        sparsePath,
+        '-frames:v',
+        '1',
+        '-an',
+        join(root, 'raw-end.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+    const listed = spawnSync(
+      ffprobePath,
+      ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=pts_time', '-of', 'csv=p=0', sparsePath],
+      { encoding: 'utf8' }
+    )
+    const lastPts = listed.stdout.trim().split('\n').filter(Boolean).at(-1)
+    const lastFrameMs = Math.floor(Number(lastPts) * 1000 + 1e-6)
+
+    expect(rawSeek.status).toBe(234)
+    expect(lastFrameMs).toBeLessThan(endAnchorMs)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: sparsePath,
+        outputDir: join(root, 'sparse-frames'),
+        timestampsMs: [0, endAnchorMs],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([0, lastFrameMs])
+    expect(frames.frames.every((frame) => existsSync(frame.path) && readFileSync(frame.path).length > 0)).toBe(true)
+
+    const beyond = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: sparsePath,
+        outputDir: join(root, 'beyond-frames'),
+        timestampsMs: [probe.durationMs + 1_000],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(beyond.frames).toEqual([])
+  })
+
+  it('returns the last decodable MPEG-TS frame when the packet row has an empty side-data field', async () => {
+    const tsPath = join(root, 'sparse-12fps.ts')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:r=12:d=6', '-c:v', 'mpeg4', '-f', 'mpegts', tsPath])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: tsPath, fallbackExt: 'ts' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const raw = JSON.parse(
+      spawnSync(ffprobePath, ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', tsPath], {
+        encoding: 'utf8'
+      }).stdout
+    )
+    const tail = videoTailProbePoint(raw)
+    expect(tail).toBeDefined()
+    const listed = spawnSync(
+      ffprobePath,
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'V:0',
+        '-show_entries',
+        'packet=pts_time',
+        '-of',
+        'csv=p=0',
+        '-read_intervals',
+        videoTailReadInterval(tail?.endSeconds ?? 0),
+        tsPath
+      ],
+      { encoding: 'utf8' }
+    )
+    const lastRow = listed.stdout.trim().split('\n').filter(Boolean).at(-1) ?? ''
+    const lastFrameMs = relativeInputSeekMs(Number(lastRow.split(',')[0]), tail?.formatStartTimeSeconds ?? Number.NaN)
+
+    expect(lastRow.endsWith(',')).toBe(true)
+    expect(Number(lastRow)).toBeNaN()
+    expect(lastFrameMs).toBeLessThan(endAnchorMs)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: tsPath,
+        outputDir: join(root, 'ts-frames'),
+        timestampsMs: [0, endAnchorMs],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([0, lastFrameMs])
+    expect(frames.frames.every((frame) => existsSync(frame.path) && readFileSync(frame.path).length > 0)).toBe(true)
+  })
+
+  it('recovers the last MPEG-2 TS frame when input-side seeking cannot decode it', async () => {
+    const tsPath = join(root, 'mpeg2-tail.ts')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=64x64:r=12:d=6', '-c:v', 'mpeg2video', '-f', 'mpegts', tsPath])
+    ).toBe(0)
+
+    const outputDir = join(root, 'mpeg2-tail-frames')
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      { filePath: tsPath, outputDir, timestampsMs: [5_950], maxEdgePx: 64, jpegQuality: 70 },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0].timestampMs).toBeGreaterThanOrEqual(5_900)
+    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
+  })
+
+  it('returns the format-relative tail when MPEG-2 output retry uses the video timeline', async () => {
+    const tsPath = join(root, 'mpeg2-long-audio.ts')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=64x64:r=12:d=2',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=7',
+        '-c:v',
+        'mpeg2video',
+        '-c:a',
+        'aac',
+        '-f',
+        'mpegts',
+        tsPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: tsPath, fallbackExt: 'ts' }, context())
+    const requestedMs = probe.durationMs - 50
+    const metadata = spawnSync(ffprobePath, ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', tsPath], {
+      encoding: 'utf8'
+    })
+    expect(metadata.status).toBe(0)
+    const parsed = JSON.parse(metadata.stdout)
+    const formatStart = Number(parsed.format.start_time)
+    const videoStart = Number(
+      parsed.streams.find((stream: { codec_type: string }) => stream.codec_type === 'video').start_time
+    )
+    const packets = spawnSync(
+      ffprobePath,
+      ['-v', 'error', '-select_streams', 'V:0', '-show_entries', 'packet=pts_time', '-of', 'csv=p=0', tsPath],
+      { encoding: 'utf8' }
+    )
+    expect(packets.status).toBe(0)
+    const lastPacketPts = Math.max(
+      ...packets.stdout
+        .trim()
+        .split('\n')
+        .map((row) => Number(row.split(',')[0]))
+        .filter(Number.isFinite)
+    )
+    const formatRelativeMs = Math.floor((lastPacketPts - formatStart) * 1000)
+    const videoRelativeMs = Math.floor((lastPacketPts - videoStart) * 1000)
+    expect(requestedMs).toBeGreaterThan(formatRelativeMs + 1_000)
+    expect(formatRelativeMs).toBeGreaterThan(videoRelativeMs + 5)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: tsPath,
+        outputDir: join(root, 'mpeg2-long-audio-frames'),
+        timestampsMs: [requestedMs],
+        maxEdgePx: 64,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(Math.abs(frames.frames[0].timestampMs - formatRelativeMs)).toBeLessThanOrEqual(1)
+    expect(existsSync(frames.frames[0].path)).toBe(true)
+    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
+  })
+
+  it('seeks the last packet when a long VFR frame makes the average rate land past it', async () => {
+    const clip = (name: string, color: string, rate: string, duration: string) => {
+      const path = join(root, `${name}.mp4`)
+      expect(
+        runFfmpeg([
+          '-f',
+          'lavfi',
+          '-i',
+          `color=c=${color}:s=32x32:r=${rate}:d=${duration}`,
+          '-frames:v',
+          '1',
+          '-c:v',
+          'mpeg4',
+          '-video_track_timescale',
+          '1000',
+          path
+        ])
+      ).toBe(0)
+      return path
+    }
+    const listPath = join(root, 'vfr-list.txt')
+    writeFileSync(
+      listPath,
+      [clip('vfr-a', 'red', '1000', '1'), clip('vfr-b', 'green', '1000', '1'), clip('vfr-c', 'blue', '1', '6')]
+        .map((path) => `file '${path}'`)
+        .join('\n')
+    )
+    const vfrPath = join(root, 'long-tail-vfr.mp4')
+    expect(runFfmpeg(['-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', vfrPath])).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: vfrPath, fallbackExt: 'mp4' }, context())
+    const endAnchorMs = probe.durationMs - 50
+    const averageSeekMs = Math.floor((2 / (500 / 167)) * 1000)
+    const rawAverage = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        (averageSeekMs / 1000).toFixed(3),
+        '-i',
+        vfrPath,
+        '-frames:v',
+        '1',
+        '-an',
+        '-update',
+        '1',
+        join(root, 'vfr-average.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+
+    expect(rawAverage.status).not.toBe(0)
+    expect(averageSeekMs).toBeGreaterThan(2)
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: vfrPath,
+        outputDir: join(root, 'vfr-frames'),
+        timestampsMs: [endAnchorMs],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames.map((frame) => frame.timestampMs)).toEqual([2])
+    expect(readFileSync(frames.frames[0].path).length).toBeGreaterThan(0)
+  })
+
+  it('keeps a nonzero start relative and returns the last video frame when audio is longer', async () => {
+    const offsetPath = join(root, 'offset-start.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=red:s=32x32:r=10:d=2',
+        '-output_ts_offset',
+        '1.5',
+        '-c:v',
+        'mpeg4',
+        offsetPath
+      ])
+    ).toBe(0)
+    const offsetProbe = await mediaFfmpegHandlers.probe({ filePath: offsetPath, fallbackExt: 'mp4' }, context())
+    const absoluteSeek = spawnSync(
+      ffmpegPath,
+      [
+        '-hide_banner',
+        '-nostdin',
+        '-y',
+        '-ss',
+        '3.400',
+        '-i',
+        offsetPath,
+        '-frames:v',
+        '1',
+        '-an',
+        '-update',
+        '1',
+        join(root, 'offset-absolute.jpg')
+      ],
+      { encoding: 'utf8' }
+    )
+    expect(absoluteSeek.status).not.toBe(0)
+    const offsetFrames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: offsetPath,
+        outputDir: join(root, 'offset-frames'),
+        timestampsMs: [offsetProbe.durationMs - 50],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(offsetFrames.frames.map((frame) => frame.timestampMs)).toEqual([1_900])
+
+    const longAudioPath = join(root, 'audio-longer.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=white:s=32x32:r=10:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=4',
+        '-c:v',
+        'mpeg4',
+        '-c:a',
+        'aac',
+        longAudioPath
+      ])
+    ).toBe(0)
+    const longProbe = await mediaFfmpegHandlers.probe({ filePath: longAudioPath, fallbackExt: 'mp4' }, context())
+    expect(longProbe.durationMs).toBeGreaterThan(3_000)
+    const longFrames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: longAudioPath,
+        outputDir: join(root, 'audio-longer-frames'),
+        timestampsMs: [longProbe.durationMs - 50, longProbe.durationMs + 1_000],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(longFrames.frames).toEqual([
+      expect.objectContaining({ timestampMs: 900, path: join(root, 'audio-longer-frames', 'frame-0000.jpg') })
+    ])
+  })
+
+  it('seeks the last video packet from the format start when audio starts earlier', async () => {
+    const staggeredPath = join(root, 'staggered-av.mp4')
+    expect(
+      runFfmpeg([
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=4',
+        '-itsoffset',
+        '1.5',
+        '-f',
+        'lavfi',
+        '-i',
+        "color=c=black:s=32x32:r=10:d=2,geq=r='lt(T,1.8)*255':g='gte(T,1.8)*255':b=0",
+        '-c:v',
+        'mpeg4',
+        '-c:a',
+        'aac',
+        staggeredPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: staggeredPath, fallbackExt: 'mp4' }, context())
+    expect(probe.durationMs).toBeGreaterThan(3_500)
+    const early = join(root, 'staggered-early.jpg')
+    expect(
+      runFfmpeg(['-ss', '1.900', '-i', staggeredPath, '-map', '0:V:0', '-frames:v', '1', '-an', '-update', '1', early])
+    ).toBe(0)
+    expect(dominantChannel(early)).toBe('red')
+
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: staggeredPath,
+        outputDir: join(root, 'staggered-frames'),
+        timestampsMs: [probe.durationMs - 50],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThan(3_000)
+    expect(dominantChannel(frames.frames[0].path)).toBe('green')
+  })
+
+  it('extracts the same non-attached video stream the tail probe reads', async () => {
+    const coverPath = join(root, 'cover.jpg')
+    const coveredPath = join(root, 'covered.mp4')
+    expect(
+      runFfmpeg(['-f', 'lavfi', '-i', 'color=c=red:s=16x16:d=0.1', '-frames:v', '1', '-c:v', 'mjpeg', coverPath])
+    ).toBe(0)
+    expect(
+      runFfmpeg([
+        '-i',
+        coverPath,
+        '-f',
+        'lavfi',
+        '-i',
+        "color=c=black:s=32x32:r=10:d=1,geq=r=0:g='gte(T,0.8)*255':b='lt(T,0.8)*255'",
+        '-map',
+        '0:v',
+        '-map',
+        '1:v',
+        '-disposition:v:0',
+        'attached_pic',
+        '-c:v:0',
+        'mjpeg',
+        '-c:v:1',
+        'mpeg4',
+        coveredPath
+      ])
+    ).toBe(0)
+    const probe = await mediaFfmpegHandlers.probe({ filePath: coveredPath, fallbackExt: 'mp4' }, context())
+    const frames = await mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: coveredPath,
+        outputDir: join(root, 'covered-frames'),
+        timestampsMs: [Math.max(0, probe.durationMs - 50)],
+        maxEdgePx: 32,
+        jpegQuality: 70
+      },
+      context()
+    )
+    expect(frames.frames).toHaveLength(1)
+    expect(frames.frames[0]?.timestampMs).toBeGreaterThanOrEqual(800)
+    const dimensions = JSON.parse(
+      spawnSync(
+        ffprobePath,
+        ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'json', frames.frames[0].path],
+        {
+          encoding: 'utf8'
+        }
+      ).stdout
+    ).streams[0]
+    expect(dimensions).toMatchObject({ width: 32, height: 32 })
+    expect(dominantChannel(frames.frames[0].path)).toBe('green')
+  })
+
+  it('kills an active FFmpeg child before rejecting cancellation', async () => {
+    const outputDir = join(root, 'cancelled-frames')
+    const pidRegistryPath = join(root, 'cancelled-child.pid')
+    mkdirSync(outputDir, { recursive: true })
+    const controller = new AbortController()
+    const pending = mediaFfmpegHandlers.extractFrames(
+      {
+        filePath: videoPath,
+        outputDir,
+        timestampsMs: Array.from({ length: 80 }, (_, index) => index * 20),
+        maxEdgePx: 240,
+        jpegQuality: 80,
+        pidRegistryPath
+      },
+      context(controller.signal)
+    )
+    await waitForFile(pidRegistryPath)
+    const reason = new Error('cancel media extraction')
+    controller.abort(reason)
+
+    await expect(pending).rejects.toBe(reason)
+    expect(existsSync(pidRegistryPath)).toBe(false)
+  })
+
+  function runFfmpeg(args: string[]): number | null {
+    return spawnSync(ffmpegPath, ['-hide_banner', '-nostdin', '-y', ...args], { encoding: 'utf8' }).status
+  }
+
+  function dominantChannel(imagePath: string): 'red' | 'green' {
+    const decoded = spawnSync(
+      ffmpegPath,
+      ['-v', 'error', '-i', imagePath, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'],
+      { encoding: 'buffer' }
+    )
+    expect(decoded.status).toBe(0)
+    const red = decoded.stdout[0] ?? 0
+    const green = decoded.stdout[1] ?? 0
+    return green > red ? 'green' : 'red'
+  }
+})
+
+describe('mediaFfmpegHandlers frame destinations', () => {
+  afterEach(() => {
+    spawnControl.replacement = null
+    spawnControl.calls = 0
+    disposeMediaChildren()
+  })
+
+  it('seeks ordinary output retries relative to the video stream start', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-output-seek-'))
+    const calls: string[][] = []
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = (_binary, args) => {
+      calls.push(args as string[])
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit(
+            'data',
+            '{"format":{"duration":"7","start_time":"1.460111"},"streams":[{"codec_type":"video","start_time":"1.483333","duration":"2"}]}'
+          )
+        }
+        if (call === 2) child.stdout.emit('data', '3.400000\n')
+        if (call === 4) writeFileSync(join(outputDir, 'frame-0000.jpg'), 'frame')
+        child.emit('close', call === 3 ? 234 : 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        { filePath: '/video.ts', outputDir, timestampsMs: [1_000], maxEdgePx: 64, jpegQuality: 70 },
+        context()
+      )
+      expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0000.jpg'), timestampMs: 1_000 }])
+      const inputSeekIndex = calls[2].indexOf('-ss')
+      const outputSeekIndex = calls[3].indexOf('-ss')
+      expect(calls[2][inputSeekIndex + 1]).toBe('1.000')
+      expect(calls[2].indexOf('-i')).toBeGreaterThan(inputSeekIndex)
+      expect(calls[3][outputSeekIndex + 1]).toBe('0.976')
+      expect(calls[3].indexOf('-i')).toBeLessThan(outputSeekIndex)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not return an old JPEG when a reused destination produces no new image', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-stale-frame-'))
+    const stalePath = join(outputDir, 'frame-0000.jpg')
+    const untouchedPath = join(outputDir, 'frame-0001.jpg')
+    writeFileSync(stalePath, 'old-frame')
+    writeFileSync(untouchedPath, 'leave-me')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit('data', '{"format":{"duration":"2.000000"},"streams":[]}')
+        }
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [99_000],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+
+      expect(result.frames).toEqual([])
+      expect(readFileSync(untouchedPath, 'utf8')).toBe('leave-me')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a later frame when an earlier seek exits without an image', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-partial-frame-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.stdout.emit('data', '{"format":{"duration":"2.000000"},"streams":[]}')
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2) {
+          child.emit('close', 234)
+          return
+        }
+        if (call === 4) writeFileSync(join(outputDir, 'frame-0001.jpg'), 'later-frame')
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [99_000, 1_000],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+
+      expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0001.jpg'), timestampMs: 1_000 }])
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects when the media executable cannot start', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-missing-ffmpeg-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/missing/ffmpeg', ffprobePath: '/missing/ffprobe' })
+    spawnControl.replacement = () => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        child.emit('error', Object.assign(new Error('spawn /missing/ffmpeg ENOENT'), { code: 'ENOENT' }))
+      })
+      return child
+    }
+
+    try {
+      await expect(
+        mediaFfmpegHandlers.extractFrames(
+          {
+            filePath: '/video.mp4',
+            outputDir,
+            timestampsMs: [0, 1_000],
+            maxEdgePx: 120,
+            jpegQuality: 70
+          },
+          context()
+        )
+      ).rejects.toThrow('ENOENT')
+      expect(spawnControl.calls).toBe(1)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('still extracts a frame when probe metadata is unavailable', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-probe-exit-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.emit('close', 1)
+          return
+        }
+        writeFileSync(join(outputDir, 'frame-0000.jpg'), 'frame')
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [0],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+      expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0000.jpg'), timestampMs: 0 }])
+      expect(spawnControl.calls).toBe(2)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a probe timeout instead of continuing with empty bounds', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-probe-timeout-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => child.emit('error', new Error('Media processing timed out')))
+      return child
+    }
+
+    try {
+      await expect(
+        mediaFfmpegHandlers.extractFrames(
+          {
+            filePath: '/video.mp4',
+            outputDir,
+            timestampsMs: [0, 1_000],
+            maxEdgePx: 120,
+            jpegQuality: 70
+          },
+          context()
+        )
+      ).rejects.toThrow('Media processing timed out')
+      expect(spawnControl.calls).toBe(1)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an oversized normalized WAV when the probe duration is unusable', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-zero-duration-'))
+    const sourcePath = join(outputDir, 'source.bin')
+    const maxChunkBytes = 5_000
+    const wavBytes = maxChunkBytes + 1
+    let normalizedWav = ''
+    writeFileSync(sourcePath, 'source-audio')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = (...spawnArgs: unknown[]) => {
+      const call = spawnControl.calls
+      const commandArgs = spawnArgs[1]
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1 && Array.isArray(commandArgs)) {
+          const outputPath = commandArgs.at(-1)
+          if (typeof outputPath === 'string') {
+            normalizedWav = outputPath
+            writeFileSync(outputPath, Buffer.alloc(wavBytes))
+          }
+          child.emit('close', 0)
+          return
+        }
+        if (call === 2) {
+          child.stdout.emit(
+            'data',
+            '{"format":{"duration":"N/A","format_name":"wav"},"streams":[{"codec_type":"audio","duration":"N/A"}]}'
+          )
+          child.emit('close', 0)
+          return
+        }
+        child.emit('close', 1)
+      })
+      return child
+    }
+
+    try {
+      let settled: { rejected: boolean; chunks: { byteLength: number }[] | undefined; error: string | undefined }
+      try {
+        const value = await mediaFfmpegHandlers.extractAudio(
+          { filePath: sourcePath, outputDir, maxChunkBytes },
+          context()
+        )
+        settled = { rejected: false, chunks: value.chunks, error: undefined }
+      } catch (error: unknown) {
+        settled = {
+          rejected: true,
+          chunks: undefined,
+          error: error instanceof Error ? error.message : String(error)
+        }
+      }
+
+      expect({
+        rejected: settled.rejected,
+        chunks: settled.chunks ?? null,
+        wavPreserved: normalizedWav.length > 0 && existsSync(normalizedWav),
+        commands: spawnControl.calls
+      }).toEqual({
+        rejected: true,
+        chunks: null,
+        wavPreserved: true,
+        commands: 2
+      })
+      expect(settled.error).toBe(`Audio duration unavailable for oversized WAV (${wavBytes} > ${maxChunkBytes})`)
+      expect(statSync(normalizedWav).size).toBe(wavBytes)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+})
+
+async function waitForFile(filePath: string): Promise<void> {
+  const deadline = Date.now() + 5_000
+  while (!existsSync(filePath)) {
+    if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${filePath}`)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
