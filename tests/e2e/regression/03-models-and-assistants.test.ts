@@ -456,10 +456,7 @@ test(...caseDefinition('CHAT-02'), async ({ app, mainWindow }) => {
   await expect(actions.getByRole('button', { name: 'Copy', exact: true })).toBeEnabled()
   await expect(actions.getByRole('button', { name: 'Regenerate', exact: true })).toBeEnabled()
 
-  await reply
-    .locator('[data-ui~="part:message-actions"]')
-    .getByRole('button', { name: 'Delete', exact: true })
-    .click()
+  await reply.locator('[data-ui~="part:message-actions"]').getByRole('button', { name: 'Delete', exact: true }).click()
   const dialog = page.getByRole('dialog')
   if (await dialog.isVisible().catch(() => false)) {
     await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
@@ -486,5 +483,10 @@ test(...caseDefinition('SET-01'), async ({ mainWindow: page }) => {
   await page.getByRole('button', { name: 'Search settings', exact: true }).click()
   const search = page.getByRole('combobox', { name: 'Search settings', exact: true })
   await search.fill('backup')
-  await expect(page.getByRole('option').filter({ hasText: /backup/i }).first()).toBeVisible()
+  await expect(
+    page
+      .getByRole('option')
+      .filter({ hasText: /backup/i })
+      .first()
+  ).toBeVisible()
 })
