@@ -272,6 +272,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.200.0",
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@opentelemetry/sdk-trace-node": "^2.0.0",
+    "@openuidev/react-lang": "1.0.1",
     "@opeoginni/github-copilot-openai-compatible": "^1.0.0",
     "@paddleocr/api-sdk": "^0.2.0",
     "@pierre/diffs": "^1.1.3",
