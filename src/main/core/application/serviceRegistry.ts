@@ -1,4 +1,5 @@
 import { CacheService } from '@data/CacheService'
+import { CredentialStoreService } from '@data/credential/CredentialStoreService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
@@ -107,6 +108,7 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  CredentialStoreService,
   ComputerUseService,
   AutomationReplService,
   RemoteAccessService,

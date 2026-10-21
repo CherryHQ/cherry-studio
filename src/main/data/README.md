@@ -12,6 +12,7 @@ This directory contains the main process data management implementation.
 
 ```
 src/main/data/
+├── credential/                # Main-only file-backed connector credentials (see credential/README.md)
 ├── api/                       # Data API framework
 │   ├── core/                  # ApiServer, MiddlewareEngine, adapters
 │   └── handlers/              # API endpoint implementations

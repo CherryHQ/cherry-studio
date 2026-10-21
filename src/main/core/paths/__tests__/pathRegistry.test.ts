@@ -38,6 +38,14 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it('keeps shared credentials outside backup data and lets the store create them privately', () => {
+    const paths = buildPathRegistry()
+    const relative = path.relative(paths['app.userdata.data'], paths['feature.credentials'])
+    expect(relative.startsWith(`..${path.sep}`)).toBe(true)
+    expect(paths['feature.credentials']).not.toBe(path.dirname(paths['feature.cherry_account.credentials_file']))
+    expect(shouldAutoEnsure('feature.credentials')).toBe(false)
+  })
+
   it('isolates voice scratch directories for profiles sharing the same basename', () => {
     const voiceTemp = (profile: string) => {
       getPathMock.mockImplementation((key) => (key === 'userData' ? profile : `/mock/${key}`))
