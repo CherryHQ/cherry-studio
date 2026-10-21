@@ -331,6 +331,10 @@ export class ExternalKnowledgeRuntime {
     const applicationCredentials = replacement
       ? await this.resolveApplicationCredentials(replacement)
       : await this.readStoredApplicationCredentials(connection, { state, generation: currentGeneration })
+    // A consumed refresh token must be replaced on disk before fencing the active credential.
+    while (state.refreshFlight && this.isCurrentCredentialGeneration(state, currentGeneration)) {
+      await Promise.allSettled([state.refreshFlight])
+    }
     this.assertAccepting()
     this.assertCredentialGeneration(state, currentGeneration)
     connection = this.requireConnection(connectionId)
@@ -371,6 +375,9 @@ export class ExternalKnowledgeRuntime {
     this.clearSessionExpiry(session)
     session.controller.abort()
     const state = this.credentialStates.get(session.stateCredentialReference)
+    while (state?.refreshFlight && this.isCurrentCredentialGeneration(state, session.generation)) {
+      await Promise.allSettled([state.refreshFlight])
+    }
     const cleanupGeneration =
       state && this.isCurrentCredentialGeneration(state, session.generation)
         ? this.advanceCredentialGeneration(session.stateCredentialReference, state)
@@ -650,18 +657,11 @@ export class ExternalKnowledgeRuntime {
             await this.sleep(interval, signal)
             continue
           }
-          if (error.terminal) {
-            this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
-            throw this.authorizationError(error)
-          }
           throw error
         }
 
         this.assertCredentialGeneration(state, session.generation)
-        this.assertScopes(token.grantedScopes, session.appCredentialSource, session.connectionId, {
-          state,
-          generation: session.generation
-        })
+        this.assertScopes(token.grantedScopes, session.appCredentialSource)
         const identity = await this.runCredentialRequest(state, session.generation, signal, () =>
           this.provider.getUserIdentity({ ...session.credentials, accessToken: token.accessToken }, signal)
         )
@@ -701,12 +701,10 @@ export class ExternalKnowledgeRuntime {
         }
         return connected
       }
-      this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
       throw new ExternalKnowledgeRuntimeError('authorization-failed')
     } catch (error) {
       let authorizationFailure = error
       if (error instanceof FeishuProviderError && error.terminal) {
-        this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
         authorizationFailure = this.authorizationError(error)
       }
       if (
@@ -748,7 +746,7 @@ export class ExternalKnowledgeRuntime {
         )
       )
       this.assertCredentialGeneration(state, generation)
-      this.assertScopes(token.grantedScopes, connection.appCredentialSource, connection.id, { state, generation })
+      this.assertScopes(token.grantedScopes, connection.appCredentialSource)
       const rotation = await this.credentials.rotateTokens(
         connection.credentialReference,
         stored.refreshToken!,
@@ -763,6 +761,12 @@ export class ExternalKnowledgeRuntime {
       this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
       throw new ExternalKnowledgeRuntimeError('credential-unavailable')
     } catch (error) {
+      if (
+        error instanceof ExternalKnowledgeRuntimeError &&
+        (error.code === 'scope-missing' || error.code === 'automatic-scope-mismatch')
+      ) {
+        this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
+      }
       if (error instanceof FeishuProviderError && error.terminal) {
         this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
         throw new ExternalKnowledgeRuntimeError(
@@ -823,7 +827,7 @@ export class ExternalKnowledgeRuntime {
         continue
       }
       try {
-        this.assertScopes(stored.credential.grantedScopes, connection.appCredentialSource, connection.id)
+        this.assertScopes(stored.credential.grantedScopes, connection.appCredentialSource)
       } catch (error) {
         if (error instanceof ExternalKnowledgeRuntimeError) {
           this.markReauthorizationRequired(connection.id)
@@ -945,24 +949,12 @@ export class ExternalKnowledgeRuntime {
 
   private assertScopes(
     grantedScopes: readonly string[],
-    source: ExternalKnowledgeConnection['appCredentialSource'],
-    connectionId: string,
-    expected?: { state: CredentialRuntimeState; generation: number }
+    source: ExternalKnowledgeConnection['appCredentialSource']
   ): void {
     if (missingKnowledgeScopes(grantedScopes).length > 0) {
-      if (expected) {
-        this.markReauthorizationRequiredIfCurrent(connectionId, expected.state, expected.generation)
-      } else {
-        this.markReauthorizationRequired(connectionId)
-      }
       throw new ExternalKnowledgeRuntimeError('scope-missing')
     }
     if (source === 'personal-agent' && grantedScopes.some((scope) => !FEISHU_AUTOMATIC_ALLOWED_SCOPES.has(scope))) {
-      if (expected) {
-        this.markReauthorizationRequiredIfCurrent(connectionId, expected.state, expected.generation)
-      } else {
-        this.markReauthorizationRequired(connectionId)
-      }
       throw new ExternalKnowledgeRuntimeError('automatic-scope-mismatch')
     }
   }
