@@ -368,9 +368,13 @@ const STREAM_PLACEHOLDERS = new Set([
   'unknown error'
 ])
 
+export function isStreamPlaceholderText(text: string): boolean {
+  return STREAM_PLACEHOLDERS.has(text.trim().toLowerCase())
+}
+
 function readableStreamText(text: string): string {
   const trimmed = text.trim()
-  return STREAM_PLACEHOLDERS.has(trimmed.toLowerCase()) ? '' : trimmed
+  return isStreamPlaceholderText(trimmed) ? '' : trimmed
 }
 
 function streamFailureChildren(node: SerializedError): unknown[] {

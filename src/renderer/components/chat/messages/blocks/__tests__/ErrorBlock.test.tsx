@@ -508,6 +508,21 @@ describe('ErrorBlock', () => {
     expect(screen.getByText('Response failed')).toBeInTheDocument()
     expect(screen.getByText('No readable details; retry.')).toBeInTheDocument()
   })
+  it.each([
+    { text: 'Stream error', expected: 'ECONNRESET' },
+    { text: 'socket closed', expected: 'socket closed' }
+  ])('shows recovered diagnostics without masking readable message $text', ({ text, expected }) => {
+    render(
+      <ErrorBlock
+        partId="p"
+        error={{ name: 'Error', message: text, stack: null, providerErrorCode: 'ECONNRESET' }}
+        message={message}
+      />
+    )
+    expect(screen.getByText(expected)).toBeInTheDocument()
+    expect(screen.queryByText('Stream error')).toBeNull()
+  })
+
   it('[22243 RED] shows a safe code-only detail', () => {
     render(
       <ErrorBlock

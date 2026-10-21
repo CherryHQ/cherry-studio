@@ -3390,18 +3390,19 @@ describe('AiStreamManager', () => {
     })
 
     it.each([
-      { tags: { code: 'ECONNRESET' }, expected: { providerErrorCode: 'ECONNRESET' } },
-      { tags: { status: 503 }, expected: { status: 503 } }
+      { tags: { code: 'ECONNRESET' }, expected: { providerErrorCode: 'ECONNRESET' }, chunkText: 'socket closed' },
+      { tags: { status: 503 }, expected: { status: 503 }, chunkText: 'upstream unavailable' },
+      { tags: { code: 'ECONNRESET' }, expected: { providerErrorCode: 'ECONNRESET' }, chunkText: undefined }
     ])(
-      '[22243 RED] retains generic diagnostics when an error chunk precedes a rejection: %j',
-      async ({ tags, expected }) => {
+      'preserves chunk text and thrown diagnostics, including rejection without a chunk: %j',
+      async ({ tags, expected, chunkText }) => {
         vi.useRealTimers()
-        const error = Object.assign(new Error('socket closed'), tags)
+        const error = Object.assign(new Error('Stream error'), tags)
         let pulls = 0
         mockStreamText.mockResolvedValueOnce(
           new ReadableStream({
             pull(controller) {
-              if (++pulls === 1) controller.enqueue({ type: 'error', errorText: 'Stream error' })
+              if (++pulls === 1 && chunkText !== undefined) controller.enqueue({ type: 'error', errorText: chunkText })
               else controller.error(error)
             }
           })
@@ -3409,14 +3410,18 @@ describe('AiStreamManager', () => {
         const listener = new FakeListener('l:a')
         startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
         await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
-        expect(listener.errorResults[0].error).toMatchObject({ message: 'socket closed', ...expected })
+        expect(listener.errorResults[0].error).toEqual({
+          name: 'Error',
+          message: chunkText ?? 'Stream error',
+          stack: error.stack,
+          cause: null,
+          ...expected
+        })
         expect(listener.errorResults[0].status).toBe('error')
         expect(mgr.inspect('a')!.status).toBe('error')
       }
     )
-    it('keeps the thrown error when a lossy error chunk precedes it', async () => {
-      // The chunk carries only `error.message`; rebuilding from it would drop the
-      // status code and safe provider detail that classification and the error block need.
+    it('keeps thrown diagnostics while showing the chunk text', async () => {
       vi.useRealTimers()
 
       const apiError = new APICallError({
@@ -3435,7 +3440,7 @@ describe('AiStreamManager', () => {
         new ReadableStream({
           pull(controller) {
             pulls += 1
-            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' })
+            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Access to this model is denied.' })
             else controller.error(apiError)
           }
         })
@@ -3453,7 +3458,7 @@ describe('AiStreamManager', () => {
 
       expect(listener.errorResults[0].error).toEqual({
         name: 'AI_APICallError',
-        message: 'no access to this model',
+        message: 'Access to this model is denied.',
         providerErrorCategory: 'permission',
         stack: null,
         cause: null,

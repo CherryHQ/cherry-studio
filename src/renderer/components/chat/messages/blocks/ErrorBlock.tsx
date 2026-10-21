@@ -12,6 +12,7 @@ import type { SerializedError } from '@renderer/types/error'
 import {
   formatErrorMessageWithPrefix,
   getStreamFailureText,
+  isStreamPlaceholderText,
   isUnreadableStreamFailure,
   providerErrorText
 } from '@renderer/utils/error'
@@ -100,7 +101,8 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     )
   }
 
-  const text = providerErrorText(error) || getStreamFailureText(error)
+  const providerText = providerErrorText(error)
+  const text = (isStreamPlaceholderText(providerText) ? '' : providerText) || getStreamFailureText(error)
   return text || (errorStatus ? `${t('error.statusCode')}: ${errorStatus}` : '')
 }
 

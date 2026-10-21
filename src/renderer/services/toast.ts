@@ -1,6 +1,12 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import { getStreamFailureText, isAbortError, isUnreadableStreamFailure, providerErrorText } from '@renderer/utils/error'
+import {
+  getStreamFailureText,
+  isAbortError,
+  isStreamPlaceholderText,
+  isUnreadableStreamFailure,
+  providerErrorText
+} from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import { type ErrorToastAction, errorToastPresentations, serializeToastError } from '@renderer/utils/errorToast'
 import type { Provider } from '@shared/data/types/provider'
@@ -46,7 +52,8 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const unreadable = context.category === 'stream' && isUnreadableStreamFailure(serialized)
   const category = context.category ?? classification.category
   const presentation = errorToastPresentations[category]
-  const details = providerErrorText(serialized) || getStreamFailureText(serialized)
+  const providerText = providerErrorText(serialized)
+  const details = (isStreamPlaceholderText(providerText) ? '' : providerText) || getStreamFailureText(serialized)
   const provider = context.provider
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)

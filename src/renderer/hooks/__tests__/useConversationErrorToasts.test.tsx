@@ -97,6 +97,17 @@ describe('useConversationErrorToasts terminal feedback', () => {
     expect(screen.queryByText((text) => text.includes(i18n.t('error.stream_unreadable.description')))).toBeNull()
   })
 
+  it.each([
+    { text: 'Stream error', expected: 'ECONNRESET' },
+    { text: 'socket closed', expected: 'socket closed' }
+  ])('shows terminal diagnostics without masking readable message $text', async ({ text, expected }) => {
+    const hook = setup()
+    act(() => hook.result.current.track([execution], [message]))
+    finish(hook, { name: 'Error', message: text, stack: null, providerErrorCode: 'ECONNRESET' })
+    expect(await screen.findByText((value) => value.includes(expected))).toBeInTheDocument()
+    expect(screen.queryByText((value) => value.includes('Stream error'))).toBeNull()
+  })
+
   it('[22243 RED] re-evaluates an unreadable retry failure', async () => {
     const retry = vi
       .fn()

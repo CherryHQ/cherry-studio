@@ -241,16 +241,6 @@ function findBufferedToolInput(exec: StreamExecution, toolCallId: string): UIMes
   return undefined
 }
 
-// Error chunks omit diagnostic metadata; prefer thrown errors that still carry it.
-function hasStreamErrorMetadata(error: SerializedError): boolean {
-  return (
-    error.statusCode != null ||
-    error.responseBody != null ||
-    (typeof error.providerErrorCode === 'string' && error.providerErrorCode.length > 0) ||
-    (typeof error.status === 'number' && Number.isFinite(error.status))
-  )
-}
-
 /**
  * Append this turn's compaction anchors to an accumulated snapshot.
  *
@@ -2057,8 +2047,8 @@ export class AiStreamManager extends BaseService {
         logger.error('Execution loop error', { topicId, modelId, err: chatErrorContext(result.threw.error) })
       }
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted && !hasStreamErrorMetadata(fromThrow)
-          ? errorFromStreamChunk(result.streamErrorText)
+        result.streamErrorText !== undefined && !signal.aborted
+          ? { ...fromThrow, message: result.streamErrorText }
           : fromThrow
       await this.onExecutionError(topicId, modelId, serialized, exec)
       return
