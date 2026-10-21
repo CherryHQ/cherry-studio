@@ -5,6 +5,7 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../..
 export interface CapturedRequest {
   url: string
   method: string
+  headers: Headers
   /** JSON bodies are parsed; FormData is normalized to a plain inspectable record. */
   body: unknown
 }
@@ -39,7 +40,12 @@ function makeCapturingFetch() {
     wasCaptured: () => captured !== undefined,
     result(): CapturedRequest {
       if (!captured) throw new Error('no fetch request was made')
-      return { url: captured.url, method: captured.init?.method ?? 'GET', body: normalizeBody(captured.init?.body) }
+      return {
+        url: captured.url,
+        method: captured.init?.method ?? 'GET',
+        headers: new Headers(captured.init?.headers),
+        body: normalizeBody(captured.init?.body)
+      }
     }
   }
 }
