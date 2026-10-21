@@ -28,7 +28,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 
 - Dependencies point one way. The package imports no adapter, Pi or host code, and the adapters do not depend on each other ([harness boundaries](2026-10-17-agent-harness-boundaries.md) AC1).
 - Each adapter implements both the common `AgentRuntime` access and our harness ports in its own package. It translates native facts and executes the decided operations; it never re-implements a rule.
-- The relation to `@cherrystudio/agent-runtime` is one-directional. We import types only: the opaque ids, `JsonValue` and `ContentPart`. `MessageItem` and `ToolCallItem` are an observation protocol with completeness and without usage, so the history model is ours. We export `delegationStatus()` and `delegationTrigger()`; adapters call them when projecting `Delegation`, replacing the `unknown` status both adapters publish today. One child run maps to one `DelegationId`.
+- The relation to `@cherrystudio/agent-runtime` is one-directional. We import types only: the opaque ids, `JsonValue` and `ContentPart`. `MessageItem` and `ToolCallItem` are an observation protocol with completeness and without usage, so the history model is ours. We export `delegationStatus()`, `subagentViews()` and `turnOrigin()`; adapters call them when projecting a child run's `Delegation` status, the background children the host shows and the origin of a turn, instead of deriving any of these from native state. One child run maps to one `DelegationId`.
 - Model-side child operations stay off `ThreadHandle.submit`, which still rejects managed children. If the `spawn` and `cancel` controls proposed in [subagent control](2026-10-18-agent-runtime-subagent-control.md) land, adapters route them to our entry points and the semantics stay here.
 
 ### Facts, decisions and records
@@ -64,7 +64,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 | Harness, inbound | `Tools`, `ToolGate`, `ContextFilter`, `RequestMeter`, `Lifecycle`, `Jobs` | coding-agent adapter, Durable adapter, fake |
 | Host | `Approvals`, `Questions`, `Models`, `Verifier`, `OutputStore`, `Summarizer`, `Observation`, `Settings`; `Workspaces` arrives with the worktree PR | Cherry host; scripted in the fake |
 
-Port instances are bound to one tool call, job or host entry and expire with it, matching Durable's call-bound handles. On Durable, `ContextFilter` is not installed, and the request cap is enforced by the model bridge, whose owner receives that requirement.
+Port instances are bound to one tool call, job or host entry and expire with it, matching Durable's call-bound handles. On Durable, `ContextFilter` is supplied like every inbound port (the package registers its handler unconditionally) but never consulted, since a submission enters history only once admitted; the request cap is enforced by the model bridge, whose owner receives that requirement.
 
 ### Ownership
 
@@ -111,7 +111,7 @@ These rows are the only intended behavioral differences between harnesses. Items
 | 8 | Per-run request cap for children | No primitive; an error thrown in `beforeRequest` is skipped. | The model bridge counts per session and fails request 201 with a non-retryable `quota exceeded` error; the adapter reports `limit_reached`. | Could request a request budget or a refusing `beforeRequest` | Yes |
 | 9 | Interaction identity, expiry and late answers; no repeated question after a crash | No interaction primitive; `beforeTool` waits before intent and reruns after a crash. | The host persists approval outcomes, and a `cherry.approval:` memo records each answer; a crash before the user answers asks again. | Could request an interaction primitive | Partly: the memo stops re-asking answered questions; a crash while waiting still asks again |
 | 10 | Intercept `/goal` inside the harness | No input hook; the Durable spec routes its own `/plan` through the host too. | The host routes `/goal` to the goal command entry; a `/goal` submitted as plain input reaches the model as text. | Not needed; upstream design | Not applicable |
-| 11 | Hide not-yet-admitted goal rounds from the model (`ContextFilter`) | No context hook; a Durable submission enters history only once it is admitted, so an unadmitted round never reaches the model | `ContextFilter` is not installed on Durable (declared difference); the coding-agent adapter installs it | Not needed | Not applicable |
+| 11 | Hide not-yet-admitted goal rounds from the model (`ContextFilter`) | No context hook; a Durable submission enters history only once it is admitted, so an unadmitted round never reaches the model | Durable supplies `ContextFilter` but never consults its handler (declared difference); the coding-agent adapter consults it | Not needed | Not applicable |
 
 ## Alternatives considered
 
