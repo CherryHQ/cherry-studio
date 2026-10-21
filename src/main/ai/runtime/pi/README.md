@@ -15,7 +15,7 @@ selection, upstream credentials and billing. Pi's native transcript remains the 
 product messages are a display projection. Tools advertised to the gateway have no executor there.
 
 The binding preserves the model's native protocol when the gateway supports it. The model route
-uses Cherry's logical model id; the gateway resolves its upstream `apiModelId`. Internal usage
+uses `providerId:apiModelId`; the gateway resolves it back to Cherry's product model. Internal usage
 headers associate provider calls with the active Agent input. The internal listener works independently
 of the externally exposed gateway setting.
 

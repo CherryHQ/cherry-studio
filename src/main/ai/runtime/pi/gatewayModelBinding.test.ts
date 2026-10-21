@@ -21,7 +21,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory(overrides)
 })
 
-it('uses the internal gateway, logical model route and session attribution with a native provider', async () => {
+it('uses the internal gateway, gateway model route and session attribution with a native provider', async () => {
   const requests: { url?: string; authorization?: string; session?: string | string[]; body: unknown }[] = []
   const server = createServer(async (req, res) => {
     let raw = ''
@@ -83,7 +83,7 @@ it('uses the internal gateway, logical model route and session attribution with 
       url: '/v1/chat/completions',
       authorization: 'Bearer local-key',
       session: 'session-1',
-      body: { model: 'local:logical-name', messages: [{ role: 'user', content: 'Hello' }] }
+      body: { model: 'local:wire-name', messages: [{ role: 'user', content: 'Hello' }] }
     }
   ])
 })
