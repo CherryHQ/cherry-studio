@@ -293,7 +293,9 @@ describe('backgroundTasks', () => {
       expect(record.logFile).toBe(path.join(storageDir, `${record.id}.log`))
       expect(await readFile(path.join(storageDir, `${record.id}.json`), 'utf8')).toContain('"running"')
 
-      await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      // The first task in the suite pays the keeper's cold compile, which anti-malware on CI can
+      // stretch well past ten seconds; later tasks reuse the warm cache and finish in a second.
+      await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 30_000 })
       const completion = onExit.mock.calls[0][0]
       expect(completion.record.status).toBe('completed')
       expect(completion.record.exitCode).toBe(0)
@@ -308,7 +310,7 @@ describe('backgroundTasks', () => {
 
       const log = await readFile(record.logFile, 'utf8')
       expect(log).toContain('bg-ok')
-    })
+    }, 40_000)
 
     it('marks a non-zero exit as failed with the exit code', async () => {
       const onExit = vi.fn()
