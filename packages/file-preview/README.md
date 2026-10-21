@@ -236,6 +236,20 @@ is bundled, including UI components and the patched docx-preview and pptx-render
 dependencies; consumers install only `zod` and the React peers. CSS excludes Tailwind preflight
 and scopes selectors to `.file-preview-root`.
 
+## Browser regression tests
+
+From the workspace root, install Playwright's Chromium once, then run the package tests:
+
+```sh
+pnpm exec playwright install chromium
+pnpm exec playwright test --config packages/file-preview/playwright.config.ts
+```
+
+The test configuration builds the package and starts its own Vite server, then stops
+the server after the run. No running Electron instance or renderer development server
+is required. The PDF cases exercise the built public package and actual worker/layout
+for mixed page sizes, reading offsets, refresh, zoom, Activity and shorter documents.
+
 ## Publishing
 
 Versioning and npm publishing use the repository's [Changesets workflow](../../.changeset/README.md).

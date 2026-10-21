@@ -1,7 +1,7 @@
 import './pdfViewer.css'
 import { AlertCircle, FileWarning, LoaderCircle } from 'lucide-react'
 import { AnnotationMode, getDocument, PDFWorker, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist'
-import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
+import { EventBus, PDFLinkService, type PDFPageView, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -42,6 +42,10 @@ interface PdfPageChangingEvent {
 
 interface PdfScaleChangingEvent {
   scale?: number
+}
+
+interface PdfViewAreaEvent {
+  location: { pageNumber: number; left: number; top: number }
 }
 
 function isEffectiveBackground(value: string): boolean {
@@ -127,17 +131,20 @@ export default function PdfFilePreview({
   const pdfViewerRef = useRef<PdfJsViewer | null>(null)
   const restoredViewerRef = useRef<PdfJsViewer | null>(null)
   const linkServiceRef = useRef<PdfJsLinkService | null>(null)
-  const readingPositionRef = useRef<{ scaleValue: string; page: number; top: number; left: number } | null>(null)
+  // Restoring a numeric scale keeps the view unchanged; retain the preset separately for later resizes.
+  const zoomIntentRef = useRef({ value: DEFAULT_PDF_SCALE, width: 0 })
+  const readingPositionRef = useRef<{
+    scale: number
+    page: number
+    top: number
+    left: number
+  } | null>(null)
   const captureReadingPosition = useCallback(() => {
     const viewer = pdfViewerRef.current
     const container = containerRef.current
     if (!viewer || restoredViewerRef.current !== viewer || !container || container.clientHeight === 0) return
-    readingPositionRef.current = {
-      scaleValue: viewer.currentScaleValue,
-      page: viewer.currentPageNumber,
-      top: container.scrollTop,
-      left: container.scrollLeft
-    }
+    // Recompute PDF.js's first-visible-page anchor before teardown, including a scroll in this frame.
+    viewer.update()
   }, [])
   // Activity disconnects layout effects before hiding the DOM; passive cleanup sees a zero-sized viewport.
   useLayoutEffect(() => captureReadingPosition, [captureReadingPosition])
@@ -342,7 +349,10 @@ export default function PdfFilePreview({
     if (!responsiveLayout || status !== 'ready' || !container || !viewer) return
 
     const observer = new ResizeObserver(() => {
-      if (container.clientWidth > 0 && viewer.currentScaleValue === DEFAULT_PDF_SCALE) {
+      const nextWidth = container.clientWidth
+      if (nextWidth <= 0 || nextWidth === zoomIntentRef.current.width) return
+      zoomIntentRef.current.width = nextWidth
+      if (zoomIntentRef.current.value === DEFAULT_PDF_SCALE) {
         viewer.currentScaleValue = DEFAULT_PDF_SCALE
       }
     })
@@ -547,7 +557,21 @@ export default function PdfFilePreview({
     const handleScaleChanging = (event?: PdfScaleChangingEvent) => {
       const nextScale = event?.scale ?? pdfViewer.currentScale
       if (typeof nextScale === 'number' && Number.isFinite(nextScale) && nextScale > 0) {
+        if (restoredViewerRef.current === pdfViewer) {
+          zoomIntentRef.current = { value: pdfViewer.currentScaleValue, width: container.clientWidth }
+        }
         setZoom(nextScale)
+      }
+    }
+    const handleViewArea = (event: PdfViewAreaEvent) => {
+      if (restoredViewerRef.current !== pdfViewer || container.clientHeight === 0) return
+      const { pageNumber, left, top } = event.location
+      if (!pdfViewer.getPageView(pageNumber - 1)?.pdfPage) return
+      readingPositionRef.current = {
+        scale: pdfViewer.currentScale,
+        page: pageNumber,
+        left,
+        top
       }
     }
     const zoomOptions = { drawingDelay: ZOOM_DRAWING_DELAY }
@@ -662,14 +686,58 @@ export default function PdfFilePreview({
       linkService.setDocument(documentProxy)
       syncPreviewControls()
       void pdfViewer.firstPagePromise
-        .then(() => {
+        .then(async () => {
           if (pdfViewerRef.current !== pdfViewer) return
           const position = readingPositionRef.current
-          pdfViewer.currentScaleValue = position?.scaleValue ?? DEFAULT_PDF_SCALE
           if (position) {
-            pdfViewer.currentPageNumber = clamp(position.page, 1, documentProxy.numPages)
-            container.scrollTop = position.top
-            container.scrollLeft = position.left
+            const pageNumber = clamp(position.page, 1, documentProxy.numPages)
+            const ensurePageGeometry = async (number: number): Promise<PDFPageView | null> => {
+              const view: PDFPageView = pdfViewer.getPageView(number - 1)
+              if (!view.pdfPage) {
+                const page = await documentProxy.getPage(number)
+                if (pdfViewerRef.current !== pdfViewer) return null
+                if (!view.pdfPage) view.setPdfPage(page)
+              }
+              return view
+            }
+            const pageView = await ensurePageGeometry(pageNumber)
+            if (!pageView || pdfViewerRef.current !== pdfViewer) return
+            pdfViewer.currentPageNumber = pageNumber
+            pdfViewer.currentScaleValue = String(position.scale)
+            // Unloaded views inherit page 1's size. Resolve the reading area before scrolling so
+            // a short placeholder after the anchor cannot clamp the destination above that anchor.
+            const offsetTop =
+              pageNumber === position.page
+                ? pageView.viewport.convertToViewportPoint(position.left, position.top)[1]
+                : 0
+            let remainingHeight = container.clientHeight + offsetTop - pageView.height
+            for (let number = pageNumber + 1; remainingHeight > 0 && number <= documentProxy.numPages; number++) {
+              const nextPage = await ensurePageGeometry(number)
+              if (!nextPage || pdfViewerRef.current !== pdfViewer) return
+              remainingHeight -= nextPage.height
+            }
+            // At the document end, the clamped viewport also includes pages before the anchor.
+            remainingHeight -= Math.max(0, offsetTop)
+            for (let number = pageNumber - 1; remainingHeight > 0 && number >= 1; number--) {
+              const previousPage = await ensurePageGeometry(number)
+              if (!previousPage || pdfViewerRef.current !== pdfViewer) return
+              remainingHeight -= previousPage.height
+            }
+            pdfViewer.scrollPageIntoView({
+              pageNumber,
+              destArray: [
+                null,
+                { name: 'XYZ' },
+                pageNumber === position.page ? position.left : null,
+                pageNumber === position.page ? position.top : null,
+                null
+              ],
+              allowNegativeOffset: true,
+              ignoreDestinationZoom: true
+            })
+          } else {
+            zoomIntentRef.current = { value: DEFAULT_PDF_SCALE, width: container.clientWidth }
+            pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
           }
           syncBackground()
           syncPreviewControls()
@@ -688,6 +756,7 @@ export default function PdfFilePreview({
       eventBus.on('pagerendered', syncBackground)
       eventBus.on('pagechanging', handlePageChanging)
       eventBus.on('scalechanging', handleScaleChanging)
+      eventBus.on('updateviewarea', handleViewArea)
       container.addEventListener('wheel', handleWheelZoom, { passive: false })
       container.addEventListener('keydown', handleKeyboardZoom)
       container.addEventListener('pointerdown', focusContainer)
@@ -704,6 +773,7 @@ export default function PdfFilePreview({
       eventBus.off('pagerendered', syncBackground)
       eventBus.off('pagechanging', handlePageChanging)
       eventBus.off('scalechanging', handleScaleChanging)
+      eventBus.off('updateviewarea', handleViewArea)
       container.removeEventListener('wheel', handleWheelZoom)
       container.removeEventListener('keydown', handleKeyboardZoom)
       container.removeEventListener('pointerdown', focusContainer)

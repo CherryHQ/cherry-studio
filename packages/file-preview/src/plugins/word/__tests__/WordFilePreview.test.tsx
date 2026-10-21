@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
 import { dispatchTouch } from '../../../__tests__/touchEvents'
+import type { PreviewOptions } from '../../../types'
 
 const mocks = vi.hoisted(() => {
   const createValidDocxBytes = () => {
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => {
     fsRead: vi.fn(),
     failDocument: vi.fn(),
     renderAsync: vi.fn(),
+    options: undefined as PreviewOptions | undefined,
     MockIntersectionObserver
   }
 })
@@ -40,7 +42,7 @@ vi.mock('docx-preview', () => ({
 }))
 
 vi.mock('../../../previewContext', () => ({
-  usePreviewHost: () => ({ failDocument: mocks.failDocument })
+  usePreviewHost: () => ({ failDocument: mocks.failDocument, options: mocks.options })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -71,6 +73,7 @@ const filePath = '/tmp/documents/report.docx'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.options = undefined
   mocks.fsRead.mockResolvedValue(mocks.createValidDocxBytes())
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
     body.innerHTML = '<section>Page 1</section><section>Page 2</section>'
@@ -86,6 +89,38 @@ afterEach(() => {
 })
 
 describe('WordFilePreview', () => {
+  it('samples font compatibility on refresh without reparsing for an options-only update', async () => {
+    let document = previewTestDocument(22, 7, mocks.fsRead, 0)
+    const content = () => <WordFilePreview sourceId={filePath} fileName="report.docx" document={document} />
+    const view = render(content())
+    await screen.findByText('Page 2')
+    expect(mocks.renderAsync).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ normalizeSymbolBullets: false })
+    )
+    for (const [generation, normalizeSymbolBullets] of [
+      [1, true],
+      [2, false]
+    ] as const) {
+      mocks.options = { docx: { normalizeSymbolBullets } }
+      view.rerender(content())
+      await act(async () => {})
+      expect(mocks.renderAsync).toHaveBeenCalledTimes(generation)
+      document = previewTestDocument(22, 7, mocks.fsRead, generation)
+      view.rerender(content())
+      await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(generation + 1))
+      expect(mocks.renderAsync).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ normalizeSymbolBullets })
+      )
+      await screen.findByText('Page 2')
+    }
+  })
+
   it('retains zoom, page and scroll on replacement and clamps a shorter document', async () => {
     const user = userEvent.setup()
     const view = (generation: number) => (

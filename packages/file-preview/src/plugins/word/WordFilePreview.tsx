@@ -87,7 +87,10 @@ export default function WordFilePreview({
   const [zoom, setZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
   const [fitZoom, setFitZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
   const [manualZoom, setManualZoom] = useState(false)
-  const [normalizeSymbolBullets] = useState(() => options?.docx?.normalizeSymbolBullets === true)
+  const normalizeSymbolBulletsRef = useRef(options?.docx?.normalizeSymbolBullets === true)
+  useLayoutEffect(() => {
+    normalizeSymbolBulletsRef.current = options?.docx?.normalizeSymbolBullets === true
+  }, [options?.docx?.normalizeSymbolBullets])
   const fitWidth = options?.docx?.initialZoom === 'fit-width'
   const minZoom = fitWidth ? Math.min(DOCX_PREVIEW_MIN_ZOOM, fitZoom) : DOCX_PREVIEW_MIN_ZOOM
 
@@ -180,6 +183,8 @@ export default function WordFilePreview({
     const controller = new AbortController()
     const token = ++renderTokenRef.current
     const isCurrent = () => renderTokenRef.current === token
+    // Font compatibility is sampled for this document; options alone must not trigger a reparse.
+    const normalizeSymbolBullets = normalizeSymbolBulletsRef.current
     setError(null)
     setLoading(true)
 
@@ -250,7 +255,7 @@ export default function WordFilePreview({
       renderTokenRef.current += 1
       stagingHost.remove()
     }
-  }, [sourceId, focusContainer, previewDocument, failDocument, docxClassName, normalizeSymbolBullets])
+  }, [sourceId, focusContainer, previewDocument, failDocument, docxClassName])
 
   useEffect(() => {
     const scrollRoot = containerRef.current

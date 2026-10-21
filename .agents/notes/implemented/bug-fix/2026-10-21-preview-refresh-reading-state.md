@@ -14,6 +14,10 @@ The desktop host identifies a preview by normalized path and format; the portabl
 
 The previous document still closes when refresh begins. A retained plugin cannot publish selections or terminal failures for a newer committed request. The consumer clears held selections immediately; format plugins cancel obsolete selection work. PDF and PPTX capture position before Activity hides their viewport and restore it after rebuilding resources.
 
+PDF stores PDF.js's first-visible-page anchor in PDF coordinates. The first-page promise does not validate other pages' geometry: unloaded pages use page 1's dimensions. Restore loads the anchor and pages covering the viewport before applying an XYZ destination, including preceding pages when the document end clamps the viewport. This prevents placeholder sizes from clamping the old reading position while retaining lazy loading outside the reading area.
+
+PDF also retains the effective scale separately from the automatic-fit intent. Reapplying a fit preset to a different-width page changes the view even when the file and viewport are unchanged. Restore preserves the numeric scale; responsive previews reapply page-width fitting only when the container width actually changes.
+
 ## Alternatives considered
 
 - Removing only the outer React key leaves the portable host and explicit format resets unchanged.
@@ -28,3 +32,4 @@ Reading state lasts for the mounted preview, with format-specific validity check
 
 - Regression — `Preview.test.tsx`: a deferred same-source refresh retains page and old content, accepts the replacement, resets for another source, reconnects through Activity and rejects obsolete selections and failures.
 - Regression — format and desktop preview tests cover content reload, retained zoom/page/worksheet/transforms, shorter content and refresh selection invalidation.
+- Real-viewer regression — `pdfFilePreviewRefresh.test.ts` runs the built public package with unmocked PDF.js and Chromium layout for mixed and uniform page sizes, unequal page widths, page-relative and cross-page offsets, zoom modes, Activity restoration and shorter documents. Default and responsive previews are covered. Its package configuration owns the test server. The mixed-size regression fails against the prior absolute-offset restore.
