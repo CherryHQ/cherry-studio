@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
 
+import { eq } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import {
   ExternalKnowledgeDocumentOwnershipChangedError,
   type ExternalKnowledgeDocumentSyncMetadata,
@@ -21,13 +23,16 @@ import type { ExternalKnowledgeSource } from '@shared/data/types/externalKnowled
 import {
   isCompletedKnowledgeBase,
   isCompletedVectorKnowledgeBase,
-  type KnowledgeItemOf,
-  KnowledgeRelativePathSchema
+  type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
 
 import { prepareKnowledgeMaterial } from '../ingestion/indexKnowledgeItem'
 import { enqueueKnowledgeSubtreeDeletionTx, recoverDeletingKnowledgeItems } from '../ingestion/subtreeDeletion'
-import { writeFileIntoKnowledgeBaseAt } from '../pathStorage'
+import {
+  collectKnowledgeReservedRelativePaths,
+  reserveImportedFileRelativePath,
+  writeFileIntoKnowledgeBaseAt
+} from '../pathStorage'
 import type { RebuildMaterialInput } from '../pipeline/vectorstore/indexStore/model'
 import { notifyExternalKnowledgeSyncContentChange } from './externalKnowledgeDataChange'
 import { ExternalKnowledgeRuntimeError, type ExternalKnowledgeRuntimeErrorCode } from './ExternalKnowledgeRuntime'
@@ -421,19 +426,31 @@ export class ExternalKnowledgeSyncService {
       if (unchanged) return unchanged
     }
     const itemId = this.dependencies.createItemId()
-    const relativePath = KnowledgeRelativePathSchema.parse(`external/${itemId}.md`)
-    const item = knowledgeItemService.createDeletingExternal(input.fence.baseId, itemId, {
-      source: source.name,
-      title: input.reference.descriptor.title,
-      relativePath
+    const item = await this.knowledgeLockManager.runExclusive(input.fence.baseId, () => {
+      input.signal.throwIfAborted()
+      const staged = dbService.withWriteTx((tx) => {
+        const items = tx
+          .select()
+          .from(knowledgeItemTable)
+          .where(eq(knowledgeItemTable.baseId, input.fence.baseId))
+          .all()
+        const reservedPaths = collectKnowledgeReservedRelativePaths(items, { fileProcessorId: base.fileProcessorId })
+        const relativePath = reserveImportedFileRelativePath(`external-${itemId}.md`, false, reservedPaths)
+        return knowledgeItemService.createDeletingExternal(input.fence.baseId, itemId, {
+          source: source.name,
+          title: input.reference.descriptor.title,
+          relativePath
+        })
+      })
+      this.activeStagingItemIds.add(staged.id)
+      return staged
     })
-    this.activeStagingItemIds.add(item.id)
     try {
       if (item.type !== 'external') {
         throw new Error(`Deleting external staging row has unexpected type: ${item.id}`)
       }
       const store = this.dependencies.getIndexStore(base)
-      await this.dependencies.writeFileIntoKnowledgeBaseAt(input.fence.baseId, relativePath, markdown)
+      await this.dependencies.writeFileIntoKnowledgeBaseAt(input.fence.baseId, item.data.relativePath, markdown)
       const prepared = await this.dependencies.prepareKnowledgeMaterial({
         base,
         item,
@@ -553,7 +570,7 @@ export class ExternalKnowledgeSyncService {
       if (knowledgeItemService.getById(latestDocument.knowledgeItemId).status !== 'completed') return null
 
       dbService.withWriteTx((tx) => {
-        const item = knowledgeItemService.updateCompletedExternalMetadataTx(tx, latestDocument.knowledgeItemId, {
+        const item = knowledgeItemService.updateSettledExternalMetadataTx(tx, latestDocument.knowledgeItemId, {
           baseId: input.fence.baseId,
           source: latestSource.name,
           title: input.reference.descriptor.title
@@ -623,7 +640,7 @@ export class ExternalKnowledgeSyncService {
       const expected = documentVersion(expectedDocument)!
 
       dbService.withWriteTx((tx) => {
-        const item = knowledgeItemService.updateCompletedExternalMetadataTx(tx, document.knowledgeItemId, {
+        const item = knowledgeItemService.updateSettledExternalMetadataTx(tx, document.knowledgeItemId, {
           baseId: input.fence.baseId,
           source: source.name,
           title: reference.descriptor.title
@@ -676,7 +693,7 @@ export class ExternalKnowledgeSyncService {
       }
       if (document?.availability !== 'active') return
       const item = knowledgeItemService.getById(document.knowledgeItemId)
-      if (item.type !== 'external' || item.status !== 'completed') {
+      if (item.type !== 'external' || (item.status !== 'completed' && item.status !== 'failed')) {
         throw new StaleExternalKnowledgePublicationError()
       }
 
@@ -721,7 +738,7 @@ export class ExternalKnowledgeSyncService {
       const items = missingDocuments.map((document) => {
         if (document.availability !== 'active') throw new StaleExternalKnowledgePublicationError()
         const item = knowledgeItemService.getById(document.knowledgeItemId)
-        if (item.type !== 'external' || item.status !== 'completed') {
+        if (item.type !== 'external' || (item.status !== 'completed' && item.status !== 'failed')) {
           throw new StaleExternalKnowledgePublicationError()
         }
         return item

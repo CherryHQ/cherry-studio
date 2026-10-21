@@ -36,6 +36,8 @@ Persisting reauthorization-required when an optional upgrade starts would need c
 
 The recovery needs no schema migration. A partially populated identity remains an error rather than evidence of an unused Connection. Successful CI does not establish live Feishu or operating-system keyring acceptance.
 
+The proposed [shared file credential design](../../proposed/architecture/2026-10-21-shared-connector-credentials.md) replaces credential ownership and encrypted storage when implemented. Identity continuity, conditional token/reference updates, cancellation, and stale-request protection from this decision remain required. The verification below describes the existing implementation.
+
 ## Verification
 
 - Regression — `ExternalKnowledgeRuntime.test.ts`: real SQLite startup reconciliation and replacement reconnect preserve the Connection ID and persist its first identity and credentials; an actual SDK body failure retries to successful initial authorization.

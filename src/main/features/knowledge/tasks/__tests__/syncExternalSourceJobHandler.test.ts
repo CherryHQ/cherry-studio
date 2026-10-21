@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import { SERVICE_STOP_TIMEOUT_MS } from '@main/core/lifecycle'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -158,44 +159,35 @@ describe('sync-external-source job handler', () => {
     expect(handler.defaultQueue?.(payload)).toBe(`base.${BASE_ID}`)
   })
 
-  it('classifies a natural envelope as scheduled even though its persisted scheduledAt is non-null', async () => {
-    const syncSource = vi.fn()
-    const dispatchScheduledEnvelope = vi.fn().mockResolvedValue(undefined)
-    const handler = createSyncExternalSourceJobHandler({ syncSource }, { now: () => 123, dispatchScheduledEnvelope })
-    const jobRun = { ...createJobRun(), input: scheduleEnvelope }
-
-    handler.onEnqueued?.({
-      id: JOB_ID,
-      scheduleId: 'schedule-1',
-      scheduledAt: '2026-09-21T09:05:00.000Z',
-      input: scheduleEnvelope
-    } as never)
-    await expect(handler.execute(jobRun)).resolves.toBeUndefined()
+  it.each([
+    [{}, 'scheduled'],
+    [{ scheduleTrigger: 'startup' }, 'startup']
+  ] as const)('persists the correct source trigger from durable envelope metadata %j', async (metadata, trigger) => {
+    const handler = createSyncExternalSourceJobHandler(
+      {
+        syncSource: async () => {
+          throw new Error('Envelope must dispatch a source job')
+        }
+      },
+      {
+        now: () => 123,
+        dispatchScheduledEnvelope: async (input, origin) => {
+          const admitted = externalKnowledgeSourceService.beginSyncTx(dbh.db, {
+            sourceId: input.sourceId,
+            expectedRevision: input.sourceRevision,
+            expectedActiveJobId: JOB_ID,
+            jobId: JOB_ID,
+            trigger: origin,
+            startedAt: 123
+          })
+          expect(admitted).toBe(true)
+        }
+      }
+    )
+    await handler.execute({ ...createJobRun(), input: scheduleEnvelope, metadata })
     await handler.onSettled?.(settledEvent({ input: scheduleEnvelope, scheduleId: 'schedule-1' }))
 
-    expect(dispatchScheduledEnvelope).toHaveBeenCalledWith(scheduleEnvelope, 'scheduled')
-    expect(syncSource).not.toHaveBeenCalled()
-    expect(source()).toMatchObject({ activeJobId: JOB_ID, lastFinishedAt: null })
-    expect(notifyDataChangeMock).not.toHaveBeenCalled()
-  })
-
-  it('classifies JobManager catch-up as a startup envelope while keeping the same handler', async () => {
-    const dispatchScheduledEnvelope = vi.fn().mockResolvedValue(undefined)
-    const handler = createSyncExternalSourceJobHandler(
-      { syncSource: vi.fn() },
-      { now: () => 123, dispatchScheduledEnvelope }
-    )
-
-    await handler.onMissed?.({
-      scheduleId: 'schedule-1',
-      type: 'knowledge.sync-external-source',
-      missedCount: 1,
-      lastFireAt: 1
-    })
-    handler.onEnqueued?.({ id: JOB_ID, scheduleId: 'schedule-1', input: scheduleEnvelope } as never)
-    await handler.execute({ ...createJobRun(), input: scheduleEnvelope })
-
-    expect(dispatchScheduledEnvelope).toHaveBeenCalledWith(scheduleEnvelope, 'startup')
+    expect(source()).toMatchObject({ lastTrigger: trigger, lastStartedAt: 123, lastFinishedAt: null })
   })
 
   it('publishes a final content reconciliation signal after synchronization finishes', async () => {

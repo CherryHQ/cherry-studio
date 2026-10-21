@@ -36,6 +36,8 @@ HTTP 200 响应携带飞书错误码 `20005` 时，走与 HTTP 401 相同的终�
 
 恢复无需数据库迁移。身份字段部分存在仍视为错误，不能作为 Connection 尚未使用的证据。CI 成功不代表已通过真实飞书或操作系统密钥环验收。
 
+拟议的[共用文件凭据设计](../../proposed/architecture/2026-10-21-shared-connector-credentials.md)在实施后替换凭据所有权与加密存储。本决策中的身份连续性、令牌／引用条件更新、取消及过期请求保护仍须保留。以下验证描述现有实现。
+
 ## 验证
 
 - Regression — `ExternalKnowledgeRuntime.test.ts`：真实 SQLite 的启动协调和替换重连保留 Connection ID，持久化首次身份和凭据；真实 SDK 的响应体读取失败可重试并成功完成首次授权。

@@ -156,6 +156,8 @@ Pass an explicit name on multi-instance types — relying on "exactly one row" a
 | **retry** | running → pending on startup; delayed kept as-is. Missed fires emit `onMissed` only. | Same as left, PLUS enqueue make-up after N min. |
 | **singleton** | Keep newest non-terminal, cancel the rest. Missed fires emit `onMissed` only. | Same as left, PLUS enqueue make-up after N min (joins the single-instance slot when free). |
 
+Catch-up jobs persist `metadata.scheduleTrigger: 'startup'` when enqueued. Handlers that distinguish catch-up from natural schedule fires read `ctx.metadata.scheduleTrigger`; an in-memory `onMissed` → `onEnqueued` hand-off loses this information after a restart. Natural schedule fires leave this metadata key unset.
+
 ### Recovery internals
 
 A few invariants govern recovery decisions; the matrix above abstracts over them, but consumers occasionally need to debug startup behaviour and these knobs surface in logs and tests.

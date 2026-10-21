@@ -16,6 +16,8 @@ import { ExternalKnowledgeSourceLifecycle } from '../ExternalKnowledgeSourceLife
 import {
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
+  getDocxMarkdown,
+  getWikiNode,
   listWikiChildNodes,
   type FeishuUserTokenSet
 } from '../feishuKnowledgeProvider'
@@ -139,6 +141,67 @@ describe('authorization recovery ownership', () => {
       expect(net.fetch).toHaveBeenCalledTimes(2)
       expect(connections.getById(original.id)).toEqual(original)
       await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
+
+  it.each([400, 429])('waits for the Feishu rate-limit reset before retrying HTTP %s', async (status) => {
+    let now = 1_000
+    const runtime = new ExternalKnowledgeRuntime({
+      credentials,
+      provider: provider(),
+      now: () => now,
+      sleep: async (milliseconds) => {
+        now += milliseconds
+      }
+    })
+    runtimes.push(runtime)
+    await runtime.start()
+    const original = await connected(runtime)
+    const availableAt = now + 52_000
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockImplementation(async () =>
+        now < availableAt
+          ? Response.json({ code: 99991400 }, { status, headers: { 'x-ogw-ratelimit-reset': '52' } })
+          : Response.json({ code: 0, data: { content: '# Recovered document' } })
+      )
+    try {
+      await expect(
+        runtime.runAuthorizedRequest(original.id, (accessToken, signal) =>
+          getDocxMarkdown({ ...app, accessToken }, 'document', signal)
+        )
+      ).resolves.toBe('# Recovered document')
+      expect(connections.getById(original.id)?.authorizationStatus).toBe('connected')
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
+
+  it('invalidates active authorization when Wiki returns an invalid user token over HTTP 400', async () => {
+    const api = provider()
+    api.getWikiNode.mockImplementation(getWikiNode)
+    const runtime = await start(api)
+    const original = await connected(runtime)
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValueOnce(Response.json({ code: 99991668, msg: 'Invalid user_access_token' }, { status: 400 }))
+
+    try {
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      expect(connections.getById(original.id)?.authorizationStatus).toBe('reauthorization-required')
+      await expect(runtime.acquireAccessToken(original.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      await runtime.stop()
+      const restarted = await start(api)
+      await expect(restarted.acquireAccessToken(original.id)).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
     } finally {
       vi.mocked(net.fetch).mockReset()
     }
@@ -357,6 +420,48 @@ describe('authorization recovery ownership', () => {
     })
     expect(connections.getById(original.id)).toEqual(active)
     await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+  })
+
+  it.each(['begin', 'cancel'] as const)('preserves in-flight token rotation when reconnect %s runs', async (stage) => {
+    let now = 1_000
+    const api = provider()
+    const runtime = await start(api, () => now)
+    const original = await connected(runtime)
+    const reconnect = stage === 'cancel' ? await runtime.beginReconnect(original.id) : undefined
+    now += token.expiresIn * 1_000
+    const entered = deferred()
+    const release = deferred()
+    api.refreshUserToken.mockImplementationOnce(async () => {
+      entered.resolve()
+      await release.promise
+      return { ...token, accessToken: 'rotated-access', refreshToken: 'rotated-refresh' }
+    })
+    const refreshing = runtime.acquireAccessToken(original.id).catch((error: unknown) => error)
+    await entered.promise
+
+    if (reconnect) {
+      const cancelling = runtime.cancelUserAuthorization(reconnect.authorizationSessionId)
+      release.resolve()
+      await cancelling
+    } else {
+      const read = credentials.read.bind(credentials)
+      vi.spyOn(credentials, 'read').mockImplementationOnce(async (reference) => {
+        const stored = await read(reference)
+        queueMicrotask(release.resolve)
+        return stored
+      })
+      const begun = await runtime.beginReconnect(original.id)
+      await runtime.cancelUserAuthorization(begun.authorizationSessionId)
+    }
+    await expect(refreshing).resolves.toBe('rotated-access')
+    expect(connections.getById(original.id)?.authorizationStatus).toBe('connected')
+    await expect(credentials.read(original.credentialReference)).resolves.toMatchObject({
+      status: 'ok',
+      credential: { accessToken: 'rotated-access', refreshToken: 'rotated-refresh' }
+    })
+    await runtime.stop()
+    const restarted = await start(api, () => now)
+    await expect(restarted.acquireAccessToken(original.id)).resolves.toBe('rotated-access')
   })
 
   it('still invalidates active credentials when token refresh loses required scopes', async () => {
