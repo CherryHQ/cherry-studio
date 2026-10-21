@@ -74,6 +74,10 @@ compatible adapter fallbacks. An image-edit request uses the declared Edit endpo
 when present, so its address override is respected. Chat ordering and endpoint-specific
 server tools continue to use the existing chat resolver.
 
+The built-in local embedding adapter needs neither a network endpoint nor a URL.
+Speech discovery uses `findRequestEndpoint`, the non-throwing form of the same
+selector: unsupported model metadata omits that entry without failing the model list.
+
 ## Connection inheritance
 
 `resolveEndpointBaseUrl` in `src/main/ai/provider/endpointConnection.ts` resolves the
@@ -89,6 +93,8 @@ The pure source decision lives in the registry's `resolveEndpointConnection`.
 Settings use the same decision to show the selected endpoint, configured address
 (with credential parameters redacted), and inheritance source. Main owns complete-URL
 normalization and SDK path construction.
+Vertex and Bedrock SDKs can derive hosts from project/location or region; settings
+do not report a missing connection when those adapters omit an explicit URL.
 
 The registry exhaustively classifies every `EndpointType`. OpenAI-style task
 endpoints, including rerank, share the OpenAI-compatible connection root;

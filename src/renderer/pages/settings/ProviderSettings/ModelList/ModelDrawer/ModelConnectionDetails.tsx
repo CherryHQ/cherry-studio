@@ -16,6 +16,11 @@ export function ModelConnectionDetails({ provider, endpoints }: { provider: Prov
     <div className="space-y-1 text-xs text-muted-foreground">
       {effectiveEndpoints.map((endpoint) => {
         const connection = resolveEndpointConnection(provider, endpoint)
+        const adapter = provider.endpointConfigs?.[endpoint]?.adapterFamily
+        // These SDKs derive their default host from region or project/location.
+        if (!connection && ['google-vertex', 'google-vertex-anthropic', 'bedrock'].includes(adapter ?? '')) {
+          return null
+        }
         return connection ? (
           <div key={endpoint} className="break-all">
             <code>

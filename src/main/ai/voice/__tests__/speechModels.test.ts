@@ -100,6 +100,29 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('configured cloud speech', () => {
+  it('omits a Gemini model with explicitly cleared capabilities without breaking other speech models', async () => {
+    addModel('unsupported-google', 'custom-audio', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    dbh.db
+      .update(userModelTable)
+      .set({ capabilities: [] })
+      .where(eq(userModelTable.providerId, 'unsupported-google'))
+      .run()
+    const modelId = 'unsupported-google::custom-audio'
+
+    expect(
+      listSpeechModels()
+        .map(({ id }) => id)
+        .sort()
+    ).toEqual(['speech-google::gemini-2.5-flash-preview-tts', 'speech-openai::tts-1'])
+    expect(await resolveSpeechConfiguration({ modelId })).toMatchObject({
+      modelId,
+      status: { status: 'unsupported' }
+    })
+    await expect(
+      generateModelSpeech(modelId, 'Hello', { voice: 'Kore' }, new AbortController().signal)
+    ).rejects.toThrow(NoSuchModelError)
+  })
+
   it.each(['https://aiplatform.googleapis.com', 'https://vertex.example/api'])(
     'rejects Vertex IAM speech consistently before transport at %s',
     async (baseUrl) => {

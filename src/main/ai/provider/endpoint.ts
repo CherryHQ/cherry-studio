@@ -5,6 +5,7 @@
 
 import { ENDPOINT_CONNECTION_FAMILY } from '@cherrystudio/provider-registry'
 import { resolveEndpointBaseUrl } from '@main/ai/provider/endpointConnection'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -71,6 +72,20 @@ export type ModelRequestKind = 'image' | 'image-edit' | 'embedding' | 'speech' |
 
 /** Select the target before constructing SDK settings, without changing the model's chat ordering. */
 export function resolveRequestEndpoint(provider: Provider, model: Model, kind: ModelRequestKind): ResolvedEndpoint {
+  const endpoint = findRequestEndpoint(provider, model, kind)
+  if (!endpoint) throw new Error(`Model ${model.id} has no endpoint for ${kind}`)
+  return endpoint
+}
+
+/** The same request routing used by execution, with unsupported models omitted during discovery. */
+export function findRequestEndpoint(
+  provider: Provider,
+  model: Model,
+  kind: ModelRequestKind
+): ResolvedEndpoint | undefined {
+  if (provider.id === LOCAL_EMBEDDING_PROVIDER_ID && kind === 'embedding') {
+    return { endpointType: undefined, baseUrl: '' }
+  }
   const dedicated: Record<ModelRequestKind, EndpointType[]> = {
     image: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
     'image-edit': [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
@@ -114,7 +129,7 @@ export function resolveRequestEndpoint(provider: Provider, model: Model, kind: M
     (kind === 'image-edit' && declared.includes(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)
       ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
       : applicable[0]) ?? general[0]
-  if (!endpointType) throw new Error(`Model ${model.id} has no endpoint for ${kind}`)
+  if (!endpointType) return undefined
   return resolveEffectiveEndpoint(provider, { ...model, endpointTypes: [endpointType] })
 }
 
