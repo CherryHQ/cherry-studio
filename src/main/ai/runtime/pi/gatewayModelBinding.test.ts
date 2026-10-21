@@ -21,8 +21,16 @@ vi.mock('@application', async () => {
   return mockApplicationFactory(overrides)
 })
 
-it('uses the internal gateway, gateway model route and session attribution with a native provider', async () => {
-  const requests: { url?: string; authorization?: string; session?: string | string[]; body: unknown }[] = []
+it('uses the internal gateway, wire model route and session attribution with a native provider', async () => {
+  const requests: {
+    url?: string
+    authorization?: string
+    session?: string | string[]
+    reasoning?: string | string[]
+    tier?: string | string[]
+    fast?: string | string[]
+    body: unknown
+  }[] = []
   const server = createServer(async (req, res) => {
     let raw = ''
     for await (const chunk of req) raw += chunk
@@ -30,6 +38,9 @@ it('uses the internal gateway, gateway model route and session attribution with 
       url: req.url,
       authorization: req.headers.authorization,
       session: req.headers['x-cherry-agent-session-id'],
+      reasoning: req.headers['x-cherry-reasoning-effort'],
+      tier: req.headers['x-cherry-service-tier'],
+      fast: req.headers['x-cherry-fast-mode'],
       body: JSON.parse(raw)
     })
     res.writeHead(200, { 'content-type': 'text/event-stream' })
@@ -68,7 +79,11 @@ it('uses the internal gateway, gateway model route and session attribution with 
     isHidden: false,
     supportsStreaming: true
   })
-  const binding = await createPiGatewayModelBinding('session-1', provider, model)
+  const binding = await createPiGatewayModelBinding(
+    { sessionId: 'session-1', reasoningEffort: 'high', serviceTier: 'flex', fastMode: true },
+    provider,
+    model
+  )
   const answer = await binding.modelRuntime
     .streamSimple(binding.model, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }))
     .result()
@@ -83,6 +98,9 @@ it('uses the internal gateway, gateway model route and session attribution with 
       url: '/v1/chat/completions',
       authorization: 'Bearer local-key',
       session: 'session-1',
+      reasoning: 'high',
+      tier: 'flex',
+      fast: 'true',
       body: { model: 'local:wire-name', messages: [{ role: 'user', content: 'Hello' }] }
     }
   ])
