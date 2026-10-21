@@ -161,4 +161,59 @@ describe('extractXlsxText', () => {
 
     expect(await extractXlsxText(data)).toBe('Sheet: Hours\n36:00:00')
   })
+
+  it('reads a merged range once, in its first cell', async () => {
+    // ExcelJS gives each cell of the range the first cell's value; a formula follower has no
+    // result and read as =undefined
+    const data = await xlsxBytes((workbook) => {
+      const sheet = workbook.addWorksheet('Merged')
+      sheet.getCell('A1').value = { formula: '40+2', result: 42 }
+      sheet.mergeCells('A1:B1')
+      sheet.getCell('C1').value = 'x'
+      sheet.getCell('A2').value = 'Title'
+      sheet.mergeCells('A2:B2')
+      sheet.getCell('C2').value = 'y'
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Merged\n42\t\tx\nTitle\t\ty')
+  })
+
+  it('keeps a link label that is a number, date or boolean', async () => {
+    // ExcelJS writes a link label as text, so the cells are rewritten to the types Excel stores
+    const written = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Links').getRow(1)
+      row.getCell(1).value = { text: 'n', hyperlink: 'https://a.example/' }
+      row.getCell(2).value = { text: 'd', hyperlink: 'https://b.example/' }
+      row.getCell(2).numFmt = 'yyyy-mm-dd'
+      row.getCell(3).value = { text: 'b', hyperlink: 'https://c.example/' }
+    })
+    const data = await editSheetXml(written, 'xl/worksheets/sheet1.xml', (xml) =>
+      xml
+        .replace(/<c r="A1"([^>]*?) t="s"><v>\d+<\/v><\/c>/, '<c r="A1"$1><v>123</v></c>')
+        .replace(/<c r="B1"([^>]*?) t="s"><v>\d+<\/v><\/c>/, '<c r="B1"$1><v>45565</v></c>')
+        .replace(/<c r="C1"([^>]*?) t="s"><v>\d+<\/v><\/c>/, '<c r="C1"$1 t="b"><v>1</v></c>')
+    )
+
+    expect(await extractXlsxText(data)).toBe(
+      'Sheet: Links\n123 (https://a.example/)\t2024-09-30 (https://b.example/)\tTRUE (https://c.example/)'
+    )
+  })
+
+  it('reads a number through the format section for its sign or condition', async () => {
+    // ExcelJS makes a date of any number whose format holds a date token in any section
+    const data = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Sections').getRow(1)
+      const cells: [number, string][] = [
+        [42, '0;yyyy-mm-dd'],
+        [45000, '[>=1000]0;yyyy-mm-dd'],
+        [42, '[>=1000]0;yyyy-mm-dd']
+      ]
+      cells.forEach(([value, numFmt], index) => {
+        row.getCell(index + 1).value = value
+        row.getCell(index + 1).numFmt = numFmt
+      })
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Sections\n42\t45000\t1900-02-10')
+  })
 })

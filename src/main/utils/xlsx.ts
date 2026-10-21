@@ -29,6 +29,12 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
     worksheet.eachRow((row) => {
       const cells: string[] = []
       row.eachCell({ includeEmpty: true }, (cell, column) => {
+        // ExcelJS gives every cell of a merged range the master's value (a formula follower has no
+        // result); the sheet shows it once, in the master
+        if (cell.isMerged && cell.master.address !== cell.address) {
+          cells[column - 1] = ''
+          return
+        }
         // ExcelJS drops the backslashes of a format's escaped characters; classify the stored one
         const numFmt = stored.numFmts.get(cell.numFmt) ?? cell.numFmt
         const text = cellText(cell, numFmt, date1904, sheetCells?.get(cell.address))
@@ -57,17 +63,82 @@ function cellText(cell: Cell, numFmt: string, date1904: boolean, stored?: Stored
   if (stored && !isHyperlink && (stored.type === 'd' || value instanceof Date)) {
     return storedText(stored, numFmt, date1904)
   }
-  if (value instanceof Date) return formatDate(value, numFmt, date1904)
-  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
-  if (typeof value === 'object') {
+  if (typeof value === 'object' && !(value instanceof Date)) {
     if ('error' in value) return value.error
     if ('hyperlink' in value) {
-      const text = stored ? storedText(stored, numFmt, date1904) : plainText(value.text)
+      // A link's label keeps its own type: a number, date or boolean as the cell shows it
+      const text = stored ? storedText(stored, numFmt, date1904) : scalarText(value.text, numFmt, date1904)
       return text && text !== value.hyperlink ? `${text} (${value.hyperlink})` : value.hyperlink
     }
     return plainText(value)
   }
-  return String(value)
+  return scalarText(value, numFmt, date1904)
+}
+
+/** A value that is not a formula, error or link: a date or time by its number format. */
+function scalarText(value: unknown, numFmt: string, date1904: boolean): string {
+  if (value instanceof Date) {
+    // ExcelJS makes a date of any number whose format holds a date token in any section, but a
+    // number shows through the section for its sign or condition: 42 in `0;yyyy-mm-dd` reads 42
+    const serial = serialNumber(value, date1904)
+    const section = activeSection(numFmt, serial)
+    const { date, time } = dateFormatParts(section)
+    return date || time || /\[(h+|m+|s+)\]/i.test(section) ? formatDate(value, section, date1904) : String(serial)
+  }
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
+  if (typeof value === 'number') return String(value)
+  return plainText(value)
+}
+
+// The serial number ExcelJS turned into `date`: days since 1899-12-30, or 1904-01-01 in the 1904
+// date system, without the float noise of the round trip.
+function serialNumber(date: Date, date1904: boolean): number {
+  const days = (date.getTime() - (date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30))) / 86_400_000
+  return Math.round(days * 1e9) / 1e9
+}
+
+// The section of a number format that shows `value`. Sections are split at `;` outside quotes,
+// brackets and escapes. With conditions such as `[>=1000]`, the first section whose condition
+// holds wins, and a section without one takes the rest; otherwise the first is for positive
+// numbers, the second for negative and the third for zero. A fourth section is for text.
+function activeSection(numFmt: string, value: number): string {
+  const sections: string[] = []
+  let start = 0
+  for (let i = 0; i < numFmt.length; i++) {
+    const c = numFmt[i]
+    if (c === '"' || c === '[') {
+      const end = numFmt.indexOf(c === '"' ? '"' : ']', i + 1)
+      if (end < 0) break
+      i = end
+    } else if (c === '\\') {
+      i++
+    } else if (c === ';') {
+      sections.push(numFmt.slice(start, i))
+      start = i + 1
+    }
+  }
+  sections.push(numFmt.slice(start))
+  const numeric = sections.slice(0, 3)
+  const conditions = numeric.map((section) => /\[(<>|<=|>=|<|>|=)\s*(-?\d+(?:\.\d+)?)\]/.exec(section))
+  if (conditions.some(Boolean)) {
+    const holds = ([, op, limit]: RegExpExecArray): boolean => {
+      const n = Number(limit)
+      const results: Record<string, boolean> = {
+        '<>': value !== n,
+        '<=': value <= n,
+        '>=': value >= n,
+        '<': value < n,
+        '>': value > n,
+        '=': value === n
+      }
+      return results[op]
+    }
+    const index = conditions.findIndex((condition) => !condition || holds(condition))
+    return numeric[index < 0 ? numeric.length - 1 : index]
+  }
+  if (value > 0 || numeric.length === 1) return numeric[0]
+  if (value < 0) return numeric[1]
+  return numeric[2] ?? numeric[0]
 }
 
 /** A cell as the sheet XML stores it: its `t` attribute and the text of its `<v>`. */
