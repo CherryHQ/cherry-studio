@@ -2027,6 +2027,42 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('agent.right_pane.status.tasks_completed')).toBeNull()
     })
 
+    // A stale cache edge must not surface a stopped run as the launch row's own success: the
+    // subtask summary keeps the child's historical outcome instead.
+    it('counts a stopped child by its historical outcome when the cache edge is unvouched', () => {
+      const receipt = {
+        type: 'tool-SendMessage',
+        toolCallId: 'resume',
+        state: 'output-available',
+        input: { to: 'child', message: 'Please continue' },
+        output: { success: true, resumedAgentId: 'child' }
+      } as CherryMessagePart
+      const launchIndex = buildAgentLaunchIndex(
+        {
+          'msg-1': [
+            receipt,
+            {
+              type: 'data-agent-task-event',
+              data: { event: 'notification', taskId: 'child', toolUseId: 'resume', status: 'stopped' }
+            } as unknown as CherryMessagePart
+          ]
+        },
+        { child: { event: 'progress', taskId: 'child', toolUseId: 'resume', status: 'in_progress' } }
+      )
+
+      render(
+        <AgentLaunchIndexProvider
+          value={launchIndex}
+          liveness={{ activeMessageIds: new Set(), liveBackgroundTaskIds: new Set() }}>
+          {renderPartsTree([receipt], msg({ id: 'msg-1', status: 'success' }), { openAgentToolFlow: vi.fn() })}
+        </AgentLaunchIndexProvider>
+      )
+
+      const summary = screen.getByRole('button', { expanded: true })
+      expect(summary).toHaveTextContent('message.tools.cancelled')
+      expect(summary).not.toHaveTextContent('agent.right_pane.status.tasks_completed')
+    })
+
     // A receipt whose result is still an envelope names no child, but the adapter stamp already
     // ties it to a launch of this message — it belongs in the list, not inline with the flow.
     it('lists a stamp-only resume receipt as a subtask of the message it continued', () => {

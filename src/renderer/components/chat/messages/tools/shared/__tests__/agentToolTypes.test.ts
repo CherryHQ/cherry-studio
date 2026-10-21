@@ -230,8 +230,47 @@ describe('dsh receipt identities', () => {
     })
     expect(getSubagentTaskStatusFromIndex(progressed, 'call-launch', 'done', live)).toBe('invoking')
 
-    // Without a voucher the edge stays settled, exactly as a stale cache edge must.
-    expect(getSubagentTaskStatusFromIndex(progressed, 'call-launch', 'done', dead)).toBeUndefined()
+    // Without a voucher the edge is rejected: the historical completion still answers.
+    expect(getSubagentTaskStatusFromIndex(progressed, 'call-launch', 'done', dead)).toBe('done')
+  })
+
+  // A stale cache edge must not turn a failed or stopped run into the launch row's own success:
+  // rejecting it falls back to the historical terminal outcome, not to the row's status.
+  it('keeps the historical terminal outcome when the cache edge is unvouched', () => {
+    const launch = launchPart('call-launch', 'agent-77', 'Inspect renderer')
+    const dead = { activeMessageIds: new Set<string>(), liveBackgroundTaskIds: new Set<string>() }
+    const live = { activeMessageIds: new Set<string>(), liveBackgroundTaskIds: new Set(['agent-77']) }
+    const progress = {
+      'agent-77': { event: 'progress', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' }
+    } as const
+    const history = (status: 'stopped' | 'error' | 'completed') => ({
+      m1: [launch, taskEvent({ event: 'notification', taskId: 'agent-77', toolUseId: 'call-launch', status })]
+    })
+
+    // `done` is the launch row's own status; the task's outcome must win over it.
+    const stopped = buildAgentLaunchIndex(history('stopped'), progress)
+    expect(getSubagentTaskStatusFromIndex(stopped, 'call-launch', 'done', dead)).toBe('cancelled')
+    // A vouch still revives the run the cache reports.
+    expect(getSubagentTaskStatusFromIndex(stopped, 'call-launch', 'done', live)).toBe('invoking')
+
+    const failed = buildAgentLaunchIndex(history('error'), progress)
+    expect(getSubagentTaskStatusFromIndex(failed, 'call-launch', 'done', dead)).toBe('error')
+
+    // A completed history keeps answering too — the fallback is the outcome, not a special case.
+    const completed = buildAgentLaunchIndex(history('completed'), progress)
+    expect(getSubagentTaskStatusFromIndex(completed, 'call-launch', 'done', dead)).toBe('done')
+
+    // No historical terminal at all: the row's own status still answers.
+    const noOutcome = buildAgentLaunchIndex(
+      {
+        m1: [
+          launch,
+          taskEvent({ event: 'started', taskId: 'agent-77', toolUseId: 'call-launch', status: 'in_progress' })
+        ]
+      },
+      progress
+    )
+    expect(getSubagentTaskStatusFromIndex(noOutcome, 'call-launch', 'done', dead)).toBeUndefined()
   })
 
   it('defers a nonterminal edge that nothing vouches for to the row it answers', () => {
