@@ -1361,7 +1361,7 @@ export class AiService extends BaseService {
     }
     const remote = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
     if (!provider.supplementModelsFromRegistry) {
-      return { ...remote, models: providerRegistryService.selectModelsForDiscovery(provider, remote.models) }
+      return remote
     }
     const registryModels = providerRegistryService.listProviderRegistryModels({
       providerId,
@@ -1369,10 +1369,7 @@ export class AiService extends BaseService {
     })
     // Catalog supplementation must not hide the provider's skipped-model notice.
     return {
-      models: providerRegistryService.selectModelsForDiscovery(
-        provider,
-        mergeProviderModelsWithRegistry(remote.models, registryModels)
-      ),
+      models: mergeProviderModelsWithRegistry(remote.models, registryModels),
       ...(remote.skippedModels ? { skippedModels: remote.skippedModels } : {})
     }
   }

@@ -315,62 +315,6 @@ describe('ProviderRegistryService', () => {
     })
   })
 
-  describe('MiniMax discovery', () => {
-    function setupMiniMaxCatalog() {
-      mockReadModels.mockReturnValue(
-        JSON.parse(
-          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
-        )
-      )
-      mockReadProviders.mockReturnValue(
-        JSON.parse(
-          readFileSync(
-            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
-            'utf8'
-          )
-        )
-      )
-      mockReadProviderModels.mockReturnValue(
-        JSON.parse(
-          readFileSync(
-            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
-            'utf8'
-          )
-        )
-      )
-    }
-
-    it.each(['minimax', 'minimax-global', 'openrouter', 'opencode', 'gateway'])(
-      'offers Flash before M3 on %s while retaining explicit legacy resolution',
-      (providerId) => {
-        setupMiniMaxCatalog()
-        const models = providerRegistryService.listProviderRegistryModels({ providerId })
-        const text = models.filter((model) => model.presetModelId?.startsWith('minimax-'))
-        expect(text[0]?.presetModelId).toBe('minimax-m3-1-flash')
-        expect(text.every((model) => ['minimax-m3-1-flash', 'minimax-m3'].includes(model.presetModelId!))).toBe(true)
-        const legacy = providerRegistryService.resolveModel(providerId, 'MiniMax-M2.7')
-        expect(legacy.merged.apiModelId).toBe('MiniMax-M2.7')
-      }
-    )
-
-    it('filters remote discovery for a preset without changing saved or custom models', () => {
-      setupMiniMaxCatalog()
-      const provider = { id: 'minimax', presetProviderId: 'minimax' } as Provider
-      const models = ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M3.1-Flash', 'image-01', 'custom-model'].map(
-        (apiModelId) => ({ apiModelId })
-      )
-      const original = structuredClone(models)
-      expect(
-        providerRegistryService.selectModelsForDiscovery(provider, models).map((model) => model.apiModelId)
-      ).toEqual(['MiniMax-M3.1-Flash', 'MiniMax-M3', 'image-01', 'custom-model'])
-      expect(models).toEqual(original)
-      expect(providerRegistryService.selectModelsForDiscovery({ ...provider, presetProviderId: null }, models)).toBe(
-        models
-      )
-      expect(providerRegistryService.resolveModel(provider, 'MiniMax-M2.7').merged.apiModelId).toBe('MiniMax-M2.7')
-    })
-  })
-
   describe('registry load failure', () => {
     it('should throw when models.json cannot be read', async () => {
       setupRegistryData()

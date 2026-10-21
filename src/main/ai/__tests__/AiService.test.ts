@@ -130,7 +130,6 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
     listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args),
-    selectModelsForDiscovery: (_provider: unknown, models: unknown[]) => models,
     isRegistryProvider: (...args: unknown[]) => mockIsRegistryProvider(...args)
   }
 }))

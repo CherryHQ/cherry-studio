@@ -1,9 +1,5 @@
-import { readFileSync } from 'node:fs'
-
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { describe, expect, it, vi } from 'vitest'
-
-import { selectCurrentMiniMaxModels } from '@main/data/services/utils/minimaxModelDiscovery'
 
 import { createMinimaxProvider } from '../minimax/minimaxProvider'
 
@@ -39,22 +35,6 @@ function anthropicFetch() {
 }
 
 describe('MiniMax serialized text requests', () => {
-  it('serializes the first ordinary direct catalog choice as Flash', async () => {
-    const catalog = JSON.parse(readFileSync('packages/provider-registry/data/provider-models.json', 'utf8')) as {
-      overrides: { providerId: string; modelId: string; apiModelId: string }[]
-    }
-    const choices = selectCurrentMiniMaxModels(
-      catalog.overrides
-        .filter((row) => row.providerId === 'minimax')
-        .map((row) => ({ presetModelId: row.modelId, apiModelId: row.apiModelId }))
-    )
-    const choice = choices.find((model) => model.apiModelId?.startsWith('MiniMax-M'))!
-    const fetch = chatFetch()
-    const provider = createMinimaxProvider({ apiKey: 'offline-test', fetch })
-    await provider.languageModel(choice.apiModelId).doGenerate({ prompt })
-    expect(JSON.parse(fetch.mock.calls[0][1].body).model).toBe('MiniMax-M3.1-Flash')
-  })
-
   it.each(['https://api.minimax.io/v1', 'https://api.minimaxi.com/v1'])(
     'keeps default, legacy and custom IDs intact at %s',
     async (baseURL) => {
