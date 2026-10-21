@@ -88,8 +88,8 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   const jobs = new Map<string, JobRecord>()
   const memo = new Map<string, JsonValue>()
   const pending = new Set<Promise<unknown>>()
-  /** Sessions being built; `close()` waits for them. */
-  const launching = new Set<Promise<void>>()
+  /** Opens in progress (a conversation's session and `onOpen`, a child's session); `close()` waits for them. */
+  const launching = new Set<Promise<unknown>>()
   const installation: Installation = { tools: new Map(), jobs: new Map() }
   const installScope: Scope = { ended: false }
   let closed = false
@@ -141,7 +141,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
               // H1 coding-agent: the commit reserved the children; their sessions are built right after it.
               await Promise.all(
                 applied.children.map((child) =>
-                  launch(child).catch((error: unknown) => {
+                  launch(openNative(child)).catch((error: unknown) => {
                     // Never launched: drop it so it is no pending launch forever (D3).
                     conversations.delete(child.thread)
                     throw error
@@ -149,9 +149,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
                 )
               )
             } finally {
-              // A job may message the commit's children, so it starts once they are open; one whose child never
-              // launched fails at its first call to it.
-              if (!scope.opening) for (const job of applied.jobs) startJob(job)
+              // A job may message the commit's children, so it starts once they are open (failing if one never
+              // launched); none starts once close() began, which drops it.
+              if (!scope.opening && !closing) for (const job of applied.jobs) startJob(job)
             }
             return { result: step.result, effects: step.effects, spawned: applied.spawned }
           }),
@@ -247,15 +247,38 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     }
     void track(Promise.resolve().then(run))
   }
-  /** Builds `conv`'s session, pending for `settled()` and, until it is built, for `close()`. */
-  function launch(conv: Conversation): Promise<void> {
-    const launched = track(openNative(conv))
+  /** Counts an open for `settled()` and, until it settles, for `close()`. */
+  function launch<T>(open: Promise<T>): Promise<T> {
+    const launched = track(open)
     launching.add(launched)
     const forget = () => {
       launching.delete(launched)
     }
     launched.then(forget, forget)
     return launched
+  }
+  /** A conversation the host opens: its session, `onOpen`, then what waited for both. */
+  async function openRoot(conv: Conversation): Promise<void> {
+    try {
+      await openNative(conv)
+    } catch (error) {
+      // Never opened: the host may open it again.
+      conversations.delete(conv.thread)
+      throw error
+    }
+    const opening: JobRecord[] = []
+    try {
+      // After Pi's session_start: `onOpen` may stop or start turns, which need the session.
+      await lifecycle((handlers, ports) => handlers.onOpen(conv.thread, { reopened: conv.reopened }, ports), opening)
+    } finally {
+      // Once close() began nothing more starts here: close() tears the conversation down and drops these jobs.
+      if (!closing) {
+        // H12: a job ensured in onOpen starts once onOpen has run; its commit stands even if onOpen threw.
+        for (const job of opening) startJob(job)
+        // So does a person's text submitted while the session was being built.
+        drain(adapter, conv)
+      }
+    }
   }
   async function openNative(conv: Conversation): Promise<void> {
     const child =
@@ -355,23 +378,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         sessionManager.getEntries().length > 0
       )
       conversations.set(thread, conv)
-      try {
-        await launch(conv)
-      } catch (error) {
-        // Never opened: the host may open it again.
-        conversations.delete(thread)
-        throw error
-      }
-      const opening: JobRecord[] = []
-      try {
-        // After Pi's session_start: `onOpen` may stop or start turns, which need the session.
-        await lifecycle((handlers, ports) => handlers.onOpen(thread, { reopened: conv.reopened }, ports), opening)
-      } finally {
-        // H12: a job ensured in onOpen starts once onOpen has run; its commit stands even if onOpen threw.
-        for (const job of opening) startJob(job)
-        // So does a person's text submitted while the session was being built.
-        drain(adapter, conv)
-      }
+      await launch(openRoot(conv))
       return thread
     },
     withCall: (_thread, use) => withScope({}, use),
@@ -406,7 +413,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async close() {
       if (closed) return
       closing = true
-      // A launch that fails, or that close() itself cut, is no failure of close().
+      // An open that fails, or that close() itself cut, is no failure of close().
       await Promise.allSettled([...launching])
       const all = [...conversations.values()]
       // Every run first: a parent's tool call may be waiting on a foreground child.
