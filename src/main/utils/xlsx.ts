@@ -35,9 +35,10 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
           cells[column - 1] = ''
           return
         }
-        // ExcelJS drops the backslashes of a format's escaped characters; classify the stored one
-        const numFmt = stored.numFmts.get(cell.numFmt) ?? cell.numFmt
-        const text = cellText(cell, numFmt, date1904, sheetCells?.get(cell.address))
+        // ExcelJS drops the backslashes of a format's escaped characters; read the cell's stored one
+        const storedCell = sheetCells?.get(cell.address)
+        const numFmt = storedCell?.numFmt ?? cell.numFmt
+        const text = cellText(cell, numFmt, date1904, storedCell)
         cells[column - 1] = text.replace(/[\t\r\n]+/g, ' ')
       })
       const line = cells.join('\t').replace(/\t+$/, '')
@@ -54,7 +55,7 @@ function cellText(cell: Cell, numFmt: string, date1904: boolean, stored?: Stored
   // out of cell.value; one saved without a result shows its formula.
   if (value !== null && typeof value === 'object' && ('formula' in value || 'sharedFormula' in value)) {
     const result: CellValue = cell.result
-    // ExcelJS also leaves out a cached empty text result, which the sheet stores as <v></v>
+    // ExcelJS also leaves out a cached empty text result, which the sheet stores as <v></v> or <v/>
     if (result === undefined || result === null)
       return stored ? storedText(stored, numFmt, date1904) : `=${cell.formula}`
     value = result
@@ -62,11 +63,6 @@ function cellText(cell: Cell, numFmt: string, date1904: boolean, stored?: Stored
   if (value === null || value === undefined) return ''
   const isHyperlink = typeof value === 'object' && 'hyperlink' in value
   // An ISO date, or a result ExcelJS took for a date, reads from what the sheet stores
-  // A number Date cannot hold reads as stored
-  if (value instanceof Date && Number.isNaN(value.getTime()) && (!stored || ['', 'n'].includes(stored.type))) {
-    const number = Number(stored?.text)
-    return stored?.text.trim() && Number.isFinite(number) ? String(number) : ''
-  }
   if (stored && !isHyperlink && (stored.type === 'd' || value instanceof Date)) {
     return storedText(stored, numFmt, date1904)
   }
@@ -87,10 +83,7 @@ function scalarText(value: unknown, numFmt: string, date1904: boolean): string {
   if (value instanceof Date) {
     // ExcelJS makes a date of any number whose format holds a date token in any section, but a
     // number shows through the section for its sign or condition: 42 in `0;yyyy-mm-dd` reads 42
-    const serial = serialNumber(value, date1904)
-    const section = activeSection(numFmt, serial)
-    const { date, time } = dateFormatParts(section)
-    return date || time || elapsedToken(section) ? formatDate(value, section, date1904) : String(serial)
+    return Number.isNaN(value.getTime()) ? '' : serialText(serialNumber(value, date1904), numFmt, date1904)
   }
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
   if (typeof value === 'number') return String(value)
@@ -148,14 +141,23 @@ function activeSection(numFmt: string, value: number): string {
   return numeric[2] ?? numeric[0]
 }
 
-// Date holds 100 million days either side of 1970; a serial number this large always leaves that
-// range, one a little smaller may, so its cell keeps the stored value as a fallback
-const MAX_DATE_SERIAL = 99_000_000
+// Date holds 100 million days either side of 1970, which is serial 99,974,431 at the near end
+const MAX_DATE_SERIAL = 99_974_000
 
-/** A cell as the sheet XML stores it: its `t` attribute and the text of its `<v>`. */
+// Excel's built-in date and time formats (numFmtId), which ExcelJS also reads as dates
+const BUILTIN_DATE_FORMAT_IDS = new Set([
+  14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56,
+  57, 58
+])
+
+/**
+ * A cell as the sheet XML stores it: its `t` attribute, the text of its `<v>`, and for a custom
+ * number format its code as written, escapes included.
+ */
 interface StoredCell {
   type: string
   text: string
+  numFmt?: string
 }
 
 /**
@@ -167,37 +169,48 @@ interface StoredCell {
  * text, boolean or error result as if it were a serial number: `pending` or `#N/A` becomes an
  * invalid date.
  *
- * It also turns a number of about 100 million days or more into an invalid date when the cell's format has
- * a date token in any section, as Date cannot hold it; such numbers are kept as stored.
- *
- * `numFmts`, by the form ExcelJS gives them: ExcelJS drops the backslash of each escaped character
- * in a number format, so `h:mm\ \d\a\i\l\y` reaches it as `h:mm daily`, where `d` and `y` read as
- * date tokens. A loaded form that two stored formats share is left out.
+ * A number in a cell whose format has a date token in any section reaches ExcelJS as a Date: one
+ * beyond Date's range becomes an invalid date, and the millisecond round trip changes digits a
+ * numeric section shows (42.123456789 reads back as 42.123456794). Such a cell keeps its stored
+ * number, read by its section, and its stored format: ExcelJS also drops the backslash of each
+ * escaped character, so `h:mm\ \d\a\i\l\y` reaches it as `h:mm daily`, where `d` and `y` read as
+ * date tokens.
  */
-async function storedWorkbook(
-  data: Uint8Array
-): Promise<{ cells: Map<string, Map<string, StoredCell>>; numFmts: Map<string, string> }> {
+async function storedWorkbook(data: Uint8Array): Promise<{ cells: Map<string, Map<string, StoredCell>> }> {
   const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(data)
   const cells = new Map<string, Map<string, StoredCell>>()
-  const numFmts = new Map<string, string>()
 
-  const stylesXml = await zip.file('xl/styles.xml')?.async('string')
-  const formatsByLoaded = new Map<string, Set<string>>()
-  for (const [tag] of stylesXml?.matchAll(/<numFmt\b[^>]*>/g) ?? []) {
+  // The format of each cell style, by its index in <cellXfs>: the stored code of a custom format,
+  // and whether the format shows a date or time in any section
+  const stylesXml = (await zip.file('xl/styles.xml')?.async('string')) ?? ''
+  const codesById = new Map<number, string>()
+  for (const [tag] of stylesXml.matchAll(/<numFmt\b[^>]*>/g)) {
+    const id = Number(xmlAttribute(tag, 'numFmtId'))
     const code = xmlAttribute(tag, 'formatCode')
-    if (code === undefined) continue
-    const loaded = code.replace(/[\\](.)/g, '$1')
-    formatsByLoaded.set(loaded, (formatsByLoaded.get(loaded) ?? new Set()).add(code))
+    if (Number.isInteger(id) && code !== undefined) codesById.set(id, code)
   }
-  for (const [loaded, codes] of formatsByLoaded) {
-    const [code] = codes
-    if (codes.size === 1 && code !== loaded) numFmts.set(loaded, code)
+  const styleCodes: (string | undefined)[] = []
+  const dateStyles = new Set<number>()
+  // Date styles whose numbers need the stored value: a numeric section or condition shows the
+  // number's own digits, and an escape is lost on load
+  const storedStyles = new Set<number>()
+  const cellXfs = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(stylesXml)?.[1] ?? ''
+  for (const [tag] of cellXfs.matchAll(/<xf\b[^>]*>/g)) {
+    const id = Number(xmlAttribute(tag, 'numFmtId') ?? 0)
+    const code = codesById.get(id)
+    const parts = code === undefined ? undefined : dateFormatParts(code)
+    const showsDate = parts
+      ? parts.date || parts.time || elapsedToken(code ?? '') !== undefined
+      : BUILTIN_DATE_FORMAT_IDS.has(id)
+    if (showsDate) dateStyles.add(styleCodes.length)
+    if (showsDate && code !== undefined && /[;\\[]/.test(code)) storedStyles.add(styleCodes.length)
+    styleCodes.push(code)
   }
 
   const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
   const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
-  if (!workbookXml || !relsXml) return { cells, numFmts }
+  if (!workbookXml || !relsXml) return { cells }
   const targets = new Map<string, string>()
   for (const [tag] of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
     const id = xmlAttribute(tag, 'Id')
@@ -211,27 +224,49 @@ async function storedWorkbook(
     if (name === undefined || !xml) continue
     // Most sheets hold none of these, so their cells are not walked
     const hasFormulaResult = /<f[\s/>]/.test(xml) && /\st=["'](?:str|b|e)["']/.test(xml)
-    const hasHugeNumber = /<v>\s*-?(?:\d{9}|[\d.]+[eE]\+?\d)/.test(xml)
-    if (!hasFormulaResult && !hasHugeNumber && !/\st=["']d["']/.test(xml)) continue
+    // A number outside Date's range has an integer part of at least 99,974,431: eight digits or an exponent
+    const mayExceedDate = dateStyles.size > 0 && /<v>\s*-?(?:\d{8}|[\d.]+[eE]\+?\d)/.test(xml)
+    if (!hasFormulaResult && !mayExceedDate && !usesStyle(xml, storedStyles) && !/\st=["']d["']/.test(xml)) continue
     const sheetCells = new Map<string, StoredCell>()
     for (const [, attributes, content = ''] of xml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const type = xmlAttribute(attributes, 't') ?? ''
-      const value = /<v>([\s\S]*?)<\/v>/.exec(content)
+      const style = Number(xmlAttribute(attributes, 's') ?? 0)
+      // A cached empty value can be written <v></v>, <v/> or <v />
+      const value = /<v(?:\s*\/>|>([\s\S]*?)<\/v>)/.exec(content)
       // Only a formula's result is converted: a plain text, boolean or error cell reads correctly
       const isFormulaResult = ['str', 'b', 'e'].includes(type) && /<f[\s/>]/.test(content)
-      const isHugeNumber = (type === '' || type === 'n') && Math.abs(Number(value?.[1])) >= MAX_DATE_SERIAL
-      if (type !== 'd' && !isFormulaResult && !isHugeNumber) continue
+      const isDateStyledNumber =
+        (type === '' || type === 'n') &&
+        dateStyles.has(style) &&
+        (storedStyles.has(style) || Math.abs(Number(value?.[1])) >= MAX_DATE_SERIAL)
+      if (type !== 'd' && !isFormulaResult && !isDateStyledNumber) continue
       const address = xmlAttribute(attributes, 'r')
-      if (address && value) sheetCells.set(address, { type, text: xmlText(value[1]) })
+      if (address && value) sheetCells.set(address, { type, text: xmlText(value[1] ?? ''), numFmt: styleCodes[style] })
     }
     if (sheetCells.size) cells.set(name, sheetCells)
   }
-  return { cells, numFmts }
+  return { cells }
 }
+
+/** Whether a cell of the sheet XML has one of the style indexes in `styles`. */
+function usesStyle(xml: string, styles: Set<number>): boolean {
+  if (!styles.size) return false
+  for (const [, style] of xml.matchAll(/<c\b[^>]*?\ss=["'](\d+)["']/g)) {
+    if (styles.has(Number(style))) return true
+  }
+  return false
+}
+
+const attributePatterns = new Map<string, RegExp>()
 
 /** The decoded value of attribute `name` in a start tag, `undefined` if it has none. */
 function xmlAttribute(tag: string, name: string): string | undefined {
-  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(tag)
+  let pattern = attributePatterns.get(name)
+  if (!pattern) {
+    pattern = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`)
+    attributePatterns.set(name, pattern)
+  }
+  const match = pattern.exec(tag)
   return match ? xmlText(match[1] ?? match[2]) : undefined
 }
 
@@ -250,6 +285,10 @@ function xmlText(text: string): string {
  */
 function storedText(stored: StoredCell, numFmt: string | undefined, date1904: boolean): string {
   if (stored.type === 'b') return /^(1|true)$/i.test(stored.text) ? 'TRUE' : 'FALSE'
+  if (stored.type === '' || stored.type === 'n') {
+    const serial = Number(stored.text)
+    return stored.text.trim() && Number.isFinite(serial) ? serialText(serial, numFmt ?? '', date1904) : stored.text
+  }
   if (stored.type !== 'd') return stored.text
   // A General cell has no number format
   if (!numFmt) return stored.text
@@ -257,6 +296,37 @@ function storedText(stored: StoredCell, numFmt: string | undefined, date1904: bo
   const { date: showsDate, time: showsTime } = dateFormatParts(numFmt)
   const formatted = showsDate || showsTime || elapsedToken(numFmt)
   return date && formatted ? formatDate(date, numFmt, date1904) : stored.text
+}
+
+/**
+ * A stored number by the section of its format that shows it: a date or time from the exact serial,
+ * otherwise the number. In the 1900 date system Excel counts a 29 February 1900 that never was, so
+ * serials 1 to 59 fall a day later than days since 1899-12-30, and serial 60 is that day.
+ */
+function serialText(serial: number, numFmt: string, date1904: boolean): string {
+  const section = activeSection(numFmt, serial)
+  const { date, time, elapsed } = sectionParts(section)
+  if (!date && !time && !elapsed) return String(serial)
+  const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30)
+  const leapBug = !date1904 && date && !elapsed && serial >= 1 && serial < 61
+  const days = leapBug && serial < 60 ? serial + 1 : serial
+  const value = new Date(epoch + days * 86_400_000)
+  if (Number.isNaN(value.getTime())) return String(serial)
+  const text = formatDate(value, section, date1904)
+  return leapBug && serial >= 60 ? text.replace('1900-02-28', '1900-02-29') : text
+}
+
+const sectionPartsCache = new Map<string, { date: boolean; time: boolean; elapsed: boolean }>()
+
+// What a format section shows, cached: a sheet has a few formats and many cells
+function sectionParts(section: string): { date: boolean; time: boolean; elapsed: boolean } {
+  let parts = sectionPartsCache.get(section)
+  if (!parts) {
+    parts = { ...dateFormatParts(section), elapsed: elapsedToken(section) !== undefined }
+    if (sectionPartsCache.size > 1000) sectionPartsCache.clear()
+    sectionPartsCache.set(section, parts)
+  }
+  return parts
 }
 
 // The ISO 8601 date, date-time or time of a `t="d"` cell as the Date ExcelJS would have made:

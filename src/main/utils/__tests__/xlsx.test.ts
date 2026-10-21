@@ -214,7 +214,8 @@ describe('extractXlsxText', () => {
       })
     })
 
-    expect(await extractXlsxText(data)).toBe('Sheet: Sections\n42\t45000\t1900-02-10')
+    // Serial 42 is 11 February 1900: Excel's serial 1 is 1 January 1900
+    expect(await extractXlsxText(data)).toBe('Sheet: Sections\n42\t45000\t1900-02-11')
   })
 
   it('reads a number too large for a date as stored', async () => {
@@ -240,15 +241,72 @@ describe('extractXlsxText', () => {
     )
   })
 
+  it('reads a number shown through a numeric section with its stored digits', async () => {
+    // ExcelJS reads these as Dates, whose millisecond round trip changed the digits and the sign test
+    const data = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Exact').getRow(1)
+      const cells: [number, string][] = [
+        [42.123456789, '0.000000000;yyyy-mm-dd'],
+        [1e-9, '[>0]0.000000000;yyyy-mm-dd'],
+        [-99999999, '0;0;yyyy-mm-dd']
+      ]
+      cells.forEach(([value, numFmt], index) => {
+        row.getCell(index + 1).value = value
+        row.getCell(index + 1).numFmt = numFmt
+      })
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Exact\n42.123456789\t1e-9\t-99999999')
+  })
+
+  it('counts serials before March 1900 the way Excel does', async () => {
+    // Excel's 1900 date system has a 29 February 1900, so its serials 1 to 60 are a day later than
+    // days since 1899-12-30; times of day, durations and the 1904 date system are not affected
+    const data = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Early').getRow(1)
+      const cells: [number, string][] = [
+        [1, 'yyyy-mm-dd'],
+        [59, 'yyyy-mm-dd'],
+        [60, 'yyyy-mm-dd'],
+        [61, 'yyyy-mm-dd'],
+        [0.25, 'h:mm'],
+        [1.5, '[h]:mm']
+      ]
+      cells.forEach(([value, numFmt], index) => {
+        row.getCell(index + 1).value = value
+        row.getCell(index + 1).numFmt = numFmt
+      })
+    })
+
+    expect(await extractXlsxText(data)).toBe(
+      'Sheet: Early\n1900-01-01\t1900-02-28\t1900-02-29\t1900-03-01\t06:00:00\t36:00:00'
+    )
+  })
+
+  it('reads each escaped format by its own cell style', async () => {
+    // Both formats load as `h:mm daily`, so the stored format has to come from the cell's style
+    const data = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Daily').getRow(1)
+      row.getCell(1).value = 0.25
+      row.getCell(1).numFmt = 'h:mm\\ \\d\\a\\i\\l\\y'
+      row.getCell(2).value = 0.25
+      row.getCell(2).numFmt = 'h:mm daily'
+    })
+
+    expect((await extractXlsxText(data)).split('\n')[1].split('\t')[0]).toBe('06:00:00')
+  })
+
   it('reads a cached empty formula result as an empty cell', async () => {
     const built = await xlsxBytes((workbook) => {
       const row = workbook.addWorksheet('Blank').getRow(1)
       row.getCell(1).value = { formula: 'IF(TRUE,"","x")', result: 'x' }
       row.getCell(2).value = 'after'
     })
-    const data = await editSheetXml(built, 'xl/worksheets/sheet1.xml', (xml) => xml.replace('<v>x</v>', '<v></v>'))
+    for (const empty of ['<v></v>', '<v/>', '<v />']) {
+      const data = await editSheetXml(built, 'xl/worksheets/sheet1.xml', (xml) => xml.replace('<v>x</v>', empty))
 
-    expect(await extractXlsxText(data)).toBe('Sheet: Blank\n\tafter')
+      expect(await extractXlsxText(data)).toBe('Sheet: Blank\n\tafter')
+    }
   })
 
   it('reads a bracketed label in quotes as text, not as elapsed time', async () => {
