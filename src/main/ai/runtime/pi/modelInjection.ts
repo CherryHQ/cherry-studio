@@ -263,7 +263,7 @@ export function buildPiGatewayInjection(
   if (!isPiGatewayCompatibleModel(provider, model)) throw new PiUnsupportedProviderError(provider.id)
   const gatewayApi = api && api !== 'azure-openai-responses' ? api : 'openai-completions'
 
-  const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
+  const modelId = formatGatewayModelId(provider.id, parseUniqueModelId(model.id).modelId)
   const modelConfig = buildPiModelConfig(provider, model, modelId, gatewayApi, resolvedEndpoint.endpointType)
   const headers = Object.keys(gateway.usageHeaders).length ? gateway.usageHeaders : undefined
 

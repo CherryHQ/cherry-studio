@@ -42,24 +42,6 @@ export interface AgentRuntimeSessionOptions {
   thinkingLevel?: CreateAgentSessionOptions['thinkingLevel']
 }
 
-/** What every session built on one model runtime must have, whoever builds it. */
-export interface SessionRequirements {
-  /** Installed ahead of the session's own extensions. */
-  extensionFactories?: ExtensionFactory[]
-  /** Applied over the session's own settings. */
-  settings?: AgentRuntimeSettings
-}
-
-const sessionRequirements = new WeakMap<ModelRuntime, SessionRequirements>()
-
-/**
- * For the owner of `modelRuntime` (e.g. a model binding): every session built on it gets
- * `requirements`, so a host cannot leave them out.
- */
-export function setSessionRequirements(modelRuntime: ModelRuntime, requirements: SessionRequirements): void {
-  sessionRequirements.set(modelRuntime, requirements)
-}
-
 export interface AgentRuntimeSession {
   session: AgentSession
   /** Aborts the running turn, lets extensions shut down, then disposes the session. */
@@ -75,8 +57,7 @@ export interface AgentRuntimeSession {
 export async function createAgentRuntimeSession(options: AgentRuntimeSessionOptions): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
   const { modelRuntime, model } = options
-  const required = sessionRequirements.get(modelRuntime)
-  const settingsManager = SettingsManager.inMemory({ ...options.settings, ...required?.settings })
+  const settingsManager = SettingsManager.inMemory(options.settings ?? {})
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
@@ -87,7 +68,7 @@ export async function createAgentRuntimeSession(options: AgentRuntimeSessionOpti
     noThemes: true,
     noContextFiles: !options.contextFiles,
     additionalSkillPaths: options.skillPaths,
-    extensionFactories: [...(required?.extensionFactories ?? []), ...(options.extensionFactories ?? [])],
+    extensionFactories: options.extensionFactories ?? [],
     // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
     appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
