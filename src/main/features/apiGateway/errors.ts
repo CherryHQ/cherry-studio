@@ -35,10 +35,8 @@ const restEnvelope = (code: string, message: string, details?: Record<string, un
 })
 
 /**
- * JSON-RPC 2.0 error envelope for the MCP proxy. Not typed as the SDK's
- * `JSONRPCErrorResponse`: that type declares `id?: string | number`, while the SDK's own
- * Streamable HTTP transport writes `id: null` for errors with no request to attribute
- * them to. The wire shape a client sees is what has to match, so it wins over the type.
+ * JSON-RPC 2.0 error envelope for the MCP proxy. The null ID represents errors that cannot
+ * be attributed to a particular request.
  */
 export const MCP_TRANSPORT_ERROR = -32000
 
