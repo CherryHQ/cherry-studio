@@ -61,6 +61,27 @@ it('classifies an unfinished preparation as code 2 during finalization', () => {
   }
 })
 
+it.each([
+  { timezone: undefined, expected: 'Asia/Shanghai' },
+  { timezone: 'UTC', expected: 'UTC' }
+])('initializes timezone $expected with inherited TZ=$timezone', ({ timezone, expected }) => {
+  const cli = controller()
+  try {
+    const initialized = spawnSync(
+      process.execPath,
+      [require.resolve('tsx/cli'), resolve(__dirname, '../run.ts'), 'initialize'],
+      { env: { ...cli.env, TZ: timezone }, encoding: 'utf8', timeout: 10_000 }
+    )
+    expect(initialized.status).toBe(0)
+    expect(readResult(cli.env.QA_OUT).environment.timezone).toMatchObject({
+      inherited: expected,
+      controller: expected
+    })
+  } finally {
+    cli.cleanup()
+  }
+})
+
 it('preserves a handled signal as interrupted after the next finalize process', () => {
   const cli = controller()
   try {

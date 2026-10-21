@@ -59,8 +59,8 @@ vi.mock('node:fs/promises', async () => {
   }
 })
 
-import { BaseService } from '@main/core/lifecycle'
-import { getConditions } from '@main/core/lifecycle/decorators'
+import { BaseService, Phase } from '@main/core/lifecycle'
+import { getConditions, getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { getBinaryName } from '@main/utils/binaryResolver'
 
 import { mediaFfmpegCommandEnv } from '../mediaFfmpegLoader'
@@ -89,6 +89,12 @@ afterEach(async () => {
 })
 
 describe('MediaFfmpegService lifecycle', () => {
+  it('registers the FFmpeg definition in WhenReady after UtilityProcessManager', () => {
+    expect(getPhase(MediaFfmpegService)).toBe(Phase.WhenReady)
+    expect(getDependencies(MediaFfmpegService)).toContain('UtilityProcessManager')
+    expect(runtime.register).toHaveBeenCalledWith(mediaFfmpegProcess)
+  })
+
   it('is available where a bundled FFmpeg runtime exists', () => {
     const [condition] = getConditions(MediaFfmpegService)!
     const context = { arch: 'arm64' as const, cpuModel: '', env: process.env }
