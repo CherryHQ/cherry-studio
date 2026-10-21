@@ -93,6 +93,29 @@ describe('estimateGeminiRequestTokens', () => {
     expect(n).toBeGreaterThan(0)
   })
 
+  // #20285: token estimation resolves through the same gateway identity contract as
+  // generation — an internal-agent request prices the image with the resolved openai
+  // dialect constant (~765), while an unresolvable model falls back to the google one (~258).
+  it('prices with the resolved dialect for internal-agent models', async () => {
+    mocks.resolveGatewayModelAddress.mockImplementation((_address, allowAgentOnly) => {
+      if (!allowAgentOnly) throw new Error('not available through the API gateway')
+      return {
+        providerId: 'p',
+        apiModelId: 'm',
+        uniqueModelId: 'p::m',
+        provider: openaiProvider(),
+        model: makeModel({ capabilities: [] })
+      }
+    })
+    const withImage = body([
+      { role: 'user', parts: [{ text: 'hi' }, { inlineData: { mimeType: 'image/png', data: 'AAAA' } }] }
+    ])
+    const internal = await estimateGeminiRequestTokens(withImage, 'p:m', undefined, true)
+    const external = await estimateGeminiRequestTokens(withImage, 'p:m', undefined, false)
+    expect(internal).toBeGreaterThan(500)
+    expect(external).toBeLessThan(500)
+  })
+
   it('degrades to a raw-size heuristic (no 500) on malformed parts', async () => {
     resolveTo(makeModel({ capabilities: [] }))
     // contents entries are loose objects — a null part throws in the converter, the wrapper catches.

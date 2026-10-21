@@ -13,11 +13,13 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { assertAgentGatewayModelAvailable } from '@main/ai/runtime/agentGatewayModelAvailability'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { isAgentModelUnavailableError } from '@main/ai/runtime/agentModelUnavailableError'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
@@ -278,7 +280,11 @@ export interface ConnectionConfig {
   }
 }
 
-export type DeriveConnectionConfigResult = { ok: true; config: ConnectionConfig } | { ok: false; reason: 'unroutable' }
+export type DeriveConnectionConfigResult =
+  | { ok: true; config: ConnectionConfig }
+  | { ok: false; reason: 'unroutable' }
+  /** The model rows exist but are disabled/unroutable: rebuild so the cold path reports why. */
+  | { ok: false; reason: 'model-unavailable'; error: Error }
 
 /**
  * Pure facts extractor for connection staleness — NOT a builder inversion. Reads the same inputs
@@ -323,6 +329,7 @@ export async function deriveConnectionConfig(
       )
     }
   } catch (error) {
+    if (isAgentModelUnavailableError(error)) return { ok: false, reason: 'model-unavailable', error }
     // Deleted provider/model rows — the connection cannot be rebuilt to a valid target, so it is
     // invalid rather than merely stale. A knowledge-scope change also routes here on every rebuild
     // check, so an unexpected throw (missing workspace, skill-whitelist I/O) would otherwise end the
@@ -717,6 +724,15 @@ function deriveRouteFacts(
   )
 
   if (shouldUseGateway) {
+    // Fail fast on stale/disabled/unroutable Agent models: every slot routes through the gateway.
+    // Agent traffic carries internal usage headers, so agent-only providers are allowed.
+    for (const ref of modelRefs) {
+      const address = `${ref.providerId}:${ref.apiModelId}`
+      if (!ref.provider || !ref.model) {
+        throw new Error(`Agent model "${address}" is not available: the configured provider or model no longer exists.`)
+      }
+      assertAgentGatewayModelAvailable(ref.provider, ref.model, address)
+    }
     return {
       branch: 'gateway',
       baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),
