@@ -44,6 +44,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.mocked(app.getLocale).mockReturnValue('en-US')
   vi.mocked(app.isReady).mockReturnValue(true)
 })
 
@@ -160,6 +161,20 @@ describe('applyWebviewSpellcheckPolicy', () => {
       const target = session.fromPartition(partition)
       expect(vi.mocked(target.setSpellCheckerLanguages)).toHaveBeenLastCalledWith(['en-US'])
       expect(vi.mocked(target.setSpellCheckerLanguages)).not.toHaveBeenCalledWith([])
+      expect(vi.mocked(target.setSpellCheckerEnabled)).toHaveBeenLastCalledWith(true)
+    }
+  })
+
+  it('restores en-US for a locale without a dictionary of its own', () => {
+    vi.mocked(app.getLocale).mockReturnValue('zh-CN')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.spellcheck', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.spell_check.languages', [])
+
+    applyWebviewSpellcheckPolicy()
+
+    for (const partition of BROWSER_PARTITIONS) {
+      const target = session.fromPartition(partition)
+      expect(vi.mocked(target.setSpellCheckerLanguages)).toHaveBeenLastCalledWith(['en-US'])
       expect(vi.mocked(target.setSpellCheckerEnabled)).toHaveBeenLastCalledWith(true)
     }
   })

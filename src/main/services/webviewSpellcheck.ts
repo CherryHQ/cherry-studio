@@ -64,7 +64,11 @@ function resolveLanguages(target: Electron.Session, requested: readonly string[]
   if (available.includes(locale)) return [locale]
   const base = locale.split('-')[0]
   const match = available.find((language) => language === base || language.startsWith(`${base}-`))
-  return match ? [match] : []
+  if (match) return [match]
+  // Chromium's IDS_SPELLCHECK_DICTIONARY default for locales without a
+  // dictionary of their own (zh-CN, ja, ...) is en-US. The gate cleared the
+  // session's list, so that fallback has to be written back explicitly.
+  return available.includes('en-US') ? ['en-US'] : []
 }
 
 /** Applies a policy to one session. Invalid language codes make Chromium throw, so filter them. */
