@@ -65,6 +65,21 @@ describe('ErrorDiagnosisService', () => {
   })
 
   describe('diagnoseError', () => {
+    it('uses generic context and preserves the reported Gemini schema error (#22198)', async () => {
+      const reported =
+        "Unable to submit request because mcp__cherry-tools__cron functionDeclaration parameters.timeout_minutes schema didn't specify the schema type field."
+
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'bad_request', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: reported, statusCode: 400 }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('MCP (Model Context Protocol) server error')
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
+      expect(callArgs.content).toContain(reported)
+    })
     it('returns parsed diagnosis result from AI', async () => {
       const mockResult = {
         summary: 'Auth error',

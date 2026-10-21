@@ -67,8 +67,7 @@ export function isMcpErrorMessage(message: string): boolean {
     msg.includes('mcp transport') ||
     msg.includes('mcp client') ||
     msg.startsWith('mcp:') ||
-    msg.startsWith('[mcp]') ||
-    msg.includes('mcp_')
+    msg.startsWith('[mcp]')
   )
 }
 
@@ -282,7 +281,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   if (
     msg.includes('econnrefused') ||
     msg.includes('etimedout') ||
-    msg.includes('timeout') ||
+    /\btimeout\b/.test(msg) ||
     msg.includes('timed out') ||
     msg.includes('network') ||
     msg.includes('fetch failed') ||
