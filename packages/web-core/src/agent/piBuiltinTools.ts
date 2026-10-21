@@ -21,7 +21,8 @@ export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'grep', category: 'search', approval: 'auto', permissionClass: 'read' },
   { name: 'edit', category: 'file', approval: 'prompt', permissionClass: 'edit' },
   { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' },
-  { name: 'python_execute', category: 'shell', approval: 'prompt', permissionClass: 'shell' }
+  { name: 'python_execute', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'js_execute', category: 'shell', approval: 'prompt', permissionClass: 'shell' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
 
 export const PI_BUILTIN_TOOLS = PI_NATIVE_BUILTIN_TOOLS

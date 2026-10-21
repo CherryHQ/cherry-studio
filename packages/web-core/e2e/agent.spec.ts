@@ -142,3 +142,17 @@ test('runs Python in the page after approval', async ({ page }) => {
   // Pyodide comes from jsDelivr on first use.
   await expect(page.getByText(/^tools said: 42 3$/)).toBeVisible({ timeout: 90_000 })
 })
+
+test('runs JavaScript in a sandbox and stops an endless loop at its timeout', async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+
+  await send(page, `please call js_execute {"code":"console.log('hi'); await Promise.resolve(6 * 7)"}`)
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said: hi\s+42$/)).toBeVisible()
+
+  await send(page, 'please call js_execute {"code":"while (true) {}","timeout":2000}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:.*timed out after 2000 ms/)).toBeVisible()
+})
