@@ -984,10 +984,10 @@ export class ExternalKnowledgeRuntime {
             session.generation
           )
         }
-        state.validatedGeneration = session.generation
+        state.validatedGeneration = state.generation
         afterCommit()
         if (session.expectedCredentialReference) {
-          await this.retireCredential(session.expectedCredentialReference, signal)
+          await this.retireCredential(session.expectedCredentialReference, this.credentialSignal(state))
         }
         return connected
       }
@@ -1073,6 +1073,7 @@ export class ExternalKnowledgeRuntime {
     if (this.credentialStates.get(expectedReference) !== state) {
       throw new DOMException('External Knowledge credential operation was superseded', 'AbortError')
     }
+    this.advanceCredentialGeneration(expectedReference, state)
     this.credentialStates.delete(expectedReference)
     this.credentialStates.set(candidateReference, state)
   }
