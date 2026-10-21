@@ -28,6 +28,14 @@ import { withScratch } from './scratch'
 import { completeSpeechOperation } from './sdkOperations'
 
 const LANGUAGES = ['zh-CN', 'en-US', 'en-GB'] as const
+
+/** English voices are English-only; the v1.1-zh voices are trained on mixed zh/en. */
+function voiceLanguages(id: string): readonly string[] {
+  if (id.startsWith('af_')) return ['en-US']
+  if (id.startsWith('bf_')) return ['en-GB']
+  return ['zh-CN', 'en-US']
+}
+
 const VOICES: LocalSpeechVoice[] = [
   'af_maple',
   'af_sol',
@@ -38,8 +46,64 @@ const VOICES: LocalSpeechVoice[] = [
   id,
   name: id,
   locale: id.startsWith('z') ? 'zh-CN' : id.startsWith('b') ? 'en-GB' : 'en-US',
-  languages: LANGUAGES
+  languages: voiceLanguages(id)
 }))
+
+/**
+ * Explicit defaults instead of the array's first entry. `zf_001` ("晴岚") is
+ * the vendor's natural, clear female voice; the rest are only fallbacks.
+ */
+const DEFAULT_VOICE_ORDER: Readonly<Record<string, readonly string[]>> = {
+  'zh-CN': ['zf_001'],
+  'en-US': ['af_maple', 'af_sol'],
+  'en-GB': ['bf_vale']
+}
+const DEFAULT_ENGLISH_VOICE: Readonly<Record<string, string>> = { 'en-US': 'af_maple', 'en-GB': 'bf_vale' }
+const DEFAULT_CHINESE_VOICE = 'zf_001'
+
+type KokoroSpeechSegment = { text: string; voice: string }
+
+function splitSentences(text: string): string[] {
+  // English sentence punctuation is only a boundary when whitespace follows it,
+  // so `1.5` or `example.com` stays inside its sentence.
+  const normalized = text.replace(/([.!?])(\s+)/g, '$1\n')
+  const parts = normalized.match(/[^。！？!?\n]+[。！？!?]?|\n+/g) ?? [text]
+  return parts.map((part) => part.trim()).filter(Boolean)
+}
+
+function sentenceKind(sentence: string): 'zh' | 'en' | 'mixed' {
+  const han = sentence.match(/\p{Script=Han}/gu)?.length ?? 0
+  const letters = sentence.match(/[A-Za-z]/g)?.length ?? 0
+  const words = sentence.match(/[A-Za-z]+(?:['’-][A-Za-z]+)*/g)?.length ?? 0
+  if (han === 0 && words >= 4 && letters >= 20) return 'en'
+  if (letters < 3 && han > 0) return 'zh'
+  return 'mixed'
+}
+
+/**
+ * Whole English sentences go to an English voice and whole Chinese sentences
+ * to a Chinese one. Sentences that mix both stay with the primary voice:
+ * Kokoro v1.1-zh is trained on mixed text, and switching voices inside one
+ * sentence would jump timbre and pacing mid-clause.
+ */
+export function planKokoroSpeechSegments(
+  text: string,
+  primaryVoice: string,
+  englishVoice: string
+): KokoroSpeechSegment[] {
+  const primaryIsChinese = VOICES.find((voice) => voice.id === primaryVoice)?.locale === 'zh-CN'
+  const segments: KokoroSpeechSegment[] = []
+  for (const sentence of splitSentences(text)) {
+    const kind = sentenceKind(sentence)
+    let voice = primaryVoice
+    if (primaryIsChinese && kind === 'en') voice = englishVoice
+    else if (!primaryIsChinese && (kind === 'zh' || kind === 'mixed')) voice = DEFAULT_CHINESE_VOICE
+    const last = segments.at(-1)
+    if (last && last.voice === voice) last.text += `\n${sentence}`
+    else segments.push({ text: sentence, voice })
+  }
+  return segments.length > 0 ? segments : [{ text, voice: primaryVoice }]
+}
 
 export function kokoroTtsSupport(environment: VoiceEnvironment) {
   if (!['darwin', 'linux', 'win32'].includes(environment.platform)) return VoiceModelSupport.UnsupportedPlatform
@@ -107,6 +171,12 @@ export function createKokoroSpeechModel(options: SpeechOptions): SpeechModelV3 {
         throw new VoiceRuntimeError('invalid_request')
       const status = getKokoroTtsStatus(input.abortSignal)
       if (status.status !== 'ready') throw new VoiceRuntimeError(status.reason ?? 'model_required')
+      const primaryVoice = VOICES[speaker].id
+      const englishVoice = DEFAULT_ENGLISH_VOICE[language] ?? 'af_maple'
+      const segments = planKokoroSpeechSegments(input.text, primaryVoice, englishVoice).map((segment) => ({
+        text: segment.text,
+        voice: String(VOICES.findIndex((voice) => voice.id === segment.voice))
+      }))
       return withScratch(
         async (directory) => {
           const outputPath = join(directory, 'speech.wav')
@@ -117,7 +187,7 @@ export function createKokoroSpeechModel(options: SpeechOptions): SpeechModelV3 {
               .get('TtsInferenceService')
               .synthesize(
                 KOKORO_TTS_BUNDLE_ID,
-                { text: input.text, voice: String(speaker), language, speed, outputPath },
+                { text: input.text, voice: String(speaker), language, speed, outputPath, segments },
                 signal
               )
           } catch (error) {
@@ -158,7 +228,10 @@ export const kokoroSpeechDefinition: SpeechModelDefinition = {
   getDefaultVoice: async (language, signal) => {
     checkAbort(signal)
     if (language && !LANGUAGES.some((locale) => locale === language)) return null
-    return VOICES.find((voice) => voice.locale === language) ?? VOICES[0]
+    const preferred = language
+      ? DEFAULT_VOICE_ORDER[language]?.map((id) => VOICES.find((voice) => voice.id === id)).find(Boolean)
+      : undefined
+    return preferred ?? VOICES.find((voice) => !language || voice.languages?.includes(language)) ?? VOICES[0]
   },
   download: () =>
     application
