@@ -10,7 +10,7 @@ An MXC launch or exit that never settles leaves output queues open after incompl
 
 ## Decision
 
-Incomplete lease cleanup closes both output queues, preserves buffered bytes, and reports `OUTPUT_TRUNCATED`. The manager retains the failed instance and SDK resources for cleanup retries. Only an actual target exit triggers the `exited` path; preparation and spawn failures preserve their original readiness error and `startup-error` completion reason.
+Termination and cleanup have independent error handling: an SDK `kill()` exception must not bypass bounded output cleanup or strand consumers. Incomplete lease cleanup closes both output queues, preserves buffered bytes, and reports `OUTPUT_TRUNCATED`. The manager retains the failed instance and SDK resources for cleanup retries. Only an actual target exit triggers the `exited` path; preparation and spawn failures preserve their original readiness error and `startup-error` completion reason.
 
 After confirmed exit, output collection and consumption continue until both pipes reach EOF and their queues drain, bounded by the smaller of `ioDrainTimeoutMs` and `cleanupTimeoutMs`. Only then are SDK streams disposed. Premature pipe closure, output-budget drops, or deadline expiry report `OUTPUT_TRUNCATED`, including when no bytes remain buffered.
 
@@ -29,6 +29,6 @@ Output after incomplete cleanup is intentionally unavailable; this does not impl
 
 ## Verification
 
-- Regression — `packages/sandbox/tests/contracts/lease.test.ts` covers preparation and SDK spawn errors, stalled preparation, bounded output collection, buffered output, and cleanup retries after exit. It also uses the installed SDK's real `MxcProcess` with controlled native-driver streams to verify late stdout/stderr, premature closure, unread buffers, and drain/cleanup deadlines.
+- Regression — `packages/sandbox/tests/contracts/lease.test.ts` covers preparation and SDK spawn errors, stalled preparation, bounded output collection, buffered output, and cleanup retries after exit. A throwing native kill under the real SDK verifies that collection settles with truncation while the instance stays failed and can later stop successfully without replacing its original completion. It also uses the installed SDK's real `MxcProcess` with controlled native-driver streams to verify late stdout/stderr, premature closure, unread buffers, and drain/cleanup deadlines.
 - Regression — `packages/sandbox/tests/contracts/peer.test.ts` uses real JSON-RPC stream connections to verify timeout/cancellation saturation, late-response recovery, pre-cancelled requests, disconnect settlement, and timer bounds.
 - Regression — existing `tests/cli.test.ts`, `tests/rpc.test.ts`, `tests/contracts/instance.test.ts`, and `tests/contracts/manager.test.ts` in the sandbox package pass on macOS, including Node/Python callbacks. The unsupported-platform case is skipped on this supported host; Windows execution is not validated in this change.

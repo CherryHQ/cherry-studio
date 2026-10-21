@@ -127,7 +127,7 @@ it('preserves buffered output on incomplete stop and disposes the process only a
   }
 })
 
-async function sdkProcess(limits: Partial<ReturnType<typeof spec>['limits']> = {}) {
+async function sdkProcess(limits: Partial<ReturnType<typeof spec>['limits']> = {}, kill = () => {}) {
   const { MxcProcess } = await vi.importActual<typeof mxc>('@microsoft/mxc-sdk/v1')
   const input = new PassThrough()
   const output = new PassThrough()
@@ -143,6 +143,7 @@ async function sdkProcess(limits: Partial<ReturnType<typeof spec>['limits']> = {
     warnings: () => [],
     outputMetadata: () => undefined,
     kill() {
+      kill()
       running = false
     },
     killForTimeout() {
@@ -173,6 +174,50 @@ async function sdkProcess(limits: Partial<ReturnType<typeof spec>['limits']> = {
     }
   }
 }
+
+it('ends collection after SDK kill throws and retains the instance for a successful retry', async () => {
+  vi.useFakeTimers()
+  let killFails = true
+  const process = await sdkProcess({}, () => {
+    if (killFails) throw new Error('Native kill failed')
+  })
+  process.output.write('partial stdout')
+  process.errors.write('partial stderr')
+  let collected: string[] | undefined
+  const output = Promise.all([readAll(process.instance.stdout), readAll(process.instance.stderr)])
+  void output.then((value) => {
+    collected = value
+  })
+  try {
+    const first = await process.instance.stop()
+    await vi.advanceTimersByTimeAsync(process.request.limits.cleanupTimeoutMs)
+    expect(first).toMatchObject({ tree: 'unknown', cleanup: 'incomplete' })
+    expect(first.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'CLEANUP_FAILED' }),
+        expect.objectContaining({ code: 'OUTPUT_TRUNCATED' })
+      ])
+    )
+    expect(collected).toEqual(['partial stdout', 'partial stderr'])
+    expect(process.output.destroyed).toBe(false)
+    expect(process.instance.snapshot().state).toBe('failed')
+    killFails = false
+    const retried = process.instance.stop()
+    await vi.advanceTimersByTimeAsync(process.request.limits.stopTimeoutMs + process.request.limits.cleanupTimeoutMs)
+    expect(await retried).toMatchObject({ tree: 'unverified', cleanup: 'complete' })
+    expect(process.instance.snapshot().state).toBe('stopped')
+    expect(process.output.destroyed).toBe(true)
+    expect(await process.instance.completion).toBe(first)
+  } finally {
+    killFails = false
+    const stopped = process.instance.stop()
+    await vi.advanceTimersByTimeAsync(process.request.limits.stopTimeoutMs + process.request.limits.cleanupTimeoutMs)
+    await stopped
+    process.output.destroy()
+    process.errors.destroy()
+    await output
+  }
+})
 
 it.each(['before', 'after'])('reports CLI output overflow as 124 %s root exit', async (ordering) => {
   vi.useFakeTimers()

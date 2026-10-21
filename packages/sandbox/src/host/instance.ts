@@ -32,9 +32,13 @@ export function createInstance(
       let cleanup: Awaited<ReturnType<BackendLease['cleanup']>> = { status: 'incomplete', issues: [] }
       try {
         tree = await lease.terminate({ graceMs: spec.limits.stopGraceMs, timeoutMs: spec.limits.stopTimeoutMs })
+      } catch {
+        issues.push({ code: 'CLEANUP_FAILED', message: 'Backend termination failed' })
+      }
+      try {
         cleanup = await lease.cleanup({ timeoutMs: spec.limits.cleanupTimeoutMs })
       } catch {
-        issues.push({ code: 'CLEANUP_FAILED', message: 'Backend stop or cleanup failed' })
+        issues.push({ code: 'CLEANUP_FAILED', message: 'Backend cleanup failed' })
       }
       lastCompletion = {
         reason: reason,

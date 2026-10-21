@@ -74,7 +74,10 @@ The renderer cannot choose an executable, environment, owner or filesystem grant
 Only one run per managed window is allowed; stop affects that window's run.
 Window destruction and application shutdown cancel active runs. Completed cleanup
 removes temporary files; uncertain cleanup retains the directory and logs its path.
-Memory/process quotas are not enforced by this adapter.
+Source is staged as a CommonJS file inside the per-run workspace, keeping accepted
+32,768-character scripts out of the Windows command line. The file follows workspace
+cleanup: uncertain cleanup retains it with the workspace. Memory/process quotas are
+not enforced by this adapter.
 
 The package builds during installation. Rebuild it after editing sandbox source:
 `pnpm --filter @cherrystudio/sandbox build`. Windows packaging unpacks the MXC SDK
@@ -130,6 +133,8 @@ I/O. Start returns an instance with `ready`, `completion`, `stop` and `snapshot`
 `dispose()` stops all owned instances. After target exit, stdout/stderr collection
 continues through EOF and queue consumption, bounded by the smaller of
 `ioDrainTimeoutMs` and `cleanupTimeoutMs`; SDK streams are disposed afterward.
+When termination cannot be confirmed, bounded output cleanup still ends collection
+with `OUTPUT_TRUNCATED`; the unresolved instance remains owned for a stop retry.
 Early closure, output-budget drops, or drain deadline expiry produce
 `OUTPUT_TRUNCATED`, even when no output remains buffered.
 

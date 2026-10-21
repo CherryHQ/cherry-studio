@@ -23,7 +23,7 @@ sources:
 
 包仍为 private `0.0.1`，已由 Cherry Electron 主进程的 `SandboxService` 托管。设置 → 关于中的沙箱诊断入口通过类型化 IPC 提供环境检测、JavaScript 执行和停止。Electron 44.7.0 内置 Node 24.21.0，满足 Windows 标准流要求。本文是当前实现说明；[design](./design.md)、[api](./api.md)保留更完整的设计目标，不代表这些目标已经实现。运行命令与示例见[包 README](../../packages/sandbox/README.md)。
 
-应用 IPC 固定使用内置 Electron 的 Node 模式，禁止网络，只授予运行时文件读取和单次临时目录写入，限制 30 秒及 64 KiB 输出。调用窗口身份来自主进程，不接受 renderer 指定权限、命令或 owner。每个窗口最多一个实例；停止、窗口销毁和应用退出均会取消运行。后端完成清理后删除临时目录，状态未知时保留并记录日志。当前后端不执行内存和进程数配额。SDK 与 Koffi 在打包时解包，通过 `MXC_FFI_DIR` 指向真实原生库目录。应用入口暂不提供 Python 或 RPC；双向 RPC 继续由独立包提供。
+应用 IPC 固定使用内置 Electron 的 Node 模式，禁止网络，只授予运行时文件读取和单次临时目录写入，限制 30 秒及 64 KiB 输出。调用窗口身份来自主进程，不接受 renderer 指定权限、命令或 owner。每个窗口最多一个实例；停止、窗口销毁和应用退出均会取消运行。源码写入单次临时目录中的 CommonJS 文件后执行，避免有效的 32,768 字符脚本超过 Windows 命令行长度限制。后端完成清理后删除脚本和临时目录，状态未知时保留并记录日志。当前后端不执行内存和进程数配额。SDK 与 Koffi 在打包时解包，通过 `MXC_FFI_DIR` 指向真实原生库目录。应用入口暂不提供 Python 或 RPC；双向 RPC 继续由独立包提供。
 
 ## 1. 进程与依赖边界
 

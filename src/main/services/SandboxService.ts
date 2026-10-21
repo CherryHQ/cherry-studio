@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { app } from 'electron'
@@ -35,7 +35,7 @@ export class SandboxService extends BaseService {
   }
 
   async probe(): Promise<OutputFor<'sandbox.probe'>> {
-    const spec = await this.createSpec('probe', application.getPath('feature.sandbox.temp'), '', 1000)
+    const spec = await this.createSpec('probe', application.getPath('feature.sandbox.temp'), ['-e', ''], 1000)
     const assessment = await this.manager.probe(spec)
     return {
       status: assessment.status,
@@ -73,7 +73,9 @@ export class SandboxService extends BaseService {
     const cwd = await mkdtemp(path.join(application.getPath('feature.sandbox.temp'), 'run-'))
     let removable = true
     try {
-      const spec = await this.createSpec(ownerId, cwd, input.code, input.timeoutMs)
+      const script = path.join(cwd, 'script.cjs')
+      await writeFile(script, input.code, { encoding: 'utf8', mode: 0o600 })
+      const spec = await this.createSpec(ownerId, cwd, ['--preserve-symlinks-main', script], input.timeoutMs)
       const instance = this.manager.start(spec, { signal })
       removable = false
       // Drain immediately: waiting for readiness first can deadlock a noisy guest.
@@ -94,7 +96,7 @@ export class SandboxService extends BaseService {
     }
   }
 
-  private async createSpec(ownerId: string, cwd: string, code: string, lifetimeMs: number) {
+  private async createSpec(ownerId: string, cwd: string, args: string[], lifetimeMs: number) {
     const executable = application.getPath('app.exe_file')
     const runtimeDir = path.dirname(executable)
     const read =
@@ -107,7 +109,7 @@ export class SandboxService extends BaseService {
       ownerId,
       environmentId: 'native',
       runtimeProfileId: 'mxc-command-v1',
-      command: { executable, args: ['-e', code], cwd, env: { ELECTRON_RUN_AS_NODE: '1', TEMP: cwd, TMP: cwd } },
+      command: { executable, args, cwd, env: { ELECTRON_RUN_AS_NODE: '1', TEMP: cwd, TMP: cwd } },
       filesystem: { read, write: [cwd], denyRead: [], denyWrite: [] },
       network: { mode: 'deny' },
       channel: 'none',
