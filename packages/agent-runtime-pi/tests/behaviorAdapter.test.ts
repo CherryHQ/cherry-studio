@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest'
 import {
   type ChildSpec,
   type ConversationFacts,
+  createScriptedHost,
   encodeEntry,
+  type HarnessPorts,
+  install,
   type Key,
   type MessageResult,
   type ToolDefinition,
@@ -88,6 +91,26 @@ const autoCompacting =
       compaction: { reserveTokens: 31_999, keepRecentTokens: 1, summarize: request.summarize },
       ...(onEvent && { onEvent })
     })
+/** The package itself, on a scripted host that lets every call run. */
+const installPackage = (ports: HarnessPorts): void => {
+  install(
+    ports,
+    createScriptedHost({
+      settings: {
+        goalDefaults: { maxGoalRounds: 8, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+        autonomy: 'auto',
+        permissionMode: 'auto',
+        attendance: 'stream',
+        maxBackground: 4,
+        offloadThreshold: 20_000
+      }
+    })
+  )
+}
+const spawnInBackground = {
+  text: '',
+  toolCalls: [{ name: 'subagent', args: { description: 'scan', prompt: 'scan the repo', background: true } }]
+}
 async function spawn(pi: PiHarness, parent: ThreadId, fork?: ChildSpec['fork']): Promise<ThreadId> {
   const { spawned } = await pi.harness.withCall(parent, (ports) =>
     ports.ledger.transact(parent, () => ({
@@ -581,6 +604,46 @@ describe('coding-agent behavior adapter', () => {
       outcome: 'completed',
       text: 'ran'
     })
+  })
+
+  // Catches a background child's report job starting before the child's session is built: its message fails as sent
+  // to a child still launching, so the child never runs and the parent never hears of it (H1, H4).
+  it('runs a background child whose session takes a while to build', async () => {
+    const children: ThreadId[] = []
+    const pi: PiHarness = await openPiHarness(installPackage, [], async (request, open) => {
+      if (request.child) {
+        const child = runtimeId<'thread'>(request.sessionManager.getSessionId())
+        children.push(child)
+        pi.harness.script(child, [{ text: 'found 3 files' }])
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
+      return open(request)
+    })
+    const parent = await pi.harness.createThread()
+    pi.harness.script(parent, [spawnInBackground, { text: 'waiting' }, { text: 'read the report' }])
+    await pi.harness.sendUser(parent, 'go')
+    await pi.harness.settle()
+    const facts = await read(pi, parent)
+    expect(pi.errors).toEqual([])
+    expect(facts.children.get(children[0])?.runUsage).toHaveLength(1)
+    const notified = facts.history.filter(
+      (entry) => entry.kind === 'marker' && entry.marker.type === 'subagent-notification'
+    )
+    expect(notified).toEqual([expect.objectContaining({ text: expect.stringContaining('found 3 files') })])
+  })
+
+  // Catches a report job whose child failed to build never settling, or failing as an unhandled rejection instead of
+  // through onError, or the child staying in the parent's children (D3).
+  it('fails the report job of a background child whose session failed to build', async () => {
+    const pi = await openPiHarness(installPackage, [], (request, open) =>
+      request.child ? Promise.reject(new Error('build failed')) : open(request)
+    )
+    const parent = await pi.harness.createThread()
+    pi.harness.script(parent, [spawnInBackground, { text: 'went on' }])
+    await pi.harness.sendUser(parent, 'go')
+    await pi.harness.settle()
+    expect((await read(pi, parent)).children.size).toBe(0)
+    expect(pi.errors).toEqual([expect.objectContaining({ message: expect.stringContaining('Unknown thread') })])
   })
 
   // Catches a root session that fails to build staying in the conversation table: opening it again reports it as
