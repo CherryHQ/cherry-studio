@@ -10,9 +10,9 @@ describe('mediaFfmpegProcess runtime paths', () => {
     const root = path.join('/mock/app.root.resources.binaries', platformKey)
     if (process.platform === 'linux') {
       expect(mediaFfmpegProcess.createInitData?.()).toEqual({
-        ffmpegPath: '/mock/feature.file_processing.ffmpeg.bin/ffmpeg',
-        ffprobePath: '/mock/feature.file_processing.ffmpeg.bin/ffprobe',
-        linuxLibraryDir: '/mock/feature.file_processing.ffmpeg.lib'
+        ffmpegPath: '/mock/cherry.bin.ffmpeg.bin/ffmpeg',
+        ffprobePath: '/mock/cherry.bin.ffmpeg.bin/ffprobe',
+        linuxLibraryDir: '/mock/cherry.bin.ffmpeg.lib'
       })
       return
     }
@@ -29,9 +29,9 @@ describe('mediaFfmpegProcess runtime paths', () => {
     Object.defineProperty(process, 'platform', { value: 'linux' })
     try {
       expect(mediaFfmpegProcess.createInitData?.()).toEqual({
-        ffmpegPath: '/mock/feature.file_processing.ffmpeg.bin/ffmpeg',
-        ffprobePath: '/mock/feature.file_processing.ffmpeg.bin/ffprobe',
-        linuxLibraryDir: '/mock/feature.file_processing.ffmpeg.lib'
+        ffmpegPath: '/mock/cherry.bin.ffmpeg.bin/ffmpeg',
+        ffprobePath: '/mock/cherry.bin.ffmpeg.bin/ffprobe',
+        linuxLibraryDir: '/mock/cherry.bin.ffmpeg.lib'
       })
     } finally {
       if (original) Object.defineProperty(process, 'platform', original)
