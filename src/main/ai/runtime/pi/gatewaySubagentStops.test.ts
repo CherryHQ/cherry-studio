@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 
 import type { SubagentPort } from '@cherrystudio/agent-runtime-pi'
 
-import type { AiSdkModel } from './aiSdkModelBinding'
 import {
   noteTool,
   outputText,
@@ -15,8 +14,9 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './aiSdkSubagentSupport'
-import { createTestSession, finish, lastAssistant, MODEL, streamTextPort, textParts } from './aiSdkSupport'
+} from './gatewaySubagentSupport'
+import type { TestModel } from './gatewaySupport'
+import { createTestSession, finish, lastAssistant, MODEL, gatewayModel, textParts } from './gatewaySupport'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const upstreamError = { type: 'error' as const, error: new Error('upstream exploded') }
@@ -39,7 +39,7 @@ describe('subagent stops', () => {
         : [upstreamError]
     )
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: recordingSubagentPort().port
     })
@@ -58,7 +58,7 @@ describe('subagent stops', () => {
   it('reports a subagent cut off by its output limit as truncated', async () => {
     const { model } = delegate(() => [...textParts('h', 'HALF-A'), finish('length')])
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: recordingSubagentPort().port
     })
 
@@ -83,14 +83,14 @@ describe('subagent stops', () => {
         : [...textParts('d', 'Done'), finish('stop')]
     })
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       subagents: recordingSubagentPort().port
     })
 
     await session.prompt('Check modules A and B')
 
     const [a, b] = toolResults(calls.at(-1)!)
-    expect(a.output.type).toBe('error-text')
+    expect(a.output.type).toBe('text')
     expect(outputText(b.output)).toBe('REPORT-B')
   })
 
@@ -124,7 +124,7 @@ describe('subagent stops', () => {
       ]
     }))
     const runtime = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [waitTool],
       subagents: host.port
     })
@@ -152,7 +152,7 @@ describe('subagent stops', () => {
         }
       ]
     }))
-    const runtime = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const runtime = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     parent.session = runtime.session
 
     await runtime.session.prompt('Delegate the check')
@@ -169,7 +169,7 @@ describe('subagent stops', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
       return {}
     })
-    const runtime = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const runtime = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
     parent.session = runtime.session
 
     await runtime.session.prompt('Delegate the check')
@@ -186,12 +186,12 @@ describe('subagent stops', () => {
       }
     }
     const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: port })
 
     await session.prompt('Delegate the check')
 
     const [result] = toolResults(calls.at(-1)!)
-    expect(result.output.type).toBe('error-text')
+    expect(result.output.type).toBe('text')
     expect(outputText(result.output)).toContain('no workspace for subagents')
     expect(lastAssistant(session).stopReason).toBe('stop')
   })
@@ -200,7 +200,7 @@ describe('subagent stops', () => {
     let next = 0
     const { model, calls } = delegate(() => [toolCallPart(`note_${++next}`, 'note'), finish('tool-calls')])
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       tools: [noteTool],
       subagents: recordingSubagentPort().port
     })
@@ -248,7 +248,7 @@ describe('subagent stops', () => {
         ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
         : [...textParts('d', 'Done'), finish('stop')]
     })
-    const { port, requests } = streamTextPort(model)
+    const { upstream: port, requests } = gatewayModel(model)
     const { session } = await createTestSession({
       port,
       model: { ...MODEL, contextWindow: 9_000 },
@@ -280,7 +280,7 @@ describe('subagent stops', () => {
         }
       ]
     }))
-    const { session } = await createTestSession({ port: streamTextPort(model).port, subagents: host.port })
+    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
 
     await session.prompt('Delegate the check')
 
@@ -306,7 +306,7 @@ describe('subagent stops', () => {
       next++
       return [toolCallPart(`step_${next}`, next === 1 ? 'build' : 'note'), finish('tool-calls')]
     })
-    const { port, requests } = streamTextPort(model)
+    const { upstream: port, requests } = gatewayModel(model)
     const { session } = await createTestSession({
       port,
       // A cache lifetime Pi keeps warm (11 s, refreshed after 1 s) and a price that makes warming pay.
@@ -314,7 +314,7 @@ describe('subagent stops', () => {
         ...MODEL,
         promptCache: { short: 11 },
         cost: { input: 10_000, output: 0, cacheRead: 0, cacheWrite: 0 }
-      } as AiSdkModel,
+      } as TestModel,
       tools: [buildTool, noteTool],
       subagents: recordingSubagentPort().port
     })
