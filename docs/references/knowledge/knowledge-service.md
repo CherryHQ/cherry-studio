@@ -284,10 +284,12 @@ first identity through reconnect after interrupted initial authorization.
 ### Credential replacement and recovery
 
 Reconnect stages a new opaque credential reference while retaining the old
-reference, application metadata, identity, and credential bytes. After token,
+reference, application metadata, identity, and credential bytes. A connected
+Connection stays usable while optional consent is pending; cancellation and
+transient failures do not invalidate it or pause its Sources. After token,
 scope, and identity validation, the runtime writes the complete candidate entry,
 then switches the Connection through a SQLite compare-and-swap on the expected
-old reference. The owning reauthorization transaction also restores dependent
+old reference in connected or reauthorization-required state. The owning reauthorization transaction also restores dependent
 Source and schedule eligibility as described above. A stale or deleted Connection
 cannot commit; generation checks fence every awaited operation. After commit,
 the runtime re-keys its credential state and best-effort revokes and removes the
@@ -296,7 +298,8 @@ old entry.
 Before commit, cancellation, authorization failure, identity mismatch, or a
 compare-and-swap miss discards the candidate and preserves the old credential.
 A failed initial authorization also removes its persisted pending, unreferenced
-Connection before credential commit while that generation is current; a
+Connection before credential commit only while its cleanup generation, runtime
+state, and persisted reference still belong to that session after awaited cleanup; a
 reconnect failure preserves the existing account.
 
 Startup reconciles referenced credentials and removes valid unreferenced entries
@@ -322,9 +325,11 @@ startup and tracked operations before clearing runtime state.
 
 The credential store requires Electron encryption availability and, on Linux,
 a supported keyring backend; `basic_text` and `unknown` are rejected. It uses
-`atomicWriteFile` with file mode `0600` and directory mode `0700`.
+`atomicWriteFile` with file mode `0600` and enforces directory mode `0700` on
+POSIX writes, including previously created directories.
 
-Registration checks HTTP success and validates non-empty response fields without
+Registration accepts recognized polling error statuses on HTTP 400 for poll
+requests, rejects other unsuccessful responses, and validates non-empty response fields without
 exposing provider bodies in errors or logs. It prefers positive integer
 `expire_in`, accepts `expires_in`, and otherwise uses 600 seconds; the polling
 interval defaults to 5 seconds. One registration deadline covers delays and

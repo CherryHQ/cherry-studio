@@ -44,7 +44,7 @@ export type RegistrationVerificationOptions = {
   }
 }
 
-type PollStatus = 'authorization_pending' | 'slow_down' | 'access_denied' | 'expired_token'
+const pollStatusSchema = z.enum(['authorization_pending', 'slow_down', 'access_denied', 'expired_token'])
 
 const registrationResponseSchema = z.record(z.string(), z.unknown())
 const registrationBeginSchema = z.object({
@@ -106,15 +106,18 @@ async function postRegistration(
     throw new Error('Feishu app registration request failed')
   }
 
-  if (!response.ok) throw new Error('Feishu app registration request failed')
-
+  let body: Record<string, unknown>
   try {
-    const parsed = registrationResponseSchema.safeParse(JSON.parse(text))
-    if (!parsed.success) throw new Error()
-    return parsed.data
+    body = registrationResponseSchema.parse(JSON.parse(text))
   } catch {
-    throw new Error('Invalid response from Feishu app registration')
+    throw new Error(
+      response.ok ? 'Invalid response from Feishu app registration' : 'Feishu app registration request failed'
+    )
   }
+  const pollingStatus =
+    params.action === 'poll' && response.status === 400 && pollStatusSchema.safeParse(body.error).success
+  if (!response.ok && !pollingStatus) throw new Error('Feishu app registration request failed')
+  return body
 }
 
 export async function registrationBegin(
@@ -176,7 +179,7 @@ export async function registrationPoll(
       }
 
       const error = typeof response.error === 'string' ? response.error : ''
-      switch (error as PollStatus) {
+      switch (error) {
         case 'authorization_pending':
           continue
         case 'slow_down':

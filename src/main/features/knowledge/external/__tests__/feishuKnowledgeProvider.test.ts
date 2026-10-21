@@ -94,7 +94,7 @@ describe('feishuKnowledgeProvider', () => {
     await expect(
       kind === 'node'
         ? getWikiNode(authorization, { token: 'wiki-node', objType: 'wiki' })
-        : listWikiChildNodes(authorization, 'space-id', undefined)
+        : listWikiChildNodes(authorization, 'space-id', 'root-node')
     ).rejects.toMatchObject({ code: 'app-scope-missing', terminal: true })
   })
 
