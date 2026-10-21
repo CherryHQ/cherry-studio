@@ -55,12 +55,18 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, values?: Record<string, unknown>) =>
-      key === 'settings.doctor.report.check_description' ? `${String(values?.title)} [${String(values?.checkId)}]` : key
-  })
-}))
+vi.mock('react-i18next', () => {
+  const t = (key: string, values?: Record<string, unknown>) => {
+    if (key === 'settings.doctor.report.check_description')
+      return `${String(values?.title)} [${String(values?.checkId)}]`
+    if (key === 'settings.doctor.report.matched_rule_ids') {
+      if (typeof values?.ruleIds !== 'string') throw new Error('Missing ruleIds interpolation')
+      return `Matched rule IDs: ${values.ruleIds}`
+    }
+    return key
+  }
+  return { useTranslation: () => ({ t }) }
+})
 
 import { useDoctorController } from '../useDoctorController'
 
@@ -117,6 +123,32 @@ function completedWithSensitiveEvidence(): Extract<DoctorState, { status: 'compl
     }
   }
 }
+
+function completedLogs(runId = 'completed-run', ruleIds = 'chat-stream-error, mcp-connection-closed'): DoctorState {
+  const state = completedDoctorState()
+  if (state.status !== 'completed') throw new Error('Expected completed state')
+  return {
+    ...state,
+    report: {
+      ...state.report,
+      runId,
+      results: [
+        {
+          id: 'logs-recent-findings',
+          status: 'warn',
+          durationMs: 1,
+          attribution: 'app-bug',
+          detail: { variant: 'findings' },
+          actions: [{ kind: 'report' }],
+          evidence: [{ key: 'ruleIds', value: ruleIds, dataClass: 'public' }]
+        }
+      ]
+    }
+  }
+}
+
+const logsDescription =
+  'settings.doctor.checks.logs-recent-findings.title [logs-recent-findings]\nMatched rule IDs: chat-stream-error, mcp-connection-closed'
 
 describe('useDoctorController', () => {
   beforeEach(() => {
@@ -287,6 +319,135 @@ describe('useDoctorController', () => {
       'settings.doctor.checks.logs-recent-findings.title [logs-recent-findings]'
     )
     expect(result.current.session.activePanel).toBe('checks')
+  })
+
+  it.each([false, true])('includes completed warning rule IDs with callback=%s', async (embedded) => {
+    mocks.doctorState = completedLogs()
+    const onNavigate = vi.fn()
+    const onReportProblem = embedded ? vi.fn() : undefined
+    const { result } = renderHook(() =>
+      useDoctorController({
+        subject: { kind: 'global' },
+        initialPanel: 'checks',
+        onNavigate,
+        onReportProblem
+      })
+    )
+    await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'completed-run'))
+    if (onReportProblem) {
+      expect(onReportProblem).toHaveBeenCalledWith(logsDescription)
+      expect(result.current.session.activePanel).toBe('checks')
+    } else {
+      expect(result.current.session.descriptionDraft).toBe(logsDescription)
+      expect(result.current.session.activePanel).toBe('report')
+    }
+  })
+
+  it.each([false, true])('appends rule IDs to a written draft with callback=%s', async (embedded) => {
+    mocks.doctorState = completedLogs()
+    const onNavigate = vi.fn()
+    const onReportProblem = embedded ? vi.fn() : undefined
+    const { result } = renderHook(() =>
+      useDoctorController({
+        subject: { kind: 'global' },
+        initialPanel: 'checks',
+        initialDescription: '  App freezes.  ',
+        onNavigate,
+        onReportProblem
+      })
+    )
+    await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'completed-run'))
+    const expected = `App freezes.\n\n${logsDescription}`
+    if (onReportProblem) expect(onReportProblem).toHaveBeenCalledWith(expected)
+    else {
+      expect(result.current.session.descriptionDraft).toBe(expected)
+      expect(result.current.session.activePanel).toBe('report')
+    }
+  })
+
+  it('uses the replacement run and rejects an action from the old run', async () => {
+    mocks.doctorState = completedLogs('run-A', 'chat-stream-error')
+    const onNavigate = vi.fn()
+    const onReportProblem = vi.fn()
+    const { result, rerender } = renderHook(() =>
+      useDoctorController({
+        subject: { kind: 'global' },
+        initialPanel: 'checks',
+        onNavigate,
+        onReportProblem
+      })
+    )
+    mocks.doctorState = completedLogs('run-B', 'mcp-connection-closed')
+    rerender()
+    await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'run-A'))
+    expect(mocks.toastError).toHaveBeenCalledWith('settings.doctor.messages.result_changed')
+    expect(onReportProblem).not.toHaveBeenCalled()
+    expect(result.current.session.descriptionDraft).toBe('')
+    expect(result.current.session.activePanel).toBe('checks')
+    await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'run-B'))
+    expect(onReportProblem).toHaveBeenCalledWith(
+      'settings.doctor.checks.logs-recent-findings.title [logs-recent-findings]\nMatched rule IDs: mcp-connection-closed'
+    )
+  })
+
+  it('rejects an old logs report run without changing a normal panel draft', async () => {
+    mocks.doctorState = completedLogs('run-B')
+    const onNavigate = vi.fn()
+    const { result } = renderHook(() =>
+      useDoctorController({
+        subject: { kind: 'global' },
+        initialPanel: 'checks',
+        initialDescription: '  App freezes.  ',
+        onNavigate
+      })
+    )
+    await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'run-A'))
+    expect(mocks.toastError).toHaveBeenCalledWith('settings.doctor.messages.result_changed')
+    expect(result.current.session.descriptionDraft).toBe('  App freezes.  ')
+    expect(result.current.session.activePanel).toBe('checks')
+  })
+
+  it.each([false, true])('keeps other checks on the legacy path with callback=%s', async (embedded) => {
+    for (const draft of ['', '  App freezes.  ']) {
+      mocks.doctorState = completedLogs()
+      const onNavigate = vi.fn()
+      const onReportProblem = embedded ? vi.fn() : undefined
+      const { result, unmount } = renderHook(() =>
+        useDoctorController({
+          subject: { kind: 'global' },
+          initialPanel: 'checks',
+          initialDescription: draft,
+          onNavigate,
+          onReportProblem
+        })
+      )
+      await act(async () => result.current.executeAction('install-native-modules', { kind: 'report' }, 'older-run'))
+      const template = 'settings.doctor.checks.install-native-modules.title [install-native-modules]'
+      if (onReportProblem) expect(onReportProblem).toHaveBeenCalledWith(draft.trim() || template)
+      else {
+        expect(result.current.session.descriptionDraft).toBe(draft || template)
+        expect(result.current.session.activePanel).toBe('report')
+      }
+      unmount()
+    }
+  })
+
+  it('rejects a supplied logs run when no current run exists', async () => {
+    const onNavigate = vi.fn()
+    const onReportProblem = vi.fn()
+    const { result } = renderHook(() =>
+      useDoctorController({
+        subject: { kind: 'global' },
+        initialPanel: 'report',
+        onNavigate,
+        onReportProblem
+      })
+    )
+    await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'old-run'))
+    expect(mocks.toastError).toHaveBeenCalledWith('settings.doctor.messages.result_changed')
+    expect(onReportProblem).not.toHaveBeenCalled()
+    expect(result.current.session.descriptionDraft).toBe('')
+    expect(result.current.session.activePanel).toBe('report')
   })
 
   it('releases evidence confirmation when another window replaces the run and clears the finding', () => {

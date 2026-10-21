@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "ส่งออกชุดข้อมูลวินิจฉัย",
   "settings.doctor.panels.report": "รายงานปัญหา",
   "settings.doctor.report.check_description": "การวินิจฉัยระบบพบปัญหาใน {{title}} ({{checkId}})",
+  "settings.doctor.report.matched_rule_ids": "ID กฎที่ตรงกัน: {{ruleIds}}",
   "settings.doctor.stale.description": "ผลการวินิจฉัยนี้ล้าสมัยแล้ว",
   "settings.doctor.status.error": "ตรวจไม่ได้",
   "settings.doctor.status.fail": "มีปัญหา",

@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "匯出診斷包",
   "settings.doctor.panels.report": "問題上報",
   "settings.doctor.report.check_description": "系統診斷在「{{title}}」（{{checkId}}）中發現問題。",
+  "settings.doctor.report.matched_rule_ids": "命中規則 ID：{{ruleIds}}",
   "settings.doctor.stale.description": "此診斷結果已過期。",
   "settings.doctor.status.error": "無法檢查",
   "settings.doctor.status.fail": "存在問題",

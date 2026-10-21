@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "Exporter le paquet de diagnostic",
   "settings.doctor.panels.report": "Signaler un problème",
   "settings.doctor.report.check_description": "Le diagnostic système a détecté un problème dans {{title}} ({{checkId}}).",
+  "settings.doctor.report.matched_rule_ids": "Identifiants des règles correspondantes : {{ruleIds}}",
   "settings.doctor.stale.description": "Ce résultat de diagnostic est obsolète.",
   "settings.doctor.status.error": "Vérification impossible",
   "settings.doctor.status.fail": "Problème",

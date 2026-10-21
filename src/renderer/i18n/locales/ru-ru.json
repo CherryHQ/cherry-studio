@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "Экспортировать диагностический пакет",
   "settings.doctor.panels.report": "Сообщить о проблеме",
   "settings.doctor.report.check_description": "Диагностика системы обнаружила проблему в проверке «{{title}}» ({{checkId}}).",
+  "settings.doctor.report.matched_rule_ids": "Идентификаторы сработавших правил: {{ruleIds}}",
   "settings.doctor.stale.description": "Этот результат диагностики устарел.",
   "settings.doctor.status.error": "Не удалось проверить",
   "settings.doctor.status.fail": "Проблема",

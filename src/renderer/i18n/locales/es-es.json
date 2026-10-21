@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "Exportar paquete de diagnóstico",
   "settings.doctor.panels.report": "Informar de un problema",
   "settings.doctor.report.check_description": "El diagnóstico del sistema encontró un problema en {{title}} ({{checkId}}).",
+  "settings.doctor.report.matched_rule_ids": "ID de las reglas coincidentes: {{ruleIds}}",
   "settings.doctor.stale.description": "Este resultado de diagnóstico está desactualizado.",
   "settings.doctor.status.error": "No se ha podido comprobar",
   "settings.doctor.status.fail": "Problema",

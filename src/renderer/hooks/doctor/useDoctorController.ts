@@ -8,7 +8,7 @@ import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { buildDoctorViewModel, canCancelDoctorRun } from '@renderer/utils/doctor'
+import { buildDoctorReportDescription, buildDoctorViewModel, canCancelDoctorRun } from '@renderer/utils/doctor'
 import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
@@ -291,18 +291,32 @@ export function useDoctorController({
             'Failed to relaunch Cherry Studio'
           )
           return
-        case 'report':
-          const reportDescription =
-            session.descriptionDraft.trim() ||
-            t('settings.doctor.report.check_description', {
-              checkId,
-              title: t(doctorCheckTitleKey(checkId))
-            })
+        case 'report': {
+          if (checkId === 'logs-recent-findings' && runId !== undefined && runId !== viewModel.runId) {
+            toast.error(t('settings.doctor.messages.result_changed'))
+            return
+          }
+          const checkDescription = t('settings.doctor.report.check_description', {
+            checkId,
+            title: t(doctorCheckTitleKey(checkId))
+          })
+          const matchingRows =
+            viewModel.status === 'completed'
+              ? viewModel.rows.filter((row) => row.id === checkId && row.result?.id === checkId)
+              : []
+          const enhancedDescription = buildDoctorReportDescription({
+            checkId,
+            result: matchingRows.length === 1 ? matchingRows[0].result : undefined,
+            descriptionDraft: session.descriptionDraft,
+            checkDescription,
+            formatRuleIds: (ruleIds) => t('settings.doctor.report.matched_rule_ids', { ruleIds })
+          })
+          const reportDescription = enhancedDescription ?? (session.descriptionDraft.trim() || checkDescription)
           if (onReportProblem) {
             onReportProblem(reportDescription)
             return
           }
-          if (session.descriptionDraft.trim().length === 0) {
+          if (enhancedDescription !== undefined || session.descriptionDraft.trim().length === 0) {
             dispatch({
               type: 'set-description',
               description: reportDescription
@@ -310,11 +324,24 @@ export function useDoctorController({
           }
           dispatch({ type: 'set-panel', panel: 'report' })
           return
+        }
         default:
           return assertNever(action)
       }
     },
-    [onNavigate, onReportProblem, performAction, performFix, scope, session.descriptionDraft, t, viewModel.isStale]
+    [
+      onNavigate,
+      onReportProblem,
+      performAction,
+      performFix,
+      scope,
+      session.descriptionDraft,
+      t,
+      viewModel.isStale,
+      viewModel.rows,
+      viewModel.runId,
+      viewModel.status
+    ]
   )
 
   const openPath = useCallback(

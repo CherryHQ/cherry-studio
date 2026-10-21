@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "Exportă pachetul de diagnosticare",
   "settings.doctor.panels.report": "Raportează o problemă",
   "settings.doctor.report.check_description": "Diagnosticarea sistemului a găsit o problemă la {{title}} ({{checkId}}).",
+  "settings.doctor.report.matched_rule_ids": "ID-urile regulilor identificate: {{ruleIds}}",
   "settings.doctor.stale.description": "Acest rezultat de diagnosticare este învechit.",
   "settings.doctor.status.error": "Nu s-a putut verifica",
   "settings.doctor.status.fail": "Problemă",

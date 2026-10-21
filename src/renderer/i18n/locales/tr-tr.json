@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "Tanılama paketini dışa aktar",
   "settings.doctor.panels.report": "Sorun bildir",
   "settings.doctor.report.check_description": "Sistem tanılaması {{title}} ({{checkId}}) denetiminde bir sorun buldu.",
+  "settings.doctor.report.matched_rule_ids": "Eşleşen kural kimlikleri: {{ruleIds}}",
   "settings.doctor.stale.description": "Bu tanılama sonucu güncel değil.",
   "settings.doctor.status.error": "Denetlenemedi",
   "settings.doctor.status.fail": "Sorun",

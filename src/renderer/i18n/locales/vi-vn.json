@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "Xuất gói chẩn đoán",
   "settings.doctor.panels.report": "Báo cáo sự cố",
   "settings.doctor.report.check_description": "Chẩn đoán hệ thống phát hiện sự cố trong {{title}} ({{checkId}}).",
+  "settings.doctor.report.matched_rule_ids": "ID quy tắc trùng khớp: {{ruleIds}}",
   "settings.doctor.stale.description": "Kết quả chẩn đoán này đã cũ.",
   "settings.doctor.status.error": "Không thể kiểm tra",
   "settings.doctor.status.fail": "Sự cố",

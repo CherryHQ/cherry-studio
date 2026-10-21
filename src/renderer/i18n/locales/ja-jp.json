@@ -4559,6 +4559,7 @@
   "settings.doctor.panels.export": "診断パッケージをエクスポート",
   "settings.doctor.panels.report": "問題を報告",
   "settings.doctor.report.check_description": "システム診断で「{{title}}」に問題が見つかりました（{{checkId}}）。",
+  "settings.doctor.report.matched_rule_ids": "一致したルール ID: {{ruleIds}}",
   "settings.doctor.stale.description": "この診断結果は古くなっています。",
   "settings.doctor.status.error": "検査できませんでした",
   "settings.doctor.status.fail": "問題あり",
