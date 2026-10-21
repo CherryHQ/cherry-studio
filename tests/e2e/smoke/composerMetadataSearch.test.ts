@@ -13,7 +13,6 @@ import { selectSidebarApp } from '../regression/navigation'
 import { expect, test as base } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
 
-const evidenceDirectory = '/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-22355/round-1/evidence'
 const skillName = 'metadata-pdf'
 const description = 'Read and analyze PDFs'
 
@@ -208,9 +207,12 @@ async function screenshot(page: Page, testInfo: TestInfo, name: string) {
   const filename = `${name}-${phase}.png`
   const output = testInfo.outputPath(filename)
   await page.screenshot({ path: output })
-  await mkdir(evidenceDirectory, { recursive: true })
-  await copyFile(output, path.join(evidenceDirectory, filename))
   await testInfo.attach(filename, { path: output, contentType: 'image/png' })
+  const evidenceDirectory = process.env.EVIDENCE_DIR // optional: mirror for the coordinator
+  if (evidenceDirectory) {
+    await mkdir(evidenceDirectory, { recursive: true })
+    await copyFile(output, path.join(evidenceDirectory, filename))
+  }
 }
 
 const panel = (page: Page) => page.getByTestId('quick-panel').filter({ visible: true })
