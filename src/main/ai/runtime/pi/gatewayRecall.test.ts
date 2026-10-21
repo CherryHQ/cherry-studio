@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AgentRuntimeEvent } from '@cherrystudio/agent-runtime-pi'
 
-import { createTestSession, finish, hostStore, plain, streamTextPort, textParts } from './aiSdkSupport'
+import { createTestSession, finish, hostStore, plain, gatewayModel, textParts } from './gatewaySupport'
 
 /** Agent requests follow `script`; requests without tools are Pi's own compaction summaries. */
 function respondingModel(script: (call: number) => LanguageModelV3StreamPart[]) {
@@ -52,7 +52,7 @@ describe('vcc_recall', () => {
         ][call - 1]
     )
     const { session } = await createTestSession({
-      port: streamTextPort(first.model).port,
+      port: gatewayModel(first.model).upstream,
       compaction: { reserveTokens: 16_384, keepRecentTokens: 1 },
       recall: true,
       onEvent: host.onEvent
@@ -72,7 +72,7 @@ describe('vcc_recall', () => {
     )
     const rebuiltHost = hostStore()
     const rebuilt = await createTestSession({
-      port: streamTextPort(second.model).port,
+      port: gatewayModel(second.model).upstream,
       recall: true,
       entries: plain(host.entries),
       onEvent: rebuiltHost.onEvent
@@ -111,7 +111,7 @@ describe('vcc_recall', () => {
         ][call - 1]
     )
     const { session } = await createTestSession({
-      port: streamTextPort(first.model).port,
+      port: gatewayModel(first.model).upstream,
       tools: [lookup],
       recall: true,
       onEvent
@@ -124,7 +124,7 @@ describe('vcc_recall', () => {
     const second = respondingModel((call) => [recall('recall_2', { expand: [index] }), reply('ok')][call - 1])
     const rebuiltHost = hostStore()
     const rebuilt = await createTestSession({
-      port: streamTextPort(second.model).port,
+      port: gatewayModel(second.model).upstream,
       tools: [lookup],
       recall: true,
       entries: [...committed],

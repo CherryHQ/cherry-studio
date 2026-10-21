@@ -9,21 +9,21 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { expect, it } from 'vitest'
 
-import { createTestSession, finish, plain, scriptedModel, streamTextPort, tempDir, textParts } from './aiSdkSupport'
+import { createTestSession, finish, plain, scriptedModel, gatewayModel, tempDir, textParts } from './gatewaySupport'
 
-it('reopens the native file with signed reasoning, cost, custom state and edited context intact', async () => {
+it('reopens the native file with native reasoning, cost, custom state and edited context intact', async () => {
   const cwd = tempDir('persistent-cwd')
   const manager = SessionManager.create(cwd, tempDir('sessions'), { id: 'persistent-session' })
   const first = scriptedModel([
     [
       { type: 'reasoning-start', id: 'r' },
       { type: 'reasoning-delta', id: 'r', delta: 'remember the name' },
-      { type: 'reasoning-end', id: 'r', providerMetadata: { anthropic: { signature: 'saved-signature' } } },
+      { type: 'reasoning-end', id: 'r' },
       ...textParts('t', 'Hi Li.'),
       finish('stop', 20, 10)
     ]
   ])
-  const earlier = await createTestSession({ cwd, sessionManager: manager, port: streamTextPort(first.model).port })
+  const earlier = await createTestSession({ cwd, sessionManager: manager, port: gatewayModel(first.model).upstream })
   await earlier.session.prompt('My name is Li.')
   const user = manager.getBranch().find((entry) => entry.type === 'message' && entry.message.role === 'user')!
   manager.appendCustomEntry('other.extension', { enabled: true })
@@ -46,7 +46,7 @@ it('reopens the native file with signed reasoning, cost, custom state and edited
   const restored = await createTestSession({
     cwd,
     sessionManager: opened,
-    port: streamTextPort(second.model).port,
+    port: gatewayModel(second.model).upstream,
     extensionFactories: [observeStart]
   })
   expect(seen).toContainEqual(
@@ -60,7 +60,7 @@ it('reopens the native file with signed reasoning, cost, custom state and edited
   const prompt = JSON.stringify(second.calls[0].prompt)
   expect(prompt).toContain('My name is Lin.')
   expect(prompt).not.toContain('My name is Li.')
-  expect(prompt).toContain('saved-signature')
+  expect(prompt).toContain('remember the name')
   expect(readFileSync(file, 'utf8').startsWith(persisted)).toBe(true)
 })
 
@@ -92,7 +92,7 @@ it('restores activated tools beside newly enabled tools from native state', asyn
   const earlier = await createTestSession({
     cwd,
     sessionManager: manager,
-    port: streamTextPort(first.model).port,
+    port: gatewayModel(first.model).upstream,
     tools: [weather],
     builtinTools: ['tool_search'],
     extensionFactories: [createToolSearchExtension()]
@@ -105,7 +105,7 @@ it('restores activated tools beside newly enabled tools from native state', asyn
   const restored = await createTestSession({
     cwd,
     sessionManager: SessionManager.open(manager.getSessionFile()!),
-    port: streamTextPort(second.model).port,
+    port: gatewayModel(second.model).upstream,
     tools: [weather, newTool],
     builtinTools: ['tool_search'],
     extensionFactories: [createToolSearchExtension()]
@@ -146,7 +146,7 @@ it('preserves image error results and tool usage without converting them to AI S
   const restored = await createTestSession({
     cwd,
     sessionManager: SessionManager.open(manager.getSessionFile()!),
-    port: streamTextPort(scriptedModel([]).model).port
+    port: gatewayModel(scriptedModel([]).model).upstream
   })
   const result = restored.session.messages.find((message) => message.role === 'toolResult')
   expect(result).toMatchObject({

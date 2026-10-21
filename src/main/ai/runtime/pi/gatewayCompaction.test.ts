@@ -1,14 +1,14 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { Type } from '@earendil-works/pi-ai'
+import { Type, normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { generateText, simulateReadableStream } from 'ai'
+import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
 import type { CompactionSummarizer, CompactionSummaryRequest } from '@cherrystudio/agent-runtime-pi'
 
-import { toModelMessages } from './aiSdkMessages'
 import {
+  createTestBinding,
   createTestSession,
   finish,
   hostStore,
@@ -20,6 +20,7 @@ import {
   tempDir,
   textParts
 } from './gatewaySupport'
+import { loadPiApiStreamSimple } from './piSdk'
 
 const PAGE_CHARS = 9_000 // ~2.6k tokens per tool result
 
@@ -76,8 +77,8 @@ function pageReader(timeline: string[]) {
   return { model, agentCalls }
 }
 
-describe('Pi compaction through the port', () => {
-  it('summarizes through the bridged model and sends the summary in place of the compacted history', async () => {
+describe('Pi compaction through the gateway', () => {
+  it('summarizes through the native provider and sends the summary in place of the compacted history', async () => {
     const { model, calls } = scriptedModel([
       [...textParts('a', 'Answer one.'), finish('stop')],
       [...textParts('b', 'Answer two.'), finish('stop')],
@@ -143,7 +144,7 @@ describe('Pi compaction through the port', () => {
     ])
     const next = scriptedModel([[...textParts('n', 'Next.'), finish('stop')]])
     const rebuilt = await createTestSession({
-      port: gatewayModel(next.model).port,
+      port: gatewayModel(next.model).upstream,
       model: { ...MODEL, contextWindow: 9_000 },
       tools: [fetchPage],
       entries: host.entries
@@ -180,7 +181,7 @@ describe('Pi compaction through the port', () => {
     await session.compact()
 
     const next = scriptedModel([[...textParts('n', 'ok'), finish('stop')]])
-    const rebuilt = await createTestSession({ port: gatewayModel(next.model).port, entries: host.entries })
+    const rebuilt = await createTestSession({ port: gatewayModel(next.model).upstream, entries: host.entries })
     await rebuilt.session.prompt('Third')
     const prompt = JSON.stringify(next.calls[0].prompt)
     expect(prompt).toMatch(/SUMMARY-MARKER/)
@@ -220,7 +221,7 @@ describe('Pi compaction through the port', () => {
 
     const next = scriptedModel([[...textParts('n', 'ok'), finish('stop')]])
     const transcript = plain(host.entries)
-    const rebuilt = await createTestSession({ cwd, port: gatewayModel(next.model).port, entries: transcript })
+    const rebuilt = await createTestSession({ cwd, port: gatewayModel(next.model).upstream, entries: transcript })
     await session.prompt('Third')
     await rebuilt.session.prompt('Third')
     expect(JSON.stringify(calls.at(-1)!.prompt)).not.toMatch(/QUESTION-ONE/)
@@ -269,7 +270,7 @@ describe('host summarizer', () => {
     expect(lastPrompt).not.toContain('My name is Li')
   })
 
-  it('hands the summarizer messages the AI SDK accepts, even after a reply that failed mid tool call', async () => {
+  it('hands the native summarizer replayable messages, even after a reply that failed mid tool call', async () => {
     const { model } = scriptedModel([
       [
         { type: 'tool-call', toolCallId: 'call_lost', toolName: 'fetch_page', input: '{"page":1}' },
@@ -277,27 +278,20 @@ describe('host summarizer', () => {
       ],
       [...textParts('a', 'Noted.'), finish('stop')]
     ])
-    const summaryModel = new MockLanguageModelV3({
-      doGenerate: async () => ({
-        content: [{ type: 'text', text: 'HOST-SUMMARY' }],
-        finishReason: { unified: 'stop', raw: 'stop' },
-        usage: {
-          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 1, text: 1, reasoning: undefined }
-        },
-        warnings: []
-      })
-    })
-    // A host summarizer that sends the messages as they are, with its own instruction.
-    const summarize: CompactionSummarizer = async ({ messages, model, signal }) =>
-      (
-        await generateText({
-          model: summaryModel,
-          messages: [...toModelMessages(messages, model), { role: 'user', content: 'Summarize the conversation.' }],
-          abortSignal: signal,
-          maxRetries: 0
-        })
-      ).text
+    const summaryModel = scriptedModel([[...textParts('summary', 'HOST-SUMMARY'), finish('stop')]])
+    const binding = await createTestBinding({ port: gatewayModel(summaryModel.model).upstream })
+    const stream = await loadPiApiStreamSimple('openai-completions')
+    const summarize: CompactionSummarizer = async ({ messages, signal }) => {
+      const result = await stream(
+        binding.model,
+        normalizeContext({
+          messages: [...messages, { role: 'user', content: 'Summarize the conversation.', timestamp: Date.now() }]
+        }),
+        { signal, apiKey: 'fixture', maxRetries: 0 }
+      ).result()
+      if (result.stopReason === 'error') throw new Error(result.errorMessage)
+      return result.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+    }
     const host = hostStore()
     const { session } = await createTestSession({
       port: gatewayModel(model).upstream,

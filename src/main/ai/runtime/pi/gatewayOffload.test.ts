@@ -17,10 +17,10 @@ import {
   lastAssistant,
   MODEL,
   plain,
-  streamTextPort,
+  gatewayModel,
   tempDir,
   textParts
-} from './aiSdkSupport'
+} from './gatewaySupport'
 
 const WINDOW = 9_000
 const tokensOf = (prompt: LanguageModelV3Prompt) => Math.ceil(JSON.stringify(prompt).length / 4)
@@ -95,7 +95,7 @@ describe('tool output offload', () => {
     const host = hostStore()
     const structured: unknown[] = []
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       model: { ...MODEL, contextWindow: WINDOW },
       tools: [dumpTable],
       offload: { store: fileStore(tempDir('offload')), thresholdChars: 20_000 },
@@ -149,7 +149,7 @@ describe('tool output offload', () => {
     const dir = tempDir('offload')
     const host = hostStore()
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       model: { ...MODEL, contextWindow: 100_000 },
       tools: [dumpTable, failing],
       builtinTools: ['read'],
@@ -181,7 +181,7 @@ describe('tool output offload', () => {
       }
     }
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       model: { ...MODEL, contextWindow: WINDOW },
       tools: [dumpTable],
       offload: { store, thresholdChars: 20_000 }
@@ -214,7 +214,7 @@ describe('tool output offload', () => {
         : [...textParts('t', 'Done.'), finish('stop')]
     )
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       model: { ...MODEL, contextWindow: 100_000 },
       tools: [listRecords],
       offload: { store: fileStore(tempDir('offload')), thresholdChars: 1_000 }
@@ -246,7 +246,7 @@ describe('tool output offload', () => {
     )
     const dir = tempDir('offload')
     const { session } = await createTestSession({
-      port: streamTextPort(model).port,
+      port: gatewayModel(model).upstream,
       model: { ...MODEL, contextWindow: 100_000 },
       tools: [echo],
       offload: { store: fileStore(dir), thresholdChars: 1_000 }
