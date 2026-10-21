@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { rmSync } from 'node:fs'
 
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
 import { buildSessionContext, convertToLlm, SessionManager } from '@earendil-works/pi-coding-agent'
@@ -33,6 +34,8 @@ type Applied = {
   /** Jobs the commit made live, for the caller to start. */
   readonly jobs: JobRecord[]
 }
+/** One operation, checked: `create` makes the storage a spawn needs, `write` applies the operation. */
+type Prepared = { readonly create?: () => SessionManager; readonly write: (applied: Applied) => void }
 
 /** H1 read: the whole branch as history, the run state Pi does not keep, direct children, and keys. */
 export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts {
@@ -74,7 +77,10 @@ export function readFacts(adapter: Adapter, thread: ThreadId): ConversationFacts
   }
 }
 
-/** H1 transact: reads, decides and writes in one synchronous section; an operation that cannot apply throws first. */
+/**
+ * H1 transact: reads, decides and writes in one synchronous section. Every operation is checked before any child's
+ * storage is created, and that storage before any write; a commit that throws on the way leaves no session file.
+ */
 export function commit<R extends JsonValue>(
   adapter: Adapter,
   thread: ThreadId,
@@ -82,19 +88,29 @@ export function commit<R extends JsonValue>(
   owner: Owner | undefined
 ): { readonly step: Step<R>; readonly applied: Applied } {
   const step = decide(readFacts(adapter, thread))
-  const writes = step.ops.map((op) => prepare(adapter, thread, op, owner))
+  const prepared = step.ops.map((op) => prepare(adapter, thread, op, owner))
+  const created: SessionManager[] = []
+  try {
+    for (const { create } of prepared) if (create) created.push(create())
+  } catch (error) {
+    // forkFrom writes the fork's file as it creates it.
+    for (const manager of created) if (manager.isPersisted()) rmSync(manager.getSessionFile()!, { force: true })
+    throw error
+  }
   const applied: Applied = { spawned: [], children: [], jobs: [] }
-  for (const write of writes) write(applied)
+  for (const { write } of prepared) write(applied)
   return { step, applied }
 }
 
-function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | undefined): (applied: Applied) => void {
+function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | undefined): Prepared {
   switch (op.type) {
     case 'append-record': {
       const target = adapter.conversation(op.thread)
       const { kind, data } = encodeEntry(op.record, op.key)
-      return () => {
-        target.manager.appendCustomEntry(kind, data)
+      return {
+        write: () => {
+          target.manager.appendCustomEntry(kind, data)
+        }
       }
     }
     case 'append-quiet': {
@@ -109,8 +125,10 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
         throw new Error(`append-quiet needs a marker input, got ${op.input.kind}`)
       // Sent idle without a turn trigger, Pi appends it before `sendCustomMessage` first awaits; a failure there (the
       // disk, a subscriber) only rejects that promise, which no caller awaits.
-      return () => {
-        target.native!.session.sendCustomMessage(message, { triggerTurn: false }).catch(adapter.report)
+      return {
+        write: () => {
+          target.native!.session.sendCustomMessage(message, { triggerTurn: false }).catch(adapter.report)
+        }
       }
     }
     case 'spawn-child': {
@@ -121,34 +139,45 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
       const fork = spec.fork && { source: adapter.conversation(spec.fork.from).manager, at: spec.fork.at }
       if (spec.fork && !fork?.source.getEntry(spec.fork.at))
         throw new Error(`Fork point ${spec.fork.at} is not in ${spec.fork.from}`)
-      // Before any write: forkFrom/create touch the disk and can throw, which must reject the whole commit.
       const child = runtimeId<'thread'>(randomUUID())
-      const manager = childManager(parent.manager, child, fork)
-      // A fork subagent's fork point holds calls that run on in this conversation; an S-j fork's ended (H3).
-      const copied = manager.getBranch()
-      const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
-      return (applied) => {
-        for (const call of placeholders) manager.appendMessage(resultFor(call, FORK_PLACEHOLDER_RESULT, false))
-        const origin = encodeEntry({ type: 'subagent-origin', value: spec.origin }, key)
-        manager.appendCustomEntry(origin.kind, origin.data)
-        const record = encodeEntry({ type: 'subagent-run', value: { ...spec.record, sessionId: child } }, key)
-        parent.manager.appendCustomEntry(record.kind, record.data)
-        const lineage = { kind: 'subagent' as const, parent: thread, origin: spec.origin }
-        const conv = newConversation(child, manager, lineage, spec.boundary === 'foreground' ? owner : undefined, false)
-        adapter.conversations.set(child, conv)
-        applied.spawned.push({ key, child })
-        applied.children.push(conv)
+      let manager!: SessionManager
+      return {
+        // forkFrom/create touch the disk and can throw, which must reject the whole commit.
+        create: () => (manager = childManager(parent.manager, child, fork)),
+        write: (applied) => {
+          // A fork subagent's fork point holds calls that run on in this conversation; an S-j fork's ended (H3).
+          const copied = manager.getBranch()
+          const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
+          for (const call of placeholders) manager.appendMessage(resultFor(call, FORK_PLACEHOLDER_RESULT, false))
+          const origin = encodeEntry({ type: 'subagent-origin', value: spec.origin }, key)
+          manager.appendCustomEntry(origin.kind, origin.data)
+          const record = encodeEntry({ type: 'subagent-run', value: { ...spec.record, sessionId: child } }, key)
+          parent.manager.appendCustomEntry(record.kind, record.data)
+          const lineage = { kind: 'subagent' as const, parent: thread, origin: spec.origin }
+          const conv = newConversation(
+            child,
+            manager,
+            lineage,
+            spec.boundary === 'foreground' ? owner : undefined,
+            false
+          )
+          adapter.conversations.set(child, conv)
+          applied.spawned.push({ key, child })
+          applied.children.push(conv)
+        }
       }
     }
     case 'ensure-job': {
       if (!adapter.installation.jobs.has(op.job.kind))
         throw new Error(`No job handler is registered for ${op.job.kind}`)
-      return (applied) => {
-        // H4: deduplicated by key, never by kind; a live job keeps its key, an ended one frees it.
-        if (adapter.jobs.get(op.key)?.state === 'live') return
-        const job: JobRecord = { key: op.key, spec: op.job, thread, state: 'live' }
-        adapter.jobs.set(op.key, job)
-        applied.jobs.push(job)
+      return {
+        write: (applied) => {
+          // H4: deduplicated by key, never by kind; a live job keeps its key, an ended one frees it.
+          if (adapter.jobs.get(op.key)?.state === 'live') return
+          const job: JobRecord = { key: op.key, spec: op.job, thread, state: 'live' }
+          adapter.jobs.set(op.key, job)
+          applied.jobs.push(job)
+        }
       }
     }
   }
