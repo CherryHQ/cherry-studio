@@ -39,4 +39,16 @@ describe('buildAgentUserContent', () => {
     expect(content).toContain(`- ${fileURLToPath(url)}`)
     expect(content).not.toContain(`- ${JSON.stringify(fileURLToPath(url))}:`)
   })
+
+  it('places compact media analysis ahead of the path list', () => {
+    const url = 'file:///tmp/clip.mp3'
+    const content = buildAgentUserContent(
+      message([{ type: 'text', text: 'What is said?' }, filePart(url, 'clip.mp3')]),
+      ['Attached file "clip.mp3":\n[0:00] hello']
+    )
+
+    expect(content.indexOf('[0:00] hello')).toBeGreaterThan(content.indexOf('What is said?'))
+    expect(content.indexOf('[0:00] hello')).toBeLessThan(content.indexOf('Attached files'))
+    expect(content).toContain(fileURLToPath(url))
+  })
 })

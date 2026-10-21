@@ -63,8 +63,9 @@ Decided per file part in `prepareChatMessages`
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
-- Audio/video probe or analysis failure degrades to a clear model-visible note.
-  Cancellation is not degraded and continues to abort the request.
+- A failed probe degrades to the unreadable-file note. Failed non-native
+  audio/video analysis stops before the provider request with a localized
+  error; cancellation continues to abort the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
@@ -122,12 +123,17 @@ per-request attachment allow-list from the tool-call context.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
-- Claude Code exposes the same read operation through the Cherry Assistant-only
-  `assistant-files` MCP server. Its model-facing handles are stable, opaque
+- Claude Code exposes the same read operation through the `assistant-files` MCP
+  server. The built-in Assistant keeps the full server (`read_file`,
+  `save_attachment`, `move_to_trash`), including when that Assistant runs on Pi.
+  An ordinary open Claude Code Agent mounts a read-only server that discovers and
+  auto-allows only `mcp__assistant-files__read_file`. Handles stay stable, opaque
   hashes of FileEntry ids. The server rebuilds its allow-list from the current
-  session transcript when each tool call runs, so deleting a message revokes
-  access immediately. Ordinary Claude Code Agents receive neither this server
-  nor its attachment manifest.
+  session transcript on each call, so deleting a message revokes access immediately.
+  Ordinary Claude audio and video are not sent as filesystem paths; the prompt
+  names `mcp__assistant-files__read_file` and the opaque attachment handle.
+  Images and documents keep their existing routing. Ordinary Pi agents do not
+  mount this server; they keep Pi's filesystem `read`.
 - Both the AI SDK Agent tool and Claude Code's `assistant-files` MCP server call
   the same `ReadFileTool.readFile` implementation. Media reads therefore share
   identical offset/limit paging and model-visible continuation instructions.

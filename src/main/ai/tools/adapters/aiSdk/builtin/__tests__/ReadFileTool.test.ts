@@ -90,6 +90,21 @@ describe('readFile — extracted content', () => {
     expect(r).toEqual({ text: 'ocr text', totalChars: 8 })
   })
 
+  it.each(['aif', 'aiff'])(
+    'returns full media analysis for a .%s attachment instead of document extraction',
+    async (ext) => {
+      getByIdMock.mockResolvedValueOnce({ ext })
+      mediaAnalysisMock.mockResolvedValueOnce('[00:00] spoken line')
+
+      const r = await readFile(input({ filename: `voice.${ext}` }), ctx([att(`voice.${ext}`)]))
+
+      expect(r).toEqual({ text: '[00:00] spoken line', totalChars: 19 })
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(extractMock).not.toHaveBeenCalled()
+      expect(ocrMock).not.toHaveBeenCalled()
+    }
+  )
+
   it.each(['mp3', 'mp4', 'webm', 'm4a', 'opus', '3gp'])(
     'returns paged full media analysis for .%s attachments',
     async (ext) => {
