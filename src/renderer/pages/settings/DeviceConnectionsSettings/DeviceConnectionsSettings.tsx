@@ -295,6 +295,7 @@ const DeviceConnectionsSettings: FC = () => {
             endpoint={advertisedEndpoint}
             onSave={async (endpoint) => {
               await setAdvertisedEndpoint(endpoint)
+              if (endpoint === null) setSelectedAddress('auto')
               setEndpointDialogOpen(false)
             }}
             onCancel={() => setEndpointDialogOpen(false)}

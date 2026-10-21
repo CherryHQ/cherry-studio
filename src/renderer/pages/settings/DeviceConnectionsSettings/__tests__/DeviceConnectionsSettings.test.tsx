@@ -117,54 +117,76 @@ describe('DeviceConnectionsSettings', () => {
     vi.stubGlobal('__APP_EDITION__', 'global')
   })
 
-  it('saves an HTTPS address as WSS and restores the legacy automatic QR', async () => {
-    const user = userEvent.setup()
-    const { rerender } = render(<DeviceConnectionsSettings />)
-    await screen.findByRole('img', { name: enUS['deviceConnections.pairing.title'] })
-    await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
-    await user.click(screen.getByRole('option', { name: enUS['deviceConnections.endpoint.title'] }))
-    await user.type(
-      screen.getByRole('textbox', { name: enUS['deviceConnections.pairing.address'] }),
-      'https://Desktop.example.com:24443'
-    )
-    const endpoint = { host: 'desktop.example.com', port: 24443, security: 'wss' }
-    invitationMock.mockResolvedValue({
-      ...createInvitation('custom'),
-      advertisedEndpoint: endpoint,
-      endpoints: [endpoint]
-    })
-    await user.click(screen.getByRole('button', { name: enUS['common.save'] }))
-    await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('feature.remote_access.advertised_endpoint')).toEqual(endpoint)
-    )
-    rerender(<DeviceConnectionsSettings />)
-    await vi.waitFor(() => {
-      const qr = JSON.parse(
-        screen.getByRole('img', { name: enUS['deviceConnections.pairing.title'] }).getAttribute('data-value')!
+  it.each(['dropdown', 'blank address', 'blank address after interface removal'])(
+    'saves an HTTPS address as WSS and restores automatic addresses via %s',
+    async (resetMethod) => {
+      const user = userEvent.setup()
+      const automatic = createInvitation('automatic')
+      automatic.addresses.push('100.94.33.58')
+      automatic.addressOptions.push({ address: '100.94.33.58', interfaceName: 'utun6' })
+      invitationMock.mockResolvedValue(automatic)
+      const { rerender } = render(<DeviceConnectionsSettings />)
+      await screen.findByRole('img', { name: enUS['deviceConnections.pairing.title'] })
+      await user.click(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+      await user.click(screen.getByRole('option', { name: '192.168.1.8 (en0)' }))
+      await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+      await user.click(screen.getByRole('option', { name: enUS['deviceConnections.endpoint.title'] }))
+      await user.type(
+        screen.getByRole('textbox', { name: enUS['deviceConnections.pairing.address'] }),
+        'https://Desktop.example.com:24443'
       )
-      expect(qr).toMatchObject({
-        v: 3,
-        endpoints: [endpoint],
-        invitationId: 'custom',
-        desktopIdentity: '12D3KooWDesktop'
+      const endpoint = { host: 'desktop.example.com', port: 24443, security: 'wss' }
+      invitationMock.mockResolvedValue({
+        ...createInvitation('custom'),
+        advertisedEndpoint: endpoint,
+        endpoints: [endpoint]
       })
-      expect(qr).not.toHaveProperty('ips')
-    })
-    await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
-    invitationMock.mockResolvedValue(createInvitation('automatic'))
-    await user.click(screen.getByRole('option', { name: enUS['deviceConnections.pairing.automatic'] }))
-    await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('feature.remote_access.advertised_endpoint')).toBeNull()
-    )
-    rerender(<DeviceConnectionsSettings />)
-    await vi.waitFor(() =>
-      expect(
-        JSON.parse(
+      await user.click(screen.getByRole('button', { name: enUS['common.save'] }))
+      await vi.waitFor(() =>
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.remote_access.advertised_endpoint')).toEqual(endpoint)
+      )
+      rerender(<DeviceConnectionsSettings />)
+      await vi.waitFor(() => {
+        const qr = JSON.parse(
           screen.getByRole('img', { name: enUS['deviceConnections.pairing.title'] }).getAttribute('data-value')!
         )
-      ).toMatchObject({ v: 2, ips: ['192.168.1.8'], port: 24444 })
-    )
-  })
+        expect(qr).toMatchObject({
+          v: 3,
+          endpoints: [endpoint],
+          invitationId: 'custom',
+          desktopIdentity: '12D3KooWDesktop'
+        })
+        expect(qr).not.toHaveProperty('ips')
+      })
+      await user.click(await screen.findByRole('combobox', { name: enUS['deviceConnections.pairing.address'] }))
+      if (resetMethod === 'blank address after interface removal') {
+        automatic.addresses = ['100.94.33.58']
+        automatic.addressOptions = [{ address: '100.94.33.58', interfaceName: 'utun6' }]
+      }
+      invitationMock.mockResolvedValue(automatic)
+      if (resetMethod === 'dropdown') {
+        await user.click(screen.getByRole('option', { name: enUS['deviceConnections.pairing.automatic'] }))
+      } else {
+        await user.click(screen.getByRole('option', { name: enUS['deviceConnections.endpoint.title'] }))
+        await user.clear(screen.getByRole('textbox', { name: enUS['deviceConnections.pairing.address'] }))
+        await user.click(screen.getByRole('button', { name: enUS['common.save'] }))
+      }
+      await vi.waitFor(() =>
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.remote_access.advertised_endpoint')).toBeNull()
+      )
+      rerender(<DeviceConnectionsSettings />)
+      await vi.waitFor(() =>
+        expect(
+          JSON.parse(
+            screen.getByRole('img', { name: enUS['deviceConnections.pairing.title'] }).getAttribute('data-value')!
+          )
+        ).toMatchObject({ v: 2, ips: automatic.addresses, port: 24444 })
+      )
+      expect(screen.getByRole('combobox', { name: enUS['deviceConnections.pairing.address'] })).toHaveTextContent(
+        enUS['deviceConnections.pairing.automatic']
+      )
+    }
+  )
 
   it('keeps the saved destination unchanged after an invalid loopback edit', async () => {
     const user = userEvent.setup()
