@@ -19,18 +19,33 @@ const YuanbaoPageSchema = z.object({
   passage: z.string().nullish()
 })
 
+const YuanbaoDomainSchema = z.hostname()
+
 export const yuanbao: WebSearchProviderModule = {
   metadata: WEB_SEARCH_PROVIDER_CATALOG.yuanbao,
   async execute(context) {
     const { call } = context
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
+    const excludeDomains = [
+      ...new Set(
+        (call.config.excludeDomains ?? [])
+          .map((domain) => domain.trim().toLowerCase())
+          .filter((domain) => YuanbaoDomainSchema.safeParse(domain).success)
+      )
+    ].slice(0, 5)
     const { Response: response } = await requestJson(
       context,
       {
         url: apiUrl(context.apiHost, '/SearchPro'),
         method: 'POST',
         headers: bearer(context),
-        body: { Query: call.input }
+        body: {
+          Query: call.input,
+          ...(call.config.useDefaultResultCount
+            ? {}
+            : { Cnt: Math.min(50, Math.ceil(call.config.maxResults / 10) * 10) }),
+          ...(excludeDomains.length ? { Site: `exclude:${excludeDomains.join('|')}` } : {})
+        }
       },
       YuanbaoResponseSchema
     )

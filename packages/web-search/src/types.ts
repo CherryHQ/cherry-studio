@@ -49,6 +49,7 @@ export type WebSearchCall = CallBase &
         config: Readonly<{
           apiHost?: string
           maxResults: number
+          useDefaultResultCount?: boolean
           engines?: readonly string[]
           excludeDomains?: readonly string[]
         }>

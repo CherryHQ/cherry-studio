@@ -631,7 +631,7 @@ describe('failure and capability contracts', () => {
 })
 
 describe('Yuanbao Search', () => {
-  it('uses a Query-only request and decodes ranked pages with summary fallbacks and a local limit', async () => {
+  it('requests a supported count and decodes ranked pages with summary fallbacks and a local limit', async () => {
     const pages = [
       { title: 'Dynamic', url: 'https://example.com/1', content: 'Dynamic summary', passage: 'Standard summary' },
       { title: 'Standard', url: 'https://example.com/2', content: '', passage: 'Standard summary' },
@@ -650,13 +650,90 @@ describe('Yuanbao Search', () => {
       credentials: { apiKey: 'test-key' }
     })
     expect(requests[0]).toMatchObject({ url: 'https://api.wsa.cloud.tencent.com/SearchPro', method: 'POST' })
-    expect(JSON.parse(requests[0].body!)).toEqual({ Query: '元宝 & search' })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: '元宝 & search', Cnt: 10 })
     expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
     expect(result.results).toEqual([
       { title: 'Dynamic', url: 'https://example.com/1', content: 'Dynamic summary', sourceInput: '元宝 & search' },
       { title: 'Standard', url: 'https://example.com/2', content: 'Standard summary', sourceInput: '元宝 & search' },
       { title: 'No summary', url: 'https://example.com/3', content: '', sourceInput: '元宝 & search' }
     ])
+  })
+
+  it.each([
+    [1, 10],
+    [10, 10],
+    [11, 20],
+    [21, 30],
+    [31, 40],
+    [41, 50],
+    [50, 50],
+    [100, 50]
+  ])('maps a result limit of %i to the supported Cnt %i', async (maxResults, count) => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await client.execute({ ...search('yuanbao'), capability: 'searchKeywords', config: { maxResults } })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: 'hello', Cnt: count })
+  })
+
+  it('sends at most five distinct valid exclusion domains', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await client.execute({
+      ...search('yuanbao'),
+      capability: 'searchKeywords',
+      config: {
+        maxResults: 12,
+        excludeDomains: [
+          ' QQ.COM ',
+          'qq.com',
+          'https://example.com/path',
+          '/regex/',
+          'qq.com|other.com',
+          'sohu.com',
+          'a.example',
+          'b.example',
+          'c.example',
+          'd.example'
+        ]
+      }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({
+      Query: 'hello',
+      Cnt: 20,
+      Site: 'exclude:qq.com|sohu.com|a.example|b.example|c.example'
+    })
+  })
+
+  it('can omit Cnt while retaining Site and the local result limit', async () => {
+    const pages = [1, 2, 3].map((n) => JSON.stringify({ title: String(n), url: `https://example.com/${n}` }))
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: pages } }))
+    const result = await client.execute({
+      ...search('yuanbao'),
+      capability: 'searchKeywords',
+      config: { maxResults: 2, useDefaultResultCount: true, excludeDomains: ['qq.com'] }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: 'hello', Site: 'exclude:qq.com' })
+    expect(result.results.map((item) => item.url)).toEqual(['https://example.com/1', 'https://example.com/2'])
+  })
+
+  it('omits Site when no exclusions can be represented as domains', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await client.execute({
+      ...search('yuanbao'),
+      capability: 'searchKeywords',
+      config: { maxResults: 5, excludeDomains: ['*://*.qq.com/*', '/qq/'] }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: 'hello', Cnt: 10 })
+  })
+
+  it('rejects Yuanbao-only count options for other providers before transport', async () => {
+    const { client, requests } = setup(tavily, '{}')
+    await expect(
+      client.execute({
+        ...search('tavily'),
+        capability: 'searchKeywords',
+        config: { maxResults: 5, useDefaultResultCount: true }
+      })
+    ).rejects.toMatchObject({ kind: 'configuration', code: 'option_unsupported' })
+    expect(requests).toEqual([])
   })
 
   it.each(['UnauthorizedOperation', 'ResourceNotFound', 'ResourceUnavailable', 'RequestLimitExceeded'])(

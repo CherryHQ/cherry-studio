@@ -56,6 +56,12 @@ Querit accepts API hosts with or without `/v1` and numeric-string response codes
 the Cloud `/scrape` protocol for `crawl4ai.com` and its subdomains, requiring an API key. Other
 hosts retain the self-hosted `/md` protocol with an optional token.
 
+Yuanbao rounds `maxResults` up to the next supported `Cnt` value (10–50), then applies
+the requested limit locally. `excludeDomains` sends up to five distinct domain names through
+`Site`; invalid domain entries are omitted. Hosts retain full URL-rule filtering. Yuanbao-only
+`useDefaultResultCount: true` omits `Cnt` for lite-tier compatibility without disabling `Site`
+or the local limit. The protocol itself never retries.
+
 ## Transport and errors
 
 Implement `WebSearchTransport.request` with the host network stack. Requests contain a complete
