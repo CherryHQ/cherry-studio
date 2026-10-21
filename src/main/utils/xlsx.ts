@@ -54,12 +54,19 @@ function cellText(cell: Cell, numFmt: string, date1904: boolean, stored?: Stored
   // out of cell.value; one saved without a result shows its formula.
   if (value !== null && typeof value === 'object' && ('formula' in value || 'sharedFormula' in value)) {
     const result: CellValue = cell.result
-    if (result === undefined || result === null) return `=${cell.formula}`
+    // ExcelJS also leaves out a cached empty text result, which the sheet stores as <v></v>
+    if (result === undefined || result === null)
+      return stored ? storedText(stored, numFmt, date1904) : `=${cell.formula}`
     value = result
   }
   if (value === null || value === undefined) return ''
   const isHyperlink = typeof value === 'object' && 'hyperlink' in value
   // An ISO date, or a result ExcelJS took for a date, reads from what the sheet stores
+  // A number Date cannot hold reads as stored
+  if (value instanceof Date && Number.isNaN(value.getTime()) && (!stored || ['', 'n'].includes(stored.type))) {
+    const number = Number(stored?.text)
+    return stored?.text.trim() && Number.isFinite(number) ? String(number) : ''
+  }
   if (stored && !isHyperlink && (stored.type === 'd' || value instanceof Date)) {
     return storedText(stored, numFmt, date1904)
   }
@@ -83,7 +90,7 @@ function scalarText(value: unknown, numFmt: string, date1904: boolean): string {
     const serial = serialNumber(value, date1904)
     const section = activeSection(numFmt, serial)
     const { date, time } = dateFormatParts(section)
-    return date || time || /\[(h+|m+|s+)\]/i.test(section) ? formatDate(value, section, date1904) : String(serial)
+    return date || time || elapsedToken(section) ? formatDate(value, section, date1904) : String(serial)
   }
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
   if (typeof value === 'number') return String(value)
@@ -141,6 +148,10 @@ function activeSection(numFmt: string, value: number): string {
   return numeric[2] ?? numeric[0]
 }
 
+// Date holds 100 million days either side of 1970; a serial number this large always leaves that
+// range, one a little smaller may, so its cell keeps the stored value as a fallback
+const MAX_DATE_SERIAL = 99_000_000
+
 /** A cell as the sheet XML stores it: its `t` attribute and the text of its `<v>`. */
 interface StoredCell {
   type: string
@@ -155,6 +166,9 @@ interface StoredCell {
  * 1905-07-16, and 09:30:00 becomes 9. In a date-formatted cell it also converts a formula's cached
  * text, boolean or error result as if it were a serial number: `pending` or `#N/A` becomes an
  * invalid date.
+ *
+ * It also turns a number of about 100 million days or more into an invalid date when the cell's format has
+ * a date token in any section, as Date cannot hold it; such numbers are kept as stored.
  *
  * `numFmts`, by the form ExcelJS gives them: ExcelJS drops the backslash of each escaped character
  * in a number format, so `h:mm\ \d\a\i\l\y` reaches it as `h:mm daily`, where `d` and `y` read as
@@ -195,16 +209,19 @@ async function storedWorkbook(
     const path = targets.get(xmlAttribute(tag, 'r:id') ?? '')
     const xml = path ? await zip.file(path)?.async('string') : undefined
     if (name === undefined || !xml) continue
-    // Most sheets hold neither, so their cells are not walked
+    // Most sheets hold none of these, so their cells are not walked
     const hasFormulaResult = /<f[\s/>]/.test(xml) && /\st=["'](?:str|b|e)["']/.test(xml)
-    if (!hasFormulaResult && !/\st=["']d["']/.test(xml)) continue
+    const hasHugeNumber = /<v>\s*-?(?:\d{9}|[\d.]+[eE]\+?\d)/.test(xml)
+    if (!hasFormulaResult && !hasHugeNumber && !/\st=["']d["']/.test(xml)) continue
     const sheetCells = new Map<string, StoredCell>()
     for (const [, attributes, content = ''] of xml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const type = xmlAttribute(attributes, 't') ?? ''
-      // Only a formula's result is converted: a plain text, boolean or error cell reads correctly
-      if (type !== 'd' && !(['str', 'b', 'e'].includes(type) && /<f[\s/>]/.test(content))) continue
-      const address = xmlAttribute(attributes, 'r')
       const value = /<v>([\s\S]*?)<\/v>/.exec(content)
+      // Only a formula's result is converted: a plain text, boolean or error cell reads correctly
+      const isFormulaResult = ['str', 'b', 'e'].includes(type) && /<f[\s/>]/.test(content)
+      const isHugeNumber = (type === '' || type === 'n') && Math.abs(Number(value?.[1])) >= MAX_DATE_SERIAL
+      if (type !== 'd' && !isFormulaResult && !isHugeNumber) continue
+      const address = xmlAttribute(attributes, 'r')
       if (address && value) sheetCells.set(address, { type, text: xmlText(value[1]) })
     }
     if (sheetCells.size) cells.set(name, sheetCells)
@@ -238,7 +255,7 @@ function storedText(stored: StoredCell, numFmt: string | undefined, date1904: bo
   if (!numFmt) return stored.text
   const date = isoDate(stored.text, date1904)
   const { date: showsDate, time: showsTime } = dateFormatParts(numFmt)
-  const formatted = showsDate || showsTime || /\[(h+|m+|s+)\]/i.test(numFmt)
+  const formatted = showsDate || showsTime || elapsedToken(numFmt)
   return date && formatted ? formatDate(date, numFmt, date1904) : stored.text
 }
 
@@ -299,9 +316,31 @@ function dateFormatParts(numFmt: string): { date: boolean; time: boolean } {
   return { date, time }
 }
 
+// The elapsed-time token of a number format, such as `h` for `[h]:mm`; quoted text and escaped
+// characters are literals, so `h:mm" [h]"` has none.
+function elapsedToken(numFmt: string): string | undefined {
+  for (let i = 0; i < numFmt.length; i++) {
+    const c = numFmt[i]
+    if (c === '"') {
+      const end = numFmt.indexOf('"', i + 1)
+      if (end < 0) break
+      i = end
+    } else if (c === '\\' || c === '_' || c === '*') {
+      i++
+    } else if (c === '[') {
+      const end = numFmt.indexOf(']', i + 1)
+      if (end < 0) break
+      const token = numFmt.slice(i + 1, end)
+      if (/^(h+|m+|s+)$/i.test(token)) return token
+      i = end
+    }
+  }
+  return undefined
+}
+
 // A time of day or an elapsed duration reaches ExcelJS as a Date on day 0 (1899-12-30 or 1904-01-01).
 function formatDate(date: Date, numFmt: string, date1904: boolean): string {
-  const elapsed = /\[(h+|m+|s+)\]/i.exec(numFmt)
+  const elapsed = elapsedToken(numFmt)
   if (!elapsed) {
     const parts = dateFormatParts(numFmt)
     // A date-only format shows the day as stored: rounding first would carry 23:59:59.9 into the
@@ -312,9 +351,12 @@ function formatDate(date: Date, numFmt: string, date1904: boolean): string {
     return parts.date ? iso.slice(0, 19).replace('T', ' ') : iso.slice(11, 19)
   }
   const time = Math.round(date.getTime() / 1000) * 1000
-  const seconds = (time - (date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30))) / 1000
+  const total = (time - (date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30))) / 1000
+  // A negative duration (only the 1904 date system has them) shows its sign once, before the parts
+  const sign = total < 0 ? '-' : ''
+  const seconds = Math.abs(total)
   const pad = (n: number) => String(n).padStart(2, '0')
   // Elapsed minutes count in minutes: [mm]:ss of 25 hours reads 1500:00
-  if (/^m/i.test(elapsed[1])) return `${Math.floor(seconds / 60)}:${pad(seconds % 60)}`
-  return `${Math.floor(seconds / 3600)}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`
+  if (/^m/i.test(elapsed)) return `${sign}${Math.floor(seconds / 60)}:${pad(seconds % 60)}`
+  return `${sign}${Math.floor(seconds / 3600)}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`
 }

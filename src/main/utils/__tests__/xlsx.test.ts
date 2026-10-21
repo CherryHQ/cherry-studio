@@ -216,4 +216,62 @@ describe('extractXlsxText', () => {
 
     expect(await extractXlsxText(data)).toBe('Sheet: Sections\n42\t45000\t1900-02-10')
   })
+
+  it('reads a number too large for a date as stored', async () => {
+    // ExcelJS turned these into invalid dates, which read NaN or made the workbook fail to extract
+    const data = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Large').getRow(1)
+      const cells: [number, string][] = [
+        [123456789, '0;yyyy-mm-dd'],
+        [123456789, '[>=1000]0;yyyy-mm-dd'],
+        [-123456789, '0;0;yyyy-mm-dd'],
+        [1e20, 'yyyy-mm-dd']
+      ]
+      cells.forEach(([value, numFmt], index) => {
+        row.getCell(index + 1).value = value
+        row.getCell(index + 1).numFmt = numFmt
+      })
+      row.getCell(5).value = { formula: 'A1*10', result: 1234567890 }
+      row.getCell(5).numFmt = 'yyyy-mm-dd'
+    })
+
+    expect(await extractXlsxText(data)).toBe(
+      'Sheet: Large\n123456789\t123456789\t-123456789\t100000000000000000000\t1234567890'
+    )
+  })
+
+  it('reads a cached empty formula result as an empty cell', async () => {
+    const built = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Blank').getRow(1)
+      row.getCell(1).value = { formula: 'IF(TRUE,"","x")', result: 'x' }
+      row.getCell(2).value = 'after'
+    })
+    const data = await editSheetXml(built, 'xl/worksheets/sheet1.xml', (xml) => xml.replace('<v>x</v>', '<v></v>'))
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Blank\n\tafter')
+  })
+
+  it('reads a bracketed label in quotes as text, not as elapsed time', async () => {
+    const data = await xlsxBytes((workbook) => {
+      const cell = workbook.addWorksheet('Label').getCell('A1')
+      cell.value = new Date('2024-09-30T06:00:00.000Z')
+      cell.numFmt = 'h:mm" [h]"'
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Label\n06:00:00')
+  })
+
+  it('shows the sign of a negative duration once', async () => {
+    const data = await xlsxBytes((workbook) => {
+      workbook.properties.date1904 = true
+      const row = workbook.addWorksheet('Negative').getRow(1)
+      const value = new Date(Date.UTC(1904, 0, 1) - 0.51 * 86_400_000)
+      row.getCell(1).value = value
+      row.getCell(1).numFmt = '[h]:mm'
+      row.getCell(2).value = value
+      row.getCell(2).numFmt = '[mm]:ss'
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Negative\n-12:14:24\t-734:24')
+  })
 })
