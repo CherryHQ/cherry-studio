@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "assistant.archive.related_topics",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Remember whether archiving an assistant also archives its related topics"
+    },
+    {
       "targetKey": "chat.message.user_content.default_expanded",
       "type": "boolean",
       "defaultValue": false,
