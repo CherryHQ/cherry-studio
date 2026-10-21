@@ -1115,6 +1115,18 @@ export class VoiceSessionService extends BaseService {
           : error instanceof VoiceRuntimeError
             ? error
             : new VoiceRuntimeError('operation_failed')
+        if (!controller.signal.aborted) {
+          logger.warn('Voice operation failed', {
+            sessionId: session.id,
+            requestId,
+            operation,
+            modelId,
+            adapter: session.resolvedAdapter,
+            reason: normalized.reason,
+            durationMs: Date.now() - startedAt,
+            ...options.log
+          })
+        }
         if (!session.closed && session.playback) {
           session.playback = failPlayback(session.playback, 'synthesis', normalized.reason)
           this.clearPlaybackTimeout(session)
