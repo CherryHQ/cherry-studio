@@ -15,6 +15,7 @@ import {
   LOCAL_MODEL_BUNDLES,
   SHARED_ARTIFACTS
 } from '../catalog'
+import integrity from '../onnxRuntimeIntegrity.json'
 
 const bundles = Object.values(LOCAL_MODEL_BUNDLES)
 const artifacts = Object.values(SHARED_ARTIFACTS)
@@ -163,4 +164,21 @@ describe('local model catalog', () => {
     expect(() => bundleDtype(defaultBundleForCapability('ocr'))).toThrow(/declares no runtime dtype/)
     expect(bundleDtype(defaultBundleForCapability('embedding'))).toBe('q8')
   })
+})
+
+it('pins integrity metadata and exactly the live ONNX Runtime platform file sets', () => {
+  const artifact = SHARED_ARTIFACTS['onnxruntime-node']
+  expect(integrity.artifact).toBe(artifact.id)
+  expect(integrity.version).toBe(artifact.version)
+  expect(Object.keys(integrity.platforms).sort()).toEqual(Object.keys(artifact.platforms).sort())
+  for (const [key, platform] of Object.entries(artifact.platforms)) {
+    expect(integrity.tarballSha256).toBe(platform.tarballSha256)
+    const { files } = integrity.platforms[key as keyof typeof integrity.platforms]
+    expect(Object.keys(files).sort()).toEqual([platform.entryFile, ...platform.supportFiles].sort())
+    for (const file of Object.values(files)) {
+      expect(Number.isSafeInteger(file.sizeBytes)).toBe(true)
+      expect(file.sizeBytes).toBeGreaterThan(0)
+      expect(file.sha256).toMatch(/^[0-9a-f]{64}$/)
+    }
+  }
 })

@@ -152,6 +152,8 @@
   "file_processing.errors.open_mineru_task_failed": "O Open MinerU não concluiu o processamento do documento (estado: {{status}}). Verifique o servidor e tente novamente.",
   "file_processing.errors.open_mineru_unreachable": "Não foi possível ligar ao Open MinerU. Verifique se o servidor está em execução e se o endereço está correto.",
   "file_processing.errors.pdf_page_limit_exceeded": "Este PDF excede o limite de {{maxPages}} páginas do serviço atual de análise de documentos. Divida o PDF manualmente e adicione-o novamente.",
+  "local_model.ocr.runtime_mismatch": "{{file}} na pasta de execução {{directory}} não corresponde à versão necessária do ONNX Runtime {{version}}. Encerre completamente o Cherry Studio, remova apenas essa pasta de execução e reinicie. Depois, selecione Transferir para OCR local em Definições → Dependências → Modelos locais. Após a transferência, tente novamente ou volte a indexar.",
+  "local_model.ocr.runtime_unavailable": "O ficheiro {{file}} necessário para ONNX Runtime {{version}} não existe em {{directory}} ou não pode ser verificado. Encerre completamente o Cherry Studio, remova apenas essa pasta de execução e reinicie. Depois, selecione Transferir para OCR local em Definições → Dependências → Modelos locais. Após a transferência, tente novamente ou volte a indexar.",
   "notification.action_required.agent": "O agente precisa da sua intervenção",
   "notification.action_required.assistant": "O assistente precisa da sua intervenção",
   "notification.completion.agent": "Tarefa do agente concluída",

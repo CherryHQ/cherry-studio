@@ -152,6 +152,8 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU chưa hoàn tất xử lý tài liệu (trạng thái: {{status}}). Hãy kiểm tra máy chủ rồi thử lại.",
   "file_processing.errors.open_mineru_unreachable": "Không thể kết nối với Open MinerU. Hãy kiểm tra xem máy chủ có đang chạy và địa chỉ có chính xác không.",
   "file_processing.errors.pdf_page_limit_exceeded": "Tệp PDF này vượt quá giới hạn {{maxPages}} trang của dịch vụ phân tích tài liệu hiện tại. Hãy chia nhỏ PDF theo cách thủ công rồi thêm lại.",
+  "local_model.ocr.runtime_mismatch": "{{file}} trong thư mục môi trường chạy {{directory}} không khớp với ONNX Runtime {{version}} được yêu cầu. Thoát hoàn toàn Cherry Studio, chỉ xóa thư mục môi trường chạy đó rồi khởi động lại. Sau đó chọn Tải xuống cho OCR cục bộ trong Cài đặt → Phụ thuộc → Mô hình cục bộ. Khi tải xong, hãy thử lại hoặc lập chỉ mục lại.",
+  "local_model.ocr.runtime_unavailable": "Tệp {{file}} bắt buộc của ONNX Runtime {{version}} bị thiếu hoặc không thể xác minh trong {{directory}}. Thoát hoàn toàn Cherry Studio, chỉ xóa thư mục môi trường chạy đó rồi khởi động lại. Sau đó chọn Tải xuống cho OCR cục bộ trong Cài đặt → Phụ thuộc → Mô hình cục bộ. Khi tải xong, hãy thử lại hoặc lập chỉ mục lại.",
   "notification.action_required.agent": "Agent cần phản hồi của bạn",
   "notification.action_required.assistant": "Trợ lý cần phản hồi của bạn",
   "notification.completion.agent": "Nhiệm vụ của Agent đã hoàn tất",

@@ -152,6 +152,8 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU did not complete the document (status: {{status}}). Retry after checking the server.",
   "file_processing.errors.open_mineru_unreachable": "Could not connect to Open MinerU. Check that the server is running and the address is correct.",
   "file_processing.errors.pdf_page_limit_exceeded": "This PDF exceeds the {{maxPages}}-page limit for the current document parsing service. Split the PDF manually, then add it again.",
+  "local_model.ocr.runtime_mismatch": "{{file}} does not match the required ONNX Runtime {{version}} in runtime folder {{directory}}. Fully quit Cherry Studio, remove only that runtime folder, restart, then choose Download for Local OCR in Settings → Dependencies → Local Models. After the download finishes, retry or reindex.",
+  "local_model.ocr.runtime_unavailable": "The required ONNX Runtime {{version}} file {{file}} is missing or cannot be verified in {{directory}}. Fully quit Cherry Studio, remove only that runtime folder, restart, then choose Download for Local OCR in Settings → Dependencies → Local Models. After the download finishes, retry or reindex.",
   "notification.action_required.agent": "Agent needs your input",
   "notification.action_required.assistant": "Assistant needs your input",
   "notification.completion.agent": "Agent task complete",

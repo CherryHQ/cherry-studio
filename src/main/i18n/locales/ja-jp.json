@@ -152,6 +152,8 @@
   "file_processing.errors.open_mineru_task_failed": "Open MinerU は文書の処理を完了できませんでした（状態: {{status}}）。サーバーを確認して再試行してください。",
   "file_processing.errors.open_mineru_unreachable": "Open MinerU に接続できません。サーバーが起動しており、アドレスが正しいことを確認してください。",
   "file_processing.errors.pdf_page_limit_exceeded": "この PDF は、現在のドキュメント解析サービスの {{maxPages}} ページ制限を超えています。PDF を手動で分割してから、もう一度追加してください。",
+  "local_model.ocr.runtime_mismatch": "ランタイムフォルダー {{directory}} の {{file}} は、必要な ONNX Runtime {{version}} と一致しません。 Cherry Studio を完全に終了し、そのランタイムフォルダーだけを削除して再起動してください。「設定 → 依存関係 → ローカルモデル」でローカル OCR の「ダウンロード」を選択し、完了後に再試行またはインデックスを再作成してください。",
+  "local_model.ocr.runtime_unavailable": "必要な ONNX Runtime {{version}} のファイル {{file}} が {{directory}} に存在しないか、検証できません。 Cherry Studio を完全に終了し、そのランタイムフォルダーだけを削除して再起動してください。「設定 → 依存関係 → ローカルモデル」でローカル OCR の「ダウンロード」を選択し、完了後に再試行またはインデックスを再作成してください。",
   "notification.action_required.agent": "Agent があなたの入力を待っています",
   "notification.action_required.assistant": "アシスタントがあなたの入力を待っています",
   "notification.completion.agent": "Agent タスクが完了しました",
