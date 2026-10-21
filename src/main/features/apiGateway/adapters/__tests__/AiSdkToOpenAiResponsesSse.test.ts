@@ -413,3 +413,17 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     })
   })
 })
+
+it('preserves invalid client tool arguments for the caller to validate', () => {
+  const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test-model' })
+  const events = adapter.transformChunk({
+    type: 'tool-input-error',
+    toolCallId: 'bad-input',
+    toolName: 'read_file',
+    input: { path: { nested: true } },
+    errorText: 'path must be a string'
+  })
+  const wire = JSON.stringify(events)
+  expect(wire).toContain('read_file')
+  expect(wire).toContain('nested')
+})

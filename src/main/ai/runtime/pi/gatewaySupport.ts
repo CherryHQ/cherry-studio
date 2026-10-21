@@ -26,6 +26,8 @@ import { type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '@che
 import { type InputParamsMap, MessageConverterFactory, StreamAdapterFactory } from '@main/features/apiGateway/adapters'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
+import { loadPiApiStreamSimple } from './piSdk'
+
 export type TestModel = Omit<Extract<ProviderModelConfig, { reasoning: boolean }>, 'id'> & { id: UniqueModelId }
 
 export const MODEL: TestModel = {
@@ -39,6 +41,8 @@ export const MODEL: TestModel = {
 }
 
 interface GatewayRequest {
+  sessionId: string | undefined
+  model: { id: string }
   system: string
   messages: ModelMessage[]
   tools: ToolSet
@@ -51,7 +55,7 @@ export function gatewayModel(model: LanguageModel) {
   return { upstream: { model, requests, signal: undefined as AbortSignal | undefined }, requests }
 }
 
-type GatewayFixture = ReturnType<typeof gatewayModel>['upstream']
+export type GatewayFixture = ReturnType<typeof gatewayModel>['upstream']
 
 export async function createTestBinding({ port, model = MODEL }: { port: GatewayFixture; model?: TestModel }) {
   const server = createServer(async (request, response) => {
@@ -67,8 +71,16 @@ export async function createTestBinding({ port, model = MODEL }: { port: Gateway
       const system = converted.flatMap((message) => (message.role === 'system' ? [message.content] : [])).join('\n')
       const messages = converted.filter((message) => message.role !== 'system')
       const tools = converter.toAiSdkTools?.(body) ?? {}
-      port.requests.push({ system, messages, tools, abortSignal: signal })
+      port.requests.push({
+        sessionId: request.headers['x-fixture-session']?.toString(),
+        model: { id: body.model },
+        system,
+        messages,
+        tools,
+        abortSignal: signal
+      })
       const result = streamText({
+        ...converter.extractStreamOptions(body),
         model: port.model,
         system,
         messages,
@@ -80,7 +92,7 @@ export async function createTestBinding({ port, model = MODEL }: { port: Gateway
       const formatter = StreamAdapterFactory.getFormatter('openai')
       response.writeHead(200, { 'content-type': 'text/event-stream' })
       const chunks = result.toUIMessageStream({
-        onError: (error) => String(error),
+        onError: (error) => (error instanceof Error ? error.message : String(error)),
         messageMetadata: ({ part }) => (part.type === 'finish' ? { stats: part.totalUsage } : undefined)
       })
       for await (const chunk of chunks) {
@@ -90,8 +102,11 @@ export async function createTestBinding({ port, model = MODEL }: { port: Gateway
       for (const event of adapter.finalizeEvents()) response.write(formatter.formatEvent(event))
       response.end(formatter.formatDone())
     } catch (error) {
-      if (!response.headersSent) response.writeHead(500, { 'content-type': 'application/json' })
-      response.end(`data: ${JSON.stringify({ error: { message: String(error) } })}\n\n`)
+      const payload = JSON.stringify({ error: { message: error instanceof Error ? error.message : String(error) } })
+      if (!response.headersSent) {
+        response.writeHead(500, { 'content-type': 'application/json' })
+        response.end(payload)
+      } else response.end(`data: ${payload}\n\n`)
     }
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -110,11 +125,21 @@ export async function createTestBinding({ port, model = MODEL }: { port: Gateway
     modelsPath: null,
     refreshOnCreate: false
   })
+  const nativeStream = await loadPiApiStreamSimple('openai-completions')
   modelRuntime.registerProvider(providerId, {
+    streamSimple: (model, context, options) =>
+      nativeStream(model, context, {
+        ...options,
+        maxRetries: 0,
+        headers: { ...options?.headers, ...(options?.sessionId ? { 'x-fixture-session': options.sessionId } : {}) },
+        signal: port.signal
+          ? AbortSignal.any([...(options?.signal ? [options.signal] : []), port.signal])
+          : options?.signal
+      }),
     api: 'openai-completions',
     apiKey: 'fixture',
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
-    models: [{ ...model, id: modelId }]
+    models: [{ ...model, id: modelId, baseUrl: `http://127.0.0.1:${address.port}/v1` }]
   })
   return { modelRuntime, model: modelRuntime.getModel(providerId, modelId)! }
 }
