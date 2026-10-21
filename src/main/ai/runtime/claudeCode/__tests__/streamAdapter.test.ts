@@ -145,6 +145,64 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(adapter.hasTurnActivity).toBe(true)
     })
 
+    it('renders the CLI’s synthetic API-error diagnostic without counting it as turn activity', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        is_api_error_message: true,
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'API Error: 429 {"type":"rate_limit_error"}' }]
+        }
+      } as any)
+
+      // The diagnostic still reaches the transcript…
+      expect(parts.some((part) => part.type === 'text-delta')).toBe(true)
+      // …but it is no answer, so a content-free provider failure can still fall back.
+      expect(adapter.hasTurnActivity).toBe(false)
+
+      // Real output on the same turn still closes the no-replay gate.
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }] }
+      } as any)
+      expect(adapter.hasTurnActivity).toBe(true)
+    })
+
+    it('recognises the camelCase diagnostic marker too and keeps the gate open through the terminal result', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        isApiErrorMessage: true,
+        parent_tool_use_id: null,
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: { role: 'assistant', content: [{ type: 'text', text: 'API Error: 429 overloaded' }] }
+      } as any)
+
+      // The driver reads this right before the terminal result decides the fallback.
+      expect(adapter.hasTurnActivity).toBe(false)
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            terminal_reason: 'api_error',
+            errors: ['API Error: 429 {"type":"rate_limit_error"}'],
+            session_id: 'sdk-error'
+          })
+        )
+      ).toThrow('API Error: 429')
+    })
+
     it('remains inactive when an error result emits only usage metadata', () => {
       const { adapter, parts } = createAdapter()
 

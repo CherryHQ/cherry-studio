@@ -216,6 +216,18 @@ function isClaudeCodeTruncationError(error: unknown, bufferedText: string): bool
   return bufferedText.length >= MIN_TRUNCATION_LENGTH
 }
 
+/**
+ * The CLI's synthetic API-error assistant message (`is_api_error_message: true`): it renders a
+ * diagnostic for a provider failure that produced no output, so it is not answer or tool activity.
+ */
+function isApiErrorDiagnostic(message: SDKAssistantMessage): boolean {
+  const envelope = message as SDKAssistantMessage & {
+    is_api_error_message?: unknown
+    isApiErrorMessage?: unknown
+  }
+  return envelope.is_api_error_message === true || envelope.isApiErrorMessage === true
+}
+
 function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
 }
@@ -509,6 +521,8 @@ export class ClaudeCodeStreamAdapter {
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
   private turnHasActivity = false
+  /** Set while a synthetic API-error diagnostic renders: its chunks are shown but are no activity. */
+  private suppressTurnActivity = false
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -588,7 +602,7 @@ export class ClaudeCodeStreamAdapter {
   private createActivityTrackingSink(sink: StreamSink): StreamSink {
     return {
       enqueue: (chunk) => {
-        if (chunk.type !== 'message-metadata') this.turnHasActivity = true
+        if (!this.suppressTurnActivity && chunk.type !== 'message-metadata') this.turnHasActivity = true
         sink.enqueue(chunk)
       }
     }
@@ -1027,37 +1041,46 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleAssistantMessage(message: SDKAssistantMessage, ctx: StreamContext): void {
-    // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
-    // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
-    // failure, so a clean truncation would otherwise go unnoticed.
-    if (message.aborted) {
-      ctx.sawAbortedMessage = true
-      logger.warn('Assistant message was truncated by an interrupt')
-    }
+    // The CLI's synthetic API-error message is a rendered diagnostic, not an answer: it explains a
+    // failure the provider produced without output, so replaying the turn cannot duplicate it. The
+    // fallback gate must not read it as turn activity.
+    const diagnostic = isApiErrorDiagnostic(message)
+    if (diagnostic) this.suppressTurnActivity = true
+    try {
+      // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
+      // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
+      // failure, so a clean truncation would otherwise go unnoticed.
+      if (message.aborted) {
+        ctx.sawAbortedMessage = true
+        logger.warn('Assistant message was truncated by an interrupt')
+      }
 
-    if (!message.message?.content) return
+      if (!message.message?.content) return
 
-    const sdkParentToolUseId = message.parent_tool_use_id
-    const content = message.message.content
-    const tools = this.extractToolUses(content)
-    const results = this.extractToolResults(content)
+      const sdkParentToolUseId = message.parent_tool_use_id
+      const content = message.message.content
+      const tools = this.extractToolUses(content)
+      const results = this.extractToolResults(content)
 
-    if (ctx.textPartId && (tools.length > 0 || results.length > 0)) {
-      this.closeActiveTextPart(ctx)
-    }
+      if (ctx.textPartId && (tools.length > 0 || results.length > 0)) {
+        this.closeActiveTextPart(ctx)
+      }
 
-    for (const tool of tools) {
-      this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
-    }
+      for (const tool of tools) {
+        this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
+      }
 
-    for (const result of results) {
-      this.handleToolResult(result, sdkParentToolUseId, ctx)
-    }
+      for (const result of results) {
+        this.handleToolResult(result, sdkParentToolUseId, ctx)
+      }
 
-    const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
+      const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
 
-    if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+      if (text) {
+        this.handleAssistantText(text, sdkParentToolUseId, ctx)
+      }
+    } finally {
+      if (diagnostic) this.suppressTurnActivity = false
     }
   }
 
