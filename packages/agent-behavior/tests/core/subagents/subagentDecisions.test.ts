@@ -15,7 +15,7 @@ import {
   decideUserStopSubagent,
   reportTarget
 } from '../../../src/core/subagents/subagentDecisions'
-import { continuedText } from '../../../src/core/subagents/subagentText'
+import { continuedText, TURN_STOPPED } from '../../../src/core/subagents/subagentText'
 import {
   apply,
   assistant,
@@ -29,6 +29,7 @@ import {
   roundEntry,
   run,
   runEntry,
+  turnStop,
   usage,
   user
 } from '../history'
@@ -113,6 +114,15 @@ describe('spawning', () => {
     })
   })
 
+  // Catches a spawn decided after its turn's stop was recorded: the stop already took the children the turn owned, so a
+  // child spawned now would run on with nothing to stop it.
+  it('refuses to spawn once a stop is recorded after the turn began', () => {
+    const stopped = [user(), assistant('x'), turnStop()]
+    expect(spawn(job, stopped)).toEqual({ ops: [], effects: [], result: { kind: 'refused', text: TURN_STOPPED } })
+    expect(spawn({ ...job, background: true }, stopped).result).toEqual({ kind: 'refused', text: TURN_STOPPED })
+    expect(spawn(job, [user(), turnStop(), user(), assistant('x')]).result).toMatchObject({ kind: 'spawn' })
+  })
+
   // Catches a replay-safe rerun creating a second child instead of finding the one it created (design §7.5).
   it('finds the child a rerun already spawned', () => {
     const history = apply([user(), assistant('x')], spawn({ ...job, background: true }), ['c1'])
@@ -166,6 +176,19 @@ describe('messaging and stopping', () => {
     expect(rerun.effects).toEqual(steered.effects)
     const withdrawn = apply(finished, decideSteerWithdrawn(facts(finished), k))
     expect(message(withdrawn).result).toMatchObject({ kind: 'continued', child: 'a', run: 2 })
+  })
+
+  // Catches a finished child continued after its turn's stop was recorded, as a new run nothing stops; a steer to a
+  // running child starts nothing and stays allowed.
+  it('refuses to continue a finished child once a stop is recorded after the turn began', () => {
+    const finished = runEntry(run('a', { status: 'finished', outcome: 'completed' }))
+    expect(message([user(), finished, turnStop()])).toEqual({
+      ops: [],
+      effects: [],
+      result: { kind: 'refused', text: TURN_STOPPED }
+    })
+    expect(message([user(), turnStop(), user(), finished]).result).toMatchObject({ kind: 'continued', run: 2 })
+    expect(message([user(), runEntry(run('a')), turnStop()], live).result).toMatchObject({ kind: 'queued' })
   })
 
   // Catches a message sent into a run that is being stopped, where the stop would drop it (Y5): the call waits for
