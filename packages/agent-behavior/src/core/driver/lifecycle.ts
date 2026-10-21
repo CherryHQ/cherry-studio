@@ -1,4 +1,4 @@
-import type { ItemId } from '@cherrystudio/agent-runtime'
+import type { ItemId, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { Effect, Step, TxOp } from '../decisions'
 import type { ConversationFacts, HistoryEntry, SubagentRunRecord } from '../facts'
@@ -6,7 +6,8 @@ import { currentGoal, roundOf } from '../goal/goalHistory'
 import { goalRecord } from '../goal/goalTools'
 import type { CallInputs } from '../hostFacts'
 import { armSeq, keys } from '../keys'
-import { pendingResults, readSubagents, runStarted } from '../subagents/subagentLedger'
+import { decideUserStopSubagent } from '../subagents/subagentDecisions'
+import { interruptRoute, pendingResults, readSubagents, runStarted } from '../subagents/subagentLedger'
 import { runActive, startsTurn, stoppedTurn } from '../turns'
 import { goalStop, quietDelivery } from './idle'
 import { ensureDriver } from './jobs'
@@ -110,6 +111,39 @@ export function decideUserStop(facts: ConversationFacts, inputs: CallInputs, req
     effects: turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause: 'user', turn }],
     result: null
   }
+}
+
+export type SubagentStop = 'stopped-child' | 'stopped-turn' | 'not-running'
+
+/**
+ * `entries.stopSubagent` (D18, D27): a person stops subagent `child`. A repeated request answers what the first one
+ * answered and reaches no later work: a turn it stopped is named again (H2), a run it stopped is stopped again only
+ * while it is still the child's active run (H3), and with nothing running it stays `'not-running'`. A first request
+ * routes by liveness: a live foreground child is part of its parent's turn, which stops; a background one stops alone.
+ */
+export function decideStopSubagent(
+  facts: ConversationFacts,
+  inputs: CallInputs,
+  child: ThreadId,
+  requestKey: string
+): Step<SubagentStop> {
+  const stopTurn = (): Step<SubagentStop> => ({ ...decideUserStop(facts, inputs, requestKey), result: 'stopped-turn' })
+  if (facts.keysSeen.has(keys.turnStop(requestKey))) return stopTurn()
+  const key = keys.subagentUserStop(requestKey)
+  if (facts.keysSeen.has(key)) {
+    const entry = facts.history.find((candidate) => candidate.kind === 'record' && candidate.key === key)
+    const stopped =
+      entry?.kind === 'record' && entry.record.type === 'subagent-user-stop' ? entry.record.value : undefined
+    if (stopped?.run === undefined) return { ops: [], effects: [], result: 'not-running' }
+    return {
+      ops: [],
+      effects: [{ type: 'stop-child', child: stopped.sessionId, run: stopped.run }],
+      result: 'stopped-child'
+    }
+  }
+  if (interruptRoute(facts, child) === 'stop-parent-turn') return stopTurn()
+  const decided = decideUserStopSubagent(facts, inputs, child, requestKey)
+  return { ...decided, result: decided.result ? 'stopped-child' : 'not-running' }
 }
 
 /**

@@ -37,7 +37,8 @@ export const ENTRY_KINDS = {
   plan: 'cherry.plan',
   turnStop: 'cherry.turn-stop',
   idleDriverExit: 'cherry.idle-driver-exit',
-  subagentSteer: 'cherry.subagent-steer'
+  subagentSteer: 'cherry.subagent-steer',
+  subagentUserStop: 'cherry.subagent-user-stop'
 } as const
 export type EntryKind = (typeof ENTRY_KINDS)[keyof typeof ENTRY_KINDS]
 
@@ -157,6 +158,11 @@ export type PolicyRecord =
         readonly digest: string
         readonly withdrawn: boolean
       }
+    }
+  /** A person's request to stop child `sessionId`: `run` is the run it stopped; without one nothing was running. */
+  | {
+      readonly type: 'subagent-user-stop'
+      readonly value: { readonly sessionId: ThreadId; readonly run?: number; readonly at: number }
     }
 /** Enters the model context. */
 export type MarkerFact =

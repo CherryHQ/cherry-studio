@@ -30,6 +30,7 @@ export type RawEntry = {
 
 type TurnStop = Extract<PolicyRecord, { readonly type: 'turn-stop' }>['value']
 type SubagentSteer = Extract<PolicyRecord, { readonly type: 'subagent-steer' }>['value']
+type SubagentUserStop = Extract<PolicyRecord, { readonly type: 'subagent-user-stop' }>['value']
 
 /** Every member of a union as a key, so a member added to the union fails to compile until the decoder accepts it. */
 type Members<T extends string> = { readonly [member in T]: true }
@@ -74,6 +75,8 @@ export function encodeEntry(fact: PolicyRecord | MarkerFact, key?: string): Enco
       return { kind: ENTRY_KINDS.idleDriverExit, data: withKey(fact.value, key) }
     case 'subagent-steer':
       return { kind: ENTRY_KINDS.subagentSteer, data: withKey(fact.value, key) }
+    case 'subagent-user-stop':
+      return { kind: ENTRY_KINDS.subagentUserStop, data: withKey(fact.value, key) }
     case 'goal-round':
       return { kind: ENTRY_KINDS.goalRound, data: withKey(fact.round, key) }
     case 'subagent-notification':
@@ -146,6 +149,12 @@ function decodeRecord(kind: string, f: Fields): PolicyRecord | undefined {
         typeof f.digest === 'string' &&
         typeof f.withdrawn === 'boolean'
         ? { type: 'subagent-steer', value: f as SubagentSteer }
+        : undefined
+    case ENTRY_KINDS.subagentUserStop:
+      return typeof f.sessionId === 'string' &&
+        typeof f.at === 'number' &&
+        (f.run === undefined || typeof f.run === 'number')
+        ? { type: 'subagent-user-stop', value: f as SubagentUserStop }
         : undefined
     default:
       return undefined

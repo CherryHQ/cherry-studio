@@ -68,6 +68,7 @@ export { turnOrigin } from './core/goal/goalHistory'
 export { delegationStatus, subagentViews } from './core/subagents/subagentLedger'
 export type { DelegationStatus } from './core/subagents/subagentLedger'
 export { DEFAULT_MAX_BACKGROUND, FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from './core/subagents/subagentText'
+export type { SubagentStop } from './core/driver/lifecycle'
 export type {
   TransactResult,
   Ledger,
@@ -120,7 +121,7 @@ export type {
 } from './ports/host'
 export { install } from './orchestration/install'
 export type { Installation } from './orchestration/install'
-export type { Entries, SubagentStop } from './orchestration/entries'
+export type { Entries } from './orchestration/entries'
 export { harnessContract } from './contract/cases'
 export type {
   ContractCase,
