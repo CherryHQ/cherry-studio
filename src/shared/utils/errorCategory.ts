@@ -203,7 +203,14 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('maximum context length') ||
     msg.includes('context window') ||
     msg.includes('prompt is too long') ||
-    msg.includes('input is too long')
+    msg.includes('input is too long') ||
+    // This branch precedes payload and text-content classification, so numeric wording
+    // must preserve those causes rather than override them.
+    (/\binput length \d+ exceeds the maximum length \d+/.test(msg) &&
+      status !== 413 &&
+      !/payload too large|request entity too large|content_filter|content_policy|safety|prohibited_content|responsible_ai|output_blocked|recitation/.test(
+        msg
+      ))
   ) {
     return 'context_length'
   }
