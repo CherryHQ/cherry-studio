@@ -4,7 +4,7 @@ import type { ConversationFacts, GoalNotice, GoalSnapshot } from '../facts'
 import type { CallInputs } from '../hostFacts'
 import { keys } from '../keys'
 import { runningBackground } from '../subagents/subagentLedger'
-import { runActive } from '../turns'
+import { runActive, stoppedTurn } from '../turns'
 import { currentGoal, goalCounts } from './goalHistory'
 import {
   createGoal,
@@ -22,6 +22,22 @@ const CONTROL_WORDS: ReadonlySet<string> = new Set(['pause', 'resume', 'clear'])
 const NUMBER = /^-?\d+(?:\.\d+)?$/
 
 /**
+ * A `/goal` request the host repeats gets the notice it already got, with nothing decided or written again. A pause or
+ * clear that recorded a stop stops the turn that record names once more (H2), in case its first stop never ran.
+ */
+function repeated(facts: ConversationFacts, text: string, requestKey: string): Step<GoalNotice> | undefined {
+  const key = keys.goalNotice(requestKey)
+  if (!facts.keysSeen.has(key)) return undefined
+  const saved = facts.history.find((entry) => entry.kind === 'record' && entry.key === key)
+  if (saved?.kind !== 'record' || saved.record.type !== 'goal-notice') return undefined
+  const stop = keys.turnStop(requestKey)
+  const turn = facts.keysSeen.has(stop) ? stoppedTurn(facts.history, stop) : undefined
+  const cause = text.trim().split(/\s+/, 1)[0].toLowerCase() === 'clear' ? 'goal-clear' : 'goal-pause'
+  const effects: Effect[] = turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause, turn }]
+  return { ops: [], effects, result: saved.record.value }
+}
+
+/**
  * `/goal` (D4): `[<objective> | edit <objective> | pause | resume | clear | rounds <n> | budget <tokens|$usd>]`.
  * Every answer is a notice for the host, never a model turn; `requestKey` is the host's key for this command.
  */
@@ -31,6 +47,8 @@ export function decideGoalCommand(
   text: string,
   requestKey: string
 ): Step<GoalNotice> {
+  const again = repeated(facts, text, requestKey)
+  if (again) return again
   const notice = (
     value: string,
     level: GoalNotice['level'] = 'info',
@@ -72,20 +90,22 @@ export function decideGoalCommand(
         const current = requireGoal(facts)
         // Only an active, armed goal drives the running turn; otherwise the turn is the person's to keep. Inputs a
         // failed run left are no run: stopping then would withdraw a person's queued message.
-        const stopTurn = (cause: 'goal-pause' | 'goal-clear'): { ops: TxOp[]; effects: Effect[] } =>
-          current.phase === 'active' && current.armed && runActive(facts.live)
-            ? {
-                ops: [
-                  {
-                    type: 'append-record',
-                    thread: facts.thread,
-                    record: { type: 'turn-stop', value: { cause: 'goal-command', at: inputs.now } },
-                    key: keys.turnStop(requestKey)
-                  }
-                ],
-                effects: [{ type: 'stop-turn', thread: facts.thread, cause }]
+        const stopTurn = (cause: 'goal-pause' | 'goal-clear'): { ops: TxOp[]; effects: Effect[] } => {
+          if (current.phase !== 'active' || !current.armed || !runActive(facts.live)) return { ops: [], effects: [] }
+          const key = keys.turnStop(requestKey)
+          const turn = stoppedTurn(facts.history, key)
+          return {
+            ops: [
+              {
+                type: 'append-record',
+                thread: facts.thread,
+                record: { type: 'turn-stop', value: { cause: 'goal-command', at: inputs.now } },
+                key
               }
-            : { ops: [], effects: [] }
+            ],
+            effects: turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause, turn }]
+          }
+        }
         if (keyword === 'pause') {
           if (current.phase === 'complete') throw new GoalError(GOAL_COMPLETE_MESSAGE)
           if (current.phase === 'paused') return notice('Goal is already paused.')

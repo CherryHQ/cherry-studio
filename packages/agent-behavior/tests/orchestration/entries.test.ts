@@ -115,4 +115,45 @@ describe('host entries', () => {
     expect(records(facts, 'turn-stop')).toHaveLength(1)
     expect(assistantTexts(facts)).not.toContain('never')
   })
+
+  // Catches a repeated `/goal pause` that answers its saved notice and loses the stop a crash cut: the retry reported
+  // success while the turn the pause stopped went on.
+  it('a repeated /goal pause after a crash stops the turn the first one named', async () => {
+    const hold = holds()
+    let crashed = false
+    const w = world({
+      extra: (p) => p.tools.register(hold.tool),
+      wrapCall: (ports) => ({
+        ...ports,
+        turns: {
+          ...ports.turns,
+          stop: (...args: Parameters<typeof ports.turns.stop>) => {
+            if (!crashed) {
+              crashed = true
+              w.fake.crashAt(1)
+            }
+            return ports.turns.stop(...args)
+          }
+        }
+      })
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('hold', { id: 'first' }), reply('after the pause')])
+    await w.fake.sendUser(t, 'first')
+    await hold.started('first')
+    await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'ship it', 'cmd-1'))
+    void w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'pause', 'cmd-2'))
+    await vi.waitFor(() => expect(crashed).toBe(true))
+    await w.fake.whenCrashed()
+    await w.fake.restart()
+    const again = await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'pause', 'cmd-2'))
+    // Lets the run finish if nothing stopped it.
+    hold.release('first')
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect(again).toEqual({ text: 'Goal paused.', level: 'info' })
+    expect(facts.live.runEnd?.outcome).toBe('aborted')
+    expect(records(facts, 'turn-stop')).toHaveLength(1)
+    expect(assistantTexts(facts)).not.toContain('after the pause')
+  })
 })

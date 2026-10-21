@@ -2,9 +2,8 @@ import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { Step } from '../core/decisions'
 import { decidePermissionModeChanged, decideUserStop } from '../core/driver/lifecycle'
-import type { ConversationFacts, GoalNotice } from '../core/facts'
+import type { GoalNotice } from '../core/facts'
 import { decideGoalCommand } from '../core/goal/goalCommand'
-import { keys } from '../core/keys'
 import { decideUserStopSubagent } from '../core/subagents/subagentDecisions'
 import { interruptRoute } from '../core/subagents/subagentLedger'
 import type { BoundPorts } from '../ports/harness'
@@ -30,26 +29,12 @@ export type Entries = {
 }
 export type SubagentStop = 'stopped-child' | 'stopped-turn' | 'not-running'
 
-/** A `/goal` request the host repeats gets the notice it already got, with nothing decided or done again. */
-function answered(facts: ConversationFacts, requestKey: string): Step<GoalNotice> | undefined {
-  const key = keys.goalNotice(requestKey)
-  if (!facts.keysSeen.has(key)) return undefined
-  for (const entry of facts.history)
-    if (entry.kind === 'record' && entry.key === key && entry.record.type === 'goal-notice')
-      return { ops: [], effects: [], result: entry.record.value }
-  return undefined
-}
-
 export function entries(host: HostPorts): Entries {
   return {
     async goalCommand(ports, thread, text, requestKey) {
       const context = { ports, host }
       const inputs = await gatherInputs(context, thread)
-      const decided = await step(
-        context,
-        thread,
-        (facts) => answered(facts, requestKey) ?? decideGoalCommand(facts, inputs, text, requestKey)
-      )
+      const decided = await step(context, thread, (facts) => decideGoalCommand(facts, inputs, text, requestKey))
       return decided.result
     },
     async userStop(ports, thread, requestKey) {
