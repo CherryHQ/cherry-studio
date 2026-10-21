@@ -753,6 +753,40 @@ describe('coding-agent behavior adapter', () => {
     )
   })
 
+  // Catches close() skipping a session still being built: once built, the session would start the text queued before
+  // close() and ask the model, and nobody would dispose it.
+  it('disposes a session that was still being built when close() began', async () => {
+    const building = latch()
+    let disposed = 0
+    const pi = await openPiHarness(
+      () => {},
+      [],
+      async (request, open) => {
+        await building.promise
+        const native = await open(request)
+        return {
+          ...native,
+          dispose: async () => {
+            disposed += 1
+            await native.dispose()
+          }
+        }
+      }
+    )
+    const manager = SessionManager.inMemory(pi.cwd)
+    const t = runtimeId<'thread'>(manager.getSessionId())
+    const opening = pi.behavior.openConversation(manager)
+    await pi.harness.sendUser(t, 'early')
+    const closing = pi.harness.close()
+    const refused = expect(opening).rejects.toThrow('The coding-agent harness is closed')
+    building.release()
+    await closing
+    // close() resolves once the session it found being built is disposed.
+    expect(disposed).toBe(1)
+    await refused
+    expect(pi.requests(t)).toEqual([])
+  })
+
   // Catches one session that fails to abort or dispose leaving the others undisposed, the harness open, or a failure
   // unreported.
   it('closes every conversation when one fails to abort and dispose', async () => {

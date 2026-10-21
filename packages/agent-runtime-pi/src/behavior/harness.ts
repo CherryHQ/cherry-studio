@@ -88,9 +88,13 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   const jobs = new Map<string, JobRecord>()
   const memo = new Map<string, JsonValue>()
   const pending = new Set<Promise<unknown>>()
+  /** Sessions being built; `close()` waits for them. */
+  const launching = new Set<Promise<void>>()
   const installation: Installation = { tools: new Map(), jobs: new Map() }
   const installScope: Scope = { ended: false }
   let closed = false
+  /** `close()` has begun: a session built from now on is disposed at once. */
+  let closing = false
   let users = 0
   let lastNow = 0
   const clock = { now: () => (lastNow = Math.max(lastNow, Date.now())) }
@@ -137,7 +141,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
               // H1 coding-agent: the commit reserved the children; their sessions are built right after it.
               await Promise.all(
                 applied.children.map((child) =>
-                  track(openNative(child)).catch((error: unknown) => {
+                  launch(child).catch((error: unknown) => {
                     // Never launched: drop it so it is no pending launch forever (D3).
                     conversations.delete(child.thread)
                     throw error
@@ -243,6 +247,16 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     }
     void track(Promise.resolve().then(run))
   }
+  /** Builds `conv`'s session, pending for `settled()` and, until it is built, for `close()`. */
+  function launch(conv: Conversation): Promise<void> {
+    const launched = track(openNative(conv))
+    launching.add(launched)
+    const forget = () => {
+      launching.delete(launched)
+    }
+    launched.then(forget, forget)
+    return launched
+  }
   async function openNative(conv: Conversation): Promise<void> {
     const child =
       conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
@@ -252,6 +266,11 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       summarize: compactionSummarizer(adapter, conv),
       ...(child && { child })
     })
+    if (closing) {
+      // close() disposes only the sessions it found built: this one is disposed here, before anything runs on it.
+      await native.dispose()
+      throw new Error('The coding-agent harness is closed')
+    }
     conv.native = native
     meterRequests(adapter, conv, native.session)
     native.session.subscribe((event) => {
@@ -337,7 +356,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       )
       conversations.set(thread, conv)
       try {
-        await track(openNative(conv))
+        await launch(conv)
       } catch (error) {
         // Never opened: the host may open it again.
         conversations.delete(thread)
@@ -386,6 +405,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     },
     async close() {
       if (closed) return
+      closing = true
+      // A launch that fails, or that close() itself cut, is no failure of close().
+      await Promise.allSettled([...launching])
       const all = [...conversations.values()]
       // Every run first: a parent's tool call may be waiting on a foreground child.
       const aborts = await Promise.allSettled(all.flatMap((conv) => conv.native?.session.abort() ?? []))
