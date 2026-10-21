@@ -25,10 +25,10 @@ import {
   say,
   snapshots,
   working
-} from './aiSdkGoalSupport'
-import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './aiSdkSubagentSupport'
-import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from './aiSdkSupport'
-import { textOf, toolResults } from './aiSdkToolResults'
+} from './gatewayGoalSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './gatewaySubagentSupport'
+import { finish, lastAssistant, MODEL, plain, scriptedModel, tempDir, textParts } from './gatewaySupport'
+import { textOf, toolResults } from './gatewayToolResults'
 
 describe('goal caps and budgets', () => {
   it('runs the last allowed round as a wrap-up, then blocks with round_limit', async () => {
@@ -534,7 +534,7 @@ describe('goal stops for people, errors and aborts', () => {
     await run
     await s.prompt('/goal')
 
-    expect(held.aborted(1)).toBe(true)
+    await expect.poll(() => held.aborted(1)).toBe(true)
     // The session's start disarms the restored goal; nothing else changes it.
     expect(snapshots(host.entries)).toEqual([{ ...lastSnapshot(entries)!, armed: false }])
     expect(notices(host.entries)).toEqual(['Goal: Keep working\nPhase: active · disarmed\nRounds: 1/100 · Tokens: 0'])

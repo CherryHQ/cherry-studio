@@ -17,12 +17,6 @@ dependency and imports no Cherry application code.
 owns credentials and provider registration, and closing a session does not unregister its providers.
 Settings, including retries and thinking level, retain native Pi semantics.
 
-The owner of a model runtime can require things of every session built on it with
-`setSessionRequirements(modelRuntime, { extensionFactories, settings })`: the builder installs those
-extension factories ahead of the session's own and applies those settings over the session's,
-whichever host builds the session. Cherry's AI SDK binding uses it for its tool-call guard and to
-keep Pi's retry off.
-
 The builder uses in-memory settings, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
 Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
@@ -36,12 +30,11 @@ Known gap: Pi's resource loader still resolves its discovery directories while i
 
 ## Cherry integration
 
-Cherry's AI SDK provider bridge lives in `src/main/ai/runtime/pi/aiSdkModelBinding.ts`. It supplies
-native model configuration and, through session requirements, its tool-call guard ahead of approval
-handlers. AI SDK conversion, retries, provider metadata and request side channels stay in Cherry.
+Cherry registers native Pi providers against its internal gateway in `src/main/ai/runtime/pi/gatewayModelBinding.ts`.
+The gateway owns upstream credentials and billing. Pi owns protocol replay, tool execution and session retries.
 
 This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
-bridge; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+gateway integration; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
 
 ```bash
 pnpm test:agent-runtime packages/agent-runtime-pi/tests/nativeSession.test.ts
@@ -152,10 +145,7 @@ builds a session in-process from the parent's options (model runtime, model, pro
 compaction, offload, recall, settings) plus the extensions, native event listener and live-session
 callback the host returns from `SubagentPort.configure(subagent)`, and starts it with
 `session.prompt()`, so `before_agent_start` handlers run as in any turn. The parent's
-`extensionFactories` and `onEvent` are not inherited. Sessions on a model binding's runtime still
-get the binding's requirements (Cherry's tool-call guard, Pi's retry off): they come with the
-runtime, not with `configure`. A subagent shares its parent's model runtime, so a host's side
-channel tells their requests apart by `sessionId`, which is the subagent's own:
+`extensionFactories` and `onEvent` are not inherited. The host supplies each child's extensions and settings explicitly. A subagent shares its parent's model runtime. Native requests carry its own `sessionId`:
 `<parent session id>.<random UUID>`. Calls of one step run at the same time. A host whose
 `configure` throws fails that call only.
 

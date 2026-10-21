@@ -20,10 +20,10 @@ import {
   say,
   snapshots,
   working
-} from './aiSdkGoalSupport'
-import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './aiSdkSubagentSupport'
-import { finish, plain, tempDir, textParts } from './aiSdkSupport'
-import { textOf, toolResults } from './aiSdkToolResults'
+} from './gatewayGoalSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './gatewaySubagentSupport'
+import { finish, plain, tempDir, textParts } from './gatewaySupport'
+import { textOf, toolResults } from './gatewayToolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */
 const confirmEachRound = goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
@@ -271,7 +271,7 @@ describe('/goal command', () => {
     const before = snapshots(host.entries).length
     await promptIdle(s, '/goal pause')
     await s.prompt('/goal pause')
-    expect(held.aborted(1)).toBe(true)
+    await expect.poll(() => held.aborted(1)).toBe(true)
     expect(snapshots(host.entries)).toHaveLength(before + 1)
     expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'paused', lastStop: { code: 'paused_by_user' } })
     expect(notices(host.entries).slice(-2)).toEqual(['Goal paused.', 'Goal is already paused.'])
@@ -352,7 +352,7 @@ describe('/goal command', () => {
     await s.prompt('/goal Fix it')
     await held.started(1)
     await promptIdle(s, '/goal clear')
-    expect(held.aborted(1)).toBe(true)
+    await expect.poll(() => held.aborted(1)).toBe(true)
   })
 
   // Breaks when the command aborts any turn of an active goal: one restored from the entries is
