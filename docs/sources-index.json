@@ -59,7 +59,7 @@
     },
     {
       "path": "docs/references/ai/chat-attachments.md",
-      "sources": ["src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts","src/main/features/fileProcessing/media/MediaAnalysisService.ts","src/renderer/utils/file.ts","src/shared/utils/file/fileExtensions.ts"]
+      "sources": ["src/main/ai/messages/attachmentRouting.ts","src/main/ai/messages/fileProcessor.ts","src/main/ai/runtime/pi/PiRuntimeConnection.ts","src/main/ai/runtime/pi/piMediaRead.ts","src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts","src/main/features/fileProcessing/media/MediaAnalysisService.ts","src/renderer/utils/file.ts","src/shared/utils/file/fileExtensions.ts"]
     },
     {
       "path": "docs/references/ai/core-architecture.md",
