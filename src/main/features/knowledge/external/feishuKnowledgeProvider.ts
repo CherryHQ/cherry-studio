@@ -216,7 +216,7 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
   if (oauthError === 'invalid_grant' || providerCode === 20005 || response.status === 401) {
     return new FeishuProviderError('reauthorization-required', true)
   }
-  if (providerCode === 99991663 || response.status === 429 || response.status >= 500) {
+  if (providerCode === 131001 || providerCode === 99991663 || response.status === 429 || response.status >= 500) {
     return new FeishuProviderError('transient', false, retryAfterMs)
   }
   return new FeishuProviderError('invalid-response', false)

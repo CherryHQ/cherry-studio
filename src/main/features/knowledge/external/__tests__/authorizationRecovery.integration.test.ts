@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
@@ -12,7 +13,12 @@ import { externalKnowledgeConnectionService as connections } from '@data/service
 import { ExternalKnowledgeCredentialStore } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
 import { ExternalKnowledgeSourceLifecycle } from '../ExternalKnowledgeSourceLifecycle'
-import { FEISHU_REQUIRED_USER_SCOPES, FeishuProviderError, type FeishuUserTokenSet } from '../feishuKnowledgeProvider'
+import {
+  FEISHU_REQUIRED_USER_SCOPES,
+  FeishuProviderError,
+  listWikiChildNodes,
+  type FeishuUserTokenSet
+} from '../feishuKnowledgeProvider'
 
 function deferred() {
   let resolve!: () => void
@@ -100,6 +106,42 @@ describe('authorization recovery ownership', () => {
     const initial = await runtime.beginUserAuthorization(app)
     return runtime.completeUserAuthorization(initial.authorizationSessionId)
   }
+
+  it('recovers Wiki preview after an HTTP 400 RPC failure without invalidating authorization', async () => {
+    const api = provider()
+    api.getWikiNode.mockResolvedValue({
+      spaceId: 'space',
+      nodeToken: 'root',
+      objToken: 'doc-root',
+      objType: 'docx',
+      parentNodeToken: null,
+      nodeType: 'origin',
+      originNodeToken: null,
+      originSpaceId: null,
+      title: 'Root',
+      hasChild: true,
+      objEditTime: '42'
+    })
+    api.listWikiChildNodes.mockImplementation(listWikiChildNodes)
+    const runtime = await start(api)
+    const original = await connected(runtime)
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValueOnce(Response.json({ code: 131001, msg: 'rpc fail' }, { status: 400 }))
+      .mockResolvedValueOnce(Response.json({ code: 0, data: { items: [], has_more: false } }))
+
+    try {
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).resolves.toMatchObject({
+        visibleNodeCount: 1,
+        supportedDocxCount: 1
+      })
+      expect(net.fetch).toHaveBeenCalledTimes(2)
+      expect(connections.getById(original.id)).toEqual(original)
+      await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
 
   it.each(['pending', 'committed'])('does not let old initial cancellation delete a %s replacement', async (stage) => {
     const api = provider()
