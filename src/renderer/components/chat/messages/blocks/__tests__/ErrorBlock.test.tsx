@@ -369,6 +369,33 @@ describe('ErrorBlock', () => {
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  it('shows a content rejection with the provider explanation and no settings recovery', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+    mocks.translations.set('error.diagnosis.content', enUS['error.diagnosis.content'])
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    mocks.translations.set('error.diagnosis.go_to_settings', enUS['error.diagnosis.go_to_settings'])
+    const providerMessage = 'This request was blocked by our content filtering policy. Please revise your message.'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: providerMessage,
+          stack: null,
+          statusCode: 400,
+          providerId: 'openai'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.content'], { exact: true })).toBeVisible()
+    expect(screen.queryByText('Provider request failed (HTTP 400)', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText(providerMessage, { exact: false })).toBeVisible()
+    expect(screen.queryByRole('button', { name: GO_TO_SETTINGS_LABEL })).not.toBeInTheDocument()
+  })
+
   it('shows a Claude SDK request failure with its original error and provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()

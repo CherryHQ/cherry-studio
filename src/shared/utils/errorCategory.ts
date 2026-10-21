@@ -225,7 +225,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('finishreason: safety') ||
     msg.includes('"safety"') ||
     msg.includes('recitation') ||
-    msg.includes('blocked by safety')
+    msg.includes('blocked by safety') ||
+    /\bblocked by (?:our |the )?content filter(?:ing)?\b/.test(msg)
   ) {
     return 'content'
   }

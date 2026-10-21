@@ -574,6 +574,19 @@ describe('classifyError', () => {
     expect(result.category).toBe('server')
   })
 
+  it('classifies a provider content-filter rejection without a settings target', () => {
+    expect(
+      classifyError(
+        makeError({
+          statusCode: 400,
+          providerId: 'openai',
+          message: 'This request was blocked by our content filtering policy. Please revise your message.'
+        }),
+        'openai'
+      )
+    ).toEqual({ category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null })
+  })
+
   // Content filter
   it('classifies 400 + content_filter as content', () => {
     const result = classifyError(makeError({ statusCode: 400, message: 'content_filter triggered' }))
