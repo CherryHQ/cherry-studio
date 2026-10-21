@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "sublinhado",
   "richEditor.toolbar.undo": "desfazer",
   "screenshot.action.cancel": "Cancelar",
+  "screenshot.action.copy": "Copiar para a área de transferência",
   "screenshot.action.confirm": "Copiar e fechar",
   "screenshot.action.redo": "Refazer",
   "screenshot.action.save": "Guardar imagem",

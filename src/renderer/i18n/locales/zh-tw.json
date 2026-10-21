@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "底線",
   "richEditor.toolbar.undo": "復原",
   "screenshot.action.cancel": "取消",
+  "screenshot.action.copy": "複製到剪貼簿",
   "screenshot.action.confirm": "複製並關閉",
   "screenshot.action.redo": "重做",
   "screenshot.action.save": "儲存圖片",

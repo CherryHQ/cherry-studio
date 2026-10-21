@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "Underline",
   "richEditor.toolbar.undo": "Undo",
   "screenshot.action.cancel": "Cancel",
+  "screenshot.action.copy": "Copy to clipboard",
   "screenshot.action.confirm": "Copy and close",
   "screenshot.action.redo": "Redo",
   "screenshot.action.save": "Save image",

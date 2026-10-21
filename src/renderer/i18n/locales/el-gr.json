@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "υπογράμμιση",
   "richEditor.toolbar.undo": "ακύρωση",
   "screenshot.action.cancel": "Ακύρωση",
+  "screenshot.action.copy": "Αντιγραφή στο πρόχειρο",
   "screenshot.action.confirm": "Αντιγραφή και κλείσιμο",
   "screenshot.action.redo": "Επανάληψη",
   "screenshot.action.save": "Αποθήκευση εικόνας",

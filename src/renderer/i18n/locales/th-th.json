@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "เส้นใต้",
   "richEditor.toolbar.undo": "เลิกทำ",
   "screenshot.action.cancel": "ยกเลิก",
+  "screenshot.action.copy": "คัดลอกไปยังคลิปบอร์ด",
   "screenshot.action.confirm": "คัดลอกและปิด",
   "screenshot.action.redo": "ทำซ้ำ",
   "screenshot.action.save": "บันทึกรูปภาพ",

@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "Unterstrichen",
   "richEditor.toolbar.undo": "Rückgängig",
   "screenshot.action.cancel": "Abbrechen",
+  "screenshot.action.copy": "In Zwischenablage kopieren",
   "screenshot.action.confirm": "Kopieren und schließen",
   "screenshot.action.redo": "Wiederholen",
   "screenshot.action.save": "Bild speichern",

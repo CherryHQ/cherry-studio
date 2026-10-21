@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "Subliniat",
   "richEditor.toolbar.undo": "Anulează",
   "screenshot.action.cancel": "Anulează",
+  "screenshot.action.copy": "Copiază în clipboard",
   "screenshot.action.confirm": "Copiază și închide",
   "screenshot.action.redo": "Refă",
   "screenshot.action.save": "Salvează imaginea",

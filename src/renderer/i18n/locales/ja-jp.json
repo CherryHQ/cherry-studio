@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "下線",
   "richEditor.toolbar.undo": "取り消す",
   "screenshot.action.cancel": "キャンセル",
+  "screenshot.action.copy": "クリップボードにコピー",
   "screenshot.action.confirm": "コピーして閉じる",
   "screenshot.action.redo": "やり直す",
   "screenshot.action.save": "画像を保存",

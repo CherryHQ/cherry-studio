@@ -3382,6 +3382,7 @@
   "richEditor.toolbar.underline": "Подчеркнуть",
   "richEditor.toolbar.undo": "Отменить",
   "screenshot.action.cancel": "Отмена",
+  "screenshot.action.copy": "Копировать в буфер обмена",
   "screenshot.action.confirm": "Скопировать и закрыть",
   "screenshot.action.redo": "Повторить",
   "screenshot.action.save": "Сохранить изображение",
