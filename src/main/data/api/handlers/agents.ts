@@ -77,10 +77,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     DELETE: async ({ params }) => {
-      // Route through AgentLifecycleService so retained session runtimes are
-      // properly paused and closed — mirrors the ai.agent.delete IPC path.
-      const lifecycle = application.get('AgentLifecycleService')
-      const result = await lifecycle.archiveAgent(params.agentId, { archiveSessions: false })
+      // DataApi is SQLite-only — lifecycle cleanup (pauseRuntimeTurn, closeSession)
+      // stays on the ai.agent.delete IPC path. See AgentLifecycleService.
+      const result = agentService.deleteAgent(params.agentId, { deleteSessions: false })
       if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }
