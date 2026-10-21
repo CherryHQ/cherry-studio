@@ -28,6 +28,7 @@ const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
 const ACTIVE_WRITERS_POLL_MS = 30_000
+const ANCHOR_SEARCH_DAYS = 7
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: [
@@ -85,9 +86,9 @@ interface ScheduleSettings {
 const nextAnchoredRun = (from: number, startMinute: number, intervalMinutes: number): number => {
   const now = new Date(from)
   const firstSlotMinute = startMinute % intervalMinutes
-  // Today and tomorrow: every slot left today is already past once `from` is past
-  // the last one, and tomorrow covers the wrap past midnight.
-  for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
+  // Every slot left today is already past once `from` is past the last one; the following
+  // days cover the wrap past midnight and any day whose only slot a DST gap erased.
+  for (let dayOffset = 0; dayOffset < ANCHOR_SEARCH_DAYS; dayOffset++) {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset)
     for (let minute = firstSlotMinute; minute < 1440; minute += intervalMinutes) {
       const slot = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minute)

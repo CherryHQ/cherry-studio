@@ -232,6 +232,34 @@ describe('AutoBackupService', () => {
       }
     })
 
+    it('keeps searching past a day whose only slot falls in a DST gap', async () => {
+      const originalTimezone = process.env.TZ
+      process.env.TZ = 'America/New_York'
+      try {
+        setPreference('data.backup.s3.auto_sync', false)
+        setPreference('data.backup.local.auto_sync', false)
+        setPreference('data.backup.nutstore.auto_sync', false)
+        setPreference('data.backup.webdav.sync_start', 150)
+        setPreference('data.backup.webdav.sync_interval', 1440)
+        // 2026-03-07 03:05 EST: today's 02:30 is past and 2026-03-08 has no 02:30 at all.
+        vi.setSystemTime(new Date(2026, 2, 7, 3, 5))
+        await recreateService()
+
+        // The first existing slot is 2026-03-09 02:30 EDT, 46h25m away.
+        await vi.advanceTimersByTimeAsync(46 * 3600_000 + 24 * 60_000)
+        expect(mocks.backupToWebdav).not.toHaveBeenCalled()
+        expect(clock()).toBe('02:29')
+
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+        expect(clock()).toBe('02:30')
+        expect(new Date().getDate()).toBe(9)
+      } finally {
+        if (originalTimezone === undefined) delete process.env.TZ
+        else process.env.TZ = originalTimezone
+      }
+    })
+
     it('returns to the grid after a missed slot instead of drifting with the gap', async () => {
       setPreference('data.backup.webdav.sync_start', 18 * 60)
       await isolateWebdavAt(17, 59)
