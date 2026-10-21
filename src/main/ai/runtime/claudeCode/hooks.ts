@@ -101,8 +101,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     surfaceExitPlanModeInput(sessionId, toolName, toolInput, toolUseId)
     // The spawn call is the only record of WHO is launching a child: `SubagentStart` carries just
     // the child's `agent_id`. `input.agent_id` is the spawning child; absent means the main thread.
+    // Its authority is resolved HERE — a later foreground Skill attempt must not launder a
+    // headless child's spawn by queue position.
     if (SUBAGENT_LAUNCH_TOOL_NAMES.has(toolName) && toolUseId) {
-      sessionState().recordNativeSpawnAttempt(sessionId, toolUseId, input.agent_id)
+      const spawner = application
+        .get('AgentSessionRuntimeService')
+        .getToolGuardInteractionState(sessionId, input.agent_id)
+      sessionState().recordNativeSpawnAttempt(sessionId, toolUseId, spawner.currentTurn === 'headless', input.agent_id)
     }
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
@@ -256,7 +261,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStart') return {}
     const spawn = sessionState().takeNativeSpawnAttempt(sessionId)
-    application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id, spawn?.parentAgentId)
+    application.get('AgentSessionRuntimeService').bindNativeChildOrigin(sessionId, input.agent_id, spawn)
     return {}
   }
 

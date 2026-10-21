@@ -3498,7 +3498,7 @@ describe('AgentSessionRuntimeService', () => {
       mocks.getWindow.mockReturnValue({})
       const turn = service.beginTurn(baseTurnInput)
       service.openTurnStream({ sessionId: 'session-1', turnId: turn.turnId, signal: new AbortController().signal })
-      service.bindNativeChildOrigin('session-1', 'agent-grandchild', 'agent-a')
+      service.bindNativeChildOrigin('session-1', 'agent-grandchild', { headless: true })
       ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'background-work-state', active: true })
 
       expect(service.getToolGuardInteractionState('session-1', 'agent-grandchild')).toMatchObject({

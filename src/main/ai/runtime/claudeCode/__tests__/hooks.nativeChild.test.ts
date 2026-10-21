@@ -23,15 +23,30 @@ const { state, aiStreamManager, windowManager, cacheService, warmQueryManager, a
   // Real queue semantics: the spawn-call attribution is what tells `SubagentStart` who launched a
   // child, so the fake has to carry it between the two hooks like the real service does.
   const state = {
-    spawnAttempts: [] as { toolUseId: string; parentAgentId?: string }[],
+    spawnAttempts: [] as { toolUseId: string; headless: boolean; parentAgentId?: string }[],
     getToolPolicySnapshot: vi.fn(),
     getBashNoProgressRun: vi.fn(),
     getSteerHolder: vi.fn(),
     disposeBashScope: vi.fn(),
-    recordNativeSpawnAttempt: vi.fn((_sessionId: string, toolUseId: string, parentAgentId?: string) => {
-      state.spawnAttempts.push({ toolUseId, ...(parentAgentId ? { parentAgentId } : {}) })
+    recordNativeSpawnAttempt: vi.fn(
+      (_sessionId: string, toolUseId: string, headless: boolean, parentAgentId?: string) => {
+        state.spawnAttempts.push({ toolUseId, headless, ...(parentAgentId ? { parentAgentId } : {}) })
+      }
+    ),
+    // Same ambiguity rule as the real service: mixed authorities cannot be attributed by order.
+    takeNativeSpawnAttempt: vi.fn(() => {
+      const [first] = state.spawnAttempts
+      if (!first) return undefined
+      if (state.spawnAttempts.some((attempt) => attempt.headless !== first.headless)) {
+        return { headless: true, ambiguous: true }
+      }
+      state.spawnAttempts.shift()
+      return {
+        headless: first.headless,
+        ambiguous: false,
+        ...(first.parentAgentId ? { parentAgentId: first.parentAgentId } : {})
+      }
     }),
-    takeNativeSpawnAttempt: vi.fn(() => state.spawnAttempts.shift()),
     clearNativeSpawnAttempt: vi.fn((_sessionId: string, toolUseId: string) => {
       const index = state.spawnAttempts.findIndex((attempt) => attempt.toolUseId === toolUseId)
       if (index >= 0) state.spawnAttempts.splice(index, 1)
@@ -132,6 +147,7 @@ vi.mock('@data/services/AiUsageRecordService', () => ({
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
+import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
 import { buildClaudeCodeHooks } from '../hooks'
 
 const SESSION_ID = 'session-native-overlap'
@@ -349,6 +365,57 @@ describe('native Claude child authority across a desktop follow-up', () => {
     )
 
     expect(decisionOf(await fireGuard({ agent_id: 'forked-child' })).permissionDecision).toBe('deny')
+  })
+
+  // The pinned SDK gives no session-wide FIFO guarantee: a foreground Skill call and a surviving
+  // headless child's Agent call can be in flight together. Taking the oldest entry credits the new
+  // child with whichever call happened to be recorded first — here the foreground's — and the
+  // headless child's grandchild permanently inherits interactive authority.
+  it('fails closed when in-flight spawn calls disagree on authority', async () => {
+    beginTurn(true)
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: NATIVE_CHILD, agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    settleTurn()
+
+    beginTurn(false)
+    // The interactive follow-up records a forked-skill attempt and waits…
+    await fireGuard({ tool_name: 'Skill', tool_input: { skill: 'forked-review' } })
+    // …while the surviving headless child's own Agent call is admitted first.
+    await fireGuard({
+      tool_name: 'Task',
+      agent_id: NATIVE_CHILD,
+      tool_input: { description: 'nested', prompt: 'go', subagent_type: 'general-purpose' }
+    })
+    await hook('SubagentStart')(
+      { hook_event_name: 'SubagentStart', agent_id: 'headless-grandchild', agent_type: 'general-purpose' } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    expect(decisionOf(await fireGuard({ agent_id: 'headless-grandchild' })).permissionDecision).toBe('deny')
+    expect(decisionOf(await fireGuard({ agent_id: NATIVE_CHILD })).permissionDecision).toBe('deny')
+  })
+
+  // The queue itself: mixed authorities are unattributable, so nothing is consumed and the child
+  // fails closed; a queue that agrees still hands out its oldest entry.
+  it('reports an ambiguous spawn queue instead of consuming it by arrival order', () => {
+    const stateService = new ClaudeCodeSessionStateService()
+    stateService.recordNativeSpawnAttempt('session-x', 'tool-foreground', false)
+    stateService.recordNativeSpawnAttempt('session-x', 'tool-headless-child', true, 'child-a')
+
+    expect(stateService.takeNativeSpawnAttempt('session-x')).toEqual({ headless: true, ambiguous: true })
+
+    // The foreground call ends without spawning; the remaining entry is now unambiguous.
+    stateService.clearNativeSpawnAttempt('session-x', 'tool-foreground')
+    expect(stateService.takeNativeSpawnAttempt('session-x')).toEqual({
+      headless: true,
+      ambiguous: false,
+      parentAgentId: 'child-a'
+    })
+    expect(stateService.takeNativeSpawnAttempt('session-x')).toBeUndefined()
   })
 
   // A plain skill invocation starts nothing. Its attribution must not survive to claim the next

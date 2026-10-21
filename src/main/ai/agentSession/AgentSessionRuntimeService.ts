@@ -3749,13 +3749,17 @@ export class AgentSessionRuntimeService extends BaseService {
    * Record which execution spawned one native Claude child. Bound at `SubagentStart`, where the SDK
    * first names the child by `agent_id`.
    *
-   * `SubagentStart` carries no parent reference, so the caller supplies the execution whose
-   * `Task`/`Agent` call is in flight (`spawnParentAgentId`: absent for the main thread, otherwise
-   * that child's `agent_id`). Concurrent live membership is NOT evidence of parentage: an unrelated
-   * headless background child must not make a desktop follow-up's own child unattended. Without the
-   * spawning call (older producers, resumed sessions) the current turn is the only authority known.
+   * `SubagentStart` carries no parent reference and the SDK gives no session-wide ordering, so the
+   * hook resolves the spawner's authority from the `Task`/`Agent` call it observed (`spawn`):
+   * `headless` is that execution's authority, `ambiguous` means several spawn calls with different
+   * authorities were in flight and this child cannot be attributed — it fails closed. Without any
+   * observed spawn call (older producers, resumed sessions) the current turn is the only authority.
    */
-  bindNativeChildOrigin(sessionId: string, nativeSubagentId: string, spawnParentAgentId?: string): void {
+  bindNativeChildOrigin(
+    sessionId: string,
+    nativeSubagentId: string,
+    spawn?: { headless: boolean; ambiguous?: boolean }
+  ): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
     ;(entry.liveNativeChildren ??= new Set<string>()).add(nativeSubagentId)
@@ -3763,12 +3767,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // First binding wins: a later turn waking or resuming the same child must not upgrade it.
     if (origins.has(nativeSubagentId)) return
     const turn = this.currentTurn(entry)
-    // A child of an unbound parent fails closed inside `headlessNativeChild`.
     origins.set(
       nativeSubagentId,
-      spawnParentAgentId === undefined
-        ? turn === undefined || turn.headless === true
-        : this.headlessNativeChild(entry, spawnParentAgentId)
+      spawn === undefined ? turn === undefined || turn.headless === true : spawn.headless || spawn.ambiguous === true
     )
   }
 

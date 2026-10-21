@@ -34,6 +34,12 @@ export class ChannelAdapterListener implements StreamListener {
   private delivered = false
   /** Attempt ids whose terminal was already handed to the adapter. */
   private readonly deliveredAttempts = new Set<number>()
+  /**
+   * The execution this listener was created for, taken from its first terminal. Suppression covers
+   * only that execution's failure: a wake carried into this listener later must stay deliverable
+   * even while the run's terminal dispatch (and the deferred `enableErrorDelivery`) still runs.
+   */
+  private originatingAttemptId?: number
   /** Live-update slot per attempt bucket; the newest delta for an attempt supersedes the rest. */
   private readonly liveUpdates = new Map<number, PendingUpdate>()
   /**
@@ -168,7 +174,23 @@ export class ChannelAdapterListener implements StreamListener {
     return !this.deliveredAttempts.has(attemptId)
   }
 
+  /** Remember which execution this listener serves — the first terminal it dispatches. */
+  private noteTerminalAttempt(attemptId: number | undefined): void {
+    if (this.originatingAttemptId === undefined && attemptId !== undefined) this.originatingAttemptId = attemptId
+  }
+
+  /**
+   * Whether this error terminal is the one the handler reports itself. Untagged terminals (direct
+   * feeds) carry no identity, so they keep the listener-wide flag.
+   */
+  private suppressesErrorFor(attemptId: number | undefined): boolean {
+    if (!this.suppressErrorMessage) return false
+    if (attemptId === undefined || this.originatingAttemptId === undefined) return true
+    return attemptId === this.originatingAttemptId
+  }
+
   private async finish(status: 'success' | 'paused', attemptId?: number): Promise<void> {
+    this.noteTerminalAttempt(attemptId)
     // Take this execution's text BEFORE yielding: a predecessor's finalize can still be in flight
     // when a wake emits through this carried listener, and text arriving during the await below
     // belongs to that wake, not to this execution.
@@ -200,7 +222,8 @@ export class ChannelAdapterListener implements StreamListener {
     // The suppression decision is taken once, synchronously at entry: a retained run arms error
     // delivery for FUTURE terminals (after the dispatch settles), and an arm landing mid-await must
     // not flip the terminal that is already being dispatched.
-    const suppress = this.suppressErrorMessage
+    this.noteTerminalAttempt(result.attemptId)
+    const suppress = this.suppressesErrorFor(result.attemptId)
     // Same rule as `finish`: drop this execution's text before yielding, so a wake emitting through
     // this carried listener during the await does not inherit or re-ship it.
     this.takeOwnText(result.attemptId)

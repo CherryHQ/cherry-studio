@@ -44,10 +44,19 @@ interface McpSessionCatalogState {
   subscription?: { dispose(): void }
 }
 
-/** One in-flight `Task`/`Agent` call: the spawning execution is `parentAgentId` (absent = main thread). */
+/** One in-flight spawn call: `parentAgentId` absent = main thread, `headless` = its authority. */
 export interface NativeSpawnAttempt {
   toolUseId: string
   parentAgentId?: string
+  headless: boolean
+}
+
+/** What a `SubagentStart` may inherit: the spawner's authority, or fail-closed when unattributable. */
+export interface NativeSpawnAttribution {
+  parentAgentId?: string
+  headless: boolean
+  /** Pending spawn calls disagree on authority, so ordering cannot attribute this child. */
+  ambiguous: boolean
 }
 
 @Injectable('ClaudeCodeSessionStateService')
@@ -195,20 +204,35 @@ export class ClaudeCodeSessionStateService extends BaseService {
   /**
    * `SubagentStart` names only the child, so the spawning execution is captured here from the
    * `Task`/`Agent` call that is about to run — its `agent_id` when a child launched the spawn,
-   * absent when the main thread did. FIFO: `SubagentStart` follows its own spawn call in order.
+   * absent when the main thread did. `headless` is resolved NOW: the caller's authority cannot be
+   * re-read later, when a foreground skill may have recorded its own attempt meanwhile.
    */
-  recordNativeSpawnAttempt(sessionId: string, toolUseId: string, parentAgentId?: string): void {
+  recordNativeSpawnAttempt(sessionId: string, toolUseId: string, headless: boolean, parentAgentId?: string): void {
     const attempts = this.nativeSpawnAttempts.get(sessionId) ?? []
-    attempts.push({ toolUseId, ...(parentAgentId ? { parentAgentId } : {}) })
+    attempts.push({ toolUseId, headless, ...(parentAgentId ? { parentAgentId } : {}) })
     this.nativeSpawnAttempts.set(sessionId, attempts)
   }
 
-  takeNativeSpawnAttempt(sessionId: string): NativeSpawnAttempt | undefined {
+  /**
+   * The attribution a starting child inherits. The SDK (0.3.284) gives no session-wide FIFO
+   * guarantee — a foreground skill and a surviving headless child can have spawn calls in flight at
+   * once — so a queue whose entries disagree on authority is unattributable: report it as
+   * ambiguous (fail closed) and leave the entries for the tool terminals to clear.
+   */
+  takeNativeSpawnAttempt(sessionId: string): NativeSpawnAttribution | undefined {
     const attempts = this.nativeSpawnAttempts.get(sessionId)
-    const attempt = attempts?.shift()
-    if (!attempts || !attempt) return undefined
+    if (!attempts?.length) return undefined
+    const [first] = attempts
+    if (attempts.some((attempt) => attempt.headless !== first.headless)) {
+      return { headless: true, ambiguous: true }
+    }
+    attempts.shift()
     if (attempts.length === 0) this.nativeSpawnAttempts.delete(sessionId)
-    return attempt
+    return {
+      headless: first.headless,
+      ambiguous: false,
+      ...(first.parentAgentId ? { parentAgentId: first.parentAgentId } : {})
+    }
   }
 
   /** A spawn call that finished without starting a child (denied, errored) must not claim the next one. */

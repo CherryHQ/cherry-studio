@@ -245,6 +245,33 @@ describe('ChannelAdapterListener', () => {
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
+  // The deferred `enableErrorDelivery()` lands only when the terminal DISPATCH settles. A wake can
+  // start and fail before that promise resolves: suppression belongs to the run's own terminal, so
+  // the wake's error must still reach the chat instead of vanishing behind the finished run.
+  it('delivers a wake error that lands while the suppressed run’s terminal is still finalizing', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1', true)
+
+    listener.onChunk(delta('Scheduled work'))
+    // The run settles successfully (its own failure summary is the handler's job); the wake then
+    // dies on this carried listener before error delivery was armed.
+    await listener.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await listener.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'wake exploded' },
+      isTopicDone: true,
+      attemptId: 2
+    })
+
+    expect(adapter.onStreamError).toHaveBeenCalledWith('chat-1', 'wake exploded', undefined, {
+      suppressDelivery: false
+    })
+    expect(vi.mocked(adapter.sendMessage).mock.calls.map(([, text]) => text)).toEqual([
+      'Scheduled work',
+      t('common.channel_error', { error: 'wake exploded' })
+    ])
+  })
+
   it('keeps a live adapter subscription during transport loss but drops a retired adapter', () => {
     let alive = true
     const listener = new ChannelAdapterListener(
