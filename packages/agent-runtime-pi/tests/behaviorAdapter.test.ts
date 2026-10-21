@@ -11,6 +11,7 @@ import {
   createScriptedHost,
   encodeEntry,
   type HarnessPorts,
+  type HostPorts,
   install,
   type Key,
   type MessageResult,
@@ -93,20 +94,22 @@ const autoCompacting =
       compaction: { reserveTokens: 31_999, keepRecentTokens: 1, summarize: request.summarize },
       ...(onEvent && { onEvent })
     })
-/** The package itself, on a scripted host that lets every call run. */
-const installPackage = (ports: HarnessPorts): void => {
+/** The package itself, on a scripted host that lets every call run; `patch` replaces host ports it gets. */
+const installPackage = (ports: HarnessPorts, patch: (host: HostPorts) => HostPorts = (host) => host): void => {
   install(
     ports,
-    createScriptedHost({
-      settings: {
-        goalDefaults: { maxGoalRounds: 8, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
-        autonomy: 'auto',
-        permissionMode: 'auto',
-        attendance: 'stream',
-        maxBackground: 4,
-        offloadThreshold: 20_000
-      }
-    })
+    patch(
+      createScriptedHost({
+        settings: {
+          goalDefaults: { maxGoalRounds: 8, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+          autonomy: 'auto',
+          permissionMode: 'auto',
+          attendance: 'stream',
+          maxBackground: 4,
+          offloadThreshold: 20_000
+        }
+      })
+    )
   )
 }
 const spawnInBackground = {
@@ -785,6 +788,82 @@ describe('coding-agent behavior adapter', () => {
     expect(disposed).toBe(1)
     await refused
     expect(pi.requests(t)).toEqual([])
+  })
+
+  // Catches close() not waiting for the onOpen of a conversation it overlaps: the open would finish after close()
+  // returned, start the text queued while the session was built on a disposed session, and its writes would fail.
+  it('finishes an open that close() overlaps before tearing it down', async () => {
+    const asked = latch()
+    const held = latch()
+    let disposed = 0
+    const pi = await openPiHarness(
+      (ports) =>
+        installPackage(ports, (host) => ({
+          ...host,
+          models: {
+            ...host.models,
+            // The package's onOpen awaits it.
+            current: async (thread) => {
+              asked.release()
+              await held.promise
+              return host.models.current(thread)
+            }
+          }
+        })),
+      [],
+      async (request, open) => {
+        const native = await open(request)
+        return {
+          ...native,
+          dispose: async () => {
+            disposed += 1
+            await native.dispose()
+          }
+        }
+      }
+    )
+    const manager = SessionManager.inMemory(pi.cwd)
+    const t = runtimeId<'thread'>(manager.getSessionId())
+    const order: string[] = []
+    const opening = pi.behavior.openConversation(manager)
+    const settled = () => order.push('open')
+    void opening.then(settled, settled)
+    // Sent while the session is being built, the text waits in the inbox for the open to finish.
+    await pi.harness.sendUser(t, 'early')
+    await asked.promise
+    const closing = pi.harness.close().then(() => order.push('close'))
+    // Long enough for close() to finish if it did not wait for the open.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    held.release()
+    await closing
+    expect(order).toEqual(['open', 'close'])
+    await expect(opening).resolves.toBe(t)
+    expect(pi.requests(t)).toEqual([])
+    expect(manager.getEntries().some((entry) => entry.type === 'message' && entry.message.role === 'user')).toBe(false)
+    expect(pi.errors).toEqual([])
+    expect(disposed).toBe(1)
+  })
+
+  // Catches close() starting the report job of a background child whose session it cut: the job fails at its first
+  // call to the child and reaches onError while the harness shuts down.
+  it('starts no report job for a background child whose launch close() cut', async () => {
+    const asked = latch()
+    const building = latch()
+    const pi = await openPiHarness(installPackage, [], async (request, open) => {
+      if (request.child) {
+        asked.release()
+        await building.promise
+      }
+      return open(request)
+    })
+    const parent = await pi.harness.createThread()
+    pi.harness.script(parent, [spawnInBackground, { text: 'waiting' }])
+    await pi.harness.sendUser(parent, 'go')
+    await asked.promise
+    const closing = pi.harness.close()
+    building.release()
+    await closing
+    expect(pi.errors).toEqual([])
   })
 
   // Catches one session that fails to abort or dispose leaving the others undisposed, the harness open, or a failure
