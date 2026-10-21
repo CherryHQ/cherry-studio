@@ -2,7 +2,7 @@ import type * as ChildProcessModule from 'node:child_process'
 import type { ExecFileSyncOptions } from 'node:child_process'
 import { execFileSync, spawn } from 'node:child_process'
 import type * as FsPromisesModule from 'node:fs/promises'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -49,8 +49,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 })
 
 import {
+  BACKGROUND_TASK_EVIDENCE_EXT,
   BACKGROUND_TASK_RECORD_EXT,
   BACKGROUND_TASK_SENTINEL_EXT,
+  hasLiveTaskEvidence,
   MAX_BACKGROUND_TASK_COMMAND_LENGTH,
   type BackgroundTaskRecord,
   POSIX_DETACHED_TASK_SUPERVISOR,
@@ -100,6 +102,106 @@ describe('backgroundTasks', () => {
       }
     }
   }, 20_000)
+
+  describe.skipIf(process.platform === 'win32')('Windows reconciliation after a restart', () => {
+    let dir: string
+    let shimDir: string
+    let tableFile: string
+    let realPlatform: NodeJS.Platform
+    let realPath: string | undefined
+    let live: ReturnType<typeof spawn> | undefined
+
+    beforeEach(async () => {
+      realPlatform = process.platform
+      realPath = process.env.PATH
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+      dir = await mkdtemp(path.join(tmpdir(), 'cherry-win-reconcile-'))
+      shimDir = await mkdtemp(path.join(tmpdir(), 'cherry-win-shim-'))
+      tableFile = path.join(shimDir, 'table.csv')
+      await writeFile(tableFile, '')
+      const shim = path.join(shimDir, 'powershell.exe')
+      await writeFile(shim, '#!/bin/sh\ncat "$BG_RECONCILE_TABLE"\n')
+      await chmod(shim, 0o755)
+      process.env.PATH = `${shimDir}${path.delimiter}${process.env.PATH}`
+      process.env.BG_RECONCILE_TABLE = tableFile
+      live = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], { stdio: 'ignore' })
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    })
+
+    afterEach(async () => {
+      live?.kill('SIGKILL')
+      if (realPath !== undefined) process.env.PATH = realPath
+      delete process.env.BG_RECONCILE_TABLE
+      Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true })
+      await rm(dir, { recursive: true, force: true })
+      await rm(shimDir, { recursive: true, force: true })
+    })
+
+    const writeRecord = async (id: string): Promise<void> => {
+      await writeFile(
+        path.join(dir, `${id}${BACKGROUND_TASK_RECORD_EXT}`),
+        JSON.stringify({
+          id,
+          name: id,
+          command: 'true',
+          pid: live!.pid,
+          cwd: dir,
+          startedAt: new Date().toISOString(),
+          logFile: path.join(dir, `${id}.log`),
+          status: 'running',
+          exitCode: null,
+          signal: null
+        })
+      )
+    }
+
+    const writeEvidence = async (id: string, runnerCreatedAt?: string): Promise<void> => {
+      await writeFile(
+        path.join(dir, `${id}${BACKGROUND_TASK_EVIDENCE_EXT}`),
+        JSON.stringify({ shellPid: 1, ...(runnerCreatedAt ? { runnerCreatedAt } : {}) })
+      )
+    }
+
+    const writeTable = (rows: string[]): Promise<void> =>
+      writeFile(tableFile, `${['"ProcessId","ParentProcessId","CreationDate"', ...rows].join('\n')}\n`)
+
+    it('reads a replacement runner pid as unknown instead of running', async () => {
+      // The task finished while the app was closed and Windows handed its runner pid to someone
+      // else. Windows records no `pidStartTime`, so the runner's persisted creation evidence is the
+      // only identity there is: a live occupant reading a different stamp is that replacement, and
+      // the record may not keep claiming to be a running task.
+      await writeRecord('bt-replaced')
+      await writeEvidence('bt-replaced', '111')
+      await writeTable([`"${live!.pid}","4","222"`])
+
+      await expect(getDetachedBackgroundTask(dir, 'bt-replaced')).resolves.toMatchObject({ status: 'unknown' })
+      // And it is not live work for restore or a permanent purge to refuse over.
+      const reconciled = await getDetachedBackgroundTask(dir, 'bt-replaced')
+      await expect(hasLiveTaskEvidence(dir, reconciled!)).resolves.toBe(false)
+    })
+
+    it('keeps a matching runner identity running', async () => {
+      await writeRecord('bt-same')
+      await writeEvidence('bt-same', '111')
+      await writeTable([`"${live!.pid}","4","111"`])
+
+      await expect(getDetachedBackgroundTask(dir, 'bt-same')).resolves.toMatchObject({ status: 'running' })
+      const reconciled = await getDetachedBackgroundTask(dir, 'bt-same')
+      await expect(hasLiveTaskEvidence(dir, reconciled!)).resolves.toBe(true)
+    })
+
+    it('keeps an unverifiable runner conservative', async () => {
+      // No identity was ever captured: nothing proves the occupant is a replacement, so the record
+      // keeps its running reading and keeps blocking work that would erase its control path.
+      await writeRecord('bt-unverified')
+      await writeEvidence('bt-unverified')
+      await writeTable([`"${live!.pid}","4","222"`])
+
+      await expect(getDetachedBackgroundTask(dir, 'bt-unverified')).resolves.toMatchObject({ status: 'running' })
+      const reconciled = await getDetachedBackgroundTask(dir, 'bt-unverified')
+      await expect(hasLiveTaskEvidence(dir, reconciled!)).resolves.toBe(true)
+    })
+  })
 
   describe('buildDetachedBackgroundTaskSpawn', () => {
     it('detaches the child into its own session with the log fds wired to stdio', () => {

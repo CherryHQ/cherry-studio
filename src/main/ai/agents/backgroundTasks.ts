@@ -1348,6 +1348,18 @@ function readGroupMembers(pgid: number): GroupMember[] | null {
  * reads back empty is a confirmed exit — the app simply was not running to write its sentinel —
  * while a group still holding members, or a table that cannot be read at all, leaves it open.
  */
+/**
+ * Whether a reconciled record still has evidence of live work, read the way its platform records
+ * identity: POSIX verifies the start stamp and the group, Windows verifies the runner's creation
+ * evidence — a confirmed replacement is not live work, while an unverifiable one stays conservative.
+ */
+export async function hasLiveTaskEvidence(storageDir: string, record: BackgroundTaskRecord): Promise<boolean> {
+  if (record.pid <= 0) return false
+  if (process.platform !== 'win32') return hasLiveGroupEvidence(record)
+  if (!isPidAlive(record.pid)) return false
+  return !(await hasReplacedWindowsRunner(storageDir, record, readWindowsProcessTable))
+}
+
 export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   if (record.pid <= 0) return false
   // A live pid is only this task's work while its recorded start stamp matches: a task that
@@ -1666,18 +1678,44 @@ export async function listDetachedBackgroundTasks(storageDir: string): Promise<B
   const records = await Promise.all(
     entries.filter((entry) => entry.endsWith(BACKGROUND_TASK_RECORD_EXT)).map((entry) => readRecord(storageDir, entry))
   )
+  let table: Promise<WindowsProcessRow[] | null> | undefined
+  const readTable: TableReader = () => (table ??= readWindowsProcessTable())
   return (
     await Promise.all(
       records
         .filter((record): record is BackgroundTaskRecord => record !== undefined)
-        .map((record) => reconcileDetachedBackgroundTask(storageDir, record))
+        .map((record) => reconcileDetachedBackgroundTask(storageDir, record, readTable))
     )
   ).sort((left, right) => right.startedAt.localeCompare(left.startedAt))
 }
 
+/**
+ * Whether the live process at the record's pid is demonstrably not the runner this task started.
+ * Windows records no start stamp, so the runner's own creation evidence is its identity: a live
+ * occupant reading a different stamp is a replacement. Without that evidence nothing is proven,
+ * and the record keeps its conservative reading.
+ */
+async function hasReplacedWindowsRunner(
+  storageDir: string,
+  record: BackgroundTaskRecord,
+  readTable: TableReader
+): Promise<boolean> {
+  if (process.platform !== 'win32') return false
+  const evidence = await readTaskEvidence(storageDir, record.id)
+  if (!evidence?.runnerCreatedAt) return false
+  const rows = await readTable()
+  if (!rows) return false
+  const row = rows.find((candidate) => candidate.pid === record.pid)
+  return row !== undefined && row.created !== evidence.runnerCreatedAt
+}
+
+/** Reads the Windows process table; a listing shares one read across every record it reconciles. */
+type TableReader = () => Promise<WindowsProcessRow[] | null>
+
 async function reconcileDetachedBackgroundTask(
   storageDir: string,
-  record: BackgroundTaskRecord
+  record: BackgroundTaskRecord,
+  readTable: TableReader = readWindowsProcessTable
 ): Promise<BackgroundTaskRecord> {
   if (record.status !== 'running') return record
   const completion = await readSentinel(storageDir, record.id)
@@ -1685,9 +1723,8 @@ async function reconcileDetachedBackgroundTask(
     return { ...record, ...completion, status: completion.status }
   }
   if (record.pid > 0 && isPidAlive(record.pid)) {
-    return isRecycledPid(record)
-      ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') }
-      : record
+    const recycled = isRecycledPid(record) || (await hasReplacedWindowsRunner(storageDir, record, readTable))
+    return recycled ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') } : record
   }
   // The leader is gone but its group can still be working (a member ignoring SIGTERM) — the
   // task stays running and controllable, but only while this app still owns the group from the

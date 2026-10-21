@@ -33,11 +33,13 @@ vi.mock('@application', async () => {
 import { agentService } from '@data/services/AgentService'
 
 import {
+  DetachedTasksBusyError,
   listAgentBackgroundTasks,
   purgeAgentBackgroundTasks,
   startAgentBackgroundTask,
   stopAgentBackgroundTask,
-  stopAllAgentBackgroundTasks
+  stopAllAgentBackgroundTasks,
+  withDetachedTasksStopped
 } from '../backgroundTaskActions'
 import * as tasks from '../backgroundTasks'
 import {
@@ -114,6 +116,48 @@ async function writeCompletionSentinel(storageDir: string, id: string): Promise<
     })
   )
 }
+
+describe('withDetachedTasksStopped', () => {
+  let agentsRoot: string
+  let storageDir: string
+
+  beforeEach(async () => {
+    agentsRoot = await mkdtemp(path.join(tmpdir(), 'cherry-agents-'))
+    storageDir = path.join(agentsRoot, 'agent-1', 'background-tasks')
+    await mkdir(storageDir, { recursive: true })
+    getPathMock.mockReturnValue(agentsRoot)
+  })
+
+  afterEach(async () => {
+    await rmTaskDir(agentsRoot)
+  })
+
+  it('refuses staging while a task it could not stop is still live', async () => {
+    // Data Reset erases the record, log and workspace the task runs in. A task whose identity
+    // cannot be established here must block the reset rather than be erased and left running.
+    await writeRunningRecord(storageDir, 'bt-unverifiable')
+    let committed = false
+
+    await expect(
+      withDetachedTasksStopped(async () => {
+        committed = true
+      })
+    ).rejects.toBeInstanceOf(DetachedTasksBusyError)
+    expect(committed).toBe(false)
+  })
+
+  it('closes task admission while it runs and reopens it afterwards', async () => {
+    await withDetachedTasksStopped(async () => {
+      await expect(
+        startAgentBackgroundTask({ agentId: 'agent-1', storageDir, command: 'echo hi', cwd: storageDir })
+      ).rejects.toThrow(/data reset is stopping/)
+    })
+    // Admission is open again: the start gets past that gate and fails on the mocked agent instead.
+    await expect(
+      startAgentBackgroundTask({ agentId: 'agent-1', storageDir, command: 'echo hi', cwd: storageDir })
+    ).rejects.toThrow(/Agent agent-1 not found/)
+  })
+})
 
 describe('stopAllAgentBackgroundTasks', () => {
   let agentsRoot: string

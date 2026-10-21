@@ -10,7 +10,7 @@ import { isSameOrInside } from '@main/utils/file'
 
 import {
   getDetachedBackgroundTask,
-  hasLiveGroupEvidence,
+  hasLiveTaskEvidence,
   hasUnownedLiveGroup,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
@@ -28,6 +28,12 @@ function storageDirFor(agentId: string): string {
 
 /** Serializes detached-task starts for one agent against its permanent purge. */
 const agentTaskMutexes = new Map<string, Promise<unknown>>()
+
+/** While closed, no task may start: Data Reset is stopping everything before it erases Data. */
+let backgroundTaskAdmissionClosed = false
+
+/** Raised when staging a Data Reset met a task it could not stop and verify. */
+export class DetachedTasksBusyError extends Error {}
 
 async function withAgentTaskMutex<T>(agentId: string, operation: () => Promise<T>): Promise<T> {
   const previous = agentTaskMutexes.get(agentId)
@@ -48,11 +54,49 @@ async function withAgentTaskMutex<T>(agentId: string, operation: () => Promise<T
 export type StartAgentBackgroundTaskInput = StartDetachedBackgroundTaskInput & { agentId: string }
 
 export async function startAgentBackgroundTask(input: StartAgentBackgroundTaskInput): Promise<BackgroundTaskRecord> {
+  if (backgroundTaskAdmissionClosed) {
+    throw new Error('Cannot start a background task while a data reset is stopping them')
+  }
   return withAgentTaskMutex(input.agentId, async () => {
-    // Re-checked under the mutex: the agent may have been purged while this start waited.
+    // Re-checked under the mutex: the agent may have been purged, or a reset may have closed
+    // admission, while this start waited.
+    if (backgroundTaskAdmissionClosed) {
+      throw new Error('Cannot start a background task while a data reset is stopping them')
+    }
     if (!agentService.getAgent(input.agentId)) throw new Error(`Agent ${input.agentId} not found`)
     return startDetachedBackgroundTask(input)
   })
+}
+
+/**
+ * Stops every detached task this app can still reach and verifies each one. Data Reset erases the
+ * records, logs and workspaces those tasks live in, so a survivor would keep working with nothing
+ * left that could list, stop, or purge it.
+ */
+export async function stopAllDetachedBackgroundTasks(): Promise<void> {
+  await Promise.all((await listAgentIds()).map((agentId) => stopAllAgentBackgroundTasks(agentId)))
+}
+
+/**
+ * Closes admission and stops every detached task before running `commit`, which is where a Data
+ * Reset stages its marker and shuts down. A task that cannot be stopped and verified raises
+ * {@link DetachedTasksBusyError} so staging is refused instead of erasing its control path.
+ */
+export async function withDetachedTasksStopped<T>(commit: () => Promise<T>): Promise<T> {
+  if (backgroundTaskAdmissionClosed) throw new DetachedTasksBusyError('Background tasks are already being stopped')
+  backgroundTaskAdmissionClosed = true
+  try {
+    try {
+      await stopAllDetachedBackgroundTasks()
+    } catch (error) {
+      throw new DetachedTasksBusyError('A detached background task could not be stopped and verified', {
+        cause: error
+      })
+    }
+    return await commit()
+  } finally {
+    backgroundTaskAdmissionClosed = false
+  }
 }
 
 /**
@@ -70,35 +114,42 @@ export async function purgeAgentBackgroundTasks<T>(agentId: string, runDeletion:
  * Every detached task this app can still reach that has not reached a terminal state, across all
  * agents. Read-only — unlike {@link stopAllAgentBackgroundTasks}, it does not stop anything.
  */
-async function listLiveTaskRecords(): Promise<Array<{ agentId: string; record: BackgroundTaskRecord }>> {
-  // Only a confirmed absence counts as empty. Restore treats the result as "no live detached task",
-  // so an inventory read that fails for any reason must reach its caller as a failure instead of
-  // being flattened into the same empty list a genuinely task-free install produces.
-  let agentIds: string[]
+async function listAgentIds(): Promise<string[]> {
   try {
-    agentIds = (await readdir(application.getPath('feature.agents.data'), { withFileTypes: true }))
+    return (await readdir(application.getPath('feature.agents.data'), { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
     throw new Error(`Failed to inventory detached background tasks: ${String(error)}`, { cause: error })
   }
+}
+
+async function listLiveTaskRecords(): Promise<Array<{ agentId: string; record: BackgroundTaskRecord }>> {
+  // Only a confirmed absence counts as empty. Restore treats the result as "no live detached task",
+  // so an inventory read that fails for any reason must reach its caller as a failure instead of
+  // being flattened into the same empty list a genuinely task-free install produces.
+  const agentIds = await listAgentIds()
 
   const perAgent = await Promise.all(
     agentIds.map(async (agentId) => {
-      const records = await listDetachedBackgroundTasks(storageDirFor(agentId))
-      return (
-        records
-          // A record reconciles to `unknown` for two very different reasons: real work this app can
-          // no longer attribute, and an exit that happened while it was closed. Only the first may
-          // block — the second has no process left to strand, and holding it here would refuse every
-          // restore until the record is deleted by hand, since Stop rejects `unknown` and the panel
-          // hides its controls.
-          .filter(
-            (record) => record.status === 'running' || (record.status === 'unknown' && hasLiveGroupEvidence(record))
-          )
-          .map((record) => ({ agentId, record }))
-      )
+      const storageDir = storageDirFor(agentId)
+      const records = await listDetachedBackgroundTasks(storageDir)
+      const live: BackgroundTaskRecord[] = []
+      for (const record of records) {
+        // A record reconciles to `unknown` for two very different reasons: real work this app can
+        // no longer attribute, and an exit that happened while it was closed. Only the first may
+        // block — the second has no process left to strand, and holding it here would refuse every
+        // restore until the record is deleted by hand, since Stop rejects `unknown` and the panel
+        // hides its controls.
+        if (
+          record.status === 'running' ||
+          (record.status === 'unknown' && (await hasLiveTaskEvidence(storageDir, record)))
+        ) {
+          live.push(record)
+        }
+      }
+      return live.map((record) => ({ agentId, record }))
     })
   )
   return perAgent.flat()
