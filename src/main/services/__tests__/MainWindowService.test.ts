@@ -841,10 +841,10 @@ describe('MainWindowService', () => {
         const handler = agentBrowserSessionMock.on.mock.calls.filter(([event]) => event === 'will-download').at(-1)?.[1]
         if (!handler) throw new Error('download handler was not registered')
 
-        const item = () => {
+        const item = (name = 'report.pdf') => {
           let savePath = ''
           return {
-            getFilename: () => 'report.pdf',
+            getFilename: () => name,
             setSavePath: vi.fn((next: string) => {
               savePath = next
             }),
@@ -868,6 +868,12 @@ describe('MainWindowService', () => {
         const third = item()
         handler({}, third)
         expect(third.savePath()).toBe(path.join(downloadsDir, 'report.pdf'))
+
+        // Case-insensitive volumes treat the two names as one destination; the
+        // exact-case variant must not receive `REPORT.pdf`.
+        const mixedCase = item('REPORT.pdf')
+        handler({}, mixedCase)
+        expect(mixedCase.savePath()).toBe(path.join(downloadsDir, 'REPORT (2).pdf'))
       } finally {
         prefValues['app.browser.downloads.ask_where_to_save'] = true
         delete prefValues['app.browser.downloads.dir']

@@ -438,19 +438,23 @@ export class MainWindowService extends BaseService {
     const preferenceService = application.get('PreferenceService')
     // Downloads that have a destination but no file on disk yet must still keep
     // the name they received, or two overlapping transfers write the same file.
+    // Reservations are case-folded: on a case-insensitive volume `report.pdf`
+    // and `REPORT.pdf` are one file; on a case-sensitive one the cost is only
+    // an extra suffix.
     const activeDownloads = new Set<string>()
+    const reservationKey = (candidate: string) => candidate.toLowerCase()
     const handleDownload = (_event: Electron.Event, item: Electron.DownloadItem) => {
       if (preferenceService.get('app.browser.downloads.ask_where_to_save')) return
       const dir = preferenceService.get('app.browser.downloads.dir') || application.getPath('sys.downloads')
       const savePath = resolveDownloadSavePath(
         dir,
         item.getFilename(),
-        (candidate) => activeDownloads.has(candidate) || existsSync(candidate)
+        (candidate) => activeDownloads.has(reservationKey(candidate)) || existsSync(candidate)
       )
-      activeDownloads.add(savePath)
+      activeDownloads.add(reservationKey(savePath))
       item.setSavePath(savePath)
       // A completed file is caught by `existsSync`; a cancelled one never lands.
-      item.once('done', () => activeDownloads.delete(savePath))
+      item.once('done', () => activeDownloads.delete(reservationKey(savePath)))
     }
     restrictedSession.on('will-download', handleDownload)
     return {
