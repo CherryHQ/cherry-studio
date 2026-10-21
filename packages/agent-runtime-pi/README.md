@@ -20,12 +20,6 @@ Native deltas accumulate once into ordered SDK messages, including preliminary/f
 owns credentials and provider registration, and closing a session does not unregister its providers.
 Settings, including retries and thinking level, retain native Pi semantics.
 
-The owner of a model runtime can require things of every session built on it with
-`setSessionRequirements(modelRuntime, { extensionFactories, settings })`: the builder installs those
-extension factories ahead of the session's own and applies those settings over the session's,
-whichever host builds the session. Cherry's AI SDK binding uses it for its tool-call guard and to
-keep Pi's retry off.
-
 The builder uses in-memory settings, disables resource discovery, and accepts
 explicit tools, extension factories, system prompts, workspace context files and skill directories.
 Without a `systemPrompt` Pi's own prompt is used, and Pi appends a `<cwd>` section either way. No
@@ -39,12 +33,11 @@ Known gap: Pi's resource loader still resolves its discovery directories while i
 
 ## Cherry integration
 
-Cherry's AI SDK provider bridge lives in `src/main/ai/runtime/pi/aiSdkModelBinding.ts`. It supplies
-native model configuration and, through session requirements, its tool-call guard ahead of approval
-handlers. AI SDK conversion, retries, provider metadata and request side channels stay in Cherry.
+Cherry registers native Pi providers against its internal gateway in `src/main/ai/runtime/pi/gatewayModelBinding.ts`.
+The gateway owns upstream credentials and billing. Pi owns protocol replay, tool execution and session retries.
 
 This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
-bridge; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+gateway integration; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
 
 ```bash
 pnpm test:agent-runtime packages/agent-runtime-pi/tests/nativeSession.test.ts
