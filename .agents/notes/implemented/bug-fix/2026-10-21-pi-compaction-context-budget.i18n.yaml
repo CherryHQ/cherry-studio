@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-21-pi-compaction-context-budget.md
-2026-10-21-pi-compaction-context-budget.md: 3fd824ddfb4f025cbf40d8b33e5c87faa392c6d8
-2026-10-21-pi-compaction-context-budget.zh.md: 2ffe7c478e9c77f52c34ef76d62881e803b621bf
+2026-10-21-pi-compaction-context-budget.md: 4d4e240bacdced15964c0d57eef8498d74dbd615
+2026-10-21-pi-compaction-context-budget.zh.md: 82ca4ca3628cb561342244c72267cda5adb14cc7

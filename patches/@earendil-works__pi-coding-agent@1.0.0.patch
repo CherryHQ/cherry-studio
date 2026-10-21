@@ -1,5 +1,38 @@
+diff --git a/dist/core/compaction/branch-summarization.js b/dist/core/compaction/branch-summarization.js
+index 3f98859..0f3a21d 100644
+--- a/dist/core/compaction/branch-summarization.js
++++ b/dist/core/compaction/branch-summarization.js
+@@ -223,7 +223,11 @@ export async function generateBranchSummary(entries, options) {
+     // so transient stream drops reuse the configured retry policy.
+     const context = normalizeContext({ systemPrompt: SUMMARIZATION_SYSTEM_PROMPT, messages: summarizationMessages });
+     const requestOptions = { apiKey, headers, env, signal, maxTokens };
+-    const response = await completeSummarization(model, context, requestOptions, streamFn, retry, callbacks);
++    const promptParts = {
++        sections: [{ prefix: "<conversation>\n", text: conversationText, suffix: "\n</conversation>\n\n" }],
++        instructions,
++    };
++    const response = await completeSummarization(model, context, requestOptions, streamFn, retry, callbacks, promptParts);
+     // Check if aborted or errored
+     if (response.stopReason === "aborted") {
+         return { aborted: true };
+diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
+index 04416da..a0201e4 100644
+--- a/dist/core/compaction/compaction.d.ts
++++ b/dist/core/compaction/compaction.d.ts
+@@ -104,7 +104,10 @@ export declare function getSummarizationFailure(response: AssistantMessage, labe
+  * the whole compaction on the first attempt. Deterministic errors and aborts return
+  * immediately (see {@link retryAssistantCall}).
+  */
+-export declare function completeSummarization(model: Model<any>, context: TranscriptContext, options: SimpleStreamOptions, streamFn?: StreamFn, retry?: RetryPolicy, callbacks?: RetryCallbacks): Promise<AssistantMessage>;
++export declare function completeSummarization(model: Model<any>, context: TranscriptContext, options: SimpleStreamOptions, streamFn?: StreamFn, retry?: RetryPolicy, callbacks?: RetryCallbacks, promptParts?: {
++    sections: { prefix: string; text: string; suffix: string }[];
++    instructions: string;
++}): Promise<AssistantMessage>;
+ /**
+  * Generate a summary of the conversation using the LLM.
+  * If previousSummary is provided, uses the update prompt to merge.
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e4992e8..7f724c0 100644
+index e4992e8..6b25c84 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -4,7 +4,7 @@
@@ -11,10 +44,11 @@ index e4992e8..7f724c0 100644
  import { completeSimple } from "@earendil-works/pi-ai/compat";
  import { convertToLlm } from "../messages.js";
  import { buildSessionProjection, sessionEntryToContextMessages, } from "../session-manager.js";
-@@ -474,18 +474,50 @@ function createSummarizationOptions(model, maxTokens, apiKey, headers, env, sign
+@@ -474,18 +474,68 @@ function createSummarizationOptions(model, maxTokens, apiKey, headers, env, sign
   * the whole compaction on the first attempt. Deterministic errors and aborts return
   * immediately (see {@link retryAssistantCall}).
   */
+-export async function completeSummarization(model, context, options, streamFn, retry, callbacks) {
 +function fitSummarizationPrompt(prompt, maxChars) {
 +    if (prompt.length <= maxChars)
 +        return prompt;
@@ -23,7 +57,23 @@ index e4992e8..7f724c0 100644
 +    const firstChars = Math.floor(remaining / 5);
 +    return prompt.slice(0, firstChars) + marker + prompt.slice(-(remaining - firstChars));
 +}
- export async function completeSummarization(model, context, options, streamFn, retry, callbacks) {
++function fitSummarizationSections({ sections, instructions }, maxChars) {
++    const prompt = sections.map((section) => section.prefix + section.text + section.suffix).join("") + instructions;
++    if (prompt.length <= maxChars)
++        return prompt;
++    const fixedChars = instructions.length + sections.reduce((sum, section) => sum + section.prefix.length + section.suffix.length, 0);
++    const minimums = sections.map((section) => Math.min(section.text.length, 512));
++    const remaining = maxChars - fixedChars - minimums.reduce((sum, minimum) => sum + minimum, 0);
++    if (remaining < 0)
++        throw new Error("Summarization instructions do not fit the model context");
++    const extras = sections.map((section, index) => section.text.length - minimums[index]);
++    const totalExtra = extras.reduce((sum, extra) => sum + extra, 0);
++    return sections.map((section, index) => {
++        const budget = minimums[index] + (totalExtra > 0 ? Math.floor(remaining * extras[index] / totalExtra) : 0);
++        return section.prefix + fitSummarizationPrompt(section.text, budget) + section.suffix;
++    }).join("") + instructions;
++}
++export async function completeSummarization(model, context, options, streamFn, retry, callbacks, promptParts) {
      // Avoid cache writes for one-off summaries. Reuse caller-supplied routing when available;
      // callers without a session ID, including branch summaries, receive a fresh routing ID.
 +    const summaryIndex = context.messages.findIndex((message) => message.role === "user");
@@ -46,7 +96,9 @@ index e4992e8..7f724c0 100644
 +    let maxChars = smallContext ? safeMaxChars : originalPrompt.length;
 +    for (let attempt = 0; attempt < 4; attempt++) {
 +        requestOptions.signal?.throwIfAborted();
-+        const prompt = fitSummarizationPrompt(originalPrompt, maxChars);
++        const prompt = promptParts
++            ? fitSummarizationSections(promptParts, maxChars)
++            : fitSummarizationPrompt(originalPrompt, maxChars);
 +        const requestContext = {
 +            ...context,
 +            messages: context.messages.map((message, index) => index === summaryIndex
@@ -66,3 +118,35 @@ index e4992e8..7f724c0 100644
  }
  /**
   * Generate a summary of the conversation using the LLM.
+@@ -520,13 +570,14 @@ export async function generateSummaryWithUsage(currentMessages, model, reserveTo
+     const llmMessages = convertToLlm(currentMessages);
+     const conversationText = serializeConversation(llmMessages);
+     // Build the prompt with conversation wrapped in tags
+-    let promptText = `<conversation>\n${conversationText}\n</conversation>\n\n`;
++    const sections = [{ prefix: "<conversation>\n", text: conversationText, suffix: "\n</conversation>\n\n" }];
+     if (previousSummary) {
+-        promptText += `<previous-summary>\n${previousSummary}\n</previous-summary>\n\n`;
++        sections.push({ prefix: "<previous-summary>\n", text: previousSummary, suffix: "\n</previous-summary>\n\n" });
+     }
+-    promptText += basePrompt;
++    const promptParts = { sections, instructions: basePrompt };
++    const promptText = fitSummarizationSections(promptParts, Number.POSITIVE_INFINITY);
+     const completionOptions = createSummarizationOptions(model, maxTokens, apiKey, headers, env, signal, thinkingLevel, sessionId);
+-    const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks);
++    const response = await completeSummarization(model, buildSummarizationContext(promptText), completionOptions, streamFn, retry, callbacks, promptParts);
+     const failure = getSummarizationFailure(response, "Summarization");
+     if (failure) {
+         throw new Error(failure);
+@@ -728,7 +779,11 @@ async function generateTurnPrefixSummary(messages, model, reserveTokens, apiKey,
+     const llmMessages = convertToLlm(messages);
+     const conversationText = serializeConversation(llmMessages);
+     const promptText = `# Conversation\n${conversationText}\n\n# Instructions\n${TURN_PREFIX_SUMMARIZATION_PROMPT}`;
+-    const response = await completeSummarization(model, buildSummarizationContext(promptText), createSummarizationOptions(model, maxTokens, apiKey, headers, env, signal, thinkingLevel, sessionId), streamFn, retry, callbacks);
++    const promptParts = {
++        sections: [{ prefix: "# Conversation\n", text: conversationText, suffix: "\n\n# Instructions\n" }],
++        instructions: TURN_PREFIX_SUMMARIZATION_PROMPT,
++    };
++    const response = await completeSummarization(model, buildSummarizationContext(promptText), createSummarizationOptions(model, maxTokens, apiKey, headers, env, signal, thinkingLevel, sessionId), streamFn, retry, callbacks, promptParts);
+     const failure = getSummarizationFailure(response, "Turn prefix summarization");
+     if (failure) {
+         throw new Error(failure);

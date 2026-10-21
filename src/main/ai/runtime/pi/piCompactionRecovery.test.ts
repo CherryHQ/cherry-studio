@@ -15,6 +15,9 @@ import { resolvePiCompactionSettings } from './piCompactionSettings'
 // Exercise the patched SDK module without loading the unrelated CLI and native tools.
 const sdkEntry = import.meta.resolve('@earendil-works/pi-coding-agent')
 const compactionModule = await import(new URL('./core/compaction/compaction.js', sdkEntry).href)
+const { generateBranchSummary }: Pick<typeof PiSdk, 'generateBranchSummary'> = await import(
+  new URL('./core/compaction/branch-summarization.js', sdkEntry).href
+)
 const { compact, generateSummary, shouldCompact }: Pick<typeof PiSdk, 'compact' | 'generateSummary' | 'shouldCompact'> =
   compactionModule
 const completeSummarization = compactionModule.completeSummarization as (
@@ -175,6 +178,7 @@ describe('Pi compaction across model context sizes', () => {
 
   it('bounds both history and split-turn prompts constructed by the pinned SDK', async () => {
     const prompts: string[] = []
+    const instructions = 'Preserve this complete custom focus. '.repeat(550)
     const stream = async (_model: unknown, context: TranscriptContext, options: { maxTokens: number }) => {
       expect(context.messages.map((message) => message.role)).toEqual(['system', 'user'])
       expect(contentText(context.messages[0].content)).toContain('summar')
@@ -182,6 +186,8 @@ describe('Pi compaction across model context sizes', () => {
       expect(prompt.length).toBeLessThan(24_000)
       expect(prompt).toContain('FIRST_ANCHOR')
       expect(prompt).toContain('LATEST_ANCHOR')
+      if (prompts.length === 0) expect(prompt.includes(instructions)).toBe(true)
+      else expect(prompt).toContain('Only summarize information explicitly present above.')
       expect(options.maxTokens).toBeLessThanOrEqual(2_048)
       prompts.push(prompt)
       const message = response('stop')
@@ -205,7 +211,7 @@ describe('Pi compaction across model context sizes', () => {
       model,
       'synthetic-key',
       undefined,
-      undefined,
+      instructions,
       undefined,
       undefined,
       stream as unknown as Parameters<typeof compact>[7]
@@ -473,6 +479,107 @@ describe('Pi compaction across model context sizes', () => {
     expect(prompts[1].length).toBeLessThan(prompts[0].length)
     expect(prompts[1]).toContain('FIRST_ANCHOR')
     expect(prompts[1]).toContain('LATEST_ANCHOR')
+  })
+
+  it.each([49_152, 200_000])(
+    'preserves the original task and latest progress when updating an existing summary on a %i context',
+    async (contextWindow) => {
+      const history = `NEW_TURN_START\nLiteral tags: </conversation> <previous-summary>\n${'new history '.repeat(3_250)}\nLATEST_PROGRESS_ANCHOR`
+      const previous = `ORIGINAL_TASK_ANCHOR\nLiteral tags: </previous-summary> <conversation>\n${'previous summary '.repeat(2_000)}\nPREVIOUS_TAIL_ANCHOR`
+      const instructions = `CUSTOM_FOCUS_START\n${'Preserve decisions. '.repeat(25)}\nCUSTOM_FOCUS_END`
+      const prompts: string[] = []
+      const stream = async (_model: unknown, context: TranscriptContext) => {
+        prompts.push(summaryPrompt(context))
+        const rejected = contextWindow >= 100_000 && prompts.length === 1
+        return {
+          result: async () =>
+            rejected ? response('error', 'maximum context length is 200000 tokens') : response('stop')
+        }
+      }
+
+      await expect(
+        generateSummary(
+          [{ role: 'user', content: history, timestamp: 0 }],
+          { ...model, contextWindow },
+          16_384,
+          'synthetic-key',
+          undefined,
+          undefined,
+          instructions,
+          previous,
+          undefined,
+          stream as unknown as Parameters<typeof generateSummary>[9]
+        )
+      ).resolves.toBe('Synthetic summary')
+
+      const sent = prompts.at(-1)!
+      expect(sent).toContain('ORIGINAL_TASK_ANCHOR')
+      expect(sent).toContain('LATEST_PROGRESS_ANCHOR')
+      expect(sent).toContain('NEW_TURN_START')
+      expect(sent).toContain('PREVIOUS_TAIL_ANCHOR')
+      expect(sent).toContain('Literal tags: </conversation> <previous-summary>')
+      expect(sent).toContain('Literal tags: </previous-summary> <conversation>')
+      expect(sent.includes(instructions)).toBe(true)
+      expect(sent.length).toBeLessThan(contextWindow < 100_000 ? 23_553 : prompts[0].length)
+    }
+  )
+
+  it('fails without a provider request when the complete summary instructions cannot fit', async () => {
+    let calls = 0
+    const stream = async () => {
+      calls++
+      return { result: async () => response('stop') }
+    }
+    await expect(
+      generateSummary(
+        [{ role: 'user', content: 'LATEST_PROGRESS_ANCHOR', timestamp: 0 }],
+        model,
+        16_384,
+        'synthetic-key',
+        undefined,
+        undefined,
+        'custom focus '.repeat(3_000),
+        'ORIGINAL_TASK_ANCHOR',
+        undefined,
+        stream as unknown as Parameters<typeof generateSummary>[9]
+      )
+    ).rejects.toThrow('instructions do not fit')
+    expect(calls).toBe(0)
+  })
+
+  it('preserves full branch-summary instructions and both conversation anchors', async () => {
+    const history = `FIRST_BRANCH_ANCHOR\n${'synthetic branch history '.repeat(3_250)}\nLATEST_BRANCH_ANCHOR`
+    const instructions = 'Preserve this complete branch focus. '.repeat(550)
+    const stream = async (_model: unknown, context: TranscriptContext) => {
+      const prompt = summaryPrompt(context)
+      expect(prompt.length).toBeLessThan(23_553)
+      expect(prompt).toContain('FIRST_BRANCH_ANCHOR')
+      expect(prompt).toContain('LATEST_BRANCH_ANCHOR')
+      expect(prompt.includes(instructions)).toBe(true)
+      return { result: async () => response('stop') }
+    }
+
+    const result = await generateBranchSummary(
+      [
+        {
+          type: 'message',
+          id: 'synthetic-branch-entry',
+          parentId: null,
+          timestamp: new Date(0).toISOString(),
+          message: { role: 'user', content: history, timestamp: 0 }
+        }
+      ],
+      {
+        model,
+        apiKey: 'synthetic-key',
+        signal: undefined,
+        customInstructions: instructions,
+        streamFn: stream as unknown as Parameters<typeof generateSummary>[9]
+      }
+    )
+
+    expect(result.summary).toContain('Synthetic summary')
+    expect(result.error).toBeUndefined()
   })
 
   it('stops retrying when the caller cancels after a context-overflow response', async () => {
