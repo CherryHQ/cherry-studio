@@ -382,7 +382,8 @@ or stop comes from the handlers `install` registers and the steps they decide. T
   The adapter registers the package's tools itself, in a child minus the `'parent-only'` ones; host-owned tools follow
   the host's own child configuration.
 - `withCall(thread, use)` binds the outbound ports to one host call; they expire when `use` settles. `submitUser` (a
-  person's text), `compact`, `settled` and `close` are the host's other entries.
+  person's text), `compact`, `settled` and `close` are the host's other entries. `close()` first waits for the sessions
+  still being built and disposes them unopened: their launch rejects with the closed error and nothing queued there runs.
 - Only the adapter starts runs in a session it opens. Use `submitUser` and `compact`, never `session.prompt` or
   `session.compact`, and install no extension there that starts a run (`pi.sendMessage(…, { triggerTurn: true })`,
   `pi.sendUserMessage`), also not while a run settles: the run state below (the request meter's count, the gate's call
