@@ -71,11 +71,11 @@ describe('web search provider schemas', () => {
     })
   })
 
-  it('requires a user-provided host but permits anonymous Crawl4AI fetching', () => {
+  it('defaults Crawl4AI to the hosted Cloud host while keeping anonymous self-hosted fetching available', () => {
     const crawl4ai = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'crawl4ai')
 
     expect(crawl4ai?.capabilities).toEqual([
-      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: 'https://api.crawl4ai.com' }
     ])
     expect(
       WebSearchProviderOverridesSchema.safeParse({
