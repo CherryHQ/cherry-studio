@@ -25,6 +25,7 @@ export interface CatalogItem {
   id: string
   name: string
   description?: string | null
+  searchAliases?: string[]
   icon?: ReactNode
   inactiveBadge?: string
   pickable?: boolean
@@ -240,7 +241,11 @@ export const AddCatalogPopover: FC<{
 
     return options.filter((option) => {
       const item = option.item
-      return item.name.toLowerCase().includes(q) || (item.description ?? '').toLowerCase().includes(q)
+      return (
+        item.name.toLowerCase().includes(q) ||
+        (item.description ?? '').toLowerCase().includes(q) ||
+        item.searchAliases?.some((alias) => alias.toLowerCase().includes(q))
+      )
     })
   }, [options, search])
 

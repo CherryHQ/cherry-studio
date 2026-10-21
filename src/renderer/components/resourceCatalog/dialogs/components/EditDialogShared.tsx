@@ -292,6 +292,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
     const items: CatalogItem[] = bases.map((base) => ({
       id: base.id,
       name: base.name,
+      searchAliases: [base.id],
       description: t('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
       icon: <KnowledgeBaseAvatar />
     }))

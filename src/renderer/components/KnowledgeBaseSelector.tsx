@@ -46,7 +46,9 @@ export const KnowledgeBaseSelector = ({
   const selectedOption = options.find((option) => option.value === value)
   const filteredOptions = useMemo(() => {
     const query = searchValue.trim().toLowerCase()
-    return query ? options.filter((option) => matchesSearchText(option.label, query)) : options
+    return query
+      ? options.filter((option) => matchesSearchText(option.label, query) || matchesSearchText(option.value, query))
+      : options
   }, [options, searchValue])
   const listHeight =
     filteredOptions.length > 0

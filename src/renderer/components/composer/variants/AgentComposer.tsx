@@ -286,8 +286,8 @@ const createSkillQuickPanelItems = (
     label: skill.name,
     description: skill.description ?? undefined,
     icon: <ToolCase size={16} />,
-    // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
-    filterText: skill.name,
+    // Root search uses this authoritative text; the hidden category alias preserves the shortcut.
+    filterText: [skill.name, skill.description].filter(Boolean).join(' '),
     searchAliases: [options.skillLabel],
     action: ({ inputAdapter }) => {
       options.onInsertSkill(skill, inputAdapter)
