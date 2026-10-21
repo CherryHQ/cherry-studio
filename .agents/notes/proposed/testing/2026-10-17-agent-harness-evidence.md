@@ -409,6 +409,10 @@ Unsupported or unknown can be legitimate results, but neither passes acceptance 
 - Require every harness to expose the richest child's conversation and cancellation behavior: rejected because one-shot tasks and observation-only children remain valid; the separate control proposal defines optional abilities.
 - Declare the adapter complete once offline tests pass: rejected because production wiring, UI projection, real providers, crash behavior, and side effects require their own acceptance.
 
+### Native gateway transition
+
+The host now registers Pi's native providers against the internal gateway. `gateway*.test.ts` uses HTTP fixtures with the production gateway converters; the old `aiSdk*.test.ts` command logs above remain historical. The affected Main scope passed 39 test files / 659 cases, and the two native Pi package files passed 15 cases. `gatewayIntegration.test.ts` exercises real gateway execution, provider resolution, reasoning selection, cancellation and SQLite billing against a loopback upstream. These checks do not establish live-provider or Electron acceptance. Desktop root wiring is present; independent child projection and Durable desktop integration remain separate work.
+
 ## Acceptance criteria
 
 - AC1 — Each public guarantee is traceable to a named sample, pinned source or executed test, and an explicit evidence level; historical versions remain identifiable. (verification: docs gate — runtime contract and evidence-note maintainers)
@@ -417,7 +421,7 @@ Unsupported or unknown can be legitimate results, but neither passes acceptance 
 - AC4 — Persistence evidence identifies orderly reopen separately from crash recovery and external effects; a stronger recovery claim includes a dedicated scenario that actually exercises it. (verification: unit — adapter storage and recovery test owners)
 - AC5 — Before declaring desktop integration complete, the real application demonstrates independent child output after parent completion, the intended input/control paths, and consumer reconnection without confusing host presentation with native execution. (verification: Electron — desktop runtime and projection owners)
 
-AC1 is a documentation constraint; AC2–AC4 require evidence on the implementation revision being accepted. AC5 remains pending because the adapters are not wired into the desktop. This proposed note does not imply the entire stack meets those criteria.
+AC1 is a documentation constraint; AC2–AC4 require evidence on the implementation revision being accepted. AC5 remains pending for independent child projection and Durable desktop wiring. This proposed note does not imply the entire stack meets those criteria.
 
 ## Risks
 
