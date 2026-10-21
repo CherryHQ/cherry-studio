@@ -621,6 +621,29 @@ describe('error', () => {
     expect(isUnreadableStreamFailure(error)).toBe(false)
     expect(getStreamFailureText(error)).toBe(text)
   })
+  it('reads provider codes from serialized generic errors', () => {
+    const error = { name: 'Error', message: '', providerErrorCode: 'ECONNRESET' }
+    expect(getStreamFailureText(error)).toBe('ECONNRESET')
+    expect(isUnreadableStreamFailure(error)).toBe(false)
+  })
+  it('redacts serialized provider codes', () => {
+    expect(getStreamFailureText({ message: '', providerErrorCode: 'api_key=secret-sentinel' })).not.toContain(
+      'secret-sentinel'
+    )
+  })
+  it.each(['', 'x'.repeat(101), '{}', 429])('ignores invalid serialized provider codes: %j', (providerErrorCode) => {
+    const error = { message: '', providerErrorCode }
+    expect(getStreamFailureText(error)).toBe('')
+    expect(isUnreadableStreamFailure(error)).toBe(true)
+  })
+  it.each([
+    [{ message: '', code: 'ABORT_ERR', providerErrorCode: 'ECONNRESET' }, 'ABORT_ERR'],
+    [{ message: 'socket closed', providerErrorCode: 'ECONNRESET' }, 'socket closed'],
+    [{ message: '', providerErrorCode: 'x'.repeat(100) }, 'x'.repeat(100)]
+  ])('preserves diagnostic precedence and the provider code length limit: %j', (error, text) => {
+    expect(getStreamFailureText(error)).toBe(text)
+    expect(isUnreadableStreamFailure(error)).toBe(false)
+  })
   it.each([
     { statusCode: 429 },
     { status: 503 },

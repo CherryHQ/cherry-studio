@@ -89,6 +89,14 @@ describe('useConversationErrorToasts terminal feedback', () => {
     }
   )
 
+  it('shows a serialized provider code in terminal error feedback', async () => {
+    const hook = setup()
+    act(() => hook.result.current.track([execution], [message]))
+    finish(hook, { name: 'Error', message: '', stack: null, providerErrorCode: 'ECONNRESET' })
+    expect(await screen.findByText((text) => text.includes('ECONNRESET'))).toBeInTheDocument()
+    expect(screen.queryByText((text) => text.includes(i18n.t('error.stream_unreadable.description')))).toBeNull()
+  })
+
   it('[22243 RED] re-evaluates an unreadable retry failure', async () => {
     const retry = vi
       .fn()

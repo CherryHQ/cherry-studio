@@ -407,9 +407,11 @@ export function getStreamFailureText(error: unknown): string {
   const text = textFrom(error, 0)
   if (text) return text
   for (const node of streamFailureNodes(error)) {
-    if (typeof node.code !== 'string' || !node.code || node.code.length > 100) continue
-    const code = readableStreamText(getSafeProviderErrorMessage({ message: node.code }))
-    if (code) return code
+    for (const value of [node.code, node.providerErrorCode]) {
+      if (typeof value !== 'string' || !value || value.length > 100) continue
+      const code = readableStreamText(getSafeProviderErrorMessage({ message: value }))
+      if (code) return code
+    }
   }
   return ''
 }
