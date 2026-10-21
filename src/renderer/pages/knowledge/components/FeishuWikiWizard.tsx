@@ -88,6 +88,8 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   const [connectingNewApp, setConnectingNewApp] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const authorizationSessionId = useRef<string | null>(null)
+  const authorizationAttempt = useRef(0)
+  const reconnecting = useRef(false)
   const closed = useRef(false)
   const spacesRequestVersion = useRef(0)
   const loadedSpacesConnectionId = useRef<string | null>(null)
@@ -160,6 +162,12 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
   }, [step, scopeMode, selectedConnectionId, loadSpaces])
 
   const cancelPendingAuthorization = () => {
+    authorizationAttempt.current += 1
+    if (reconnecting.current) {
+      reconnecting.current = false
+      setBusy(false)
+      setAuthorization(null)
+    }
     if (authorizationSessionId.current) {
       void ipcApi.request('knowledge.feishu.authorization.cancel', {
         authorizationSessionId: authorizationSessionId.current
@@ -198,29 +206,10 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
     return t('knowledge.external.wizard.authorization_error')
   }
 
-  const finishAuthorization = async (started: AuthorizationStart, initialScopeMode?: 'space' | 'url') => {
-    authorizationSessionId.current = started.authorizationSessionId
-    if (closed.current) {
-      cancelPendingAuthorization()
-      return
-    }
-    setAuthorization(started)
-    await window.api.shell.openExternal(started.verificationUri)
-    if (closed.current) return
-    const connected = await ipcApi.request('knowledge.feishu.authorization.complete', {
-      authorizationSessionId: started.authorizationSessionId
-    })
-    authorizationSessionId.current = null
-    if (closed.current) return
-    setAuthorization(null)
-    selectConnection(connected.id)
-    if (initialScopeMode) setScopeMode(initialScopeMode)
-    setStep(2)
-    void invalidate('/external-knowledge-connections')
-    return connected.id
-  }
-
   const reconnect = async (connectionId: string, includeSpaceDiscovery = false) => {
+    const attempt = ++authorizationAttempt.current
+    const isCurrent = () => authorizationAttempt.current === attempt
+    reconnecting.current = true
     setBusy(true)
     setError(null)
     try {
@@ -228,24 +217,32 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
         connectionId,
         ...(includeSpaceDiscovery && { includeSpaceDiscovery: true })
       })
-      const connectedId = await finishAuthorization(started)
-      if (
-        includeSpaceDiscovery &&
-        connectedId &&
-        connectedId === selectedConnectionId &&
-        step === 2 &&
-        scopeMode === 'space'
-      ) {
-        void loadSpaces(connectedId)
+      if (!isCurrent()) {
+        void ipcApi.request('knowledge.feishu.authorization.cancel', {
+          authorizationSessionId: started.authorizationSessionId
+        })
+        return
+      }
+      authorizationSessionId.current = started.authorizationSessionId
+      setAuthorization(started)
+      await window.api.shell.openExternal(started.verificationUri)
+      if (!isCurrent()) return
+      const connected = await ipcApi.request('knowledge.feishu.authorization.complete', {
+        authorizationSessionId: started.authorizationSessionId
+      })
+      if (!isCurrent()) return
+      authorizationSessionId.current = null
+      setAuthorization(null)
+      selectConnection(connected.id)
+      setStep(2)
+      void invalidate('/external-knowledge-connections')
+      if (includeSpaceDiscovery && connected.id === selectedConnectionId && step === 2 && scopeMode === 'space') {
+        void loadSpaces(connected.id)
       }
     } catch (cause) {
-      if (!closed.current) setError(formatAuthorizationError(cause))
+      if (isCurrent()) setError(formatAuthorizationError(cause))
     } finally {
-      cancelPendingAuthorization()
-      if (!closed.current) {
-        setBusy(false)
-        setAuthorization(null)
-      }
+      if (isCurrent()) cancelPendingAuthorization()
     }
   }
 
@@ -306,7 +303,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
     const failures: string[] = []
     try {
       for (const scope of scopes) {
-        if (closed.current) return
         if (createdScopes.current.has(scope.key)) continue
         try {
           const source = await ipcApi.request('knowledge.external_source.create', {
@@ -316,7 +312,6 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
             name: scope.name
           })
           createdScopes.current.add(scope.key)
-          if (closed.current) return
           setCreatedCount(createdScopes.current.size)
           if (policy === 'daily') {
             try {
@@ -330,11 +325,9 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
             }
           }
         } catch (cause) {
-          if (closed.current) return
           failures.push(formatErrorMessageWithPrefix(cause, scope.name))
         }
       }
-      if (closed.current) return
       if (failures.length > 0) {
         setError(
           [
@@ -346,11 +339,11 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
             ...failures
           ].join('\n')
         )
-        setBusy(false)
         return
       }
-      close()
+      if (!closed.current) close()
     } finally {
+      setBusy(false)
       if (createdScopes.current.size > 0) void invalidate('/knowledge-bases/:id/external-knowledge-sources')
     }
   }

@@ -38,7 +38,8 @@ const FeishuConnectionForm = ({
   const [authorization, setAuthorization] = useState<OutputFor<'knowledge.feishu.authorization.begin'> | null>(null)
   const registrationSessionId = useRef<string | null>(null)
   const authorizationSessionId = useRef<string | null>(null)
-  const closed = useRef(false)
+  const authorizationAttempt = useRef(0)
+  const onBusyChangeRef = useRef(onBusyChange)
   const unavailable = busy || disabled
 
   const cancelPending = () => {
@@ -57,17 +58,25 @@ const FeishuConnectionForm = ({
   }
 
   useEffect(() => {
-    closed.current = false
-    return () => {
-      closed.current = true
-      cancelPending()
-      onBusyChange?.(false)
-    }
+    onBusyChangeRef.current = onBusyChange
   }, [onBusyChange])
 
+  useEffect(() => {
+    return () => {
+      authorizationAttempt.current += 1
+      cancelPending()
+      setBusy(false)
+      setRegistrationUri(null)
+      setAuthorization(null)
+      onBusyChangeRef.current?.(false)
+    }
+  }, [])
+
   const cancel = () => {
-    closed.current = true
+    authorizationAttempt.current += 1
     cancelPending()
+    setBusy(false)
+    onBusyChange?.(false)
     setRegistrationUri(null)
     setAuthorization(null)
     setAppSecret('')
@@ -76,22 +85,25 @@ const FeishuConnectionForm = ({
 
   const finishAuthorization = async (
     started: OutputFor<'knowledge.feishu.authorization.begin'>,
-    scopeMode: 'space' | 'url'
+    scopeMode: 'space' | 'url',
+    attempt: number
   ) => {
-    authorizationSessionId.current = started.authorizationSessionId
-    if (closed.current) {
-      cancelPending()
+    if (authorizationAttempt.current !== attempt) {
+      void ipcApi.request('knowledge.feishu.authorization.cancel', {
+        authorizationSessionId: started.authorizationSessionId
+      })
       return
     }
+    authorizationSessionId.current = started.authorizationSessionId
     setRegistrationUri(null)
     setAuthorization(started)
     await window.api.shell.openExternal(started.verificationUri)
-    if (closed.current) return
+    if (authorizationAttempt.current !== attempt) return
     const connected = await ipcApi.request('knowledge.feishu.authorization.complete', {
       authorizationSessionId: started.authorizationSessionId
     })
+    if (authorizationAttempt.current !== attempt) return
     authorizationSessionId.current = null
-    if (closed.current) return
     setAuthorization(null)
     setAppSecret('')
     onConnected(connected.id, scopeMode)
@@ -99,6 +111,8 @@ const FeishuConnectionForm = ({
 
   const connect = async (automatic = false, useLinkOnly = linkOnly) => {
     if (unavailable) return
+    const attempt = ++authorizationAttempt.current
+    const isCurrent = () => authorizationAttempt.current === attempt
     setBusy(true)
     onBusyChange?.(true)
     setError(null)
@@ -107,19 +121,21 @@ const FeishuConnectionForm = ({
     try {
       if (automatic) {
         const registration = await ipcApi.request('knowledge.feishu.registration.begin')
-        registrationSessionId.current = registration.registrationSessionId
-        if (closed.current) {
-          cancelPending()
+        if (!isCurrent()) {
+          void ipcApi.request('knowledge.feishu.registration.cancel', {
+            registrationSessionId: registration.registrationSessionId
+          })
           return
         }
+        registrationSessionId.current = registration.registrationSessionId
         setRegistrationUri(registration.verificationUri)
         await window.api.shell.openExternal(registration.verificationUri)
-        if (closed.current) return
+        if (authorizationAttempt.current !== attempt) return
         started = await ipcApi.request('knowledge.feishu.authorization.begin', {
           kind: 'personal-agent',
           registrationSessionId: registration.registrationSessionId
         })
-        registrationSessionId.current = null
+        if (isCurrent()) registrationSessionId.current = null
       } else {
         started = await ipcApi.request('knowledge.feishu.authorization.begin', {
           kind: 'custom-app',
@@ -128,9 +144,9 @@ const FeishuConnectionForm = ({
           includeSpaceDiscovery: !useLinkOnly
         })
       }
-      await finishAuthorization(started, useLinkOnly ? 'url' : 'space')
+      await finishAuthorization(started, useLinkOnly ? 'url' : 'space', attempt)
     } catch (cause) {
-      if (!closed.current) {
+      if (isCurrent()) {
         const code = cause instanceof IpcError ? cause.code : null
         setError(
           t(
@@ -148,9 +164,9 @@ const FeishuConnectionForm = ({
         )
       }
     } finally {
-      cancelPending()
-      onBusyChange?.(false)
-      if (!closed.current) {
+      if (isCurrent()) {
+        cancelPending()
+        onBusyChange?.(false)
         setBusy(false)
         setRegistrationUri(null)
         setAuthorization(null)

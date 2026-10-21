@@ -1,6 +1,7 @@
 import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Activity } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
@@ -243,6 +244,120 @@ describe('FeishuWikiWizard', () => {
     expect(mockOpenExternal).toHaveBeenCalledExactlyOnceWith(authorizationStart.verificationUri)
     expect(mockRequest.mock.calls.filter(([route]) => route === 'knowledge.feishu.authorization.begin')).toHaveLength(1)
     expect(mockRequest).not.toHaveBeenCalledWith('knowledge.feishu.connection.reconnect', expect.anything())
+  })
+
+  it.each([
+    { entry: 'connect', pending: 'begin' },
+    { entry: 'connect', pending: 'complete' },
+    { entry: 'reconnect', pending: 'begin' },
+    { entry: 'reconnect', pending: 'complete' }
+  ])(
+    'abandons $entry $pending across Activity hide/reveal without cancelling its replacement',
+    async ({ entry, pending }) => {
+      const user = userEvent.setup()
+      const onOpenChange = vi.fn()
+      const replacement = { ...authorizationStart, authorizationSessionId: 'replacement-session', userCode: 'NEW-CODE' }
+      let finishAbandoned!: () => void
+      let finishReplacement!: () => void
+      let starts = 0
+      MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', {
+        data: entry === 'connect' ? [] : [{ ...connection, authorizationStatus: 'reauthorization-required' }]
+      })
+      mockRequest.mockImplementation(async (route: string, input?: { authorizationSessionId?: string }) => {
+        if (route === 'knowledge.feishu.authorization.begin' || route === 'knowledge.feishu.connection.reconnect') {
+          if (starts++ > 0) return replacement
+          if (pending === 'begin')
+            return new Promise((resolve) => {
+              finishAbandoned = () => resolve(authorizationStart)
+            })
+          return authorizationStart
+        }
+        if (route === 'knowledge.feishu.authorization.complete') {
+          return new Promise((resolve) => {
+            if (input?.authorizationSessionId === replacement.authorizationSessionId)
+              finishReplacement = () => resolve(connection)
+            else finishAbandoned = () => resolve(connection)
+          })
+        }
+        if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+        return undefined
+      })
+      const wizard = (mode: 'visible' | 'hidden') => (
+        <Activity mode={mode}>
+          <FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />
+        </Activity>
+      )
+      const { rerender } = render(wizard('visible'))
+      if (entry === 'connect') {
+        await user.type(screen.getByLabelText('App ID'), 'cli_test')
+        await user.type(screen.getByLabelText('App Secret'), 'secret')
+      }
+      const action = entry === 'connect' ? 'Connect to Feishu' : 'Reconnect Alice'
+      await user.click(screen.getByRole('button', { name: action }))
+      if (pending === 'complete')
+        await screen.findByText(
+          i18n.t('knowledge.external.wizard.verification_code', { code: authorizationStart.userCode })
+        )
+      rerender(wizard('hidden'))
+      rerender(wizard('visible'))
+      expect(await screen.findByRole('button', { name: action })).toBeEnabled()
+      await user.click(screen.getByRole('button', { name: action }))
+      await screen.findByText(i18n.t('knowledge.external.wizard.verification_code', { code: replacement.userCode }))
+      await act(async () => finishAbandoned())
+
+      expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.authorization.cancel', {
+        authorizationSessionId: authorizationStart.authorizationSessionId
+      })
+      expect(mockRequest).not.toHaveBeenCalledWith('knowledge.feishu.authorization.cancel', {
+        authorizationSessionId: replacement.authorizationSessionId
+      })
+      expect(
+        screen.getByText(i18n.t('knowledge.external.wizard.verification_code', { code: replacement.userCode }))
+      ).toBeVisible()
+      expect(screen.queryByRole('radio', { name: 'Choose Wikis' })).not.toBeInTheDocument()
+      expect(mockOpenExternal).toHaveBeenCalledTimes(pending === 'begin' ? 1 : 2)
+      expect(onOpenChange).not.toHaveBeenCalled()
+      await act(async () => finishReplacement())
+      expect(await screen.findByRole('radio', { name: 'Choose Wikis' })).toBeChecked()
+    }
+  )
+
+  it('discards a registration response received while Activity is hidden and permits a fresh attempt', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/external-knowledge-connections', { data: [] })
+    let finishRegistration!: () => void
+    mockRequest.mockImplementation(async (route: string) => {
+      if (route === 'knowledge.feishu.registration.begin')
+        return new Promise((resolve) => {
+          finishRegistration = () => resolve(registration)
+        })
+      if (route === 'knowledge.feishu.authorization.begin') return authorizationStart
+      if (route === 'knowledge.feishu.authorization.complete') return new Promise(() => undefined)
+      return undefined
+    })
+    const onOpenChange = vi.fn()
+    const wizard = (mode: 'visible' | 'hidden') => (
+      <Activity mode={mode}>
+        <FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />
+      </Activity>
+    )
+    const { rerender } = render(wizard('visible'))
+    await user.click(screen.getByRole('button', { name: i18n.t('knowledge.external.wizard.create_app') }))
+    rerender(wizard('hidden'))
+    await act(async () => finishRegistration())
+    expect(mockRequest).toHaveBeenCalledWith('knowledge.feishu.registration.cancel', {
+      registrationSessionId: registration.registrationSessionId
+    })
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+    rerender(wizard('visible'))
+    await user.type(screen.getByLabelText('App ID'), 'cli_test')
+    await user.type(screen.getByLabelText('App Secret'), 'secret')
+    await user.click(screen.getByRole('button', { name: 'Connect to Feishu' }))
+    expect(
+      await screen.findByText(
+        i18n.t('knowledge.external.wizard.verification_code', { code: authorizationStart.userCode })
+      )
+    ).toBeVisible()
   })
 
   it('preserves a new application draft after an existing application reauthorization fails', async () => {
@@ -701,47 +816,64 @@ describe('FeishuWikiWizard', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled()
   })
 
-  it('keeps submitted settings and the wizard stable until creation and scheduling finish', async () => {
-    const user = userEvent.setup()
-    let finishCreate!: (source: typeof createdSource) => void
-    let finishSchedule!: () => void
-    const onOpenChange = vi.fn()
-    mockRequest.mockImplementation(async (route: string) => {
-      if (route === 'knowledge.feishu.scope.preview') return preview
-      if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
-      if (route === 'knowledge.external_source.create')
-        return new Promise((resolve) => {
-          finishCreate = resolve
-        })
-      if (route === 'knowledge.external_source.schedule.update')
-        return new Promise<void>((resolve) => {
-          finishSchedule = resolve
-        })
-      return undefined
-    })
-    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
-    await reachReview(user)
-    await user.click(screen.getByRole('radio', { name: 'Daily' }))
-    await user.click(screen.getByRole('button', { name: 'Add' }))
-
-    expect(screen.getByRole('radio', { name: 'Manual' })).toBeDisabled()
-    expect(screen.getByLabelText('Daily sync time')).toBeDisabled()
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add' })).toHaveAttribute('aria-busy', 'true')
-    await user.keyboard('{Escape}')
-    expect(onOpenChange).not.toHaveBeenCalled()
-    await act(async () => finishCreate(createdSource))
-    await waitFor(() =>
-      expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
-        sourceId: createdSource.id,
-        policy: expect.objectContaining({ kind: 'daily', time: '09:00' })
+  it.each(['visible', 'hidden', 'unmounted'] as const)(
+    'settles admitted creation and scheduling while %s',
+    async (visibility) => {
+      const user = userEvent.setup()
+      let finishCreate!: (source: typeof createdSource) => void
+      let finishSchedule!: () => void
+      const onOpenChange = vi.fn()
+      mockRequest.mockImplementation(async (route: string) => {
+        if (route === 'knowledge.feishu.scope.preview') return preview
+        if (route === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+        if (route === 'knowledge.external_source.create')
+          return new Promise((resolve) => {
+            finishCreate = resolve
+          })
+        if (route === 'knowledge.external_source.schedule.update')
+          return new Promise<void>((resolve) => {
+            finishSchedule = resolve
+          })
+        return undefined
       })
-    )
-    expect(onOpenChange).not.toHaveBeenCalled()
-    await act(async () => finishSchedule())
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-  })
+      const wizard = (mode: 'visible' | 'hidden') => (
+        <Activity mode={mode}>
+          <FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />
+        </Activity>
+      )
+      const { rerender, unmount } = render(wizard('visible'))
+      await reachReview(user)
+      await user.click(screen.getByRole('radio', { name: 'Daily' }))
+      await user.click(screen.getByRole('button', { name: 'Add' }))
+
+      expect(screen.getByRole('radio', { name: 'Manual' })).toBeDisabled()
+      expect(screen.getByLabelText('Daily sync time')).toBeDisabled()
+      expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add' })).toHaveAttribute('aria-busy', 'true')
+      await user.keyboard('{Escape}')
+      expect(onOpenChange).not.toHaveBeenCalled()
+      if (visibility === 'hidden') rerender(wizard('hidden'))
+      if (visibility === 'unmounted') unmount()
+      await act(async () => finishCreate(createdSource))
+      await waitFor(() =>
+        expect(mockRequest).toHaveBeenCalledWith('knowledge.external_source.schedule.update', {
+          sourceId: createdSource.id,
+          policy: expect.objectContaining({ kind: 'daily', time: '09:00' })
+        })
+      )
+      expect(onOpenChange).not.toHaveBeenCalled()
+      await act(async () => finishSchedule())
+      if (visibility === 'visible') await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      else expect(onOpenChange).not.toHaveBeenCalled()
+      expect(mockInvalidate).toHaveBeenCalledWith('/knowledge-bases/:id/external-knowledge-sources')
+      if (visibility === 'hidden') {
+        rerender(wizard('visible'))
+        expect(await screen.findByRole('button', { name: 'Close' })).toBeEnabled()
+        expect(screen.getByRole('button', { name: 'Retry' })).not.toHaveAttribute('aria-busy', 'true')
+      }
+    }
+  )
 
   it('shows connection loading and recovery before account selection', async () => {
     const user = userEvent.setup()
@@ -987,17 +1119,30 @@ describe('FeishuWikiWizard', () => {
     const spaces = [space, research, operations]
     const onOpenChange = vi.fn()
     let researchAttempts = 0
+    let finishFirstCreate!: () => void
+    let firstCreate = true
     mockRequest.mockImplementation(async (route: string, input?: { spaceId?: string }) => {
       if (route === 'knowledge.feishu.spaces.list') return { spaces }
       if (route === 'knowledge.feishu.space.preview')
         return { ...spacePreview, space: spaces.find((item) => item.spaceId === input?.spaceId) }
       if (route === 'knowledge.external_source.create') {
+        if (firstCreate) {
+          firstCreate = false
+          return new Promise((resolve) => {
+            finishFirstCreate = () => resolve({ id: `source-${input?.spaceId}` })
+          })
+        }
         if (input?.spaceId === research.spaceId && researchAttempts++ < 2) throw new Error('Temporary provider failure')
         return { id: `source-${input?.spaceId}` }
       }
       return undefined
     })
-    render(<FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />)
+    const wizard = (mode: 'visible' | 'hidden') => (
+      <Activity mode={mode}>
+        <FeishuWikiWizard open baseId="base-1" onOpenChange={onOpenChange} />
+      </Activity>
+    )
+    const { rerender } = render(wizard('visible'))
     await selectApplication(user)
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await openWikiOptions(user)
@@ -1010,6 +1155,10 @@ describe('FeishuWikiWizard', () => {
     await user.click(screen.getByRole('radio', { name: 'Daily' }))
     await user.click(screen.getByRole('button', { name: 'Add' }))
 
+    rerender(wizard('hidden'))
+    await act(async () => finishFirstCreate())
+    await waitFor(() => expect(mockInvalidate).toHaveBeenCalledWith('/knowledge-bases/:id/external-knowledge-sources'))
+    rerender(wizard('visible'))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Some sources could not be created. Retry to create the remaining sources.'
     )
