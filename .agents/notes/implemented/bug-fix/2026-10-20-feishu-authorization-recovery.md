@@ -20,7 +20,7 @@ Paginated reads check token freshness after each endpoint/backoff wait, includin
 
 Registration accepts only the four recognized polling error statuses on HTTP 400 for the poll action; other non-success responses remain errors. This preserves pending/slow-down behavior without accepting credentials from an unsuccessful response.
 
-Starting reconnect does not invalidate a connected credential. Successful replacement accepts either connected or reauthorization-required state under the existing expected-reference CAS. Cancellation and transient failure therefore preserve working authorization, including after restart, without temporarily pausing dependent Sources. Genuine terminal failures still require reauthorization.
+Starting reconnect does not invalidate a connected credential. Successful replacement accepts either connected or reauthorization-required state under the existing expected-reference CAS. All precommit candidate failures preserve working authorization, including denial, provider/local expiry, scope and identity validation, and persistence failure. They discard the candidate without changing the active credential or pausing dependent Sources. Only failures concerning the active credential invalidate it; scope validation itself has no mutation side effects, and refresh/startup own the invalidation decision.
 
 Initial cancellation captures its cleanup generation and checks generation, runtime-state identity, and the persisted credential reference again after asynchronous cleanup. A newer reconnect owns the retained row and runtime state. Failure cleanup uses the same fence. Credential writes enforce directory mode `0700` on POSIX even when path auto-ensure previously created the directory.
 
@@ -35,6 +35,8 @@ Persisting reauthorization-required when an optional upgrade starts would need c
 ## Consequences
 
 The recovery needs no schema migration. A partially populated identity remains an error rather than evidence of an unused Connection. Successful CI does not establish live Feishu or operating-system keyring acceptance.
+
+The proposed [shared file credential design](../../proposed/architecture/2026-10-21-shared-connector-credentials.md) replaces credential ownership and encrypted storage when implemented. Identity continuity, conditional token/reference updates, cancellation, and stale-request protection from this decision remain required. The verification below describes the existing implementation.
 
 ## Verification
 

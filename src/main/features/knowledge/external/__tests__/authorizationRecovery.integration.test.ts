@@ -9,7 +9,7 @@ import { externalKnowledgeConnectionService as connections } from '@data/service
 
 import { ExternalKnowledgeCredentialStore } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
-import { FEISHU_REQUIRED_USER_SCOPES, FeishuProviderError } from '../feishuKnowledgeProvider'
+import { FEISHU_REQUIRED_USER_SCOPES, FeishuProviderError, type FeishuUserTokenSet } from '../feishuKnowledgeProvider'
 
 function deferred() {
   let resolve!: () => void
@@ -35,7 +35,7 @@ const identity = {
   displayName: 'User',
   avatarUrl: null
 }
-const token = {
+const token: FeishuUserTokenSet = {
   accessToken: 'access',
   refreshToken: 'refresh',
   expiresIn: 7200,
@@ -81,11 +81,11 @@ describe('authorization recovery ownership', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
-  async function start(api = provider()) {
+  async function start(api = provider(), now: () => number = () => 1_000) {
     const runtime = new ExternalKnowledgeRuntime({
       credentials,
       provider: api,
-      now: () => 1_000,
+      now,
       sleep: async () => {}
     })
     runtimes.push(runtime)
@@ -152,6 +152,151 @@ describe('authorization recovery ownership', () => {
       await expect(restarted.acquireAccessToken(original.id)).resolves.toBe('access')
     }
   )
+
+  it.each([
+    ['denied', 'authorization-failed'],
+    ['expired', 'authorization-failed'],
+    ['invalid-candidate-token', 'reauthorization-required'],
+    ['candidate-app-scope', 'scope-missing'],
+    ['candidate-grants', 'scope-missing'],
+    ['candidate-identity-token', 'reauthorization-required'],
+    ['candidate-identity-missing', 'identity-unverifiable'],
+    ['candidate-account-mismatch', 'identity-conflict'],
+    ['local-expiry', 'authorization-failed']
+  ])('preserves the active account after candidate %s, including restart', async (failure, code) => {
+    let now = 1_000
+    const api = provider()
+    const runtime = await start(api, () => now)
+    const original = await connected(runtime)
+    const originalCredential = await credentials.read(original.credentialReference)
+    const reconnect = await runtime.beginReconnect(original.id)
+    switch (failure) {
+      case 'denied':
+        api.exchangeDeviceAuthorization.mockRejectedValue(new FeishuProviderError('authorization-denied', true))
+        break
+      case 'expired':
+        api.exchangeDeviceAuthorization.mockRejectedValue(new FeishuProviderError('authorization-expired', true))
+        break
+      case 'invalid-candidate-token':
+        api.exchangeDeviceAuthorization.mockRejectedValue(new FeishuProviderError('reauthorization-required', true))
+        break
+      case 'candidate-app-scope':
+        api.exchangeDeviceAuthorization.mockRejectedValue(new FeishuProviderError('app-scope-missing', true))
+        break
+      case 'candidate-grants':
+        api.exchangeDeviceAuthorization.mockResolvedValue({ ...token, grantedScopes: [] })
+        break
+      case 'candidate-identity-token':
+        api.getUserIdentity.mockRejectedValue(new FeishuProviderError('reauthorization-required', true))
+        break
+      case 'candidate-identity-missing':
+        api.getUserIdentity.mockRejectedValue(new FeishuProviderError('identity-unverifiable', true))
+        break
+      case 'candidate-account-mismatch':
+        api.getUserIdentity.mockResolvedValue({ ...identity, accountUserId: 'another-user' })
+        break
+      case 'local-expiry':
+        now += device.expiresIn * 1_000 + 1
+        break
+    }
+
+    await expect(runtime.completeUserAuthorization(reconnect.authorizationSessionId)).rejects.toMatchObject({ code })
+    expect(connections.getById(original.id)).toEqual(original)
+    await expect(credentials.read(original.credentialReference)).resolves.toEqual(originalCredential)
+    await expect(credentials.listReferences()).resolves.toEqual({
+      status: 'ok',
+      credentialReferences: [original.credentialReference]
+    })
+    await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+    await runtime.stop()
+    const restarted = await start()
+    await expect(restarted.acquireAccessToken(original.id)).resolves.toBe('access')
+  })
+
+  it('preserves PersonalAgent authorization when candidate consent grants excess scopes', async () => {
+    const original = connections.create({
+      appId: app.appId,
+      appCredentialSource: 'personal-agent',
+      credentialReference: 'original'
+    })
+    const active = connections.markConnected(original.id, { ...identity, grantedScopes: token.grantedScopes })
+    await credentials.put('original', {
+      appId: app.appId,
+      appSecret: app.appSecret,
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      accessTokenExpiresAt: 7_201_000,
+      refreshTokenExpiresAt: 604_801_000,
+      grantedScopes: token.grantedScopes
+    })
+    const api = provider()
+    const runtime = await start(api)
+    const reconnect = await runtime.beginReconnect(original.id)
+    api.exchangeDeviceAuthorization.mockResolvedValue({
+      ...token,
+      grantedScopes: [...token.grantedScopes, 'im:message']
+    })
+
+    await expect(runtime.completeUserAuthorization(reconnect.authorizationSessionId)).rejects.toMatchObject({
+      code: 'automatic-scope-mismatch'
+    })
+    expect(connections.getById(original.id)).toEqual(active)
+    await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+  })
+
+  it.each(['begin', 'cancel'] as const)('preserves in-flight token rotation when reconnect %s runs', async (stage) => {
+    let now = 1_000
+    const api = provider()
+    const runtime = await start(api, () => now)
+    const original = await connected(runtime)
+    const reconnect = stage === 'cancel' ? await runtime.beginReconnect(original.id) : undefined
+    now += token.expiresIn * 1_000
+    const entered = deferred()
+    const release = deferred()
+    api.refreshUserToken.mockImplementationOnce(async () => {
+      entered.resolve()
+      await release.promise
+      return { ...token, accessToken: 'rotated-access', refreshToken: 'rotated-refresh' }
+    })
+    const refreshing = runtime.acquireAccessToken(original.id).catch((error: unknown) => error)
+    await entered.promise
+
+    if (reconnect) {
+      const cancelling = runtime.cancelUserAuthorization(reconnect.authorizationSessionId)
+      release.resolve()
+      await cancelling
+    } else {
+      const read = credentials.read.bind(credentials)
+      vi.spyOn(credentials, 'read').mockImplementationOnce(async (reference) => {
+        const stored = await read(reference)
+        queueMicrotask(release.resolve)
+        return stored
+      })
+      const begun = await runtime.beginReconnect(original.id)
+      await runtime.cancelUserAuthorization(begun.authorizationSessionId)
+    }
+    await expect(refreshing).resolves.toBe('rotated-access')
+    expect(connections.getById(original.id)?.authorizationStatus).toBe('connected')
+    await expect(credentials.read(original.credentialReference)).resolves.toMatchObject({
+      status: 'ok',
+      credential: { accessToken: 'rotated-access', refreshToken: 'rotated-refresh' }
+    })
+    await runtime.stop()
+    const restarted = await start(api, () => now)
+    await expect(restarted.acquireAccessToken(original.id)).resolves.toBe('rotated-access')
+  })
+
+  it('still invalidates active credentials when token refresh loses required scopes', async () => {
+    let now = 1_000
+    const api = provider()
+    const runtime = await start(api, () => now)
+    const original = await connected(runtime)
+    now += token.expiresIn * 1_000
+    api.refreshUserToken.mockResolvedValue({ ...token, grantedScopes: [] })
+
+    await expect(runtime.acquireAccessToken(original.id)).rejects.toMatchObject({ code: 'scope-missing' })
+    expect(connections.getById(original.id)?.authorizationStatus).toBe('reauthorization-required')
+  })
 
   it('does not restore an authorization invalidated while reconnect is pending', async () => {
     const api = provider()

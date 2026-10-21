@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-20-feishu-authorization-recovery.md
-2026-10-20-feishu-authorization-recovery.md: f17ec9b6c2c9b4c3708ce0320817b485a53304af
-2026-10-20-feishu-authorization-recovery.zh.md: a78fce69c4925b8baebf8fd33a490578be54e905
+2026-10-20-feishu-authorization-recovery.md: 1100f9aeb58ea18eb6dea488ca2dff02ec71ca96
+2026-10-20-feishu-authorization-recovery.zh.md: 12d448c7de58bec8eec3e8263cf86d1da025e3ae

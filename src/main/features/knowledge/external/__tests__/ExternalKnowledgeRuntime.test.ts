@@ -1084,10 +1084,10 @@ describe('ExternalKnowledgeRuntime', () => {
     })
     const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
     await runtime.start()
+    const reconnect = await runtime.beginReconnect(value.id)
     const staleRefresh = runtime.acquireAccessToken(value.id).catch((error) => error)
     await vi.waitFor(() => expect(provider.refreshUserToken).toHaveBeenCalledOnce())
 
-    const reconnect = await runtime.beginReconnect(value.id)
     const reauthorized = await runtime.completeUserAuthorization(reconnect.authorizationSessionId)
     expect(reauthorized).toMatchObject({ authorizationStatus: 'connected' })
     refresh.reject(new FeishuProviderError('reauthorization-required', true))

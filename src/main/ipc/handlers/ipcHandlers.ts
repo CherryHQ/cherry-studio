@@ -13,6 +13,7 @@ import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { computerUseHandlers } from './computerUse'
+import { credentialHandlers } from './credential'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
 import { doctorHandlers } from './doctor'
@@ -82,6 +83,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...hermesDashboardHandlers,
+  ...credentialHandlers,
   ...knowledgeHandlers,
   ...localModelHandlers,
   ...mcpHandlers,
