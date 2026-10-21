@@ -37,7 +37,7 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 
 - `addItems` resolves after root rows are created and first Knowledge jobs are queued. A file (or a url restored with a snapshot) has only its `raw/` name reserved at that point; its bytes land later through `knowledge.copy-sources`. Restore passes `copyInline` to copy inside the call and keep its all-or-nothing rollback.
 - `deleteItems` resolves after top-level target subtrees are marked `deleting` and `knowledge.delete-subtree` is queued.
-- `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
+- `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and one `knowledge.reindex-subtree` job per root is queued.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 

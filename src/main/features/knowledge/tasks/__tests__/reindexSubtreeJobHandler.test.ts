@@ -123,13 +123,14 @@ describe('reindex-subtree job handler', () => {
     expect(scheduleItemMock).not.toHaveBeenCalled()
   })
 
-  it('skips reset when the subtree becomes deleting inside the mutation lock', async () => {
+  it('skips reset when the root becomes deleting inside the mutation lock', async () => {
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
-    const deletingChild = createNoteItem('note-1', 'dir-1', 'deleting')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
-    knowledgeItemGetSubtreeItemsMock.mockReturnValueOnce([root, child]).mockReturnValueOnce([root, deletingChild])
+    knowledgeItemGetSubtreeItemsMock
+      .mockReturnValueOnce([root, child])
+      .mockReturnValueOnce([createDirectoryItem('dir-1', 'deleting'), createNoteItem('note-1', 'dir-1', 'deleting')])
 
     await handler.execute(ctx)
 
@@ -138,6 +139,23 @@ describe('reindex-subtree job handler', () => {
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds a container root even when one of its descendants is being deleted', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createDirectoryItem('dir-1')
+    const deletingChild = createNoteItem('note-1', 'dir-1', 'deleting')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) =>
+        options.includeRoots && !options.leafOnly ? [root, deletingChild] : [deletingChild]
+    )
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
+
+    // The reset clears every previous child anyway, so the deleting one leaves nothing for its own cleanup.
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job', { forceFileReprocess: true })
   })
 
   it('leaves a root untouched when its source vanished before the mutation lock', async () => {

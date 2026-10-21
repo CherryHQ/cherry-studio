@@ -1143,7 +1143,12 @@ describe('KnowledgeService', () => {
       expect(result.embeddingModelId).toBe('provider::embed')
       expect(enqueueMock).toHaveBeenCalledWith(
         'knowledge.reindex-subtree',
-        expect.objectContaining({ baseId: 'kb-1', rootItemIds: expect.arrayContaining(['note-1', 'file-1']) }),
+        { baseId: 'kb-1', rootItemIds: ['note-1'] },
+        expect.anything()
+      )
+      expect(enqueueMock).toHaveBeenCalledWith(
+        'knowledge.reindex-subtree',
+        { baseId: 'kb-1', rootItemIds: ['file-1'] },
         expect.anything()
       )
     })
@@ -1925,6 +1930,25 @@ describe('KnowledgeService', () => {
       { baseId: 'kb-1', rootItemIds: ['dir-1'] },
       expect.any(Object)
     )
+  })
+
+  it('reindexes each selected root in its own job, so deleting one root cannot interrupt the others', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetOutermostSelectedItemIdsMock.mockReturnValue(['note-1', 'note-2'])
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([
+      createNoteItem('note-1', 'kb-1', null, 'completed'),
+      createNoteItem('note-2', 'kb-1', null, 'completed')
+    ])
+
+    await service.reindexItems('kb-1', ['note-1', 'note-2'])
+
+    // Delete cleanup cancels every job whose rootItemIds touch the deleted subtree.
+    const reindexJobs = enqueueMock.mock.calls.filter((call) => call[0] === 'knowledge.reindex-subtree')
+    expect(reindexJobs.map((call) => call[1])).toEqual([
+      { baseId: 'kb-1', rootItemIds: ['note-1'] },
+      { baseId: 'kb-1', rootItemIds: ['note-2'] }
+    ])
+    expect(new Set(reindexJobs.map((call) => call[2].idempotencyKey)).size).toBe(2)
   })
 
   it('rejects reindex when any selected subtree item is not completed or failed', async () => {

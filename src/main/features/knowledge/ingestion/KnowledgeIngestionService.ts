@@ -276,16 +276,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     knowledgeBaseService.getById(baseId)
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
-    const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
     const jobManager = application.get('JobManager')
-    jobManager.enqueue(
-      'knowledge.reindex-subtree',
-      { baseId, rootItemIds },
-      {
-        idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
-        queue: knowledgeQueueName(knowledgeBaseId)
-      }
-    )
+    // One job per root: a delete or replace cancels every job touching its subtree, so roots sharing
+    // a job (a whole base, when embedding is first enabled) would all be interrupted with it.
+    for (const rootItemId of toKnowledgeItemIds(rootItemIds)) {
+      jobManager.enqueue(
+        'knowledge.reindex-subtree',
+        { baseId, rootItemIds: [rootItemId] },
+        {
+          idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(knowledgeBaseId, [rootItemId]),
+          queue: knowledgeQueueName(knowledgeBaseId)
+        }
+      )
+    }
   }
 
   /**

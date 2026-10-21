@@ -215,26 +215,29 @@ The simpler rule is:
 
 ### Why Reindex Does Not Pre-Mark Items Active
 
-The reindex entrypoint only accepts the durable job. It does not set roots to `preparing` or `processing` before enqueueing.
+The reindex entrypoint only accepts the durable jobs, one per selected root. It does not set roots to `preparing` or `processing` before enqueueing.
 
 The reindex job owns the destructive and stateful work:
 
 - clear vectors for resolved leaf items;
 - delete previous container descendants when selected roots are containers;
 - keep selected leaf root source-file metadata because those root items still own their source files;
-- skip if the target subtree became `deleting` after the entrypoint guard;
+- skip any selected root that became `deleting` after the entrypoint guard;
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
 
-Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows.
+Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows. The cost is on restart: the jobs use `recovery: 'abandon'`, so a root whose job is still queued when the app quits is cancelled untouched. It keeps its old index, so a refresh simply does not happen, but an embedding backfill leaves that item `completed` without vectors (#22092).
+
+One job per root matters because delete and `replace` cancel every job whose roots touch the subtree they remove. Roots sharing one job, such as the whole base when an embedding model is first enabled, would all be interrupted by a delete of any one of them, and the ones already activated would end up `failed`.
 
 ### Delete Wins Reindex Races
 
 `reindexItems` rejects `deleting` before enqueue, and `reindex-subtree` treats `deleting` as a higher-priority state if delete wins the race after enqueue:
 
-- at job entry, it checks the target subtree and completes as skipped if any item is `deleting`;
-- under the same-base mutation lock, it checks again before activating the roots;
-- after re-acquiring the roots' bytes off the lock, it checks a third time under the lock before clearing vectors or resetting statuses, because a delete can land while the bytes are written;
+- at job entry, it completes as skipped when the selected root is `deleting` or gone;
+- under the same-base mutation lock, it checks again before activating the root;
+- after re-acquiring the root's bytes off the lock, it checks a third time under the lock before clearing vectors or resetting statuses, because a delete can land while the bytes are written;
+- each check looks at the selected root itself, not its whole subtree. A delete of one of a container root's children does not stop the container: after activation, skipping it would leave it active with no follow-up job, and its reset removes every previous child anyway;
 - it does not cancel active jobs. Reindex is only admitted for terminal subtrees, so there should be no active indexing or expansion work to cancel.
 
 This prevents a later reindex request from cancelling delete cleanup or turning a deleting row back into `preparing` / `processing`.
