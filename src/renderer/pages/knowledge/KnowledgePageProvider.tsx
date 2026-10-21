@@ -106,9 +106,14 @@ interface KnowledgePageContextValue {
 
 const KnowledgePageContext = createContext<KnowledgePageContextValue | null>(null)
 
-export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
+interface KnowledgePageProviderProps extends PropsWithChildren {
+  baseId?: string
+  onBaseIdChange: (baseId?: string) => void
+}
+
+export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: KnowledgePageProviderProps) => {
   const { t } = useTranslation()
-  const { bases, isLoading } = useKnowledgeBases()
+  const { bases, isLoading, error: basesError } = useKnowledgeBases()
   const { groups } = useKnowledgeGroups()
   const { createGroup, isCreating: isCreatingGroup } = useCreateKnowledgeGroup()
   const { createBase, isCreating: isCreatingBase } = useCreateKnowledgeBase()
@@ -117,7 +122,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const { updateGroup, isUpdating: isUpdatingGroup } = useUpdateKnowledgeGroup()
   const { deleteBase } = useDeleteKnowledgeBase()
   const { deleteGroup } = useDeleteKnowledgeGroup()
-  const [selectedBaseId, setSelectedBaseId] = useState('')
+  const selectedBaseId = baseId ?? ''
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [selectedItemView, setSelectedItemView] = useState<'content' | 'chunks'>('content')
   const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
@@ -171,6 +176,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   )
 
   useEffect(() => {
+    if (isLoading || basesError) return
+
     if (pendingSelectedBaseId) {
       if (bases.some((base) => base.id === pendingSelectedBaseId)) {
         setPendingSelectedBaseId(null)
@@ -189,7 +196,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     if (bases.length === 0) {
       if (selectedBaseId) {
         resetBaseNavigation()
-        setSelectedBaseId('')
+        onBaseIdChange()
       }
       setSelectedItemId(null)
       return
@@ -198,10 +205,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
     if (!selectedBaseId || !hasSelectedBase) {
       resetBaseNavigation()
-      setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
+      onBaseIdChange(bases[0].id)
     }
-  }, [bases, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
+  }, [bases, basesError, isLoading, onBaseIdChange, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
 
   const selectBase = useCallback(
     (baseId: string) => {
@@ -215,11 +222,16 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
         pendingSelectedBaseListRef.current = bases
       }
 
-      setSelectedBaseId(baseId)
+      onBaseIdChange(baseId)
       setSelectedItemId(null)
     },
-    [bases, resetBaseNavigation]
+    [bases, resetBaseNavigation, onBaseIdChange]
   )
+
+  useEffect(() => {
+    resetBaseNavigation()
+    setSelectedItemId(null)
+  }, [selectedBaseId, resetBaseNavigation])
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {
@@ -344,26 +356,18 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateBaseCreated = useCallback(
     (createdBase: { id: string }) => {
-      resetBaseNavigation()
-      setPendingSelectedBaseId(createdBase.id)
-      pendingSelectedBaseListRef.current = bases
-      setSelectedBaseId(createdBase.id)
-      setSelectedItemId(null)
+      selectBase(createdBase.id)
     },
-    [bases, resetBaseNavigation]
+    [selectBase]
   )
 
   const handleRestoreBaseRestored = useCallback(
     (restoredBase: { id: string }) => {
-      resetBaseNavigation()
       setRestoringBase(null)
       setRestoreBaseInitialValues(undefined)
-      setPendingSelectedBaseId(restoredBase.id)
-      pendingSelectedBaseListRef.current = bases
-      setSelectedBaseId(restoredBase.id)
-      setSelectedItemId(null)
+      selectBase(restoredBase.id)
     },
-    [bases, resetBaseNavigation]
+    [selectBase]
   )
 
   const moveBase = useCallback(

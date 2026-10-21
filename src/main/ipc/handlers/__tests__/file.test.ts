@@ -96,8 +96,8 @@ const fileManager = {
   batchGetDanglingStates: vi.fn(),
   batchTrash: vi.fn(),
   batchRestore: vi.fn(),
-  batchPermanentDelete: vi.fn(),
-  emptyTrash: vi.fn(),
+  batchPermanentDeleteFromTrash: vi.fn(),
+  batchRemoveFromLibrary: vi.fn(),
   rename: vi.fn(),
   readChunk: vi.fn(),
   open: vi.fn(),
@@ -410,22 +410,22 @@ describe('fileHandlers', () => {
     fileManager.batchGetDanglingStates.mockResolvedValue({ [ids[0]]: 'present' })
     fileManager.batchTrash.mockResolvedValue(batchResult)
     fileManager.batchRestore.mockResolvedValue(batchResult)
-    fileManager.batchPermanentDelete.mockResolvedValue(batchResult)
-    fileManager.emptyTrash.mockResolvedValue(batchResult)
+    fileManager.batchPermanentDeleteFromTrash.mockResolvedValue(batchResult)
+    fileManager.batchRemoveFromLibrary.mockResolvedValue(batchResult)
 
     await expect(fileHandlers['file.batch_get_dangling_states']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: 'present'
     })
     await expect(fileHandlers['file.batch_trash']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_restore']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.batch_permanent_delete']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.empty_trash'](undefined, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_permanent_delete_from_trash']({ ids }, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_remove_from_library']({ ids }, ctx)).resolves.toBe(batchResult)
 
     expect(fileManager.batchGetDanglingStates).toHaveBeenCalledWith({ ids })
     expect(fileManager.batchTrash).toHaveBeenCalledWith(ids)
     expect(fileManager.batchRestore).toHaveBeenCalledWith(ids)
-    expect(fileManager.batchPermanentDelete).toHaveBeenCalledWith(ids)
-    expect(fileManager.emptyTrash).toHaveBeenCalled()
+    expect(fileManager.batchPermanentDeleteFromTrash).toHaveBeenCalledWith(ids)
+    expect(fileManager.batchRemoveFromLibrary).toHaveBeenCalledWith(ids)
   })
 
   it('delegates single-entry commands to FileManager', async () => {
@@ -489,7 +489,7 @@ describe('fileHandlers', () => {
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 
-  it('creates a directory tree addressed to the caller window WebContents', async () => {
+  it('creates a directory tree owned by the caller window', async () => {
     const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
     directoryTreeManager.create.mockResolvedValueOnce(created)
 
@@ -497,7 +497,11 @@ describe('fileHandlers', () => {
       fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
     ).resolves.toBe(created)
 
-    expect(directoryTreeManager.create).toHaveBeenCalledWith(senderWebContents, '/tmp/ws', { maxDepth: 1 })
+    expect(directoryTreeManager.create).toHaveBeenCalledWith(
+      { windowId: 'win-1', webContents: senderWebContents },
+      '/tmp/ws',
+      { maxDepth: 1 }
+    )
   })
 
   it('refuses to create a directory tree for a sender that is not a managed window', async () => {

@@ -58,9 +58,15 @@ vi.mock('../plugins/text/textFilePreviewPlugin', () => ({
     id: 'text',
     extensions: [],
     load: async () => ({
-      default: () => {
+      default: ({ onSelectionReference }: { onSelectionReference?: (reference: unknown) => void }) => {
         mocks.textPreview()
-        return <div data-testid="text-file-preview" />
+        return (
+          <div data-testid="text-file-preview">
+            <button type="button" onClick={() => onSelectionReference?.(SELECTION_REFERENCE_FIXTURE)}>
+              report-selection
+            </button>
+          </div>
+        )
       }
     })
   }
@@ -71,6 +77,13 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { FilePreview } from '../FilePreview'
+
+const SELECTION_REFERENCE_FIXTURE = {
+  path: '/tmp/notes.txt',
+  anchor: { format: 'docx', paragraph: 0 },
+  excerpt: 'hello',
+  fileStamp: { size: 1, mtimeMs: 1 }
+}
 
 afterEach(() => {
   cleanup()
@@ -156,5 +169,23 @@ describe('FilePreview', () => {
 
     expect(await screen.findByTestId('text-file-preview')).toBeInTheDocument()
     expect(mocks.textPreview).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards plugin selection references to the host callback verbatim', async () => {
+    mocks.ipcApiRequest.mockResolvedValueOnce({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/plain'
+    })
+    const onSelectionReference = vi.fn()
+
+    render(<FilePreview filePath={'/tmp/notes.txt' as AbsoluteFilePath} onSelectionReference={onSelectionReference} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'report-selection' }))
+
+    expect(onSelectionReference).toHaveBeenCalledWith(SELECTION_REFERENCE_FIXTURE)
   })
 })

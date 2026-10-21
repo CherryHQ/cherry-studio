@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
@@ -11,6 +11,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -48,7 +49,9 @@ const renderToolbar = (app: MiniAppType) =>
     <MinimalToolbar
       app={app}
       webviewRef={{ current: null }}
+      webviewRevision={0}
       currentUrl={null}
+      isWebviewReady
       onReload={vi.fn()}
       onOpenDevTools={vi.fn()}
       splitMode="open"
@@ -59,6 +62,16 @@ const renderToolbar = (app: MiniAppType) =>
 afterEach(cleanup)
 
 describe('MinimalToolbar', () => {
+  it('does not schedule attachment polling while no concrete webview exists', () => {
+    vi.useFakeTimers()
+    try {
+      renderToolbar(site)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('opens the same detail panel the launcher tile offers, for a local app only', () => {
     renderToolbar(localApp)
     fireEvent.click(screen.getByRole('button', { name: /view details|查看详情/i }))
@@ -81,6 +94,15 @@ describe('MinimalToolbar', () => {
     cleanup()
     renderToolbar(site)
     expect(screen.getByRole('button', { name: /open links|打开链接/i })).toBeInTheDocument()
+  })
+
+  it('offers navigation to site guests only', () => {
+    renderToolbar(localApp)
+    expect(screen.queryByRole('textbox')).toBeNull()
+
+    cleanup()
+    renderToolbar(site)
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 
   it('shows DevTools for local apps and sites alike', () => {

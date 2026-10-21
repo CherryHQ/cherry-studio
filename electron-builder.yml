@@ -21,6 +21,7 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
@@ -32,11 +33,13 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!native"
   - "!config"
   - "!patches"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
+  - "!**/node_modules/@cherrystudio/computer-use-{darwin,win32,linux}-*/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -64,7 +67,12 @@ files:
   - "!node_modules/@tavily/core/node_modules/js-tiktoken"
   - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
+  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
+  # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
+  # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
+  - "!node_modules/selection-hook/build/**"
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
   - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
@@ -74,6 +82,9 @@ files:
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
+  - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
+  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform packaging
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -82,8 +93,6 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  # DSH runs as an external Node process: bundle its JS and unpack only native/runtime files.
-  - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"
   - "node_modules/detect-libc/**"
@@ -91,9 +100,7 @@ asarUnpack:
   - "node_modules/node-pty/**"
   - "node_modules/koffi/**"
   - "node_modules/@koromix/koffi-*/**"
-  - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
-  - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
-  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/yaml/**"
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
@@ -101,6 +108,8 @@ asarUnpack:
   - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
+  - from: "src/main/ai/voice/localAdapters/NOTICE.txt"
+    to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
@@ -109,13 +118,16 @@ win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   extraResources:
+    # before-pack adds system-speech only for x64; extraResources .exe files use signtoolOptions below.
     - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
       to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
   signtoolOptions:
-    sign: scripts/win-sign.js
+    sign: scripts/packaging/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
   # Preserve the existing global installer identity so either edition replaces the same Windows installation.
@@ -128,26 +140,33 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
-  differentialPackage: false
+  differentialPackage: true
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
   # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
   unpackDirName: true
 mac:
+  extraFiles:
+    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+      to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
+  sign: scripts/packaging/mac-sign.js
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
+    NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   target:
     - target: dmg
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -170,65 +189,88 @@ rpm:
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
+  useMultipleRangeRequest: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-beforePack: scripts/before-pack.js
-afterPack: scripts/after-pack.js
-afterSign: scripts/notarize.js
-artifactBuildCompleted: scripts/artifact-build-completed.js
+beforePack: scripts/packaging/before-pack.js
+afterPack: scripts/packaging/after-pack.js
+afterSign: scripts/packaging/notarize.js
+artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.14 - New Features, Fixes, and Performance
+    Cherry Studio 2.1.7 - Voice, Cloud, and Model Updates
 
     ✨ New Features
-    - [Agent] Agent sessions now label self-started replies — “Goal round N” for DSH goal continuations, or “Continued after background work” — so users understand why a new message appears.
-    - [Models] DeepSeek V4.1 Flash Expires-On-0910 vision model is now available in the catalog.
-    - [Cherry Cloud] Cloud sessions are now bound to the current computer, preserving free-grant history across credential resets.
+    - [Voice] Add Kokoro Chinese-English TTS with 103 voices for Windows x64, Linux and macOS, and Qwen3-TTS for Apple Silicon. Download models from Settings > Local Models before first use.
+    - [Voice] Show live audio spectra in speech playback and dictation controls. Restore the microphone after empty dictation.
+    - [Voice] Add local FunASR speech transcription on Windows, Linux and macOS.
+    - [Cherry Cloud] Add subscription plan and quota usage visibility to the Global edition, with limited-time-free and exhausted-quota descriptions for managed models.
+    - [Cherry Cloud] Add a compact anchored sidebar account menu. Avatar and nickname open Personal Information settings; Appearance and Login stay in the menu.
+    - [Cherry Cloud] Preserve login during temporary connection or refresh failures.
+    - [Automation] Orchestrate Browser and Computer Use through persistent JavaScript with clearer execution feedback.
+    - [Knowledge Base] Drag knowledge bases between groups and reorder groups; cycle item columns through ascending, descending and default ordering.
+    - [Image] Add GPT-Image-2 aspect ratio presets for 16:9, 9:16, 16:10, and 4K output.
+    - [Models] Add Gemini 4 Argon support with thinking levels and automatic long-output continuation.
+    - [Models] Add Muse Spark Open model recognition with multimodal capabilities and reasoning controls.
+    - [Search] Add DuckDuckGo as a free keyword web search provider. No API key required.
+    - [Tools] Tool results now preview image links and display clickable web links.
+    - [Errors] Show actionable error notifications with readable diagnoses, expandable details, and recovery actions for conversations, provider checks, and MCP failures.
+    - [Chat] Queued follow-up messages start collapsed. Click the header to expand or collapse.
+    - [Chat] Hover over conversations to see full name, activity time, and workspace details.
+    - [Notes] Search code-block languages by name.
 
     🐛 Bug Fixes
-    - [Startup] Fixed Cherry Studio failing to start after an upgrade when the built-in Support Agent still needs to be created.
-    - [Local Models] Windows cleanup now tolerates transient DLL release failures after an inference utility process exits.
-    - [Knowledge Base] Fixed tables from PDFs imported through Mistral OCR being dropped; table contents are now indexed as Markdown tables.
-    - [Pi] Fix OpenCode Go/Zen requests failing with MissingSessionID by preserving the agent session header.
-    - [Export] Notion export now waits for the page body to be written and reports failed writes as errors instead of success.
-    - [Obsidian] Fix invalid front matter when the note title contains “: “ or starts with “#”, and export tags as a proper YAML list.
-    - [Prompt Polish] Add cancellation and a 60-second timeout so stalled requests return to a retryable state.
-    - [Chat] Show safe, actionable provider details instead of generic errors such as “400 null”.
-    - [Debug] Fixed truncated Outputs and UI freezes when inspecting long streaming responses in the message debug panel (Call Chain).
-    - [Provider] OpenCode Go/Zen requests from model health checks, topic naming, and context compaction now carry the required session header.
-    - [Chat] Deleting a response selected for context now preserves other replies and transfers context and follow-up messages to an adjacent reply.
-    - [Cherry Cloud] Unsupported client versions now show an update-required message instead of asking users to retry login.
-    - [Chat] Fixed text-only continuation turns incorrectly processing stale image attachments and failing before the response starts.
-    - [Cherry Cloud] Login now requires a configured client signing key for custom builds.
-
-    ⚡ Performance
-    - [Knowledge] Knowledge page management dialogs and item detail panels are now loaded on demand instead of with the page.
+    - [Attachments] Fix unrecognized-extension text files (e.g., .lrmx) not being read as text.
+    - [OCR] Identify which OCR path failed when sending images to non-vision models, with guidance for each failure type.
+    - [Window] Fix main window closing on Windows/Linux hiding the window when the tray icon is unavailable, leaving no way to restore or quit.
+    - [Messages] Preserve disclosure state and follow streamed reasoning in message display.
+    - [Composer] Automatically follow prompt text direction; keep leading-dot file names; accept any file type on the agent surface.
+    - [Files] Add file context menu actions; align file links and icons with inline text.
+    - [MCP] Connect to remote MCP servers that reject the version probe with 5xx errors; confirm health before reconnects.
+    - [Models] Accept null Gemini model list pagination tokens; improve Gemini model discovery and metadata refresh.
+    - [Tray] Use a stable Windows tray GUID for portable installs.
+    - [Voice] Fixed read-aloud skipping text in code blocks and inline code.
+    - [Agents] Allow users to turn off onboarding by declining setup.
+    - [Translation] Keep idle dictation and copy buttons beside the input text without adding an extra toolbar row.
+    - [Computer Use] Fixed missing automation tool output for Claude agents and added structured accessibility-tree pagination to prevent oversized observations from being omitted.
+    - [Settings] Restore settings scrollbars and consistent layouts, clarify Computer Use permission actions, and fix clipped content, MCP tab order and unnecessary Usage heatmap overflow.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.14 - 新功能、修复与性能优化
+    Cherry Studio 2.1.7 - 语音、云服务与模型更新
 
     ✨ 新功能
-    - [智能体] 智能体会话现在为自动发起的回复添加标签——DSH 目标推进显示”目标推进 · 第 N 轮”，后台工作后继续显示”后台工作后继续”——让用户了解为什么出现了新消息。
-    - [模型] DeepSeek V4.1 Flash Expires-On-0910 视觉模型现已上架模型目录。
-    - [樱桃云] 云会话现已绑定当前设备，在凭证重置后保留免费额度历史。
+    - [语音] 添加 Kokoro 中英文语音合成，支持 103 种音色，适用于 Windows x64、Linux 和 macOS；Apple Silicon 用户可使用 Qwen3-TTS。首次使用前需从设置 > 本地模型下载模型。
+    - [语音] 语音播放和听写控件中显示实时音频频谱。空听写后恢复麦克风。
+    - [语音] 在 Windows、Linux 和 macOS 上添加本地 FunASR 语音转写。
+    - [Cherry Cloud] 为全球版添加订阅计划和配额用量显示，并为托管模型显示限时免费和配额耗尽提示。
+    - [Cherry Cloud] 添加紧凑的侧边栏账户菜单。头像和昵称打开个人信息设置；外观和登录保留在菜单中。
+    - [Cherry Cloud] 在临时连接或刷新失败期间保持登录状态。
+    - [自动化] 通过持久化 JavaScript 编排浏览器和计算机操作，执行反馈更清晰。
+    - [知识库] 在分组间拖拽知识库并重新排序分组；循环切换项目的升序、降序和默认排序。
+    - [图像] 添加 GPT-Image-2 的 16:9、9:16、16:10 和 4K 宽高比预设。
+    - [模型] 添加 Gemini 4 Argon 支持，包含思考级别和自动长输出续写。
+    - [模型] 添加 Muse Spark Open 模型识别，支持多模态能力和推理控制。
+    - [搜索] 添加 DuckDuckGo 作为免费的网页搜索提供商。无需 API 密钥。
+    - [工具] 工具结果现在可以预览图像链接并显示可点击的网页链接。
+    - [错误] 显示可操作的错误通知，包含可读的诊断、可展开的详情，以及对话、提供商检查和 MCP 失败的恢复操作。
+    - [对话] 排队的后续消息现在默认折叠。点击标题栏展开或折叠。
+    - [对话] 悬停对话可查看完整名称、活动时间和工作区详情。
+    - [笔记] 按名称搜索代码块语言。
 
     🐛 问题修复
-    - [启动] 修复升级后需要首次创建内置产品反馈 Agent 时 Cherry Studio 无法启动的问题。
-    - [本地模型] 修复 Windows 下 inference utility process 退出后 DLL 短暂占用导致模型清理偶发失败的问题。
-    - [知识库] 修复通过 Mistral OCR 导入的 PDF 表格丢失问题；表格内容现在以 Markdown 表格形式索引。请重新索引已有条目以获取表格内容。
-    - [Pi] 修复 OpenCode Go/Zen 请求因 MissingSessionID 失败的问题，现已保留智能体会话头部。
-    - [导出] Notion 导出现在等待页面正文写入完成，写入失败时正确报错而非显示成功。
-    - [Obsidian] 修复笔记标题包含”: “或以”#”开头时导出无效前置数据的问题，并将标签导出为正确的 YAML 列表。
-    - [提示词润色] 支持取消和 60 秒超时，卡住的请求可立即恢复为可重试状态。
-    - [对话] 显示安全可操作的错误详情，而非”400 null”等通用错误。
-    - [调试] 修复消息调试面板(Call Chain)中长输出被截断和 UI 卡死的问题。
-    - [服务商] OpenCode Go/Zen 的模型健康检查、话题命名和上下文压缩请求现在携带必需的会话头部。
-    - [对话] 删除用于上下文的回复时，现在保留其他回复，并将上下文和后续消息转移到相邻回复。
-    - [樱桃云] 不支持的客户端版本现在显示更新提示，而非让用户重试登录。
-    - [对话] 修复纯文本续写轮次错误处理残留图片附件并在响应开始前失败的问题。
-    - [樱桃云] 自定义构建现在需要配置客户端签名密钥才能登录。
-
-    ⚡ 性能优化
-    - [知识库] 知识库页面管理对话框和条目详情面板现在按需加载，而非随页面加载。
+    - [附件] 修复无法识别扩展名的文本文件（如 .lrmx）无法作为文本读取的问题。
+    - [OCR] 向非视觉模型发送图像时，识别哪个 OCR 路径失败，并为每种失败类型提供指引。
+    - [窗口] 修复 Windows/Linux 上关闭主窗口时，当托盘图标不可用时会隐藏窗口且无法恢复或退出的问题。
+    - [消息] 保持消息显示的展开状态并跟踪流式推理。
+    - [输入框] 自动跟随提示文本方向；保留以点开头的文件名；在代理界面接受任意文件类型。
+    - [文件] 添加文件上下文菜单操作；对齐文件链接和图标与内联文本。
+    - [MCP] 连接拒绝版本探测并返回 5xx 错误的远程 MCP 服务器；重连前确认健康状态。
+    - [模型] 接受空的 Gemini 模型列表分页标记；改进 Gemini 模型发现和元数据刷新。
+    - [托盘] 为便携版安装使用稳定的 Windows 托盘 GUID。
+    - [语音] 修复朗读跳过代码块及行内代码中文字的问题。
+    - [智能体] 支持回复“不需要”或“跳过”关闭初始化引导。
+    - [翻译] 修复听写和复制按钮额外占据一行的问题，空闲时保持在输入文字右侧。
+    - [电脑操作] 修复 Claude 智能体自动化工具输出丢失的问题，并通过结构化辅助功能树分页避免大型观察结果被整份省略。
+    - [设置] 修复设置页滚动条和布局，优化电脑操作权限说明，并修复内容截断、MCP 标签顺序及用量热力图的多余横向溢出。
     <!--LANG:END-->

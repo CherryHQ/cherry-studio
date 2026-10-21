@@ -20,13 +20,21 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
-import type { ExportableMessage } from '@renderer/types/messageExport'
+import type {
+  ExportableMessage,
+  ExportMessagesToObsidian,
+  MessageExportTarget,
+  MessageExportView
+} from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
-import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import {
+  captureScrollableAsBlob as captureScrollableAsBlobUtil,
+  captureScrollableAsDataUrl as captureScrollableAsDataUrlUtil
+} from '@renderer/utils/image'
+import { convertLatexMathToDollars, markdownToPlainText } from '@renderer/utils/markdown'
 import { stripCitationMarkers } from '@renderer/utils/message/citations'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import {
@@ -95,6 +103,34 @@ const getExportState = () => exportState
 const setExportingState = (isExporting: boolean) => {
   exportState = isExporting
 }
+
+type ScrollableCaptureRef = Parameters<typeof captureScrollableAsDataUrlUtil>[0]
+type ScrollableBlobCallback = Parameters<typeof captureScrollableAsBlobUtil>[1]
+
+// Image captures temporarily mutate renderer DOM and share the native capture
+// lifecycle, so their coordination belongs with the export runtime owner.
+export class ExportService {
+  private imageCaptureQueue = Promise.resolve()
+
+  private enqueueImageCapture<T>(capture: () => Promise<T>): Promise<T> {
+    const queuedCapture = this.imageCaptureQueue.then(capture)
+    this.imageCaptureQueue = queuedCapture.then(
+      () => undefined,
+      () => undefined
+    )
+    return queuedCapture
+  }
+
+  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef) {
+    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+  }
+
+  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) {
+    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
+  }
+}
+
+export const exportService = new ExportService()
 
 /**
  * 安全地处理思维链内容，保留安全的 HTML 标签如 <br>，移除危险内容
@@ -270,15 +306,17 @@ const createBaseMarkdown = async (
       } else if (reasoningContent.startsWith('<think>')) {
         reasoningContent = reasoningContent.substring(7)
       }
+      // Must run before sanitizing turns `\n` into `<br>`: formulas and code blocks are only
+      // recognizable while the line structure is intact.
+      if (forceDollarMathInMarkdown) {
+        reasoningContent = convertLatexMathToDollars(reasoningContent)
+      }
       // 使用 DOMPurify 安全地处理思维链内容
       reasoningContent = sanitizeReasoningContent(reasoningContent)
       // The model cites its sources while reasoning too, but the `[N]` numbering below
       // belongs to the answer body — strip rather than resolve, so no internal marker
       // survives and no second, conflicting sequence appears.
       reasoningContent = stripCitationMarkers(reasoningContent)
-      if (forceDollarMathInMarkdown) {
-        reasoningContent = convertMathFormula(reasoningContent)
-      }
       reasoningSection = `<div style="border: 2px solid #dddddd; border-radius: 10px;">
   <details style="padding: 5px;">
     <summary>${i18n.t('common.reasoning_content')}</summary>
@@ -303,7 +341,7 @@ const createBaseMarkdown = async (
   const { content, citation: toolCitation } = getToolCitationExport(message, rawContent)
   let citation = excludeCitations ? '' : getCitationContent(message) || toolCitation
 
-  let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
+  let processedContent = forceDollarMathInMarkdown ? convertLatexMathToDollars(content) : content
 
   // 处理引用标记
   if (excludeCitations) {
@@ -429,7 +467,7 @@ export const topicToPlainText = async (topic: Topic): Promise<string> => {
   const topicMessages = await getTopicMessages(topic.id)
 
   if (topicMessages && topicMessages.length > 0) {
-    return topicName + '\n\n' + messagesToPlainText(topicMessages)
+    return topicName + '\n\n' + (await messagesToPlainText(topicMessages))
   }
 
   return topicName
@@ -669,55 +707,85 @@ export const exportMessageAsMarkdown = async (
   excludeCitations?: boolean,
   chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
+  await exportMessagesAsMarkdown([message], exportReasoning, undefined, chooseImageMode, excludeCitations)
+}
+
+export const exportMessagesAsMarkdown = async (
+  messages: ExportableMessage[],
+  exportReasoning?: boolean,
+  title?: string,
+  chooseImageMode?: ImageModeChooser,
+  excludeCitations?: boolean
+): Promise<boolean> => {
+  if (messages.length === 0) return false
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   setExportingState(true)
+  let markdownExportPath: string | null = null
+  try {
+    markdownExportPath = await preferenceService.get('data.export.markdown.path')
+    const fileTitle = title?.trim() || (await getMessageTitle(messages[0]))
+    const timestamp = markdownExportPath ? ` ${dayjs().format('YYYY-MM-DD-HH-mm-ss')}` : ''
+    const fileName = removeSpecialCharactersForFileName(fileTitle) + timestamp + '.md'
+    const built = await buildMarkdownWithImages(
+      messages,
+      (overrides) => messagesToMarkdown(messages, exportReasoning, excludeCitations, overrides),
+      chooseImageMode
+    )
+    if (!built) return false
 
-  const buildWithOverrides = async (overrides?: Map<string, string>): Promise<string> => {
-    const rawContentOverride = overrides?.get(message.id)
-    return exportReasoning
-      ? await messageToMarkdownWithReasoning(message, excludeCitations, rawContentOverride)
-      : await messageToMarkdown(message, excludeCitations, rawContentOverride)
+    const filePath = markdownExportPath
+      ? markdownExportPath + '/' + fileName
+      : await window.api.file.save(fileName, built.markdown)
+    if (!filePath) return false
+    if (markdownExportPath) await window.api.file.write(filePath, built.markdown)
+    await exportImageAssets(filePath, built.markdown, built.pendingWrites)
+    toast.success(
+      i18n.t(
+        markdownExportPath ? 'message.success.markdown.export.preconf' : 'message.success.markdown.export.specified'
+      )
+    )
+    return true
+  } catch (error) {
+    toast.error(
+      i18n.t(markdownExportPath ? 'message.error.markdown.export.preconf' : 'message.error.markdown.export.specified')
+    )
+    logger.error('Failed to export messages as markdown:', error as Error)
+    return false
+  } finally {
+    setExportingState(false)
   }
+}
 
-  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
-  if (!markdownExportPath) {
-    try {
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
-      if (!built) return
-      const result = await window.api.file.save(fileName, built.markdown)
-      if (result) {
-        await exportImageAssets(result, built.markdown, built.pendingWrites)
-        toast.success(i18n.t('message.success.markdown.export.specified'))
-      }
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.specified'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
-    }
-  } else {
-    try {
-      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
-      if (!built) return
-      const mdPath = markdownExportPath + '/' + fileName
-      await window.api.file.write(mdPath, built.markdown)
-      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
-      toast.success(i18n.t('message.success.markdown.export.preconf'))
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.preconf'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
-    }
+export async function exportMessagesToTarget(
+  messages: MessageExportView[],
+  target: MessageExportTarget,
+  options: { title?: string; exportToObsidian: ExportMessagesToObsidian; chooseImageMode: ImageModeChooser }
+): Promise<boolean> {
+  if (messages.length === 0) return false
+  if (target === 'markdown' || target === 'markdown-reason') {
+    return exportMessagesAsMarkdown(messages, target === 'markdown-reason', options.title, options.chooseImageMode)
+  }
+  const title = options.title ?? (await getMessageTitle(messages[0]))
+  switch (target) {
+    case 'word':
+      return ipcApi.request('export.word.from_markdown', {
+        markdown: await messagesToMarkdown(messages),
+        fileName: removeSpecialCharactersForFileName(title)
+      })
+    case 'notion':
+      return exportMessagesToNotion(title, messages)
+    case 'yuque':
+      return (await exportMarkdownToYuque(title, await messagesToMarkdown(messages))) != null
+    case 'obsidian':
+      return options.exportToObsidian(title.replace(/\\/g, '_'), messages)
+    case 'joplin':
+      return (await exportMarkdownToJoplin(title, messages)) != null
+    case 'siyuan':
+      return exportMarkdownToSiyuan(title, await messagesToMarkdown(messages))
   }
 }
 
@@ -1277,19 +1345,18 @@ export const exportMarkdownToJoplin = async (
 
   setExportingState(true)
 
-  let content: string
-  if (typeof contentOrMessages === 'string') {
-    content = contentOrMessages
-  } else if (Array.isArray(contentOrMessages)) {
-    content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
-  } else {
-    // 单条Message
-    content = joplinExportReasoning
-      ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
-      : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
-  }
-
   try {
+    let content: string
+    if (typeof contentOrMessages === 'string') {
+      content = contentOrMessages
+    } else if (Array.isArray(contentOrMessages)) {
+      content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
+    } else {
+      content = joplinExportReasoning
+        ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
+        : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
+    }
+
     const baseUrl = joplinUrl.endsWith('/') ? joplinUrl : `${joplinUrl}/`
     const response = await fetch(`${baseUrl}notes?token=${joplinToken}`, {
       method: 'POST',
@@ -1328,7 +1395,7 @@ export const exportMarkdownToJoplin = async (
  * @param title 笔记标题
  * @param content 笔记内容
  */
-export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<void> => {
+export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<boolean> => {
   const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = await preferenceService.getMultiple({
     siyuanApiUrl: 'data.integration.siyuan.api_url',
     siyuanToken: 'data.integration.siyuan.token',
@@ -1338,12 +1405,12 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
 
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
     toast.error(i18n.t('message.error.siyuan.no_config'))
-    return
+    return false
   }
 
   setExportingState(true)
@@ -1378,9 +1445,11 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
     await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
 
     toast.success(i18n.t('message.success.siyuan.export'))
+    return true
   } catch (error) {
     logger.error('Failed to export to Siyuan:', error as Error)
     toast.error(i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''))
+    return false
   } finally {
     setExportingState(false)
   }
@@ -1510,11 +1579,16 @@ const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<
   }
 }
 
-const getScrollableElement = (): HTMLElement | null => {
+const getScrollableElement = (noteId: string): HTMLElement | null => {
   const notesPage = document.querySelector('#notes-page')
   if (!notesPage) return null
 
-  const allDivs = notesPage.querySelectorAll('div')
+  const noteEditor = Array.from(notesPage.querySelectorAll<HTMLElement>('[data-note-id]')).find(
+    (element) => element.dataset.noteId === noteId
+  )
+  if (!noteEditor) return null
+
+  const allDivs = noteEditor.querySelectorAll('div')
   for (const div of Array.from(allDivs)) {
     const style = window.getComputedStyle(div)
     if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
@@ -1526,20 +1600,19 @@ const getScrollableElement = (): HTMLElement | null => {
   return null
 }
 
-const getScrollableRef = (): { current: HTMLElement } | null => {
-  const element = getScrollableElement()
-  if (!element) {
-    toast.warning(i18n.t('notes.no_content_to_copy'))
-    return null
+const getScrollableRef = (noteId: string): ScrollableCaptureRef => ({
+  get current() {
+    const element = getScrollableElement(noteId)
+    if (!element) {
+      toast.warning(i18n.t('notes.no_content_to_copy'))
+    }
+    return element
   }
-  return { current: element }
-}
+})
 
-const exportNoteAsImageToClipboard = async (): Promise<void> => {
-  const scrollableRef = getScrollableRef()
-  if (!scrollableRef) return
-
-  await captureScrollableAsBlob(scrollableRef, async (blob) => {
+const exportNoteAsImageToClipboard = async (noteId: string): Promise<void> => {
+  const scrollableRef = getScrollableRef(noteId)
+  await exportService.captureScrollableAsBlob(scrollableRef, async (blob) => {
     if (blob) {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       toast.success(i18n.t('common.copied'))
@@ -1547,11 +1620,9 @@ const exportNoteAsImageToClipboard = async (): Promise<void> => {
   })
 }
 
-const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
-  const scrollableRef = getScrollableRef()
-  if (!scrollableRef) return
-
-  const dataUrl = await captureScrollableAsDataUrl(scrollableRef)
+const exportNoteAsImageFile = async (noteName: string, noteId: string): Promise<void> => {
+  const scrollableRef = getScrollableRef(noteId)
+  const dataUrl = await exportService.captureScrollableAsDataUrl(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)
     await window.api.file.saveImage(fileName, dataUrl)
@@ -1559,7 +1630,7 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
 }
 
 interface NoteExportOptions {
-  node: { name: string; externalPath: string }
+  node: { id: string; name: string; externalPath: string }
   platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'joplin' | 'siyuan' | 'copyImage' | 'exportImage'
 }
 
@@ -1569,9 +1640,9 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
 
     switch (platform) {
       case 'copyImage':
-        return await exportNoteAsImageToClipboard()
+        return await exportNoteAsImageToClipboard(node.id)
       case 'exportImage':
-        return await exportNoteAsImageFile(node.name)
+        return await exportNoteAsImageFile(node.name, node.id)
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
       case 'docx':

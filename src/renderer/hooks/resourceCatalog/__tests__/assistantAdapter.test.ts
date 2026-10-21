@@ -3,15 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
 
-import { useImportAssistantMutation } from '../assistantAdapter'
+import { useAssistantMutationsById, useImportAssistantMutation } from '../assistantAdapter'
 
-const importTriggerMock = vi.hoisted(() => vi.fn())
-const useMutationMock = vi.hoisted(() => vi.fn())
+const { importTriggerMock, invalidateMock, ipcRequestMock, useMutationMock } = vi.hoisted(() => ({
+  importTriggerMock: vi.fn(),
+  invalidateMock: vi.fn(),
+  ipcRequestMock: vi.fn(),
+  useMutationMock: vi.fn()
+}))
 
 vi.mock('@data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => invalidateMock,
   useMutation: useMutationMock,
   useQuery: vi.fn()
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -85,5 +92,31 @@ describe('useImportAssistantMutation', () => {
     expect(importTriggerMock).toHaveBeenCalledWith({
       body: { name: 'Imported', prompt: 'prompt', groupName: 'work' }
     })
+  })
+})
+
+describe('useAssistantMutationsById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMutationMock.mockReturnValue({
+      trigger: importTriggerMock,
+      isLoading: false,
+      error: undefined
+    })
+  })
+
+  it('passes the parent cascade option to the Assistant archive command', async () => {
+    ipcRequestMock.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
+    const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    await act(async () => {
+      await result.current.deleteAssistant({ deleteTopics: true })
+    })
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('trash.assistant.archive', {
+      assistantId: 'assistant-1',
+      deleteTopics: true
+    })
+    expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
   })
 })

@@ -12,8 +12,8 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('YuqueSettings')
@@ -86,7 +86,7 @@ const YuqueSettings: FC = () => {
   }
 
   const handleYuqueHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://www.yuque.com/settings/tokens')
+    void openExternalWebsite('https://www.yuque.com/settings/tokens')
   }
 
   return (

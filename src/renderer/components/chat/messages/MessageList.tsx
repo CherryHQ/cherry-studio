@@ -8,7 +8,7 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { dataUrlToBlob } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -18,6 +18,7 @@ import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
+import { MessageCaptureLeaseProvider, useMessageCaptureLeases } from './list/MessageCaptureLeaseContext'
 import MessageGroup from './list/MessageGroup'
 import { MessageListSearch } from './list/MessageListSearch'
 import MessageNavigation from './list/MessageNavigation'
@@ -62,6 +63,7 @@ const RAIL_GUTTER_MAX_PX = 24
 const RAIL_GUTTER_START_PX = 700
 /** Width range over which the gutter grows in and the rail fades in — a smooth ramp. */
 const RAIL_GUTTER_FADE_PX = 120
+const AFTER_MESSAGES = { key: 'after-messages' } as const
 const EMPTY_LIVE_MESSAGE_IDS: readonly string[] = []
 const EMPTY_PARTS_BY_MESSAGE_ID: Record<string, CherryMessagePart[]> = {}
 
@@ -176,9 +178,10 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
 
 interface MessageListProps {
   enableSearch?: boolean
+  scrollPositionKey?: string
 }
 
-const MessageList = ({ enableSearch = false }: MessageListProps) => {
+const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListProps) => {
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -191,7 +194,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
   const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
-  const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
+  const { topic, messages, beforeList, afterMessages, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -210,6 +213,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const topicImageCaptureRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const { leasedMessageIds, acquireMessageCaptureLease } = useMessageCaptureLeases()
   const isLoadingMoreRef = useRef(false)
   const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
   const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
@@ -217,6 +221,18 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  const listItems = useMemo(
+    () => (afterMessages ? [...groupedMessages, AFTER_MESSAGES] : groupedMessages),
+    [afterMessages, groupedMessages]
+  )
+  const captureLeaseGroupKeys = useMemo(() => {
+    if (leasedMessageIds.length === 0) return []
+
+    const leasedIds = new Set(leasedMessageIds)
+    return groupedMessages.flatMap(([groupKey, groupMessages]) =>
+      groupMessages.some((message) => leasedIds.has(message.id)) ? [groupKey] : []
+    )
+  }, [groupedMessages, leasedMessageIds])
   // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
   // needs a projection that only changes when its topology does — otherwise its
   // `memo` never bails and every chunk re-renders all of its ticks.
@@ -302,6 +318,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   }, [])
 
   const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
+
+  const messageCaptureLeaseContextValue = useMemo(
+    () => ({
+      acquireMessageCaptureLease,
+      getRenderedMessageElement: getMessageElement
+    }),
+    [acquireMessageCaptureLease, getMessageElement]
+  )
 
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom()
@@ -504,9 +528,11 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
+      const { exportService } = await import('@renderer/services/ExportService')
+
       if (action === 'copy') {
-        const imageData = await captureScrollableAsDataUrl(captureRef)
-        const blob = imageData ? await fetch(imageData).then((response) => response.blob()) : null
+        const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
+        const blob = imageData ? dataUrlToBlob(imageData) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }
@@ -518,7 +544,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataUrl(captureRef)
+      const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -534,7 +560,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const enqueueTopicImageCaptureAction = useCallback((action: TopicImageRuntimeAction) => {
     return new Promise<void>((resolve, reject) => {
       const scrollContainer = scrollContainerRef.current
-      const captureWidth = scrollContainer?.clientWidth || scrollContainer?.getBoundingClientRect().width || undefined
+      // Feed the clone the page's rendered .narrow-mode width — the scroll
+      // container's clientWidth (scrollbar + rail gutter) squeezes its column.
+      const narrowWidth = scrollContainer?.querySelector<HTMLElement>('.narrow-mode')?.getBoundingClientRect().width
+      const captureWidth =
+        (narrowWidth && Math.ceil(narrowWidth)) ||
+        scrollContainer?.clientWidth ||
+        scrollContainer?.getBoundingClientRect().width ||
+        undefined
       const captureAction = { action, captureWidth, reject, resolve }
       setTopicImageCaptureActions((current) => {
         const nextActions = [...current, captureAction]
@@ -724,6 +757,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     })
   }, [bindRuntime])
 
+  const keepMountedKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey) keys.add(latestAssistantGroupKey)
+    for (const key of captureLeaseGroupKeys) keys.add(key)
+    return [...keys]
+  }, [captureLeaseGroupKeys, latestAssistantGroupKey, shouldKeepLatestAssistantGroupMounted])
+
   if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
@@ -731,8 +771,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const keepMountedKeys =
-    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
@@ -774,24 +812,38 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
           scopeRef={messageListScopeRef}
         />
       )}
-      <SelectionContextMenu>
+      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
         <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}
-            items={groupedMessages}
-            getItemKey={([key]) => key}
+            items={listItems}
+            getItemKey={(item) => (Array.isArray(item) ? item[0] : item.key)}
             estimateSize={data.estimateSize}
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
-            keepMountedKeys={keepMountedKeys}
+            keepMountedKeys={afterMessages ? [...keepMountedKeys, AFTER_MESSAGES.key] : keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
-            topicId={topic.id}
+            topicId={scrollPositionKey ?? topic.id}
             hasMoreTop={hasOlder}
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}
-            renderItem={([key, groupMessages], index) => {
+            renderItem={(item, index) => {
+              if (!Array.isArray(item)) {
+                return (
+                  <NarrowLayout
+                    narrowMode={messageListNarrowMode}
+                    withSidePadding
+                    style={{
+                      paddingLeft: CHAT_SIDE_PADDING_PX + railGutterPx,
+                      paddingRight: CHAT_SIDE_PADDING_PX + railGutterPx
+                    }}>
+                    {afterMessages}
+                  </NarrowLayout>
+                )
+              }
+              const [key, groupMessages] = item
               const groupMessageTail =
                 messageTail && groupMessages.some((message) => message.id === messageTail.messageId)
                   ? messageTail
@@ -913,6 +965,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         onCopy={
           actions.copySelectedMessages ? () => void actions.copySelectedMessages?.(selectedMessageIds) : undefined
         }
+        exportMenuOptions={messageUi.menuConfig?.exportMenuOptions}
+        onExport={
+          actions.exportSelectedMessages
+            ? (target) => void actions.exportSelectedMessages?.(selectedMessageIds, target)
+            : undefined
+        }
         onDelete={
           actions.deleteSelectedMessages ? () => void actions.deleteSelectedMessages?.(selectedMessageIds) : undefined
         }
@@ -921,7 +979,11 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     </MessagesContainer>
   )
 
-  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
+  return (
+    <HtmlArtifactPopupHost>
+      <MessageCaptureLeaseProvider value={messageCaptureLeaseContextValue}>{messageList}</MessageCaptureLeaseProvider>
+    </HtmlArtifactPopupHost>
+  )
 }
 
 export default MessageList

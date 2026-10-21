@@ -190,7 +190,7 @@ describe('ErrorDiagnosisService', () => {
 
       await diagnoseError(makeError({ statusCode: 401 }), 'zh-CN', {
         errorSource: 'chat',
-        providerName: 'openai',
+        providerId: 'openai',
         modelId: 'gpt-4'
       })
 
@@ -236,6 +236,27 @@ describe('ErrorDiagnosisService', () => {
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.content).toContain('billing_hard_limit_reached')
       expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+    })
+
+    it('gives payload-too-large errors actionable context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'payload', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(
+        makeError({
+          statusCode: 413,
+          message: '413 Request Entity Too Large',
+          responseBody: '<html><body><h1>413 Request Entity Too Large</h1></body></html>'
+        }),
+        'en'
+      )
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('request payload is too large')
+      expect(callArgs.prompt).toContain('new topic')
+      expect(callArgs.prompt).toContain('attachments')
+      expect(callArgs.prompt).toContain('summarize')
     })
 
     it('does not route insufficient permissions to quota context', async () => {
@@ -311,6 +332,28 @@ describe('ErrorDiagnosisService', () => {
       )
 
       await diagnoseError(makeError({ message: 'Socks5 proxy rejected connection' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium DNS failure to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'network', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_NAME_NOT_RESOLVED' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium connection reset to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'stream', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_CONNECTION_RESET' }), 'en')
 
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.prompt).toContain('Network or proxy error')

@@ -210,7 +210,7 @@ describe('AgentWorkspaceService', () => {
     // below (which hits the UNIQUE constraint on the already-created row).
     const emptyResult = { all: () => [] }
     const limitable = { limit: () => emptyResult }
-    const afterWhere = { ...limitable, orderBy: () => limitable }
+    const afterWhere = { ...limitable, ...emptyResult, orderBy: () => limitable }
     const racingTx = {
       select: () => ({
         from: () => ({

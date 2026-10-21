@@ -22,8 +22,8 @@ const WriteParams = z.object({ text: z.string().max(MINI_APP_GUEST_LIMITS.clipbo
 
 /**
  * Enough for a paste button and a copy button, not for polling: a read is one user action,
- * a copy-happy app may write a few times a minute. Both calls are synchronous, so `1` in
- * flight is the only sane slot count.
+ * a copy-happy app may write a few times a minute. `1` in flight because the clipboard is
+ * one shared resource — the slot is held across the await, as in `file` and `network`.
  */
 const readLimiter = new ConcurrentRateLimiter('clipboard.read', 10, 1)
 const writeLimiter = new ConcurrentRateLimiter('clipboard.write', 30, 1)
@@ -43,16 +43,24 @@ function assertInFront(appId: string, senderId: number, permission: 'clipboard.r
 export const clipboardCapability = {
   async read(appId: string, senderId: number) {
     assertInFront(appId, senderId, 'clipboard.read')
-    readLimiter.acquire(appId)()
-    // Clipped, never refused: the app cannot make the user's clipboard smaller.
-    return { text: clipboard.readText().slice(0, MINI_APP_GUEST_LIMITS.clipboardTextChars) }
+    const release = readLimiter.acquire(appId)
+    try {
+      // Clipped, never refused: the app cannot make the user's clipboard smaller.
+      return { text: (await clipboard.readText()).slice(0, MINI_APP_GUEST_LIMITS.clipboardTextChars) }
+    } finally {
+      release()
+    }
   },
 
   async write(appId: string, params: unknown, senderId: number) {
     const { text } = WriteParams.parse(params)
     assertInFront(appId, senderId, 'clipboard.write')
-    writeLimiter.acquire(appId)()
-    clipboard.writeText(text)
-    return { ok: true }
+    const release = writeLimiter.acquire(appId)
+    try {
+      await clipboard.writeText(text)
+      return { ok: true }
+    } finally {
+      release()
+    }
   }
 }

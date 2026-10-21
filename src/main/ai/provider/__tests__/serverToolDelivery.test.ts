@@ -14,6 +14,10 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { extensionRegistry, type ToolCapability } from '@cherrystudio/ai-core/provider'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { isBuiltinWebSearchAvailable, resolveWebToolRoutes } from '@shared/utils/provider'
 
 import { extensions } from '../extensions'
 
@@ -66,8 +70,9 @@ const DELIVERY: Record<string, Partial<Record<string, Delivery>>> = {
   dashscope: { 'web-search': { kind: 'provider-options' }, 'url-context': { kind: 'body-transform' } },
   // web_search marker via providerOptions, moved into `tools` by transformZhipuRequestBody.
   zhipu: { 'web-search': { kind: 'provider-options' } },
-  // $web_search echo tool injected by the moonshot extension factory.
+  // Formula-backed web-search tool injected by the moonshot extension factory.
   moonshot: { 'web-search': factories('moonshot') },
+  'moonshot-global': { 'web-search': factories('moonshot') },
   poe: { 'web-search': { kind: 'provider-options' } },
   cherryin: { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
   'new-api': { 'web-search': { kind: 'gateway-mapped' }, 'url-context': { kind: 'gateway-mapped' } },
@@ -92,7 +97,46 @@ const declared = providers
     provider.serverTools!.map((tool) => ({ providerId: provider.id, toolId: tool.id, vendors: tool.vendors }))
   )
 
+const moonshotGlobal: Provider = {
+  id: 'moonshot-global',
+  presetProviderId: 'moonshot',
+  defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      vendors: ['kimi']
+    }
+  ]
+} as Provider
+
+const kimiK3: Model = {
+  id: 'moonshot-global::kimi-k3',
+  providerId: 'moonshot-global',
+  apiModelId: 'kimi-k3',
+  name: 'Kimi K3',
+  capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false,
+  endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+}
+
 describe('registry serverTools declarations have a runtime delivery path', () => {
+  it('does not route Moonshot Global web search through its Anthropic endpoint', () => {
+    expect(isBuiltinWebSearchAvailable(kimiK3, moonshotGlobal, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(false)
+    expect(
+      resolveWebToolRoutes(kimiK3, moonshotGlobal, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        modelToolsPreferred: true,
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      })
+    ).toMatchObject({ webSearch: 'client' })
+  })
+
   it('covers every declared (provider, tool) pair in the delivery table', () => {
     const uncovered = declared.filter(({ providerId, toolId }) => DELIVERY[providerId]?.[toolId] === undefined)
     expect(uncovered).toEqual([])

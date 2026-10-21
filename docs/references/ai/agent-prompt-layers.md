@@ -4,8 +4,11 @@ sources:
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/runtime
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
+  - src/main/ai/runtime/claudeCode/identityHooks.ts
+  - src/main/ai/runtime/pi/identityExtension.ts
   - src/main/ai/agents/prompt.ts
   - src/main/ai/agents/bootstrap.ts
+  - src/main/ai/mcp/servers/agentMemory.ts
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
 ---
 
@@ -41,16 +44,51 @@ precedence hierarchy is injected.
 An explicit `system.md` selects a custom base across runtimes; an empty file
 deliberately selects an empty custom base. Each driver maps the common
 `{ base, append }` result into its SDK: Claude Code uses its preset/custom base,
-Pi uses system/append overrides, and DSH maps it into its composition. Runtime-
+Pi uses system/append overrides. Runtime-
 native workspace context can still load according to that driver's trust
 boundary. Cherry-owned persona, memory, workspace-path, security, citation,
 artifact, and language guidance is appended independently of the base.
 
 ## Persona and onboarding
 
+Creating an Agent preserves an empty System Prompt; it does not supply a generic
+role. Having a configured System Prompt selects the kind of onboarding, not
+whether onboarding is complete. `bootstrap_completed: true` skips onboarding,
+`false` explicitly restarts it, and an absent flag uses substantial existing
+`SOUL.md` content as the legacy completion signal.
+
 `SOUL.md` is not a replica of Agent configuration. With a configured System Prompt, bootstrap may create or edit it only to record the Agent's name, personality, tone, and communication style; it must not discover, restate, or replace the configured role. Without a configured System Prompt, bootstrap preserves the legacy flow and may discover and store the role in `SOUL.md`. Bootstrap records user context in `USER.md` in both modes.
 
 Saving Agent configuration never writes `SOUL.md`, and editing `SOUL.md` never writes `agent.instructions`. Existing custom files are preserved.
+
+The memory context tells the Agent to apply its loaded persona in replies and
+introductions, personalize responses with the user profile, and consult durable
+facts when recalling decisions. The stable system prompt supplies the identity
+application rules and absolute storage paths; mutable file contents are loaded by runtime hooks.
+
+The `agent-memory` MCP server owns memory tool instructions: updating durable
+facts, appending events, and searching journal history. Each runtime connection
+gets an in-process protocol instance bound to its Agent's storage. Disabling
+Memory unmounts this server and its instructions; it does not disable the
+SOUL.md, USER.md, or existing FACT.md snapshots. Pi exposes full MCP instructions
+through native namespace discovery, so basic identity application rules remain
+in the stable prompt independently of MCP discovery.
+
+Before each new turn, the harness checks `SOUL.md`, `USER.md`, and `memory/FACT.md`
+in Agent storage and delivers a complete `<agent_identity>` snapshot. This does
+not depend on the model choosing a Read tool or a skill. Creation, edits,
+clearing, and deletion take effect on the next turn of a reused connection.
+Empty sections explicitly withdraw previous contents, including those preserved
+in conversation summaries. The latest snapshot remains subordinate to the Agent
+System Prompt and current user instructions.
+
+Claude Code supplies identity through `UserPromptSubmit.additionalContext`,
+deduplicated per connection, and reloads it through `SessionStart` after native
+compaction or session restoration. Pi updates the `agent_identity` system section
+in `before_agent_start`; its native section diffing preserves unchanged context
+and replaces changed content. Neither path rebuilds a connection solely because
+an identity file changed. Changes made during an active turn are picked up at the
+next turn boundary; workspace prompt files retain their existing lifecycle.
 
 ## Update and variable lifecycle
 
@@ -65,7 +103,8 @@ not force a rebuild every turn.
 ## Implementation map
 
 - `src/main/ai/runtime/agentPrompt.ts` owns shared precedence, variable materialization, and the `{ base, append }` contract.
-- Runtime drivers under `src/main/ai/runtime/{claudeCode,pi,dsh}/` map that contract into their SDK/composition.
+- Runtime drivers under `src/main/ai/runtime/{claudeCode,pi}/` map that contract into their SDK/composition.
 - `src/main/ai/agents/prompt.ts` owns workspace base selection and persona/memory context.
+- `src/main/ai/runtime/claudeCode/identityHooks.ts` and `src/main/ai/runtime/pi/identityExtension.ts` deliver live identity through native runtime hooks.
 - `src/main/ai/agents/bootstrap.ts` owns first-run persona and user onboarding guidance.
 - `src/main/ai/agentSession/AgentSessionRuntimeService.ts` owns next-turn connection reconciliation.

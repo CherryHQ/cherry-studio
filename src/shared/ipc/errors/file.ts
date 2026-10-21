@@ -2,6 +2,8 @@
 export const fileErrorCodes = {
   /** Default-open was blocked because the extension may execute through OS file associations. */
   OPEN_BLOCKED_UNSAFE_TYPE: 'FILE_OPEN_BLOCKED_UNSAFE_TYPE',
+  /** Default-open was refused because the target is not an existing absolute path. `data.reason` narrows it. */
+  OPEN_TARGET_UNAVAILABLE: 'FILE_OPEN_TARGET_UNAVAILABLE',
   /** An optimistic file write was rejected because the on-disk version changed. */
   STALE_VERSION: 'FILE_STALE_VERSION',
   /** New bytes committed, but FileEntry metadata must be recovered before retrying. */

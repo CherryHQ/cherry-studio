@@ -98,7 +98,6 @@ describe('PreferenceSeeder', () => {
     ]
     const generatedDefault = DefaultPreferences.default[sidebarKey]
 
-    expect(generatedDefault[0]).toEqual({ id: 'agents', type: 'app' })
     expect(persisted).not.toEqual(generatedDefault)
 
     await dbh.db.insert(preferenceTable).values({

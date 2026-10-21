@@ -4,9 +4,11 @@ import { createPortal } from 'react-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
+import { exportService, getMessageTitle } from '@renderer/services/ExportService'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
+const readMessageAloud = vi.hoisted(() => vi.fn())
 
 vi.mock('@cherrystudio/ui', async () => {
   return {
@@ -109,9 +111,15 @@ vi.mock('@renderer/components/command', async () => {
 })
 
 vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsBlob: vi.fn(),
+    captureScrollableAsDataUrl: vi.fn()
+  },
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
+
+vi.mock('@renderer/services/voice', () => ({ readMessageAloud }))
 
 vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn(() => 'plain text')
@@ -185,6 +193,32 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
+  it('uses the injected fork label and availability without owning session policy', async () => {
+    const forkSession = vi.fn()
+    const availability = vi.fn(() => ({ visible: true, enabled: true, reason: undefined as string | undefined }))
+    const context = createActionContext({
+      actions: { forkSession: { label: 'Fork this conversation', availability, run: forkSession } },
+      isProcessing: true,
+      isLastMessage: false
+    })
+    const forkAction = () => resolveMessageMenuBarMenuActions(context).find((action) => action.id === 'fork-session')!
+    expect(forkAction().availability.enabled).toBe(true)
+    expect(forkAction().label).toBe('Fork this conversation')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    forkSession.mockClear()
+    availability.mockReturnValue({ visible: true, enabled: false, reason: 'Wait for the turn to finish' })
+    expect(forkAction().availability.enabled).toBe(false)
+    expect(forkAction().availability.reason).toBe('Wait for the turn to finish')
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).not.toHaveBeenCalled()
+    availability.mockReturnValue({ visible: true, enabled: true, reason: undefined })
+    expect(forkAction().availability.enabled).toBe(true)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'new-branch')).toBe(false)
+  })
+
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
@@ -239,26 +273,27 @@ describe('messageMenuBarActions', () => {
     )
   })
 
-  it('keeps user edit toolbar action for root messages', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        message: {
-          id: 'message-1',
-          role: 'user',
-          topicId: 'topic-1',
-          parentId: null,
-          createdAt: '2026-01-01T00:00:00.000Z',
-          status: 'success'
-        },
-        actions: {
-          editMessage: vi.fn()
-        },
-        isAssistantMessage: false,
-        isUserMessage: true
-      })
+  it.each(['inline', 'resend', 'blocked'])('respects the root user message edit capability: %s', (mode) => {
+    const context = createActionContext({
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      actions: {
+        editMessage: mode === 'resend' ? undefined : vi.fn(),
+        canEditMessage: mode === 'inline' ? undefined : () => mode === 'resend'
+      },
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).toEqual(
+      mode === 'blocked' ? ['copy'] : ['copy', 'user-edit']
     )
-
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'edit')).toBe(mode !== 'blocked')
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
@@ -361,6 +396,54 @@ describe('messageMenuBarActions', () => {
     expect(typeof toolbarActions.find((action) => action.id === 'translate')?.renderToolbar).toBe('function')
     expect(typeof toolbarActions.find((action) => action.id === 'delete')?.renderToolbar).toBe('function')
     expect(typeof toolbarActions.find((action) => action.id === 'more-menu')?.renderToolbar).toBe('function')
+  })
+
+  it('exposes read aloud only for completed assistant messages with natural-language text', () => {
+    const completed = createActionContext({ messageParts: [{ type: 'text', text: 'Answer' }] as any })
+    const pending = createActionContext({
+      message: { ...completed.message, status: 'pending' },
+      messageParts: completed.messageParts
+    })
+    const user = createActionContext({
+      message: { ...completed.message, role: 'user' },
+      messageParts: completed.messageParts,
+      isAssistantMessage: false,
+      isUserMessage: true
+    })
+    const toolOnly = createActionContext({
+      messageParts: [{ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' }] as any
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(completed).map((action) => action.id)).toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(pending).map((action) => action.id)).not.toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(user).map((action) => action.id)).not.toContain('read-aloud')
+    expect(resolveMessageMenuBarToolbarActions(toolOnly).map((action) => action.id)).not.toContain('read-aloud')
+  })
+
+  it('keeps read aloud discoverable without Voice configuration and invokes the shared helper with trigger focus', async () => {
+    const trigger = document.createElement('button')
+    document.body.appendChild(trigger)
+    trigger.focus()
+    const messageParts = [{ type: 'text', text: 'Answer' }] as any
+    const context = createActionContext({ messageParts })
+
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'read-aloud')
+
+    expect(action).toMatchObject({
+      label: 'chat.message.read_aloud.label',
+      availability: { visible: true, enabled: true }
+    })
+    await executeMessageMenuBarAction('read-aloud', context)
+    expect(readMessageAloud).toHaveBeenCalledWith({
+      messageId: 'message-1',
+      parts: messageParts,
+      focusOnClose: expect.any(Function)
+    })
+
+    trigger.blur()
+    vi.mocked(readMessageAloud).mock.calls[0]?.[0].focusOnClose()
+    expect(document.activeElement).toBe(trigger)
+    trigger.remove()
   })
 
   it('does not require confirmation before regenerating an assistant message', () => {
@@ -943,6 +1026,132 @@ describe('messageMenuBarActions', () => {
     await executeMessageMenuBarAction('save.file', context)
 
     expect(saveTextFile).toHaveBeenCalledWith(expect.stringMatching(/\.md$/), 'hello')
+  })
+
+  it('keeps copy-as-image source ownership through a queued capture', async () => {
+    const currentElement = document.createElement('div')
+    const imageBlob = new Blob(['image'], { type: 'image/png' })
+    const copyImage = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const captureRef = {
+      get current() {
+        return currentElement
+      }
+    }
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref, callback) => {
+      expect(ref.current).toBe(currentElement)
+      callback(imageBlob)
+    })
+
+    const context = createActionContext({
+      actions: { copyImage },
+      messageContainerRef: captureRef,
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.copy-image', context)).resolves.toBe(true)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a queued copy-as-image failure when a topic switch removes its source', async () => {
+    const currentElement = document.createElement('div')
+    let renderedElement: HTMLElement | null = currentElement
+    const copyImage = vi.fn()
+    const notifyError = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const getRenderedMessageElement = vi.fn(() => renderedElement)
+    let captureQueued!: () => void
+    let startQueuedCapture!: () => void
+    const captureQueuedPromise = new Promise<void>((resolve) => {
+      captureQueued = resolve
+    })
+    const startQueuedCapturePromise = new Promise<void>((resolve) => {
+      startQueuedCapture = resolve
+    })
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref) => {
+      captureQueued()
+      await startQueuedCapturePromise
+      void ref.current
+    })
+
+    const context = createActionContext({
+      actions: { copyImage, notifyError },
+      acquireMessageCaptureLease: acquireLease,
+      getRenderedMessageElement,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    const actionPromise = executeMessageMenuBarAction('export.copy-image', context)
+    await captureQueuedPromise
+
+    renderedElement = null
+    startQueuedCapture()
+
+    await expect(actionPromise).resolves.toBe(false)
+
+    expect(getRenderedMessageElement).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).not.toHaveBeenCalled()
+    expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('Message is no longer available'))
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps save-as-image source ownership through capture failure cleanup', async () => {
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const notifyError = vi.fn()
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockRejectedValue(new Error('capture failed'))
+
+    const context = createActionContext({
+      actions: { notifyError, saveImage: vi.fn() },
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(false)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+    expect(getMessageTitle).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes the message-derived title before handing it to the save dialog', async () => {
+    const saveImage = vi.fn(async () => true)
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockResolvedValue('data:image/png;base64,AAAA')
+    vi.mocked(getMessageTitle).mockResolvedValue('**bold** start: a/b?')
+
+    const context = createActionContext({
+      actions: { saveImage },
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(true)
+
+    expect(saveImage).toHaveBeenCalledWith('__bold__ start_ a_b_', 'data:image/png;base64,AAAA')
+    expect(releaseLease).toHaveBeenCalledTimes(1)
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {

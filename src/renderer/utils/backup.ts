@@ -2,6 +2,7 @@ import i18n from '@renderer/i18n/resolver'
 import { formatFileSize } from '@renderer/utils/file'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE,
   BACKUP_NEWER_VERSION_ERROR_CODE,
   BACKUP_OPERATION_BUSY_ERROR_CODE
@@ -36,6 +37,7 @@ function isTlsCertificateFailure(error: unknown): boolean {
 type BackupMessageKey =
   | BackupErrorFallbackKey
   | 'backup.error.active_data_writers'
+  | 'backup.error.background_tasks'
   | 'backup.error.disk_full'
   | 'backup.error.newer_version'
   | 'backup.error.operation_busy'
@@ -50,6 +52,9 @@ function resolveBackupErrorKey(error: unknown): string | null {
   }
   if (error.message.includes(BACKUP_OPERATION_BUSY_ERROR_CODE) || error.name === 'BackupOperationBusyError') {
     return 'backup.error.operation_busy'
+  }
+  if (error.message.includes(BACKUP_BACKGROUND_TASKS_ERROR_CODE)) {
+    return 'backup.error.background_tasks'
   }
   if (error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {
     return 'backup.error.active_data_writers'

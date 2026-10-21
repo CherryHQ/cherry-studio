@@ -351,30 +351,33 @@ describe('entryCleanup', () => {
     await seedInternal(id, 'delete_when_unreferenced')
     const deps = makeDeps()
     const spy = vi.spyOn(deps.fileEntryService, 'withWriteTx').mockImplementationOnce(() => {
-      throw new Error('tx boom')
+      throw Object.assign(new Error('private transcript /private/audio.wav'), { code: 'SQLITE_BUSY' })
     })
     const report = await runEntryCleanup(deps)
     expect(report.failed).toBe(1)
+    expect(loggerService.warn).toHaveBeenCalledWith(expect.stringContaining('candidate failed'), {
+      id,
+      code: 'SQLITE_BUSY'
+    })
     expect(report.deleted).toBe(0)
     expect(fileEntryService.findById(id)).not.toBeNull()
     spy.mockRestore()
   })
 
-  it('reports failed with the raw error (stack) logged when the pass throws before the loop', async () => {
+  it('reports a failed pass without private database input or raw errors', async () => {
     const deps = makeDeps()
     const spy = vi.spyOn(deps.fileEntryService, 'findCleanupCandidates').mockImplementation(() => {
-      throw new Error('db exploded')
+      throw Object.assign(new Error('private transcript /private/audio.wav'), { code: 'SQLITE_BUSY' })
     })
     const errorSpy = vi.spyOn(loggerService, 'error')
     const report = await runEntryCleanup(deps)
     expect(report.outcome).toBe('failed')
-    expect(report.errorMessage).toBe('db exploded')
-    // The raw Error is passed first (stack preserved), not just its message string.
+    expect(report.errorMessage).toBe('file_entry_cleanup_failed')
     expect(errorSpy).toHaveBeenCalledWith(
       'file-entry-cleanup',
-      expect.any(Error),
-      expect.objectContaining({ event: 'file-entry-cleanup', outcome: 'failed' })
+      expect.objectContaining({ event: 'file-entry-cleanup', outcome: 'failed', code: 'SQLITE_BUSY' })
     )
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('private')
     spy.mockRestore()
   })
 
@@ -430,7 +433,42 @@ describe('entryCleanup', () => {
       await seedInternal(id, 'delete_when_unreferenced')
       const report = await runEntryCleanup(makeDeps())
       const summary = summariseEntryCleanup(report)
-      expect(summary).toEqual({ outcome: 'completed', candidates: report.candidates, deleted: report.deleted })
+      expect(summary).toEqual({
+        outcome: 'completed',
+        candidates: report.candidates,
+        deleted: report.deleted,
+        hasPendingWork: false
+      })
+    })
+
+    it('marks a saturated batch as possible pending work', () => {
+      const summary = summariseEntryCleanup({
+        outcome: 'completed',
+        candidates: ENTRY_CLEANUP_BATCH_LIMIT,
+        deleted: ENTRY_CLEANUP_BATCH_LIMIT,
+        skippedRefsReappeared: 0,
+        gonePinned: 0,
+        failed: 0,
+        unlinkFailures: 0,
+        durationMs: 1
+      })
+
+      expect(summary.hasPendingWork).toBe(true)
+    })
+
+    it('marks an unlink failure as pending work', () => {
+      const summary = summariseEntryCleanup({
+        outcome: 'completed',
+        candidates: 1,
+        deleted: 1,
+        skippedRefsReappeared: 0,
+        gonePinned: 0,
+        failed: 0,
+        unlinkFailures: 1,
+        durationMs: 1
+      })
+
+      expect(summary.hasPendingWork).toBe(true)
     })
   })
 })

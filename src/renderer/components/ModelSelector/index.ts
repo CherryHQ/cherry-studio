@@ -18,5 +18,6 @@ export type {
   UseModelSelectorDataOptions,
   UseModelSelectorDataResult
 } from './types'
+export { useIsModelSelectable } from './useIsModelSelectable'
 export { useModelSelectorData } from './useModelSelectorData'
 export { getProviderDisplayName } from './utils'

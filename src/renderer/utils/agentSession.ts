@@ -12,18 +12,22 @@ export const extractAgentSessionIdFromTopicId = (topicId: string): string => {
   return topicId.replace(SESSION_TOPIC_PREFIX, '')
 }
 
+import dingtalkIcon from '@renderer/assets/images/channel/dingtalk.ico'
 import discordIcon from '@renderer/assets/images/channel/discord.svg'
 import feishuIcon from '@renderer/assets/images/channel/feishu.jpeg'
 import qqIcon from '@renderer/assets/images/channel/qq.svg'
 import slackIcon from '@renderer/assets/images/channel/slack.svg'
 import telegramIcon from '@renderer/assets/images/channel/telegram.png'
 import wechatIcon from '@renderer/assets/images/channel/wechat.png'
+import wecomIcon from '@renderer/assets/images/channel/wecom.png'
 
 const CHANNEL_TYPE_ICONS: Record<string, string> = {
   telegram: telegramIcon,
   feishu: feishuIcon,
   qq: qqIcon,
   wechat: wechatIcon,
+  wecom: wecomIcon,
+  dingtalk: dingtalkIcon,
   discord: discordIcon,
   slack: slackIcon
 }

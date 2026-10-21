@@ -3,6 +3,8 @@ import * as path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
+
 const mockPathExists = vi.fn()
 const mockCopyDirectoryRecursive = vi.fn()
 const mockDeleteDirectoryRecursive = vi.fn()
@@ -41,6 +43,7 @@ describe('SkillInstaller', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDeleteDirectoryRecursive.mockReset().mockResolvedValue(undefined)
     mockFsLstat.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
     mockFindSkillMdPath.mockResolvedValue(resolvePath('/global-skills/my-skill/SKILL.md'))
     mockFsReadFile.mockResolvedValue('# skill')
@@ -93,6 +96,39 @@ describe('SkillInstaller', () => {
       expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith(resolvePath('/global-skills/.my-skill.cleanup'))
     })
 
+    it('keeps the old skill recoverable until a prepared install is committed', async () => {
+      mockPathExists.mockResolvedValue(true)
+      mockCopyDirectoryRecursive.mockResolvedValue(undefined)
+      mockFsRename.mockResolvedValue(undefined)
+
+      const prepared = await installer.prepareInstall('/tmp/my-skill', '/global-skills/my-skill')
+
+      expect(mockFsRename).toHaveBeenCalledTimes(1)
+      expect(mockFsRename).toHaveBeenCalledWith('/global-skills/my-skill', '/global-skills/.my-skill.bak')
+
+      await prepared.commit()
+
+      expect(mockFsRename).toHaveBeenNthCalledWith(
+        2,
+        '/global-skills/.my-skill.bak',
+        '/global-skills/.my-skill.cleanup'
+      )
+    })
+
+    it('restores the old skill when a prepared install is rolled back', async () => {
+      mockPathExists.mockResolvedValue(true)
+      mockCopyDirectoryRecursive.mockResolvedValue(undefined)
+      mockFsRename.mockResolvedValue(undefined)
+      mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
+
+      const prepared = await installer.prepareInstall('/tmp/my-skill', '/global-skills/my-skill')
+      await prepared.rollback()
+
+      expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/my-skill')
+      expect(mockFsRename).toHaveBeenNthCalledWith(2, '/global-skills/.my-skill.bak', '/global-skills/my-skill')
+      expect(mockFsRename).not.toHaveBeenCalledWith('/global-skills/.my-skill.bak', '/global-skills/.my-skill.cleanup')
+    })
+
     it('keeps the verified replacement when committed-backup cleanup is interrupted', async () => {
       mockPathExists.mockResolvedValue(true)
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
@@ -109,6 +145,20 @@ describe('SkillInstaller', () => {
         resolvePath('/global-skills/my-skill')
       )
       expect(mockDeleteDirectoryRecursive).not.toHaveBeenCalledWith(resolvePath('/global-skills/my-skill'))
+    })
+
+    it('restores the previous skill when committing the prepared replacement fails', async () => {
+      mockPathExists.mockResolvedValue(true)
+      mockCopyDirectoryRecursive.mockResolvedValue(undefined)
+      mockFsRename
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('commit failed'))
+        .mockResolvedValueOnce(undefined)
+
+      await expect(installer.install('/tmp/my-skill', '/global-skills/my-skill')).rejects.toThrow('commit failed')
+
+      expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith('/global-skills/my-skill')
+      expect(mockFsRename).toHaveBeenNthCalledWith(3, '/global-skills/.my-skill.bak', '/global-skills/my-skill')
     })
 
     it('keeps the original skill when moving it to the backup path fails', async () => {
@@ -164,7 +214,7 @@ describe('SkillInstaller', () => {
     })
   })
 
-  it('hashes scripts and assets in addition to SKILL.md', async () => {
+  it('uses a versioned full-directory hash as the persisted content baseline', async () => {
     mockFsReaddir.mockImplementation(async (directory: string) => {
       if (directory.endsWith(resolvePath('/scripts'))) {
         return [{ name: 'run.sh' }]
@@ -182,9 +232,10 @@ describe('SkillInstaller', () => {
     })
     mockFindSkillMdPath.mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
 
-    const sourceHash = await installer.computeDirectoryHash(resolvePath('/source/skill'))
-    const installedHash = await installer.computeDirectoryHash(resolvePath('/installed/skill'))
+    const sourceHash = await installer.computeContentHash(resolvePath('/source/skill'))
+    const installedHash = await installer.computeContentHash(resolvePath('/installed/skill'))
 
+    expect(sourceHash).toMatch(new RegExp(`^${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}[a-f0-9]{64}$`))
     expect(installedHash).not.toBe(sourceHash)
   })
 

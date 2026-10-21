@@ -12,8 +12,8 @@
  * 2. **runFileSweep** (FS-level, file-manager-architecture §10):
  *    enumerates `{userData}/Data/Files/` for UUID-named files without a
  *    matching DB entry and abandoned `*.tmp-<uuid>` residue, applies the
- *    `mtime > 5min` heuristic and the safety threshold, then unlinks the
- *    survivors.
+ *    `mtime > 5min` heuristic and the default safety threshold, then unlinks
+ *    the survivors. Cache Cleanup explicitly bypasses the volume threshold.
  *
  * Both surfaces emit a single structured log record per run via
  * `loggerService` — `orphan-sweep` for the DB pass (architecture §10.5
@@ -28,7 +28,7 @@
  * - `completed` — happy path
  * - `partial` — umbrella/wire compatibility; the current DB sweep returns only
  *   `completed` or `failed`, while FS sweep can still report `partial`
- * - `aborted` — FS sweep refused to run because the safety threshold tripped
+ * - `aborted` — safety threshold tripped or a backup restore is pending
  * - `failed` — outer try/catch caught an unexpected throw
  *
  * Adding a new outcome variant + missing it in the dispatch site is a
@@ -44,6 +44,9 @@ import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import type { FileEntryId, FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file'
+
+import { resolvePhysicalPath } from '../utils/pathResolver'
+import type { IntakeStore } from './IntakeStore'
 
 const logger = loggerService.withContext('FileManager:orphanSweep')
 
@@ -214,9 +217,28 @@ const ABORT_FRACTION = 0.5
 const MAX_FAILED_SAMPLES = 5
 
 export interface RunFileSweepDeps {
-  readonly fileEntryService: Pick<FileEntryService, 'listAllIds'>
+  readonly intakeProtection?: Pick<IntakeStore, 'load' | 'isProtected'>
+  readonly fileEntryService: Pick<FileEntryService, 'listAllIds' | 'findById'>
   /** Test seam — defaults to `Date.now`. */
   readonly now?: () => number
+}
+
+export interface FileSweepOptions {
+  readonly bypassSafetyThreshold?: boolean
+}
+
+function isRetainedFile(
+  name: string,
+  id: FileEntryId,
+  ids: ReadonlySet<FileEntryId>,
+  fileEntryService: RunFileSweepDeps['fileEntryService']
+): boolean {
+  if (!ids.has(id)) return false
+  if (!isTmpResidueName(name)) return true
+  const entry = fileEntryService.findById(id)
+  // A vanished snapshot row cannot establish that this ambiguous name is residue.
+  if (!entry) return true
+  return entry.origin === 'internal' && path.basename(resolvePhysicalPath(entry)) === name
 }
 
 interface FileSweepStats {
@@ -261,13 +283,16 @@ function pendingRestoreFileSweepReport(): FileSweepReport {
 }
 
 /** Build and log the same orphan-file plan as {@link runFileSweep} without unlinking anything. */
-export async function inspectFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+export async function inspectFileSweep(
+  deps: RunFileSweepDeps,
+  options: FileSweepOptions = {}
+): Promise<FileSweepReport> {
   if (hasPendingRestore()) {
     const report = pendingRestoreFileSweepReport()
     logFileSweep(report)
     return report
   }
-  const report = await runFileSweepInner(deps, false)
+  const report = await runFileSweepInner(deps, false, options)
   logFileSweep(report)
   return report
 }
@@ -279,11 +304,11 @@ export async function inspectFileSweep(deps: RunFileSweepDeps): Promise<FileSwee
  *     UUID still matches a live entry — e.g. crash mid-atomicWriteFile)
  *
  * `mtime > 5min` freshness gate (§10.3) defers anything in flight.
- * Plan-then-execute with the safety threshold (§10.4); aborts emit
- * `abortReason`. Per-file unlink failures are tolerated and surface as
+ * Volume thresholds apply unless the caller explicitly bypasses them.
+ * Per-file unlink failures are tolerated and surface as
  * `outcome: 'partial'` with `failedDeleteCount` + sample names.
  */
-export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepReport> {
+export async function runFileSweep(deps: RunFileSweepDeps, options: FileSweepOptions = {}): Promise<FileSweepReport> {
   // Same stand-aside as runDbSweep: a staged restore's blobs are on disk but
   // not yet referenced by the live DB — exactly what this sweep would unlink.
   if (hasPendingRestore()) {
@@ -291,7 +316,7 @@ export async function runFileSweep(deps: RunFileSweepDeps): Promise<FileSweepRep
     logFileSweep(report)
     return report
   }
-  const report = await runFileSweepInner(deps, true)
+  const report = await runFileSweepInner(deps, true, options)
   logFileSweep(report)
   return report
 }
@@ -307,7 +332,6 @@ function logFileSweep(report: FileSweepReport): void {
       return
     case 'aborted':
       if (report.abortReason === 'pending-restore') {
-        // Deliberate stand-aside, not a tripped safety threshold.
         logger.info('orphan-file-sweep', payload)
         return
       }
@@ -327,7 +351,11 @@ interface CandidatePlan {
   readonly mtimeMs: number
 }
 
-async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): Promise<FileSweepReport> {
+async function runFileSweepInner(
+  deps: RunFileSweepDeps,
+  deleteFiles: boolean,
+  options: FileSweepOptions
+): Promise<FileSweepReport> {
   const startedAt = Date.now()
   try {
     const filesDir = application.getPath('feature.files.data')
@@ -353,6 +381,7 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
       }
     }
 
+    await deps.intakeProtection?.load()
     const now = (deps.now ?? Date.now)()
     const planned: CandidatePlan[] = []
     let candidatesCount = 0
@@ -376,17 +405,16 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
       // does, attempting to unlink would just throw and silently succeed-fail
       // forever; explicit guard makes the contract clear.
       if (!st.isFile()) continue
+      const identity = isUuidFileName(name)
+      if (
+        identity &&
+        (deps.intakeProtection?.isProtected(identity.id) ||
+          isRetainedFile(name, identity.id, idSnapshot, deps.fileEntryService))
+      )
+        continue
 
-      // Tmp residue MUST be checked first: atomicWriteFile produces names of
-      // the form `<entryUUID>.<ext>.tmp-<randomUUID>` whose leading stem is
-      // a live entry's UUID. `isUuidFileName` also matches the same stem, so
-      // checking it first would mask the residue when the entry is in DB.
-      const isCandidate =
-        isTmpResidueName(name) ||
-        (() => {
-          const uuid = isUuidFileName(name)
-          return Boolean(uuid && !idSnapshot.has(uuid.id))
-        })()
+      // A tmp-shaped name is residue only after excluding the exact retained blob.
+      const isCandidate = isTmpResidueName(name) || Boolean(identity && !idSnapshot.has(identity.id))
       if (!isCandidate) continue
       candidatesCount++
       candidatesBytes += st.size
@@ -395,24 +423,18 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
     }
 
     const plannedBytes = planned.reduce((s, p) => s + p.bytes, 0)
-    const abortReason = pickAbortReason({
-      planned: planned.length,
-      plannedBytes,
-      filesOnDisk: candidatesCount,
-      bytesOnDisk: candidatesBytes
-    })
-    // Per architecture §10.4 the (count, bytes) floor is an absolute "small
-    // residue is always fine" carve-out, so a 19-file 100%-of-disk plan is
-    // intentionally allowed through. Surface it at warn-level so on-call has
-    // a forensic breadcrumb when a user reports "Cherry deleted my files":
-    // the fraction would otherwise have tripped the safety threshold.
-    if (deleteFiles && !abortReason && planned.length > 0) {
+    const abortReason = options.bypassSafetyThreshold
+      ? undefined
+      : pickAbortReason({
+          planned: planned.length,
+          plannedBytes,
+          filesOnDisk: candidatesCount,
+          bytesOnDisk: candidatesBytes
+        })
+    if (deleteFiles && !options.bypassSafetyThreshold && !abortReason && planned.length > 0) {
       const countFraction = planned.length / Math.max(1, candidatesCount)
       const byteFraction = plannedBytes / Math.max(1, candidatesBytes)
       if (countFraction > ABORT_FRACTION || byteFraction > ABORT_FRACTION) {
-        // Forensic breadcrumb: the safety floor allowed this small-residue
-        // plan through despite the high fraction. This is the primary
-        // signal that explains an unexpected mass-delete incident.
         logger.warn('orphan-file-sweep-below-floor', {
           event: 'orphan-file-sweep-below-floor',
           plannedCount: planned.length,
@@ -466,6 +488,14 @@ async function runFileSweepInner(deps: RunFileSweepDeps, deleteFiles: boolean): 
     const failedSamples: string[] = []
     for (const target of planned) {
       try {
+        const name = path.basename(target.path)
+        const identity = isUuidFileName(name)
+        if (
+          identity &&
+          (deps.intakeProtection?.isProtected(identity.id) ||
+            isRetainedFile(name, identity.id, deps.fileEntryService.listAllIds(), deps.fileEntryService))
+        )
+          continue
         await unlink(target.path)
         actualDeleted++
         actualBytes += target.bytes

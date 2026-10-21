@@ -2,9 +2,11 @@ import { resolve } from 'node:path'
 
 import { vi } from 'vitest'
 
+import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
 import { MockMainDataApiServiceExport } from './DataApiService'
 import { MockMainDbServiceExport } from './DbService'
+import { mockFileIntakeService } from './FileIntakeService'
 import { MockMainFileManagerExport } from './FileManager'
 import { MockMainPreferenceServiceExport } from './PreferenceService'
 
@@ -29,6 +31,8 @@ import { MockMainPreferenceServiceExport } from './PreferenceService'
 /** Minimal MainWindowService mock for tests that access application.get('MainWindowService') */
 const mockMainWindowService = {
   getMainWindow: vi.fn(() => null),
+  openWebsite: vi.fn(async () => undefined),
+  openBrowserTab: vi.fn(),
   showMainWindow: vi.fn(),
   toggleMainWindow: vi.fn(),
   quoteToMainWindow: vi.fn()
@@ -87,10 +91,14 @@ export const defaultServiceInstances = {
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
   FileManager: MockMainFileManagerExport.fileManager,
+  FileIntakeService: mockFileIntakeService,
+  AttachmentPresenceService: mockAttachmentPresenceService,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
-  JobManager: mockJobManager
+  JobManager: mockJobManager,
+  PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
+  RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 
 /** Type for per-service overrides */
@@ -125,6 +133,11 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
       }
       return undefined
     }
+    // Mirror real ServiceContainer semantics: resolve without creating, and
+    // return undefined (never throw) for an unregistered service.
+    getInstance(name: string) {
+      return name in serviceInstances ? serviceInstances[name as keyof typeof serviceInstances] : undefined
+    }
     has(name: string) {
       return name in serviceInstances
     }
@@ -136,6 +149,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
   return {
     get: vi.fn((name: string) => container.get(name)),
     getOptional: vi.fn((name: string) => container.getOptional(name)),
+    getExisting: vi.fn((name: string) => container.getInstance(name)),
     getContainer: vi.fn(() => container),
     // Keep registry paths absolute on every host, including a drive on Windows.
     // Override per-test with vi.spyOn when a fixture needs a specific location.

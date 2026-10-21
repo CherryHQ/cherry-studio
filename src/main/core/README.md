@@ -37,9 +37,6 @@ terminology across the codebase.
 The lifecycle stages (Background / BeforeReady / WhenReady) run *inside*
 the bootstrap phase, not as separate top-level phases.
 
-The legacy file `src/main/bootstrap.ts` predates this vocabulary and is
-no longer imported anywhere. It will be removed in a follow-up cleanup PR.
-
 ## Current modules
 
 | Module | Description | Reference Docs |
