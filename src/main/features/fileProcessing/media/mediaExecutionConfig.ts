@@ -42,7 +42,7 @@ export interface MediaVisionExecutionConfig {
     providerSettings: AppProviderSettingsMap[keyof AppProviderSettingsMap]
     modelId: string
   }
-  /** Frozen before the vision call. Completion must not re-read provider or credential state. */
+  /** Selection-time provider, model, and credential. Scheduled prices are resolved again at each vision call. */
   usage: ReturnType<typeof createAiUsageCaptureContext>
 }
 

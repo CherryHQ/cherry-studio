@@ -4,9 +4,12 @@ import { join } from 'node:path'
 
 import { application } from '@application'
 import { generateText as aiCoreGenerateText, type TranscriptionResult } from '@cherrystudio/ai-core'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { createAiUsagePlugin } from '@main/ai/hooks/billingHook'
 import type { AppProviderSettingsMap } from '@main/ai/types'
+import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { startTranscription } from '@main/ai/voice/execution'
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -337,6 +340,36 @@ export class MediaAnalysisService extends BaseService {
   }
 }
 
+function visionInvocationUsage(vision: MediaVisionExecutionConfig) {
+  // Scheduled prices are read at this call. Provider, model, and credential stay on the selection snapshot.
+  const selected = vision.usage
+  let pricingSnapshot: MediaVisionExecutionConfig['usage']['pricingSnapshot'] = null
+  try {
+    const provider = providerService.getByProviderId(vision.providerId)
+    const model = modelService.getByKey(vision.providerId, vision.modelId)
+    pricingSnapshot = createAiUsageCaptureContext({
+      providerId: provider.id,
+      modelId: vision.modelId,
+      pricing: model.pricing,
+      billing: provider.settings.billing
+    }).pricingSnapshot
+  } catch (error) {
+    logger.warn('Could not capture invocation pricing', { error })
+  }
+  return createAiUsageCaptureContext({
+    providerId: selected.providerId,
+    providerName: selected.providerName,
+    modelId: selected.modelId,
+    modelName: selected.modelName,
+    pricingSnapshot,
+    trustProviderReportedCost: selected.trustProviderReportedCost,
+    reportedCostCurrency: selected.reportedCostCurrency,
+    credentialReceipt: selected.credentialReceipt,
+    source: selected.source,
+    messageRef: selected.messageRef
+  })
+}
+
 async function summarizeFrames(
   vision: MediaVisionExecutionConfig,
   frames: Array<{ path: string; timestampMs: number }>,
@@ -366,7 +399,7 @@ async function summarizeFrames(
           abortSignal: signal,
           messages: [{ role: 'user', content }]
         },
-        [createAiUsagePlugin(vision.usage)]
+        [createAiUsagePlugin(() => visionInvocationUsage(vision))]
       )
       assignSummaries(batch, result.text, summaries)
     } catch {
