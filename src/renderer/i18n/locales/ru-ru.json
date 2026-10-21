@@ -1478,6 +1478,8 @@
   "error.statusCode": "Код состояния",
   "error.statusText": "Текст состояния",
   "error.stream_paused": "Получение ответа приостановлено",
+  "error.stream_unreadable.description": "Не получены читаемые сведения об ошибке. Повторите попытку; если ошибка повторится, проверьте журналы.",
+  "error.stream_unreadable.title": "Не удалось получить ответ",
   "error.text": "текст",
   "error.toolInput": "ввод инструмента",
   "error.toolName": "имя инструмента",

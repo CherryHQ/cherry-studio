@@ -1478,6 +1478,8 @@
   "error.statusCode": "Statuscode",
   "error.statusText": "Statustext",
   "error.stream_paused": "Unterbrochen",
+  "error.stream_unreadable.description": "Es wurden keine lesbaren Fehlerdetails empfangen. Bitte versuchen Sie es erneut. Falls der Fehler erneut auftritt, prüfen Sie die Protokolle.",
+  "error.stream_unreadable.title": "Antwort fehlgeschlagen",
   "error.text": "Text",
   "error.toolInput": "Tool-Eingabe",
   "error.toolName": "Tool-Name",

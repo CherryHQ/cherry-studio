@@ -1,10 +1,13 @@
+import type * as ReactAiModule from '@ai-sdk/react'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
+import type * as LoggerModule from '../../LoggerService'
 import { IpcChatTransport } from '../IpcChatTransport'
 
 interface IpcMock {
@@ -312,5 +315,129 @@ describe('IpcChatTransport', () => {
     const reader = stream!.getReader()
     const { done } = await reader.read()
     expect(done).toBe(true)
+  })
+  const diagnostic: SerializedError = {
+    name: 'ProviderStreamError',
+    message: 'socket closed',
+    stack: 'ProviderStreamError: socket closed\n at provider',
+    providerErrorCode: 'ECONNRESET',
+    statusCode: 503,
+    status: 502,
+    responseBody: 'private body',
+    data: { prompt: 'private' },
+    cause: 'private cause',
+    responseHeaders: { authorization: 'secret' }
+  }
+
+  async function fail(mode: string, error: SerializedError) {
+    if (mode === 'reconnect') mock.mockApi.streamAttach.mockResolvedValue({ status: 'error', error })
+    const stream =
+      mode === 'live'
+        ? await transport.sendMessages(baseOptions)
+        : await transport.reconnectToStream({ chatId: topicId })
+    if (mode === 'live') for (const cb of [...mock.listeners.error]) cb({ topicId, error })
+    return stream!
+      .getReader()
+      .read()
+      .catch((failure: Error) => failure)
+  }
+
+  it.each(['live', 'reconnect'])('[22243 RED] retains diagnostics for %s failures', async (mode) => {
+    const failure = await fail(mode, diagnostic)
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toMatchObject({
+      name: 'Error',
+      message: diagnostic.message,
+      originalName: diagnostic.name,
+      stack: diagnostic.stack,
+      code: 'ECONNRESET',
+      statusCode: 503,
+      status: 502
+    })
+    for (const key of ['responseBody', 'data', 'responseHeaders', 'cause', 'i18nKey'])
+      expect(failure).not.toHaveProperty(key)
+  })
+
+  it('[22243 RED] forwards a mid-stream failure to the actual logger boundary', async () => {
+    const { LoggerService } = await vi.importActual<typeof LoggerModule>('../../LoggerService')
+    const invoke = vi.spyOn(window.electron.ipcRenderer, 'invoke').mockResolvedValue(undefined)
+    const stream = await transport.sendMessages(baseOptions)
+    const reader = stream.getReader()
+    mock.emitChunk(topicId, { type: 'start', messageId: 'm1' })
+    mock.emitChunk(topicId, { type: 'text-start', id: 't1' })
+    mock.emitChunk(topicId, { type: 'text-delta', id: 't1', delta: '22243 partial' })
+    expect((await reader.read()).value).toEqual({ type: 'start', messageId: 'm1' })
+    await reader.read()
+    expect((await reader.read()).value).toEqual({ type: 'text-delta', id: 't1', delta: '22243 partial' })
+    for (const cb of [...mock.listeners.error]) cb({ topicId, error: diagnostic })
+    const failure = await reader.read().catch((e: Error) => e)
+    new LoggerService().withContext('useChatWithHistory').error('AI stream error', { topicId, streamError: failure })
+    expect(JSON.parse(JSON.stringify(invoke.mock.calls.at(-1)![4][0].streamError))).toMatchObject({
+      name: 'Error',
+      message: 'socket closed',
+      code: 'ECONNRESET',
+      statusCode: 503,
+      status: 502,
+      originalName: 'ProviderStreamError'
+    })
+    invoke.mockRestore()
+  })
+
+  it('[22243 invariant] does not turn remote AbortError failures into SDK cancellation', async () => {
+    const { Chat } = await vi.importActual<typeof ReactAiModule>('@ai-sdk/react')
+    const failures: Error[] = []
+    const finishes: boolean[] = []
+    const chat = new Chat<CherryUIMessage>({
+      id: topicId,
+      transport,
+      onError: (e) => {
+        failures.push(e)
+      },
+      onFinish: (e) => {
+        finishes.push(e.isAbort)
+      }
+    })
+    const pending = chat.sendMessage({ text: 'hello' })
+    await vi.waitFor(() => expect(mock.listeners.error.length).toBeGreaterThan(0))
+    for (const cb of [...mock.listeners.error])
+      cb({ topicId, error: { name: 'AbortError', message: 'remote failed', stack: null } })
+    await pending
+    expect(chat.status).toBe('error')
+    expect(failures[0].message).toBe('remote failed')
+    expect(failures[0].name).toBe('Error')
+    expect(finishes).toEqual([false])
+  })
+
+  it('[22243 invariant] keeps no-origin-stack failures usable', async () => {
+    const failure = await fail('live', { name: 'ProviderError', message: 'failed', stack: null })
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure).toHaveProperty('name', 'Error')
+    expect(failure).toHaveProperty('stack', expect.stringContaining('Error: failed'))
+  })
+
+  it.each(['live', 'reconnect'] as const)('uses a localized fallback for empty %s errors', async (mode) => {
+    const previousLanguage = i18n.language
+    await i18n.changeLanguage('zh-CN')
+    try {
+      const failure = await fail(mode, { name: 'Error', message: '  ', stack: null })
+      expect(failure).toBeInstanceOf(Error)
+      expect(failure).toHaveProperty('message', '未知错误')
+    } finally {
+      await i18n.changeLanguage(previousLanguage)
+    }
+  })
+  it.each(['live', 'reconnect'] as const)('preserves safe provider detail in %s errors', async (mode) => {
+    const failure = await fail(mode, {
+      name: 'AI_APICallError',
+      message: '',
+      stack: null,
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { message: 'Model unavailable; Bearer provider-secret' } })
+    })
+    expect(failure).toBeInstanceOf(Error)
+    if (!(failure instanceof Error)) throw new Error('Expected a stream failure')
+    expect(failure.message).toContain('Model unavailable')
+    expect(failure.message).not.toContain('provider-secret')
+    expect(failure).toHaveProperty('statusCode', 400)
   })
 })

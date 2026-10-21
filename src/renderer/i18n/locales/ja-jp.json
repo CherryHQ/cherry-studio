@@ -1478,6 +1478,8 @@
   "error.statusCode": "ステータスコード",
   "error.statusText": "状態テキスト",
   "error.stream_paused": "応答を一時停止しました",
+  "error.stream_unreadable.description": "読み取れるエラーの詳細を受信できませんでした。再試行してください。再発する場合は、ログを確認してください。",
+  "error.stream_unreadable.title": "応答に失敗しました",
   "error.text": "テキスト",
   "error.toolInput": "ツール入力",
   "error.toolName": "ツール名",

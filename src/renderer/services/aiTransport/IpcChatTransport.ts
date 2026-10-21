@@ -1,14 +1,37 @@
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { providerErrorText } from '@renderer/utils/error'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
 
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
+
+type StreamFailure = Error & { originalName?: string; code?: string; statusCode?: number; status?: number }
+
+function toStreamFailure(serialized: SerializedError | undefined): StreamFailure {
+  const failure: StreamFailure = new Error(providerErrorText(serialized).trim() || i18n.t('error.unknown'))
+  if (!serialized) return failure
+  if (typeof serialized.name === 'string' && serialized.name) failure.originalName = serialized.name
+  if (typeof serialized.stack === 'string' && serialized.stack) failure.stack = serialized.stack
+  if (
+    typeof serialized.providerErrorCode === 'string' &&
+    serialized.providerErrorCode.length > 0 &&
+    serialized.providerErrorCode.length <= 100
+  ) {
+    failure.code = serialized.providerErrorCode
+  }
+  if (typeof serialized.statusCode === 'number' && Number.isFinite(serialized.statusCode))
+    failure.statusCode = serialized.statusCode
+  if (typeof serialized.status === 'number' && Number.isFinite(serialized.status)) failure.status = serialized.status
+  return failure
+}
 
 /** Single execution terminated while other executions on the topic are still streaming. */
 export function isPerExecutionOnly(data: { executionId?: UniqueModelId; isTopicDone?: boolean }): boolean {
@@ -79,7 +102,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     }
     if (result.status === 'error') {
       return new ReadableStream<UIMessageChunk>({
-        start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
+        start: (c) => c.error(toStreamFailure(result.error))
       })
     }
 
@@ -192,7 +215,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           ipcApi.on('ai.stream.error', (data) => {
             if (!matchesStream(data)) return
-            errorStream(new Error(data.error.message ?? 'Unknown stream error'))
+            errorStream(toStreamFailure(data.error))
           })
         )
 
