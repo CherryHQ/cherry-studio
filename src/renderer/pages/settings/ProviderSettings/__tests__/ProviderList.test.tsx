@@ -1,8 +1,10 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
@@ -24,10 +26,30 @@ let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<any>()
+  const actual = await importOriginal<typeof CherryUiModule>()
 
   return {
     ...actual,
+    Scrollbar: ({ children, ref: passedRef, ...props }: ComponentProps<typeof CherryUiModule.Scrollbar>) => (
+      <actual.Scrollbar
+        {...props}
+        data-testid="provider-list-scrollbar"
+        ref={(element) => {
+          if (element) {
+            element.getBoundingClientRect = () =>
+              ({
+                bottom: scrollerRect.bottom,
+                top: scrollerRect.top
+              }) as DOMRect
+          }
+
+          if (typeof passedRef === 'function') {
+            passedRef(element)
+          }
+        }}>
+        {children}
+      </actual.Scrollbar>
+    ),
     ReorderableList: ({ visibleItems, renderItem, onReorder, onReorderError }: any) => (
       <div data-provider-list-scroller>
         {visibleItems.map((item: any, index: number) => (
@@ -52,29 +74,6 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, className, ref: passedRef }: any) => (
-    <div
-      className={className}
-      data-testid="provider-list-scrollbar"
-      ref={(element) => {
-        if (element) {
-          element.getBoundingClientRect = () =>
-            ({
-              bottom: scrollerRect.bottom,
-              top: scrollerRect.top
-            }) as DOMRect
-        }
-
-        if (typeof passedRef === 'function') {
-          passedRef(element)
-        }
-      }}>
-      {children}
-    </div>
-  )
 }))
 
 vi.mock('@data/hooks/useReorder', () => ({

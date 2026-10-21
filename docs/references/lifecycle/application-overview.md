@@ -233,8 +233,27 @@ if (application.isQuitting) { /* ... */ }
 | `forceExit(code)` | Skipped | Fatal errors, repeated renderer crash |
 | `markQuitting()` | None (flag only) | `autoUpdater.quitAndInstall()` owns its own quit flow |
 | `preventQuit(reason)` | Blocks `before-quit` | Critical operations (returns hold with `dispose()`) |
+| `registerQuitGuard(guard)` | Consulted by `before-quit` | Domain-owned user-quit decisions (returns `Disposable`) |
 
 **Exception:** migration-window code under `src/main/data/migration/` owns a separate pre-bootstrap Electron flow and is excluded from the lint rule. Other preboot code, including the single-instance gate, still calls `application.quit()` rather than a bare Electron quit API.
+
+### User-Quit Guards
+
+`registerQuitGuard(() => boolean | Promise<boolean>)` keeps domain policy outside
+Application. Guards run in registration order; every guard must approve. Synchronous
+approval preserves immediate quitting, while asynchronous approval blocks the native
+quit event until the decision completes. Repeated quit requests share the pending
+evaluation. A rejection or thrown error cancels the attempt and allows a later retry.
+
+Owning services register guards during `onInit()` and track the returned disposable
+with `this.registerDisposable(...)`. Disposing removes the guard and invalidates its
+pending approval. `RuntimeQuitConfirmationService` owns the active-task check and
+localized confirmation dialog; Application only coordinates guard results.
+
+Hard `preventQuit()` holds take precedence and are checked again when asynchronous
+approval resumes quitting. System shutdown and updater-managed exits bypass user-quit
+guards, but still respect hard holds. Pending results cannot restart an accepted exit
+or an application shutdown.
 
 ### Renderer Usage
 

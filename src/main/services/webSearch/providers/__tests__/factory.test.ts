@@ -37,6 +37,7 @@ vi.mock('electron', () => ({
 
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
+import { DeepSeekProvider } from '../api/DeepSeekProvider'
 import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
@@ -75,6 +76,7 @@ describe('createWebSearchProvider', () => {
     expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
       'bocha',
       'crawl4ai',
+      'deepseek',
       'duckduckgo',
       'exa',
       'exa-mcp',
@@ -124,5 +126,17 @@ describe('createWebSearchProvider', () => {
     )
     expect(createWebSearchProvider(createProvider({ id: 'serpkite' }), rotationState)).toBeInstanceOf(SerpKiteProvider)
     expect(createWebSearchProvider(createProvider({ id: 'serply' }), rotationState)).toBeInstanceOf(SerplyProvider)
+    expect(
+      createWebSearchProvider(
+        createProvider({
+          id: 'deepseek',
+          capabilities: [
+            { feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' },
+            { feature: 'fetchUrls', apiHost: 'https://api.deepseek.com' }
+          ]
+        }),
+        rotationState
+      )
+    ).toBeInstanceOf(DeepSeekProvider)
   })
 })

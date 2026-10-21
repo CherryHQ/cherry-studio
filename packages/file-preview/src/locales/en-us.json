@@ -12,6 +12,8 @@
   "file_preview.pdf.page_number": "Page number",
   "file_preview.pdf.too_large.description": "Part of this PDF is too large to preview safely in the app.",
   "file_preview.pdf.too_large.title": "Can't preview this PDF",
+  "file_preview.powerpoint.zip_limit.description": "This PowerPoint file exceeds the app's safe preview limits.",
+  "file_preview.powerpoint.zip_limit.title": "Can't preview this PowerPoint file",
   "file_preview.too_large.action": "Open with default app",
   "file_preview.too_large.description": "File size {{size}} exceeds the {{limit}} preview limit.",
   "file_preview.too_large.title": "File too large to preview",
