@@ -1966,7 +1966,7 @@
   "library.config.agent.field.name.placeholder": "Ajan için bir ad girin",
   "library.config.agent.field.permission_mode.label": "İzin modu",
   "library.config.agent.field.plan_model.empty": "Ayarlanmadı — birincil modeli izler",
-  "library.config.agent.field.plan_model.hint": "Claude Code’daki `sonnet` takma adının hangi modele çözümlendiğini sabitler (ANTHROPIC_DEFAULT_SONNET_MODEL). Alt ajanlar açıkça `sonnet` istemedikçe ana modeli devralır. Buraya herhangi bir sağlayıcının modelini atayabilirsiniz.",
+  "library.config.agent.field.plan_model.hint": "Claude Code’daki `sonnet` takma adının hangi modele çözümlendiğini sabitler (ANTHROPIC_DEFAULT_SONNET_MODEL). Alt ajanlar açıkça `sonnet` istemedikçe ana modeli devralır. Buraya herhangi bir sağlayıcının modelini atayabilirsiniz. “Benim Yerime Onayla” modunda güvenlik denetimi de ana modelden farklı olduğunda bu modelde çalışır.",
   "library.config.agent.field.plan_model.label": "Sonnet modeli",
   "library.config.agent.field.runtime.immutable_hint": "Oluşturulduktan sonra değiştirilemez",
   "library.config.agent.field.runtime.label": "Çalışma zamanı modu",

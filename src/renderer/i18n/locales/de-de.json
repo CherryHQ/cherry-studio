@@ -1966,7 +1966,7 @@
   "library.config.agent.field.name.placeholder": "Geben Sie dem Agenten einen Namen",
   "library.config.agent.field.permission_mode.label": "Berechtigungsmodus",
   "library.config.agent.field.plan_model.empty": "Nicht festgelegt — folgt dem primären Modell",
-  "library.config.agent.field.plan_model.hint": "Fixiert, worauf sich der `sonnet`-Alias von Claude Code auflöst (ANTHROPIC_DEFAULT_SONNET_MODEL). Subagenten erben das Hauptmodell, sofern sie nicht ausdrücklich `sonnet` anfordern. Es kann das Modell eines beliebigen Anbieters zugewiesen werden.",
+  "library.config.agent.field.plan_model.hint": "Fixiert, worauf sich der `sonnet`-Alias von Claude Code auflöst (ANTHROPIC_DEFAULT_SONNET_MODEL). Subagenten erben das Hauptmodell, sofern sie nicht ausdrücklich `sonnet` anfordern. Es kann das Modell eines beliebigen Anbieters zugewiesen werden. Im Modus „Für mich genehmigen“ läuft auch die Sicherheitsprüfung auf diesem Modell, wenn es sich vom Hauptmodell unterscheidet.",
   "library.config.agent.field.plan_model.label": "Sonnet-Modell",
   "library.config.agent.field.runtime.immutable_hint": "Kann nach der Erstellung nicht geändert werden",
   "library.config.agent.field.runtime.label": "Laufzeitmodus",

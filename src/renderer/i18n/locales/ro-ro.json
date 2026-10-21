@@ -1966,7 +1966,7 @@
   "library.config.agent.field.name.placeholder": "Dă agentului un nume",
   "library.config.agent.field.permission_mode.label": "Mod de permisiune",
   "library.config.agent.field.plan_model.empty": "Nesetat — urmează modelul principal",
-  "library.config.agent.field.plan_model.hint": "Fixează modelul la care se rezolvă aliasul `sonnet` din Claude Code (ANTHROPIC_DEFAULT_SONNET_MODEL). Subagenții moștenesc modelul principal, cu excepția cazului în care cer explicit `sonnet`. Puteți atribui aici modelul oricărui furnizor.",
+  "library.config.agent.field.plan_model.hint": "Fixează modelul la care se rezolvă aliasul `sonnet` din Claude Code (ANTHROPIC_DEFAULT_SONNET_MODEL). Subagenții moștenesc modelul principal, cu excepția cazului în care cer explicit `sonnet`. Puteți atribui aici modelul oricărui furnizor. În modul „Aprobă în locul meu”, verificarea de siguranță rulează și ea pe acest model atunci când diferă de modelul principal.",
   "library.config.agent.field.plan_model.label": "Model Sonnet",
   "library.config.agent.field.runtime.immutable_hint": "Nu poate fi schimbat după creare",
   "library.config.agent.field.runtime.label": "Mod de rulare",
