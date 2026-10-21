@@ -24,6 +24,8 @@ Starting reconnect does not invalidate a connected credential. Successful replac
 
 Initial cancellation captures its cleanup generation and checks generation, runtime-state identity, and the persisted credential reference again after asynchronous cleanup. A newer reconnect owns the retained row and runtime state. Failure cleanup uses the same fence. Credential writes enforce directory mode `0700` on POSIX even when path auto-ensure previously created the directory.
 
+Credential replacement also advances the runtime generation at commit, fencing requests that used the old token during optional consent. Retirement uses the new lifetime signal; late failures cannot invalidate the replacement.
+
 ## Alternatives considered
 
 Deleting and recreating the Connection discards recoverable identity-free state. Skipping account checks whenever the user ID is missing could replace an established account. Treating all response errors as retryable would conflate malformed provider data with transport failures and broaden the existing registration policy.
