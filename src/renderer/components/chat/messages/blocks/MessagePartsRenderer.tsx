@@ -30,6 +30,7 @@ import {
   subscribeCachedMessageUiState,
   updateCachedMessageUiState
 } from '@renderer/services/messageUiStateCache'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation } from '@renderer/types/message'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
@@ -227,6 +228,7 @@ function toImageSource(part: CherryMessagePart): MessageImageSource | undefined 
 export interface HoistedFileAttachment {
   key: string
   handle: FileHandle
+  inputFilePreview?: InputFilePreview
   name: string
   ext: string
 }
@@ -236,7 +238,20 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
   if (!handle) return undefined
 
   const name = (part as { filename?: string }).filename ?? ''
-  return { key, handle, name, ext: name.match(/\.[^.]+$/)?.[0] ?? '' }
+  const preview = readOnlyFileTokenPreviewFromPart(part)
+  const previewPath = getPreviewPathFromFileUrl(preview?.url)
+  const inputFilePreview =
+    preview && previewPath
+      ? {
+          displayName: name,
+          previewPath,
+          fileEntryId: preview.fileEntryId,
+          originalPath: preview.originalPath,
+          mediaType: preview.mediaType,
+          composerFileKind: preview.composerFileKind
+        }
+      : undefined
+  return { key, handle, name, ext: name.match(/\.[^.]+$/)?.[0] ?? '', inputFilePreview }
 }
 
 // Must agree with what the hoisting container actually renders, or a dropped entry
@@ -870,6 +885,7 @@ function renderPart(
         <MessageAttachments
           key={partId}
           handle={attachment.handle}
+          inputFilePreview={attachment.inputFilePreview}
           name={attachment.name}
           ext={attachment.ext}
           createdAt={message.createdAt}
@@ -1564,7 +1580,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 }: MessagePartsRendererContentProps) {
   const { subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
-  const hoistNonImageFiles = !!hoistAttachments && !previewInputFile && !!(previewFile || openFile)
+  const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
   const subscribeDisclosures = React.useCallback(
     (listener: () => void) => subscribeCachedMessageUiState(message.id, listener),
