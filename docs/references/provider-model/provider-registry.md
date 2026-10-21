@@ -88,8 +88,10 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
 Manual previews, creation, and imported descriptions use this same resolution
 owner. Registry suggestions use the provider's effective connections, not the
 model vendor's identity: a Gemini model served through an OpenAI-compatible
-deployment is not forced onto Google transport. Explicit provider-model, remote,
-and user endpoint declarations take precedence over suggestions.
+deployment is not forced onto Google transport. Registered multi-backend gateways
+retain their per-model native Chat route before the generic provider default.
+Explicit provider-model, remote, and user endpoint declarations take precedence
+over suggestions.
 
 Forms keep resolved defaults separate from explicit draft edits. Untouched fields
 are omitted; explicitly cleared arrays remain stored arrays, including when the

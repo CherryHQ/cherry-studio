@@ -135,7 +135,8 @@ not persist its inherited capabilities or modalities as overrides. Manual and ba
 creation resolve defaults on blur or submission through the same Main owner as
 import. Untouched metadata is omitted from creation DTOs; explicit clearing remains
 an empty array. Known task models receive endpoint suggestions compatible with the
-provider's effective connections; general LLM models retain the provider's default.
+provider's effective connections; general LLM models use the gateway's registered
+per-model route when available, otherwise the provider's default Chat endpoint.
 Explicit remote or user endpoint choices remain authoritative.
 
 Existing rows are not rewritten automatically. The edit form previews current
