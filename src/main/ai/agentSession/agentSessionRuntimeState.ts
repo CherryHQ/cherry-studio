@@ -129,7 +129,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'autonomous-turn-abandoned' }
   | { type: 'autonomous-turn-created'; turn: TTurn }
-  | { type: 'continuation-turn-created'; turn: TTurn }
+  | { type: 'continuation-turn-created'; turn: TTurn; chunks?: UIMessageChunk[] }
   | { type: 'turn-stream-opened'; turn: TTurn }
   | { type: 'turn-admitted'; turn: TTurn }
   | { type: 'buffer-chunk'; chunk: UIMessageChunk }
@@ -378,7 +378,15 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         return invalid(state, event)
       }
       return {
-        state: { ...state, execution: { ...state.execution, continuationTurn: event.turn } },
+        state: {
+          ...state,
+          execution: {
+            ...state.execution,
+            continuationTurn: event.turn,
+            // Chunks the continuation owns from birth; a recorded terminal closes ordinary buffering.
+            ...(event.chunks?.length ? { buffer: [...state.execution.buffer, ...event.chunks] } : {})
+          }
+        },
         effects: []
       }
     case 'turn-stream-opened': {

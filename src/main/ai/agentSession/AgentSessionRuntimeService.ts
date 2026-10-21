@@ -2033,7 +2033,10 @@ export class AgentSessionRuntimeService extends BaseService {
               ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
               : undefined
         }
-        this.clearApiRetry(entry)
+        // A completion can land before the continuation opens; the retry held for A2 is its record.
+        // Every abandon path (runtime error, the next admitted turn, connection teardown) clears it.
+        if (entry.runtimeState.execution.kind === 'steer-transition') this.clearApiRetryStatus(entry)
+        else this.clearApiRetry(entry)
         if (entry.runtimeState.execution.kind === 'turn') {
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
         }
@@ -3246,17 +3249,25 @@ export class AgentSessionRuntimeService extends BaseService {
       headless,
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
-    this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
     // A retry that arrived mid-handoff had no turn to attach to; the continuation now owns the row.
+    // It rides the creation event because a terminal recorded before A2 closes ordinary buffering.
     const heldRetry = entry.pendingSteerApiRetry
-    if (heldRetry) {
-      entry.pendingSteerApiRetry = undefined
-      this.deliverRuntimeChunk(entry, {
-        type: 'data-agent-api-retry',
-        id: `agent-api-retry-${continuationTurn.assistantMessageId}`,
-        data: heldRetry
-      })
-    }
+    if (heldRetry) entry.pendingSteerApiRetry = undefined
+    this.applyRuntimeStateEvent(entry, {
+      type: 'continuation-turn-created',
+      turn: continuationTurn,
+      ...(heldRetry
+        ? {
+            chunks: [
+              {
+                type: 'data-agent-api-retry' as const,
+                id: `agent-api-retry-${continuationTurn.assistantMessageId}`,
+                data: heldRetry
+              }
+            ]
+          }
+        : {})
+    })
     await this.refreshTurnTraceContext(entry, continuationTurn)
     if (
       !this.isCurrentEntry(entry) ||

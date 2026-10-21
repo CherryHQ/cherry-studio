@@ -1191,6 +1191,43 @@ describe('AgentSessionRuntimeService', () => {
         data: { ...retryEvent.retry, startedAt: expect.any(String) }
       })
     })
+
+    // The completion can land before the continuation row exists: A1a has rolled closed and the
+    // stream terminal listener has not opened A2 yet. The held retry belongs to A2's row, so the
+    // completion must retire only the transient status.
+    it('keeps a held retry when the turn completes before the continuation opens', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      ;(service as any).currentTurn(entry).controller = { enqueue: vi.fn() }
+
+      const turn = (service as any).currentTurn(entry)
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
+      ;(service as any).applyRuntimeStateEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: { id: 'steer-1', role: 'user', data: { parts: [] } } as any }],
+        headless: false
+      })
+      ;(service as any).handleRuntimeEvent(entry, retryEvent)
+      mocks.cacheGetShared.mockImplementation((key: string) => (key === RETRY_KEY ? { status: 'retrying' } : undefined))
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
+      expect(entry.pendingSteerApiRetry).toMatchObject(retryEvent.retry)
+
+      mocks.saveMessage.mockImplementation(({ message }: any) => ({ ...message, id: 'assistant-continuation' }))
+      await (service as any).startContinuationTurn(entry)
+
+      expect(entry.pendingSteerApiRetry).toBeUndefined()
+      expect(entry.runtimeState.execution.buffer).toContainEqual({
+        type: 'data-agent-api-retry',
+        id: 'agent-api-retry-assistant-continuation',
+        data: { ...retryEvent.retry, startedAt: expect.any(String) }
+      })
+    })
   })
 
   // Gates the out-of-turn approval denial in `canUseTool`: a detached background agent can call a
