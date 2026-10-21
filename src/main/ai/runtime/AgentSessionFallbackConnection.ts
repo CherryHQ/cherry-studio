@@ -187,6 +187,12 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private turnPrompt?: AgentRuntimePromptPolicy
   /** The mode the live turn was admitted under: a later save must not re-admit its replay. */
   private turnPermissionMode?: AgentRuntimePermissionPolicy['permissionMode']
+  /**
+   * The turn's disabled tools, monotonic: what it was admitted with plus every restriction a save
+   * applied. A re-enable may not erase either inside the same host turn — the replay would run the
+   * tool the turn was admitted without.
+   */
+  private readonly turnDisabledTools = new Set<string>()
 
   constructor(
     private readonly driver: AgentSessionRuntimeDriver,
@@ -208,7 +214,10 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     this.lastInput = input
     // Captured at admission: a later save must reach the NEXT fresh turn, not this turn's replay.
     this.turnPrompt = this.current.getPromptPolicy?.()
-    this.turnPermissionMode = this.current.getPermissionPolicy?.()?.permissionMode
+    const admittedPolicy = this.current.getPermissionPolicy?.()
+    this.turnPermissionMode = admittedPolicy?.permissionMode
+    this.turnDisabledTools.clear()
+    for (const tool of admittedPolicy?.disabledTools ?? []) this.turnDisabledTools.add(tool)
     this.hasActivity = false
     this.attempted = false
     try {
@@ -252,6 +261,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
       const forwarded = this.replacementReconcileChain.then(async () => {
         const verdict = await this.current.reconcile(input)
         this.rememberAppliedRestrictions()
+        this.rememberTurnRestrictions()
         return verdict
       })
       this.replacementReconcileChain = forwarded.then(
@@ -266,8 +276,14 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     // admitting the replay — otherwise the replacement captures the pre-save policy and the replay
     // executes the tool the save is disabling.
     const forwarded = this.current.reconcile(input)
-    this.pendingFallbackReconciles.push(forwarded.catch(() => undefined))
-    return forwarded
+    // Capture what this save left applied as it settles: a later save (or re-enable) may erase it
+    // from the live policy before the fallback reads it.
+    const tracked = forwarded.then((verdict) => {
+      this.rememberTurnRestrictions()
+      return verdict
+    })
+    this.pendingFallbackReconciles.push(tracked.catch(() => undefined))
+    return tracked
   }
 
   getContextUsage() {
@@ -401,9 +417,11 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
         })
         return false
       }
+      this.rememberTurnRestrictions()
       const turnPolicy = {
         ...livePolicy,
-        permissionMode: this.turnPermissionMode ?? livePolicy.permissionMode
+        permissionMode: this.turnPermissionMode ?? livePolicy.permissionMode,
+        disabledTools: [...new Set([...this.turnDisabledTools, ...this.retainedDisabledTools])].sort()
       }
       await this.current.close()
       if (this.closed) return false
@@ -528,6 +546,13 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
     }
   }
 
+  /** Folds the live connection's applied restrictions into the turn's monotonic disabled set. */
+  private rememberTurnRestrictions(): void {
+    for (const tool of (this.handoff ?? this.current).getPermissionPolicy?.()?.disabledTools ?? []) {
+      this.turnDisabledTools.add(tool)
+    }
+  }
+
   /** Folds what the window's save left applied on the old connection into the carried union. */
   private rememberAppliedRestrictions(): void {
     if (!this.replacementInFlight) return
@@ -544,6 +569,7 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
   private async trackReplacementReconcile(pending: Promise<AgentRuntimeReconcileResult>): Promise<void> {
     const tracked = pending.then(
       (verdict) => {
+        this.rememberTurnRestrictions()
         this.recordReplacementVerdict(verdict)
       },
       () => {

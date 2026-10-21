@@ -212,6 +212,91 @@ describe('Pi/DSH connection fallback', () => {
     await wrapper.close()
   })
 
+  it('keeps the tools the turn was admitted without when a re-enable crosses the fallback boundary', async () => {
+    const primary = fakeConnection()
+    // Admitting the turn removed Bash even though the mode is bypassPermissions.
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'bypassPermissions', disabledTools: ['bash'] })
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+
+    // The user re-enables Bash while reconciliation awaits snapshot discovery; the loosening
+    // applies (and the native turn ends) before that verdict is in.
+    let releaseReenable!: () => void
+    primary.reconcile.mockImplementationOnce(async () => {
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'bypassPermissions', disabledTools: [] })
+      await new Promise<void>((resolve) => {
+        releaseReenable = resolve
+      })
+      return 'patched'
+    })
+    const reenable = wrapper.reconcile({ modelId: 'primary::model' })
+    await vi.waitFor(() => expect(releaseReenable).toBeTypeOf('function'))
+
+    primary.events.push({ type: 'error', error: new Error('HTTP 503 service overloaded') })
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    releaseReenable()
+    await reenable
+
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+    // The replay stays inside the host turn that was admitted without Bash: the pending re-enable
+    // reaches the next fresh turn, not a turn that already had its approval requirement waived.
+    expect(driver.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionPolicy: { permissionMode: 'bypassPermissions', disabledTools: ['bash'] } })
+    )
+    await wrapper.close()
+  })
+
+  it('keeps a restriction a save applied before a later re-enable crossed the fallback boundary', async () => {
+    const primary = fakeConnection()
+    primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+
+    // A save disables Bash and settles.
+    primary.reconcile.mockImplementationOnce(async () => {
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: ['bash'] })
+      return 'patched'
+    })
+    await wrapper.reconcile({ modelId: 'primary::model' })
+
+    // Another save re-enables it while reconciliation awaits discovery, so the live policy reads
+    // no restriction by the time the fallback drains that save.
+    let releaseReenable!: () => void
+    primary.reconcile.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseReenable = resolve
+      })
+      primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
+      return 'patched'
+    })
+    const reenable = wrapper.reconcile({ modelId: 'primary::model' })
+    await vi.waitFor(() => expect(releaseReenable).toBeTypeOf('function'))
+
+    primary.events.push({ type: 'error', error: new Error('HTTP 503 service overloaded') })
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    releaseReenable()
+    await reenable
+
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+    // The restriction the turn already served under survives the re-enable for the replay.
+    expect(driver.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionPolicy: { permissionMode: 'default', disabledTools: ['bash'] } })
+    )
+    await wrapper.close()
+  })
+
   it('carries a policy save from the replacement startup window into the replayed turn', async () => {
     const primary = fakeConnection()
     primary.getPermissionPolicy.mockReturnValue({ permissionMode: 'default', disabledTools: [] })
