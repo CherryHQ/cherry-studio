@@ -9,6 +9,7 @@ import { CacheService } from '@main/data/CacheService'
 import { DataApiService } from '@main/data/DataApiService'
 import { PreferenceService } from '@main/data/PreferenceService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
+import { PythonService } from '@main/services/PythonService'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { mountBuiltinAgentTemplates } from '../agent/builtinAgentTemplates'
@@ -40,7 +41,8 @@ async function startPageServices() {
   for (const [name, service] of [
     ['CacheService', new CacheService()],
     ['DataApiService', new DataApiService()],
-    ['IpcApiService', new IpcApiService()]
+    ['IpcApiService', new IpcApiService()],
+    ['PythonService', new PythonService()]
   ] as const) {
     await service._doInit()
     application.register(name, service)

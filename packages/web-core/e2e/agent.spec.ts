@@ -131,3 +131,14 @@ test('leaves no file when a write is denied', async ({ page }) => {
   await expect(page.getByText(/^tools said:.*\(empty directory\).*\|.*No files found matching pattern/)).toBeVisible()
   await expect(page.getByRole('button', { name: /^Allow/ })).toHaveCount(0)
 })
+
+test('runs Python in the page after approval', async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+
+  await send(page, 'please call python_execute {"code":"import sys\\nprint(6 * 7, sys.version_info.major)"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  // Pyodide comes from jsDelivr on first use.
+  await expect(page.getByText(/^tools said: 42 3$/)).toBeVisible({ timeout: 90_000 })
+})
