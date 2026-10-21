@@ -2125,6 +2125,56 @@ describe('SkillService', () => {
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf'))).rejects.toThrow()
     })
 
+    it.each([
+      { source: 'builtin', globalEnabled: false, agentEnabled: true },
+      { source: 'builtin', globalEnabled: true, agentEnabled: false },
+      { source: 'local', globalEnabled: false, agentEnabled: true },
+      { source: 'local', globalEnabled: true, agentEnabled: false }
+    ])(
+      'keeps exported copies out of home workspace skills: $source, global=$globalEnabled, agent=$agentEnabled',
+      async ({ source, globalEnabled, agentEnabled }) => {
+        await seedAgent()
+        const library = await writeLibrarySkill('managed')
+        const contentHash = await skillService['computeBuiltinDirectoryHash'](library)
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: SKILL_ID_1,
+          name: 'managed',
+          folderName: 'managed',
+          source,
+          contentHash,
+          isEnabled: globalEnabled
+        })
+        agentGlobalSkillService.upsertJoin(AGENT_ID, SKILL_ID_1, agentEnabled)
+        await skillService.linkMirror('managed')
+        const internal = path.join(mirrorRoot, 'managed')
+        // Exercise physical mirrors even on POSIX, where authored skills normally use symlinks.
+        await fs.promises.rm(internal, { recursive: true, force: true })
+        await fs.promises.cp(library, internal, { recursive: true })
+        const home = path.dirname(mirrorRoot)
+        const workspaceSkills = path.join(home, '.agents', 'skills')
+        const userSkill = path.join(workspaceSkills, 'user-skill')
+        const linkedSource = await createTempDir('user-workspace-skill-')
+        await fs.promises.mkdir(userSkill, { recursive: true })
+        await fs.promises.writeFile(path.join(userSkill, 'SKILL.md'), '# user')
+        await fs.promises.writeFile(path.join(linkedSource, 'SKILL.md'), '# linked user')
+        await fs.promises.symlink(linkedSource, path.join(workspaceSkills, 'user-link'), 'junction')
+        vi.mocked(parseSkillMetadata).mockImplementation(async (directory) => skillMeta(path.basename(directory)))
+
+        expect((await skillService.list({ agentId: AGENT_ID })).filter((skill) => skill.isEnabled)).toEqual([])
+        expect((await skillService.listLocal(home)).map((skill) => skill.filename).sort()).toEqual([
+          'user-link',
+          'user-skill'
+        ])
+        expect((await skillService.listLocalFolderNames(home)).sort()).toEqual(['user-link', 'user-skill'])
+        expect((await skillService.listLocalSkillPaths(home)).sort()).toEqual(
+          [path.join(workspaceSkills, 'user-link'), userSkill].sort()
+        )
+        await fs.promises.rm(dataSkillsRoot, { recursive: true, force: true })
+        expect((await skillService.listLocalFolderNames(home)).sort()).toEqual(['user-link', 'user-skill'])
+        expect(await skillService.listLocalFolderNames(path.dirname(home))).toEqual([])
+      }
+    )
+
     it('linkMirror replaces a broken mirror symlink', async () => {
       await writeLibrarySkill('pdf')
       if (isWin) {
@@ -2407,6 +2457,61 @@ describe('SkillService', () => {
         await expect(fs.promises.lstat(path.join(root, 'skill-one'))).rejects.toMatchObject({ code: 'ENOENT' })
       }
     })
+
+    it.each(['internal', 'export'])(
+      'reports partial uninstall and independently removes the other projection when %s cleanup fails',
+      async (stage) => {
+        const library = await writeLibrarySkill('managed')
+        const contentHash = await skillService['computeBuiltinDirectoryHash'](library)
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: SKILL_ID_1,
+          name: 'managed',
+          folderName: 'managed',
+          source: 'builtin',
+          contentHash
+        })
+        await skillService.linkMirror('managed')
+        const internal = path.join(mirrorRoot, 'managed')
+        const exported = path.join(path.dirname(mirrorRoot), '.agents', 'skills', 'managed')
+        const actualRm = fs.promises.rm
+        const actualUnlink = fs.promises.unlink
+        const rmSpy = vi.spyOn(fs.promises, 'rm').mockImplementation(async (target, options) => {
+          if (stage === 'internal' && path.resolve(String(target)) === path.resolve(internal)) {
+            throw Object.assign(new Error('internal mirror locked'), { code: 'EPERM' })
+          }
+          return actualRm(target, options)
+        })
+        const unlinkSpy = vi.spyOn(fs.promises, 'unlink').mockImplementation(async (target) => {
+          if (stage === 'export' && path.resolve(String(target)) === path.resolve(exported)) {
+            throw Object.assign(new Error('export locked'), { code: 'EPERM' })
+          }
+          return actualUnlink(target)
+        })
+        try {
+          await expect(skillService.uninstall(SKILL_ID_1)).rejects.toThrow('Failed to remove skill mirrors')
+          expect(agentGlobalSkillService.getById(SKILL_ID_1)).not.toBeNull()
+          await expect(fs.promises.readFile(path.join(library, 'SKILL.md'), 'utf-8')).resolves.toBe('# Skill')
+          if (stage === 'internal') {
+            await expect(fs.promises.lstat(exported)).rejects.toMatchObject({ code: 'ENOENT' })
+            await expect(fs.promises.readFile(path.join(internal, 'SKILL.md'), 'utf-8')).resolves.toBe('# Skill')
+          } else {
+            await expect(fs.promises.lstat(internal)).rejects.toMatchObject({ code: 'ENOENT' })
+            await expect(fs.promises.lstat(exported)).resolves.toBeDefined()
+            await expect(fs.promises.readFile(path.join(exported, 'SKILL.md'), 'utf-8')).rejects.toMatchObject({
+              code: 'ENOENT'
+            })
+          }
+        } finally {
+          rmSpy.mockRestore()
+          unlinkSpy.mockRestore()
+        }
+        await skillService.uninstall(SKILL_ID_1)
+        expect(agentGlobalSkillService.getById(SKILL_ID_1)).toBeNull()
+        await expect(fs.promises.lstat(exported)).rejects.toMatchObject({ code: 'ENOENT' })
+        await expect(fs.promises.lstat(internal)).rejects.toMatchObject({ code: 'ENOENT' })
+        await expect(fs.promises.lstat(library)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+    )
 
     it('persists and updates the SKILL.md version when reinstalling the same origin', async () => {
       const sourceDir = await createTempDir('versioned-skill-')

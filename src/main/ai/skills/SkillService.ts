@@ -433,20 +433,19 @@ export class SkillService {
    * live under `.claude/skills/` or `.agents/skills/`. Those entries can be real directories or
    * user-created symlinks to directories.
    *
-   * Cherry-managed skills also appear under `.claude/skills/` as app-owned mirror
-   * entries when enabled for Claude SDK discovery, but their source of truth is
-   * `agent_global_skill` and they are rendered by `list({ agentId })`. Keep
-   * them out of this local-only list.
+   * Cherry-managed skills also appear as internal discovery copies and exported links.
+   * Their source of truth remains `agent_global_skill` and `list({ agentId })`;
+   * keep those projections out of this local-only list.
    */
   private async isLocalSkillDirectoryEntry(skillsDir: string, entry: fs.Dirent): Promise<boolean> {
-    if (entry.isDirectory()) return true
+    const entryPath = path.join(skillsDir, entry.name)
+    if (entry.isDirectory()) return !(await this.isManagedSkillTarget(entryPath))
     if (!entry.isSymbolicLink()) return false
 
-    const entryPath = path.join(skillsDir, entry.name)
     try {
       const stats = await fs.promises.stat(entryPath)
       if (!stats.isDirectory()) return false
-      if (await this.isManagedSkillSymlinkTarget(entryPath)) return false
+      if (await this.isManagedSkillTarget(entryPath)) return false
       return true
     } catch (error) {
       logger.warn('Failed to resolve local skill symlink; skipping', {
@@ -458,14 +457,16 @@ export class SkillService {
     }
   }
 
-  /** Existing workspace entries pointing into app-owned global storage are managed DB-backed skills. */
-  private async isManagedSkillSymlinkTarget(entryPath: string): Promise<boolean> {
+  /** Canonical skills and internal discovery copies remain subject to catalog enablement. */
+  private async isManagedSkillTarget(entryPath: string): Promise<boolean> {
     try {
-      const [entryRealPath, skillsRootRealPath] = await Promise.all([
-        fs.promises.realpath(entryPath),
-        fs.promises.realpath(application.getPath('feature.agents.skills'))
-      ])
-      return entryRealPath === skillsRootRealPath || entryRealPath.startsWith(skillsRootRealPath + path.sep)
+      const entryRealPath = await fs.promises.realpath(entryPath)
+      const roots = await Promise.all(
+        [application.getPath('feature.agents.skills'), this.getMirrorRoot()].map((root) =>
+          fs.promises.realpath(root).catch(() => null)
+        )
+      )
+      return roots.some((root) => root !== null && (entryRealPath === root || isPathInside(entryRealPath, root)))
     } catch {
       return false
     }
@@ -745,14 +746,13 @@ export class SkillService {
   /** Remove the CLAUDE_CONFIG_DIR/skills mirror entry for a skill. */
   async unlinkMirror(folderName: string): Promise<boolean> {
     const targetDir = this.getMirrorPath(folderName)
-    try {
-      await fs.promises.rm(targetDir, { recursive: true, force: true })
-      await this.setExportEnabled(folderName, false)
-      return true
-    } catch (error) {
-      logger.warn('Failed to remove skill mirror', { folderName, targetDir, error })
-      return false
-    }
+    const results = await Promise.allSettled([
+      fs.promises.rm(targetDir, { recursive: true, force: true }),
+      this.setExportEnabled(folderName, false)
+    ])
+    const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+    if (errors.length) logger.warn('Failed to remove skill mirrors', { folderName, targetDir, errors })
+    return errors.length === 0
   }
 
   private async setExportEnabled(folderName: string, enabled: boolean): Promise<void> {
@@ -1556,8 +1556,10 @@ export class SkillService {
 
   private async uninstallLocked(skill: InstalledSkill): Promise<void> {
     const skillPath = this.getSkillStoragePath(skill.folderName)
+    if (!(await this.unlinkMirror(skill.folderName))) {
+      throw new Error(`Failed to remove skill mirrors: ${skill.folderName}`)
+    }
     await this.installer.uninstall(skillPath)
-    await this.unlinkMirror(skill.folderName)
     agentGlobalSkillService.deleteById(skill.id)
     logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })
   }
