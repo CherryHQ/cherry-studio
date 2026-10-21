@@ -106,14 +106,14 @@ describe('buildPathRegistry', () => {
     expect(shouldAutoEnsure('app.utility_process')).toBe(false)
   })
 
-  it('keeps the packaged FFmpeg directories read-only under app resources', () => {
+  it('keeps the Linux FFmpeg runtime under cherry.bin without creating it on lookup', () => {
     const registry = buildPathRegistry()
-    const ffmpegRoot = path.join('/mock/app', 'resources', 'binaries', `${process.platform}-${process.arch}`, 'ffmpeg')
 
-    expect(registry['feature.file_processing.ffmpeg.bin']).toBe(path.join(ffmpegRoot, 'bin'))
-    expect(registry['feature.file_processing.ffmpeg.lib']).toBe(path.join(ffmpegRoot, 'lib'))
-    expect(shouldAutoEnsure('feature.file_processing.ffmpeg.bin')).toBe(false)
-    expect(shouldAutoEnsure('feature.file_processing.ffmpeg.lib')).toBe(false)
+    expect(registry['cherry.bin.ffmpeg.bin']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'bin'))
+    expect(registry['cherry.bin.ffmpeg.lib']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'lib'))
+    expect(shouldAutoEnsure('cherry.bin.ffmpeg.bin')).toBe(false)
+    expect(shouldAutoEnsure('cherry.bin.ffmpeg.lib')).toBe(false)
+    expect(shouldAutoEnsure('cherry.bin')).toBe(true)
   })
 
   it('keeps pi runtime state under the Agents data directory', () => {
@@ -297,16 +297,6 @@ describe('buildPathRegistry', () => {
     expect(buildPathRegistry()['feature.mini_app.logs']).toBe(path.join('/mock/logs', 'mini-apps'))
     // Same reason `feature.agents.builtin` is in NO_ENSURE: a signed, read-only tree.
     expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
-  })
-
-  it('keeps the Linux FFmpeg runtime under cherry.bin without creating it on lookup', () => {
-    const registry = buildPathRegistry()
-
-    expect(registry['cherry.bin.ffmpeg.bin']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'bin'))
-    expect(registry['cherry.bin.ffmpeg.lib']).toBe(path.join(registry['cherry.bin'], 'ffmpeg', 'lib'))
-    expect(shouldAutoEnsure('cherry.bin.ffmpeg.bin')).toBe(false)
-    expect(shouldAutoEnsure('cherry.bin.ffmpeg.lib')).toBe(false)
-    expect(shouldAutoEnsure('cherry.bin')).toBe(true)
   })
 
   it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {
