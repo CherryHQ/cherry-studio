@@ -1,5 +1,7 @@
+import type { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import type { AiService } from '@main/ai/AiService'
 import type { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
+import type { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import type { AiStreamManager } from '@main/ai/streamManager'
 import type { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import type { CacheService } from '@main/data/CacheService'
@@ -24,6 +26,8 @@ interface WebServices {
   AiService: AiService
   TraceStorageService: WebTraceStorage
   RuntimeActivityService: Pick<RuntimeActivityService, 'begin'>
+  AgentSessionRuntimeService: AgentSessionRuntimeService
+  ClaudeCodeWarmQueryManager: Pick<ClaudeCodeWarmQueryManager, 'close' | 'closeAgentSessionWarm'>
 }
 
 /**

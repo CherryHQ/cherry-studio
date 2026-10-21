@@ -8,9 +8,11 @@ import { defineConfig, type Plugin, type UserConfig } from 'vite'
 const repoRoot = resolve(import.meta.dirname, '../..')
 const srcMain = resolve(repoRoot, 'src/main')
 const srcRenderer = resolve(repoRoot, 'src/renderer')
+const srcShared = resolve(repoRoot, 'src/shared')
 const runtime = (file: string) => resolve(import.meta.dirname, 'src/runtime', file)
 const disabled = (file: string) => resolve(import.meta.dirname, 'src/disabled', file)
 const page = (file: string) => resolve(import.meta.dirname, 'src/page', file)
+const agent = (file: string) => resolve(import.meta.dirname, 'src/agent', file)
 
 /**
  * Main-process modules the data services import, swapped for browser implementations.
@@ -98,11 +100,12 @@ export function resolveProcessAliases(): Plugin {
  * Desktop modules replaced wholesale in the Worker, keyed by their path under `src/main`.
  * Each is the entry point of a feature the Web edition leaves out, so replacing it keeps
  * everything behind it out of the bundle; its stand-in throws if the feature is used.
+ * `src/runtime` and `src/agent` replacements are browser implementations instead.
  */
 export const workerModuleReplacements: Record<string, string> = {
+  'ai/agentSession/fork/index.ts': disabled('forks.ts'),
   'ai/agents/AgentLifecycleService.ts': disabled('agents.ts'),
   'ai/agents/AgentWorkspaceStorageService.ts': disabled('agents.ts'),
-  'ai/agents/createAgent.ts': disabled('agents.ts'),
   'ai/agents/createBuiltinAssistantSession.ts': disabled('agents.ts'),
   'ai/agents/createBuiltinSkillSession.ts': disabled('agents.ts'),
   'ai/agents/createBuiltinSupportSession.ts': disabled('agents.ts'),
@@ -114,11 +117,10 @@ export const workerModuleReplacements: Record<string, string> = {
   'ai/provider/custom/ollama/ollamaProvider.ts': disabled('providers.ts'),
   'ai/provider/grokCli.ts': disabled('providers.ts'),
   'ai/provider/listModels.ts': disabled('listModels.ts'),
-  'ai/runtime/agentSessionWorkspace.ts': disabled('agentSessions.ts'),
   'ai/runtime/aiSdk/params/features/devtools.ts': disabled('devtools.ts'),
-  'ai/runtime/fork/index.ts': disabled('agents.ts'),
+  'ai/runtime/registerDrivers.ts': agent('registerDrivers.ts'),
+  'ai/runtime/fork/index.ts': disabled('forks.ts'),
   'ai/skills/SkillService.ts': disabled('skills.ts'),
-  'ai/streamManager/context/AgentChatContextProvider.ts': disabled('agentSessions.ts'),
   'ai/streamManager/listeners/ChannelAdapterListener.ts': disabled('channels.ts'),
   'ai/tools/adapters/aiSdk/builtin/registerBuiltinTools.ts': disabled('builtinTools.ts'),
   'ai/utils/customFetch.ts': runtime('customFetch.ts'),
@@ -135,19 +137,41 @@ export const workerModuleReplacements: Record<string, string> = {
   'utils/appEdition.ts': runtime('appEdition.ts'),
   'utils/builtinSkills.ts': disabled('skills.ts'),
   'utils/downloadAsBase64.ts': disabled('images.ts'),
-  'utils/file/index.ts': disabled('files.ts')
+  'utils/file/index.ts': runtime('files.ts'),
+  'utils/rtk.ts': disabled('rtk.ts')
 }
 
 /** Renderer modules replaced in the page, keyed by their path under `src/renderer`. */
 const pageModuleReplacements: Record<string, string> = {
   'components/settingsMenu.ts': page('settingsMenu.ts'),
+  'components/AgentRuntimeOption.tsx': page('AgentRuntimeOption.tsx'),
   'services/sentry.ts': page('sentry.ts')
 }
 
-/** Imports swapped for one desktop importer only, keyed by the importer's path under `src/main`. */
+/** Shared modules replaced in both the Worker and the page, keyed by their path under `src/shared`. */
+const sharedModuleReplacements: Record<string, string> = {
+  'ai/agentRuntimeCapabilities.ts': agent('agentRuntimeCapabilities.ts'),
+  'ai/piBuiltinTools.ts': agent('piBuiltinTools.ts')
+}
+
+/**
+ * Imports swapped for one desktop importer only, keyed by the importer's path under `src/main`, then
+ * by the import's specifier or, for aliased imports, its resolved path under `src/main`.
+ */
 const workerImportReplacements: Record<string, Record<string, string>> = {
   // The desktop cache's persist tier is a losable file; in the Worker it lives in memory.
-  'data/CacheService.ts': { 'node:fs': runtime('memoryFs.ts') }
+  'data/CacheService.ts': { 'node:fs': runtime('memoryFs.ts') },
+  'ai/runtime/pi/approvalExtension.ts': {
+    'ai/toolApproval/userDataSqliteGuard.ts': agent('userDataSqliteGuard.ts')
+  },
+  // The approval registry reads tool names from tool modules the Worker cannot load.
+  'ai/toolApproval/builtinToolPolicyRegistry.ts': {
+    'ai/tools/computerUse.ts': disabled('toolPolicyNames.ts'),
+    'ai/tools/moveToTrash.ts': disabled('toolPolicyNames.ts'),
+    'ai/tools/saveAttachment.ts': disabled('toolPolicyNames.ts')
+  },
+  // `./fs` is the desktop's stream-based file helpers; `src/runtime/files.ts` has the ones it needs.
+  'utils/file/pathStatus.ts': { './fs': runtime('files.ts') }
 }
 
 export function replaceDesktopModules(): Plugin {
@@ -156,15 +180,44 @@ export function replaceDesktopModules(): Plugin {
     enforce: 'pre',
     async resolveId(id, importer, options) {
       if (!importer) return undefined
-      const importReplacement = workerImportReplacements[relative(srcMain, importer)]?.[id]
-      if (importReplacement) return importReplacement
+      const importReplacements = workerImportReplacements[relative(srcMain, importer)]
+      if (importReplacements?.[id]) return importReplacements[id]
       const resolved = await this.resolve(id, importer, { ...options, skipSelf: true })
       if (!resolved) return resolved
       const replacement =
+        importReplacements?.[relative(srcMain, resolved.id)] ??
         workerModuleReplacements[relative(srcMain, resolved.id)] ??
-        pageModuleReplacements[relative(srcRenderer, resolved.id)]
+        pageModuleReplacements[relative(srcRenderer, resolved.id)] ??
+        sharedModuleReplacements[relative(srcShared, resolved.id)]
       // A wrapper such as `src/page/settingsMenu.ts` imports the module it replaces.
       return replacement && replacement !== importer ? replacement : resolved
+    }
+  }
+}
+
+/** Node built-ins the Worker implements on browser APIs (the page keeps Vite's browser stubs). */
+const workerNodeModules: Record<string, string> = {
+  fs: runtime('nodeFs.ts'),
+  'fs/promises': runtime('nodeFsPromises.ts'),
+  url: runtime('nodeUrl.ts')
+}
+
+/** Runs after `replaceDesktopModules`, so a per-importer replacement such as the cache's in-memory file wins. */
+export function provideWorkerNodeModules(): Plugin {
+  return {
+    name: 'provide-worker-node-modules',
+    enforce: 'pre',
+    resolveId: (id) => workerNodeModules[id.replace(/^node:/, '')]
+  }
+}
+
+/** Desktop code reads `process.platform`, which a Worker lacks; no desktop OS applies (`src/runtime/platform.ts`). */
+export function defineWorkerPlatform(): Plugin {
+  return {
+    name: 'define-worker-platform',
+    transform(code, id) {
+      if (!id.startsWith(srcMain) || !code.includes('process.platform')) return undefined
+      return { code: code.replaceAll('process.platform', "'browser'"), map: null }
     }
   }
 }
@@ -219,7 +272,14 @@ const workerEntries = [
 
 export const coreWorkerConfig = {
   format: 'es',
-  plugins: () => [resolveProcessAliases(), replaceDesktopModules(), forbidNodeModules(), migrationsPlugin()],
+  plugins: () => [
+    resolveProcessAliases(),
+    replaceDesktopModules(),
+    provideWorkerNodeModules(),
+    defineWorkerPlatform(),
+    forbidNodeModules(),
+    migrationsPlugin()
+  ],
   // Lazy chunks must not import from the entry file: WebKit evaluates a module Worker's
   // script again when a chunk imports it, starting a second Core Worker without a database.
   rolldownOptions: {
