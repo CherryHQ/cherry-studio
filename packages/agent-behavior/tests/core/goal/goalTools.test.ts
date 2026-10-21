@@ -7,7 +7,7 @@ import { decideGoalCommand } from '../../../src/core/goal/goalCommand'
 import { currentGoal } from '../../../src/core/goal/goalHistory'
 import { COMPLETE_INSTRUCTION } from '../../../src/core/goal/goalState'
 import { decideCreateGoal, decideUpdateGoal } from '../../../src/core/goal/goalTools'
-import { apply, assistant, call, facts, goal, goalEntry, inputs, result, roundEntry, user } from '../history'
+import { apply, assistant, call, facts, goal, goalEntry, inputs, MODELS, result, roundEntry, user } from '../history'
 
 const k = call('k1')
 const update = (history: readonly HistoryEntry[], args: JsonValue, extra = {}) =>
@@ -131,6 +131,24 @@ describe('/goal command', () => {
     expect(again.ops).toEqual([])
     expect(again.effects).toEqual([{ type: 'stop-turn', thread: 'parent', cause, turn: first.id }])
     expect(again.result).toEqual(decided.result)
+  })
+
+  // Catches a goal armed on a model that cannot call tools (X2): the driver would start rounds the model cannot act in.
+  // Only the error notice is written; pausing stays allowed.
+  it('creates and resumes no goal on a model without tool calling', () => {
+    const noTools = inputs({ models: { ...MODELS, supportsTools: false } })
+    const written = (step: ReturnType<typeof run>) =>
+      step.ops.map((op) => (op.type === 'append-record' ? op.record.type : op.type))
+    const refused = { level: 'error', text: expect.stringContaining('the current model has no tool calling') }
+    const created = decideGoalCommand(facts([]), noTools, 'ship it', 'req-1')
+    expect(created.result).toEqual(refused)
+    expect(written(created)).toEqual(['goal-notice'])
+    const paused = [goalEntry(goal({ phase: 'paused', armed: false }))]
+    const resumed = decideGoalCommand(facts(paused), noTools, 'resume', 'req-1')
+    expect(resumed.result).toEqual(refused)
+    expect(written(resumed)).toEqual(['goal-notice'])
+    const pause = decideGoalCommand(facts([goalEntry(goal())]), noTools, 'pause', 'req-1')
+    expect(pause.result).toEqual({ text: 'Goal paused.', level: 'info' })
   })
 
   // Catches a pause that stops when only a failed run's leftover inputs are queued: no run is going, and the stop

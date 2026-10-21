@@ -72,8 +72,9 @@ export interface Questions {
 export interface Models {
   find(query: string): Promise<readonly SubagentModelCandidate[]>
   /**
-   * The conversation's model now, both keys non-empty. `onOpen` reads `supportsTools`; the subagent spawn tool fills
-   * `CallInputs.models` with the keys before deciding.
+   * The conversation's model now, both keys non-empty. `onOpen` and `/goal` read `supportsTools`: a goal stops on a
+   * model without tool calling, and `/goal` neither creates nor resumes one there. The subagent spawn tool and `/goal`
+   * fill `CallInputs.models` with this answer before deciding.
    */
   current(
     thread: ThreadId
