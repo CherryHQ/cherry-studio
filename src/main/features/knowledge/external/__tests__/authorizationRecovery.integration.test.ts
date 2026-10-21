@@ -166,6 +166,28 @@ describe('authorization recovery ownership', () => {
     await expect(runtime.acquireAccessToken(original.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
   })
 
+  it('fences old credential requests when a reconnect commits', async () => {
+    const runtime = await start()
+    const original = await connected(runtime)
+    const reconnect = await runtime.beginReconnect(original.id)
+    const requestEntered = deferred()
+    const releaseRequest = deferred()
+    const stale = runtime
+      .runAuthorizedRequest(original.id, async () => {
+        requestEntered.resolve()
+        await releaseRequest.promise
+        throw new FeishuProviderError('reauthorization-required', true)
+      })
+      .catch((error: unknown) => error)
+    await requestEntered.promise
+    const current = await runtime.completeUserAuthorization(reconnect.authorizationSessionId)
+    releaseRequest.resolve()
+
+    await expect(stale).resolves.toMatchObject({ name: 'AbortError' })
+    expect(connections.getById(original.id)).toEqual(current)
+    await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+  })
+
   it('does not let a late cancellation undo a newer successful reconnect', async () => {
     const runtime = await start()
     const original = await connected(runtime)
