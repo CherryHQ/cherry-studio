@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, lstatSync } from 'node:fs'
 
+import type { Usage } from '@earendil-works/pi-ai'
 import type { ContextUsage, ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
-import type { LanguageModelUsage } from 'ai'
 
 import { application } from '@application'
 import { runtimeId, type InputState, type Observation, type ObservationPayload } from '@cherrystudio/agent-runtime'
@@ -18,6 +18,7 @@ import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { readRetryPolicy } from '@main/ai/runtime/aiSdk'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -45,6 +46,7 @@ import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
+import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -57,6 +59,7 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import {
@@ -65,7 +68,6 @@ import {
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
-import { createPiModelBinding } from './piModelPort'
 import { loadPiSdk, loadPiVccExtension } from './piSdk'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 
@@ -190,6 +192,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+    await resolveApiGatewayRuntime(this.input.sessionId)
     await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
@@ -206,17 +209,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.mcpServerSnapshots = initialSnapshot.mcpServerSnapshots
     const pi = await loadPiSdk()
     const { createPiRuntime } = await import('@cherrystudio/agent-runtime-pi')
-    const binding = await createPiModelBinding(
+    const binding = await createPiGatewayModelBinding(
       this.input,
-      initialSnapshot,
-      {
-        onError: (error) => {
-          this.failure = error
-        },
-        onUnmappedPart: (part) => {
-          this.failure ??= new Error(`Pi cannot retain model output of type ${part.type}`)
-        }
-      },
+      initialSnapshot.provider,
+      initialSnapshot.model,
       (usage) => this.recordUsage(usage)
     )
     const agentDir = application.getPath('feature.agents.pi.root')
@@ -333,6 +329,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       shellPath,
       spawnHook: (context) => ({ ...context, env: mergePiBashExecutionEnv(context.env) })
     }) as ToolDefinition
+    const retry = readRetryPolicy()
     const options = {
       ...binding,
       cwd: workspacePath,
@@ -346,6 +343,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       tools: [managedBashTool],
       excludeTools: [...this.disabledTools],
       settings: {
+        retry: {
+          enabled: retry.enabled,
+          maxRetries: retry.maxAttempts - 1,
+          ...(retry.backoffEnabled ? {} : { baseDelayMs: 0 })
+        },
         ...(shellPath ? { shellPath } : {}),
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
       },
@@ -583,12 +585,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (result.value.length) this.failure ??= new Error('Queued input was cancelled before Pi could consume it')
   }
 
-  private recordUsage(usage: LanguageModelUsage): void {
-    if (usage.outputTokenDetails.reasoningTokens !== undefined)
-      this.reasoningTokens = (this.reasoningTokens ?? 0) + usage.outputTokenDetails.reasoningTokens
-    this.usage.inputTokens += usage.inputTokens ?? 0
-    this.usage.outputTokens += usage.outputTokens ?? 0
-    this.usage.totalTokens += usage.totalTokens ?? 0
+  private recordUsage(usage: Usage): void {
+    if (usage.reasoning !== undefined) this.reasoningTokens = (this.reasoningTokens ?? 0) + usage.reasoning
+    this.usage.inputTokens += usage.input + usage.cacheRead + usage.cacheWrite
+    this.usage.outputTokens += usage.output
+    this.usage.totalTokens += usage.totalTokens
     this.eventQueue.push({
       type: 'chunk',
       chunk: {

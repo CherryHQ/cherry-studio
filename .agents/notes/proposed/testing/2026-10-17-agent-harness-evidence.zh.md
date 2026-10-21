@@ -409,6 +409,10 @@ Unsupported 或 unknown 可以是合法结果，但都不能算作更强保证�
 - 要求所有 harness 提供最丰富的子会话对话和取消行为：不采用，因为单次任务和仅可观察的子智能体也有效；独立的控制提案定义可选能力。
 - 离线测试通过就认定适配完成：不采用，因为生产接入、UI 投影、真实提供商、崩溃行为与副作用都需要独立验收。
 
+### 原生网关切换
+
+宿主现向内部网关注册 Pi 原生 provider。`gateway*.test.ts` 使用 HTTP fixture 和生产网关转换器；上面的旧 `aiSdk*.test.ts` 命令日志仍作为历史记录。受影响的 Main 范围通过了 39 个测试文件、659 个用例，两个原生 Pi 包测试文件通过了 15 个用例。`gatewayIntegration.test.ts` 使用本地上游验证真实网关执行、provider 解析、reasoning 选择、取消和 SQLite 计费。这些检查不代表真实 provider 或 Electron 验收。桌面根会话已经接入；独立子会话投影和 Durable 桌面接入仍是独立工作。
+
 ## Acceptance criteria
 
 - AC1 — 每项公共保证均可追溯到具名样本、固定源码或已执行测试，并有明确证据层级；历史版本仍可辨认。(verification: docs gate — 运行时契约与证据记录维护者)

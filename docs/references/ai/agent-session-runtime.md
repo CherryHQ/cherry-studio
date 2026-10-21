@@ -49,7 +49,7 @@ driver internals behind the same host contract.
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
-| Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses the AI SDK model port and one billing plugin; its native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
+| Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
 
 ## Heartbeat execution deadline
@@ -687,7 +687,7 @@ Allowed in v1:
   These files are a **connection-lifetime snapshot**: editing them deliberately
   does not invalidate a warm connection or its provider prompt cache. Changes
   apply when that connection is naturally rebuilt or the session is reopened.
-- A Cherry AI SDK model binding for native requests, plus inline Cherry-owned
+- A native Pi provider bound to the internal gateway for model requests, plus inline Cherry-owned
   extensions for tool approval/policy enforcement.
 - The complete runtime-neutral result of `buildAgentMcpServers()` — Cherry
   knowledge, memory, skills, assistant/autonomy tools, plus the agent's selected
@@ -920,9 +920,10 @@ for other sessions; validation, connection, editing, and forking retry the impor
 using that session. No failed conversion silently starts an empty context. The original DSH
 files remain untouched. Restoring an older backup repeats the same conversion.
 
-Pi model calls use Cherry's AI SDK provider path, including its transport adapters, credential
-selection, provider options and billing. The Pi driver does not maintain a separate protocol whitelist
-or a local Gateway fallback. Pi remains the sole tool executor and loop owner.
+Pi model calls use native Pi protocols against Cherry's internal gateway. The gateway resolves
+the configured provider/model and owns credentials, request options and billing through Cherry's
+provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
+owns retries; the native HTTP client and gateway do not retry the same request independently.
 
 ## Internal Agent continuation normalization
 
