@@ -1,5 +1,8 @@
 import { seeders } from '@data/db/seeding/seederRegistry'
+import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
+import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { CacheService } from '@main/data/CacheService'
@@ -8,7 +11,10 @@ import { PreferenceService } from '@main/data/PreferenceService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { mountBuiltinAgentTemplates } from '../agent/builtinAgentTemplates'
+import { mountAccountFiles, unmountAccountFiles } from '../database/accountFiles'
 import { type OpenedDatabase, openDatabase } from '../database/openDatabase'
+import { WebCherryAssistantSeeder } from '../database/WebCherryAssistantSeeder'
 import { WebPreferenceDefaultsSeeder } from '../database/WebPreferenceDefaultsSeeder'
 import { application } from '../runtime/application'
 import { connectPage, ipcMain } from '../runtime/electron'
@@ -49,7 +55,15 @@ async function startPageServices() {
 async function startAccountServices(opened: OpenedDatabase) {
   application.register('DbService', opened.service)
   // The desktop seeds on every start (`DbService.onInit`); PreferenceService only updates existing rows.
-  new SeedRunner(opened.service.getDb()).runAll([new WebPreferenceDefaultsSeeder(), ...seeders])
+  // Its built-in agents run on Claude Code, which the browser cannot run; the Web seeds a Pi assistant.
+  const desktopSeeders = seeders.filter(
+    (seeder) => !(seeder instanceof CherryAssistantSeeder || seeder instanceof CherrySupportSeeder)
+  )
+  new SeedRunner(opened.service.getDb()).runAll([
+    new WebPreferenceDefaultsSeeder(),
+    ...desktopSeeders,
+    new WebCherryAssistantSeeder()
+  ])
   const preferences = new PreferenceService()
   await preferences._doInit()
   application.register('PreferenceService', preferences)
@@ -64,6 +78,11 @@ async function startAccountServices(opened: OpenedDatabase) {
     addSpanEvent() {},
     saveSpans: async () => {}
   })
+  // The agent host releases Claude Code's warm queries for every session; the browser runtime keeps none.
+  application.register('ClaudeCodeWarmQueryManager', { close: async () => {}, closeAgentSessionWarm() {} })
+  const agentSessions = new AgentSessionRuntimeService()
+  await agentSessions._doInit()
+  application.register('AgentSessionRuntimeService', agentSessions)
 }
 
 function serializeError(error: unknown): SerializedError {
@@ -97,6 +116,8 @@ export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string
       if (opened) throw new Error(`The database is already open at ${opened.path}`)
       await started
       opened = await openDatabase(account, { handoverTimeoutMs })
+      await mountAccountFiles(account)
+      await mountBuiltinAgentTemplates()
       await startAccountServices(opened)
       return { path: opened.path, openMs: opened.openMs, migrateMs: opened.migrateMs }
     },
@@ -113,9 +134,11 @@ export function startCoreWorker(scope: WorkerScope, extraCommands: Record<string
     async close() {
       if (!opened) return
       // Let live replies persist their partial text before the database goes away.
+      await application.get('AgentSessionRuntimeService')._doStop()
       await application.get('AiStreamManager')._doStop()
       await application.get('PreferenceService')._doStop()
       opened.close()
+      unmountAccountFiles()
       opened = undefined
     }
   }

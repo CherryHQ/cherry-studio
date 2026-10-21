@@ -1,9 +1,8 @@
-// Stand-ins for the agent entry points the `ai.*` IPC handlers import; the agent gets its own Web Spec.
+// Stand-ins for the agent features the `ai.*` IPC handlers import that the Web edition leaves out:
+// archiving (workspace archives), user workspaces, and the built-in skill and support sessions.
 import { unsupported, unsupportedClass, unsupportedService } from './unsupported'
 
 export const AgentSessionArchiveBusyError = unsupportedClass('Agent session archiving')
-export const AgentSessionForkError = unsupportedClass('Agent session forks')
 export const agentWorkspaceStorageService = unsupportedService('Agent workspaces')
-export const createAgent = unsupported('Agents')
 export const createBuiltinSkillSession = unsupported('Built-in skill sessions')
 export const createBuiltinSupportSession = unsupported('Built-in support sessions')

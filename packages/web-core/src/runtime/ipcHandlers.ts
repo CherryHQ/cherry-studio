@@ -16,12 +16,26 @@ ipcMain.on(NATIVE_THEME_CHANNEL, (_event, theme) => {
   application.get('IpcApiService').broadcast('system.native_theme_updated', nativeTheme)
 })
 
-/** IpcApi routes the Web edition serves: chat streams, and Web answers to what the desktop shell asks at start. */
+/**
+ * IpcApi routes the Web edition serves: chat streams, agent creation, tool approvals and the agent
+ * session runtime, and Web answers to what the desktop shell asks at start. Archiving and deleting
+ * agents and sessions need the desktop's workspace archives, which the Web edition does not have yet.
+ */
 const servedHandlers: Partial<IpcHandlersFor<IpcRequestSchemas>> = {
   'ai.stream.open': aiHandlers['ai.stream.open'],
   'ai.stream.attach': aiHandlers['ai.stream.attach'],
   'ai.stream.detach': aiHandlers['ai.stream.detach'],
   'ai.stream.abort': aiHandlers['ai.stream.abort'],
+  'ai.tool.respond_approval': aiHandlers['ai.tool.respond_approval'],
+  'ai.agent.create': aiHandlers['ai.agent.create'],
+  'ai.agent.session.prewarm': aiHandlers['ai.agent.session.prewarm'],
+  'ai.agent.session.close_warm': aiHandlers['ai.agent.session.close_warm'],
+  'ai.agent.session.set_pending_input_count': aiHandlers['ai.agent.session.set_pending_input_count'],
+  'ai.agent.session.refresh_context_usage': aiHandlers['ai.agent.session.refresh_context_usage'],
+  // Edits and forks answer that the runtime cannot fork, as the desktop does for such a runtime.
+  'ai.agent.session.edit_target': aiHandlers['ai.agent.session.edit_target'],
+  'ai.agent.session.edit_resend': aiHandlers['ai.agent.session.edit_resend'],
+  'ai.agent.session.fork': aiHandlers['ai.agent.session.fork'],
   'app.get_info': async () => ({
     version,
     isPackaged: true,

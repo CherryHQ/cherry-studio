@@ -21,10 +21,14 @@
   "dependencies": {
     "@cherrystudio/sqlite-wasm-compat": "workspace:*",
     "@noble/hashes": "^2.4.0",
+    "@zenfs/core": "^2.7.7",
+    "@zenfs/dom": "^1.2.14",
+    "ai": "6.0.185",
     "buffer": "^6.0.3",
     "drizzle-orm": "^0.44.5",
     "es-toolkit": "^1.49.0",
-    "pathe": "^2.0.3"
+    "pathe": "^2.0.3",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
