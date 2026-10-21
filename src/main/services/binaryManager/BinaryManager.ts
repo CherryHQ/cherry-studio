@@ -84,7 +84,8 @@ const MISE_PASSTHROUGH_ENV = [
 
 // Backend → default runtime spec. The runtime name must be a registered
 // RuntimeInterpreter, so a new backend can't silently bypass isRuntimeDependency.
-const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: 'node@22', pipx: 'python@3.12' }
+// OpenClaw needs >=24.16; bare node@24 can reuse an installed 24.10.0.
+const RUNTIME_DEPS: Record<string, `${RuntimeInterpreter}@${string}`> = { npm: 'node@24.16', pipx: 'python@3.12' }
 
 // Query commands (which/ls/registry/latest) finish in seconds. Installs are a
 // different budget entirely: `use` may download a full runtime (node, python)
