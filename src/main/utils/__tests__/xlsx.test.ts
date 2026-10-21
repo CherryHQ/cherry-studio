@@ -296,6 +296,47 @@ describe('extractXlsxText', () => {
     expect((await extractXlsxText(data)).split('\n')[1].split('\t')[0]).toBe('06:00:00')
   })
 
+  it('reads a merged range that covers the whole sheet without creating its cells', async () => {
+    // ExcelJS creates every cell of a merged range on load, 17 billion of them for A1:XFD1048576
+    const built = await xlsxBytes((workbook) => {
+      const sheet = workbook.addWorksheet('Big')
+      sheet.getCell('A1').value = 'Report'
+      sheet.mergeCells('A1:B2')
+    })
+    const data = await editSheetXml(built, 'xl/worksheets/sheet1.xml', (xml) =>
+      xml.replace('<mergeCell ref="A1:B2"/>', '<mergeCell ref="A1:XFD1048576"/>')
+    )
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Big\nReport')
+  })
+
+  it('reads a merged range once even when another of its cells keeps hidden text', async () => {
+    // LibreOffice can keep the text of the cells a merge hides; the sheet shows only the first cell
+    const built = await xlsxBytes((workbook) => {
+      const sheet = workbook.addWorksheet('Kept')
+      sheet.getCell('A1').value = 'shown'
+      sheet.getCell('C1').value = 'next'
+      sheet.mergeCells('A1:B1')
+    })
+    // ExcelJS writes B1 empty; put the hidden text back the way LibreOffice stores it
+    const data = await editSheetXml(built, 'xl/worksheets/sheet1.xml', (xml) =>
+      xml.replace('<c r="B1"/>', '<c r="B1" t="inlineStr"><is><t>hidden</t></is></c>')
+    )
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Kept\nshown\t\tnext')
+  })
+
+  it('reads a cached text result with entity-like text as written', async () => {
+    // ExcelJS decodes a cached text result's entities twice, turning `&lt;b&gt;` into `<b>`
+    const data = await xlsxBytes((workbook) => {
+      const row = workbook.addWorksheet('Literal').getRow(1)
+      row.getCell(1).value = '&lt;b&gt;'
+      row.getCell(2).value = { formula: 'A1', result: '&lt;b&gt;' }
+    })
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Literal\n&lt;b&gt;\t&lt;b&gt;')
+  })
+
   it('reads a cached empty formula result as an empty cell', async () => {
     const built = await xlsxBytes((workbook) => {
       const row = workbook.addWorksheet('Blank').getRow(1)

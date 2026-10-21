@@ -17,21 +17,31 @@ import type { Cell, CellValue } from 'exceljs'
 export async function extractXlsxText(data: Uint8Array): Promise<string> {
   // Delayed loading: exceljs stays out of the boot path.
   const { default: ExcelJS } = await import('exceljs')
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(new Uint8Array(data).buffer)
-  const date1904 = Boolean(workbook.properties.date1904)
   const stored = await storedWorkbook(data)
+  const workbook = new ExcelJS.Workbook()
+  // Loaded without its merged ranges: ExcelJS creates every cell a range covers, and one range can
+  // cover all 17 billion cells of a sheet
+  await workbook.xlsx.load(new Uint8Array(stored.data).buffer)
+  const date1904 = Boolean(workbook.properties.date1904)
 
   const sheets: string[] = []
   workbook.eachSheet((worksheet) => {
     const lines = [`Sheet: ${worksheet.name}`]
     const sheetCells = stored.cells.get(worksheet.name)
-    worksheet.eachRow((row) => {
+    // The ranges that reach the current row, swept down the sheet as rows come in order
+    const merges = stored.merges.get(worksheet.name) ?? []
+    let nextMerge = 0
+    let activeMerges: MergeRange[] = []
+    worksheet.eachRow((row, rowNumber) => {
+      while (nextMerge < merges.length && merges[nextMerge].top <= rowNumber) activeMerges.push(merges[nextMerge++])
+      activeMerges = activeMerges.filter((range) => range.bottom >= rowNumber)
       const cells: string[] = []
       row.eachCell({ includeEmpty: true }, (cell, column) => {
-        // ExcelJS gives every cell of a merged range the master's value (a formula follower has no
-        // result); the sheet shows it once, in the master
-        if (cell.isMerged && cell.master.address !== cell.address) {
+        // A merged range shows its value once, in its first cell; another cell of the range can still
+        // hold text the sheet hides (LibreOffice keeps it)
+        const inRange = activeMerges.some((range) => column >= range.left && column <= range.right)
+        const isMaster = activeMerges.some((range) => rowNumber === range.top && column === range.left)
+        if (inRange && !isMaster) {
           cells[column - 1] = ''
           return
         }
@@ -58,6 +68,9 @@ function cellText(cell: Cell, numFmt: string, date1904: boolean, stored?: Stored
     // ExcelJS also leaves out a cached empty text result, which the sheet stores as <v></v> or <v/>
     if (result === undefined || result === null)
       return stored ? storedText(stored, numFmt, date1904) : `=${cell.formula}`
+    // ExcelJS decodes a cached text result's XML entities a second time, so `&lt;b&gt;` written
+    // in a cell reads as `<b>`; the stored text is decoded once
+    if (stored?.type === 'str') return stored.text
     value = result
   }
   if (value === null || value === undefined) return ''
@@ -176,10 +189,15 @@ interface StoredCell {
  * escaped character, so `h:mm\ \d\a\i\l\y` reaches it as `h:mm daily`, where `d` and `y` read as
  * date tokens.
  */
-async function storedWorkbook(data: Uint8Array): Promise<{ cells: Map<string, Map<string, StoredCell>> }> {
+async function storedWorkbook(data: Uint8Array): Promise<{
+  cells: Map<string, Map<string, StoredCell>>
+  merges: Map<string, MergeRange[]>
+  data: Uint8Array
+}> {
   const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(data)
   const cells = new Map<string, Map<string, StoredCell>>()
+  const merges = new Map<string, MergeRange[]>()
 
   // The format of each cell style, by its index in <cellXfs>: the stored code of a custom format,
   // and whether the format shows a date or time in any section
@@ -210,7 +228,7 @@ async function storedWorkbook(data: Uint8Array): Promise<{ cells: Map<string, Ma
 
   const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
   const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
-  if (!workbookXml || !relsXml) return { cells }
+  if (!workbookXml || !relsXml) return { cells, merges, data }
   const targets = new Map<string, string>()
   for (const [tag] of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
     const id = xmlAttribute(tag, 'Id')
@@ -222,6 +240,11 @@ async function storedWorkbook(data: Uint8Array): Promise<{ cells: Map<string, Ma
     const path = targets.get(xmlAttribute(tag, 'r:id') ?? '')
     const xml = path ? await zip.file(path)?.async('string') : undefined
     if (name === undefined || !xml) continue
+    const ranges = mergeRanges(xml)
+    if (ranges.length) {
+      merges.set(name, ranges)
+      zip.file(path as string, xml.replace(/<mergeCells\b[^>]*?(?:\/>|>[\s\S]*?<\/mergeCells>)/g, ''))
+    }
     // Most sheets hold none of these, so their cells are not walked
     const hasFormulaResult = /<f[\s/>]/.test(xml) && /\st=["'](?:str|b|e)["']/.test(xml)
     // A number outside Date's range has an integer part of at least 99,974,431: eight digits or an exponent
@@ -245,7 +268,44 @@ async function storedWorkbook(data: Uint8Array): Promise<{ cells: Map<string, Ma
     }
     if (sheetCells.size) cells.set(name, sheetCells)
   }
-  return { cells }
+  // Repacked without compression only when a sheet had merged ranges to take out
+  const loadData = merges.size ? await zip.generateAsync({ type: 'uint8array', compression: 'STORE' }) : data
+  return { cells, merges, data: loadData }
+}
+
+/** A merged range by 1-based row and column bounds. */
+interface MergeRange {
+  top: number
+  left: number
+  bottom: number
+  right: number
+}
+
+/** The `<mergeCell ref="A1:C3">` ranges of a sheet, ordered by their first row. */
+function mergeRanges(xml: string): MergeRange[] {
+  const ranges: MergeRange[] = []
+  for (const [tag] of xml.matchAll(/<mergeCell\b[^>]*>/g)) {
+    const [from, to = from] = (xmlAttribute(tag, 'ref') ?? '').split(':')
+    const start = cellPosition(from)
+    const end = cellPosition(to)
+    if (!start || !end) continue
+    ranges.push({
+      top: Math.min(start.row, end.row),
+      left: Math.min(start.column, end.column),
+      bottom: Math.max(start.row, end.row),
+      right: Math.max(start.column, end.column)
+    })
+  }
+  return ranges.sort((a, b) => a.top - b.top)
+}
+
+/** The 1-based row and column of an A1-style reference such as `$B$12`. */
+function cellPosition(ref: string): { row: number; column: number } | undefined {
+  const match = /^\$?([A-Za-z]{1,3})\$?(\d+)$/.exec(ref.trim())
+  if (!match) return undefined
+  let column = 0
+  for (const letter of match[1].toUpperCase()) column = column * 26 + letter.charCodeAt(0) - 64
+  return { row: Number(match[2]), column }
 }
 
 /** Whether a cell of the sheet XML has one of the style indexes in `styles`. */
