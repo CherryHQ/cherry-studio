@@ -23,6 +23,22 @@ describe('host entries', () => {
     expect(w.host.emitted.filter((event) => event.type === 'goal-notice')).toHaveLength(1)
   })
 
+  // Catches /goal arming a goal on a model that cannot call tools (X2): the driver would start rounds it cannot act in.
+  it('creates no goal and starts no round on a model without tool calling', async () => {
+    const w = world({ host: { supportsTools: false } })
+    const t = await w.fake.createThread()
+    w.fake.script(
+      t,
+      Array.from({ length: 8 }, (_, i) => reply(`round ${i}`))
+    )
+    const notice = await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'ship it', 'cmd-1'))
+    await w.fake.settle()
+    const facts = await w.read(t)
+    expect(notice).toMatchObject({ level: 'error' })
+    expect(records(facts, 'goal')).toEqual([])
+    expect(markers(facts, 'goal-round')).toEqual([])
+  })
+
   // Catches a pause that leaves the running round going, or that is not recorded as a stop (plan choice 9 of Stage B).
   it('/goal pause stops the running round after recording the stop', async () => {
     const hold = holds()

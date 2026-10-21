@@ -128,7 +128,8 @@ export const SETTINGS: HostSettingsSnapshot = {
 export const MODELS: ModelFacts = {
   candidates: [],
   parentModelKey: 'p/parent',
-  defaultChildModelKey: 'p/child'
+  defaultChildModelKey: 'p/child',
+  supportsTools: true
 }
 export const inputs = (patch: Partial<CallInputs> = {}): CallInputs => ({
   now: 1000,
