@@ -23,6 +23,8 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
+import { gatewayCredentialsFingerprint } from '../agentApiGateway'
+
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
   if (!value || typeof value !== 'object') return value
@@ -126,7 +128,8 @@ export async function capturePiConnectionSnapshot(
           browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
           computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          effectiveLanguage
+          effectiveLanguage,
+          gateway: gatewayCredentialsFingerprint()
         })
       )
     )

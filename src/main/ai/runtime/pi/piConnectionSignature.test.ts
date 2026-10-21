@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const mocks = vi.hoisted(() => ({
+  gatewayOrigin: 'http://127.0.0.1:9000',
   getSession: vi.fn(),
   getAgent: vi.fn(),
   getProvider: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const get = result.application.getContainer().get.bind(result.application.getContainer())
   result.application.get.mockImplementation((name: string) => {
+    if (name === 'ApiGatewayService') return { getInternalGatewayOrigin: () => mocks.gatewayOrigin }
     if (name === 'McpCatalogService') return { listTools: mocks.listTools }
     if (name === 'McpRuntimeService') return { getConnectedServerInstructions: mocks.getInstructions }
     if (name === 'AgentSessionRuntimeService')
@@ -238,5 +240,11 @@ describe('capturePiConnectionSnapshot', () => {
     expect((await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).toBe(
       disabled.signature
     )
+  })
+  it('retires a warm connection when the internal gateway listener changes', async () => {
+    const before = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.gatewayOrigin = 'http://127.0.0.1:9001'
+    const after = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(after.signature).not.toBe(before.signature)
   })
 })

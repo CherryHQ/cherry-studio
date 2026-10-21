@@ -96,15 +96,15 @@ Native harness facts -> adapter normalization -> host Lane/history projection ->
 | [agent-runtime](../../../../packages/agent-runtime/README.md) | 公共契约、不透明 ID 和 `ThreadFeed` 观察交付；不含执行循环、SDK、Electron、AI SDK 或产品实体。 |
 | [agent-runtime-pi](../../../../packages/agent-runtime-pi/README.md) | Pi coding-agent 接入及自有的 Pi goal、工具和子智能体扩展，使用原生会话与存储。 |
 | [agent-runtime-pi-durable](../../../../packages/agent-runtime-pi-durable/README.md) | 独立接入 Pi Durable 的 `Harness`、conversation/task API、调度器与存储。 |
-| [Cherry 模型桥](../../../../src/main/ai/runtime/pi/README.md) | 宿主选择模型，将原生 Pi provider 注册到内部网关。Pi 保留协议流、重放和工具循环；Cherry 保留凭证管理与 provider 调用计费。 |
+| [Cherry 原生 provider 绑定](../../../../src/main/ai/runtime/pi/README.md) | 宿主选择模型，将原生 Pi provider 注册到内部网关。Pi 保留协议流、重放和工具循环；Cherry 保留凭证管理与 provider 调用计费。 |
 
 Pi Durable 是独立执行系统，不是 coding-agent 的持久化开关。两个适配器依赖公共包，互不依赖。Pi session 决定请求重试；原生 HTTP 客户端和内部网关不叠加重试，网关不执行 Pi 的工具。原生压缩、验证器上下文和 child 续接使用原生消息与 manager，不从公共展示 Item 重建。
 
-桌面服务仍使用既有 Runtime 路径。[Runtime 契约](2026-10-17-agent-runtime-contract.md) 记录已实现的访问协议及其限制；[Harness 证据文档](../testing/2026-10-17-agent-harness-evidence.md) 区分五类原生样本、历史探针、源码覆盖与剩余验收。[Goal 文档](../feature/2026-10-11-agent-runtime-goal.md) 和[后台子智能体文档](../feature/2026-10-14-agent-runtime-background-subagent.md) 分别维护 Pi 专用决策。
+Cherry 桌面的 Pi 根会话使用公共 Runtime；独立子会话投影和 Durable 桌面接入仍是独立工作。[Runtime 契约](2026-10-17-agent-runtime-contract.md) 记录已实现的访问协议及其限制；[Harness 证据文档](../testing/2026-10-17-agent-harness-evidence.md) 区分五类原生样本、历史探针、源码覆盖与剩余验收。[Goal 文档](../feature/2026-10-11-agent-runtime-goal.md) 和[后台子智能体文档](../feature/2026-10-14-agent-runtime-background-subagent.md) 分别维护 Pi 专用决策。
 
 ### 通过内部网关使用原生 Pi provider
 
-本次获准删除宿主 `ModelCallPort`、自定义 AI SDK 流协议、元数据编码及绑定强制的 session 设置。宿主向已有内部网关注册原生 Pi provider。网关执行层拥有 provider 凭证和计费，原生 session 事件提供展示用量；本次不重构网关内部管线。通过 HTTP 集成测试保留工具所有权、原生历史、压缩、停止及重试行为，并在桌面接入所属栈层验证实际接入。
+本次获准删除宿主 `ModelCallPort`、自定义 AI SDK 流协议、元数据编码及绑定强制的 session 设置。宿主向已有内部网关注册原生 Pi provider。网关执行层拥有 provider 凭证和计费，原生响应用量用于展示与上下文计算；本次不重构网关内部管线。通过 HTTP 集成测试保留工具所有权、原生历史、压缩、停止及重试行为，并在桌面接入所属栈层验证实际接入。
 
 ## Alternatives considered
 

@@ -20,9 +20,8 @@ import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
-import { createAiSdkModelBinding } from './aiSdkModelBinding'
-import { finish, MODEL, scriptedModel, streamTextPort, tempDir, textParts } from './aiSdkSupport'
 import * as PiApproval from './approvalExtension'
+import { createTestBinding, finish, gatewayModel, MODEL, scriptedModel, tempDir, textParts } from './gatewaySupport'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
@@ -39,6 +38,10 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
   const overrides = {
     DbService: defaultServiceInstances.DbService,
+    ApiGatewayService: {
+      ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
+      getAgentSessionUsageHeaders: () => ({})
+    },
     McpCatalogService: { listTools: () => [] },
     AgentSessionRuntimeService: { getInteractionState: mocks.interaction }
   }
@@ -48,7 +51,7 @@ vi.mock('./piConnectionSignature', () => ({
   capturePiConnectionSnapshot: mocks.capture,
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
-vi.mock('./piModelPort', () => ({ createPiModelBinding: mocks.binding }))
+vi.mock('./gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
@@ -136,7 +139,7 @@ describe('desktop Pi root connection', () => {
     mocks.prompt.mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
     setScript([[...textParts('answer', 'Hello ', 'world'), finish('stop')]])
     mocks.binding.mockImplementation(async () =>
-      createAiSdkModelBinding({ model: MODEL, port: streamTextPort(script.model).port, requestOptions: undefined })
+      createTestBinding({ model: MODEL, port: gatewayModel(script.model).upstream })
     )
   })
   afterEach(async () => {
@@ -325,6 +328,26 @@ describe('desktop Pi root connection', () => {
     expect(text(next.events)).toBe('resumed')
   })
 
+  it.each(['high', 'low', 'none'] as const)('retains explicit %s reasoning in the native session', async (reasoningEffort) => {
+    input.reasoningEffort = reasoningEffort
+    const { connection, events } = await connect()
+    await connection.send({ message: message('question') })
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    const entries = readFileSync(join(application.getPath('feature.agents.pi.sessions'), nativeFiles()[0]), 'utf8')
+      .trim().split('\n').map((line) => JSON.parse(line))
+    expect(entries).toContainEqual(expect.objectContaining({
+      type: 'thinking_level_change', thinkingLevel: reasoningEffort === 'none' ? 'off' : reasoningEffort
+    }))
+  })
+
+  it('keeps equivalent automatic reasoning selections on the same connection', async () => {
+    input.reasoningEffort = 'auto'
+    const { connection } = await connect()
+    expect(await connection.reconcile({ modelId: MODEL.id, reasoningEffort: 'default' })).toBe('current')
+    expect(await connection.reconcile({ modelId: MODEL.id })).toBe('current')
+  })
+
   it('rebuilds for changed per-turn settings and rejects startup configuration drift', async () => {
     const { connection } = await connect()
     expect(await connection.reconcile({ modelId: MODEL.id, reasoningEffort: 'high' })).toBe('rebuild')
@@ -411,10 +434,9 @@ describe('desktop Pi root connection', () => {
 
   it('compacts through the Pi facet without replaying history or creating a second user input', async () => {
     mocks.binding.mockImplementation(async () => ({
-      ...(await createAiSdkModelBinding({
+      ...(await createTestBinding({
         model: MODEL,
-        port: streamTextPort(script.model).port,
-        requestOptions: undefined
+        port: gatewayModel(script.model).upstream
       })),
       compaction: { reserveTokens: 16_384, keepRecentTokens: 1 }
     }))
