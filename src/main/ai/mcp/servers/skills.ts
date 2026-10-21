@@ -3,7 +3,9 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
+import { skillCaptureService } from '@main/ai/skills/SkillCaptureService'
 import { skillService } from '@main/ai/skills/SkillService'
+import { SkillSuggestionSchema, SkillCaptureSchema } from '@shared/types/skillCapture'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('McpServer:Skills')
@@ -27,18 +29,48 @@ async function fetchMarketplaceJson(url: string): Promise<unknown> {
 /**
  * MCP server exposing skill discovery + install to any agent.
  *
- * Only two deterministic actions: `search_skills` (read-only marketplace search) and
+ * `search_skills` (read-only marketplace search) and
  * `install_skill` (clone-and-install exactly one skill into Cherry's managed library via
  * `SkillService.install`). Search reuses the shared `normalizeClaudePlugins` so the install source
  * is built from the real repo directory, never the display name — the model passes that opaque
- * string straight back to install_skill, so it can't pick the wrong skill. Authoring is intentionally
- * NOT here — the skill-creator skill writes files into `$CHERRY_STUDIO_SKILLS_DIR` and
- * `SkillService.reconcileSkills` catalogs them. Install goes through the main process so a weak model
+ * string straight back to install_skill, so it can't pick the wrong skill. Interactive sessions also
+ * expose suggestions and draft review; publishing a generated draft remains a renderer action.
+ * Install goes through the main process so a weak model
  * only needs one tool call, not a correct multi-step shell sequence.
  */
-export function createSkillsServer(agentId: string): McpServer {
+export function createSkillsServer(agentId: string, sessionId?: string): McpServer {
   const issuedInstallSources = new Set<string>()
   const server = new McpServer({ name: 'skills', version: '1.0.0' })
+
+  if (sessionId && skillCaptureService.isAvailable(sessionId, agentId)) {
+    server.registerTool(
+      'suggest_skill',
+      {
+        description:
+          'Suggest saving a completed, reusable task as a skill. This only prepares an inline suggestion; never call it for simple answers, unfinished tasks, existing skill execution, or skill creation. Reuse a stable taskKey across the same task. Include successful steps and user corrections in summary.',
+        inputSchema: SkillSuggestionSchema
+      },
+      async (input) => ({
+        content: [{ type: 'text', text: JSON.stringify(skillCaptureService.suggest(sessionId, agentId, input)) }]
+      })
+    )
+    server.registerTool(
+      'prepare_skill_draft',
+      {
+        description:
+          'Present a draft for user review after the user clicks Save as Skill. Files must be in the supplied draft directory. This does not install or enable the skill. Call again after editing the draft.',
+        inputSchema: z.strictObject({ messageId: z.uuid(), folderName: SkillCaptureSchema.shape.folderName.unwrap() })
+      },
+      async ({ messageId, folderName }) => ({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(await skillCaptureService.prepare({ sessionId, messageId }, folderName))
+          }
+        ]
+      })
+    )
+  }
 
   server.registerTool(
     'search_skills',

@@ -6,6 +6,19 @@ version: 1.0.0
 
 ## Cherry Studio workflow (READ FIRST — overrides packaging / install steps below)
 
+### From-task draft mode
+
+When Cherry supplies a Save as Skill request with a draft directory, work in that
+directory only. This mode overrides the direct-install instructions below. Use
+the supplied task evidence and the user's corrections to produce a reusable
+method; parameterize one-off values and exclude credentials and raw input files.
+Ask only for missing information that changes how the skill will be reused.
+Skip the benchmark loop unless requested. Call `mcp__skills__prepare_skill_draft`
+when the draft is ready, and again after revisions. The user reviews and saves
+through Cherry's inline controls; never install or enable the draft yourself.
+
+### Direct creation
+
 You are running inside Cherry Studio. Skills live in a managed registry that Cherry
 keeps in sync with the filesystem automatically — there is **no** install or register
 tool to call, and you should **ignore** any `package_skill.py` / `.skill` packaging

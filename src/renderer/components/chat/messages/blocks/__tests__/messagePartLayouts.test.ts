@@ -17,6 +17,24 @@ function indexes(items: readonly PartEntry[]): number[] {
   return items.map((entry) => entry.index)
 }
 
+it('places a skill suggestion after the completed answer without changing its source index', () => {
+  const layout = projectCompletedMessageParts(
+    entries([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'suggest',
+        toolName: 'mcp__skills__suggest_skill',
+        state: 'output-available',
+        input: {},
+        output: {}
+      },
+      { type: 'text', text: 'The report is complete.' }
+    ])
+  )
+  expect(indexes(layout.resultEntries)).toEqual([1, 0])
+  expect(layout.historyEntries).toEqual([])
+})
+
 const GENERATED_IMAGE_RESULTS: ReadonlyArray<[string, string, unknown]> = [
   ['Home image output', 'generate_image', [{ id: 'file-1', name: 'sunset.png' }]],
   [

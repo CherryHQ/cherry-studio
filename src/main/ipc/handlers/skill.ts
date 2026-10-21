@@ -1,7 +1,11 @@
 import { shell } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { skillCaptureService } from '@main/ai/skills/SkillCaptureService'
 import { SkillRemoteUpdateError, skillService } from '@main/ai/skills/SkillService'
+import { WebContentsListener } from '@main/ai/streamManager'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -25,6 +29,21 @@ async function toSkillResult<T>(op: () => Promise<T>, failMessage: string): Prom
 }
 
 export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
+  'skill.capture.start': ({ sessionId, messageId, requestText }, { senderId }) => {
+    const wc = senderId && application.get('WindowManager').getWindow(senderId)?.webContents
+    if (!wc) throw new Error('Skill creation requires a managed window')
+    return skillCaptureService.start(
+      { sessionId, messageId },
+      new WebContentsListener(wc, buildAgentSessionTopicId(sessionId)),
+      requestText
+    )
+  },
+  'skill.capture.review': (ref) => skillCaptureService.review(ref),
+  'skill.capture.save': async ({ sessionId, messageId, revision }, { senderId }) => {
+    if (!senderId) throw new Error('Saving a skill requires a managed window')
+    return { skillId: await skillCaptureService.save({ sessionId, messageId }, revision) }
+  },
+  'skill.capture.discard': (ref) => skillCaptureService.discard(ref),
   'skill.install': ({ installSource }) =>
     toSkillResult(() => skillService.install({ installSource }), 'Failed to install skill'),
   'skill.uninstall': ({ skillId }) => toSkillResult(() => skillService.uninstall(skillId), 'Failed to uninstall skill'),

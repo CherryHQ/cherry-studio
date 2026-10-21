@@ -27,6 +27,9 @@ function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId
 }
 
 export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas> = {
+  '/agent-sessions/:sessionId/messages/:messageId/skill-suggestion': {
+    DELETE: async ({ params }) => agentSessionMessageService.dismissSkillCapture(params.sessionId, params.messageId)
+  },
   '/agent-sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
       // Message routes scope like session reads: background sessions are not addressable here.

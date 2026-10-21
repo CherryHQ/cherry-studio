@@ -4,6 +4,7 @@ import { buildToolResponseFromPart } from '@renderer/components/chat/messages/to
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { agentInlineResultPresentationRegistry } from '../agentInlineResultPresentationRegistry'
+import { getSkillCaptureResult } from '../skillCaptureResult'
 
 const inlineResultParts = [
   {
@@ -41,6 +42,34 @@ const inlineResultParts = [
 ] as CherryMessagePart[]
 
 describe('agentInlineResultPresentationRegistry', () => {
+  it.each(['claude-code', 'pi'])('preserves the bound suggestion in %s tool output', (transport) => {
+    const ref = { sessionId: '33333333-3333-4333-8333-333333333333', messageId: '44444444-4444-4444-8444-444444444444' }
+    const part: CherryMessagePart = {
+      type: 'dynamic-tool',
+      toolCallId: 'save-skill',
+      toolName: 'mcp__skills__suggest_skill',
+      state: 'output-available',
+      input: {},
+      callProviderMetadata: { cherry: { transport } },
+      output: { content: [{ type: 'text', text: JSON.stringify({ ok: true, ...ref }) }] }
+    }
+    const response = buildToolResponseFromPart(part)!
+    expect(agentInlineResultPresentationRegistry.isResultPart(part)).toBe(true)
+    expect(getSkillCaptureResult(response)).toEqual(ref)
+    expect(agentInlineResultPresentationRegistry.renderResult(response)).toBeDefined()
+  })
+
+  it('does not turn a suppressed suggestion into an actionable card', () => {
+    const response = buildToolResponseFromPart({
+      type: 'dynamic-tool',
+      toolCallId: 'save-skill',
+      toolName: 'mcp__skills__suggest_skill',
+      state: 'output-available',
+      input: {},
+      output: { content: [{ type: 'text', text: '{"ok":false}' }] }
+    })!
+    expect(getSkillCaptureResult(response)).toBeUndefined()
+  })
   it.each(inlineResultParts)('classifies and renders an agent-owned inline result', (part) => {
     const toolResponse = buildToolResponseFromPart(part)
 

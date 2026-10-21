@@ -14,6 +14,7 @@ import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { skillCaptureService } from '@main/ai/skills/SkillCaptureService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -2703,7 +2704,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
     await connection.send({
-      message: turn.userMessage,
+      message: turn.headless ? turn.userMessage : skillCaptureService.augmentMessage(entry.sessionId, turn.userMessage),
       systemReminder: turn.systemReminder === true
     })
   }

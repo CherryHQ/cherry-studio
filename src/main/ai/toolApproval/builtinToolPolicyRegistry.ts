@@ -109,6 +109,8 @@ const BUILTIN_TOOL_POLICIES = {
 
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
+  suggestSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'suggest_skill', 'auto'),
+  prepareSkillDraft: tool(CHERRY_MCP_SERVER.SKILLS, 'prepare_skill_draft', 'auto'),
   // Installs third-party skill code: only bypassPermissions may skip the prompt, Pi's auto mode included.
   installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'required'),
   // A stdio install launches an arbitrary local command with the caller's env, so this asks per call

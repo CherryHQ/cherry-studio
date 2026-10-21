@@ -9,8 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { readByPath, writeIfUnchangedByPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
@@ -23,6 +27,7 @@ const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 vi.mock('../skillRemoteSource', () => ({ fetchRemoteSkill: fetchRemoteSkillMock }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
+import { skillCaptureService } from '../SkillCaptureService'
 import { SkillInstaller } from '../SkillInstaller'
 import { SkillService } from '../SkillService'
 
@@ -40,6 +45,229 @@ describe('SkillService authoring and remote updates', () => {
   let skillsRoot: string
   let mirrorRoot: string
   let getPathSpy: { mockRestore: () => void }
+
+  describe('Save as Skill', () => {
+    const SESSION = '33333333-3333-4333-8333-333333333333'
+    const MESSAGE = '44444444-4444-4444-8444-444444444444'
+    const GENERATION = '55555555-5555-4555-8555-555555555555'
+    const SECOND_AGENT = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    const ref = { sessionId: SESSION, messageId: MESSAGE }
+    const suggestion = {
+      taskKey: 'weekly-report',
+      name: 'Weekly report',
+      description: 'Build a weekly sales report',
+      reason: 'Reuse with next week data',
+      summary: 'Clean input, calculate totals, check figures, write the agreed report format.'
+    }
+    let runtimeSpy: { mockRestore(): void }
+    let currentMessageId: string
+    let headless: boolean
+    let busy: boolean
+
+    beforeEach(async () => {
+      currentMessageId = MESSAGE
+      headless = false
+      busy = false
+      const container = application.getContainer()
+      const get = container.get.bind(container)
+      runtimeSpy = vi.spyOn(container, 'get').mockImplementation(((name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? {
+              getLiveAssistantMessageId: () => currentMessageId,
+              getInteractionState: () => ({
+                currentTurn: headless ? 'headless' : 'interactive',
+                userResponse: headless ? 'unavailable' : 'stream'
+              }),
+              isSessionBusyForArchive: () => busy
+            }
+          : get(name as never)) as typeof container.get)
+      for (const id of [AGENT_ID, SECOND_AGENT]) {
+        dbh.db.insert(agentTable).values({ id, name: id, instructions: '', type: 'claude-code', orderKey: id }).run()
+      }
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: SESSION, name: 'Work', path: root, type: 'user', orderKey: 'a' })
+        .run()
+      dbh.db
+        .insert(agentSessionTable)
+        .values({ id: SESSION, agentId: AGENT_ID, name: 'Reports', workspaceId: SESSION, orderKey: 'a' })
+        .run()
+      for (const id of [MESSAGE, GENERATION]) {
+        dbh.db
+          .insert(agentSessionMessageTable)
+          .values({
+            id,
+            sessionId: SESSION,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'Done' }] }
+          })
+          .run()
+      }
+      await writeSkill(path.join(skillsRoot, 'skill-creator'))
+      await seedSkill(SKILL_ID, 'skill-creator', { source: 'builtin' })
+    })
+
+    afterEach(() => runtimeSpy.mockRestore())
+
+    async function draft() {
+      skillCaptureService.suggest(SESSION, AGENT_ID, suggestion)
+      const capture = agentSessionMessageService.getSessionMessage(SESSION, MESSAGE).data.skillCapture!
+      agentSessionMessageService.setSkillCapture(SESSION, MESSAGE, {
+        ...capture,
+        status: 'generating',
+        generationMessageId: GENERATION
+      })
+      currentMessageId = GENERATION
+      const directory = path.join(root, 'feature.agents.skill_drafts', SESSION, MESSAGE, 'working', 'writer')
+      await writeSkill(directory)
+      return directory
+    }
+
+    it('preserves a suggestion through terminal message persistence and remembers dismissal', () => {
+      skillCaptureService.suggest(SESSION, AGENT_ID, suggestion)
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION,
+        message: {
+          id: MESSAGE,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Final answer' }] }
+        }
+      })
+      expect(agentSessionMessageService.getSessionMessage(SESSION, MESSAGE).data.skillCapture?.status).toBe('suggested')
+      agentSessionMessageService.dismissSkillCapture(SESSION, MESSAGE)
+      currentMessageId = GENERATION
+      expect(skillCaptureService.suggest(SESSION, AGENT_ID, suggestion).ok).toBe(false)
+      expect(agentSessionMessageService.listSkillCaptures(SESSION)).toHaveLength(1)
+      expect(agentSessionMessageService.getSessionMessage(SESSION, MESSAGE).data.skillCapture?.status).toBe('dismissed')
+    })
+
+    it('supports the stable non-UUID identity of the built-in Cherry Assistant', () => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: 'cherry-assistant',
+          name: 'Cherry Assistant',
+          type: 'claude-code',
+          instructions: '',
+          orderKey: 'builtin',
+          configuration: { builtin_role: 'assistant' }
+        })
+        .run()
+      dbh.db
+        .update(agentSessionTable)
+        .set({ agentId: 'cherry-assistant' })
+        .where(eq(agentSessionTable.id, SESSION))
+        .run()
+      expect(skillCaptureService.suggest(SESSION, 'cherry-assistant', suggestion).ok).toBe(true)
+      expect(agentSessionMessageService.getSessionMessage(SESSION, MESSAGE).data.skillCapture?.agentId).toBe(
+        'cherry-assistant'
+      )
+    })
+
+    it('keeps drafts out of the library until confirmation and enables only the current Agent', async () => {
+      await draft()
+      await skillCaptureService.prepare(ref, 'writer')
+      expect(await new SkillService().getByFolderName('writer')).toBeNull()
+      expect((await skillCaptureService.prepare(ref, 'writer')).ok).toBe(false)
+      const preview = await skillCaptureService.review(ref)
+      expect(preview.files.map((file) => file.name)).toContain('SKILL.md')
+      const id = await skillCaptureService.save(ref, preview.revision)
+      expect(agentGlobalSkillService.list({ agentId: AGENT_ID }).find((skill) => skill.id === id)?.isEnabled).toBe(true)
+      expect(agentGlobalSkillService.list({ agentId: SECOND_AGENT }).find((skill) => skill.id === id)?.isEnabled).toBe(
+        false
+      )
+      expect(await skillCaptureService.save(ref, preview.revision)).toBe(id)
+      expect(agentSessionMessageService.getSessionMessage(SESSION, MESSAGE).data.skillCapture?.status).toBe('saved')
+    })
+
+    it('rejects stale review after edits and saves the newly reviewed content', async () => {
+      const directory = await draft()
+      await skillCaptureService.prepare(ref, 'writer')
+      const old = await skillCaptureService.review(ref)
+      await fs.promises.writeFile(path.join(directory, 'scripts', 'run.sh'), 'echo revised\n')
+      await expect(skillCaptureService.save(ref, old.revision)).rejects.toThrow('draft changed')
+      await skillCaptureService.prepare(ref, 'writer')
+      const next = await skillCaptureService.review(ref)
+      expect(next.revision).not.toBe(old.revision)
+      await expect(skillCaptureService.save(ref, old.revision)).rejects.toThrow('Preview')
+      await skillCaptureService.save(ref, next.revision)
+      expect(await fs.promises.readFile(path.join(skillsRoot, 'writer', 'scripts', 'run.sh'), 'utf8')).toBe(
+        'echo revised\n'
+      )
+    })
+
+    it('rejects a draft directory redirected outside its owned staging area', async () => {
+      const directory = await draft()
+      const working = path.dirname(directory)
+      const outside = path.join(root, 'outside')
+      await fs.promises.rename(working, outside)
+      await fs.promises.symlink(outside, working, 'junction')
+      await expect(skillCaptureService.prepare(ref, 'writer')).rejects.toThrow('symbolic links')
+      expect(await new SkillService().getByFolderName('writer')).toBeNull()
+    })
+
+    it('rejects a reviewed snapshot changed at the install boundary', async () => {
+      await draft()
+      await skillCaptureService.prepare(ref, 'writer')
+      const preview = await skillCaptureService.review(ref)
+      const original = SkillInstaller.prototype.install
+      const install = vi
+        .spyOn(SkillInstaller.prototype, 'install')
+        .mockImplementationOnce(async function (this: SkillInstaller, source, destination, expectedHash) {
+          await fs.promises.appendFile(path.join(source, 'SKILL.md'), '\nUnexpected change')
+          return original.call(this, source, destination, expectedHash)
+        })
+      try {
+        await expect(skillCaptureService.save(ref, preview.revision)).rejects.toThrow('changed before installation')
+        expect(await new SkillService().getByFolderName('writer')).toBeNull()
+      } finally {
+        install.mockRestore()
+      }
+    })
+
+    it('requires user activation and a successful generation before saving', async () => {
+      skillCaptureService.suggest(SESSION, AGENT_ID, suggestion)
+      await expect(skillCaptureService.prepare(ref, 'writer')).rejects.toThrow('has not started')
+      await draft()
+      await skillCaptureService.prepare(ref, 'writer')
+      const preview = await skillCaptureService.review(ref)
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ status: 'error' })
+        .where(eq(agentSessionMessageTable.id, GENERATION))
+        .run()
+      await expect(skillCaptureService.save(ref, preview.revision)).rejects.toThrow('did not finish')
+      expect(await new SkillService().getByFolderName('writer')).toBeNull()
+    })
+
+    it('rejects headless suggestions and revoked ownership', async () => {
+      headless = true
+      expect(() => skillCaptureService.suggest(SESSION, AGENT_ID, suggestion)).toThrow('interactive')
+      headless = false
+      await draft()
+      dbh.db.update(agentSessionTable).set({ agentId: SECOND_AGENT }).where(eq(agentSessionTable.id, SESSION)).run()
+      await expect(skillCaptureService.prepare(ref, 'writer')).rejects.toThrow('cannot create')
+    })
+
+    it('preserves existing skills on a name conflict and prevents saves during active work', async () => {
+      await draft()
+      await skillCaptureService.prepare(ref, 'writer')
+      const preview = await skillCaptureService.review(ref)
+      busy = true
+      await expect(skillCaptureService.save(ref, preview.revision)).rejects.toThrow('Wait')
+      busy = false
+      await writeSkill(path.join(skillsRoot, 'writer'), { body: '# Existing instructions' })
+      await seedSkill(OTHER_SKILL_ID, 'writer')
+      await expect(skillCaptureService.save(ref, preview.revision)).rejects.toThrow('refusing to overwrite')
+      expect(await fs.promises.readFile(path.join(skillsRoot, 'writer', 'SKILL.md'), 'utf8')).toContain(
+        'Existing instructions'
+      )
+      await skillCaptureService.discard(ref)
+      await expect(skillCaptureService.save(ref, preview.revision)).rejects.toThrow('Preview')
+    })
+  })
 
   async function makeTempDir(prefix: string): Promise<string> {
     const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), prefix))

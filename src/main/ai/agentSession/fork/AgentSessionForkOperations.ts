@@ -434,6 +434,7 @@ function cloneMessages(
   return messages.map((row, index) => {
     const data = row.data
     delete data.nativeSessionId
+    delete data.skillCapture
     const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
     if (anchor.success) {
       data.runtimeAnchor = {

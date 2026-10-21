@@ -30,7 +30,7 @@ markers. The link stays at the copied boundary, with no backfill for existing fo
 
 The new name uses the next available suffix for the Agent, such as `Session (1)`.
 Forking a numbered session advances that suffix instead of nesting it. Queued
-deliveries, live tasks, approval authority, and usage statistics are not inherited.
+deliveries, live tasks, approval authority, Skill capture state, and usage statistics are not inherited.
 Copied unfinished tool calls become terminal errors; they do not resume execution.
 
 User workspaces remain shared. System workspaces copy their **current** files into

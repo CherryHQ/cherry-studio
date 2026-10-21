@@ -62,6 +62,7 @@ import {
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { SkillCaptureSchema, type SkillCapture } from '@shared/types/skillCapture'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -807,6 +808,49 @@ export class AgentSessionMessageService {
     return this.rowToEntity(row)
   }
 
+  listSkillCaptures(sessionId: string): AgentSessionMessageEntity[] {
+    const db = application.get('DbService').getDb()
+    this.assertActiveSession(db, sessionId)
+    return db
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`json_type(${sessionMessagesTable.data}, '$.skillCapture') = 'object'`
+        )
+      )
+      .orderBy(asc(sessionMessagesTable.createdAt))
+      .all()
+      .map((row) => this.rowToEntity(row))
+  }
+
+  setSkillCapture(sessionId: string, messageId: string, capture: SkillCapture): void {
+    application.get('DbService').withWriteTx((tx) => this.setSkillCaptureTx(tx, sessionId, messageId, capture))
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+    ])
+  }
+
+  setSkillCaptureTx(tx: DbOrTx, sessionId: string, messageId: string, capture: SkillCapture): void {
+    const parsed = SkillCaptureSchema.parse(capture)
+    this.assertActiveSession(tx, sessionId)
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!row || row.role !== 'assistant') throw DataApiErrorFactory.notFound('Message', messageId)
+    tx.update(sessionMessagesTable)
+      .set({ data: { ...row.data, skillCapture: parsed }, updatedAt: Date.now() })
+      .where(eq(sessionMessagesTable.id, messageId))
+      .run()
+  }
+
+  dismissSkillCapture(sessionId: string, messageId: string): void {
+    const capture = this.getSessionMessage(sessionId, messageId).data.skillCapture
+    if (!capture || !['suggested', 'dismissed'].includes(capture.status)) {
+      throw DataApiErrorFactory.invalidOperation('dismiss skill suggestion', 'suggestion is no longer available')
+    }
+    this.setSkillCapture(sessionId, messageId, { ...capture, status: 'dismissed' })
+  }
+
   updateSessionMessage(
     sessionId: string,
     messageId: string,
@@ -820,7 +864,7 @@ export class AgentSessionMessageService {
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
-      const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      const mergedData = publicMessageData({ ...existing.data, ...dto.data, skillCapture: existing.data.skillCapture })
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
@@ -1043,6 +1087,7 @@ export class AgentSessionMessageService {
 
     if (existingRow) {
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.skillCapture) data.skillCapture = existingRow.data.skillCapture
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId

@@ -196,6 +196,7 @@ export interface SkillInstallFromZipOptions {
 
 export interface SkillInstallFromDirectoryOptions {
   directoryPath: string
+  expectedContentHash?: string
 }
 
 export interface SkillImportSystemOptions {
