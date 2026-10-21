@@ -48,6 +48,9 @@ const token = {
 
 function provider() {
   return {
+    getWikiNode: vi.fn(),
+    listWikiChildNodes: vi.fn(),
+    getDocxMarkdown: vi.fn(),
     beginDeviceAuthorization: vi.fn(async () => device),
     exchangeDeviceAuthorization: vi.fn(async () => token),
     refreshUserToken: vi.fn(async () => token),
