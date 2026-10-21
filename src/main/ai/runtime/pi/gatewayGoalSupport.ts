@@ -20,18 +20,18 @@ import {
   type RoundDetails
 } from '@cherrystudio/agent-runtime-pi'
 
-import { createAiSdkModelBinding } from './aiSdkModelBinding'
+import { createTestBinding } from './gatewaySupport'
 import {
   createTestSession,
   finish,
   hostStore,
   MODEL,
   plain,
-  streamTextPort,
+  gatewayModel,
   tempDir,
   type TestSessionOptions,
   textParts
-} from './aiSdkSupport'
+} from './gatewaySupport'
 
 export function goalPort(
   overrides: Partial<Omit<GoalPort, 'defaults'>> & { defaults?: Partial<GoalPort['defaults']> } = {}
@@ -58,7 +58,8 @@ export function readGoal(prompt: LanguageModelV3Prompt): { goal: GoalSnapshot | 
       if (part.type !== 'tool-result' || !['get_goal', 'create_goal', 'update_goal'].includes(part.toolName)) continue
       const output = part.output as { type: string; value: unknown }
       // The view is the first line; an accepted completion adds its closing instruction after it.
-      if (output.type === 'text') return JSON.parse((output.value as string).split('\n', 1)[0])
+      if (output.type === 'text' && typeof output.value === 'string' && output.value.startsWith('{'))
+        return JSON.parse(output.value.split('\n', 1)[0])
     }
   }
   return { goal: null }
@@ -133,10 +134,10 @@ export function heldModel(scripts: Parameters<typeof goalModel>[0] = [() => say(
   }
 }
 
-type GoalSessionOptions = Omit<TestSessionOptions<undefined>, 'port' | 'onEvent'> & {
+type GoalSessionOptions = Omit<TestSessionOptions, 'port' | 'onEvent'> & {
   /** Loaded after the goal extension, so their settle handlers run after its decision. */
   laterExtensions?: ExtensionFactory[]
-  /** The host's own signal, joined to every request's as a host's port may (bridge.test.ts). */
+  /** The host can stop the native session independently of a tool or user prompt. */
   hostSignal?: AbortSignal
 }
 
@@ -154,10 +155,10 @@ async function goalViewOf(session: AgentSession): Promise<unknown> {
  */
 async function expectRebuildAgrees(entries: SessionEntry[], live: unknown, port: GoalPort) {
   const cwd = tempDir('cwd')
-  const binding = await createAiSdkModelBinding({
+  const binding = await createTestBinding({
     model: MODEL,
-    requestOptions: undefined,
-    port: streamTextPort(goalModel([() => say('unused')]).model).port
+
+    port: gatewayModel(goalModel([() => say('unused')]).model).upstream
   })
   const rebuilt = await createAgentRuntimeSession({
     ...binding,
@@ -186,7 +187,8 @@ export async function openGoalSession(
   { laterExtensions = [], hostSignal, ...extra }: GoalSessionOptions = {}
 ) {
   const host = hostStore()
-  const modelPort = streamTextPort(model).port
+  const modelPort = gatewayModel(model).upstream
+  modelPort.signal = hostSignal
   const checkpoints: { entries: SessionEntry[]; view: Promise<unknown> }[] = []
   const live: { session?: AgentSession } = {}
   const checkpoint = () => {
@@ -195,15 +197,7 @@ export async function openGoalSession(
   }
   const runtime = await createTestSession({
     ...extra,
-    port: hostSignal
-      ? {
-          streamText: (request) =>
-            modelPort.streamText({
-              ...request,
-              abortSignal: AbortSignal.any(request.abortSignal ? [request.abortSignal, hostSignal] : [hostSignal])
-            })
-        }
-      : modelPort,
+    port: modelPort,
     extensionFactories: [...(extra.extensionFactories ?? []), createGoalExtension(port), ...laterExtensions],
     onEvent: (event) => {
       host.onEvent(event)

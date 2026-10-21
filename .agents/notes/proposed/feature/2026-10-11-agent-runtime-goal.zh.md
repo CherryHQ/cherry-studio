@@ -105,14 +105,14 @@ Pi 包通过原生扩展实现了这项能力。桌面仍使用现有的 `PiRunt
 
 以下为完整交付结果。下文列出的源码测试是证据位置，不表示本次文档迁移执行或通过了这些测试。
 
-- AC1 — 原生会话重新打开后保留同一目标身份、阶段、限额和分支推导用量，但处于解除武装状态；必须显式恢复，压缩不丢失目标。 (verification: unit — Pi 适配器维护者，`aiSdkGoalRebuild.test.ts` 和 `goalState.test.ts`)
-- AC2 — 只有已接纳预约才推进轮数；被否决、撤回或启动前崩溃的预约不进入后续模型或核验器输入，也不消耗轮次。 (verification: unit — Pi 适配器维护者，`aiSdkGoal.test.ts`、`aiSdkGoalStops.test.ts` 和 `aiSdkGoalRebuild.test.ts`)
-- AC3 — 用户输入、中止、暂停、清除、逐轮确认和模型错误阻止不应开始的下一轮，包括与后加载 settle 处理器或核验器竞争时。 (verification: unit — Pi 适配器维护者，`aiSdkGoal.test.ts` 和 `aiSdkGoalStops.test.ts`)
-- AC4 — 上限和预算只允许约定的收尾；陈旧变更和无余量恢复被拒绝，所有已耗尽限额调高后可以显式继续。 (verification: unit — Pi 适配器维护者，`goalState.test.ts` 和 `aiSdkGoalStops.test.ts`)
-- AC5 — 在途父请求、晚到前台结果、通知回合、后台续跑和重叠停止回执的实时与恢复统计一致，不把人类工作归入目标，也不重复计费底层请求。 (verification: unit — Pi 适配器与模型绑定维护者，`aiSdkGoalStops.test.ts` 和 `aiSdkGoalSubagents.test.ts`)
-- AC6 — 运行时进展检查停止重复工作、在完成批次中识别先前成功工作并排除中止轮；核验拒绝、异常或并发目标编辑不能悄悄完成目标。 (verification: unit — Pi 适配器维护者，`aiSdkGoalStops.test.ts`)
-- AC7 — 后台结果和目标续跑不启动互相竞争的回合；预算超限仅停止当前目标拥有的运行中子智能体，预算内暂停保留它们运行。 (verification: unit — Pi 适配器维护者，`aiSdkGoalSubagents.test.ts`)
-- AC8 — 不支持的模型和子会话不能启动父目标的自主工作，其他会话的审批事件不能停止该目标。 (verification: unit — Pi 适配器维护者，`aiSdkGoalRebuild.test.ts` 和 `aiSdkGoalSubagents.test.ts`)
+- AC1 — 原生会话重新打开后保留同一目标身份、阶段、限额和分支推导用量，但处于解除武装状态；必须显式恢复，压缩不丢失目标。 (verification: unit — Pi 适配器维护者，`gatewayGoalRebuild.test.ts` 和 `goalState.test.ts`)
+- AC2 — 只有已接纳预约才推进轮数；被否决、撤回或启动前崩溃的预约不进入后续模型或核验器输入，也不消耗轮次。 (verification: unit — Pi 适配器维护者，`gatewayGoal.test.ts`、`gatewayGoalStops.test.ts` 和 `gatewayGoalRebuild.test.ts`)
+- AC3 — 用户输入、中止、暂停、清除、逐轮确认和模型错误阻止不应开始的下一轮，包括与后加载 settle 处理器或核验器竞争时。 (verification: unit — Pi 适配器维护者，`gatewayGoal.test.ts` 和 `gatewayGoalStops.test.ts`)
+- AC4 — 上限和预算只允许约定的收尾；陈旧变更和无余量恢复被拒绝，所有已耗尽限额调高后可以显式继续。 (verification: unit — Pi 适配器维护者，`goalState.test.ts` 和 `gatewayGoalStops.test.ts`)
+- AC5 — 在途父请求、晚到前台结果、通知回合、后台续跑和重叠停止回执的实时与恢复统计一致，不把人类工作归入目标，也不重复计费底层请求。 (verification: unit — Pi 适配器与模型绑定维护者，`gatewayGoalStops.test.ts` 和 `gatewayGoalSubagents.test.ts`)
+- AC6 — 运行时进展检查停止重复工作、在完成批次中识别先前成功工作并排除中止轮；核验拒绝、异常或并发目标编辑不能悄悄完成目标。 (verification: unit — Pi 适配器维护者，`gatewayGoalStops.test.ts`)
+- AC7 — 后台结果和目标续跑不启动互相竞争的回合；预算超限仅停止当前目标拥有的运行中子智能体，预算内暂停保留它们运行。 (verification: unit — Pi 适配器维护者，`gatewayGoalSubagents.test.ts`)
+- AC8 — 不支持的模型和子会话不能启动父目标的自主工作，其他会话的审批事件不能停止该目标。 (verification: unit — Pi 适配器维护者，`gatewayGoalRebuild.test.ts` 和 `gatewayGoalSubagents.test.ts`)
 - AC9 — 桌面使用包内会话入口、确认模型创建的目标、执行权限模式策略、呈现独立停止控件与撤回轮次，并能恢复目标而不自动重启。 (verification: Electron — Cherry 宿主接入负责人)
 - AC10 — 宿主停止遥测去重、反映快照时点和目标预算归属，不把脚本模型测试报告为真实提供商或桌面验收。 (verification: unit and Electron — Cherry 宿主接入负责人)
 
@@ -123,12 +123,12 @@ Pi 包通过原生扩展实现了这项能力。桌面仍使用现有的 `PiRunt
 | 证据位置 | 覆盖的契约 |
 | --- | --- |
 | [`goalState.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/goalState.test.ts) | 状态迁移、限额、分支解释、进展分类和提示及视图结构。 |
-| [`aiSdkGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoal.test.ts) | 工具、命令语法、接纳、排队输入和自主模式。 |
-| [`aiSdkGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalStops.test.ts) | 限额、陈旧预约、中止、审批、完成、进展及按请求时点统计。 |
-| [`aiSdkGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalRebuild.test.ts) | 解除武装恢复、跨崩溃的预约身份、压缩、不支持的模型及 fork 隔离。 |
-| [`aiSdkGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts) | 后台等待、通知顺序、预算所有权、停止去重、续跑和审批隔离。 |
+| [`gatewayGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoal.test.ts) | 工具、命令语法、接纳、排队输入和自主模式。 |
+| [`gatewayGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalStops.test.ts) | 限额、陈旧预约、中止、审批、完成、进展及按请求时点统计。 |
+| [`gatewayGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalRebuild.test.ts) | 解除武装恢复、跨崩溃的预约身份、压缩、不支持的模型及 fork 隔离。 |
+| [`gatewayGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalSubagents.test.ts) | 后台等待、通知顺序、预算所有权、停止去重、续跑和审批隔离。 |
 
-[目标测试辅助代码](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSupport.ts) 以脚本模型通过真实 AI SDK 流式调用驱动原生 Pi，并将恢复后的目标视图与实时检查点比较。这些测试不证明真实提供商行为、桌面接线、UI 验收或已交付的权限策略。不能仅因文件存在就推断测试结果或批准。
+[目标测试辅助代码](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalSupport.ts) 以脚本模型通过真实 AI SDK 流式调用驱动原生 Pi，并将恢复后的目标视图与实时检查点比较。这些测试不证明真实提供商行为、桌面接线、UI 验收或已交付的权限策略。不能仅因文件存在就推断测试结果或批准。
 
 ## Risks
 
