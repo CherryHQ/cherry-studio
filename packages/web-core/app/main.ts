@@ -12,3 +12,5 @@ connectCore(client)
 reportNativeTheme()
 await client.open(LOCAL_ACCOUNT)
 await import('@renderer/windows/main/entryPoint')
+// The desktop loads it with the code block view; the Worker's `PythonService` needs its listener from the start.
+await import('@renderer/services/PyodideService')

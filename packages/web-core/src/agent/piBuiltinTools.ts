@@ -1,5 +1,5 @@
-// Web `piBuiltinTools.ts`: the Pi tools `fileTools.ts` implements. `ls`, `find` and `grep` are read-class,
-// so the desktop approval rules run them without asking inside the workspace, as they do `read`.
+// Web `piBuiltinTools.ts`: the Pi tools `fileTools.ts` and `codeTools.ts` implement. `ls`, `find` and `grep`
+// are read-class, so the desktop approval rules run them without asking inside the workspace, as they do `read`.
 import type { PiBuiltinToolDescriptor } from '@shared/ai/piBuiltinTools'
 
 export {
@@ -20,7 +20,8 @@ export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'find', category: 'search', approval: 'auto', permissionClass: 'read' },
   { name: 'grep', category: 'search', approval: 'auto', permissionClass: 'read' },
   { name: 'edit', category: 'file', approval: 'prompt', permissionClass: 'edit' },
-  { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' }
+  { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' },
+  { name: 'python_execute', category: 'shell', approval: 'prompt', permissionClass: 'shell' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
 
 export const PI_BUILTIN_TOOLS = PI_NATIVE_BUILTIN_TOOLS

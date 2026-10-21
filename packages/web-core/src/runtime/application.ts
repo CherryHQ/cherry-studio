@@ -8,6 +8,7 @@ import type { CacheService } from '@main/data/CacheService'
 import type { DataApiService } from '@main/data/DataApiService'
 import type { PreferenceService } from '@main/data/PreferenceService'
 import type { IpcApiService } from '@main/ipc/IpcApiService'
+import type { PythonService } from '@main/services/PythonService'
 
 import type { WebDbService } from '../database/WebDbService'
 import type { WebWindowManager } from '../services/WebWindowManager'
@@ -22,6 +23,7 @@ interface WebServices {
   CacheService: CacheService
   DataApiService: DataApiService
   IpcApiService: IpcApiService
+  PythonService: PythonService
   AiStreamManager: AiStreamManager
   AiService: AiService
   TraceStorageService: WebTraceStorage

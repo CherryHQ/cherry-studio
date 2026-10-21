@@ -17,7 +17,7 @@ const MAX_BYTES = 50 * 1024
 const SKIPPED_DIRECTORIES = new Set(['.git', 'node_modules'])
 
 /** Pi's tool result shape: model-facing text plus details for the tool card. */
-function textResult(text: string, details?: Record<string, unknown>) {
+export function textResult(text: string, details?: Record<string, unknown>) {
   return { content: [{ type: 'text' as const, text }], ...(details && { details }) }
 }
 

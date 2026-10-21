@@ -28,6 +28,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
 
+import { createCodeTools } from './codeTools'
 import { createFileTools, REPORT_ARTIFACTS_TOOL } from './fileTools'
 
 /** Pi's own default: the turn ends when the model stops calling tools, so this only stops runaway loops. */
@@ -120,7 +121,12 @@ export class BrowserAgentConnection implements AgentRuntimeConnection {
     const provider = providerService.getByProviderId(providerId)
     const model = modelService.getByKey(providerId, modelId)
     const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
-    const tools = this.authorizeTools(createFileTools(workspacePath), agent, workspacePath, agentDataPath)
+    const tools = this.authorizeTools(
+      { ...createFileTools(workspacePath), ...createCodeTools() },
+      agent,
+      workspacePath,
+      agentDataPath
+    )
 
     const loop = new Agent({
       providerId: sdkConfig.providerId,
