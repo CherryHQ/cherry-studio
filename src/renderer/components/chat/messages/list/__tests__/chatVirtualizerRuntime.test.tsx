@@ -448,6 +448,20 @@ describe('useChatVirtualizerRuntime', () => {
       }
     )
 
+    it('resumes following from the replacement native limit without a scroll event', () => {
+      const list = setupReading()
+      list.replace()
+      expect(list.scroller.scrollTop).toBe(2200)
+      expect(list.slack()).toBe(200)
+      expect(list.handle.isFollowing()).toBe(false)
+      act(() => list.runtime.scrollToBottom())
+      expect(list.slack()).toBe(0)
+      expect(list.handle.isFollowing()).toBe(true)
+      list.resize(3000)
+      list.raf.tick(60)
+      expect(list.scroller.scrollTop).toBe(2600)
+    })
+
     it('does not preserve old reply height when the target viewport already fits', () => {
       const list = setupReading()
       list.replace('new', 3000)

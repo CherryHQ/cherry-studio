@@ -239,6 +239,11 @@ export function MessageVirtualList<T>({
       const nestedScroller = findNestedScroller(event.target, scrollerElement)
       const delta = getKeyboardScrollDelta(event)
       if (nestedScroller && canConsumeVerticalWheel(nestedScroller, delta)) return
+      if (event.key === 'End') {
+        event.preventDefault()
+        scrollToBottom()
+        return
+      }
       markUserInput(delta < 0 ? 'up' : 'down')
     }
     let focusedVirtualDescendant: Node | null = null
@@ -327,6 +332,7 @@ export function MessageVirtualList<T>({
     dismissAutoscroll,
     endScrollbarDrag,
     markUserInput,
+    scrollToBottom,
     scrollerElement
   ])
 
