@@ -723,6 +723,7 @@ function renderTopicList({
   onNewTopic = vi.fn(),
   onManageAssistants,
   onOpenHistoryRecords = vi.fn(),
+  onLocalPermanentDeletePendingChange,
   onSetPanePosition,
   panePosition,
   presentation,
@@ -740,6 +741,7 @@ function renderTopicList({
   onNewTopic?: OnNewTopicMock
   onManageAssistants?: ComponentProps<typeof Topics>['onManageAssistants']
   onOpenHistoryRecords?: Mock<() => void>
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   onSetPanePosition?: ComponentProps<typeof Topics>['onSetPanePosition']
   panePosition?: ComponentProps<typeof Topics>['panePosition']
   presentation?: ComponentProps<typeof Topics>['presentation']
@@ -764,6 +766,7 @@ function renderTopicList({
       onNewTopic={onNewTopic}
       onManageAssistants={onManageAssistants}
       onOpenHistoryRecords={onOpenHistoryRecords}
+      onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
       onSetPanePosition={onSetPanePosition}
       panePosition={panePosition}
       presentation={presentation}
@@ -1813,6 +1816,64 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b' }))
     expect(clearActiveTopic).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps same-assistant neighbor B when NOT_FOUND would otherwise activate globally latest C', async () => {
+    const topicC = createApiTopic({
+      id: 'topic-c',
+      name: 'Latest topic',
+      assistantId: 'assistant-1',
+      orderKey: 'a',
+      updatedAt: '2026-05-03T00:00:00.000Z'
+    })
+    const topicA = createApiTopic({
+      id: 'topic-a',
+      name: 'Alpha topic',
+      assistantId: 'assistant-1',
+      orderKey: 'b',
+      updatedAt: '2026-05-02T00:00:00.000Z'
+    })
+    const topicB = createApiTopic({
+      id: 'topic-b',
+      name: 'Beta topic',
+      assistantId: 'assistant-1',
+      orderKey: 'c',
+      updatedAt: '2026-05-01T00:00:00.000Z'
+    })
+    const pending: Array<string | null> = []
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    const { setActiveTopic, rerenderTopicList } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' }),
+      assistantTopicsSource: createAssistantTopicsSource([topicC, topicA, topicB]),
+      onLocalPermanentDeletePendingChange: (id) => {
+        pending.push(id)
+      }
+    })
+    topicDataMocks.deleteTopic.mockImplementation(async () => {
+      if (pending.at(-1) !== 'topic-a') {
+        await act(async () => {
+          rerenderTopicList(
+            undefined,
+            createRendererTopic({ id: 'topic-c', assistantId: 'assistant-1', name: 'Latest topic' })
+          )
+        })
+      }
+      return { deletedIds: ['topic-a'], deletedCount: 1 }
+    })
+
+    const topicRow = getTopicRow('Alpha topic')
+    fireEvent.contextMenu(getRowText(topicRow, 'Alpha topic'))
+    const menuContent = topicRow
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+
+    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b' })))
+    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(pending).toEqual(['topic-a', null])
   })
 
   it('clears selection after permanently deleting the last topic', async () => {

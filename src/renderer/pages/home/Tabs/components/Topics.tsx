@@ -167,6 +167,7 @@ interface Props {
   clearActiveTopic: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
@@ -287,6 +288,7 @@ export function Topics({
   clearActiveTopic,
   onNewTopic,
   onOpenHistoryRecords,
+  onLocalPermanentDeletePendingChange,
   onManageAssistants,
   onSetPanePosition,
   panePosition,
@@ -762,25 +764,30 @@ export function Topics({
               pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id) ??
               findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
 
-            let outcome
+            onLocalPermanentDeletePendingChange?.(topic.id)
             try {
-              outcome = await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
-            } catch (err) {
-              logger.error('Failed to permanently delete topic', { topicId: topic.id, err })
-              throw new Error(permanentDeleteFailureMessage(err, t))
-            }
+              let outcome
+              try {
+                outcome = await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
+              } catch (err) {
+                logger.error('Failed to permanently delete topic', { topicId: topic.id, err })
+                throw new Error(permanentDeleteFailureMessage(err, t))
+              }
 
-            if (!outcome.deletedIds.includes(topic.id)) {
-              toast.info(t('recycle_bin.delete.stale'))
-              return
-            }
+              if (!outcome.deletedIds.includes(topic.id)) {
+                toast.info(t('recycle_bin.delete.stale'))
+                return
+              }
 
-            const currentActiveTopicId = activeTopicIdRef.current
-            const shouldReplaceSelection =
-              (!currentActiveTopicId && wasActiveAtStart) || currentActiveTopicId === topic.id
-            if (shouldReplaceSelection) {
-              if (replacement) setActiveTopic(replacement)
-              else clearActiveTopic()
+              const currentActiveTopicId = activeTopicIdRef.current
+              const shouldReplaceSelection =
+                (!currentActiveTopicId && wasActiveAtStart) || currentActiveTopicId === topic.id
+              if (shouldReplaceSelection) {
+                if (replacement) setActiveTopic(replacement)
+                else clearActiveTopic()
+              }
+            } finally {
+              onLocalPermanentDeletePendingChange?.(null)
             }
           }
         })
@@ -788,7 +795,7 @@ export function Topics({
         permanentDeleteLockRef.current = false
       }
     },
-    [clearActiveTopic, deleteTopicById, setActiveTopic, t]
+    [clearActiveTopic, deleteTopicById, onLocalPermanentDeletePendingChange, setActiveTopic, t]
   )
 
   const handleClearMessages = useCallback((topic: Topic) => clearTopicMessages(topic.id), [clearTopicMessages])

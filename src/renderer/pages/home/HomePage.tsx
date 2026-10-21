@@ -676,6 +676,7 @@ const HomePage: FC = () => {
         onNewTopic={handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         revealRequest={topicRevealRequest}
         manageAssistantsActive={manageAssistantsActive}
         onManageAssistants={onManageAssistants}
@@ -700,6 +701,7 @@ const HomePage: FC = () => {
               clearActiveTopic={clearActiveTopicAndCloseResourceView}
               setActiveTopic={setActiveTopicAndCloseResourceView}
               onNewTopic={handleCreateEmptyTopic}
+              onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
               revealRequest={topicRevealRequest}
