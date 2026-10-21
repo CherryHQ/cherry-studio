@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-10-20T17:00:00.000000+00:00",
-  "date": "2026-10-20",
-  "total_open_issues": 1225,
+  "generated_at": "2026-10-21T17:00:00.000000+00:00",
+  "date": "2026-10-21",
+  "total_open_issues": 1335,
   "p1_summary": {
-    "total": 50,
+    "total": 106,
     "windows_specific": 15,
     "agent_related": 14,
     "models_related": 9,
@@ -28,22 +28,22 @@
     }
   },
   "overall_health_estimates": {
-    "methodology": "Based on created_at date from 200-issue sample, extrapolated to 1225 total",
-    "Active_created_lt_30d": {
-      "count_estimate": 490,
-      "pct": "40%"
+    "methodology": "Based on GitHub updated_at filter queries against all 1335 open issues",
+    "Active_updated_lt_7d": {
+      "count": 828,
+      "pct": "62.0%"
     },
-    "Aging_created_30_90d": {
-      "count_estimate": 429,
-      "pct": "35%"
+    "Aging_updated_7_30d": {
+      "count": 67,
+      "pct": "5.0%"
     },
-    "Stale_created_90_180d": {
-      "count_estimate": 184,
-      "pct": "15%"
+    "Stale_updated_30_90d": {
+      "count": 313,
+      "pct": "23.4%"
     },
-    "Zombie_created_gt_180d": {
-      "count_estimate": 122,
-      "pct": "10%"
+    "Zombie_updated_gt_90d": {
+      "count": 127,
+      "pct": "9.5%"
     }
   },
   "high_engagement_open_issues": [
@@ -66,19 +66,30 @@
     ]
   },
   "delta_from_yesterday": {
-    "open_issues": "+4 (1221 → 1225)",
-    "p1_issues": "unchanged (50)",
-    "new_p1_today": ["#22026 WebDAV backup data loss (p1, data, discussion)"],
-    "merged_prs_today": 46
+    "open_issues": "+110 (1225 → 1335)",
+    "p1_issues": "+56 (50 → 106)",
+    "new_p1_today": [
+      "#22137 Conversations and agents disappear around update (p1, data)",
+      "#22121 Responses reasoning delta missing init block (p1, bug)"
+    ],
+    "closed_issues_30d": 382,
+    "merged_prs_30d": 548,
+    "merged_prs_7d": 168
+  },
+  "priority_uncategorized": {
+    "no_priority_label_count": 876,
+    "no_priority_label_pct": "65.6%",
+    "no_label_at_all_count": 17,
+    "duplicate_labeled_count": 36
   },
   "action_items": [
     "CRITICAL: Fix SQLITE_CORRUPT startup block (#21805) — data loss risk for Windows users",
-    "CRITICAL: Fix WebDAV v1→v2 backup incompatibility (#22026) — data loss for upgrade users",
-    "HIGH: Fix Responses API TypeValidation abort (#20940) — breaks v2 core model flow",
-    "HIGH: Resolve Windows Agent startup failures (15 P1 Windows issues)",
+    "CRITICAL: Fix conversations disappearing around update (#22137) — data loss",
+    "CRITICAL: Fix WebDAV v1→v2 backup incompatibility (#22026) — upgrade data loss",
+    "HIGH: Fix Responses API TypeValidation abort (#20940) — breaks core model flow",
+    "HIGH: Resolve Windows Agent startup failures — multiple P1 Windows issues",
     "HIGH: Fix Agent compaction summary leak (#20692, 19 comments)",
-    "MEDIUM: Triage ~40 'blocked-v2' issues — many may be closeable now",
-    "MEDIUM: Review ~122 zombie issues (created 180+ days ago) for closure",
-    "LOW: Improve issue uncategorized rate — ~3% have no domain label"
+    "HIGH: 65.6% of open issues lack a priority label — triage backlog needed",
+    "MEDIUM: Review 127 zombie issues (90+ days no update) for closure"
   ]
 }

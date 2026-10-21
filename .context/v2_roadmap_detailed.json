@@ -1,12 +1,13 @@
 {
-  "generated_at": "2026-10-20T17:00:00.000000+00:00",
-  "date": "2026-10-20",
+  "generated_at": "2026-10-21T17:00:00.000000+00:00",
+  "date": "2026-10-21",
   "v2_branch_status": {
     "current_release": "v2.1.7",
     "open_prs": 0,
-    "note": "v2 branch has no open PRs. All active development is trunk-based on main. v2.1.7 released 2026-10-19.",
-    "merged_prs_30d_total": 559,
-    "velocity_prs_per_day": 18.6
+    "note": "v2 branch has no open PRs. All active development is trunk-based on main. Last v2 branch merge was May 2026.",
+    "merged_prs_30d_total": 548,
+    "velocity_prs_per_day": 18.3,
+    "merged_prs_last_7d": 168
   },
   "v2_tagged_open_issues": [
     {"number": 10910, "title": "[Feature]: Add I18nService in main", "labels": ["feature", "v2"]},
