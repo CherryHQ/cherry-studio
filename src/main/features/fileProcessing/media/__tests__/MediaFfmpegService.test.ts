@@ -61,6 +61,8 @@ vi.mock('node:fs/promises', async () => {
 import { application } from '@application'
 import { BaseService, Phase } from '@main/core/lifecycle'
 import { getConditions, getDependencies, getPhase } from '@main/core/lifecycle/decorators'
+import { getBinaryName } from '@main/utils/binaryResolver'
+
 import { mediaFfmpegCommandEnv } from '../mediaFfmpegLoader'
 import { mediaFfmpegProcess } from '../mediaFfmpegProcess'
 import { MediaFfmpegService } from '../MediaFfmpegService'
@@ -141,10 +143,9 @@ describe('MediaFfmpegService lifecycle', () => {
         Object.defineProperty(process, 'platform', { value: platform })
         const init = mediaFfmpegProcess.createInitData?.()
         if (!init || init instanceof Promise) throw new Error('expected sync init data')
-        const suffix = platform === 'win32' ? '.exe' : ''
         const root = join(runtime.tempRoot, 'resources/binaries', `${platform}-${process.arch}`)
-        expect(init.ffmpegPath).toBe(join(root, `ffmpeg${suffix}`))
-        expect(init.ffprobePath).toBe(join(root, `ffprobe${suffix}`))
+        expect(init.ffmpegPath).toBe(join(root, getBinaryName('ffmpeg')))
+        expect(init.ffprobePath).toBe(join(root, getBinaryName('ffprobe')))
         expect(init.linuxLibraryDir).toBeUndefined()
         expect(mediaFfmpegCommandEnv(init.linuxLibraryDir, { LD_LIBRARY_PATH: '/usr/lib' })).toBeUndefined()
       }

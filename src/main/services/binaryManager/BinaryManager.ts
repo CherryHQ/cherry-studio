@@ -824,6 +824,7 @@ export class BinaryManager extends BaseService {
         const executables = [...tool.binaries, ...(isWin ? (tool.windowsBinaries ?? []) : [])].map((bin) =>
           getBinaryName(bin)
         )
+        const binaries = [...executables, ...(isWin ? (tool.windowsSupportFiles ?? []) : [])]
         const versionPath = path.join(bundledDir, tool.versionFile)
         const bundledVersion = this.readVersionMarker(versionPath)
         if (!bundledVersion) {
@@ -831,7 +832,7 @@ export class BinaryManager extends BaseService {
           continue
         }
 
-        const missingBundled = executables.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
+        const missingBundled = binaries.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
         if (missingBundled.length > 0) {
           logger.error(
             `Expected bundled ${tool.name} binaries missing`,
@@ -845,7 +846,7 @@ export class BinaryManager extends BaseService {
         // against partial deletions / AV quarantine of secondary binaries
         // (e.g. uvx alongside uv).
         const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-        const allDestsPresent = executables.every((bin) => fs.existsSync(path.join(binDir, bin)))
+        const allDestsPresent = binaries.every((bin) => fs.existsSync(path.join(binDir, bin)))
         if (allDestsPresent && bundledVersion === installedVersion) continue
 
         // Copy each binary via dest.tmp + rename so an EBUSY on Windows
@@ -855,7 +856,7 @@ export class BinaryManager extends BaseService {
           const dest = path.join(binDir, bin)
           const tmp = `${dest}.tmp-${process.pid}`
           await fsp.copyFile(src, tmp)
-          if (!isWin) await fsp.chmod(tmp, 0o755)
+          if (!isWin && executables.includes(bin)) await fsp.chmod(tmp, 0o755)
           await fsp.rename(tmp, dest)
         }
         await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)
