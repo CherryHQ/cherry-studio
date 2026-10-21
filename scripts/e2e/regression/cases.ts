@@ -157,7 +157,7 @@ export const REGRESSION_CASES = [
     phase: '10-agent-runtimes',
     title: 'Complete a basic file task with the default Agent',
     task: 'agent-basic-task'
-  },
+  }
 ] as const
 
 export type RegressionCase = (typeof REGRESSION_CASES)[number]
