@@ -192,8 +192,9 @@ describe('withDetachedTasksStopped', () => {
     })
     try {
       await reached
-      // Admitted, and past the checks: nothing on disk names it yet.
-      await expect(readdir(storageDir)).resolves.toEqual([])
+      // Admitted, and past the checks: the inventory has no record to find yet. (The runner writes
+      // its own task file before the log opens, so the directory is not empty on Windows.)
+      await expect(tasks.listDetachedBackgroundTasks(storageDir)).resolves.toEqual([])
 
       const resetting = withDetachedTasksStopped(async () => {
         order.push('commit')
