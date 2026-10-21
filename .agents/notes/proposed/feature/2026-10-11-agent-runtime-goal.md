@@ -123,12 +123,12 @@ The [package README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71
 | Evidence location | Contract it exercises |
 | --- | --- |
 | [`goalState.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/goalState.test.ts) | State transitions, limits, branch interpretation, progress classification, and prompt/view shapes. |
-| [`gatewayGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoal.test.ts) | Tools, command grammar, admission, queued input, and autonomy. |
-| [`gatewayGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalStops.test.ts) | Limits, stale reservations, interruption, approvals, completion, progress, and request-time accounting. |
-| [`gatewayGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalRebuild.test.ts) | Disarmed restoration, reservation identity across crashes, compaction, unsupported models, and fork isolation. |
-| [`gatewayGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalSubagents.test.ts) | Background waiting, notification ordering, budget ownership, stop deduplication, continuation, and approval isolation. |
+| [`gatewayGoal.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoal.test.ts) | Tools, command grammar, admission, queued input, and autonomy. |
+| [`gatewayGoalStops.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalStops.test.ts) | Limits, stale reservations, interruption, approvals, completion, progress, and request-time accounting. |
+| [`gatewayGoalRebuild.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalRebuild.test.ts) | Disarmed restoration, reservation identity across crashes, compaction, unsupported models, and fork isolation. |
+| [`gatewayGoalSubagents.test.ts`](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts) | Background waiting, notification ordering, budget ownership, stop deduplication, continuation, and approval isolation. |
 
-The [goal test helper](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/gatewayGoalSupport.ts) drives native Pi through real AI SDK streaming with scripted models and compares restored goal views with live checkpoints. These tests do not establish live-provider behavior, desktop wiring, UI acceptance, or a shipped permission policy. No test result or approval is inferred from the presence of these files.
+The [goal test helper](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkGoalSupport.ts) drives native Pi through real AI SDK streaming with scripted models and compares restored goal views with live checkpoints. These tests do not establish live-provider behavior, desktop wiring, UI acceptance, or a shipped permission policy. No test result or approval is inferred from the presence of these files.
 
 ## Risks
 
