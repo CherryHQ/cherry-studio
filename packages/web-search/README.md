@@ -34,7 +34,7 @@ input against one provider, without implicit retries. Results contain `providerI
 | --- | --- |
 | Root | Client, validation, errors, provider vocabulary, and public types |
 | `/catalog` | Immutable remote provider metadata and per-capability public endpoints |
-| `/providers/<id>` | One protocol module: zhipu, tavily, searxng, exa, exa-mcp, bocha, querit, jina, firecrawl, crawl4ai, parallel, serply |
+| `/providers/<id>` | One protocol module: zhipu, tavily, searxng, exa, exa-mcp, bocha, querit, jina, firecrawl, crawl4ai, parallel, serply, deepseek |
 | `/tools/config` | Pure endpoint override merging; explicit empty overrides stay empty |
 | `/tools/url-filter` | Optional URL-rule filtering with diagnostics returned to the caller |
 | `/tools/content` | Optional token/character slicing; the application allocates total budgets |
@@ -48,8 +48,9 @@ search. Its errors use the `searxng/searchKeywords` context. Search returns snip
 automatically downloads result pages. Jina candidate selection is pure; the package does not
 detect region or retry another endpoint.
 
-`apiHost: undefined` uses a public default. An explicit empty address fails validation. SearXNG
-and Crawl4AI have no default deployment. Local `fetch` and Desktop DuckDuckGo remain host-owned.
+`apiHost: undefined` uses a public default, which for Crawl4AI is the Cloud host
+`https://api.crawl4ai.com`. An explicit empty address fails validation. SearXNG has no default deployment.
+Local `fetch` and Desktop DuckDuckGo remain host-owned.
 
 Querit accepts API hosts with or without `/v1` and numeric-string response codes. Crawl4AI uses
 the Cloud `/scrape` protocol for `crawl4ai.com` and its subdomains, requiring an API key. Other

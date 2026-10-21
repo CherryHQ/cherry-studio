@@ -45,6 +45,7 @@ vi.mock('@main/services/RegionService', () => ({
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
 import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
+import { DeepSeekProvider } from '../api/DeepSeekProvider'
 import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
@@ -418,6 +419,114 @@ describe('main web search API providers', () => {
         }
       ]
     })
+  })
+
+  it('matches the DeepSeek search request and prefers the model-facing summary', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('deepseek-search-response.json')))
+
+    const provider = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' },
+          { feature: 'fetchUrls', apiHost: 'https://api.deepseek.com' }
+        ]
+      })
+    )
+
+    const result = await provider.searchKeywords('Cherry Studio', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { query: 'Cherry Studio', count: 4 },
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer deepseek-key',
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.deepseek.com/v1/tools/search'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['Cherry Studio'],
+      providerId: 'deepseek',
+      query: 'Cherry Studio',
+      results: [
+        {
+          content: 'DeepSeek Summary',
+          sourceInput: 'Cherry Studio',
+          title: 'DeepSeek Result Title',
+          url: 'https://example.com/deepseek-result'
+        },
+        {
+          content: 'DeepSeek Snippet',
+          sourceInput: 'Cherry Studio',
+          title: 'DeepSeek Snippet Only',
+          url: 'https://snippet.example/page'
+        }
+      ]
+    })
+  })
+
+  it('matches the DeepSeek fetch request and falls back to the URL as title', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'Fetched Markdown body' }))
+
+    const provider = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' },
+          { feature: 'fetchUrls', apiHost: 'https://api.deepseek.com' }
+        ]
+      })
+    )
+
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { url: 'https://example.com/article' },
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer deepseek-key',
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.deepseek.com/v1/tools/fetch'
+    })
+    expect(result.results[0]).toEqual({
+      content: 'Fetched Markdown body',
+      sourceInput: 'https://example.com/article',
+      title: 'https://example.com/article',
+      url: 'https://example.com/article'
+    })
+  })
+
+  it('surfaces DeepSeek HTTP failures with the provider message', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse({ error: { message: 'Not Enough Credits' } }, 402))
+
+    const provider = createProviderDriver(
+      DeepSeekProvider,
+      createProvider({
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKeys: ['deepseek-key'],
+        capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.deepseek.com' }]
+      })
+    )
+
+    await expect(provider.searchKeywords('Cherry Studio', runtimeConfig)).rejects.toThrow(
+      /deepseek request failed: HTTP 402 Not Enough Credits/
+    )
   })
 
   it('fetches a URL without API key or API host', async () => {

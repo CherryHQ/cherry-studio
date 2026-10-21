@@ -12,7 +12,7 @@ import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
 import { isLinux, isWin } from '@renderer/utils/platform'
-import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isConversationRoute } from '@renderer/utils/routeTitle'
 import type { SubWindowInitData } from '@shared/types/subWindow'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
@@ -61,9 +61,8 @@ export const SubWindowAppShell = () => {
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
   // an unrelated route after navigation inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
-    // Chat / agent tabs are page-titled (topic / session name + emoji set by
-    // their page); only sync the url so navigating topics doesn't wipe them.
-    if (isPageTitledRoute(url)) {
+    // Conversation visuals are normalized by TabsProvider; navigation only updates identity.
+    if (isConversationRoute(url)) {
       updateTab(tabId, { url })
       return
     }

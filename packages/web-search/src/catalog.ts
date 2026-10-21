@@ -41,8 +41,12 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
       capability('searchKeywords', 'optional', 'https://api.firecrawl.dev'),
       capability('fetchUrls', 'optional', 'https://api.firecrawl.dev')
     ]),
-    crawl4ai: provider('crawl4ai', 'Crawl4AI', [capability('fetchUrls', 'optional')]),
+    crawl4ai: provider('crawl4ai', 'Crawl4AI', [capability('fetchUrls', 'optional', 'https://api.crawl4ai.com')]),
     parallel: provider('parallel', 'Parallel', [capability('searchKeywords', 'required', 'https://api.parallel.ai')]),
-    serply: provider('serply', 'Serply', [capability('searchKeywords', 'required', 'https://api.serply.io')])
+    serply: provider('serply', 'Serply', [capability('searchKeywords', 'required', 'https://api.serply.io')]),
+    deepseek: provider('deepseek', 'DeepSeek', [
+      capability('searchKeywords', 'required', 'https://api.deepseek.com'),
+      capability('fetchUrls', 'required', 'https://api.deepseek.com')
+    ])
   }
 )
