@@ -27,10 +27,15 @@ test('provider content rejection diagnoses content while generic HTTP 400 retain
   expect(profile, 'Run with an isolated CS_DEV_PROFILE_ROOT').toBeTruthy()
   expect(path.isAbsolute(profile!), 'The isolated profile root must be absolute').toBe(true)
   const phase = process.env.ISSUE_22312_PHASE ?? 'run'
-  const evidenceDir = path.resolve(
-    process.env.TASKS ?? '/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-22312',
-    'round-1/evidence'
-  )
+  const evidenceDir = process.env.ISSUE_22312_EVIDENCE_DIR
+  if (evidenceDir && !path.isAbsolute(evidenceDir)) {
+    throw new Error('ISSUE_22312_EVIDENCE_DIR must be an absolute path')
+  }
+  const publishArtifact = async (localPath: string, filename: string) => {
+    if (!evidenceDir) return
+    await mkdir(evidenceDir, { recursive: true })
+    await copyFile(localPath, path.join(evidenceDir, filename))
+  }
   const requests: Array<{
     method: string | undefined
     url: string | undefined
@@ -106,17 +111,15 @@ test('provider content rejection diagnoses content while generic HTTP 400 retain
     const output = testInfo.outputPath(filename)
     if (block && (await block.isVisible())) await block.screenshot({ path: output })
     else await page.screenshot({ path: output })
-    await mkdir(evidenceDir, { recursive: true })
-    await copyFile(output, path.join(evidenceDir, filename))
+    await publishArtifact(output, filename)
     await testInfo.attach(filename, { path: output, contentType: 'image/png' })
     captured.add(name)
   }
   const saveEvidence = async () => {
     const filename = `content-filter-${phase}.json`
     const output = testInfo.outputPath(filename)
-    await mkdir(evidenceDir, { recursive: true })
     await writeFile(output, JSON.stringify({ profile, requests, observations }, null, 2))
-    await copyFile(output, path.join(evidenceDir, filename))
+    await publishArtifact(output, filename)
     await testInfo.attach(filename, { path: output, contentType: 'application/json' })
   }
   let tracing = false
@@ -319,8 +322,7 @@ test('provider content rejection diagnoses content while generic HTTP 400 retain
         if (tracing) {
           const trace = testInfo.outputPath(`content-filter-${phase}.zip`)
           await page.context().tracing.stop({ path: trace })
-          await mkdir(evidenceDir, { recursive: true })
-          await copyFile(trace, path.join(evidenceDir, `content-filter-${phase}.zip`))
+          await publishArtifact(trace, `content-filter-${phase}.zip`)
           await testInfo.attach('trace', { path: trace, contentType: 'application/zip' })
         }
       } finally {
