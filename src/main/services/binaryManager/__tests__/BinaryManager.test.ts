@@ -4357,7 +4357,7 @@ describe('BinaryManager', () => {
       }
     })
 
-    it('does not copy the internal FFmpeg runtime or its Windows DLLs into cherry.bin', async () => {
+    it('copies the internal FFmpeg runtime and its Windows DLLs into cherry.bin', async () => {
       platformMock.isWin = true
       const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
       const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
@@ -4385,14 +4385,14 @@ describe('BinaryManager', () => {
           copiedSources.some((source) =>
             /ffmpeg|ffprobe|libopenh264|libvpl-2|libwinpthread|libgcc_s_seh|libstdc\+\+-6/.test(source)
           )
-        ).toBe(false)
-        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(false)
+        ).toBe(true)
+        expect(mockFs.readFileSync.mock.calls.some(([path]) => String(path).includes('.ffmpeg-version'))).toBe(true)
       } finally {
         Object.defineProperties(process, { platform: originalPlatform, arch: originalArch })
       }
     })
 
-    it('skips the Linux FFmpeg tree when the installed marker and executables match', async () => {
+    it('skips the Linux FFmpeg tree when the installed marker and tree match', async () => {
       await withPlatform('linux', 'x64', async () => {
         const service = new BinaryManager()
         mockFs.existsSync.mockReturnValue(true)

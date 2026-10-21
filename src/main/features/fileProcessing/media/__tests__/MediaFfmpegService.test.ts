@@ -31,11 +31,11 @@ vi.mock('@application', async () => {
   mocked.application.getPath.mockImplementation((key: string, filename?: string) => {
     if (key === 'app.temp') return filename ? join(runtime.tempRoot, filename) : runtime.tempRoot
     if (key === 'app.root.resources.binaries') return join(runtime.tempRoot, 'resources', 'binaries')
-    if (key === 'feature.file_processing.ffmpeg.bin') {
+    if (key === 'cherry.bin.ffmpeg.bin') {
       const dir = join(runtime.tempRoot, 'registered', 'ffmpeg-bin')
       return filename ? join(dir, filename) : dir
     }
-    if (key === 'feature.file_processing.ffmpeg.lib') {
+    if (key === 'cherry.bin.ffmpeg.lib') {
       const dir = join(runtime.tempRoot, 'registered', 'ffmpeg-lib')
       return filename ? join(dir, filename) : dir
     }
