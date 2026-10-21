@@ -83,7 +83,7 @@ describe('Live Agent identity', () => {
     await rm(path.join(root, 'USER.md'))
     await rm(path.join(root, 'memory', 'FACT.md'))
     const deleted = await submit()
-    expect(deleted).toContain('replaces all earlier snapshots')
+    expect(deleted).toContain('replaces earlier injected views')
     expect(deleted).toContain('<soul>\n\n</soul>')
     expect(deleted).toContain('<user>\n\n</user>')
     expect(deleted).toContain('<facts>\n\n</facts>')
@@ -360,7 +360,7 @@ describe('Desktop shared memory', () => {
         { senderId: null }
       )
       expect(await deliver()).not.toContain('Shared A')
-      expect(await deliver()).toContain('replaces all earlier snapshots')
+      expect(await deliver()).toContain('replaces earlier injected views')
       dbh.db
         .update(agentTable)
         .set({ configuration: { userMemoryEnabled: false } })
@@ -369,4 +369,37 @@ describe('Desktop shared memory', () => {
       expect(await deliver()).not.toContain('## User-Level Facts')
     }
   )
+  it('bounds both fact tiers, reports file times, and keeps settings reads complete', async () => {
+    const facts = Array.from({ length: 205 }, (_, i) => `Fact ${i}\n`).join('') + 'omitted-tail'
+    await ensureUserMemory()
+    const userFile = path.join(root, 'Memory', 'USER_FACT.md')
+    const agentFile = path.join(root, 'first', 'memory', 'FACT.md')
+    await writeFile(userFile, facts)
+    await writeFile(agentFile, facts)
+    const time = new Date('2020-01-02T00:00:00.000Z')
+    await utimes(userFile, time, time)
+    await utimes(agentFile, time, time)
+    const prompt = await new PromptBuilder().buildMemoriesSection(path.join(root, 'first'), 'first')
+    expect(prompt).toContain('Partial facts')
+    expect(prompt).toContain('memory scope=user')
+    expect(prompt).toContain('memory scope=agent')
+    expect(prompt).toContain('2020-01-02T00:00:00.000Z')
+    expect(prompt).toContain('not fact confirmation time')
+    expect(prompt).not.toContain('omitted-tail')
+    const full = await memoryHandlers['memory.user.facts.read'](undefined, { senderId: null })
+    expect(full.content).toBe(facts)
+    expect(full.modifiedAt).toBe(time.toISOString())
+    expect(await readFile(agentFile, 'utf8')).toBe(facts)
+    const result = await call(first, {
+      action: 'patch',
+      scope: 'user',
+      expectedRevision: full.revision,
+      oldText: 'Fact 0\n',
+      newText: 'Edited fact\n'
+    })
+    expect(result.isError).not.toBe(true)
+    expect((await memoryHandlers['memory.user.facts.read'](undefined, { senderId: null })).content).toBe(
+      facts.replace('Fact 0\n', 'Edited fact\n')
+    )
+  })
 })

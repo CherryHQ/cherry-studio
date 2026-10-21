@@ -171,4 +171,59 @@ describe('agent-memory MCP server', () => {
     expect(result).toMatchObject({ isError: true })
     expect(await readdir(outsideDir)).toEqual([])
   })
+  it.each(['line', 'byte', 'unicode'] as const)(
+    'pages %s-bounded facts without losing content or allowing preview replacement',
+    async (kind) => {
+      const content =
+        kind === 'line'
+          ? Array.from({ length: 205 }, (_, i) => `Fact ${i}\n`).join('')
+          : kind === 'unicode'
+            ? '偏好😀'.repeat(5000)
+            : 'x'.repeat(30_000)
+      await writeFile(path.join(memoryPath, 'FACT.md'), content)
+      const client = await createServer()
+      let offset = 0
+      let expectedRevision: string | undefined
+      let recovered = ''
+      do {
+        const result = await callTool(client, { action: 'read', offset, expectedRevision })
+        expect(result.isError).not.toBe(true)
+        const page = JSON.parse(result.content[0].text!)
+        expect(Buffer.byteLength(page.content, 'utf8')).toBeLessThanOrEqual(25_000)
+        expect(page.content).not.toContain('�')
+        expect(page.modifiedAt).toBeDefined()
+        recovered += page.content
+        expectedRevision = page.revision
+        offset = page.nextOffset
+      } while (offset !== undefined)
+      expect(recovered).toBe(content)
+      expect((await callTool(client, { action: 'update', content: 'Only preview' })).isError).toBe(true)
+      expect(await readFile(path.join(memoryPath, 'FACT.md'), 'utf8')).toBe(content)
+    }
+  )
+
+  it('requires a stable revision across pages and patches only one exact occurrence', async () => {
+    const content = 'unique beginning\n' + 'x'.repeat(30_000) + '\nuntouched tail'
+    await writeFile(path.join(memoryPath, 'FACT.md'), content)
+    const client = await createServer()
+    const page = JSON.parse((await callTool(client, { action: 'read' })).content[0].text!)
+    expect((await callTool(client, { action: 'read', offset: page.nextOffset })).isError).toBe(true)
+    expect(
+      (await callTool(client, { action: 'patch', expectedRevision: page.revision, oldText: 'x', newText: 'y' })).isError
+    ).toBe(true)
+    const result = await callTool(client, {
+      action: 'patch',
+      expectedRevision: page.revision,
+      oldText: 'unique beginning',
+      newText: 'updated beginning'
+    })
+    expect(result.isError).not.toBe(true)
+    expect(Buffer.byteLength(JSON.parse(result.content[0].text!).content, 'utf8')).toBeLessThanOrEqual(25_000)
+    expect(await readFile(path.join(memoryPath, 'FACT.md'), 'utf8')).toBe(
+      content.replace('unique beginning', 'updated beginning')
+    )
+    const stale = await callTool(client, { action: 'read', offset: page.nextOffset, expectedRevision: page.revision })
+    expect(stale.isError).toBe(true)
+    expect(stale.content[0].text).toContain('MEMORY_CONFLICT')
+  })
 })

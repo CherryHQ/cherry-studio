@@ -100,7 +100,7 @@ describe('Agent prompt onboarding', () => {
     expect(append).not.toContain(soul)
     expect(identity).toContain(`<soul>\n${soul}\n</soul>`)
     expect(identity).toContain('<user>\nCall the user Lin. They prefer Chinese.\n</user>')
-    expect(identity).toContain('<facts>\nThe project is called Orchard.\n</facts>')
+    expect(identity).toMatch(/<facts>[\s\S]*The project is called Orchard\.\n<\/facts>/)
     expect(identity).not.toContain('Unrelated workspace identity')
   })
 })

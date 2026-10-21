@@ -3,6 +3,7 @@ description: Comparison of the three memory mechanisms in Cherry Studio — Agen
 sources:
   - src/main/ai/agents/userMemory.ts
   - src/main/ai/agents/memoryFiles.ts
+  - src/main/ai/agents/memoryFactsView.ts
   - src/renderer/pages/settings/UserMemorySettings.tsx
   - src/main/ai/agents/prompt.ts
   - src/main/ai/mcp/servers/agentMemory.ts
@@ -69,3 +70,9 @@ If you relied on Global Memory in v1:
 - Agent persona and long-running project knowledge for a single agent → **Agent File Memory**.
 - Searchable reference material you curate → **Knowledge Base**.
 - Structured entity/relation memory driven by MCP → **MCP Memory**.
+
+## Bounded fact recall
+
+Each injected fact tier is limited to 200 lines or 25,000 UTF-8 bytes, whichever comes first. This is a preview, not a complete index or evidence that omitted facts were deleted. Full files and settings-editor reads remain intact. Tools return bounded pages with UTF-16 `offset` / `nextOffset`; continuation requires the first page's full-file `expectedRevision` and fails on concurrent changes.
+
+For an existing file larger than the preview budget, tool `update` refuses whole-file replacement. Use `patch` with a unique exact `oldText`, `newText`, and `expectedRevision`; unmentioned content is preserved and the existing revision check protects the final atomic write. The settings editor can still save or clear the complete file. Both tool reads and injected previews expose file modification time where available. This timestamp describes the file write, not when each fact was stated or confirmed; old entries are not restamped.

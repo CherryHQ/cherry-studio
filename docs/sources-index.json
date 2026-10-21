@@ -439,7 +439,7 @@
     },
     {
       "path": "docs/references/memory/overview.md",
-      "sources": ["src/main/ai/agents/memoryFiles.ts","src/main/ai/agents/prompt.ts","src/main/ai/agents/userMemory.ts","src/main/ai/mcp/servers/agentMemory.ts","src/main/ai/mcp/servers/memory.ts","src/main/features/knowledge","src/renderer/pages/settings/UserMemorySettings.tsx"]
+      "sources": ["src/main/ai/agents/memoryFactsView.ts","src/main/ai/agents/memoryFiles.ts","src/main/ai/agents/prompt.ts","src/main/ai/agents/userMemory.ts","src/main/ai/mcp/servers/agentMemory.ts","src/main/ai/mcp/servers/memory.ts","src/main/features/knowledge","src/renderer/pages/settings/UserMemorySettings.tsx"]
     },
     {
       "path": "docs/references/memory/README.md",

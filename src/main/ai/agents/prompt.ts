@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
+import { formatMemoryFactsPreview } from './memoryFactsView'
 import { readMemoryFacts } from './memoryFiles'
 import { canUseUserMemory, ensureUserMemory, userMemoryFiles } from './userMemory'
 
@@ -206,22 +207,32 @@ export class PromptBuilder {
           const facts = await readMemoryFacts(userMemoryFiles)
           userFacts = `## User-Level Facts
 
-${facts.content}`
+${formatMemoryFactsPreview(facts.content, facts.modifiedAt, 'memory scope=user')}`
         }
       } catch (error) {
         logger.warn('User memory is unavailable', { error })
         userFacts = 'User-level memory is unavailable. Do not rely on earlier shared-memory snapshots.'
       }
     }
+    const factMtime = factPath
+      ? application.get('CacheService').get<CacheEntry>(promptFileCacheKey(factPath))?.mtimeMs
+      : undefined
+    const factPreview = factContent
+      ? formatMemoryFactsPreview(
+          factContent,
+          factMtime === undefined ? undefined : new Date(factMtime).toISOString(),
+          'memory scope=agent'
+        )
+      : ''
     const sections = [
       `<user_facts>\n${userFacts}\n</user_facts>`,
       `<soul>\n${soulContent ?? ''}\n</soul>`,
       `<user>\n${userContent ?? ''}\n</user>`,
-      `## Agent Workspace Facts\n\n<facts>\n${factContent ?? ''}\n</facts>`
+      `## Agent Workspace Facts\n\n<facts>\n${factPreview}\n</facts>`
     ].join('\n\n')
 
     return `<agent_identity>
-Current identity from ${agentDataPath}. This complete snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
+Current identity from ${agentDataPath}. This snapshot replaces earlier injected views, including copies in conversation summaries. A partial facts preview does not imply omitted facts were deleted. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
 
 ${sections}
 

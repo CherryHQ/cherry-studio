@@ -44,12 +44,13 @@ export async function resolveMemoryFile(directory: string, name: string): Promis
   return file
 }
 
-async function readFile(file: string): Promise<string | undefined> {
+async function readFile(file: string): Promise<{ content: string; modifiedAt: string } | undefined> {
   try {
     const handle = await open(file, noFollow(constants.O_RDONLY))
     try {
-      if (!(await handle.stat()).isFile()) throw new Error('Memory must be a regular file')
-      return await handle.readFile('utf8')
+      const stat = await handle.stat()
+      if (!stat.isFile()) throw new Error('Memory must be a regular file')
+      return { content: await handle.readFile('utf8'), modifiedAt: new Date(stat.mtimeMs).toISOString() }
     } finally {
       await handle.close()
     }
@@ -59,12 +60,17 @@ async function readFile(file: string): Promise<string | undefined> {
   }
 }
 
-function snapshot(content: string): MemoryFacts {
-  return { content, revision: createHash('sha256').update(content).digest('hex') }
+function snapshot(content: string, modifiedAt?: string): MemoryFacts {
+  return {
+    content,
+    revision: createHash('sha256').update(content).digest('hex'),
+    ...(modifiedAt ? { modifiedAt } : {})
+  }
 }
 
 export async function readMemoryFacts(files: MemoryFiles): Promise<MemoryFacts> {
-  return snapshot((await readFile(await resolveMemoryFile(await files.directory(), files.facts))) ?? '')
+  const file = await readFile(await resolveMemoryFile(await files.directory(), files.facts))
+  return snapshot(file?.content ?? '', file?.modifiedAt)
 }
 
 export async function updateMemoryFacts(
@@ -75,23 +81,27 @@ export async function updateMemoryFacts(
   const directory = await files.directory()
   return writes.runExclusive(directory, async () => {
     const file = await resolveMemoryFile(await files.directory(), files.facts)
-    if (expectedRevision !== undefined && snapshot((await readFile(file)) ?? '').revision !== expectedRevision) {
+    if (
+      expectedRevision !== undefined &&
+      snapshot((await readFile(file))?.content ?? '').revision !== expectedRevision
+    ) {
       throw new IpcError(MEMORY_CONFLICT, 'MEMORY_CONFLICT: Memory changed. Read the latest facts before saving again.')
     }
     const temporary = path.join(directory, `.${files.facts}.${randomUUID()}.tmp`)
     const handle = await open(temporary, 'wx', 0o600)
     try {
       await handle.writeFile(content, 'utf8')
+      const stat = await handle.stat()
       await handle.close()
       await files.directory()
       await assertFile(file)
       await rename(temporary, file)
+      return snapshot(content, new Date(stat.mtimeMs).toISOString())
     } catch (error) {
       await handle.close().catch(() => undefined)
       await unlink(temporary).catch(() => undefined)
       throw error
     }
-    return snapshot(content)
   })
 }
 
@@ -113,7 +123,7 @@ export async function appendMemoryJournal(files: MemoryFiles, text: string, tags
 
 export async function searchMemoryJournal(files: MemoryFiles, query = '', tag = '', limit = 20) {
   const file = await resolveMemoryFile(await files.directory(), files.journal)
-  const content = await readFile(file)
+  const content = (await readFile(file))?.content
   if (content === undefined) return undefined
   const matches: MemoryJournalEntry[] = []
   for (const line of content.split('\n')) {
