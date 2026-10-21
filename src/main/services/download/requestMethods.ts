@@ -2,7 +2,7 @@ const DEFAULT_LIMIT = 1024
 const DEFAULT_TTL_MS = 60_000
 
 interface Entry {
-  method: string
+  methods: string[]
   at: number
 }
 
@@ -29,10 +29,23 @@ export class RequestMethods {
 
   record(url: string, method: string | undefined): void {
     if (!method) return
+    const upper = method.toUpperCase()
+    const now = this.now()
+    const existing = this.entries.get(url)
+    if (existing && now - existing.at <= this.ttlMs) {
+      existing.at = now
+      if (!existing.methods.includes(upper)) existing.methods.push(upper)
+      return
+    }
     if (this.entries.size >= this.limit) this.prune()
-    this.entries.set(url, { method: method.toUpperCase(), at: this.now() })
+    this.entries.set(url, { methods: [upper], at: now })
   }
 
+  /**
+   * A URL seen with more than one method cannot be attributed to the request
+   * that produced a `will-download`; reporting `undefined` keeps the item with
+   * Electron instead of replaying the wrong method.
+   */
   methodFor(url: string): string | undefined {
     const entry = this.entries.get(url)
     if (!entry) return undefined
@@ -40,7 +53,7 @@ export class RequestMethods {
       this.entries.delete(url)
       return undefined
     }
-    return entry.method
+    return entry.methods.length === 1 ? entry.methods[0] : undefined
   }
 
   private prune(): void {

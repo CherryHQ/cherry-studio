@@ -82,6 +82,9 @@ export class DownloadTask {
   async run(signal: AbortSignal): Promise<DownloadRunResult> {
     const { task } = this.options
     await fs.mkdir(dirname(task.tempPath), { recursive: true })
+    // The filesystem preparation below can outlive a pause or cancel; the abort
+    // listener is installed only after it, and it does not replay past events.
+    if (signal.aborted) return this.settleAbort(signal)
 
     if (!this.options.probe.supportsRanges) {
       return this.runSingleStream(signal)
@@ -93,6 +96,7 @@ export class DownloadTask {
       return fs.open(task.tempPath, 'w+')
     })
     try {
+      if (signal.aborted) return this.settleAbort(signal)
       // Recorded offsets describe bytes in the temporary file. If that file had
       // to be recreated, those bytes are gone (a cancel removed it, or a crash
       // landed between rename and complete): reusing the offsets would skip every
@@ -105,6 +109,7 @@ export class DownloadTask {
       }
       await handle.truncate(task.totalBytes)
       this.options.store.setState(task.id, 'downloading')
+      if (signal.aborted) return this.settleAbort(signal)
 
       const controller = new AbortController()
       const onAbort = () => controller.abort()

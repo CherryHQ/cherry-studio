@@ -22,6 +22,14 @@ describe('RequestMethods', () => {
     expect(methods.methodFor('https://example.com/0')).toBeUndefined()
   })
 
+  it('treats a URL seen with different methods as un-attributable', () => {
+    const methods = new RequestMethods(4, 60_000, () => 0)
+    methods.record('https://example.com/export', 'POST')
+    methods.record('https://example.com/export', 'GET')
+
+    expect(methods.methodFor('https://example.com/export')).toBeUndefined()
+  })
+
   it('only treats requests without a body as replayable', () => {
     expect(isReplayableDownload('GET')).toBe(true)
     expect(isReplayableDownload('HEAD')).toBe(true)

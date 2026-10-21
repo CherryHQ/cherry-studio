@@ -117,6 +117,25 @@ describe('DownloadTask', () => {
     return { ...created, filePath, tempPath }
   }
 
+  it('settles a pause that lands during filesystem preparation', async () => {
+    const { task, segments } = createTask(2)
+    const controller = new AbortController()
+    controller.abort()
+    const fetchImpl = vi.fn<FetchLike>()
+
+    const runner = new DownloadTask({
+      task,
+      segments,
+      probe: { finalUrl: task.url, totalBytes: CONTENT.length, supportsRanges: true, etag: '"v1"' },
+      store,
+      fetchImpl
+    })
+
+    await expect(runner.run(controller.signal)).resolves.toBe('paused')
+    expect(store.get(task.id)?.task.state).toBe('paused')
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('downloads every segment into one file and marks the task completed', async () => {
     const { task, segments, filePath } = createTask(4)
 
