@@ -1,5 +1,5 @@
 diff --git a/dist/RTFJS.bundle.js b/dist/RTFJS.bundle.js
-index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..ceb06d196b3d4a1cc522e8b86d610d5e6977cf25 100644
+index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..f0af20e0ad8af36ca487231d6dc1cabff9f5053f 100644
 --- a/dist/RTFJS.bundle.js
 +++ b/dist/RTFJS.bundle.js
 @@ -5918,9 +5918,6 @@ var Parser = /** @class */ (function () {
@@ -20,7 +20,15 @@ index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..ceb06d196b3d4a1cc522e8b86d610d5e
      };
      Parser.prototype.eof = function () {
          return this.parser.pos >= this.parser.data.length;
-@@ -6349,7 +6347,21 @@ var Parser = /** @class */ (function () {
+@@ -5957,6 +5955,7 @@ var Parser = /** @class */ (function () {
+         for (var i = 0; i < cnt; i++) {
+             view[i] = this.parser.data[this.parser.pos + i];
+         }
++        this.parser.pos += cnt;
+         return buf;
+     };
+     Parser.prototype.applyDestination = function (always) {
+@@ -6349,7 +6348,21 @@ var Parser = /** @class */ (function () {
                              break;
                          default:
                              if (!skip) {
@@ -43,7 +51,7 @@ index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..ceb06d196b3d4a1cc522e8b86d610d5e
                              }
                              break;
                      }
-@@ -7942,9 +7954,15 @@ var RtfDestination = /** @class */ (function (_super) {
+@@ -7942,9 +7955,15 @@ var RtfDestination = /** @class */ (function (_super) {
                  _Helper__WEBPACK_IMPORTED_MODULE_0__.Helper.log("[rtf] reset to section defaults");
                  _this.parser.state.sep = new _Containers__WEBPACK_IMPORTED_MODULE_3__.Sep(null);
              },

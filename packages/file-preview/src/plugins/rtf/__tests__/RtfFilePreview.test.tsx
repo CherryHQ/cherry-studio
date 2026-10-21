@@ -90,6 +90,31 @@ describe('RTF preview', () => {
     expect(within(body).getByRole('img')).toHaveAttribute('src', expect.stringMatching(/^data:image\/png;base64,/))
   })
 
+  it('consumes binary image bytes without interpreting them as RTF syntax', async () => {
+    // This valid PNG contains braces and a backslash in its text metadata.
+    const pngHex =
+      '89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a730000001b74455874436f6d6d656e74007d5c627b2042494e415259205041594c4f41445987ba9e0000001449444154789c63f8cfc0c000c20cffffff6700001eef04fca3c8b4f70000000049454e44ae426082'
+    const png = Uint8Array.from(pngHex.match(/../g)!, (byte) => Number.parseInt(byte, 16))
+    const prefix = new TextEncoder().encode(String.raw`{\rtf1\ansi Before {\pict\pngblip\bin${png.length} `)
+    const suffix = new TextEncoder().encode('} After}')
+    const bytes = new Uint8Array([...prefix, ...png, ...suffix])
+    render(<Preview source={source('', 'binary-image.rtf', { size: bytes.length, readRange: async () => bytes })} />)
+
+    const body = await screen.findByRole('document')
+    expect(body).toHaveTextContent(/^Before After$/)
+    expect(within(body).getByRole('img')).toHaveAttribute(
+      'src',
+      `data:image/png;base64,${btoa(String.fromCharCode(...png))}`
+    )
+  })
+
+  it('rejects a binary image whose declared length exceeds the available bytes', async () => {
+    render(<Preview source={source(String.raw`{\rtf1\ansi {\pict\pngblip\bin100 abc}`)} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Preview failed')
+    expect(screen.queryByRole('document')).not.toBeInTheDocument()
+  })
+
   it('preserves safe links while rendering executable, local and relative links as text', async () => {
     const rtf = String.raw`{\rtf1\ansi
       {\field{\*\fldinst HYPERLINK "https://example.com/"}{\fldrslt Website}}
