@@ -142,6 +142,41 @@ describe('feishu app registration', () => {
     expect(JSON.stringify(incomplete)).not.toContain('secret-malformed-sentinel')
   })
 
+  it('continues HTTP 400 pending and slow-down polling until credentials arrive', async () => {
+    vi.mocked(net.fetch)
+      .mockResolvedValueOnce(response({ error: 'authorization_pending' }, 400))
+      .mockResolvedValueOnce(response({ error: 'slow_down' }, 400))
+      .mockResolvedValueOnce(response({ client_id: 'app-id', client_secret: 'app-secret' }))
+    const polling = registrationPoll('feishu', 'device-code', { interval: 1, expiresIn: 60 })
+    const result = polling.catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(net.fetch).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(5_999)
+    expect(net.fetch).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(result).resolves.toEqual({ appId: 'app-id', appSecret: 'app-secret' })
+  })
+
+  it.each([
+    ['access_denied', 'User denied the Feishu app registration'],
+    ['expired_token', 'Feishu app registration QR code expired'],
+    ['unknown', 'Feishu app registration request failed']
+  ])('handles HTTP 400 %s without leaking provider details', async (error, message) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ error, error_description: 'secret-sentinel' }, 400))
+    const polling = registrationPoll('feishu', 'device-code', { interval: 1, expiresIn: 60 })
+    const result = polling.catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(1_000)
+    await expect(result).resolves.toMatchObject({ message })
+  })
+
+  it.each([400, 500])('rejects credentials returned with HTTP %s', async (status) => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(response({ client_id: 'app-id', client_secret: 'secret' }, status))
+    const polling = registrationPoll('feishu', 'device-code', { interval: 1, expiresIn: 60 })
+    const result = expect(polling).rejects.toThrow('Feishu app registration request failed')
+    await vi.advanceTimersByTimeAsync(1_000)
+    await result
+  })
+
   it('passes cancellation to begin and in-flight poll requests', async () => {
     const beginController = new AbortController()
     vi.mocked(net.fetch)

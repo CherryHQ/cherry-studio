@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -76,6 +76,17 @@ describe('ExternalKnowledgeCredentialStore', () => {
     })
 
     expect((await stat(filePath)).mode & 0o777).toBe(0o600)
+  })
+
+  it.skipIf(process.platform === 'win32')('restricts an existing auto-created credential directory', async () => {
+    await mkdir(path.dirname(filePath), { recursive: true })
+    await chmod(path.dirname(filePath), 0o755)
+    const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage: createSafeStorage() })
+    await store.put('credential-ref', { appId: 'cli_test', appSecret: secretValues[0], grantedScopes: [] })
+
+    expect((await stat(path.dirname(filePath))).mode & 0o777).toBe(0o700)
+    expect((await stat(filePath)).mode & 0o777).toBe(0o600)
+    await expect(store.read('credential-ref')).resolves.toMatchObject({ status: 'ok' })
   })
 
   it('reports a strict-schema corruption without deleting the file', async () => {
