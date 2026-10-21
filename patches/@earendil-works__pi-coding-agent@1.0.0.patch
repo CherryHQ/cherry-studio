@@ -1,0 +1,68 @@
+diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
+index e4992e8..7f724c0 100644
+--- a/dist/core/compaction/compaction.js
++++ b/dist/core/compaction/compaction.js
+@@ -4,7 +4,7 @@
+  * Pure functions for compaction logic. The session manager handles I/O,
+  * and after compaction the session is reloaded.
+  */
+-import { contentText, getCurrentSystemMessage, normalizeContext, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
++import { contentText, getCurrentSystemMessage, isContextOverflow, normalizeContext, retryAssistantCall, uuidv7, } from "@earendil-works/pi-ai";
+ import { completeSimple } from "@earendil-works/pi-ai/compat";
+ import { convertToLlm } from "../messages.js";
+ import { buildSessionProjection, sessionEntryToContextMessages, } from "../session-manager.js";
+@@ -474,18 +474,50 @@ function createSummarizationOptions(model, maxTokens, apiKey, headers, env, sign
+  * the whole compaction on the first attempt. Deterministic errors and aborts return
+  * immediately (see {@link retryAssistantCall}).
+  */
++function fitSummarizationPrompt(prompt, maxChars) {
++    if (prompt.length <= maxChars)
++        return prompt;
++    const marker = "\n[...middle conversation omitted to fit the model context...]\n";
++    const remaining = maxChars - marker.length;
++    const firstChars = Math.floor(remaining / 5);
++    return prompt.slice(0, firstChars) + marker + prompt.slice(-(remaining - firstChars));
++}
+ export async function completeSummarization(model, context, options, streamFn, retry, callbacks) {
+     // Avoid cache writes for one-off summaries. Reuse caller-supplied routing when available;
+     // callers without a session ID, including branch summaries, receive a fresh routing ID.
++    const summaryIndex = context.messages.findIndex((message) => message.role === "user");
++    const originalPrompt = contentText(context.messages[summaryIndex].content);
++    const smallContext = model.contextWindow < 100000;
++    const maxTokens = smallContext
++        ? Math.min(options.maxTokens, Math.max(256, Math.floor(model.contextWindow / 24)))
++        : options.maxTokens;
+     const requestOptions = {
+         ...options,
++        maxTokens,
+         cacheRetention: "none",
+         sessionId: options.sessionId ?? uuidv7(),
+     };
+-    const produce = async () => streamFn
+-        ? (await streamFn(model, context, requestOptions)).result()
+-        : completeSimple(model, context, requestOptions);
+-    return retryAssistantCall(produce, retry, requestOptions.signal, callbacks);
++    const safeMaxChars = Math.max(512, Math.floor((model.contextWindow - maxTokens) / 2));
++    let maxChars = smallContext ? safeMaxChars : originalPrompt.length;
++    for (let attempt = 0; attempt < 4; attempt++) {
++        requestOptions.signal?.throwIfAborted();
++        const prompt = fitSummarizationPrompt(originalPrompt, maxChars);
++        const requestContext = {
++            ...context,
++            messages: context.messages.map((message, index) => index === summaryIndex
++                ? { ...message, content: [{ type: "text", text: prompt }] }
++                : message),
++        };
++        const produce = async () => streamFn
++            ? (await streamFn(model, requestContext, requestOptions)).result()
++            : completeSimple(model, requestContext, requestOptions);
++        const response = await retryAssistantCall(produce, retry, requestOptions.signal, callbacks);
++        if (!isContextOverflow(response, model.contextWindow))
++            return response;
++        if (attempt === 3)
++            throw new Error(`Summarization failed: ${response.errorMessage || "Context overflow"}`);
++        maxChars = Math.max(256, Math.min(safeMaxChars, Math.floor(maxChars / 2)));
++    }
+ }
+ /**
+  * Generate a summary of the conversation using the LLM.

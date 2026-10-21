@@ -87,3 +87,19 @@ diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
      if (model.baseUrl) {
          httpOptions.baseUrl = model.baseUrl;
          httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
+diff --git a/dist/utils/retry.js b/dist/utils/retry.js
+--- a/dist/utils/retry.js
++++ b/dist/utils/retry.js
+@@ -1,3 +1,4 @@
++import { isContextOverflow } from "./overflow.js";
+ function buildProviderErrorPattern(patterns) {
+     return new RegExp(patterns.join("|"), "i");
+ }
+@@ -177,6 +178,6 @@ export async function retryAssistantCall(produce, policy, signal, callbacks) {
+  */
+ export function isRetryableAssistantError(message) {
+-    if (message.stopReason !== "error" || !message.errorMessage)
++    if (message.stopReason !== "error" || !message.errorMessage || isContextOverflow(message))
+         return false;
+     const errorMessage = message.errorMessage;
+     if (NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN.test(errorMessage))

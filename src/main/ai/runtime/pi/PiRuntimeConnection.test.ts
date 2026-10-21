@@ -37,6 +37,7 @@ const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry_tools__config',
   'mcp__agent_memory__memory'
 ]
+const PI_COMPACTION_SETTINGS = { enabled: true, reserveTokens: 24_576, keepRecentTokens: 8_192 }
 
 interface FakeSpan {
   name: string
@@ -256,7 +257,7 @@ const fakePi = {
     create: async () => ({
       setRuntimeApiKey: mocks.setRuntimeApiKey,
       registerProvider: mocks.registerProvider,
-      getModel: () => ({ id: 'm', provider: 'p' })
+      getModel: () => ({ id: 'm', provider: 'p', contextWindow: 49_152, maxTokens: 8_192 })
     })
   },
   createCodemodeExtension: () => () => undefined,
@@ -1629,7 +1630,7 @@ describe('PiRuntimeConnection', () => {
 
   it('trusts the user-selected workspace: context files load, executable/managed discovery stays off', async () => {
     await new PiRuntimeConnection(input).start()
-    expect(mocks.settingsArgs).toMatchObject([{}, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toMatchObject([{ compaction: PI_COMPACTION_SETTINGS }, { projectTrusted: true }])
     expect(mocks.loaderOpts).toMatchObject({
       noExtensions: true,
       noSkills: true,
@@ -1654,7 +1655,10 @@ describe('PiRuntimeConnection', () => {
       await rm(fixtureRoot, { recursive: true, force: true })
     }
 
-    expect(mocks.settingsArgs).toMatchObject([{ shellPath }, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toMatchObject([
+      { shellPath, compaction: PI_COMPACTION_SETTINGS },
+      { projectTrusted: true }
+    ])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath })
     expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
   })
@@ -1698,7 +1702,10 @@ describe('PiRuntimeConnection', () => {
       await rm(fixtureRoot, { recursive: true, force: true })
     }
 
-    expect(mocks.settingsArgs).toMatchObject([{ shellPath: fallbackPath }, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toMatchObject([
+      { shellPath: fallbackPath, compaction: PI_COMPACTION_SETTINGS },
+      { projectTrusted: true }
+    ])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath: fallbackPath })
   })
 
