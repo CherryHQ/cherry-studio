@@ -1,6 +1,12 @@
+import { loggerService } from '@logger'
 import type { SpeechPcmChunk, SpeechPcmFormat, SpeechStreamEvent, SpeechStreamIdentity } from '@shared/ai/voice'
 
 import { VoiceRuntimeError } from './VoiceRuntimeError'
+
+const logger = loggerService.withContext('VoiceStream')
+const ATTACHMENT_TIMEOUT_MS = 15_000
+const PRODUCER_TIMEOUT_MS = 120_000
+const RETENTION_TIMEOUT_MS = 15 * 60_000
 
 /** One playback attempt. Credits count consumed source frames, including during pause/resume. */
 export class VoiceStream {
@@ -32,11 +38,15 @@ export class VoiceStream {
     this.capacityFrames = format.sampleRate
     this.lifetime = AbortSignal.any([signal, this.controller.signal])
     this.lifetime.addEventListener('abort', this.onAbort, { once: true })
-    this.attachmentTimer = setTimeout(() => this.close('timeout'), 15_000)
+    this.attachmentTimer = setTimeout(() => {
+      this.logTimeout('attachment', ATTACHMENT_TIMEOUT_MS)
+      this.close('timeout')
+    }, ATTACHMENT_TIMEOUT_MS)
     this.retentionTimer = setTimeout(() => {
+      this.logTimeout('retention', RETENTION_TIMEOUT_MS)
       this.close('timeout')
       onExpired()
-    }, 15 * 60_000)
+    }, RETENTION_TIMEOUT_MS)
     this.attachmentTimer.unref()
     this.retentionTimer.unref()
   }
@@ -104,6 +114,17 @@ export class VoiceStream {
     this.wake?.()
   }
 
+  private logTimeout(stage: 'attachment' | 'producer' | 'retention', timeoutMs: number): void {
+    logger.warn('Voice stream timed out', {
+      ...this.identity,
+      stage,
+      timeoutMs,
+      attached: this.attached,
+      sentFrames: this.sent,
+      consumedFrames: this.consumed
+    })
+  }
+
   private async waitUntil(ready: () => boolean): Promise<void> {
     while (!ready()) {
       this.lifetime.throwIfAborted()
@@ -125,7 +146,10 @@ export class VoiceStream {
         new Promise<never>((_, reject) => {
           aborted = () => reject(this.lifetime.reason)
           this.lifetime.addEventListener('abort', aborted, { once: true })
-          timer = setTimeout(() => reject(new VoiceRuntimeError('timeout')), 120_000)
+          timer = setTimeout(() => {
+            this.logTimeout('producer', PRODUCER_TIMEOUT_MS)
+            reject(new VoiceRuntimeError('timeout'))
+          }, PRODUCER_TIMEOUT_MS)
           timer.unref()
         })
       ])
