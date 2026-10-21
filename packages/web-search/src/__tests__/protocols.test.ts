@@ -15,6 +15,7 @@ import { querit } from '../providers/querit'
 import { discoverSearxngEngines, searxng } from '../providers/searxng'
 import { serply } from '../providers/serply'
 import { tavily } from '../providers/tavily'
+import { yuanbao } from '../providers/yuanbao'
 import { zhipu } from '../providers/zhipu'
 import type { WebSearchCall, WebSearchHttpRequest, WebSearchProviderModule, WebSearchTransport } from '../types'
 import { WebSearchTransportError } from '../WebSearchError'
@@ -626,5 +627,87 @@ describe('failure and capability contracts', () => {
       }
     })
     await expect(client.execute(search('tavily'))).rejects.toMatchObject({ kind: 'timeout', name: 'TimeoutError' })
+  })
+})
+
+describe('Yuanbao Search', () => {
+  it('uses a Query-only request and decodes ranked pages with summary fallbacks and a local limit', async () => {
+    const pages = [
+      { title: 'Dynamic', url: 'https://example.com/1', content: 'Dynamic summary', passage: 'Standard summary' },
+      { title: 'Standard', url: 'https://example.com/2', content: '', passage: 'Standard summary' },
+      { title: 'No summary', url: 'https://example.com/3' },
+      { title: 'Beyond limit', url: 'https://example.com/4' }
+    ]
+    const { client, requests } = setup(
+      yuanbao,
+      JSON.stringify({ Response: { Pages: pages.map((page) => JSON.stringify(page)) } })
+    )
+    const result = await client.execute({
+      providerId: 'yuanbao',
+      capability: 'searchKeywords',
+      input: '元宝 & search',
+      config: { maxResults: 3 },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(requests[0]).toMatchObject({ url: 'https://api.wsa.cloud.tencent.com/SearchPro', method: 'POST' })
+    expect(JSON.parse(requests[0].body!)).toEqual({ Query: '元宝 & search' })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      { title: 'Dynamic', url: 'https://example.com/1', content: 'Dynamic summary', sourceInput: '元宝 & search' },
+      { title: 'Standard', url: 'https://example.com/2', content: 'Standard summary', sourceInput: '元宝 & search' },
+      { title: 'No summary', url: 'https://example.com/3', content: '', sourceInput: '元宝 & search' }
+    ])
+  })
+
+  it.each(['UnauthorizedOperation', 'ResourceNotFound', 'ResourceUnavailable', 'RequestLimitExceeded'])(
+    'surfaces %s without requiring Pages and redacts credentials',
+    async (code) => {
+      const { client } = setup(
+        yuanbao,
+        JSON.stringify({
+          Response: { Error: { Code: code, Message: 'Failure for test-key' }, RequestId: 'req-test-key' }
+        })
+      )
+      await expect(client.execute(search('yuanbao'))).rejects.toMatchObject({
+        kind: 'provider',
+        providerCode: code,
+        requestId: 'req-[redacted]',
+        message: 'Yuanbao search failed: ' + code + ': Failure for [redacted]'
+      })
+    }
+  )
+
+  it.each([
+    ['{', 'invalid_json'],
+    [JSON.stringify({ Response: {} }), 'schema_mismatch'],
+    [JSON.stringify({ Response: { Pages: ['{'] } }), 'invalid_json'],
+    [JSON.stringify({ Response: { Pages: [JSON.stringify({ title: 'No URL' })] } }), 'schema_mismatch']
+  ])('rejects malformed responses: %s', async (body, code) => {
+    await expect(setup(yuanbao, body).client.execute(search('yuanbao'))).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code
+    })
+  })
+
+  it('accepts explicit empty results and preserves proxy paths', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    expect((await client.execute(search('yuanbao'))).results).toEqual([])
+    expect(requests[0].url).toBe('https://service.example/proxy/SearchPro')
+  })
+
+  it('rejects missing credentials before sending a request', async () => {
+    const { client, requests } = setup(yuanbao, JSON.stringify({ Response: { Pages: [] } }))
+    await expect(client.execute({ ...search('yuanbao'), credentials: {} })).rejects.toMatchObject({
+      kind: 'configuration',
+      code: 'api_key_missing'
+    })
+    expect(requests).toEqual([])
+  })
+
+  it('keeps HTTP failures distinct from empty results', async () => {
+    await expect(setup(yuanbao, '{}', 429).client.execute(search('yuanbao'))).rejects.toMatchObject({
+      kind: 'http',
+      status: 429
+    })
   })
 })

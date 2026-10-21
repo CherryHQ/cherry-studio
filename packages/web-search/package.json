@@ -229,6 +229,21 @@
       },
       "default": "./dist/providers/serply.mjs"
     },
+    "./providers/yuanbao": {
+      "react-native": {
+        "types": "./dist/providers/yuanbao.d.mts",
+        "default": "./dist/providers/yuanbao.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/yuanbao.d.mts",
+        "default": "./dist/providers/yuanbao.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/yuanbao.d.cts",
+        "default": "./dist/providers/yuanbao.cjs"
+      },
+      "default": "./dist/providers/yuanbao.mjs"
+    },
     "./providers/deepseek": {
       "react-native": {
         "types": "./dist/providers/deepseek.d.mts",

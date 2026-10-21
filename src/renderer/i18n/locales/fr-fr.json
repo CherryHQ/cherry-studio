@@ -5719,6 +5719,7 @@
   "settings.tool.websearch.provider_description.searxng": "Moteur de méta-recherche internet gratuit auto-hébergeable couvrant de nombreuses sources.",
   "settings.tool.websearch.provider_description.serply": "API de recherche Serply renvoyant les résultats Google en JSON structuré pour les applications IA.",
   "settings.tool.websearch.provider_description.tavily": "Moteur de recherche optimisé pour les LLM.",
+  "settings.tool.websearch.provider_description.yuanbao": "API de recherche Tencent Yuanbao. Nécessite une clé API du service. Le nombre de résultats est un maximum ; le service peut en renvoyer moins.",
   "settings.tool.websearch.provider_description.zhipu": "Recherche Web Zhipu GLM pour la récupération en direct sur le web et l'information actuelle.",
   "settings.tool.websearch.search_max_result.label": "Nombre de résultats de recherche",
   "settings.tool.websearch.search_max_result.tooltip": "En l'absence de compression des résultats, un nombre trop élevé peut consommer trop de tokens",

@@ -166,6 +166,7 @@ export const mainResolveAlias = {
   '@cherrystudio/web-search/providers/crawl4ai': resolve('packages/web-search/src/providers/crawl4ai.ts'),
   '@cherrystudio/web-search/providers/parallel': resolve('packages/web-search/src/providers/parallel.ts'),
   '@cherrystudio/web-search/providers/serply': resolve('packages/web-search/src/providers/serply.ts'),
+  '@cherrystudio/web-search/providers/yuanbao': resolve('packages/web-search/src/providers/yuanbao.ts'),
   '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
   '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
   '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),

@@ -186,6 +186,34 @@ describe('main web search API providers', () => {
     mocks.isInChina.mockResolvedValue(false)
   })
 
+  it('runs Yuanbao through the desktop factory with key rotation and caller cancellation', async () => {
+    fetchMock.mockImplementation(async () => createJsonResponse({ Response: { Pages: [] } }))
+    const { createWebSearchProvider } = await import('../factory')
+    const provider = createWebSearchProvider(
+      createProvider({
+        id: 'yuanbao',
+        apiKeys: ['first-key', 'second-key'],
+        apiHost: 'https://api.wsa.cloud.tencent.com'
+      }),
+      new ApiKeyRotationState()
+    )
+    const controller = new AbortController()
+    expect(await provider.searchKeywords!('hello', runtimeConfig, { signal: controller.signal })).toMatchObject({
+      providerId: 'yuanbao',
+      capability: 'searchKeywords',
+      inputs: ['hello'],
+      results: []
+    })
+    await provider.searchKeywords!('hello', runtimeConfig)
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('authorization')).toBe('Bearer first-key')
+    expect(new Headers(fetchMock.mock.calls[1][1].headers).get('authorization')).toBe('Bearer second-key')
+    controller.abort()
+    await expect(provider.searchKeywords!('hello', runtimeConfig, { signal: controller.signal })).rejects.toMatchObject(
+      { name: 'AbortError' }
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('matches Exa request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('exa-response.json')))
 
