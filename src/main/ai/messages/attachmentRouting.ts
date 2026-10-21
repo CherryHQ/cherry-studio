@@ -5,7 +5,8 @@
  *     provider, audio/video→model + endpoint capable) → left in place and
  *     materialized as the real file via `materializeNativeFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
- *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
+ *     `extractDocumentText`, image via OCR, audio/video via media analysis,
+ *     binary → a note),
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer. A non-vision image whose OCR yields no text (or whose OCR is
  *     unconfigured/failed) stops before the provider call with a user-facing
@@ -26,6 +27,7 @@
 
 import { isAbortError } from '@ai-sdk/provider-utils'
 import type { UIMessage } from 'ai'
+import mime from 'mime'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -137,12 +139,41 @@ export interface PrepareChatContext {
   signal?: AbortSignal
 }
 
-function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boolean {
+function acceptsResolvedMediaType(mediaType: string | undefined, allowed: readonly string[] | undefined): boolean {
+  return !mediaType || !allowed || allowed.includes(mediaType)
+}
+
+function isNative(ext: string, fileType: FileType, ns: NativeFileSupport, mediaType?: string): boolean {
   if (fileType === FILE_TYPE.IMAGE) return ns.image
-  if (fileType === FILE_TYPE.AUDIO) return ns.audio
+  if (fileType === FILE_TYPE.AUDIO) return ns.audio && acceptsResolvedMediaType(mediaType, ns.audioMediaTypes)
   if (fileType === FILE_TYPE.VIDEO) return ns.video
   if (ext === 'pdf') return ns.pdf
   return false
+}
+
+/** Unresolved audio is treated as accepted, so a recognized extension carries its MIME. */
+function dispatchAudioMediaType(bareExt: string): string | undefined {
+  const normalizedExt = bareExt.replace(/^\./, '').toLowerCase()
+  if (getFileTypeByExt(normalizedExt) !== FILE_TYPE.AUDIO) return undefined
+  return mime.getType(normalizedExt) ?? undefined
+}
+
+/** WebM is audio or video only after probe. Unambiguous extensions keep their static type. */
+async function resolveAttachmentFileType(
+  entryId: string,
+  bareExt: string,
+  signal?: AbortSignal
+): Promise<{ fileType: FileType; mediaType?: string }> {
+  if (bareExt.replace(/^\./, '').toLowerCase() !== 'webm') {
+    const fileType = getFileTypeByExt(bareExt)
+    const mediaType = dispatchAudioMediaType(bareExt)
+    return mediaType ? { fileType, mediaType } : { fileType }
+  }
+  const probe = await application.get('MediaAnalysisService').probe({ kind: 'entry', entryId }, signal)
+  // A .webm name can still be Matroska or MP4. Kind chooses the capability; probe.mime is dispatched.
+  if (probe.kind === 'video') return { fileType: FILE_TYPE.VIDEO, mediaType: probe.mime }
+  if (probe.kind === 'audio') return { fileType: FILE_TYPE.AUDIO, mediaType: probe.mime }
+  return { fileType: FILE_TYPE.OTHER }
 }
 
 /**
@@ -172,28 +203,50 @@ async function extractNonNativeText(
   fileType: FileType,
   handle: string,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<{ text: string; continuation: 'full' | 'prefix' }> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-    return `This model can't process the attached ${fileType} file "${handle}".`
+    try {
+      return {
+        text: await application.get('MediaAnalysisService').analyzeToCompactText({ kind: 'entry', entryId }, signal),
+        continuation: 'full'
+      }
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
+      logger.warn('Media analysis unavailable for a non-native attachment', { error, entryId, handle, fileType })
+      return { text: `Could not analyze the attached ${fileType} file "${handle}".`, continuation: 'prefix' }
+    }
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || fileType === FILE_TYPE.OTHER) {
     const extracted = await extractDocumentText(entryId, { signal })
     if (extracted === null) {
-      return `Cannot read the attached file "${handle}" as text (unsupported file type).`
+      return {
+        text: `Cannot read the attached file "${handle}" as text (unsupported file type).`,
+        continuation: 'prefix'
+      }
     }
     const text = extracted.trim()
-    return text || noExtractableTextNote(handle)
+    return { text: text || noExtractableTextNote(handle), continuation: 'prefix' }
   }
   // Unknown extensions decode only when the conservative decoder accepts text;
   // rejected decodes keep the unsupported note.
-  return `Cannot read the attached file "${handle}" as text (unsupported file type).`
+  return {
+    text: `Cannot read the attached file "${handle}" as text (unsupported file type).`,
+    continuation: 'prefix'
+  }
 }
 
-function capInlineText(handle: string, text: string, isToolCapable: boolean, cap: number): string {
+function capInlineText(
+  handle: string,
+  text: string,
+  isToolCapable: boolean,
+  cap: number,
+  continuation: 'full' | 'prefix'
+): string {
   if (text.length <= cap) return text
   const head = text.slice(0, surrogateSafeEnd(text, cap))
+  const offset = continuation === 'full' ? 0 : head.length
   const more = isToolCapable
-    ? `\n\n[Truncated ${head.length}/${text.length} chars — call read_file("${handle}", offset=${head.length}) for the rest.]`
+    ? `\n\n[Truncated ${head.length}/${text.length} chars — call read_file("${handle}", offset=${offset}) for the rest.]`
     : `\n\n[Truncated ${head.length}/${text.length} chars.]`
   return head + more
 }
@@ -218,8 +271,8 @@ async function prepareChatMessage<T extends UIMessage>(
 
   const kept: UIMessage['parts'] = []
   const composerFileTokenIds = collectComposerFileTokenIds(message)
-  const inlineNative = async (part: FileUIPart): Promise<boolean> => {
-    const inlined = await materializeNativeFilePart(part)
+  const inlineNative = async (part: FileUIPart, mediaType?: string): Promise<boolean> => {
+    const inlined = await materializeNativeFilePart(part, mediaType ? { mediaType } : undefined)
     if (!inlined) return false
     kept.push(inlined)
     return true
@@ -273,10 +326,11 @@ async function prepareChatMessage<T extends UIMessage>(
     const displayName = ref?.displayName ?? handle
     try {
       const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
-      const fileType = getFileTypeByExt(bareExt)
+      const resolved = await resolveAttachmentFileType(fileEntryId, bareExt, ctx.signal)
+      const fileType = resolved.fileType
 
-      if (isNative(bareExt, fileType, ctx.nativeSupport)) {
-        if (!(await inlineNative(part))) {
+      if (isNative(bareExt, fileType, ctx.nativeSupport, resolved.mediaType)) {
+        if (!(await inlineNative(part, resolved.mediaType))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
           kept.push(noteOf(handle))
         }
@@ -310,8 +364,8 @@ async function prepareChatMessage<T extends UIMessage>(
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const body = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
-      defer(kept, pending, handle, body)
+      const extracted = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
+      defer(kept, pending, handle, extracted.text, extracted.continuation)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
       if (error instanceof NonVisionImageOcrError) throw error
@@ -347,10 +401,17 @@ interface PendingInline {
   index: number
   handle: string
   body: string
+  continuation: 'full' | 'prefix'
 }
 
-function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: string, body: string): void {
-  pending.push({ parts, index: parts.length, handle, body })
+function defer(
+  parts: UIMessage['parts'],
+  pending: PendingInline[],
+  handle: string,
+  body: string,
+  continuation: 'full' | 'prefix' = 'prefix'
+): void {
+  pending.push({ parts, index: parts.length, handle, body, continuation })
   parts.push({ type: 'text', text: '' })
 }
 
@@ -363,7 +424,7 @@ function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): voi
     : pending.map(() => READ_FILE_PAGE_SIZE)
 
   pending.forEach((entry, index) => {
-    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index])
+    const capped = capInlineText(entry.handle, entry.body, ctx.isToolCapable, caps[index], entry.continuation)
     entry.parts[entry.index] = { type: 'text', text: `Attached file "${entry.handle}":\n${capped}` }
   })
 }
