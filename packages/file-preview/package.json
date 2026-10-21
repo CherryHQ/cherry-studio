@@ -61,6 +61,7 @@
     "react-error-boundary": "^6.0.0",
     "react-i18next": "^14.1.2",
     "rolldown-plugin-dts": "0.27.14",
+    "rtf.js": "3.0.9",
     "tailwindcss": "^4.3.3",
     "tw-animate-css": "^1.3.8",
     "typescript": "5.9.3",

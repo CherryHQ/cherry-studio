@@ -1,0 +1,45 @@
+diff --git a/dist/RTFJS.bundle.js b/dist/RTFJS.bundle.js
+index 65cda7cd39cadb919dc688a9d1af32202a5c1c7e..13ae76d2dbfbfa519804971711946b49a47c01a1 100644
+--- a/dist/RTFJS.bundle.js
++++ b/dist/RTFJS.bundle.js
+@@ -5918,9 +5918,6 @@ var Parser = /** @class */ (function () {
+     Parser.prototype.parse = function () {
+         if (this.parser.data.length > 1 && String.fromCharCode(this.parser.data[0]) === "{") {
+             this.parseLoop(false, true);
+-            return Promise.all(this.parser._asyncTasks).then(function () {
+-                return;
+-            });
+         }
+         if (this.parser.version == null) {
+             throw new _Helper__WEBPACK_IMPORTED_MODULE_1__.RTFJSError("Not a valid rtf document");
+@@ -5928,6 +5925,7 @@ var Parser = /** @class */ (function () {
+         if (this.parser.state != null) {
+             throw new _Helper__WEBPACK_IMPORTED_MODULE_1__.RTFJSError("File truncated");
+         }
++        return Promise.all(this.parser._asyncTasks).then(function () {});
+     };
+     Parser.prototype.eof = function () {
+         return this.parser.pos >= this.parser.data.length;
+@@ -6349,7 +6347,21 @@ var Parser = /** @class */ (function () {
+                             break;
+                         default:
+                             if (!skip) {
+-                                this.appendText(new _Containers__WEBPACK_IMPORTED_MODULE_4__.PlainText(ch));
++                                var byte = ch.charCodeAt(0);
++                                if (byte < 0x80) {
++                                    this.appendText(new _Containers__WEBPACK_IMPORTED_MODULE_4__.PlainText(ch));
++                                } else {
++                                    var chp = this.parser.state.chp;
++                                    var font = this.inst._fonts[chp.fontfamily];
++                                    var codepage = font && font.charset && font.charset !== 42
++                                        ? font.charset : this.parser.codepage;
++                                    var next = this.parser.data[this.parser.pos];
++                                    this.appendText(new _Containers__WEBPACK_IMPORTED_MODULE_4__.HexText(byte, chp));
++                                    if (next !== undefined && (codepage__WEBPACK_IMPORTED_MODULE_0___default())[codepage].dec[byte * 0x100 + next] !== undefined) {
++                                        this.readChar();
++                                        this.appendText(new _Containers__WEBPACK_IMPORTED_MODULE_4__.HexText(next, chp));
++                                    }
++                                }
+                             }
+                             break;
+                     }
