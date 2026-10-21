@@ -108,14 +108,29 @@ describe('/goal command', () => {
   // Catches pause or clear aborting a person's turn while the goal is not driving it, or a pause that does not
   // suppress wake-ups the way the user's stop button does.
   it('stops the running turn only for an armed goal, recording the stop', () => {
-    const busy = run([goalEntry(goal())], 'PAUSE', { idle: false })
-    expect(busy.effects).toContainEqual({ type: 'stop-turn', thread: 'parent', cause: 'goal-pause' })
+    const started = user()
+    const busy = run([goalEntry(goal()), started], 'PAUSE', { idle: false })
+    expect(busy.effects).toContainEqual({ type: 'stop-turn', thread: 'parent', cause: 'goal-pause', turn: started.id })
     expect(busy.ops).toContainEqual(
       expect.objectContaining({ record: { type: 'turn-stop', value: { cause: 'goal-command', at: 1000 } } })
     )
     expect(run([goalEntry(goal({ armed: false }))], 'clear', { idle: false }).effects.map((e) => e.type)).toEqual([
       'emit'
     ])
+  })
+
+  // Catches a repeated pause or clear that answers its notice and loses the stop: a crash between the commit and the
+  // stop left the turn running, and the retry reported success while that turn went on.
+  it.each(['pause', 'clear'])('stops the turn a repeated %s first named, writing nothing', (word) => {
+    const first = user('first')
+    const history = [goalEntry(goal()), first, assistant('x')]
+    const decided = run(history, word, { idle: false })
+    const later = [...apply(history, decided), user('second')]
+    const again = run(later, word, { idle: false })
+    const cause = word === 'pause' ? 'goal-pause' : 'goal-clear'
+    expect(again.ops).toEqual([])
+    expect(again.effects).toEqual([{ type: 'stop-turn', thread: 'parent', cause, turn: first.id }])
+    expect(again.result).toEqual(decided.result)
   })
 
   // Catches a pause that stops when only a failed run's leftover inputs are queued: no run is going, and the stop

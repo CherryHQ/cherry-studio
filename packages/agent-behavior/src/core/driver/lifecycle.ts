@@ -7,7 +7,7 @@ import { goalRecord } from '../goal/goalTools'
 import type { CallInputs } from '../hostFacts'
 import { armSeq, keys } from '../keys'
 import { pendingResults, readSubagents, runStarted } from '../subagents/subagentLedger'
-import { runActive, startsTurn } from '../turns'
+import { runActive, startsTurn, stoppedTurn } from '../turns'
 import { goalStop, quietDelivery } from './idle'
 import { ensureDriver } from './jobs'
 
@@ -97,11 +97,7 @@ export function decideOnOpen(
  */
 export function decideUserStop(facts: ConversationFacts, inputs: CallInputs, requestKey: string): Step<null> {
   const key = keys.turnStop(requestKey)
-  let turn: ItemId | undefined
-  for (const entry of facts.history) {
-    if (entry.kind === 'record' && entry.key === key) break
-    if (startsTurn(entry)) turn = entry.id
-  }
+  const turn = stoppedTurn(facts.history, key)
   return {
     ops: [
       {
