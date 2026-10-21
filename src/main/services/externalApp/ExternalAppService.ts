@@ -6,8 +6,10 @@ import { app, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isMac } from '@main/core/platform'
 import { safeOpen, showInFolder } from '@main/services/file'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
+import { realpath } from '@main/utils/file'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { ExternalOpenTarget, ExternalOpenTargetResult } from '@shared/types/externalApp'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -137,9 +139,21 @@ export class ExternalAppService {
       this.detectInstalledApps(),
       dangerous ? Promise.resolve(null) : resolveDefaultApplication(targetPath)
     ])
-    const applicationTargets = installedApps
-      .filter((item) => item.kind === 'application' && item.pathKinds.includes('file'))
-      .map((item) => this.toKnownTarget(item))
+    const defaultApplicationPath =
+      isMac && defaultApplication?.path ? await this.resolveApplicationPath(defaultApplication.path) : null
+    const compatibleApps = installedApps.filter(
+      (item) => item.kind === 'application' && item.pathKinds.includes('file')
+    )
+    const applicationTargets = (
+      await Promise.all(
+        compatibleApps.map(async (item) => {
+          if (defaultApplicationPath && (await this.resolveApplicationPath(item.path)) === defaultApplicationPath) {
+            return null
+          }
+          return this.toKnownTarget(item)
+        })
+      )
+    ).filter((item) => item !== null)
     const targets: ExternalOpenTarget[] = [
       ...(dangerous
         ? []
@@ -147,7 +161,8 @@ export class ExternalAppService {
             {
               id: SYSTEM_DEFAULT_TARGET_ID,
               kind: 'system_default' as const,
-              ...defaultApplication
+              ...(defaultApplication?.name ? { name: defaultApplication.name } : {}),
+              ...(defaultApplication?.iconDataUrl ? { iconDataUrl: defaultApplication.iconDataUrl } : {})
             }
           ]),
       { id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' },
@@ -158,6 +173,17 @@ export class ExternalAppService {
       pathKind: 'file',
       recommendedTargetId: dangerous ? (applicationTargets[0]?.id ?? FILE_MANAGER_TARGET_ID) : SYSTEM_DEFAULT_TARGET_ID,
       targets
+    }
+  }
+
+  private async resolveApplicationPath(applicationPath: string): Promise<AbsoluteFilePath | null> {
+    if (!path.posix.isAbsolute(applicationPath)) return null
+    const validated = AbsoluteFilePathSchema.safeParse(applicationPath)
+    if (!validated.success) return null
+    try {
+      return await realpath(validated.data)
+    } catch {
+      return null
     }
   }
 
