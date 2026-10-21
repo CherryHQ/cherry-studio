@@ -198,7 +198,12 @@ function parseRetryAfter(value: string | null): number | undefined {
 function classifyError(response: Response, body: Record<string, unknown>): FeishuProviderError {
   const oauthError = typeof body.error === 'string' ? body.error : undefined
   const providerCode = typeof body.code === 'number' ? body.code : undefined
-  const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'))
+  const retryAfter = parseRetryAfter(response.headers.get('Retry-After'))
+  const resetSeconds = Number(response.headers.get('x-ogw-ratelimit-reset'))
+  const retryAfterMs =
+    Number.isFinite(resetSeconds) && resetSeconds > 0
+      ? Math.max(retryAfter ?? 0, Math.ceil(resetSeconds * 1000))
+      : retryAfter
   if (oauthError === 'authorization_pending') return new FeishuProviderError('authorization-pending', false)
   if (oauthError === 'slow_down') return new FeishuProviderError('authorization-slow-down', false, retryAfterMs)
   if (oauthError === 'access_denied') return new FeishuProviderError('authorization-denied', true)
@@ -213,10 +218,21 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
   if (providerCode === 2889906 || providerCode === 2889914) {
     return new FeishuProviderError('scope-not-found', false)
   }
-  if (oauthError === 'invalid_grant' || providerCode === 20005 || response.status === 401) {
+  if (
+    oauthError === 'invalid_grant' ||
+    providerCode === 20005 ||
+    providerCode === 99991668 ||
+    response.status === 401
+  ) {
     return new FeishuProviderError('reauthorization-required', true)
   }
-  if (providerCode === 131001 || providerCode === 99991663 || response.status === 429 || response.status >= 500) {
+  if (
+    providerCode === 131001 ||
+    providerCode === 99991663 ||
+    providerCode === 99991400 ||
+    response.status === 429 ||
+    response.status >= 500
+  ) {
     return new FeishuProviderError('transient', false, retryAfterMs)
   }
   return new FeishuProviderError('invalid-response', false)

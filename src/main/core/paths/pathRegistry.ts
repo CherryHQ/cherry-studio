@@ -205,6 +205,7 @@ export function buildPathRegistry() {
     // Main-only credentials live outside the backup-managed Data directory.
     'feature.cherry_account.credentials_file': path.join(appUserData, 'Credentials', 'cherry-account.json'),
     'feature.knowledge.credentials_file': path.join(appUserData, 'Credentials', 'external-knowledge.json'),
+    'feature.credentials': path.join(appUserData, 'Credentials', 'connectors'),
 
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),
@@ -409,6 +410,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.credentials',
   // Namespace prefixes
   'sys.',
   'external.',
