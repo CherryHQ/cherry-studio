@@ -310,6 +310,42 @@ describe('extractXlsxText', () => {
     expect(await extractXlsxText(data)).toBe('Sheet: Big\nReport')
   })
 
+  // ExcelJS also expands a data validation's range and a defined name's range cell by cell on load
+  it.each([
+    ['a data validation', 'xl/worksheets/sheet1.xml', 'sqref="A1"', 'sqref="A1:XFD1048576"'],
+    ['a defined name', 'xl/workbook.xml', '>Big!$A$1<', '>Big!$A$1:$XFD$1048576<']
+  ])('reads a sheet with %s that covers the whole sheet', async (_, path, from, to) => {
+    const built = await xlsxBytes((workbook) => {
+      const sheet = workbook.addWorksheet('Big')
+      sheet.getCell('A1').value = 'Report'
+      sheet.getCell('A1').dataValidation = { type: 'list', allowBlank: true, formulae: ['"a,b"'] }
+      workbook.definedNames.add('Big!$A$1', 'everything')
+    })
+    const data = await editSheetXml(built, path, (xml) => xml.replace(from, to))
+
+    expect(await extractXlsxText(data)).toBe('Sheet: Big\nReport')
+  })
+
+  it('reads rows with values far apart without creating the cells between them', async () => {
+    // 1,000 rows that hold a value in A and in XFD only, 16,384 columns apart
+    const built = await xlsxBytes((workbook) => {
+      workbook.addWorksheet('Sparse').getCell('A1').value = 'a'
+    })
+    const rows = Array.from(
+      { length: 1000 },
+      (_, index) =>
+        `<row r="${index + 1}"><c r="A${index + 1}" t="inlineStr"><is><t>a</t></is></c>` +
+        `<c r="XFD${index + 1}" t="inlineStr"><is><t>z</t></is></c></row>`
+    ).join('')
+    const data = await editSheetXml(built, 'xl/worksheets/sheet1.xml', (xml) =>
+      xml.replace(/<sheetData>[\s\S]*<\/sheetData>/, `<sheetData>${rows}</sheetData>`)
+    )
+
+    const lines = (await extractXlsxText(data)).split('\n')
+    expect(lines).toHaveLength(1001)
+    expect(lines[1]).toBe(`a${'\t'.repeat(16383)}z`)
+  })
+
   it('reads a merged range once even when another of its cells keeps hidden text', async () => {
     // LibreOffice can keep the text of the cells a merge hides; the sheet shows only the first cell
     const built = await xlsxBytes((workbook) => {

@@ -19,8 +19,8 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
   const { default: ExcelJS } = await import('exceljs')
   const stored = await storedWorkbook(data)
   const workbook = new ExcelJS.Workbook()
-  // Loaded without its merged ranges: ExcelJS creates every cell a range covers, and one range can
-  // cover all 17 billion cells of a sheet
+  // Loaded without its merged ranges, data validations and defined names: ExcelJS creates an entry
+  // for every cell such a range covers, and one range can cover all 17 billion cells of a sheet
   await workbook.xlsx.load(new Uint8Array(stored.data).buffer)
   const date1904 = Boolean(workbook.properties.date1904)
 
@@ -36,7 +36,9 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
       while (nextMerge < merges.length && merges[nextMerge].top <= rowNumber) activeMerges.push(merges[nextMerge++])
       activeMerges = activeMerges.filter((range) => range.bottom >= rowNumber)
       const cells: string[] = []
-      row.eachCell({ includeEmpty: true }, (cell, column) => {
+      // Only the cells the row holds: with includeEmpty ExcelJS creates a cell for every gap, and a
+      // row can hold values in A and XFD alone. A gap is left empty in the line.
+      row.eachCell((cell, column) => {
         // A merged range shows its value once, in its first cell; another cell of the range can still
         // hold text the sheet hides (LibreOffice keeps it)
         const inRange = activeMerges.some((range) => column >= range.left && column <= range.right)
@@ -51,7 +53,11 @@ export async function extractXlsxText(data: Uint8Array): Promise<string> {
         const text = cellText(cell, numFmt, date1904, storedCell)
         cells[column - 1] = text.replace(/[\t\r\n]+/g, ' ')
       })
-      const line = cells.join('\t').replace(/\t+$/, '')
+      // Trailing empty cells are dropped from the array: a `\t+$` regex backtracks over every run of
+      // tabs, which is quadratic in a row this wide
+      const texts = Array.from(cells, (text) => text ?? '')
+      while (texts.length && !texts[texts.length - 1]) texts.pop()
+      const line = texts.join('\t')
       if (line.trim()) lines.push(line)
     })
     sheets.push(lines.join('\n'))
@@ -229,6 +235,14 @@ async function storedWorkbook(data: Uint8Array): Promise<{
   const workbookXml = await zip.file('xl/workbook.xml')?.async('string')
   const relsXml = await zip.file('xl/_rels/workbook.xml.rels')?.async('string')
   if (!workbookXml || !relsXml) return { cells, merges, data }
+  // Ranges ExcelJS would expand cell by cell on load and the text does not need
+  let stripped = false
+  const withoutRanges = (xml: string, pattern: RegExp): string => {
+    const result = xml.replace(pattern, '')
+    stripped ||= result !== xml
+    return result
+  }
+  zip.file('xl/workbook.xml', withoutRanges(workbookXml, /<definedNames\b[^>]*?(?:\/>|>[\s\S]*?<\/definedNames>)/g))
   const targets = new Map<string, string>()
   for (const [tag] of relsXml.matchAll(/<Relationship\b[^>]*>/g)) {
     const id = xmlAttribute(tag, 'Id')
@@ -241,10 +255,8 @@ async function storedWorkbook(data: Uint8Array): Promise<{
     const xml = path ? await zip.file(path)?.async('string') : undefined
     if (name === undefined || !xml) continue
     const ranges = mergeRanges(xml)
-    if (ranges.length) {
-      merges.set(name, ranges)
-      zip.file(path as string, xml.replace(/<mergeCells\b[^>]*?(?:\/>|>[\s\S]*?<\/mergeCells>)/g, ''))
-    }
+    if (ranges.length) merges.set(name, ranges)
+    zip.file(path as string, withoutRanges(xml, /<(mergeCells|dataValidations)\b[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/g))
     // Most sheets hold none of these, so their cells are not walked
     const hasFormulaResult = /<f[\s/>]/.test(xml) && /\st=["'](?:str|b|e)["']/.test(xml)
     // A number outside Date's range has an integer part of at least 99,974,431: eight digits or an exponent
@@ -268,8 +280,8 @@ async function storedWorkbook(data: Uint8Array): Promise<{
     }
     if (sheetCells.size) cells.set(name, sheetCells)
   }
-  // Repacked without compression only when a sheet had merged ranges to take out
-  const loadData = merges.size ? await zip.generateAsync({ type: 'uint8array', compression: 'STORE' }) : data
+  // Repacked without compression only when there were ranges to take out
+  const loadData = stripped ? await zip.generateAsync({ type: 'uint8array', compression: 'STORE' }) : data
   return { cells, merges, data: loadData }
 }
 
