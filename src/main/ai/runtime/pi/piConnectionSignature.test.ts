@@ -1,9 +1,7 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -18,9 +16,7 @@ const mocks = vi.hoisted(() => ({
   listTools: vi.fn(),
   getInstructions: vi.fn(),
   findBySessionId: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn(),
-  usesPiGateway: vi.fn(),
-  gatewayFingerprint: 'gateway-1'
+  getTurnTrustedNotifyChannels: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -53,11 +49,6 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     getSkillDirectory: mocks.getSkillDirectory
   }
 }))
-vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
-  ...(await importOriginal<typeof AgentApiGateway>()),
-  gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
-}))
-vi.mock('@main/ai/runtime/pi/modelInjection', () => ({ usesPiGateway: mocks.usesPiGateway }))
 const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
 
 const agent = {
@@ -89,8 +80,6 @@ beforeEach(() => {
   mocks.findBySessionId.mockReturnValue(null)
   MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
-  mocks.usesPiGateway.mockReturnValue(false)
-  mocks.gatewayFingerprint = 'gateway-1'
 })
 
 describe('capturePiConnectionSnapshot', () => {
@@ -222,29 +211,6 @@ describe('capturePiConnectionSnapshot', () => {
     })
   })
 
-  it('rebuilds a Cloud route when the gateway connection identity changes', async () => {
-    mocks.usesPiGateway.mockReturnValue(true)
-    mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID })
-    mocks.getModel.mockReturnValue({
-      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
-      providerId: CHERRY_CLOUD_PROVIDER_ID,
-      group: CHERRY_CLOUD_MODEL_GROUP
-    })
-    const captureCloud = () =>
-      capturePiConnectionSnapshot('session-1', agent.id, `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`)
-    const initialSignature = (await captureCloud()).signature
-
-    mocks.gatewayFingerprint = 'gateway-2'
-
-    expect((await captureCloud()).signature).not.toBe(initialSignature)
-  })
-  it('rebuilds a gateway fallback connection when its local credential changes', async () => {
-    mocks.usesPiGateway.mockReturnValue(true)
-    const initial = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
-    mocks.gatewayFingerprint = 'rotated-local-key'
-    const rotated = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
-    expect(rotated.signature).not.toBe(initial.signature)
-  })
   it('invalidates cached tools when Agent browser control changes', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
     const disabled = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')

@@ -49,6 +49,8 @@ export interface AgentRuntimeSessionOptions {
   tools?: ToolDefinition[]
   /** Pi built-in tools to enable, e.g. `read`, `bash`. None by default. */
   builtinTools?: string[]
+  /** Tools unavailable to this session, including extension and restored tool loadouts. */
+  excludeTools?: string[]
   extensionFactories?: ExtensionFactory[]
   settings?: AgentRuntimeSettings
   /** Native Pi thinking level (default `off`). */
@@ -150,18 +152,21 @@ async function buildSession(
     // Last, so it sees what other `tool_result` handlers made of the output.
     ...(options.offload ? [toolOutputOffloadExtension(options.offload)] : [])
   ]
-  const settingsManager = SettingsManager.inMemory({
-    ...options.settings,
-    // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
-    ...(beforeModelRequest && { cacheWarming: 'off' as const }),
-    ...(compaction && {
-      compaction: {
-        enabled: compaction.enabled ?? true,
-        reserveTokens: compaction.reserveTokens,
-        keepRecentTokens: compaction.keepRecentTokens
-      }
-    })
-  })
+  const settingsManager = SettingsManager.inMemory(
+    {
+      ...options.settings,
+      // Pi's cache warmer requests bypass `agent.streamFunction`, where a subagent's requests are counted.
+      ...(beforeModelRequest && { cacheWarming: 'off' as const }),
+      ...(compaction && {
+        compaction: {
+          enabled: compaction.enabled ?? true,
+          reserveTokens: compaction.reserveTokens,
+          keepRecentTokens: compaction.keepRecentTokens
+        }
+      })
+    },
+    { projectTrusted: options.contextFiles === true }
+  )
   const eventBus = createEventBus()
   const resourceLoader = new DefaultResourceLoader({
     eventBus,
@@ -193,7 +198,8 @@ async function buildSession(
     noTools: 'builtin',
     // `+name` entries add to the (empty) built-in selection without restricting custom/extension tools.
     tools: options.builtinTools?.length ? options.builtinTools.map((name) => `+${name}`) : undefined,
-    customTools: options.tools ?? []
+    customTools: options.tools ?? [],
+    excludeTools: options.excludeTools
   })
   if (beforeModelRequest) {
     const stream = session.agent.streamFunction

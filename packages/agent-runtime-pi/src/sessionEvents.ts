@@ -20,11 +20,12 @@ export type AgentRuntimeEvent =
       inputIds: readonly string[]
       entryId: string
       stopReason: AssistantMessage['stopReason']
+      hasToolCalls: boolean
       aborted: boolean
       errorMessage?: string
     }
   | { type: 'compaction-start'; reason: CompactionReason }
-  | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string }
+  | { type: 'compaction-end'; reason: CompactionReason; entryId?: string; error?: string; aborted?: boolean }
   | { type: 'turn-complete'; headEntryId: string | undefined; aborted: boolean }
 
 /** Observes native entries; the session manager remains the only persistence writer. */
@@ -61,6 +62,7 @@ export class SessionEvents {
           inputIds: [...event.inputIds],
           entryId: event.entryId,
           stopReason: event.message.stopReason,
+          hasToolCalls: event.message.content.some((part) => part.type === 'toolCall'),
           aborted: event.aborted,
           ...(event.message.errorMessage === undefined ? {} : { errorMessage: event.message.errorMessage })
         })
@@ -79,6 +81,7 @@ export class SessionEvents {
         this.listener({
           type: 'compaction-end',
           reason: event.reason,
+          aborted: event.aborted,
           ...(entryId ? { entryId } : {}),
           ...(error ? { error } : {})
         })
