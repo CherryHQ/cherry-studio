@@ -4,17 +4,17 @@ import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
 
-import { createAiSdkModelBinding } from './aiSdkModelBinding'
-import { recordingSubagentPort, routedModel, subagentCall, toolResultOf } from './aiSdkSubagentSupport'
-import { finish, MODEL, streamTextPort, tempDir, textParts } from './aiSdkSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolResultOf } from './gatewaySubagentSupport'
+import { createTestBinding } from './gatewaySupport'
+import { finish, MODEL, gatewayModel, tempDir, textParts } from './gatewaySupport'
 
-/** A tool whose parameters are all optional, so `{}` passes its schema. */
+/** Native validation must reject a non-string path before executing this tool. */
 function listFilesTool(calls: unknown[]) {
   return defineTool({
     name: 'list_files',
     label: 'List files',
     description: 'List a directory, the workspace root by default',
-    parameters: Type.Object({ path: Type.Optional(Type.String()) }),
+    parameters: Type.Object({ path: Type.String() }),
     async execute(_id, params) {
       calls.push(params)
       return { content: [{ type: 'text', text: 'a.txt' }], details: undefined }
@@ -22,11 +22,9 @@ function listFilesTool(calls: unknown[]) {
   })
 }
 
-describe('subagent sessions on the AI SDK binding', () => {
-  // Breaks when a subagent's session gets only the extensions the host's `configure` returns: the
-  // binding's guard is then missing there, and a call with unparsable input runs on `{}`.
+describe('subagent sessions on native Pi providers', () => {
   it.each([{ fork: false }, { fork: true }])(
-    'never runs a subagent call with unparsable input, nor shows it to approvals (fork: $fork)',
+    'never runs a subagent call with invalid arguments, nor shows it to approvals (fork: $fork)',
     async ({ fork }) => {
       const listCalls: unknown[] = []
       const asked: string[] = []
@@ -37,7 +35,12 @@ describe('subagent sessions on the AI SDK binding', () => {
         if (userText.includes('TASK-A'))
           return lastRole === 'user'
             ? [
-                { type: 'tool-call', toolCallId: 'call_bad', toolName: 'list_files', input: '{"path":"/tm' },
+                {
+                  type: 'tool-call',
+                  toolCallId: 'call_bad',
+                  toolName: 'list_files',
+                  input: '{"path":{"nested":true}}'
+                },
                 finish('tool-calls')
               ]
             : [...textParts('r', 'REPORT-A'), finish('stop')]
@@ -47,9 +50,9 @@ describe('subagent sessions on the AI SDK binding', () => {
       })
       const host = recordingSubagentPort(() => ({ extensionFactories: [approvalPrompt] }))
       // A host that passes the binding on as it is and gives subagents only its approval extension.
-      const binding = await createAiSdkModelBinding({
-        port: streamTextPort(model).port,
-        requestOptions: undefined,
+      const binding = await createTestBinding({
+        port: gatewayModel(model).upstream,
+
         model: MODEL
       })
       const runtime = await createAgentRuntimeSession({
