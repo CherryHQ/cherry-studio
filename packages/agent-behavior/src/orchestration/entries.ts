@@ -35,7 +35,8 @@ export function entries(host: HostPorts): Entries {
   return {
     async goalCommand(ports, thread, text, requestKey) {
       const context = { ports, host }
-      const inputs = await gatherInputs(context, thread)
+      const current = await host.models.current(thread)
+      const inputs = await gatherInputs(context, thread, { models: { candidates: [], ...current } })
       const decided = await step(context, thread, (facts) => decideGoalCommand(facts, inputs, text, requestKey))
       return decided.result
     },

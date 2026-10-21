@@ -20,6 +20,8 @@ import { goalRecord, requireGoal } from './goalTools'
 
 const CONTROL_WORDS: ReadonlySet<string> = new Set(['pause', 'resume', 'clear'])
 const NUMBER = /^-?\d+(?:\.\d+)?$/
+/** As `onOpen` stops a goal there: a goal's rounds need a model that can call tools. */
+const NO_TOOL_CALLING = 'No goal can run here: the current model has no tool calling.'
 
 /**
  * A `/goal` request the host repeats gets the notice it already got, with nothing decided or written again. A pause or
@@ -132,6 +134,7 @@ export function decideGoalCommand(
         }
         const next = resumeGoal(current, inputs.now, usage())
         if (next === current) return notice('Goal is already active.')
+        if (inputs.models?.supportsTools === false) throw new GoalError(NO_TOOL_CALLING)
         return notice('Goal resumed.', 'info', [write(next), ensureDriver(facts)])
       }
       // With no goal to edit, a leading "edit" followed by text is part of a new objective.
@@ -162,6 +165,7 @@ export function decideGoalCommand(
       }
       if (goal && goal.phase !== 'complete')
         throw new GoalError('A goal is already set; use /goal edit, /goal pause or /goal clear first.')
+      if (inputs.models?.supportsTools === false) throw new GoalError(NO_TOOL_CALLING)
       const created = createGoal(keys.goalFromCommand(requestKey), input, goalDefaults, {}, inputs.now)
       return notice('Goal created.', 'info', [write(created), ensureDriver(facts)])
     },

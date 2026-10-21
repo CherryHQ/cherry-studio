@@ -57,6 +57,8 @@ export type ModelFacts = {
   readonly parentModelKey: string
   /** The model key a child gets when none is named; the host snapshot supplies it, never empty. */
   readonly defaultChildModelKey: string
+  /** Whether the conversation's model can call tools; a goal needs it. */
+  readonly supportsTools: boolean
 }
 export type VerifierVerdict = { readonly verdict: 'met' | 'not_met' | 'impossible'; readonly reason: string }
 export type GoalDefaults = {
