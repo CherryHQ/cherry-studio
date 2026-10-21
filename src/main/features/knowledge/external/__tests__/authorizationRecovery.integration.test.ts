@@ -156,58 +156,74 @@ describe('authorization recovery ownership', () => {
     }
   )
 
-  it('keeps dependent Sources active when optional reconnect is cancelled', async () => {
-    const lifecycle = new ExternalKnowledgeSourceLifecycle({ requestSyncForTrigger: vi.fn() })
-    const runtime = new ExternalKnowledgeRuntime({
-      credentials,
-      provider: provider(),
-      now: () => 1_000,
-      sleep: async () => {},
-      hooks: { onReauthorizationRequired: (id) => lifecycle.pauseForReauthorization(id) },
-      commitReauthorization: (id, input) => lifecycle.commitReauthorization(id, input)
-    })
-    runtimes.push(runtime)
-    await runtime.start()
-    const original = await connected(runtime)
-    const baseId = '11111111-1111-4111-8111-111111111111'
-    dbh.db
-      .insert(knowledgeBaseTable)
-      .values({
-        id: baseId,
-        orderKey: 'a0',
-        name: 'Base',
-        dimensions: null,
-        embeddingModelId: null,
-        status: 'completed',
-        error: null,
-        chunkSize: 1024,
-        chunkOverlap: 200
+  it.each(['cancel', 'denied', 'expired', 'missing-scopes'])(
+    'keeps dependent Sources active after optional reconnect %s',
+    async (failure) => {
+      const api = provider()
+      const lifecycle = new ExternalKnowledgeSourceLifecycle({ requestSyncForTrigger: vi.fn() })
+      const runtime = new ExternalKnowledgeRuntime({
+        credentials,
+        provider: api,
+        now: () => 1_000,
+        sleep: async () => {},
+        hooks: { onReauthorizationRequired: (id) => lifecycle.pauseForReauthorization(id) },
+        commitReauthorization: (id, input) => lifecycle.commitReauthorization(id, input)
       })
-      .run()
-    dbh.db
-      .insert(externalKnowledgeSourceTable)
-      .values({
-        id: '0198f3f2-7d11-7abc-8def-123456789abc',
-        baseId,
-        connectionId: original.id,
-        provider: 'feishu',
-        tenantId: 'tenant',
-        spaceId: 'space',
-        scope: { kind: 'space' },
-        name: 'Wiki',
-        state: 'active',
-        revision: 1
-      })
-      .run()
-    const source = dbh.db.select().from(externalKnowledgeSourceTable).get()
-    const reconnect = await runtime.beginReconnect(original.id)
-    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toEqual(source)
-    await runtime.cancelUserAuthorization(reconnect.authorizationSessionId)
-    lifecycle.reconcilePersistedReauthorization()
+      runtimes.push(runtime)
+      await runtime.start()
+      const original = await connected(runtime)
+      const baseId = '11111111-1111-4111-8111-111111111111'
+      dbh.db
+        .insert(knowledgeBaseTable)
+        .values({
+          id: baseId,
+          orderKey: 'a0',
+          name: 'Base',
+          dimensions: null,
+          embeddingModelId: null,
+          status: 'completed',
+          error: null,
+          chunkSize: 1024,
+          chunkOverlap: 200
+        })
+        .run()
+      dbh.db
+        .insert(externalKnowledgeSourceTable)
+        .values({
+          id: '0198f3f2-7d11-7abc-8def-123456789abc',
+          baseId,
+          connectionId: original.id,
+          provider: 'feishu',
+          tenantId: 'tenant',
+          spaceId: 'space',
+          scope: { kind: 'space' },
+          name: 'Wiki',
+          state: 'active',
+          revision: 1
+        })
+        .run()
+      const source = dbh.db.select().from(externalKnowledgeSourceTable).get()
+      const reconnect = await runtime.beginReconnect(original.id)
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toEqual(source)
+      if (failure === 'cancel') {
+        await runtime.cancelUserAuthorization(reconnect.authorizationSessionId)
+      } else {
+        if (failure === 'missing-scopes')
+          api.exchangeDeviceAuthorization.mockResolvedValue({ ...token, grantedScopes: [] })
+        else
+          api.exchangeDeviceAuthorization.mockRejectedValue(
+            new FeishuProviderError(failure === 'denied' ? 'authorization-denied' : 'authorization-expired', true)
+          )
+        await expect(runtime.completeUserAuthorization(reconnect.authorizationSessionId)).rejects.toMatchObject({
+          code: failure === 'missing-scopes' ? 'scope-missing' : 'authorization-failed'
+        })
+      }
+      lifecycle.reconcilePersistedReauthorization()
 
-    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toEqual(source)
-    await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
-  })
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toEqual(source)
+      await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+    }
+  )
 
   it.each([
     ['denied', 'authorization-failed'],
