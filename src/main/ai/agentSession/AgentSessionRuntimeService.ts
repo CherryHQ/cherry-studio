@@ -506,6 +506,14 @@ export class AgentSessionRuntimeService extends BaseService {
     string,
     { turn: AgentSessionTurn | undefined; ids: Set<string> }
   >()
+  /**
+   * Authority of each task currently in membership, captured when it first appeared: a task runs
+   * with the authority of the execution that spawned it, not with whatever responder the aggregate
+   * occupancy happens to retain while an unrelated task is still alive.
+   */
+  private readonly backgroundTaskAuthorities = new Map<string, Map<string, boolean>>()
+  /** Tasks that left membership (and were not cancelled) since the last receive-only turn. */
+  private readonly completedBackgroundTasks = new Map<string, Map<string, boolean>>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<string, { id: string; promise: Promise<boolean> }>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
@@ -2397,8 +2405,37 @@ export class AgentSessionRuntimeService extends BaseService {
     const live = new Set(tasks.map((task) => task.id))
     const previous = this.outboundBackgroundTaskIds.get(entry.sessionId) ?? new Set<string>()
     const drained = this.drainedTaskIdsFor(entry)
-    for (const id of previous) if (!live.has(id)) drained.add(id)
+    const turn = this.currentTurn(entry)
+    const spawnedHeadless = turn === undefined || turn.headless === true
+    const authorities = this.backgroundTaskAuthorities.get(entry.sessionId) ?? new Map<string, boolean>()
+    const completed = this.completedBackgroundTasks.get(entry.sessionId) ?? new Map<string, boolean>()
+    for (const id of live) if (!authorities.has(id)) authorities.set(id, spawnedHeadless)
+    for (const id of previous) {
+      if (live.has(id)) continue
+      drained.add(id)
+      const authority = authorities.get(id)
+      authorities.delete(id)
+      if (authority !== undefined) completed.set(id, authority)
+    }
+    this.backgroundTaskAuthorities.set(entry.sessionId, authorities)
+    this.completedBackgroundTasks.set(entry.sessionId, completed)
     this.outboundBackgroundTaskIds.set(entry.sessionId, live)
+  }
+
+  /**
+   * Authority of the receive-only turn that reports work which just settled. It is the completing
+   * work's own — derived from where each task first appeared — never the aggregate occupancy, which
+   * keeps an older interactive task's responder while a headless delivery's task finishes first.
+   */
+  private receiveOnlyHeadless(entry: AgentSessionRuntimeEntry): boolean {
+    const completed = this.completedBackgroundTasks.get(entry.sessionId)
+    if (completed?.size) {
+      // Several completions in one wake: any unattended one keeps the whole wake unattended.
+      const headless = [...completed.values()].some(Boolean)
+      completed.clear()
+      return headless
+    }
+    return this.getInteractionState(entry.sessionId).userResponse === 'unavailable'
   }
 
   /** Ids drained during the CURRENT turn; a new turn never inherits a previous turn's history. */
@@ -2814,6 +2851,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // SDK queues a parent failure notification for it, so the chat still owes a delivery and
     // retiring the debt would leave the requesting chat never learning the task failed.
     if (data.status === 'stopped' || data.status === 'killed') {
+      // A cancelled task produces no wake, so it must not lend its authority to a later one.
+      this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
       application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
     }
     // A live turn stream carries the lifecycle edge as an in-reply part; with no stream open (the
@@ -2918,6 +2957,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // The ledger is per connection exactly like the level it mirrors.
     this.outboundBackgroundTaskIds.delete(entry.sessionId)
     this.drainedBackgroundTaskIds.delete(entry.sessionId)
+    this.backgroundTaskAuthorities.delete(entry.sessionId)
+    this.completedBackgroundTasks.delete(entry.sessionId)
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -3385,7 +3426,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // Pre-admitted: the connected runtime started this generation, so `admitTurn` must not send.
       abortController: new AbortController(),
       activeToolIds: new Set(),
-      headless: this.getInteractionState(entry.sessionId).userResponse === 'unavailable',
+      headless: this.receiveOnlyHeadless(entry),
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-created', turn: receiveOnlyTurn })
@@ -3935,6 +3976,8 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
     this.outboundBackgroundTaskIds.delete(entry.sessionId)
     this.drainedBackgroundTaskIds.delete(entry.sessionId)
+    this.backgroundTaskAuthorities.delete(entry.sessionId)
+    this.completedBackgroundTasks.delete(entry.sessionId)
 
     const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
     const connection = this.closeConnection(entry, false)

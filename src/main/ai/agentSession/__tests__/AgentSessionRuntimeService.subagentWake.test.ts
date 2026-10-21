@@ -276,6 +276,67 @@ describe('subagent settlement wake (incident replay)', () => {
     await service.closeSession('session-1')
   })
 
+  // The aggregate responder is frozen at the first activation: an interactive desktop task keeps it
+  // while a cross-Session headless delivery's task runs and finishes first. The wake reports that
+  // delivery's work, so it must run unattended — the responder describes A, not the completing task.
+  it('opens the wake with the completing work’s own authority, not the retained responder', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+    const desktopTask = { id: 'task-a', type: 'task', description: 'desktop work' }
+
+    // Desktop turn: its background task A is interactive and holds the responder.
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: { send: vi.fn(), close: vi.fn(), events: [], reconcile: vi.fn() },
+      occupancy: {}
+    }
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [desktopTask] })
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    service.markTurnTerminal('session-1', 'success')
+
+    // A cross-Session headless delivery reuses the connection and launches B.
+    service.beginTurn({ ...baseTurnInput, headless: true })
+    handleRuntimeEvent({
+      type: 'background-tasks',
+      tasks: [desktopTask, { id: 'task-b', type: 'task', description: 'delivery work' }]
+    })
+    service.markTurnTerminal('session-1', 'success')
+    expect(getEntry(service).runtimeState.connection.occupancy).toEqual({ background: { responder: 'interactive' } })
+
+    // B completes first; A is still running.
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [desktopTask] })
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(currentTurn(getEntry(service)).headless).toBe(true)
+    void service.closeSession('session-1')
+  })
+
+  it('keeps a desktop task’s completion wake interactive', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: { send: vi.fn(), close: vi.fn(), events: [], reconcile: vi.fn() },
+      occupancy: {}
+    }
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [{ id: 'task-a', type: 'task', description: 'desktop' }] })
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    service.markTurnTerminal('session-1', 'success')
+
+    handleRuntimeEvent({ type: 'background-tasks', tasks: [] })
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+    expect(currentTurn(getEntry(service)).headless).toBe(false)
+    void service.closeSession('session-1')
+  })
+
   // A connection-wide ledger of every id the session ever published made an EARLIER fire's
   // completed task count as debt for a later one. That task's absence then "discharged" the new
   // stash, so an unrelated desktop task's wake claimed the external chat and posted its output

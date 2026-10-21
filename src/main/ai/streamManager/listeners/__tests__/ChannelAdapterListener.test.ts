@@ -272,6 +272,53 @@ describe('ChannelAdapterListener', () => {
     ])
   })
 
+  // Multiple scheduled recipients each get their own listener, and the terminal dispatch awaits
+  // them one at a time. A wake can fail while the first recipient's delivery is still parked, so
+  // the second recipient must already know the run's attempt — and deliver — instead of binding the
+  // wake's attempt and suppressing it.
+  it('delivers a wake failure to a recipient whose foreground terminal has not fanned out yet', async () => {
+    let releaseFirst!: () => void
+    const adapter = makeAdapter({
+      onStreamComplete: vi.fn().mockResolvedValue(false),
+      sendMessage: vi.fn((chatId: string) =>
+        chatId === 'chat-1'
+          ? new Promise<void>((resolve) => {
+              releaseFirst = resolve
+            })
+          : Promise.resolve()
+      )
+    })
+    const first = new ChannelAdapterListener(adapter, 'chat-1', true)
+    const second = new ChannelAdapterListener(adapter, 'chat-2', true)
+    // What the manager does before any await: stamp the execution on every recipient.
+    first.prepareTerminal(1)
+    second.prepareTerminal(1)
+
+    first.onChunk(delta('Scheduled work'))
+    const finalizing = first.onDone({ status: 'success', isTopicDone: false, attemptId: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // The wake fails on the carried listeners while chat-1's fallback sendMessage is still parked.
+    await second.onError({
+      status: 'error',
+      error: { stack: '', name: 'Error', message: 'wake exploded' },
+      isTopicDone: true,
+      attemptId: 2
+    })
+
+    expect(adapter.onStreamError).toHaveBeenCalledWith('chat-2', 'wake exploded', undefined, {
+      suppressDelivery: false
+    })
+    expect(vi.mocked(adapter.sendMessage).mock.calls).toContainEqual([
+      'chat-2',
+      t('common.channel_error', { error: 'wake exploded' }),
+      undefined
+    ])
+
+    releaseFirst()
+    await finalizing
+  })
+
   it('keeps a live adapter subscription during transport loss but drops a retired adapter', () => {
     let alive = true
     const listener = new ChannelAdapterListener(

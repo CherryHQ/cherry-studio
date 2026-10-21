@@ -96,6 +96,13 @@ export interface StreamListener {
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  /**
+   * The execution whose terminal is about to be fanned out, called synchronously for EVERY listener
+   * before any listener's async delivery. A listener that outlives its execution binds terminal
+   * identity here instead of inferring it from arrival order: an overlapping wake terminal can
+   * otherwise reach a later listener first.
+   */
+  prepareTerminal?(attemptId: number | undefined): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>

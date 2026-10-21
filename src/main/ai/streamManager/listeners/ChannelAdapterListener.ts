@@ -174,6 +174,11 @@ export class ChannelAdapterListener implements StreamListener {
     return !this.deliveredAttempts.has(attemptId)
   }
 
+  /** The stream manager binds the dispatching execution before any listener's async delivery. */
+  prepareTerminal(attemptId: number | undefined): void {
+    this.noteTerminalAttempt(attemptId)
+  }
+
   /** Remember which execution this listener serves — the first terminal it dispatches. */
   private noteTerminalAttempt(attemptId: number | undefined): void {
     if (this.originatingAttemptId === undefined && attemptId !== undefined) this.originatingAttemptId = attemptId

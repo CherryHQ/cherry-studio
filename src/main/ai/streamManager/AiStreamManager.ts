@@ -1694,7 +1694,7 @@ export class AiStreamManager extends BaseService {
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
+      await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result), result.attemptId)
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
       if (this.activeStreams.get(topicId) !== stream) return
@@ -1825,6 +1825,7 @@ export class AiStreamManager extends BaseService {
         stream,
         'onDone',
         (listener) => listener.onDone(result),
+        result.attemptId,
         (listener) => listener.terminalPhase === 'persistence'
       )
       if (this.activeStreams.get(topicId) !== stream) return
@@ -2287,7 +2288,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result))
+    await this.dispatchToListeners(stream, 'onDone', (listener) => listener.onDone(result), result.attemptId)
   }
 
   private async broadcastExecutionPaused(
@@ -2307,7 +2308,7 @@ export class AiStreamManager extends BaseService {
       timings: { ...exec.timings },
       runtimeTiming: exec.runtimeTiming.snapshot()
     }
-    await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result))
+    await this.dispatchToListeners(stream, 'onPaused', (listener) => listener.onPaused(result), result.attemptId)
   }
 
   private getTopicAttemptWatermark(stream: ActiveStream): number {
@@ -2327,6 +2328,7 @@ export class AiStreamManager extends BaseService {
     stream: ActiveStream,
     event: 'onDone' | 'onPaused' | 'onError',
     invoke: (listener: StreamListener) => void | Promise<void>,
+    attemptId: number | undefined,
     skip?: (listener: StreamListener) => boolean
   ): Promise<void> {
     const dead: string[] = []
@@ -2336,6 +2338,9 @@ export class AiStreamManager extends BaseService {
       ...listeners.filter(([, listener]) => listener.terminalPhase === undefined),
       ...listeners.filter(([, listener]) => listener.terminalPhase === 'cleanup')
     ]
+    // Bind the execution BEFORE any await: the loop below parks on each listener's delivery, and an
+    // overlapping terminal (a wake on a carried listener) can reach the listeners still queued.
+    for (const [, listener] of orderedListeners) listener.prepareTerminal?.(attemptId)
     let suppressNotification = false
 
     for (const [id, listener] of orderedListeners) {

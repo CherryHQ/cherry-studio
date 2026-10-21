@@ -68,6 +68,8 @@ class FakeListener implements StreamListener {
   isAlive(): boolean {
     return this.alive
   }
+
+  prepareTerminal = vi.fn<(attemptId: number | undefined) => void>()
 }
 
 // ── Mocks ───────────────────────────────────────────────────────────
@@ -723,6 +725,41 @@ describe('AiStreamManager', () => {
     await mgr.onExecutionDone(topicId, 'provider-a::model-a')
 
     expect(sent).toEqual(['Found it: 42'])
+  })
+
+  // Terminal dispatch awaits each listener in turn, so a listener queued behind a slow recipient
+  // has not seen the foreground terminal when an overlapping wake terminal fans out. The manager
+  // therefore binds the dispatching attempt on EVERY listener synchronously, before any delivery.
+  it('binds the terminal attempt on every listener before awaiting the first delivery', async () => {
+    const topicId = 'agent-session:s1'
+    let releaseFirst!: () => void
+    const first = new FakeListener('channel:ch1:chat-1:unthreaded')
+    first.onDoneImpl = () =>
+      new Promise<void>((resolve) => {
+        releaseFirst = resolve
+      })
+    const second = new FakeListener('channel:ch1:chat-2:unthreaded')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [first, second]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+
+    const done = mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    await vi.waitFor(() => expect(first.doneResults).toHaveLength(1))
+
+    // The first delivery is parked; the second listener is already stamped with the SAME attempt.
+    expect(first.prepareTerminal).toHaveBeenCalledTimes(1)
+    expect(second.prepareTerminal).toHaveBeenCalledTimes(1)
+    expect(second.prepareTerminal.mock.calls[0][0]).toBe(first.prepareTerminal.mock.calls[0][0])
+    expect(second.doneResults).toHaveLength(0)
+
+    releaseFirst()
+    await done
+    expect(second.doneResults).toHaveLength(1)
   })
 
   // The stash is bound to the tasks its fire saw pending, not to session-wide emptiness: A's wake
