@@ -210,7 +210,12 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
   if (providerCode === 2889906 || providerCode === 2889914) {
     return new FeishuProviderError('scope-not-found', false)
   }
-  if (oauthError === 'invalid_grant' || providerCode === 20005 || response.status === 401) {
+  if (
+    oauthError === 'invalid_grant' ||
+    providerCode === 20005 ||
+    providerCode === 99991668 ||
+    response.status === 401
+  ) {
     return new FeishuProviderError('reauthorization-required', true)
   }
   if (providerCode === 131001 || providerCode === 99991663 || response.status === 429 || response.status >= 500) {

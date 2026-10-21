@@ -13,6 +13,7 @@ import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
 import {
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
+  getWikiNode,
   listWikiChildNodes,
   type FeishuUserTokenSet
 } from '../feishuKnowledgeProvider'
@@ -135,6 +136,34 @@ describe('authorization recovery ownership', () => {
       expect(net.fetch).toHaveBeenCalledTimes(2)
       expect(connections.getById(original.id)).toEqual(original)
       await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
+
+  it('invalidates active authorization when Wiki returns an invalid user token over HTTP 400', async () => {
+    const api = provider()
+    api.getWikiNode.mockImplementation(getWikiNode)
+    const runtime = await start(api)
+    const original = await connected(runtime)
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockResolvedValueOnce(Response.json({ code: 99991668, msg: 'Invalid user_access_token' }, { status: 400 }))
+
+    try {
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      expect(connections.getById(original.id)?.authorizationStatus).toBe('reauthorization-required')
+      await expect(runtime.acquireAccessToken(original.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+      await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      await runtime.stop()
+      const restarted = await start(api)
+      await expect(restarted.acquireAccessToken(original.id)).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
     } finally {
       vi.mocked(net.fetch).mockReset()
     }
