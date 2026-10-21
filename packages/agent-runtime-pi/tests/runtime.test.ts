@@ -139,6 +139,7 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     facts: ['locally-handled']
   })
   expect(commands).toBe(1)
+  expect(await handle.pi.compact()).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(await handle.input.submit(input('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(manager.buildSessionContext().messages.filter((message) => message.role === 'user')).toHaveLength(1)
   expect(await handle.input.submit(input('later', 'follow-up'))).toMatchObject({
@@ -155,6 +156,14 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     outcome: 'aborted',
     response: { session: handle.thread }
   })
+  expect(handle.pi.cancelQueuedInputs()).toEqual({ status: 'confirmed', value: ['later'] })
+  const after = await observe(handle)
+  await expect
+    .poll(() => after[0])
+    .toMatchObject({
+      type: 'snapshot',
+      inputs: expect.arrayContaining([{ inputId: 'later', facts: ['queued'], outcome: 'aborted' }])
+    })
 })
 
 it('rejects a loader returning a different native identity', async () => {
