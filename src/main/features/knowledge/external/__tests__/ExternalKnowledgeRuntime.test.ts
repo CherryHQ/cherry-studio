@@ -112,7 +112,7 @@ class MemoryConnections {
     if (!current) throw DataApiErrorFactory.notFound('ExternalKnowledgeConnection', id)
     if (
       current.credentialReference !== input.expectedCredentialReference ||
-      current.authorizationStatus !== 'reauthorization-required'
+      !['connected', 'reauthorization-required'].includes(current.authorizationStatus)
     ) {
       throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeConnection', id)
     }
@@ -1370,7 +1370,7 @@ describe('ExternalKnowledgeRuntime', () => {
     await expect(credentials.read('ref-one')).resolves.toEqual({ status: 'missing' })
   })
 
-  it('closes provider request admission while reconnect authorization is pending', async () => {
+  it('keeps working credentials usable while optional reconnect authorization is pending', async () => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const value = connection('one', 'ref-one')
@@ -1390,8 +1390,9 @@ describe('ExternalKnowledgeRuntime', () => {
 
     const begun = await runtime.beginReconnect(value.id)
 
-    expect(begun.connection.authorizationStatus).toBe('reauthorization-required')
-    await expect(runtime.acquireAccessToken(value.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+    expect(begun.connection.authorizationStatus).toBe('connected')
+    await expect(runtime.acquireAccessToken(value.id)).resolves.toBe('access-one')
+    await runtime.cancelUserAuthorization(begun.authorizationSessionId)
   })
 
   it('keeps the active reference, application metadata and credential bytes unchanged while reconnect authorization is pending', async () => {

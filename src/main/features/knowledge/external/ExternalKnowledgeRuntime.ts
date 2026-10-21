@@ -389,7 +389,7 @@ export class ExternalKnowledgeRuntime {
     this.assertAccepting()
     this.assertCredentialGeneration(state, currentGeneration)
     connection = this.requireConnection(connectionId)
-    if (connection.authorizationStatus !== 'reauthorization-required') {
+    if (connection.authorizationStatus === 'pending-authorization') {
       connection = this.connections.markReauthorizationRequired(connectionId)
     }
     const generation = this.advanceCredentialGeneration(connection.credentialReference, state)
@@ -426,21 +426,40 @@ export class ExternalKnowledgeRuntime {
     this.clearSessionExpiry(session)
     session.controller.abort()
     const state = this.credentialStates.get(session.stateCredentialReference)
-    if (state && this.isCurrentCredentialGeneration(state, session.generation)) {
-      this.advanceCredentialGeneration(session.stateCredentialReference, state)
-    }
+    const cleanupGeneration =
+      state && this.isCurrentCredentialGeneration(state, session.generation)
+        ? this.advanceCredentialGeneration(session.stateCredentialReference, state)
+        : undefined
     if (session.completion) await Promise.allSettled([session.completion])
-    if (!session.candidateCommitted) {
+    if (
+      !session.candidateCommitted &&
+      (!session.initial || this.ownsInitialAuthorization(session, state, cleanupGeneration))
+    ) {
       try {
         await this.credentials.remove(session.candidateCredentialReference)
       } catch {
         // Startup reconciliation retries orphan cleanup.
       }
     }
-    if (session.initial && !session.candidateCommitted) {
+    if (session.initial && this.ownsInitialAuthorization(session, state, cleanupGeneration)) {
       this.connections.removeUnreferenced(session.connectionId)
       this.credentialStates.delete(session.stateCredentialReference)
     }
+  }
+
+  private ownsInitialAuthorization(
+    session: AuthorizationSession,
+    state: CredentialRuntimeState | undefined,
+    generation: number | undefined
+  ): boolean {
+    return (
+      !session.candidateCommitted &&
+      state !== undefined &&
+      generation !== undefined &&
+      this.credentialStates.get(session.stateCredentialReference) === state &&
+      this.isCurrentCredentialGeneration(state, generation) &&
+      this.connections.getById(session.connectionId)?.credentialReference === session.candidateCredentialReference
+    )
   }
 
   async acquireAccessToken(connectionId: string, upstreamSignal?: AbortSignal): Promise<string> {
@@ -944,13 +963,16 @@ export class ExternalKnowledgeRuntime {
         this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
         authorizationFailure = this.authorizationError(error)
       }
-      if (!session.candidateCommitted) {
+      if (
+        !session.candidateCommitted &&
+        (!session.initial || this.ownsInitialAuthorization(session, state, session.generation))
+      ) {
         try {
           await this.credentials.remove(session.candidateCredentialReference)
         } catch {
           // Startup reconciliation retries orphan cleanup.
         }
-        if (session.initial && this.isCurrentCredentialGeneration(state, session.generation)) {
+        if (session.initial && this.ownsInitialAuthorization(session, state, session.generation)) {
           this.connections.removeUnreferenced(session.connectionId)
           this.credentialStates.delete(session.stateCredentialReference)
         }
