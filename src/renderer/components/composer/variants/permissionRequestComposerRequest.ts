@@ -9,14 +9,12 @@ import {
 } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { CherryToolMetaSchema } from '@shared/data/types/uiParts'
 
 export type PermissionRequestComposerRequest = {
   messageId: string
   toolCallId: string
   approvalId: string
   title: string
-  approvalReason?: string
   toolResponse: ToolResponseLike
   match: MessageToolApprovalMatch
 }
@@ -82,9 +80,6 @@ export function findNextPendingPermissionRequest(
         toolCallId: toolPart.toolCallId,
         approvalId,
         title: getPermissionTitle(toolPart, getToolDisplayName(toolResponse)),
-        approvalReason: CherryToolMetaSchema.safeParse(
-          'callProviderMetadata' in toolPart ? toolPart.callProviderMetadata?.cherry : undefined
-        ).data?.approvalReason,
         toolResponse,
         match: {
           part,

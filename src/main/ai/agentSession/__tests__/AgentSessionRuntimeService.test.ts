@@ -675,7 +675,6 @@ describe('AgentSessionRuntimeService', () => {
       service.requestToolApproval('session-1', {
         toolName: 'mcp__skills__read_mcp_skill_file',
         input: { server_id: 'other' },
-        reason: 'Cross-origin read',
         signal: new AbortController().signal
       })
     ).resolves.toEqual({ approved: true })
@@ -689,11 +688,9 @@ describe('AgentSessionRuntimeService', () => {
     const pending = service.requestToolApproval('session-1', {
       toolName: 'mcp__skills__read_mcp_skill_file',
       input: { server_id: 'b', resource_uri: 'skill://reports/SKILL.md' },
-      reason: 'Read from B while skill from A is active',
       signal: new AbortController().signal
     })
     const card = mocks.saveMessage.mock.lastCall![0].message.data.parts[0]
-    expect(card.callProviderMetadata.cherry.approvalReason).toContain('from A')
     expect(service.respondToolApproval(card.approval.id, { approved: false }, 'approval-message')).toBe(true)
     await expect(pending).resolves.toMatchObject({ approved: false, reasonSource: 'user' })
     expect(toolApprovalRegistry.hasSession('session-1')).toBe(false)

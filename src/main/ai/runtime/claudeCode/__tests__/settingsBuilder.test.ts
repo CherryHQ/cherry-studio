@@ -1671,7 +1671,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
     const validate = vi.fn()
     defaultServiceInstances.McpSkillService.toolApproval.mockReturnValue({
-      reason: 'reports from Server A, skill://reports/SKILL.md',
       signal: new AbortController().signal,
       validate
     })
@@ -1685,7 +1684,6 @@ describe('buildClaudeCodeSessionSettings', () => {
           toolUseID: 'skill-exec',
           requestId: 'skill-exec-request'
         })
-        expect(emit.mock.lastCall?.[0].providerMetadata.cherry.approvalReason).toContain('Server A')
         if (changed)
           validate.mockImplementation(() => {
             throw new Error('Skill changed')

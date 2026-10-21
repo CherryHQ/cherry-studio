@@ -32,7 +32,7 @@ Cherry 可以连接 MCP 服务，但连接边界没有 Skills 扩展操作。内
 
 通过现有内置 skills 服务提供 `list_mcp_skills`、`load_mcp_skill` 和 `read_mcp_skill_file`。初始模型上下文只需这些工具定义；发现工具按需返回名称、描述、服务身份和 URI。加载一次返回条目与已验证的 `SKILL.md`，包括完整文件清单，不提前获取附件。已知服务和 URI 时可以跳过列举。
 
-使用现有 Tool Approval 注册表、运行时事件和输入框审批卡片。列举和同来源读取是只读工具；加载遵循常规必需审批工具策略，包括 Full Access。删除独立 elicitation/consent 流程及可复用执行授权。远端指令生效时，宿主代码执行调用需要逐次明确批准，显示当前技能，Full Access 除外。嵌套激活与跨来源资源读取同样需要逐次明确工具批准，Full Access 除外。Full Access 默认放行这些操作，完整性和来源校验仍然生效。这有意放宽了该模式下规范关于明确批准的要求。这些决定不会持久化或授权后续调用。忽略远端 frontmatter 中授予权限或安装 hooks 的字段。
+使用现有 Tool Approval 注册表、运行时事件和输入框审批卡片。列举和同来源读取是只读工具；加载遵循常规必需审批工具策略，包括 Full Access。删除独立 elicitation/consent 流程及可复用执行授权。远端指令生效时，宿主代码执行调用需要逐次明确批准，Full Access 除外。嵌套激活与跨来源资源读取同样需要逐次明确工具批准，Full Access 除外。Full Access 默认放行这些操作，完整性和来源校验仍然生效。这有意放宽了该模式下规范关于明确批准的要求。这些决定不会持久化或授权后续调用。忽略远端 frontmatter 中授予权限或安装 hooks 的字段。
 
 通过 `resources/read` 获取 `SKILL.md`，校验原始字节长度和 SHA-256，并将解析出的 YAML frontmatter 与清单对比。校验通过后，以普通模型上下文返回带来源的内容。仅预览或普通资源读取不激活技能。格式错误或无法验证的内容不得进入加载路径。
 
@@ -59,7 +59,7 @@ Cherry 可以连接 MCP 服务，但连接边界没有 Skills 扩展操作。内
 - AC2 — 发现和授权阶段不获取技能文件；授权后的加载只获取 `SKILL.md`，附件仅在请求时获取，无 `directoryRead` 时也能获取完整文件清单。(verification: unit)
 - AC3 — 两个服务的相同 URI、一个服务内的重名技能，以及同名本地技能均可独立寻址且来源可见；不会静默遮蔽其他选项。(verification: renderer)
 - AC4 — 无效清单、根路径越界、未列出文件、字节长度或摘要不匹配、frontmatter 不匹配均不能成为已加载内容；有效的 512 文件和 16 MiB 边界清单正常工作，动态条目说明无法加载的原因。(verification: unit)
-- AC5 — 工具审批替代独立 consent；嵌套激活和每次宿主代码执行都需要标明技能的明确批准，Full Access 除外，远端权限字段不能扩大权限。(verification: unit)
+- AC5 — 工具审批替代独立 consent；嵌套激活和每次宿主代码执行都需要明确批准，Full Access 除外，远端权限字段不能扩大权限。(verification: unit)
 - AC6 — 附件和普通资源读取均执行来源约束；Full Access 以外的跨来源访问需要明确的逐次授权，直接 HTTP 或文件系统抓取不能绕过来源 MCP 连接。(verification: unit)
 - AC7 — 清单替换、取消、服务禁用或删除或重配置、会话关闭均拒绝迟到结果与过期授权；恢复或分叉保留逐次执行审批约束，不会仅因恢复而弹窗，替换加载使用新上下文。(verification: unit)
 - AC8 — Claude Code 和 Pi 均通过真实 MCP 测试服务与脚本化模型完成发现、授权、技能加载、附件读取，以及结果依赖技能内容的任务；拒绝授权阻止加载，Full Access 无需审批即可完成加载和执行。(verification: Electron)

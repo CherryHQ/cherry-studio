@@ -196,8 +196,6 @@ describe('session MCP skills through real protocol and persistence', () => {
       additionalReadOnlyRoots: [],
       emit: (event) => {
         if (event.type !== 'tool-approval-request') return
-        expect(event.request.providerMetadata?.cherry?.approvalReason).toContain('Reports origin')
-        expect(event.request.providerMetadata?.cherry?.approvalReason).toContain(fixture.uri)
         if (onRequest) onRequest(event.request.approvalId)
         else toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
       },
@@ -285,7 +283,13 @@ describe('session MCP skills through real protocol and persistence', () => {
     await skills.load(sessionId, serverId, fixture.uri)
     skills.closeSession(sessionId)
     skills.openSession(sessionId, agentId)
-    expect(skills.toolApproval(sessionId, 'Bash', {})?.reason).toContain(fixture.uri)
+    expect(
+      await authorizer(false)({
+        toolName: 'bash',
+        toolCallId: 'restored-execution',
+        input: { command: 'echo restored' }
+      })
+    ).toMatchObject({ block: true })
     fixture.files.set('skill://reports/references/facts.txt', 'replacement')
     fixture.refresh()
     await skills.get(sessionId, serverId, fixture.uri)

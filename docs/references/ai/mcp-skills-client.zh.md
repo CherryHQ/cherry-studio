@@ -33,7 +33,7 @@ Cherry 在 Claude Code 和 Pi Agent 会话中使用 [MCP Skills 扩展](https://
 | `ClientMcpConnection` | 通过 SDK 的公开扩展请求 API，按能力声明调用并处理 `skills/list`、`skills/get` 和可选的 `resources/directory/read` 分页。 |
 | `McpRuntimeService` / `McpCatalogService` | 复用既有连接、超时、取消、当前服务配置和元数据投影。元数据每次重新获取。 |
 | `McpSkillService` | 会话持有的清单、来源、完整性校验、仅在内存中的内容缓存、来源限制及工具守卫。 |
-| `AgentSessionRuntimeService` | 打开和关闭技能会话，在返回内容前持久化加载来源，并通过现有 Tool Approval 注册表展示上下文审批。 |
+| `AgentSessionRuntimeService` | 打开和关闭技能会话，在返回内容前持久化加载来源，并通过现有 Tool Approval 注册表展示工具审批。 |
 | 输入框 / IpcApi | 仅在选择面板打开时发现元数据，关闭后取消请求，并为失败来源显示明确的错误条目。 |
 
 宿主提供 `list_mcp_skills`、`load_mcp_skill` 和 `read_mcp_skill_file`。两种运行时使用同一服务。Pi 直接暴露内置 skills 服务，使辅助文件读取不必执行 code mode 脚本。加载结果包含完整清单和辅助文件路径，不另设目录工具。远端目录不会进入本地技能库或原生技能发现。
@@ -42,7 +42,7 @@ Cherry 在 Claude Code 和 Pi Agent 会话中使用 [MCP Skills 扩展](https://
 
 清单准入会校验名称、根目录、资源范围和唯一性，最多包含 512 个文件（包括 `SKILL.md`），总大小不超过 16 MiB。每个获取的文件都必须匹配持有清单中的字节数和 SHA-256。入口文件的 YAML 必须与所有声明的 frontmatter 字段一致，包括未知字段。内容通过原始 MCP 连接读取，绝不会直接通过 HTTP 或文件系统解析远端 URI。
 
-加载的指令仍是不可信的工具结果上下文。Frontmatter 不能安装 hook 或授予工具权限。加载不会授予执行权限。远端技能生效时，Bash、automation、code mode 和本地技能激活等宿主执行工具在普通权限模式下需要逐次批准。Full Access 自动放行技能加载、执行、嵌套激活和跨来源读取，不显示批准或拒绝提示；完整性和来源校验仍然生效。这有意放宽了 MCP Skills 规范中关于明确批准的要求。常规审批卡片显示当前技能及来源；批准不会复用于下一次调用。普通读取、搜索和远端工具保持原有策略，其他工具限制仍然适用。
+加载的指令仍是不可信的工具结果上下文。Frontmatter 不能安装 hook 或授予工具权限。加载不会授予执行权限。远端技能生效时，Bash、automation、code mode 和本地技能激活等宿主执行工具在普通权限模式下需要逐次批准。Full Access 自动放行技能加载、执行、嵌套激活和跨来源读取，不显示批准或拒绝提示；完整性和来源校验仍然生效。这有意放宽了 MCP Skills 规范中关于明确批准的要求。标准审批卡片显示工具及其参数，不额外显示技能说明；批准不会复用于下一次调用。普通读取、搜索和远端工具保持原有策略，其他工具限制仍然适用。
 
 作为辅助文件读取的嵌套 `SKILL.md` 只是普通 Markdown。激活嵌套技能需要单独加载，并在 Full Access 以外的模式下取得明确工具批准。已加载技能的会话通过通用资源接口读取时，也受相同的清单校验约束。在 Full Access 以外的模式下，读取另一服务的资源必须通过工具审批逐次明确批准并标明两个来源，即使两个服务的技能都已加载。
 

@@ -167,8 +167,9 @@ export default async function mcpSkillsScenario(context: ScenarioContext) {
           await expect(approval.getByText('skill://reports/SKILL.md', { exact: true })).toBeVisible()
           if (execution) {
             await approval.getByRole('button', { name: /^Allow/ }).click()
-            await expect(approval.getByText(/MCP Skills Acceptance/).first()).toBeVisible({ timeout: 120_000 })
-            await expect(approval.getByText(/skill:\/\/reports\/SKILL.md/).first()).toBeVisible()
+            await expect(approval.getByText('printf MCP_SKILL_EXECUTED', { exact: true })).toBeVisible({
+              timeout: 120_000
+            })
           }
           await context.screenshot(`${type}-${scenario}-approval`)
           await approval.getByRole('button', { name: approve ? /^Allow/ : /^Deny/ }).click()

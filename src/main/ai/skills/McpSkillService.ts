@@ -357,13 +357,7 @@ export class McpSkillService extends BaseService {
         throw new Error(t('mcp.skills.changed'))
     }
     validate()
-    const options = {
-      skills: active
-        .map(({ entry }) => `${entry.frontmatter.name} — ${entry.serverName} (${entry.serverId}), ${entry.uri}`)
-        .join('\n')
-    }
     return {
-      reason: nested ? t('mcp.skills.nestedApproval', options) : t('mcp.skills.executionApproval', options),
       signal: AbortSignal.any([session.abort.signal, ...active.map((held) => held.abort.signal)]),
       validate
     }
@@ -418,11 +412,6 @@ export class McpSkillService extends BaseService {
             server_name: target.name,
             resource_uri: uri
           },
-          reason: t('mcp.skills.crossOrigin', {
-            source: [...new Set(foreign.map((held) => held.entry.serverName))].join(', '),
-            target: target.name,
-            uri
-          }),
           signal
         })
         if (!decision.approved) throw new Error(decision.reason ?? t('mcp.skills.denied'))

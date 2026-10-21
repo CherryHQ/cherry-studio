@@ -24,18 +24,6 @@ function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessa
 }
 
 describe('findNextPendingPermissionRequest', () => {
-  it('retains the host approval reason independently from model-authored arguments', () => {
-    const part = makePart({
-      input: { command: 'echo ready', description: 'Model description' },
-      callProviderMetadata: {
-        cherry: { transport: 'pi', approvalReason: 'Reports from server-a require execution approval.' }
-      }
-    })
-    expect(findNextPendingPermissionRequest({ message: [part] })?.approvalReason).toBe(
-      'Reports from server-a require execution approval.'
-    )
-  })
-
   it('returns pending permissions in FIFO order', () => {
     const partsByMessageId = {
       'message-1': [makePart()],

@@ -1512,7 +1512,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   async requestToolApproval(
     sessionId: string,
-    request: { toolName: string; input: Record<string, unknown>; reason: string; signal: AbortSignal }
+    request: { toolName: string; input: Record<string, unknown>; signal: AbortSignal }
   ): Promise<DispatchDecision> {
     request.signal.throwIfAborted()
     const entry = this.entries.get(sessionId)
@@ -1545,8 +1545,7 @@ export class AgentSessionRuntimeService extends BaseService {
         providerMetadata: {
           cherry: {
             transport: AGENT_RUNTIME_CAPABILITIES[entry.agentType].transport,
-            toolName: request.toolName,
-            approvalReason: request.reason
+            toolName: request.toolName
           }
         }
       })
@@ -2621,17 +2620,6 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
     if (request.presentation === 'stream') {
-      if (request.providerMetadata?.cherry?.approvalReason) {
-        this.deliverRuntimeChunk(entry, {
-          type: 'tool-input-available',
-          toolCallId: request.toolCallId,
-          toolName: request.toolName,
-          input: request.input,
-          dynamic: true,
-          providerExecuted: true,
-          providerMetadata: request.providerMetadata
-        })
-      }
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,

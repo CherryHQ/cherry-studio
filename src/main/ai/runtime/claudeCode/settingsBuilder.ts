@@ -640,8 +640,7 @@ async function buildToolPermissions(
         providerMetadata: {
           cherry: {
             transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
-            toolName,
-            ...(skillApproval && { approvalReason: skillApproval.reason })
+            toolName
           } satisfies CherryToolMeta
         }
       })

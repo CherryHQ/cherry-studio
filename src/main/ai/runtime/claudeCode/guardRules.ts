@@ -234,11 +234,11 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
               .get('McpSkillService')
               .toolApproval(ctx.sessionId, ctx.toolName, ctx.input ?? {}, ctx.permissionMode)
           : undefined
-        return approval ? { evidence: approval.reason } : null
+        return approval ? {} : null
       }
     },
     effect: 'ask',
-    reason: (hit) => hit.evidence ?? 'MCP skill tool approval is required',
+    reason: 'MCP skill tool approval is required',
     headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
   },
   {

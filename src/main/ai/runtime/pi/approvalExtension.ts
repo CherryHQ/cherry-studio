@@ -247,8 +247,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
             providerMetadata: {
               cherry: {
                 transport: PI_TRANSPORT,
-                toolName,
-                ...(skillApproval && { approvalReason: skillApproval.reason })
+                toolName
               } satisfies CherryToolMeta
             }
           }

@@ -1290,20 +1290,6 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
-    if (chunk.type === 'tool-input-available' && typeof chunk.providerMetadata?.cherry?.approvalReason === 'string') {
-      const original = findBufferedToolInput(exec, chunk.toolCallId)
-      if (original?.type === 'tool-input-available') {
-        chunk = {
-          ...original,
-          input: chunk.input,
-          providerMetadata: {
-            ...original.providerMetadata,
-            cherry: { ...original.providerMetadata?.cherry, ...chunk.providerMetadata.cherry }
-          }
-        }
-      }
-    }
-
     const sourceModelId = modelId
     const anchorMessageId = exec.anchorMessageId
     const payload: StreamChunkPayload = {
