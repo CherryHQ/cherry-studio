@@ -55,6 +55,7 @@ import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
+import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type {
   Currency,
   ImageGenerationSupport,
@@ -1131,8 +1132,21 @@ class ProviderRegistryService {
       loader.findModel(registryOverride?.modelId ?? modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
 
+    const gatewayRoute = resolveGatewayChatRoute(providerContext, {
+      id: createUniqueModelId(providerContext.id, modelId),
+      apiModelId: modelId
+    })
     const presetModel = matchedModel
-      ? { ...matchedModel, endpointTypes: suggestModelEndpoints(providerContext, matchedModel) }
+      ? {
+          ...matchedModel,
+          endpointTypes: suggestModelEndpoints(
+            {
+              ...providerContext,
+              defaultChatEndpoint: gatewayRoute?.endpointType ?? providerContext.defaultChatEndpoint
+            },
+            matchedModel
+          )
+        }
       : null
 
     return {
