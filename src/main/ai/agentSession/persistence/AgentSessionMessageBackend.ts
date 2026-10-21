@@ -7,6 +7,7 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import type { InputState } from '@cherrystudio/agent-runtime'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -28,6 +29,7 @@ export interface AgentSessionMessageBackendOptions {
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
   forkAnchor?: () => RuntimeForkAnchor | undefined
+  inputResponses?: () => readonly InputState[]
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -54,6 +56,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
       }
     }
+    const inputResponses = this.opts.inputResponses?.()
     const save = (runtimeAnchor?: RuntimeForkAnchor) =>
       agentSessionMessageService.saveMessage(
         {
@@ -69,7 +72,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
             modelId: this.opts.modelId
           }
         },
-        { publishDataChange: true }
+        { publishDataChange: true, ...(inputResponses?.length ? { inputResponses } : {}) }
       )
     let saved
     try {

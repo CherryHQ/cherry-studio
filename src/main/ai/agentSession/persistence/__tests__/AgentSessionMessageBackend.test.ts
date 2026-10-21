@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 
 import { PersistenceListener, TerminalPersistenceError } from '../../../streamManager/listeners/PersistenceListener'
@@ -94,6 +98,71 @@ describe('AgentSessionMessageBackend', () => {
       expect(saved.data).not.toHaveProperty('runtimeAnchor')
       const raw = agentSessionMessageService.readForkPrefixTx(dbh.db, sessionId, assistantMessageId)![0]
       expect(raw.data.runtimeAnchor).toEqual(scenario === 'valid' ? anchor : undefined)
+    }
+  )
+  it.each([false, true])(
+    'commits the final response and all input associations atomically (conflict: %s)',
+    (conflict) => {
+      const context = agentSessionContextService.preparePiBranch(sessionId)
+      const inputIds = [randomUUID(), randomUUID()]
+      for (const id of inputIds) {
+        agentSessionMessageService.saveMessage({
+          sessionId,
+          message: { id, role: 'user', data: { parts: [{ type: 'text', text: id }] } }
+        })
+        agentSessionMessageService.prepareSubmission(sessionId, id, context.id, 'steer')
+      }
+      const otherId = randomUUID()
+      if (conflict) {
+        agentSessionMessageService.saveMessage({
+          sessionId,
+          message: { id: otherId, role: 'assistant', data: { parts: [] } }
+        })
+        dbh.db.transaction((tx) =>
+          agentSessionMessageService.mergeSubmissionTx(
+            tx,
+            sessionId,
+            inputIds[1],
+            { inputId: runtimeId(inputIds[1]), facts: [], outcome: 'completed' },
+            otherId
+          )
+        )
+      }
+      const backend = new AgentSessionMessageBackend({
+        sessionId,
+        assistantMessageId,
+        inputResponses: () =>
+          inputIds.map((id) => ({ inputId: runtimeId(id), facts: ['placed'], outcome: 'completed' }))
+      })
+      const save = () =>
+        backend.persistAssistant({
+          status: 'success',
+          finalMessage: {
+            id: assistantMessageId,
+            role: 'assistant',
+            parts: [{ type: 'text', text: 'shared answer' }]
+          }
+        })
+      if (conflict) {
+        expect(save).toThrow('Response does not match')
+        expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId)).toMatchObject({
+          status: 'pending',
+          data: { parts: [] }
+        })
+        expect(
+          agentSessionMessageService.readSubmission(sessionId, inputIds[0]).submission.responseMessageId
+        ).toBeUndefined()
+      } else {
+        save()
+        for (const id of inputIds)
+          expect(agentSessionMessageService.readSubmission(sessionId, id).submission).toMatchObject({
+            outcome: 'completed',
+            responseMessageId: assistantMessageId
+          })
+        expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId).data.parts).toEqual([
+          { type: 'text', text: 'shared answer' }
+        ])
+      }
     }
   )
 })

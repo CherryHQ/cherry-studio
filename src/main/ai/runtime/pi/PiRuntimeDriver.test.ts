@@ -6,8 +6,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   findByIdOrName: vi.fn(),
   listTools: vi.fn(),
-  prepareWorkspace: vi.fn(),
-  assertProviderUsable: vi.fn()
+  prepareWorkspace: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
@@ -21,7 +20,6 @@ vi.mock('@application', async () => {
 vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
   prepareAgentSessionWorkspaceDirectory: mocks.prepareWorkspace
 }))
-vi.mock('./modelInjection', () => ({ assertPiProviderUsable: mocks.assertProviderUsable }))
 vi.mock('./PiRuntimeConnection', () => ({ PiRuntimeConnection: vi.fn() }))
 
 const { PiRuntimeDriver } = await import('./PiRuntimeDriver')
@@ -30,7 +28,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.listTools.mockReturnValue([])
   mocks.prepareWorkspace.mockResolvedValue(undefined)
-  mocks.assertProviderUsable.mockResolvedValue(undefined)
 })
 
 describe('PiRuntimeDriver.listAvailableTools', () => {
