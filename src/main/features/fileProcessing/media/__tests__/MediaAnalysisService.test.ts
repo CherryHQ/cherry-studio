@@ -8,6 +8,7 @@ import type * as AiCoreModule from '@cherrystudio/ai-core'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { APPLE_ASR_MODEL_ID, QWEN3_ASR_MODEL_ID } from '@shared/ai/localVoice'
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
+import type { ProviderBilling } from '@shared/data/types/providerBilling'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
 
@@ -119,6 +120,8 @@ vi.mock('@application', async () => {
 })
 
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { VoiceCleanupError, VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
 import { BaseService } from '@main/core/lifecycle'
 
@@ -127,6 +130,25 @@ import { planFrameTimestamps } from '../probeClassification'
 
 const file = { kind: 'path' as const, path: AbsoluteFilePathSchema.parse('/fixture.mp4') }
 let service: MediaAnalysisService
+
+async function runVisionBatchMiddleware(callIndex: number): Promise<void> {
+  const plugins = runtime.generateText.mock.calls[callIndex]?.[3] as
+    | Array<{
+        configureContext?: (context: {
+          middlewares?: Array<{ wrapGenerate: (args: unknown) => Promise<unknown> }>
+        }) => void
+      }>
+    | undefined
+  const requestContext: {
+    middlewares?: Array<{ wrapGenerate: (args: unknown) => Promise<unknown> }>
+  } = {}
+  plugins?.[0]?.configureContext?.(requestContext)
+  const middleware = requestContext.middlewares?.[0]
+  if (!middleware) throw new Error(`vision batch ${callIndex} did not register usage middleware`)
+  await middleware.wrapGenerate({
+    doGenerate: async () => ({ usage: { inputTokens: 4, outputTokens: 6, totalTokens: 10 } })
+  })
+}
 
 beforeEach(async () => {
   BaseService.resetInstances()
@@ -162,10 +184,24 @@ beforeEach(async () => {
   runtime.closeTranscription.mockReset().mockResolvedValue(undefined)
   runtime.ocrImage.mockReset()
   runtime.generateText.mockReset()
+  vi.spyOn(modelService, 'getByKey').mockReturnValue({
+    pricing: {
+      input: { perMillionTokens: 2.5, currency: 'USD' },
+      output: { perMillionTokens: 10, currency: 'USD' }
+    }
+  } as never)
+  vi.spyOn(providerService, 'getByProviderId').mockReturnValue({
+    id: 'live-provider',
+    name: 'Renamed',
+    reportsActualCost: false,
+    reportedCostCurrency: 'EUR',
+    settings: { billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: 'UTC', periods: [] } }
+  } as never)
   service = new MediaAnalysisService()
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await rm(runtime.tempRoot, { recursive: true, force: true })
   BaseService.resetInstances()
 })
@@ -789,6 +825,139 @@ describe('MediaAnalysisService', () => {
       })
     )
   })
+
+  it.each([
+    ['[1,1]', '2026-10-11T10:00:00.000Z', '2026-10-11T11:30:00.000Z', 1, 1],
+    ['[3,3]', '2026-10-11T12:00:00.000Z', '2026-10-11T15:00:00.000Z', 3, 3],
+    ['[1,3]', '2026-10-11T11:59:00.000Z', '2026-10-11T12:00:00.000Z', 1, 3]
+  ] as const)(
+    'prices vision batches %s from the schedule at each middleware start',
+    async (_boundary, firstAt, secondAt, firstPrice, secondPrice) => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-10-11T09:00:00.000Z'))
+        const billing: ProviderBilling = {
+          defaultMultiplier: 1,
+          scheduleEnabled: true,
+          timeZone: 'UTC',
+          periods: [{ id: 'peak', name: 'Peak', start: '12:00', end: '18:00', mode: 'multiplier', multiplier: 3 }]
+        }
+        const pricing = {
+          input: { perMillionTokens: 1, currency: 'USD' as const },
+          output: { perMillionTokens: 1, currency: 'USD' as const }
+        }
+        const vision: MediaVisionExecutionConfig = {
+          ...visionExecution(),
+          sdkConfig: {
+            providerId: 'openai-chat',
+            providerSettings: { apiKey: 'secret-a' },
+            modelId: 'gpt-4o-2024-08-06'
+          },
+          usage: createAiUsageCaptureContext({
+            providerId: 'openai',
+            providerName: 'OpenAI',
+            modelId: 'gpt-4o-2024-08-06',
+            modelName: 'GPT-4o',
+            pricing,
+            billing,
+            billingModelId: 'gpt-4o',
+            trustProviderReportedCost: true,
+            reportedCostCurrency: 'USD',
+            credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
+          })
+        }
+        expect(vision.usage.pricingSnapshot).toMatchObject({
+          inputPerMillionTokens: 1,
+          outputPerMillionTokens: 1,
+          billing: { multiplier: 1, pricedAt: '2026-10-11T09:00:00.000Z' }
+        })
+        vi.mocked(providerService.getByProviderId).mockReturnValue({
+          id: 'live-provider',
+          name: 'Renamed',
+          reportsActualCost: false,
+          reportedCostCurrency: 'EUR',
+          settings: { billing }
+        } as never)
+        vi.mocked(modelService.getByKey).mockReturnValue({ pricing } as never)
+        runtime.config = {
+          ...runtime.config,
+          asr: null,
+          vision,
+          budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
+        }
+        runtime.probe.mockResolvedValue({
+          durationMs: 60_000,
+          hasAudio: false,
+          hasVideo: true,
+          mime: 'video/mp4',
+          kind: 'video'
+        })
+        runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => ({
+          frames: await Promise.all(
+            timestampsMs.map(async (timestampMs: number) => {
+              const path = join(outputDir, `frame-${timestampMs}.jpg`)
+              await writeFile(path, Buffer.from('jpeg'))
+              return { path, timestampMs }
+            })
+          )
+        }))
+        runtime.generateText.mockImplementation(
+          async (
+            _providerId: string,
+            _settings: unknown,
+            request: { messages: Array<{ content: Array<{ type: string; text?: string }> }> }
+          ) => {
+            const lines = request.messages[0]?.content.flatMap((part) =>
+              part.type === 'text' && part.text?.startsWith('FRAME_') ? [`${part.text}: kept`] : []
+            )
+            return { text: lines?.join('\n') ?? '' }
+          }
+        )
+
+        await service.analyze(file)
+
+        expect(runtime.generateText).toHaveBeenCalledTimes(2)
+        const record = vi.spyOn(aiUsageRecordService, 'recordInvocation').mockImplementation(() => undefined)
+        for (const [callIndex, at] of [
+          [0, firstAt],
+          [1, secondAt]
+        ] as const) {
+          vi.setSystemTime(new Date(at))
+          await runVisionBatchMiddleware(callIndex)
+        }
+        expect(providerService.getByProviderId).toHaveBeenCalledTimes(2)
+        expect(providerService.getByProviderId).toHaveBeenCalledWith('openai')
+        expect(modelService.getByKey).toHaveBeenCalledTimes(2)
+        expect(modelService.getByKey).toHaveBeenCalledWith('openai', 'gpt-4o')
+        expect(
+          record.mock.calls.map((call) => [
+            call[0].context.pricingSnapshot?.inputPerMillionTokens,
+            call[0].context.pricingSnapshot?.outputPerMillionTokens
+          ])
+        ).toEqual([
+          [firstPrice, firstPrice],
+          [secondPrice, secondPrice]
+        ])
+        expect(record.mock.calls.map((call) => call[0].context.pricingSnapshot?.billing?.pricedAt)).toEqual([
+          firstAt,
+          secondAt
+        ])
+        for (const call of record.mock.calls) {
+          expect(call[0].context).toMatchObject({
+            providerId: 'openai',
+            providerName: 'OpenAI',
+            modelId: 'gpt-4o-2024-08-06',
+            modelName: 'GPT-4o',
+            trustProviderReportedCost: true,
+            reportedCostCurrency: 'USD',
+            credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
+          })
+        }
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
 
   it('retries ASR after a recoverable transcription failure instead of caching it', async () => {
     runtime.config = {
