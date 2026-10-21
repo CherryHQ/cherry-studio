@@ -22,7 +22,7 @@ Connector 由 Cherry 自行实现。OpenConnector 仅作为设计参考，不是
 
 ### 所有权与依赖
 
-存储服务负责凭据查询、创建、条件替换、删除、文件序列化和变更通知。通过现有主进程生命周期系统注册其持久运行状态。协议模块负责凭据 schema、注册、授权确认、令牌刷新和错误分类。业务模块负责自身配置、绑定、运行任务和连接状态。
+存储服务负责凭据查询、创建、条件替换、删除、文件序列化和变更通知。该共享 connector 能力放在 `src/main/services/credential/`；持久化到文件不代表它属于通用业务数据层。其 `index.ts` 只导出服务和错误契约，记录 schema 保持私有。通过现有主进程生命周期系统注册其持久运行状态。协议模块负责凭据 schema、注册、授权确认、令牌刷新和错误分类。业务模块负责自身配置、绑定、运行任务和连接状态。
 
 现有 `feishuAppRegistration.ts` 继续作为共享注册协议。Channel 与知识库使用统一凭据所有者，不读取对方的服务或配置。保留知识库的授权身份校验和运行时取消规则，不将整个知识库 Runtime 搬入通用 Connector 抽象。
 
@@ -129,7 +129,7 @@ Channel 的飞书配置改为 `type`、可空的 `applicationCredentialId` 和�
 
 | 实现目标 | 职责与受影响调用方 |
 | --- | --- |
-| `src/main/data/credential/CredentialStoreService.ts` 及私有 `credentialSchemas.ts` | 文件记录、修改串行化、凭据间引用保护、安全摘要和变更事件。不导入 Channel 或知识库表；业务引用查询和迁移归属飞书连接层。 |
+| `src/main/services/credential/CredentialStoreService.ts` 及私有 `credentialSchemas.ts` | 文件记录、修改串行化、凭据间引用保护、安全摘要和变更事件。不导入 Channel 或知识库表；业务引用查询和迁移归属飞书连接层。 |
 | `src/main/core/paths/pathRegistry.ts` 与 `src/main/core/application/serviceRegistry.ts` | 注册路径和生命周期服务；通过统一测试系统接入 mock。 |
 | `src/main/services/FeishuRegistrationService.ts` 与现有 `feishuAppRegistration.ts` | 共享、按调用者隔离的注册会话与已有 HTTP 协议。保留 Channel／知识库不同注册预设；不负责用户令牌刷新或机器人运行。 |
 | `src/shared/ipc/schemas/credential.ts`、`src/shared/ipc/schemas/feishu.ts`、对应主进程 handler 及已有 IPC 组装入口 | 校验命令与安全输出；已保存 payload 的 schema 仅留在主进程。 |
@@ -208,9 +208,9 @@ Channel 的飞书配置改为 `type`、可空的 `applicationCredentialId` 和�
 
 | 测试目标 | 要证明的契约 |
 | --- | --- |
-| 新增 `src/main/data/credential/__tests__/CredentialStoreService.test.ts` | 无效 payload／ID、权限修正、原子替换失败、一次失败后队列仍可写入、token CAS、删除后不能复活。 |
+| 新增 `src/main/services/credential/__tests__/CredentialStoreService.test.ts` | 无效 payload／ID、权限修正、原子替换失败、一次失败后队列仍可写入、token CAS、删除后不能复活。 |
 | 新增 `src/main/ipc/handlers/__tests__/credentialBindings.integration.test.ts` | 并发绑定／删除、授权到应用的引用、删除 Channel 保留知识库、密钥替换隔离两个消费者的旧操作，以及记录不可读时拒绝删除。 |
-| 新增 `src/main/data/credential/__tests__/migrateFeishuCredentials.test.ts` | 有数据的生产数据库 fixture 与真实文件；上述全部中断场景、重复／冲突应用、待授权记录、身份保留、重复转换。 |
+| 新增 `src/main/services/credential/__tests__/migrateFeishuCredentials.test.ts` | 有数据的生产数据库 fixture 与真实文件；上述全部中断场景、重复／冲突应用、待授权记录、身份保留、重复转换。 |
 | 新增 `src/main/services/__tests__/FeishuRegistrationService.test.ts` 及已有 `feishuAppRegistration.test.ts` | 不同预设、会话所有者、取消／过期、重复完成、不返回秘密，并保留传输重试行为。 |
 | 已有 Channel `ChannelManager.test.ts`、`ChannelRuntime.test.ts`、`channelCommands.test.ts`、`adapters/__tests__/FeishuAdapter.test.ts` | 异步凭据加载不能连接过期适配器；显式注册替换适配器隐式注册；只含引用的配置能正确解析后交给 SDK。 |
 | 已有知识库 `ExternalKnowledgeRuntime.test.ts`、`authorizationRecovery.integration.test.ts`、`ExternalKnowledgeDisconnect.test.ts`、`feishuKnowledgeProvider.test.ts` | 替换存储后仍满足刷新／重连／取消／错误竞态和身份连续性；一个消费者的清理不能删除另一个的凭据。 |

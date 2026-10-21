@@ -22,7 +22,7 @@ Connector implementations remain Cherry-owned. OpenConnector is a design referen
 
 ### Ownership and dependencies
 
-The storage service owns credential lookup, creation, conditional replacement, deletion, file serialization, and change notification. Register its persistent runtime state through the existing main-process lifecycle system. Protocol-specific modules own credential schemas, registration, consent, token refresh, and error classification. Business modules own their configuration, bindings, running jobs, and connection state.
+The storage service owns credential lookup, creation, conditional replacement, deletion, file serialization, and change notification. Place this shared connector capability in `src/main/services/credential/`; file persistence does not make it part of the general business-data layer. Its `index.ts` exposes the service and error contract while keeping record schemas private. Register its persistent runtime state through the existing main-process lifecycle system. Protocol-specific modules own credential schemas, registration, consent, token refresh, and error classification. Business modules own their configuration, bindings, running jobs, and connection state.
 
 The existing `feishuAppRegistration.ts` remains the shared registration protocol. Channel and Knowledge use the shared credential owner without reading each other's services or configuration. Retain Knowledge's authorization identity checks and runtime cancellation rules; do not move its entire runtime into a generic connector abstraction.
 
@@ -129,7 +129,7 @@ Registration purpose and Knowledge authorization policy remain explicit. Knowled
 
 | Implementation target | Responsibility and affected callers |
 | --- | --- |
-| `src/main/data/credential/CredentialStoreService.ts` with private `credentialSchemas.ts` | File records, mutation serialization, credential-to-credential guards, safe summaries and change events. No Channel or Knowledge table imports; the Feishu connection layer owns business-reference queries and migration. |
+| `src/main/services/credential/CredentialStoreService.ts` with private `credentialSchemas.ts` | File records, mutation serialization, credential-to-credential guards, safe summaries and change events. No Channel or Knowledge table imports; the Feishu connection layer owns business-reference queries and migration. |
 | `src/main/core/paths/pathRegistry.ts` and `src/main/core/application/serviceRegistry.ts` | Register the path and lifecycle service; wire test mocks through the unified test system. |
 | `src/main/services/FeishuRegistrationService.ts` and existing `feishuAppRegistration.ts` | Shared, owner-scoped registration sessions and existing HTTP protocol. Preserve different Channel/Knowledge registration presets; no user-token refresh or bot runtime here. |
 | `src/shared/ipc/schemas/credential.ts`, `src/shared/ipc/schemas/feishu.ts`, matching main handlers and existing IPC composition | Validated commands and safe outputs; saved payload schemas stay main-only. |
@@ -208,9 +208,9 @@ Before adding each regression, state the promised outcome it protects. Reuse `se
 
 | Test target | Contract to prove |
 | --- | --- |
-| New `src/main/data/credential/__tests__/CredentialStoreService.test.ts` | Malformed payload/ID, permission repair, failed atomic replacement, queued-write recovery after failure, token CAS and no resurrection after deletion. |
+| New `src/main/services/credential/__tests__/CredentialStoreService.test.ts` | Malformed payload/ID, permission repair, failed atomic replacement, queued-write recovery after failure, token CAS and no resurrection after deletion. |
 | New `src/main/ipc/handlers/__tests__/credentialBindings.integration.test.ts` | Concurrent bind/delete, grant-to-app references, Channel deletion preserving Knowledge, secret replacement fencing both consumers, and unavailable-record deletion refusal. |
-| New `src/main/data/credential/__tests__/migrateFeishuCredentials.test.ts` | Populated production DB fixtures plus real files; all interruption rows above, duplicate/conflicting applications, pending grants, preserved identities and repeated conversion. |
+| New `src/main/services/credential/__tests__/migrateFeishuCredentials.test.ts` | Populated production DB fixtures plus real files; all interruption rows above, duplicate/conflicting applications, pending grants, preserved identities and repeated conversion. |
 | New `src/main/services/__tests__/FeishuRegistrationService.test.ts` and existing `feishuAppRegistration.test.ts` | Different presets, session owner, cancel/expiry, repeated completion, and no secret output; preserve transport retry behavior. |
 | Existing Channel `ChannelManager.test.ts`, `ChannelRuntime.test.ts`, `channelCommands.test.ts`, `adapters/__tests__/FeishuAdapter.test.ts` | Async credential loading cannot connect a stale adapter; explicit registration replaces implicit adapter registration; reference-only config reaches the SDK correctly. |
 | Existing Knowledge `ExternalKnowledgeRuntime.test.ts`, `authorizationRecovery.integration.test.ts`, `ExternalKnowledgeDisconnect.test.ts`, `feishuKnowledgeProvider.test.ts` | Refresh/reconnect/cancel/error races and identity continuity survive the store replacement; one consumer's cleanup cannot remove another's credentials. |
