@@ -112,7 +112,7 @@ export default function SpreadsheetFilePreview({
   const [activeSheetName, setActiveSheetName] = useState<string | null>(null)
   // The sheet is stored with the selection: an A1 range means nothing without the sheet it was taken from.
   const [selectedCell, setSelectedCell] = useState<
-    (SelectedCellInfo & { sheet: SheetRenderModel; refreshKey: number }) | null
+    (SelectedCellInfo & { sheet: SheetRenderModel; document: FilePreviewPluginProps['document'] }) | null
   >(null)
   const [chartRenderer, setChartRenderer] = useState<ChartRenderer | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({})
@@ -132,21 +132,28 @@ export default function SpreadsheetFilePreview({
 
   const handleSelectCell = useCallback(
     (info: SelectedCellInfo | null) =>
-      setSelectedCell(info && activeSheet ? { ...info, sheet: activeSheet, refreshKey } : null),
-    [activeSheet, refreshKey]
+      setSelectedCell(info && activeSheet ? { ...info, sheet: activeSheet, document: previewDocument } : null),
+    [activeSheet, previewDocument]
   )
 
   // Derived from the selection rather than emitted by its callback, so any clear reports null on its own. The
   // sheet is compared rather than assumed: a sheet switch resets the selection in an effect, one commit later.
   const selectionReference = useMemo(() => {
-    if (!selectedCell || !activeSheet || selectedCell.sheet !== activeSheet) return null
+    if (
+      state.status !== 'ready' ||
+      !selectedCell ||
+      !activeSheet ||
+      selectedCell.sheet !== activeSheet ||
+      selectedCell.document !== previewDocument
+    )
+      return null
     return createPreviewSelection({
       sourceId,
       anchor: { format: 'xlsx', sheet: activeSheet.name, range: selectedCell.range },
       excerpt: buildRangeExcerpt(activeSheet, selectedCell.rect),
       revision: previewDocument.revision
     })
-  }, [selectedCell, activeSheet, sourceId, previewDocument.revision])
+  }, [selectedCell, activeSheet, sourceId, previewDocument, state.status])
 
   // Capture arms empty so switching it on never turns a browsing selection into a pick the user never made.
   const captureArmedRef = useRef(false)
@@ -269,7 +276,7 @@ export default function SpreadsheetFilePreview({
             imageUrls={imageUrls}
             zoom={zoom}
             onSelectCell={handleSelectCell}
-            pickerActive={onSelection !== undefined}
+            pickerActive={state.status === 'ready' && onSelection !== undefined}
             renderChart={renderChart}
           />
         </div>

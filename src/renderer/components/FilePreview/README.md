@@ -236,7 +236,7 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - The desktop adapter converts the package's structural selection into a `SelectionReference` using the
   file path and metadata. What to do with a reference (show an action, inject it into a conversation) is the
   embedding surface's concern; neither the host nor the plugin renders reference UI.
-- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+- The host never synthesizes a `null` — a plugin unmount (file switch) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
@@ -292,6 +292,11 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   Synchronous parsing cannot be interrupted.
 - Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
   opened document changes. Do not request metadata again inside a format plugin.
+- A same-path refresh retains a compatible preview while metadata and content reload. Local plugins
+  and the portable preview package preserve valid reading state; different paths or formats reset it.
+  The consumer clears held selections when requesting refresh. `FilePreview` rejects callbacks from
+  an obsolete metadata resolution, and `Preview` rejects obsolete document selections and failures.
+  Format plugins cancel their own selection work and clamp positions when refreshed content shrinks.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - The desktop adapter routes package `onDiagnostic` events to `loggerService`, preserving `Error`

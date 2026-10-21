@@ -276,10 +276,9 @@ describe('SpreadsheetFilePreview', () => {
     await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
     const view = () => (
       <SpreadsheetFilePreview
-        filePath={'/tmp/workspace/book.xlsx' as AbsoluteFilePath}
+        sourceId="/tmp/workspace/book.xlsx"
         fileName="book.xlsx"
-        metadata={{ size: 1024, modifiedAt: 2 }}
-        refreshKey={1}
+        document={previewTestDocument(1024, 2, unusedRead, 1)}
       />
     )
     setWorkbookState({ status: 'loading', model })

@@ -1,5 +1,5 @@
 import { ImageOff, LoaderCircle } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState, ImagePreviewViewport, useImagePreviewTransform } from '@cherrystudio/ui'
@@ -26,6 +26,16 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
   const objectUrlRef = useRef<string | null>(null)
   const [status, setStatus] = useState<'error' | 'loading' | 'ready' | 'too_large'>('loading')
   const transformControls = useImagePreviewTransform()
+  const [loadedDocument, setLoadedDocument] = useState(document)
+  const [pendingTransform, setPendingTransform] = useState(transformControls.transform)
+  if (loadedDocument !== document) {
+    setLoadedDocument(document)
+    setStatus('loading')
+  }
+  // Keep the last decoded view; loading geometry can temporarily clamp live offsets.
+  useLayoutEffect(() => {
+    if (status === 'ready') setPendingTransform(transformControls.transform)
+  }, [status, transformControls.transform])
   const releaseImageUrl = useCallback(() => {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current)
     objectUrlRef.current = null
@@ -113,7 +123,10 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
               imageClassName={status === 'loading' ? 'opacity-0' : undefined}
               item={item}
               transformControls={transformControls}
-              onLoad={() => setStatus('ready')}
+              onLoad={() => {
+                transformControls.update(pendingTransform)
+                setStatus('ready')
+              }}
               onError={() => {
                 const error = new Error(`Failed to load image preview: ${sourceId}`)
                 failDocument?.(error)

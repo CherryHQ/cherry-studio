@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,6 +86,38 @@ afterEach(() => {
 })
 
 describe('WordFilePreview', () => {
+  it('retains zoom, page and scroll on replacement and clamps a shorter document', async () => {
+    const user = userEvent.setup()
+    const view = (generation: number) => (
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 7, mocks.fsRead, generation)}
+      />
+    )
+    const { rerender } = render(view(0))
+    await screen.findByText('Page 2')
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    const region = screen.getByRole('region', { name: 'report.docx' })
+    region.scrollTop = 450
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<section>Updated page 1</section><section>Updated page 2</section>'
+    })
+    rerender(view(1))
+    await screen.findByText('Updated page 2')
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    expect(region.scrollTop).toBe(450)
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<section>Shortened document</section>'
+    })
+    rerender(view(2))
+    await screen.findByText('Shortened document')
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    expect(screen.getByText('110%')).toBeInTheDocument()
+  })
+
   /** Puts a paragraph into the rendered body the way docx-preview would, and returns it for clicking. */
   function renderParagraph(text: string, attributes: Record<string, string>): HTMLParagraphElement {
     const bodyContainer = screen.getByTestId('docx-preview-content')

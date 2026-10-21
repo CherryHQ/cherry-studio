@@ -1,7 +1,7 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import { AlertCircle, FileWarning, LoaderCircle } from 'lucide-react'
-import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -114,11 +114,12 @@ export default function PowerPointFilePreview({
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
+  const restoredViewerRef = useRef<PptxViewer | null>(null)
   const readingPositionRef = useRef<{ zoom: number; page: number; top: number; left: number } | null>(null)
   const captureReadingPosition = useCallback(() => {
     const viewer = viewerRef.current
     const container = containerRef.current
-    if (!viewer || !container || container.clientHeight === 0) return
+    if (!viewer || restoredViewerRef.current !== viewer || !container || container.clientHeight === 0) return
     readingPositionRef.current = {
       zoom: viewer.zoomPercent,
       page: viewer.currentSlideIndex + 1,
@@ -210,7 +211,6 @@ export default function PowerPointFilePreview({
     const controller = new AbortController()
     let cancelled = false
     let viewer: PptxViewer | null = null
-    let initialized = false
 
     setError(null)
     setLoading(true)
@@ -288,7 +288,7 @@ export default function PowerPointFilePreview({
           container.scrollTop = position.top
           container.scrollLeft = position.left
         }
-        initialized = true
+        restoredViewerRef.current = viewer
         setPageCount(nextPageCount)
         setCurrentPage(nextPageCount > 0 ? viewer.currentSlideIndex + 1 : 0)
         focusContainer()
@@ -311,7 +311,7 @@ export default function PowerPointFilePreview({
     })()
 
     return () => {
-      if (initialized) captureReadingPosition()
+      captureReadingPosition()
       cancelled = true
       controller.abort()
       controlsBusyRef.current = false
@@ -319,10 +319,11 @@ export default function PowerPointFilePreview({
       if (viewerRef.current === viewer) {
         viewerRef.current = null
       }
+      if (restoredViewerRef.current === viewer) restoredViewerRef.current = null
       viewer?.destroy()
       container.innerHTML = ''
     }
-  }, [sourceId, focusContainer, previewDocument, logger, failDocument, setPreviewControlsBusy])
+  }, [captureReadingPosition, sourceId, focusContainer, previewDocument, logger, failDocument, setPreviewControlsBusy])
 
   // The marker goes on only after createPreviewSelection confirms the host receives something: a slide
   // with no text must not look picked while the host gets null.
@@ -377,7 +378,7 @@ export default function PowerPointFilePreview({
   // on refresh too.
   useEffect(() => {
     setPickedSlide(null)
-  }, [sourceId])
+  }, [sourceId, previewDocument])
 
   const hasPages = !error && pageCount > 0
 

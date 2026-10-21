@@ -44,6 +44,14 @@ and file-identity content for the fixed top row; the format toolbar shares that 
 Without a header, format controls render above the document. Give `source` and
 `resources` stable references so layout, locale and theme updates retain the session.
 
+Refreshing the same source ID and format retains the mounted format and its valid
+reading state while opening a fresh document. Formats preserve zoom, page, scroll,
+worksheet and image transforms as applicable, and clamp positions to shorter content.
+A different source ID or format starts a new preview. The previous document still
+closes on refresh; retained content cannot publish selections or terminal errors for
+the replacement session. Closing and reopening a preview does not persist reading
+history. Hosts must clear any held selection when requesting a refresh.
+
 `onSelection` reports `{ sourceId, revision, anchor, excerpt }`, or `null` when a
 pick is cleared. Anchors use worksheet A1 ranges, body paragraph ordinals, PDF pages
 and PPTX slides. The host owns held selections across refreshes and file switches.

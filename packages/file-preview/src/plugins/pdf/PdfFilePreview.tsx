@@ -125,14 +125,15 @@ export default function PdfFilePreview({
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
   const pdfViewerRef = useRef<PdfJsViewer | null>(null)
+  const restoredViewerRef = useRef<PdfJsViewer | null>(null)
   const linkServiceRef = useRef<PdfJsLinkService | null>(null)
-  const readingPositionRef = useRef<{ scale: string; page: number; top: number; left: number } | null>(null)
+  const readingPositionRef = useRef<{ scaleValue: string; page: number; top: number; left: number } | null>(null)
   const captureReadingPosition = useCallback(() => {
     const viewer = pdfViewerRef.current
     const container = containerRef.current
-    if (!viewer || !container || container.clientHeight === 0 || viewer.currentScale <= 0) return
+    if (!viewer || restoredViewerRef.current !== viewer || !container || container.clientHeight === 0) return
     readingPositionRef.current = {
-      scale: String(viewer.currentScale),
+      scaleValue: viewer.currentScaleValue,
       page: viewer.currentPageNumber,
       top: container.scrollTop,
       left: container.scrollLeft
@@ -276,7 +277,7 @@ export default function PdfFilePreview({
   useEffect(() => {
     pickTokenRef.current += 1
     setPickedPage(null)
-  }, [sourceId])
+  }, [sourceId, previewDocument])
 
   // An in-flight page-text fetch must not reach the host after the preview is gone.
   useEffect(
@@ -381,6 +382,8 @@ export default function PdfFilePreview({
     const dispose = () => {
       if (disposing) return
       disposing = true
+      // Both a closed range and normal replacement can destroy the viewer before React cleanup.
+      captureReadingPosition()
       rangeTransport?.abort()
       const task = loadingTask
       loadingTask = null
@@ -463,7 +466,7 @@ export default function PdfFilePreview({
       cancelled = true
       dispose()
     }
-  }, [sourceId, previewDocument, resources, failDocument, logger])
+  }, [sourceId, previewDocument, resources, failDocument, logger, captureReadingPosition])
 
   useEffect(() => {
     if (!documentProxy || documentProxy.loadingTask.destroyed) return
@@ -500,7 +503,6 @@ export default function PdfFilePreview({
     const linkService = new PDFLinkService({ eventBus })
     const viewerAbortController = new AbortController()
     let pdfViewer: PdfJsViewer
-    let initialized = false
 
     try {
       const viewerOptions: PdfViewerOptionsWithAbortSignal = {
@@ -663,15 +665,15 @@ export default function PdfFilePreview({
         .then(() => {
           if (pdfViewerRef.current !== pdfViewer) return
           const position = readingPositionRef.current
-          pdfViewer.currentScaleValue = position?.scale ?? DEFAULT_PDF_SCALE
+          pdfViewer.currentScaleValue = position?.scaleValue ?? DEFAULT_PDF_SCALE
           if (position) {
             pdfViewer.currentPageNumber = clamp(position.page, 1, documentProxy.numPages)
             container.scrollTop = position.top
             container.scrollLeft = position.left
           }
-          initialized = true
           syncBackground()
           syncPreviewControls()
+          restoredViewerRef.current = pdfViewer
           setStatus('ready')
         })
         .catch((error: unknown) => {
@@ -697,7 +699,6 @@ export default function PdfFilePreview({
     }
 
     return () => {
-      if (initialized) captureReadingPosition()
       viewerAbortController.abort()
       eventBus.off('pagesinit', handlePagesInit)
       eventBus.off('pagerendered', syncBackground)
@@ -714,6 +715,7 @@ export default function PdfFilePreview({
       if (pdfViewerRef.current === pdfViewer) {
         pdfViewerRef.current = null
       }
+      if (restoredViewerRef.current === pdfViewer) restoredViewerRef.current = null
       if (linkServiceRef.current === linkService) {
         linkServiceRef.current = null
       }

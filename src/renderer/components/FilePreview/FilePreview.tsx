@@ -170,7 +170,7 @@ export interface FilePreviewProps {
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
-  /** See {@link FilePreviewPluginProps.onSelectionReference}; forwarded to the active plugin as-is. */
+  /** See {@link FilePreviewPluginProps.onSelectionReference}; callbacks from obsolete metadata are ignored. */
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
 }
 
