@@ -238,17 +238,16 @@ export class FollowupQueueService {
         if (duplicate) {
           // A held retry (its editor-owned recovery session is still live)
           // re-stamps an already-landed copy so it cannot be claimed for
-          // delivery mid-session (cherry-pr-review). A delivery claim already
-          // in flight is left alone; each scheduled retry refreshes the
-          // liveness stamp, and an orphaned copy ages back into claimability.
-          if (
-            dto.held &&
-            duplicate.status !== 'closed' &&
-            duplicate.claimToken !== FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN
-          ) {
+          // delivery mid-session — and refreshes the stamp of an already-held
+          // copy, so an edit session outliving the stale-claim window never
+          // exposes the editor-owned draft to delivery (cherry-pr-review). A
+          // delivery claim already in flight is left alone; an orphaned copy
+          // whose session stopped refreshing ages back into claimability.
+          if (dto.held && duplicate.status !== 'closed') {
             const liveDeliveryClaim =
               duplicate.status === 'sending' &&
               duplicate.claimToken !== null &&
+              duplicate.claimToken !== FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN &&
               duplicate.updatedAt >= Date.now() - STALE_SENDING_CLAIM_MS
             if (!liveDeliveryClaim) {
               const stampedAt = Date.now()

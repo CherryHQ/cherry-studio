@@ -11,6 +11,7 @@ import {
   FOLLOWUP_QUEUE_HEARTBEAT_MS,
   FOLLOWUP_QUEUE_LIMIT,
   FOLLOWUP_QUEUE_SEND_TIMEOUT_MS,
+  STALE_SENDING_CLAIM_MS,
   type FollowupQueueItem as FollowupQueueRow
 } from '@shared/data/types/followupQueue'
 
@@ -147,6 +148,22 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
 const consumedKeyFor = (scopeKey: string): `followup_queue.consumed.${string}` =>
   `followup_queue.consumed.${encodeURIComponent(scopeKey)}`
 const loadConsumed = (scopeKey: string): number | null => cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
+
+// A completion is drainable unless it committed a delivery (durable shared
+// marker) or another window owns its in-flight claim (session-local
+// reservation). Only the reservation is session-local: a reservation the
+// winner abandons without sending must not survive a reopen
+// (cherry-pr-review).
+const isCompletionConsumed = (scopeKey: string, completionAt: number, tentative: Map<string, number>): boolean =>
+  loadConsumed(scopeKey) === completionAt || tentative.get(scopeKey) === completionAt
+
+// Held editor-owned recovery copies age back into claimability after the
+// service's stale-claim window; while their edit session is live, the hook
+// re-stamps them (the service refreshes a landed held row) on a fraction of
+// that window, so a long edit never exposes the editor-owned draft to
+// auto-delivery (cherry-pr-review). Sessions that ended (or crashed) stop
+// refreshing, so orphaned copies self-heal server-side.
+const HELD_RESTORE_REFRESH_MS = Math.floor(STALE_SENDING_CLAIM_MS / 2)
 
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
@@ -321,6 +338,13 @@ export function useFollowupQueue({
   const lastCompletedAtRef = useRef(lastCompletedAt)
   lastCompletedAtRef.current = lastCompletedAt
   const mountedRef = useRef(true)
+  // Session-local record of completions whose claim this window LOST: another
+  // window claimed the head for that completion and will send or release it.
+  // Unlike the durable shared marker (which records a committed delivery and
+  // survives restarts), a lost claim is only an in-flight reservation: if the
+  // winner abandons the dispatch without sending, nothing durable survives,
+  // so a reopen drains the stranded row again (cherry-pr-review).
+  const tentativeConsumedRef = useRef(new Map<string, number>())
   // Ids with a claim held by this window (drain or steer in flight).
   const activeIdsRef = useRef(new Set<string>())
   // At most one drain cycle runs per scope: a head change (e.g. a concurrent
@@ -474,6 +498,33 @@ export function useFollowupQueue({
     [claimItem, removeTrigger, markFailedTrigger, noteItemRemoved, t]
   )
 
+  // Hold an already-restored copy whose edit switch failed after the restore
+  // landed: both composer callers keep showing the outgoing draft on an
+  // undefined take, so the edit session is still live and the restored copy
+  // must not be deliverable — a completion would drain the edited content
+  // from under the editor, and a later submission would duplicate it
+  // (cherry-pr-review). Re-stamp the copy held (the service refreshes a
+  // landed row) and track it as the session's restore: ending the session
+  // removes the superseded copy, and a crashed session's copy ages back into
+  // claimability server-side.
+  const holdRestoredCopy = useCallback(
+    (copy: { id: string; body: RestoreQueueBody }) => {
+      cancelTrackedEditRestoreRef.current()
+      const tracked: TrackedEditRestore = { restoreId: copy.id, cancelled: false, restored: true }
+      editRestoreRef.current = tracked
+      void (async () => {
+        try {
+          await enqueueTrigger({ body: { ...copy.body, held: true } })
+        } catch {
+          // The landed copy is deliverable until the retry's stamp lands — a
+          // narrow race the background retry converges.
+          scheduleReenqueueRetryRef.current(copy.body, tracked)
+        }
+      })()
+    },
+    [enqueueTrigger]
+  )
+
   const takeForEditInner = useCallback(
     async (
       id: string,
@@ -520,6 +571,10 @@ export function useFollowupQueue({
       // the outgoing draft entirely.
       const taken = takenEditRef.current
       let incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
+      // The outgoing item's landed restore, if the switch got that far: a
+      // failed switch after this point must hold the copy instead of leaving
+      // it deliverable while the editor still owns its content.
+      let restoredCopy: { id: string; body: RestoreQueueBody } | null = null
       if (taken) {
         let outgoing: Pick<FollowupQueueItem, 'draft' | 'payload'> | null = null
         try {
@@ -571,6 +626,12 @@ export function useFollowupQueue({
           scheduleReenqueueRetryRef.current(restoreBody, tracked)
           return undefined
         }
+        restoredCopy = { id: restoreId, body: restoreBody }
+        // The outgoing content is safely back in the queue: any earlier
+        // refused-switch restore retry for it is superseded — cancel it (and
+        // remove a copy it already landed) so a stale duplicate cannot
+        // linger (cherry-pr-review).
+        cancelTrackedEditRestoreRef.current()
         // Move the restored row back to the slot it was taken from; the slot
         // follows removals of earlier rows via noteItemRemoved.
         const current = itemsRef.current
@@ -596,11 +657,14 @@ export function useFollowupQueue({
             deleted = true
           } else if (attempt === 1) {
             toast.error(t('message.error.operation_unavailable'))
-            if (taken) {
-              // The outgoing item is back in the queue and the take failed:
-              // the edit session is over, its content stays as ordinary draft.
-              takenEditRef.current = null
-              cancelTrackedEditRestoreRef.current()
+            if (taken && restoredCopy) {
+              // The outgoing item is back in the queue but the take failed:
+              // the composer still shows its draft (an undefined take changes
+              // nothing there), so the edit session is still live. Keep
+              // ownership and hold the restored copy out of delivery instead
+              // of exposing the edited content to auto-drain and duplicating
+              // it on submission (cherry-pr-review).
+              holdRestoredCopy(restoredCopy)
             }
             await releaseClaim()
             return undefined
@@ -610,10 +674,12 @@ export function useFollowupQueue({
       if (claim.alreadySent) {
         // The content was already sent before a crash: the delete above is the
         // correct dequeue, but restoring its draft would invite a resend. The
-        // outgoing item (if any) is back in the queue, so the session is over.
-        if (taken) {
-          takenEditRef.current = null
-          cancelTrackedEditRestoreRef.current()
+        // outgoing item (if any) is back in the queue while its draft is still
+        // what the composer shows — the session stays live, so hold the
+        // restored copy out of delivery until the session ends
+        // (cherry-pr-review).
+        if (taken && restoredCopy) {
+          holdRestoredCopy(restoredCopy)
         }
         return undefined
       }
@@ -660,7 +726,7 @@ export function useFollowupQueue({
       takenEditRef.current = { item, slot: Math.max(incomingSlot, 0), scopeKey: scope }
       return item
     },
-    [claimItem, takeDeleteTrigger, enqueueTrigger, reorderTrigger, markFailedTrigger, t]
+    [claimItem, takeDeleteTrigger, enqueueTrigger, reorderTrigger, markFailedTrigger, holdRestoredCopy, t]
   )
 
   // Serialize the complete edit handoff: overlapping takes can both observe
@@ -800,7 +866,11 @@ export function useFollowupQueue({
 
   // Background restore for a take orphaned by a mid-delete scope switch whose
   // replacement enqueue keeps failing. Uncapped like resolve retries — each
-  // tick is one statement — and refetches on success so mirrors converge.
+  // tick is one statement — and refetches on success so mirrors converge. A
+  // tracked (editor-owned) restore that lands keeps ticking on the held
+  // refresh cadence: the service re-stamps the landed copy, so the held
+  // protection outlives the stale-claim window for as long as the edit
+  // session owns the draft (cherry-pr-review).
   // Cancel the session's tracked restore retry (if any): the timer, a copy
   // the retry already landed while the item sat in the editor, and the record
   // itself. In-flight writes reconcile through the record's cancelled flag.
@@ -822,12 +892,20 @@ export function useFollowupQueue({
     }
   }
 
-  const scheduleReenqueueRetryRef = useRef<(body: RestoreQueueBody, tracked?: TrackedEditRestore) => void>(() => {})
-  scheduleReenqueueRetryRef.current = (body: RestoreQueueBody, tracked?: TrackedEditRestore) => {
+  const scheduleReenqueueRetryRef = useRef<(body: RestoreQueueBody, tracked?: TrackedEditRestore, delayMs?: number) => void>(
+    () => {}
+  )
+  scheduleReenqueueRetryRef.current = (body: RestoreQueueBody, tracked?: TrackedEditRestore, delayMs = 5000) => {
     if (pendingReenqueueRef.current.has(body.id)) return
     const tick = () => {
       pendingReenqueueRef.current.delete(body.id)
       if (tracked?.cancelled) return
+      // A landed copy is refreshed only while its edit session is live:
+      // unmount, scope switch, or a replaced record ends the protection so
+      // the orphaned copy ages back into claimability instead of staying
+      // held forever.
+      if (tracked?.restored && (!mountedRef.current || editRestoreRef.current !== tracked || !takenEditRef.current))
+        return
       void (async () => {
         try {
           // Rebuild per tick: a failed inline persist gets another chance, and
@@ -847,6 +925,12 @@ export function useFollowupQueue({
               return
             }
             tracked.restored = true
+            // Keep the held stamp fresh for the life of the edit session: the
+            // next tick re-stamps the landed copy (the service refreshes
+            // already-held rows), so an edit outliving the stale-claim window
+            // never exposes the editor-owned draft to delivery
+            // (cherry-pr-review).
+            scheduleReenqueueRetryRef.current(body, tracked, HELD_RESTORE_REFRESH_MS)
           }
           if (mountedRef.current) void refetch()
         } catch (error) {
@@ -857,7 +941,7 @@ export function useFollowupQueue({
         }
       })()
     }
-    pendingReenqueueRef.current.set(body.id, setTimeout(tick, 5000))
+    pendingReenqueueRef.current.set(body.id, setTimeout(tick, delayMs))
   }
 
   // Resolve a won claim: dequeue on success, mark failed otherwise. Retried so
@@ -1038,7 +1122,7 @@ export function useFollowupQueue({
       if (
         statusRef.current !== 'done' ||
         lastCompletedAtRef.current == null ||
-        loadConsumed(scopeKeyRef.current) === lastCompletedAtRef.current ||
+        isCompletionConsumed(scopeKeyRef.current, lastCompletedAtRef.current, tentativeConsumedRef.current) ||
         drainBlockedRef.current ||
         !head
       )
@@ -1089,12 +1173,20 @@ export function useFollowupQueue({
         return
       }
       if (!won.claimed) {
-        // Nothing claimable: ack only when the scope hasn't moved and the
-        // mirror still shows queue data (another window owns the head and our
-        // mirror converges through its notification). A lost claim from an old
-        // scope must never ack the newly selected scope's edge — otherwise the
-        // new scope's queued head would wait for the next completion.
-        if (scopeKeyRef.current === scope && itemsRef.current[0]) ackCompletion()
+        // Nothing claimable: another window owns the head for this completion
+        // and our mirror converges through its notification. Park the edge
+        // LOCALLY (session-scoped), never in the durable marker: the winner
+        // holds only an in-flight reservation — if its grant is abandoned
+        // without a send (e.g. it unmounts before the grant lands and the
+        // claim is released without dispatch), no delivery happened and
+        // nothing durable may survive, or a reopen would skip the completion
+        // and strand the row until the next completion (cherry-pr-review).
+        // A lost claim from an old scope must never park the newly selected
+        // scope's edge — otherwise the new scope's queued head would wait for
+        // the next completion.
+        if (scopeKeyRef.current === scope && itemsRef.current[0] && completionAt != null) {
+          tentativeConsumedRef.current.set(scope, completionAt)
+        }
         return
       }
       const target = itemsRef.current.find((entry) => entry.id === won.id)
@@ -1133,7 +1225,7 @@ export function useFollowupQueue({
         if (
           statusRef.current === 'done' &&
           lastCompletedAtRef.current != null &&
-          loadConsumed(scopeKeyRef.current) !== lastCompletedAtRef.current &&
+          !isCompletionConsumed(scopeKeyRef.current, lastCompletedAtRef.current, tentativeConsumedRef.current) &&
           !drainBlockedRef.current &&
           pendingHead
         ) {
@@ -1153,7 +1245,7 @@ export function useFollowupQueue({
   // a lost dequeue.
   useEffect(() => {
     if (status !== 'done' || lastCompletedAt == null || paused || !queriesReady || !pauseKnown) return
-    if (loadConsumed(scopeKey) === lastCompletedAt) return
+    if (isCompletionConsumed(scopeKey, lastCompletedAt, tentativeConsumedRef.current)) return
     const head = itemsRef.current[0]
     if (!head || head.id !== headId) return
     void drainHeadRef.current(head)
