@@ -172,6 +172,7 @@ vi.mock('@application', async () => {
 const { AiStreamManager } = await import('../AiStreamManager')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
+const { WebContentsListener } = await import('../listeners/WebContentsListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -552,6 +553,52 @@ describe('AiStreamManager', () => {
       expect(s2.status).toBe('pending')
       expect(s2.executions).toHaveLength(1)
     })
+
+    it.each(['success', 'error', 'paused'] as const)(
+      'correlates a queued Agent turn with its submitted user on %s',
+      async (outcome) => {
+        const topicId = 'agent-session:s1'
+        const modelId = 'provider-a::model-a'
+        const wc = { id: 1, isDestroyed: () => false, send: vi.fn() }
+        const old = mgr.startRuntimeTurn({
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [new WebContentsListener(wc as unknown as Electron.WebContents, topicId)]
+        })
+        const current = mgr.startRuntimeTurn({
+          topicId,
+          modelId,
+          request: {
+            ...req(topicId),
+            messageId: 'queued-assistant',
+            runtime: { kind: 'agent-session', sessionId: 's1', turnId: 'queued-turn' },
+            messages: [
+              { id: 'queued-user', role: 'user', parts: [] },
+              { id: 'queued-assistant', role: 'assistant', parts: [] }
+            ]
+          },
+          listeners: []
+        })
+        expect(current.activeExecutions[0].attemptId).not.toBe(old.activeExecutions[0].attemptId)
+        if (outcome === 'error') await mgr.onExecutionError(topicId, modelId, error('context window exceeded'))
+        else if (outcome === 'paused') {
+          mgr.abort(topicId, 'user-requested')
+          await mgr.onExecutionPaused(topicId, modelId)
+        } else await mgr.onExecutionDone(topicId, modelId)
+        expect(wc.send).toHaveBeenCalledWith(
+          expect.anything(),
+          outcome === 'error' ? 'ai.stream.error' : 'ai.stream.done',
+          expect.objectContaining({
+            topicId,
+            executionId: modelId,
+            attemptId: current.activeExecutions[0].attemptId,
+            anchorMessageId: 'queued-assistant',
+            userMessageId: 'queued-user'
+          })
+        )
+      }
+    )
 
     it('ignores chunks and terminal callbacks from a replaced runtime execution', async () => {
       vi.useRealTimers()
@@ -2982,6 +3029,79 @@ describe('AiStreamManager', () => {
   // ── live finalMessage accumulation ──────────────────────────────
 
   describe('live finalMessage accumulation', () => {
+    it.each(['topic-1', 'agent-session:session-1'])(
+      'reports the final message text after accumulation for %s',
+      async (topicId) => {
+        vi.useRealTimers()
+        const controlled = controlledStream()
+        mockStreamText.mockImplementationOnce(async () => controlled.stream)
+        startSingle(mgr, {
+          topicId,
+          modelId: 'provider-a::model-a',
+          request: req(topicId),
+          listeners: [new FakeListener(`l:${topicId}`)],
+          isPersistentConversation: true
+        })
+
+        controlled.enqueue({ type: 'start' })
+        for (const [id, text] of [
+          ['intro', 'I will investigate.'],
+          ['answer', '  The fix is ready.  '],
+          ['empty', '  ']
+        ]) {
+          controlled.enqueue({ type: 'text-start', id })
+          controlled.enqueue({ type: 'text-delta', id, delta: text })
+          controlled.enqueue({ type: 'text-end', id })
+        }
+        controlled.enqueue({ type: 'reasoning-start', id: 'reasoning' })
+        controlled.enqueue({ type: 'reasoning-delta', id: 'reasoning', delta: 'Private reasoning' })
+        controlled.enqueue({ type: 'reasoning-end', id: 'reasoning' })
+        controlled.enqueue({ type: 'finish' })
+        controlled.close()
+
+        await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+        expect(conversationCompletedEvents[0]).toMatchObject({
+          topicId,
+          responseText: 'I will investigate.\n  The fix is ready.'
+        })
+      }
+    )
+
+    it('uses the last finished model reply for a multi-model completion', async () => {
+      vi.useRealTimers()
+      const first = controlledStream()
+      const second = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => first.stream).mockImplementationOnce(async () => second.stream)
+      mgr.send({
+        topicId: 'multi-reply',
+        models: [
+          { modelId: 'p::first', request: req('multi-reply') },
+          { modelId: 'p::second', request: req('multi-reply') }
+        ],
+        listeners: [new FakeListener('l:multi-reply')],
+        isPersistentConversation: true
+      })
+
+      for (const [stream, text] of [
+        [second, 'Earlier reply'],
+        [first, 'Last reply']
+      ] as const) {
+        stream.enqueue({ type: 'start' })
+        stream.enqueue({ type: 'text-start', id: 'text' })
+        stream.enqueue({ type: 'text-delta', id: 'text', delta: text })
+        stream.enqueue({ type: 'text-end', id: 'text' })
+        stream.enqueue({ type: 'finish' })
+        stream.close()
+        if (stream === second) {
+          await vi.waitFor(() => expect(mgr.inspect('multi-reply')?.executions[1].status).toBe('done'))
+          expect(conversationCompletedEvents).toHaveLength(0)
+        }
+      }
+
+      await vi.waitFor(() => expect(conversationCompletedEvents).toHaveLength(1))
+      expect(conversationCompletedEvents[0].responseText).toBe('Last reply')
+    })
+
     it('writes exec.finalMessage via the accumulator before the terminal event fires', async () => {
       // readUIMessageStream relies on real microtask / timer scheduling
       // internally; fake timers starve its reader loop. Use real timers

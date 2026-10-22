@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { cp, lstat, mkdir, readFile, readdir, rename } from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import * as z from 'zod'
 
 import { application } from '@application'
-import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { listRetiredAgentSessionMigrations } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import {
   assertAgentStorageDirectory,
@@ -76,8 +76,10 @@ async function digest(root: string, file: string): Promise<string> {
     const stat = await lstat(current)
     if (stat.isSymbolicLink()) throw new Error(`Linked runtime history: ${current}`)
     hash.update(JSON.stringify(path.relative(file, current)))
-    if (stat.isFile()) hash.update('file').update(await readFile(current))
-    else if (stat.isDirectory()) {
+    if (stat.isFile()) {
+      hash.update('file')
+      for await (const chunk of createReadStream(current)) hash.update(chunk)
+    } else if (stat.isDirectory()) {
       hash.update('directory')
       for (const name of (await readdir(current)).sort()) await visit(path.join(current, name))
     } else throw new Error(`Unsupported runtime history: ${current}`)
@@ -94,6 +96,7 @@ function artifactPath(root: string, relative: string): string {
   const claude =
     segments[0] === '.claude' &&
     ((segments.length === 2 && segments[1] === '.claude.json') || (segments.length === 3 && segments[1] === 'projects'))
+  // Older journals may still need to restore retired DSH artifacts.
   const dsh = segments.length === 4 && segments[0] === '.dsh' && segments[1] === 'sessions'
   if (!claude && !dsh) throw new Error('Artifact is outside managed runtime history')
   return path.join(root, ...segments)
@@ -149,33 +152,15 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
   const journal: Journal = { version: 1, workspaceId: workspace.id, oldPath: workspace.path, newPath, operations: [] }
   const journalPath = path.join(directory, 'journal.json')
   try {
-    const checkpoints = history.flatMap((row) =>
-      row.checkpoint ? [JSON.parse(row.checkpoint) as Record<string, unknown>] : []
-    )
-    const dshRoot = application.getPath('feature.agents.dsh.sessions')
-    const stageDsh = path.join(directory, 'dsh')
-    const hasDsh = history.some((row) => row.runtime === 'dsh') || checkpoints.some((value) => value.runtime === 'dsh')
-    // The native backend may scan child sessions too; reject links before handing it the root.
-    if (hasDsh) await digest(root, dshRoot)
     const { default: createWorker } = await import('./relocationWorker?nodeWorker')
     const workerData: RelocationWorkerInput = {
       oldCwd: workspace.path,
-      newCwd: newPath,
-      ...(hasDsh
-        ? {
-            dsh: {
-              sourceRoot: dshRoot,
-              targetRoot: stageDsh,
-              modulePath: pathToFileURL(resolveBundledDshRuntimeEntry('@cherrystudio/dsh-bridge/relocation')).href
-            }
-          }
-        : {})
+      newCwd: newPath
     }
     const result = z
       .strictObject({
         oldKey: z.string(),
-        newKey: z.string(),
-        dsh: z.array(z.strictObject({ id: z.string(), source: z.string(), target: z.string() }))
+        newKey: z.string()
       })
       .parse(await runForkWorker(createWorker({ workerData, env: { ...process.env } }), new AbortController().signal))
     await mkdir(path.join(directory, 'staged'))
@@ -238,7 +223,12 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       }
       if (oldProject !== newProject) await stage(oldProject, newProject)
     }
+    const retiredSessions = new Set(
+      listRetiredAgentSessionMigrations(application.get('DbService').getDb()).map((migration) => migration.sessionId)
+    )
     for (const row of history) {
+      // Pi recovery rebuilds these histories from SQLite after workspace relocation.
+      if (retiredSessions.has(row.sessionId)) continue
       const checkpoint = row.checkpoint ? (JSON.parse(row.checkpoint) as Record<string, unknown>) : undefined
       const runtime = checkpoint?.runtime ?? row.runtime
       // nativeSessionId only initializes a new history; it need not have materialized on disk.
@@ -251,7 +241,6 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         const entries = await readEntries(file)
         if (entries[0]?.type !== 'session' || entries[0]?.id !== id) throw new Error('Pi history corrupt')
       }
-      if (runtime === 'dsh' && !result.dsh.some((value) => value.id === id)) throw new Error('DSH history missing')
       if (runtime === 'claude-code' && (!checkpoint?.configDir || checkpoint.configDir === oldConfig)) {
         const file = path.join(oldProject, id + '.jsonl')
         await assertAgentStoragePath(root, file)
@@ -288,23 +277,6 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
           await stage(configFile, configFile, prepared)
         }
       }
-    }
-    for (const record of result.dsh) {
-      const source = artifactPath(root, path.join('.dsh', 'sessions', record.source))
-      const target = artifactPath(root, path.join('.dsh', 'sessions', record.target))
-      const prepared = path.join(stageDsh, record.target)
-      await digest(root, source)
-      await assertAgentStorageDirectory(stageDsh, prepared)
-      for (const file of await readdir(source)) {
-        if (!/^session(?:\.v[1-9]\d*)?\.jsonl\.zstd$/.test(file)) continue
-        if (await exists(path.join(prepared, file))) continue
-        await cp(path.join(source, file), path.join(prepared, file), {
-          recursive: true,
-          force: false,
-          errorOnExist: true
-        })
-      }
-      await stage(source, target, prepared)
     }
     await atomicWriteFile(AbsoluteFilePathSchema.parse(journalPath), JSON.stringify(journal), { mode: 0o600 })
     for (const [index, operation] of journal.operations.entries()) {

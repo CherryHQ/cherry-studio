@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -36,6 +36,20 @@ describe('heartbeatDocument', () => {
     expect(dbh.db.select().from(agentTable).all()[0].configuration).toEqual({})
   })
 
+  it('saves an unchanged document after reading a sub-millisecond modification time', async () => {
+    await readHeartbeatDocument('a1')
+    const target = path.join(root, 'a1', 'heartbeat.md')
+    const modifiedAtSeconds = 1_700_000_000 + 0.1239999
+    await utimes(target, modifiedAtSeconds, modifiedAtSeconds)
+
+    const document = await readHeartbeatDocument('a1')
+    expect(document.version.mtime).toBe(Math.floor((await stat(target)).mtimeMs))
+    const saved = await writeHeartbeatDocument('a1', { ...document, content: '- Updated checklist\n' })
+
+    expect(await readFile(target, 'utf8')).toBe('- Updated checklist\n')
+    expect(saved.version.mtime).toBe(Math.floor((await stat(target)).mtimeMs))
+  })
+
   it('rejects a stale edit without overwriting externally updated tasks', async () => {
     const initial = await readHeartbeatDocument('a1')
     await writeFile(path.join(root, 'a1', 'heartbeat.md'), '- external changes\n')
@@ -56,10 +70,7 @@ describe('heartbeatDocument', () => {
     expect(await readFile(outside, 'utf8')).toBe('Keep me')
   })
 
-  it('does not provision files for a missing or unsupported agent', async () => {
-    dbh.db.insert(agentTable).values({ id: 'dsh', name: 'DSH', type: 'dsh', instructions: '', orderKey: 'a1' }).run()
+  it('does not provision files for a missing agent', async () => {
     await expect(readHeartbeatDocument('../escape')).rejects.toThrow('unavailable')
-    await expect(readHeartbeatDocument('dsh')).rejects.toThrow('unavailable')
-    await expect(readFile(path.join(root, 'dsh', 'heartbeat.md'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

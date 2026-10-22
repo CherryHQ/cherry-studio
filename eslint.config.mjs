@@ -95,6 +95,28 @@ const BAN_MCP_SDK_V1 = {
     'MCP SDK v1 is only a type peer of the Claude Agent SDK. Use @modelcontextprotocol/client, @modelcontextprotocol/server, or @modelcontextprotocol/core.'
 }
 
+const BAN_WEB_SEARCH_INTERNALS = {
+  group: ['**/packages/web-search/src/**', '@cherrystudio/web-search/src/**', '@cherrystudio/web-search/dist/**'],
+  message: 'Use the public @cherrystudio/web-search entries instead of importing package internals.'
+}
+
+// File preview is a portable package: host-app modules are off-limits to its source.
+const FILE_PREVIEW_HOST_IMPORTS = [
+  '@renderer',
+  '@renderer/**',
+  '@shared',
+  '@shared/**',
+  '@data',
+  '@data/**',
+  '@test-mocks',
+  '@test-mocks/**',
+  '@logger',
+  'electron',
+  '**/src/renderer/**',
+  '**/src/shared/**',
+  '**/src/main/**'
+]
+
 // Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
 // separate process that has no lifecycle container, no logger, and no database. Importing a
 // main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
@@ -962,6 +984,7 @@ export default defineConfig([
         {
           patterns: [
             BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
             {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
               allowTypeImports: true,
@@ -979,7 +1002,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
         }
       ]
     }
@@ -991,7 +1014,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
         }
       ]
     }
@@ -1009,7 +1032,7 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR]
         }
       ]
     }
@@ -1024,7 +1047,7 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
+        { patterns: [BAN_WEB_SEARCH_INTERNALS, BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
       ],
       'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
     }
@@ -1036,9 +1059,105 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          patterns: [BAN_MCP_SDK_V1]
+          patterns: [BAN_MCP_SDK_V1, BAN_WEB_SEARCH_INTERNALS]
         }
       ]
+    }
+  },
+  {
+    files: ['packages/web-search/src/**/*.ts'],
+    ignores: ['packages/web-search/src/**/__tests__/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_MCP_SDK_V1,
+            {
+              group: [
+                'node:*',
+                'electron',
+                'electron/**',
+                'react',
+                'react-native',
+                'react-native/**',
+                'expo',
+                'expo-*',
+                '@application',
+                '@logger',
+                '@main/**',
+                '@renderer/**',
+                '@shared/**',
+                '@data/**',
+                '@test-mocks/**',
+                '**/src/main/**',
+                '**/src/renderer/**',
+                '**/src/shared/**',
+                '**/src/backend/**'
+              ],
+              message: 'Web search protocols must use portable dependencies and host-injected transport.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ['packages/file-preview/src/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
+            {
+              group: FILE_PREVIEW_HOST_IMPORTS,
+              message: 'File preview must use its portable source and host callbacks.'
+            }
+          ]
+        }
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'MemberExpression[object.name="window"][property.name="api"]',
+          message: 'File preview must not access the Electron preload bridge.'
+        },
+        {
+          selector: 'MemberExpression[object.name="window"][property.value="api"]',
+          message: 'File preview must not access the Electron preload bridge.'
+        }
+      ]
+    }
+  },
+  {
+    files: ['packages/file-preview/src/{core,source,selection,documentAnchor,officeZipPreflight}.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_MCP_SDK_V1,
+            BAN_WEB_SEARCH_INTERNALS,
+            {
+              group: [
+                ...FILE_PREVIEW_HOST_IMPORTS,
+                'react',
+                'react-dom',
+                'react-dom/**',
+                '@cherrystudio/ui',
+                '@cherrystudio/ui/**',
+                './plugins/**',
+                './Preview',
+                './react'
+              ],
+              message: 'The preview core has no DOM or React dependencies.'
+            }
+          ]
+        }
+      ],
+      'no-restricted-globals': ['error', 'window', 'document', 'Worker']
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

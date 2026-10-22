@@ -223,7 +223,7 @@ function replaceAgentSessionMessageFileRefsTx(
     ...new Set(
       (data.parts ?? [])
         .filter((part) => part.type === 'file')
-        .map((part) => readCherryMeta(part)?.fileEntryId)
+        .flatMap((part) => [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId])
         .filter((id): id is string => Boolean(id))
     )
   ]
@@ -1032,6 +1032,31 @@ export class AgentSessionMessageService {
       .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
       .all()
     return new Set(rows.flatMap((row) => (row.runtimeResumeToken ? [row.runtimeResumeToken] : [])))
+  }
+
+  listRuntimeResumeTokensBySession(sessionIds: readonly string[]): Map<string, Set<string>> {
+    const tokensBySession = new Map<string, Set<string>>()
+    if (sessionIds.length === 0) return tokensBySession
+
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .selectDistinct({
+        sessionId: sessionMessagesTable.sessionId,
+        runtimeResumeToken: sessionMessagesTable.runtimeResumeToken
+      })
+      .from(sessionMessagesTable)
+      .where(
+        and(inArray(sessionMessagesTable.sessionId, sessionIds), isNotNull(sessionMessagesTable.runtimeResumeToken))
+      )
+      .all()
+    for (const { sessionId, runtimeResumeToken } of rows) {
+      if (!runtimeResumeToken) continue
+      const tokens = tokensBySession.get(sessionId) ?? new Set<string>()
+      tokens.add(runtimeResumeToken)
+      tokensBySession.set(sessionId, tokens)
+    }
+    return tokensBySession
   }
 
   // ── Persistence methods ──────────────────────────────────────────

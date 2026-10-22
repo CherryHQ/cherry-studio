@@ -13,6 +13,9 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
+import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
+import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessionHistory'
 
 import { relocateSystemWorkspaces } from '../relocateSystemWorkspaces'
 
@@ -27,8 +30,7 @@ vi.mock('../relocationWorker?nodeWorker', async () => {
         worker.emit('message', {
           result: {
             oldKey: `old-${basename(workerData.oldCwd)}`,
-            newKey: `new-${basename(workerData.newCwd)}`,
-            dsh: []
+            newKey: `new-${basename(workerData.newCwd)}`
           }
         })
       )
@@ -50,8 +52,7 @@ describe('system workspace relocation', () => {
       'feature.agents.data': root,
       'feature.agents.system_workspaces': path.join(root, 'system'),
       'feature.agents.claude.root': path.join(root, '.claude'),
-      'feature.agents.pi.sessions': path.join(root, '.pi', 'sessions'),
-      'feature.agents.dsh.sessions': path.join(root, '.dsh', 'sessions')
+      'feature.agents.pi.sessions': path.join(root, '.pi', 'sessions')
     }
     vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
       const value = paths[key]
@@ -65,7 +66,7 @@ describe('system workspace relocation', () => {
     await rm(temporaryRoot, { recursive: true, force: true })
   })
 
-  async function createWorkspace(runtime: 'claude-code' | 'pi') {
+  async function createWorkspace(runtime: 'claude-code' | 'pi' | 'dsh') {
     const id = randomUUID()
     const sessionId = randomUUID()
     const agentId = randomUUID()
@@ -178,6 +179,46 @@ describe('system workspace relocation', () => {
     expect(await relocateSystemWorkspaces()).toEqual(new Set())
     expect(workspacePath(workspace.id)).toBe(workspace.newPath)
   })
+
+  it.each(['token', 'checkpoint'] as const)(
+    'relocates retired DSH history with a %s before Pi recovery',
+    async (evidence) => {
+      const workspace = await createWorkspace('dsh')
+      const oldToken = randomUUID()
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          sessionId: workspace.sessionId,
+          role: 'assistant',
+          status: 'success',
+          runtimeResumeToken: oldToken,
+          data: {
+            parts: [{ type: 'text', text: 'Preserved DSH answer' }],
+            ...(evidence === 'checkpoint'
+              ? { runtimeAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: oldToken, boundary: 1 } } }
+              : {})
+          }
+        })
+        .run()
+      queueRetiredAgentRuntimeMigration(dbh.db)
+
+      expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      expect(workspacePath(workspace.id)).toBe(workspace.newPath)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(oldToken)
+
+      await migrateRetiredSessionHistories()
+
+      const token = agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)
+      expect(token).toBeTruthy()
+      expect(token).not.toBe(oldToken)
+      const file = resolveResumeTokenSessionFile(token!, path.join(root, '.pi', 'sessions'))
+      expect(file).toBeTruthy()
+      const contents = await readFile(file!, 'utf8')
+      expect(JSON.parse(contents.split('\n')[0])).toMatchObject({ type: 'session', id: token, cwd: workspace.newPath })
+      expect(contents).toContain('Preserved DSH answer')
+      expect(await relocateSystemWorkspaces()).toEqual(new Set())
+    }
+  )
 
   it.each([
     ['claude-code', 'token'],

@@ -9,6 +9,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
@@ -42,7 +43,11 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import {
+  AGENT_SESSION_CLOSING_CACHE_KEY,
+  type AgentSessionEditDraft,
+  type AgentSessionEditTarget
+} from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
@@ -109,6 +114,7 @@ import {
 } from './agentSessionRuntimeState'
 import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
+import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
@@ -339,13 +345,17 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
 @Injectable('AgentSessionRuntimeService')
 @ServicePhase(Phase.WhenReady)
-// The dependency is runtime, not lexical: this service's connections spawn CLI children through
-// ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
-// these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager'])
+// Process and prewarm owners must outlive this runtime's shutdown barriers.
+@DependsOn([
+  'ClaudeCodeProcessManager',
+  'ClaudeCodeWarmQueryManager',
+  'AutomationReplService',
+  'RuntimeActivityService'
+])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
-  private readonly failedClosures = new Map<string, AgentRuntimeConnection>()
+  private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
+  private readonly failedClosureResumeTokens = new WeakMap<AgentRuntimeConnection, string>()
   private readonly pendingEditInputs = new Map<
     Electron.WebContents,
     { counts: Map<string, number>; dispose: () => void }
@@ -408,7 +418,7 @@ export class AgentSessionRuntimeService extends BaseService {
     persist: (tx: DbOrTx, nativeSessionId: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
-    return this.forks.edit(
+    const editing = this.forks.edit(
       sessionId,
       target,
       async () => {
@@ -420,13 +430,17 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       persist
     )
+    this.syncRuntimeActivity()
+    return editing.finally(() => this.syncRuntimeActivity())
   }
 
   forkSession(sourceSessionId: string, messageId: string): Promise<string> {
     if (this.failedClosures.has(sourceSessionId)) throw new AgentSessionEditError('close_failed')
     this.assertSessionWritable(sourceSessionId)
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
-    return this.forks.fork(sourceSessionId, messageId)
+    const forking = this.forks.fork(sourceSessionId, messageId)
+    this.syncRuntimeActivity()
+    return forking.finally(() => this.syncRuntimeActivity())
   }
 
   cancelSessionForks(sourceSessionId: string): Promise<void> {
@@ -443,6 +457,7 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onTurnTerminal: Event<AgentSessionTurnTerminalEvent> = this._onTurnTerminal.event
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
+  private runtimeActivity?: Disposable
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
@@ -485,6 +500,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
     // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages(blockedSessions)
+    recoverSessionDeliveries()
+    for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -550,7 +567,21 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry)) return
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
+    this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+  }
+
+  private syncRuntimeActivity(): void {
+    if (
+      this.hasBusySessions() ||
+      this.forks.pending.size > 0 ||
+      [...this.entries.values()].some((entry) => hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+    ) {
+      this.runtimeActivity ??= application.get('RuntimeActivityService').begin('agent:runtime')
+    } else {
+      this.runtimeActivity?.dispose()
+      this.runtimeActivity = undefined
+    }
   }
 
   private applyRuntimeStateEffect(
@@ -655,6 +686,7 @@ export class AgentSessionRuntimeService extends BaseService {
       runtimeState: createAgentSessionRuntimeState(turn)
     }
     this.entries.set(input.sessionId, entry)
+    this.syncRuntimeActivity()
 
     return {
       listeners: [
@@ -748,6 +780,8 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
       if (!agent?.model) return
+      if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
+        return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
@@ -1086,16 +1120,46 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier
   }
 
+  async closeSessionForArchive(sessionId: string): Promise<void> {
+    await this.closeSession(sessionId)
+    await application.get('ClaudeCodeWarmQueryManager').close(sessionId)
+    const attempt = this.connectionAttempts.get(sessionId)?.promise
+    if (attempt) await attempt
+    while (this.closingSessions.has(sessionId)) {
+      await this.closingSessions.get(sessionId)!.promise
+    }
+    const failed = this.failedClosures.get(sessionId)
+    for (const connection of failed ?? []) await this.closeRuntimeConnection(connection, sessionId, true)
+    if (this.failedClosures.has(sessionId) || this.entries.has(sessionId) || this.connectionAttempts.has(sessionId)) {
+      throw new AgentSessionEditError('close_failed')
+    }
+  }
+
   private trackSessionClosing(sessionId: string, closing: Promise<void>, resumeToken?: string): Promise<void> {
     const priorClosing = this.closingSessions.get(sessionId)
     const barrier = {
       promise: Promise.allSettled(priorClosing ? [priorClosing.promise, closing] : [closing]).then(() => {
-        if (this.closingSessions.get(sessionId) === barrier) this.closingSessions.delete(sessionId)
+        if (this.closingSessions.get(sessionId) === barrier) {
+          this.closingSessions.delete(sessionId)
+          this.publishSessionClosing(sessionId, false)
+        }
+        this.syncRuntimeActivity()
       }),
       resumeToken: resumeToken ?? priorClosing?.resumeToken
     }
     this.closingSessions.set(sessionId, barrier)
+    this.publishSessionClosing(sessionId, true)
+    this.syncRuntimeActivity()
     return barrier.promise
+  }
+
+  private publishSessionClosing(sessionId: string, closing: boolean): void {
+    try {
+      application.get('CacheService').setShared(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId), closing)
+    } catch (error) {
+      // Cache broadcast failures must not interrupt session teardown.
+      logger.warn('Failed to publish agent session closing state', error as Error, { sessionId })
+    }
   }
 
   /**
@@ -1233,6 +1297,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return isAgentSessionRuntimeBusy(entry.runtimeState)
   }
 
+  isSessionBusyForArchive(sessionId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    return this.isSessionBusy(sessionId) || Boolean(entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+  }
+
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
   getTurnTrustedNotifyChannels(sessionId: string): readonly NotifyChannel[] | undefined {
     const entry = this.entries.get(sessionId)
@@ -1251,6 +1320,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
+  /** Connections without confirmed teardown still own their runtime transcripts. */
   listClaimedResumeTokens(): ReadonlySet<string> {
     const claimedResumeTokens = new Set<string>()
     for (const entry of this.entries.values()) {
@@ -1258,6 +1328,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     for (const closing of this.closingSessions.values()) {
       if (closing.resumeToken) claimedResumeTokens.add(closing.resumeToken)
+    }
+    for (const connections of this.failedClosures.values()) {
+      for (const connection of connections) {
+        const resumeToken = this.failedClosureResumeTokens.get(connection)
+        if (resumeToken) claimedResumeTokens.add(resumeToken)
+      }
     }
     return claimedResumeTokens
   }
@@ -1814,6 +1890,15 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
+    const migration =
+      entry.agentType === 'pi'
+        ? getRetiredAgentSessionMigration(application.get('DbService').getDb(), entry.sessionId)
+        : undefined
+    if (migration) {
+      // Claim the Pi identity before a retry can finish importing and remove the migration marker.
+      entry.lastResumeToken = migration.resumeToken
+      return
+    }
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
     if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
@@ -1892,7 +1977,10 @@ export class AgentSessionRuntimeService extends BaseService {
         this.handleCompactionComplete(entry, event.anchor)
         break
       case 'compaction-error':
-        this.handleCompactionError(entry, event.error)
+        this.settleCompactionError(
+          entry,
+          event.aborted || this.currentTurn(entry)?.abortController.signal.aborted ? undefined : event.error
+        )
         break
       case 'api-retry':
         this.handleApiRetry(entry, event.retry)
@@ -1928,8 +2016,8 @@ export class AgentSessionRuntimeService extends BaseService {
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
-        // chunks until its receive-only stream exists and owns the current user turn meanwhile — even
-        // an admitted one: dsh runs a queued goal round before the prompt it has already accepted.
+        // chunks until its receive-only stream exists and owns the current user turn meanwhile — the
+        // autonomous generation must own the connection until its content finishes.
         const turn = this.currentTurn(entry)
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
         if (entry.runtimeState.execution.kind === 'steer-transition') break
@@ -2012,7 +2100,10 @@ export class AgentSessionRuntimeService extends BaseService {
         providerName: capture.providerName,
         modelId,
         modelName: frozenModel?.modelName ?? invocation.model,
-        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
+        pricingSnapshot:
+          invocation.pricingSnapshot === undefined
+            ? (frozenModel?.pricingSnapshot ?? null)
+            : invocation.pricingSnapshot,
         credentialReceipt: capture.credentialReceipt,
         source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
         messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
@@ -2059,10 +2150,6 @@ export class AgentSessionRuntimeService extends BaseService {
     this.refreshContextUsage(entry)
   }
 
-  private handleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
-    this.settleCompactionError(entry, error)
-  }
-
   private handleApiRetry(entry: AgentSessionRuntimeEntry, retry: AgentSessionApiRetryInfo): void {
     if (!this.isCurrentEntry(entry)) return
     application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), {
@@ -2079,14 +2166,15 @@ export class AgentSessionRuntimeService extends BaseService {
     cache.setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
   }
 
-  private settleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
+  private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
-    // The failure is surfaced to the user through the turn error (handleRuntimeError) and logged here;
-    // the compaction cache state only needs to leave the compacting status.
-    logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
-    application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-      status: 'idle'
-    })
+    if (error) logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
+    application
+      .get('CacheService')
+      .setShared(
+        AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId),
+        error ? { status: 'failed', error } : { status: 'idle' }
+      )
   }
 
   private refreshContextUsage(entry: AgentSessionRuntimeEntry, connection = this.currentConnection(entry)): void {
@@ -2417,7 +2505,11 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     entry.backgroundFlowFlush = flush
     this.inFlightBackgroundFlowFlushes.set(flush, entry.sessionId)
-    void flush.finally(() => this.inFlightBackgroundFlowFlushes.delete(flush))
+    this.syncRuntimeActivity()
+    void flush.finally(() => {
+      this.inFlightBackgroundFlowFlushes.delete(flush)
+      this.syncRuntimeActivity()
+    })
     return flush
   }
 
@@ -2577,8 +2669,15 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
     this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
-    if (isAgentSessionRuntimeCompacting(entry.runtimeState)) {
-      this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
+    const compaction = application.get('CacheService').getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
+    if (
+      isAgentSessionRuntimeCompacting(entry.runtimeState) ||
+      (this.liveTurn(entry) &&
+        compaction?.status === 'failed' &&
+        compaction.error === (error instanceof Error ? error.message : String(error)))
+    ) {
+      // The terminal error owns this failure's presentation; do not also leave a compaction warning.
+      this.settleCompactionError(entry)
     }
 
     const turn = this.currentTurn(entry)
@@ -2606,8 +2705,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
-    // A fresh request starts clean — drop any retry status left over from the previous turn.
+    // A fresh request starts clean — drop status left over from the previous turn.
     this.clearApiRetry(entry)
+    const cache = application.get('CacheService')
+    if (cache.getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))?.status === 'failed') {
+      cache.setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), { status: 'idle' })
+    }
     await this.refreshTurnTraceContext(entry, turn)
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
@@ -2892,9 +2995,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /**
    * Runtime-generated content can arrive after a user turn's renderer stream opened but before the
-   * runtime produced anything for it — the prompt may not be admitted yet, or (dsh) a queued goal
-   * round runs ahead of the admitted prompt. Detach that empty execution, keep the turn object
-   * queued, and let the receive-only generation own the connection first.
+   * runtime admits the prompt. Detach that empty execution and keep the turn queued until the
+   * receive-only generation releases the connection.
    */
   private deferTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const execution = entry.runtimeState.execution
@@ -3417,21 +3519,32 @@ export class AgentSessionRuntimeService extends BaseService {
     strict = false
   ): Promise<void> {
     if (!connection) return
+    const resumeToken =
+      this.entries.get(sessionId)?.lastResumeToken ??
+      this.closingSessions.get(sessionId)?.resumeToken ??
+      this.failedClosureResumeTokens.get(connection)
     const settled = Promise.withResolvers<void>()
-    void this.trackSessionClosing(sessionId, settled.promise, this.entries.get(sessionId)?.lastResumeToken)
+    void this.trackSessionClosing(sessionId, settled.promise, resumeToken)
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const closing = connection.closeForEdit ? connection.closeForEdit() : connection.close()
       await Promise.race([
         Promise.resolve(closing).then(() => {
-          if (this.failedClosures.get(sessionId) === connection) this.failedClosures.delete(sessionId)
+          const failed = this.failedClosures.get(sessionId)
+          failed?.delete(connection)
+          this.failedClosureResumeTokens.delete(connection)
+          if (failed?.size === 0) this.failedClosures.delete(sessionId)
+          this.syncRuntimeActivity()
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new AgentSessionEditError('close_failed')), 20_000)
         })
       ])
     } catch (error) {
-      this.failedClosures.set(sessionId, connection)
+      const failed = this.failedClosures.get(sessionId) ?? new Set<AgentRuntimeConnection>()
+      failed.add(connection)
+      if (resumeToken) this.failedClosureResumeTokens.set(connection, resumeToken)
+      this.failedClosures.set(sessionId, failed)
       logger.warn('Agent runtime connection close failed', { sessionId, error })
       if (strict) throw new AgentSessionEditError('close_failed')
     } finally {

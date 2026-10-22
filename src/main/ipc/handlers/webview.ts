@@ -8,6 +8,8 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * touching the WebContents.
  */
 export const webviewHandlers: IpcHandlersFor<typeof webviewRequestSchemas> = {
+  'webview.debugging.get_state': async ({ webviewId }, { senderId }) =>
+    application.get('WebviewService').getDebuggingState(webviewId, senderId),
   'webview.set_open_link_external': async ({ webviewId, isExternal }, { senderId }) =>
     application.get('WebviewService').setOpenLinkExternal(webviewId, isExternal, senderId),
   'webview.set_spell_check_enabled': async ({ webviewId, isEnable }, { senderId }) =>

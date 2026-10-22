@@ -3,7 +3,6 @@ import { parentPort, workerData } from 'node:worker_threads'
 export interface RelocationWorkerInput {
   oldCwd: string
   newCwd: string
-  dsh?: { modulePath: string; sourceRoot: string; targetRoot: string }
 }
 
 async function run(input: RelocationWorkerInput) {
@@ -29,10 +28,7 @@ async function run(input: RelocationWorkerInput) {
   }
   const oldKey = await projectKey(input.oldCwd)
   const newKey = await projectKey(input.newCwd)
-  const dsh = input.dsh
-    ? await (await import(/* @vite-ignore */ input.dsh.modulePath)).stageRelocatedSessions({ ...input, ...input.dsh })
-    : []
-  return { oldKey, newKey, dsh }
+  return { oldKey, newKey }
 }
 
 void run(workerData as RelocationWorkerInput).then(

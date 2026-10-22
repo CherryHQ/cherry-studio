@@ -15,7 +15,7 @@ import { parseUniqueModelId } from '@shared/data/types/model'
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
-import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
+import { drawerClasses, fieldClasses, ProviderHelpText } from '../../primitives/ProviderSettingsPrimitives'
 import {
   areModelClassificationsEqual,
   buildModelCapabilities,
@@ -91,6 +91,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState<number | null>(null)
   const [maxInputTokens, setMaxInputTokens] = useState<number | null>(null)
   const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(null)
+  const [pricing, setPricing] = useState<Model['pricing']>()
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
@@ -124,6 +125,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow ?? null)
     setMaxInputTokens(model.maxInputTokens ?? null)
     setMaxOutputTokens(model.maxOutputTokens ?? null)
+    setPricing(model.pricing)
     setInitializedModel(model)
   }, [model, open])
 
@@ -276,6 +278,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const handlePricingCommit = useCallback(
     (pricing: NonNullable<Model['pricing']>) => {
+      setPricing(pricing)
       autoSave({ pricing })
     },
     [autoSave]
@@ -449,6 +452,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   onInputModalityToggle={handleToggleInputModality}
                   onReset={handleResetClassification}
                 />
+                <ProviderHelpText className="mt-2">
+                  {t('settings.models.edit.classification_save_hint')}
+                </ProviderHelpText>
               </div>
 
               <div className={drawerClasses.sectionCard}>
@@ -494,7 +500,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.sectionCard}>
                 <ModelPricingFields
                   key={`${providerId}:${model.id}`}
-                  pricing={model.pricing}
+                  pricing={pricing}
                   onCommit={handlePricingCommit}
                 />
               </div>

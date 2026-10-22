@@ -1,0 +1,67 @@
+import Foundation
+
+@main
+enum SystemSpeechHelper {
+    static func main() async {
+        do {
+            let data = FileHandle.standardInput.readDataToEndOfFile()
+            let request = try JSONDecoder().decode(NativeRequest.self, from: data)
+            let command = try request.validated()
+            try await execute(command)
+        } catch let error as HelperError {
+            write(FailureEnvelope(error: error))
+        } catch is DecodingError {
+            write(FailureEnvelope(error: HelperError(code: .invalidRequest)))
+        } catch {
+            write(FailureEnvelope(error: HelperError(code: .nativeHelperFailed)))
+        }
+    }
+
+    private static func execute(_ command: ValidatedCommand) async throws {
+        switch command {
+        case let .resolveVoice(locale):
+            let result = ResolveVoiceResult(voice: AppleTts.defaultVoice(locale: locale))
+            write(SuccessEnvelope(value: ResolveVoiceSuccess(result: result)))
+        case let .capabilities(locale):
+            let apple = await AppleAsr.capabilities(locale: locale)
+            let result = CapabilitiesResult(
+                osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+                requestedLocale: locale,
+                supportedLocale: apple.supportedLocale,
+                appleAssetStatus: apple.assetStatus,
+                voices: AppleTts.installedVoices()
+            )
+            write(SuccessEnvelope(value: CapabilitiesSuccess(result: result)))
+        case .listAsrLocales:
+            write(SuccessEnvelope(value: AsrLocalesSuccess(result: await AppleAsr.listLocales())))
+        case let .installAsrAssets(locale):
+            let installedLocale = try await AppleAsr.installAssets(locale: locale)
+            write(
+                SuccessEnvelope(
+                    value: InstallAsrAssetsSuccess(
+                        result: InstallAsrAssetsResult(locale: installedLocale)
+                    )
+                )
+            )
+        case let .synthesizeStream(voiceId, text, speed):
+            try await AppleTts.stream(voiceId: voiceId, text: text, speed: speed)
+        case let .synthesize(voiceId, text, outputPath, speed):
+            let result = try await AppleTts.synthesize(
+                voiceId: voiceId,
+                text: text,
+                outputPath: outputPath,
+                speed: speed
+            )
+            write(SuccessEnvelope(value: SynthesizeSuccess(result: result)))
+        case let .transcribe(locale, inputPath):
+            let result = try await AppleAsr.transcribe(locale: locale, inputPath: inputPath)
+            write(SuccessEnvelope(value: TranscribeSuccess(result: result)))
+        }
+    }
+
+    private static func write<Value: Encodable & Sendable>(_ value: Value) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        FileHandle.standardOutput.write(data)
+        FileHandle.standardOutput.write(Data([0x0A]))
+    }
+}

@@ -10,9 +10,9 @@ sources:
 
 # Local Models
 
-Cherry Studio can run two models on the user's own machine: the knowledge-base
-embedding model and the PaddleOCR text recognizer. Neither ships in the installer —
-both are fetched on demand, together with the native onnxruntime binary they share.
+Cherry Studio can run four model capabilities on the user's own machine: knowledge-base
+embedding, PaddleOCR text recognition, speech recognition with FunASR Nano or Qwen3-ASR, and speech synthesis with Qwen3-TTS or Kokoro. Their model
+bundles and required native runtimes are fetched on demand rather than shipped in the installer.
 
 One module owns the whole path: what can be installed, how bytes get onto disk safely,
 how they come off again, and how inference runs over them once they are there.
@@ -36,28 +36,31 @@ src/main/ai/localModel/
 │   ├── LocalModelStorageService.ts ← disk state, installed paths, shared artifacts
 │   └── BundleInstaller.ts          ← one bundle's download/cancel/remove lifecycle
 ├── runtime/
-│   ├── InferenceServiceBase.ts    ← the worker host: spawn, queue, idle release, teardown
+│   ├── InferenceServiceBase.ts    ← typed utility-process host and per-capability queue
+│   ├── inferenceProcess.ts        ← process definitions, typed contracts, init data
 │   ├── inferenceAcceleration.ts   ← platform → execution provider
-│   ├── protocol.ts                ← generic init/request/result/error envelopes
-│   └── worker/                    ← generic core, runtime initializers, source builder
+│   ├── protocol.ts                ← child init and runtime-profile types
+│   └── utilityEntries/            ← one packaged process entry and handlers per capability
 └── capabilities/
     ├── capabilityHooks.ts         ← removal behavior keyed by capability
-    ├── embedding/                 ← facade, protocol, pooling, worker module, limits
-    └── ocr/                       ← facade, protocol, model paths, worker module
+    ├── embedding/                 ← facade, protocol, pooling, model paths, limits
+    ├── ocr/                       ← facade, protocol, model paths
+    ├── asr/                       ← facade, discriminated engine requests, selected model paths
+    └── tts/                       ← facade, complete WAV and bounded PCM contracts
 ```
 
 ## The catalog is the only per-model code
 
-Everything about a model is one entry in `catalog/catalog.ts`. Nothing else in the
-subsystem branches per model, which is the property that keeps a third or fourth model
-from adding a third or fourth copy of the download machinery.
+Installation metadata belongs in `catalog/catalog.ts`. Downloads and removal are generic over
+that catalog. Inference dispatches on the selected bundle’s engine architecture; a new engine
+adds its own typed handler without duplicating installation machinery.
 
 ### Bundles
 
 A **bundle** is what a user installs: one capability's files, fetched, verified, reported
 and removed as a unit. It is the first-class citizen rather than a single file because a
-capability rarely is one file — OCR already needs detection weights, recognition weights
-and a character dictionary, and a speech model would need its own acoustic model plus a
+capability rarely is one file — OCR needs detection weights, recognition weights and a
+character dictionary, while FunASR needs its encoder, LLM, embedding, tokenizer and
 voice-activity detector.
 
 Each `BundleFile` carries:
@@ -66,7 +69,9 @@ Each `BundleFile` carries:
 |---|---|
 | `key` | Stable name for addressing one file (`detection`, `dictionary`, …) |
 | `relPath` | Where it lands under the bundle's install dir; may nest |
-| `repo` / `remoteFile` | What to fetch, resolved against a mirror at download time |
+| `repo` / `remoteFile` | Default repository path resolved against each mirror at download time |
+| `sources` / `sizeBytes` | Audited alternative: per-mirror repository, immutable revision and path, plus exact byte length |
+| `urls` / `sizeBytes` | Direct distribution URLs: a fixed-order list or `{ china, global }` pair ordered by egress region |
 | `sha256` | Digest of the **fetched** bytes, verified while streaming |
 | `minBytes` | Floor for the **installed** file, used by the disk scan |
 | `weight` | Share of the bundle's progress bar (≈ file MB) |
@@ -76,45 +81,53 @@ Each `BundleFile` carries:
 OCR dictionary is fetched as the recognition model's `inference.yml` (digest checked) and
 written as a parsed `ppocrv6_dict.txt` (size floor checked).
 
+Bundles and shared artifacts may also declare `provenance`: immutable upstream and license
+evidence, plus conversion provenance where downloaded bytes are derived from another model.
+This metadata is for auditability; `repo` or `sources` still own the actual download locations.
+
 ### Capabilities and bundles
 
 Two words, deliberately distinct, both declared in `src/shared/data/presets/localModel.ts`
 so the renderer can speak them too:
 
-- A **capability** is what a feature needs (`ocr`). Features gate on
-  `application.get('LocalModelService').isCapabilityReady(capability)` and never name a bundle.
-- A **bundle id** is what a user installs (`pp-ocrv6-medium`). It is the addressing key of
-  the whole management plane — status, download, cancel, remove and shared status snapshots.
+- A **capability** classifies models (`embedding`, `ocr`, `asr`, `tts`). It does not identify an installation.
+- A **bundle id** identifies the exact model files/format/quantization a user installs.
+  Status, download, cancellation, removal and inference preserve this identity.
 
-`LOCAL_MODEL_BUNDLE_BY_CAPABILITY` maps one to the other for the few UI entry points that
-must offer a download for a capability. The catalog's own test asserts that map, and the
-shared id list, still match the catalog — the renderer cannot import the catalog, so this
-is the seam where the two could drift. A capability has exactly one bundle today; adding
-alternatives requires an explicit model-selection contract rather than relying on catalog order.
+`DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY` holds recommendations for consumers without a model
+selector. `isDefaultModelReady(capability)` is only for those consumers; selected models use
+`isModelReady(bundleId)` or `refreshStatus(bundleId)`. Installing A must never make B ready.
+The catalog allows multiple bundles with the same capability. Engine process initialization
+names its runtime artifacts directly; it does not resolve them through a default model.
 
 ### Shared artifacts
 
-A **shared artifact** is a native runtime published as an npm package — today only
-`onnxruntime-node`. Bundles declare what they need in `requires`, and that declaration is
-what makes the runtime removable: it outlives a bundle exactly as long as another
-*installed* bundle still requires it.
+A **shared artifact** is a pinned native runtime. Embedding and OCR use
+`onnxruntime-node`; FunASR and Kokoro use `sherpa-onnx`; Qwen3-ASR and Qwen3-TTS share a Cherry-distributed mlx-node archive. Bundles declare what they need in `requires`, and
+that declaration is what makes the runtime removable: it outlives a bundle exactly as long
+as another *installed* bundle still requires it.
 
 `platforms` is a support matrix, not just a path table. A missing entry means the artifact
 ships nothing there, so every bundle requiring it reads as `unsupported` rather than
-offering a download that could only fail — which is how Intel Macs are handled, since
-onnxruntime-node has no darwin-x64 build.
+offering a download that could only fail. Each entry pins its npm package and tarball digest
+and lists the files extracted for that target. `onnxruntime-node` selects a platform subtree
+from one package and has no Intel Mac build; sherpa-onnx uses one npm package per platform,
+except Windows ARM64, which downloads a checksum-pinned runtime from the independent
+`CherryHQ/sherpa-onnx` releases. Its tag, archive name, and checksum live in
+`catalog/sherpaRuntimeRelease.json`.
 
 ### Obtaining a checksum
 
-Both mirrors publish digests, so adding a model needs no download:
+The model registries publish digests, so adding a model needs no download:
 
 - HuggingFace — `GET /api/models/<repo>/tree/main?recursive=true`, read `lfs.oid`
   (LFS files only; small files report a git blob SHA-1 instead)
 - ModelScope — `GET /api/v1/models/<repo>/repo/files?Revision=master`, read `Sha256`
 
-Compare the two before committing an entry. One digest can only serve a download that
-falls back between mirrors if the file is byte-identical on both — true for every file in
-the catalog today, and worth re-checking per file rather than assuming.
+Compare every declared source before committing an entry. One digest can only serve a
+download that falls back between sources if the file is byte-identical on all of them.
+Files using `sources` must pin each registry revision; the source list, exact `sizeBytes`,
+digest and catalog-level provenance together form the auditable acquisition record.
 
 ## Acquisition
 
@@ -214,9 +227,10 @@ Removing a bundle has two independent questions, and they are answered in differ
 - **Is a shared artifact still needed?** A structural question answered from `requires`:
   the artifact goes when no other installed bundle declares it.
 
-Both cases must release the inference worker before deleting files. The worker caches
-native sessions with the weight files open, so on Windows an open handle makes the unlink
-fail outright.
+`removeModelThen(bundleId, after)` blocks new and queued requests for that model. It stops
+and awaits the worker only when that model is resident, before deleting open weight files.
+Removing an unused model does not terminate another model's active inference. Each adapter
+must release the previous model before loading a different model; residency remains bounded.
 
 `gcSharedArtifacts()` answers the second question, and is the *only* answer: it runs after a
 removal and after an interrupted download alike. Complete bundle files are the durable
@@ -226,65 +240,70 @@ either makes GC skip the artifact or waits for an already-started removal before
 
 ## Runtime
 
-Inference runs in a `worker_threads` worker, **one per capability**. Sharing a single
-worker would mean that cancelling an OCR download — which must release the file handles on
+Inference runs in an Electron `UtilityProcess`, **one per capability**. Sharing a single
+process would mean that cancelling an OCR download — which must release the file handles on
 its weights — also evicts the 600MB embedding pipeline an unrelated knowledge-base index is
-mid-way through. Separate workers make that impossible by construction: no shared thread,
-no shared pending map, no shared `terminate()`.
+mid-way through. Separate processes isolate native runtimes, pending requests and termination.
 
-Each host is a lifecycle service (`EmbeddingInferenceService`, `OcrInferenceService`) over
-`InferenceServiceBase`, which owns everything that is not capability-specific:
+Each host is a lifecycle service (`EmbeddingInferenceService`, `OcrInferenceService`,
+`AsrInferenceService`, `TtsInferenceService`) over `InferenceServiceBase`. The host serializes calls and selects the
+runtime profile; `UtilityProcessManager` owns spawning, cancellation, idle release and teardown:
 
-- **Lazy spawn** on the first request, and respawn when the acceleration profile or the
-  proxy routing changes — a worker's execution provider is fixed at session creation.
-- **One request at a time** through a `concurrency: 1` queue. A single CPU onnxruntime
+- **Lazy spawn** on the first request, and respawn when the acceleration profile changes —
+  a process's execution provider is fixed at session creation.
+- **One request at a time** through a `concurrency: 1` queue. A single native inference
   session gains nothing from concurrent calls, and this lets several callers reach the same
-  instance with no other coordination.
-- **Idle release** after 60s, because a loaded model holds hundreds of MB.
-- **Teardown** on stop/destroy — the worker is a real OS thread that must not outlive
-  shutdown.
+  instance with no other coordination. A streamed execution retains its slot until `closed`,
+  including cancellation cleanup; returning its handle does not release the queue.
+- **Terminate cancellation** for inference, so aborting a native call cannot leave it running.
+- **Idle release** after 60s and process teardown during application shutdown.
 
 ### Protocol
 
-`runtime/protocol.ts` owns the structured-clone-safe envelope only: init carries the
-capability and an artifact-path map; requests carry `capability`, `type`, `requestId`, and
-`payload`; responses carry a result, error, or log. Capability payload/result maps live
-beside their facade under `capabilities/<name>/protocol.ts`, so the common runtime never
-imports a union of every supported capability.
+`inferenceProcess.ts` declares one typed utility-process contract per capability. Connect-time
+init data carries the app root, artifact-path map and runtime profile; request and result
+payloads live beside their facade under `capabilities/<name>/protocol.ts`. The core utility-
+process layer owns request ids, structured cloning, cancellation, errors and child logging.
 
-Results are typed **per request type** rather than merged into one struct of optional fields,
-so a caller gets exactly its own payload. Each capability declares its own result keys, and
-the host checks them on arrival: a handler that drops a field fails the request instead of
-resolving a caller with `undefined` where it declared a value.
+Results are typed **per request method** rather than merged into one struct of optional fields,
+so each client and child handler share the exact input, output and event contract.
 
-### Worker source
+### Utility-process entries
 
-Each worker script is a **string**, assembled at import time from `workerCore`, one runtime
-initializer and one capability module, then run with `eval: true`. It is not a separate entry
-file because electron-vite bundles the main process with `inlineDynamicImports`, which cannot
-emit the extra chunk a `new Worker(path)` would need.
+Each capability has a packaged entry under `runtime/utilityEntries/`, built separately from
+the main process. The entry calls `serveUtilityProcess` with its typed handlers and shares only
+child-safe package loading, model caching, cleanup and hardware fallback from
+`inferenceRuntime.ts`.
 
-`workerCore` knows nothing about a concrete runtime, embedding or OCR. The runtime initializer
-owns runtime-specific setup such as the onnxruntime binding path; the selected capability
-module registers its request types in a `REQUEST_HANDLERS` table:
-
-| Hook | When it runs |
-|---|---|
-| `handle(msg, prepared)` | Answers the request; retried once on CPU if the hardware provider fails |
-| `prepare(msg)` | Setup that must **not** be retried — reading the image file, say, so a bad path is never blamed on the GPU |
-| `dispose()` | Releases that capability's cached sessions when a provider is abandoned |
-
-Adding a capability is therefore a new module, not another branch in a dispatch chain. Its
-production worker cannot load another capability's dependencies because that module is not
-part of its source string.
+Adding a capability is therefore a new contract, handler and utility-process entry, not
+another branch in a shared request dispatcher. Models load by absolute path; downloading and
+proxy policy remain in the main process.
 
 ### Hardware fallback
 
-A worker started on DirectML/CoreML that fails mid-request disposes its cached sessions,
+A process started on DirectML/CoreML that fails mid-request disposes its cached sessions,
 drops to CPU **for the rest of its life**, and retries once. Staying on CPU matters: a
 provider that failed once will fail again on the next cache miss, and re-discovering that
 per request would pay the fallback cost every time. If CPU fails too, the error names both
 failures, since "CoreML crashed" and "the model is corrupt" need different fixes.
+
+This fallback applies to embedding and OCR. FunASR and Kokoro are CPU-only and do not consult the
+hardware-acceleration preference.
+
+### Kokoro Chinese-English speech
+
+The `kokoro-multi-lang-v1.1` bundle pins the full-precision ONNX weights, all 103 voices,
+Chinese normalization rules, both Chinese and English lexicons, and the English eSpeak
+data needed for words absent from the lexicon. Every file is checksummed and fetched from
+an immutable Hugging Face revision, with hf-mirror as a fallback. The native runtime is
+shared with FunASR; removing either model retains it while the other is installed.
+
+Kokoro runs through `inference.tts` on macOS arm64/x64, Linux arm64/x64 and Windows arm64/x64.
+Windows ARM64 shares the verified Sherpa runtime with FunASR. The worker loads both
+lexicons together and leaves the language override unset so a single request can contain
+Chinese and English. Language preferences select a default voice; they do not split mixed
+text into separate synthesis requests. The existing host stops the process before changing
+model bundles, on cancellation, or before removing resident model files.
 
 ## Management plane
 
@@ -324,7 +343,7 @@ or handler, but does require the catalog, shared vocabulary and presentation des
 6. For a new capability, add its card icon in `LocalModelsSection` and its `name`/`subtitle`
    i18n keys.
 7. For a new capability, add a directory under `capabilities/` containing its request/result
-   maps, worker module, and facade service over `InferenceServiceBase`.
+   maps and facade service, plus a typed utility-process entry and handlers.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
@@ -335,8 +354,113 @@ rather than on a user's machine.
 - No remote catalog. Adding a model means shipping a release; nothing fetches the model
   list at runtime.
 - No streaming download resume. A failed download restarts that file from zero.
-- No streaming inference. Every request is one round trip with a complete result; a
-  transcription capability that wants partial output would add a response frame type.
-- onnxruntime is the only runtime. The worker host accepts a separate runtime initializer,
-  but a second runtime (llama.cpp, sherpa-onnx) still needs its own profile and capability
-  integration.
+- ASR, embedding and OCR still return complete results. Qwen3-TTS also supports bounded PCM
+  output; continuous ASR input and transcription revisions are separate capabilities.
+
+
+## Downloadable Qwen3-TTS
+
+The initial package is CustomVoice 0.6B, affine 8-bit/group-size 64, with the dense speech
+codec. The mlx-node commit, model revision, archive and every model-file digest are pinned in
+`catalog/mlxNodeRelease.json`. The JavaScript API is an application dependency,
+`@cherrystudio/mlx-tts`, pinned to a commit in the
+[CherryHQ/mlx-node fork](https://github.com/CherryHQ/mlx-node/tree/cherry/tts-package/distribution).
+The fork owns package generation; Cherry Studio does not compile MLX or repackage its API.
+The package includes the upstream NAPI-RS loader, but no native binaries or model weights.
+The utility process resolves it from the application root and sets
+`NAPI_RS_NATIVE_LIBRARY_PATH` before loading a model.
+
+Native files and model weights remain separate downloads managed by `LocalModelService`.
+The native artifact contains only the `.node` entry, Metal libraries and license files. It is
+published in the `CherryHQ/mlx-node` GitHub fork and mirrored in the separate
+`CherryHQ/mlx-node` ModelScope repository. Model weights use the existing GitHub release
+assets and `CherryHQ/Qwen3-TTS-0.6B-CustomVoice-8bit` on ModelScope.
+Both downloads prefer ModelScope for China egress and GitHub elsewhere, falling back to the
+other source on network or checksum failure. Cancellation stops fallback. ModelScope URLs
+pin commit revisions; SHA-256 pins the same bytes at both sources. The native files are
+unchanged from the previous archive, so its installation directory remains reusable.
+
+It currently requires Apple Silicon and macOS 26.2+. Unsupported targets keep existing speech
+providers; Sherpa 1.13.6 does not implement Qwen3-TTS.
+
+The MLX utility process loads one model directory at a time and exits after 60 seconds idle.
+Cancellation terminates and awaits the process so native work and its allocator cannot outlive
+ownership. The adapter offers both complete WAV and `pcm-stream` output. Preview and read-aloud
+prefer PCM when the selected model declares it; other adapters retain complete audio.
+
+`TtsInferenceService.stream()` publishes a typed execution handle while keeping its queue slot
+through child cleanup. The child sends the authoritative format before interleaved Float32 PCM,
+applies speed conversion once, and splits writes into at most 4,096 source frames. MLX uses a
+one-second native audio buffer and two queued text segments. Utility-process output is capped at
+four messages / 131,072 bytes, with one pending writer and a 65,536-byte message limit.
+
+Qwen3-TTS also declares `TextStream → PcmStream`. Automatic reading submits stable
+assistant body text before completion through one speech execution; reasoning is excluded.
+Plain sentences can commit early, while incomplete Markdown stays pending until a safe
+block boundary or EOF. Complete-text models retain completion-time automatic reading.
+
+`ai.voice.text.write` accepts sequenced text/flush events for the owning session/request;
+`ai.voice.text.finish` closes input without cancelling the remaining audio. Main permits
+one pending write, at most 2,048 characters per text event and 5,000 cumulative characters.
+The renderer additionally bounds pending text to 5,000 characters / 64 events and raw
+snapshots to 20,000 characters. Overflow stops automatic reading with a localized notice;
+chat generation continues. The utility input has one 32,768-byte frame and one pending
+writer. The native engine owns segmentation, with flush marking a stable commit boundary.
+Cancellation, scope exit, disabling automatic reading and preemption invalidate the attempt,
+close its text input and release voice resources; late snapshots cannot restart it.
+Incremental speech has no retry-from-start control because some text may already be audible.
+
+Playback attaches after installing its listener and Worklet. Main limits outstanding renderer
+audio to one second of source frames; cumulative acknowledgements represent actual Worklet
+consumption, so pausing propagates backpressure to inference. Playback starts after 500 ms of
+source audio, or EOF for shorter clips, within the same one-second capacity. The AudioContext uses the source
+sample rate and lets the browser resample for the output device. Producer EOF and playback drain
+are separate: the session remains owned until the final source frame is consumed and the output
+timestamp passes the tail. PCM does not create a full WAV or enter the media cache.
+
+Model loading and unblocked producer reads have 120-second budgets. Attachment has a 15-second
+budget, and a stream retains resources for at most 15 minutes, including pauses. The existing
+five-minute generated-audio limit still applies to complete WAV requests; PCM is bounded by stream retention. Explicit playback retry closes the previous
+execution before generating a new attempt with the frozen voice, language and speed.
+
+Voice identity and synthesis language are separate. `locale` is the voice's default; optional
+`languages` enumerates its supported synthesis languages. Without `languages`, a system voice
+supports only its locale. Resolution preserves a supported explicit language, and UI language
+changes preserve compatible voices. Unsupported combinations remain unavailable.
+
+## Downloadable Qwen3-ASR
+
+`qwen3-asr-1.7b-8bit` provides complete-audio and streaming PCM recognition on Apple Silicon with macOS 26.2+.
+It uses the existing MLX native artifact shared with Qwen3-TTS and an application-owned
+`@cherrystudio/mlx-asr` JavaScript package. Its official 1.7B checkpoint, conversion revision,
+standard safetensors shards and checksums are pinned in `catalog/qwen3AsrRelease.json`.
+The audio encoder stays dense; the decoder uses affine 8-bit/group-size 64 quantization.
+Model files use pinned GitHub release assets and a pinned ModelScope revision, with the same
+SHA-256 at both sources. China egress prefers ModelScope; other regions prefer GitHub.
+
+Voice selection preserves the bundle ID through status, installation, inference and removal.
+`inference.asr` dispatches discriminated Sherpa/MLX requests and lazily loads only the selected
+engine. MLX receives 16 kHz mono Float32 PCM decoded from the existing bounded WAV/WebM path;
+it does not require Sherpa for decoding. Language is detected automatically. Complete recognition returns final text; streaming recognition
+returns replaceable full-text revisions. The model has no reliable timestamps, so segments remain empty. Truncated native
+results fail instead of returning partial text as complete recognition.
+
+The ASR queue owns one resident model. Switching models, cancelling native work or removing
+resident weights waits for process exit. Successful calls may reuse the warm model until idle
+release. The pinned native API has no model-dispose method; process exit releases its model
+thread and allocations. ASR removal preserves the MLX artifact while installed TTS still
+requires it, and does not stop the independent TTS process.
+
+Streaming dictation uses the same ASR queue for the full stream lifetime. Renderer `PcmCapture`
+owns the microphone, AudioContext and worklet. Web Audio continuously converts device input to
+mono 16 kHz; the application checks the actual context rate. The worklet sends 100 ms batches,
+with at most two seconds of unacknowledged audio. Main uses a single pending batch and the
+utility transport bounds input to ten frames / 65,536 bytes. A sustained overload fails explicitly.
+The model's default two-second decoding interval is independent of the transport batch size.
+
+Normal stop drains accepted worklet samples before input EOF and final recognition. Cancellation
+stops capture, discards queued PCM and terminates native work. Revisions are previews; only
+execution completion commits text, once, to the captured target. A lost target uses existing
+recovery. Streaming failures have no saved recording to retry. Models without the PCM/revisions
+capability retain complete-recording recognition. Microphone waveform updates use the capture
+analyser and do not wait for recognition. The existing five-minute recording limit still applies.
