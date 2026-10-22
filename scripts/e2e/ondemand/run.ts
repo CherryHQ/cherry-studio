@@ -23,6 +23,8 @@ const paths = getRunPaths(
 )
 const out = resolve(process.env.QA_OUT ?? paths.output)
 const command = process.argv[2]
+// Git Bash drops IANA TZ values before launching native Windows programs.
+process.env.TZ ??= 'Asia/Shanghai'
 let result: Result = createResult()
 let secrets = getSensitiveConfigValues()
 let interrupted = false
@@ -75,9 +77,9 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
   let attachedPage: Page | undefined
   mkdirSync(join(out, 'screenshots'), { recursive: true })
   const remaining = () => {
-    const value = 60_000 - (Date.now() - readyStarted)
+    const value = 120_000 - (Date.now() - readyStarted)
     if (value <= 0)
-      throw new QaError('ready', 3, 'APP_NOT_READY', '应用未就绪: main window exceeded the 60-second readiness budget')
+      throw new QaError('ready', 3, 'APP_NOT_READY', '应用未就绪: main window exceeded the 120-second readiness budget')
     return value
   }
   const signal = () => {

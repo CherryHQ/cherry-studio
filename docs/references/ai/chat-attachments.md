@@ -129,11 +129,9 @@ per-request attachment allow-list from the tool-call context.
   An ordinary open Claude Code Agent mounts a read-only server that discovers and
   auto-allows only `mcp__assistant-files__read_file`. Handles stay stable, opaque
   hashes of FileEntry ids. The server rebuilds its allow-list from the current
-  session transcript on each call, so deleting a message revokes access immediately.
-  Ordinary Claude audio and video are not sent as filesystem paths; the prompt
-  names `mcp__assistant-files__read_file` and the opaque attachment handle.
-  Images and documents keep their existing routing. Ordinary Pi agents do not
-  mount this server; they keep Pi's filesystem `read`.
+  session transcript when each tool call runs, so deleting a message revokes
+  access immediately. Ordinary Claude Code Agents receive neither this server
+  nor its attachment manifest.
 - Both the AI SDK Agent tool and Claude Code's `assistant-files` MCP server call
   the same `ReadFileTool.readFile` implementation. Media reads therefore share
   identical offset/limit paging and model-visible continuation instructions.
