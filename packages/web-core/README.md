@@ -74,7 +74,9 @@ undefined.
 plugins and aliases), so it must run from the repo root: `pnpm --filter @cherrystudio/web-core
 build:app` writes `dist/app`. `app/main.ts` runs the preload, starts `app/coreWorker.ts`,
 opens the `local` account (every visitor shares it until login exists) and then imports
-`src/renderer/windows/main/entryPoint.tsx`. `pageModuleReplacements` swaps renderer modules
+`src/renderer/windows/main/entryPoint.tsx`. If the account does not open, for example while
+another tab holds it, `src/page/startError.ts` replaces the spinner with the reason and a
+reload button. `pageModuleReplacements` swaps renderer modules
 in the page: Sentry is off, and the settings menu keeps the provider, default model,
 general, appearance and about sections. Nothing under `src/renderer` is edited.
 
