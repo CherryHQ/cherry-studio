@@ -1806,7 +1806,7 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
+        void enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
       }

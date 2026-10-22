@@ -197,7 +197,7 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -220,7 +220,7 @@ describe('useFollowupQueue', () => {
 
     const { rerender } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -289,7 +289,7 @@ describe('useFollowupQueue', () => {
 
     const { rerender } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -312,7 +312,7 @@ describe('useFollowupQueue', () => {
 
     const { rerender } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -334,7 +334,7 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -357,7 +357,7 @@ describe('useFollowupQueue', () => {
 
     const { rerender } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -511,7 +511,7 @@ describe('useFollowupQueue', () => {
     wireMutations()
 
     const { result, rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     expect(result.current.items).toEqual([])
@@ -1076,7 +1076,7 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
     const { rerender } = renderHook(
       ({ scopeKey, completion }) => useFollowupQueue(baseProps({ scopeKey, ...completion, onDrain })),
-      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -1107,7 +1107,7 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
     const { rerender, unmount } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -1139,7 +1139,12 @@ describe('useFollowupQueue', () => {
     const secondDrain = vi.fn(async () => true)
     const { rerender } = renderHook(
       ({ completion, onDrain }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null }, onDrain: firstDrain } }
+      {
+        initialProps: {
+          completion: { status: 'streaming', lastCompletedAt: null as number | null },
+          onDrain: firstDrain
+        }
+      }
     )
 
     await act(async () => {
@@ -1175,7 +1180,7 @@ describe('useFollowupQueue', () => {
       const onDrainFailed = vi.fn()
       const { rerender } = renderHook(
         ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
       )
 
       await act(async () => {
@@ -1216,7 +1221,7 @@ describe('useFollowupQueue', () => {
           })
       )
       const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
       })
 
       await act(async () => {
@@ -1260,7 +1265,7 @@ describe('useFollowupQueue', () => {
       const onDrainFailed = vi.fn()
       const { rerender } = renderHook(
         ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
       )
 
       await act(async () => {
@@ -1381,7 +1386,7 @@ describe('useFollowupQueue', () => {
 
       const { rerender } = renderHook(
         ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
       )
 
       await act(async () => {
@@ -1416,7 +1421,7 @@ describe('useFollowupQueue', () => {
 
       const { rerender, unmount } = renderHook(
         ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
       )
 
       await act(async () => {
@@ -1448,7 +1453,7 @@ describe('useFollowupQueue', () => {
       const onDrain = vi.fn(async () => true)
 
       const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
       })
 
       await act(async () => {
@@ -1486,7 +1491,7 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -1524,7 +1529,7 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -1585,7 +1590,7 @@ describe('useFollowupQueue', () => {
         scopeKey: string
         completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null }
       }) => useFollowupQueue(baseProps({ scopeKey, ...completion, onDrain })),
-      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -1651,7 +1656,7 @@ describe('useFollowupQueue', () => {
         scopeKey: string
         completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null }
       }) => useFollowupQueue(baseProps({ scopeKey, ...completion })),
-      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -1676,7 +1681,7 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: true })
     const onDrain = vi.fn(async () => true)
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -1700,7 +1705,7 @@ describe('useFollowupQueue', () => {
       const { rerender, unmount } = renderHook(
         ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
         {
-          initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+          initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
         }
       )
 
@@ -1735,7 +1740,7 @@ describe('useFollowupQueue', () => {
     deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'gone', 404))
     const onDrain = vi.fn(async () => true)
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -1762,7 +1767,7 @@ describe('useFollowupQueue', () => {
 
     const { result, rerender } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     // Pause while the PUT is still in flight...
@@ -1827,7 +1832,7 @@ describe('useFollowupQueue', () => {
       claimHeadTrigger.mockRejectedValue(new Error('ipc down'))
 
       const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion })), {
-        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
       })
 
       await act(async () => {
@@ -1905,7 +1910,7 @@ describe('useFollowupQueue', () => {
       const onDrain = vi.fn(async () => true)
 
       const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
       })
 
       await act(async () => {
@@ -1937,7 +1942,7 @@ describe('useFollowupQueue', () => {
 
     const { rerender } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     await act(async () => {
@@ -1960,7 +1965,7 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -1998,7 +2003,7 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger } = wireMutations()
 
     const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion })), {
-      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
     })
 
     await act(async () => {
@@ -2016,7 +2021,7 @@ describe('useFollowupQueue', () => {
 
     const { result, rerender } = renderHook(
       ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
     )
 
     expect(result.current.paused).toBe(true)

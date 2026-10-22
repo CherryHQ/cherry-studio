@@ -111,8 +111,7 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
  * one follow-up, even when the turn was already marked read or another window
  * won the send.
  */
-const consumedKeyFor = (scopeKey: string) =>
-  `followup-queue.consumed.${scopeKey}` as `followup-queue.consumed.${string}`
+const consumedKeyFor = (scopeKey: string) => `followup-queue.consumed.${scopeKey}`
 const loadConsumed = (scopeKey: string): number | null => cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
 
 interface UseFollowupQueueParams {
