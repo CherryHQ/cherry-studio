@@ -749,10 +749,8 @@ describe('MessageGroup', () => {
     expect(bubble?.contains(attachment)).toBe(false)
   })
 
-  it('does not hoist a second file card when the list can preview the file in the right pane', () => {
+  it('keeps the file card outside the bubble when right-pane preview is available', () => {
     mocks.messageListActions.mockReturnValue({
-      previewFile: vi.fn(),
-      openFile: vi.fn(),
       previewInputFile: vi.fn()
     })
     mocks.settings.mockReturnValue({
@@ -803,7 +801,11 @@ describe('MessageGroup', () => {
       />
     )
 
-    expect(screen.queryByTestId('hoisted-attachment')).toBeNull()
+    const attachment = screen.getByTestId('hoisted-attachment')
+    expect(attachment).toHaveTextContent('report.pdf')
+    const bubble = document.querySelector('[data-ui~="part:message-content"]')
+    expect(bubble).not.toBeNull()
+    expect(bubble?.contains(attachment)).toBe(false)
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {
