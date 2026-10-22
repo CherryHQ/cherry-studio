@@ -31,7 +31,7 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
    工具审批通过共用的 `toolApprovalRegistry` 和现有的 `ai.tool.respond_approval` 路由完成。这个驱动没有恢复令牌、中途插话(steering)、上下文压缩和分叉;一轮进行中发来的消息排到下一轮,这是宿主本来就有的后备做法。
 4. **浏览器里的工具**,沿用 Pi 原生的工具名和参数格式:
    - **会话工作区里的文件工具:** `read`、`write`、`edit`、`ls`、`find`、`grep`。没有 `bash`。
-   - **Python:** `python_execute`,由原样的桌面端 `PythonService` 提供。它通过桥接调用页面里的 Pyodide Worker。
+   - **Python:** `python_execute`,由原样的桌面端 `PythonService` 提供。它通过桥接调用页面里的 Pyodide Worker。页面在一个沙箱 iframe(只开 `allow-scripts`)里启动这个 Worker,iframe 是不透明源,访问不到应用的 OPFS、IndexedDB 和存储;WebKit 不允许在这种源里创建 blob Worker,所以 Worker 从 `data:` URL 启动。
    - **JavaScript:** `js_execute` 在一个独立 Worker 中的 QuickJS-WASM(`quickjs-wasi`,桌面端已经在用)里运行,超时就直接终止这个 Worker。
 
    审批直接用桌面端的 Pi 规则(`createPiToolAuthorizer`),按 Agent 的权限模式执行:
@@ -40,7 +40,7 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
    - 运行代码在 `default` 和 `acceptEdits` 模式下要询问;
    - `auto` 模式只在文件工具访问这些目录以外的路径时询问,`bypassPermissions` 模式从不询问。
 
-   规则里防止访问 Cherry SQLite 文件的检查被替换掉:数据库是 `/web` 以外的一个 OPFS 文件,任何工具路径都碰不到它。
+   规则里防止访问 Cherry SQLite 文件的检查被替换掉:数据库是 `/web` 以外的一个 OPFS 文件,文件工具碰不到它。Python 也碰不到:它运行在沙箱 iframe 的不透明源里。JavaScript 碰不到:QuickJS 不给脚本任何浏览器 API。
 5. **预置一个 Web 版 Cherry 小助手。** 一个 Web 专用的 seeder 创建一个名为 Cherry 小助手的 Pi 类型 Agent,带一个系统工作区和第一个会话。桌面端的 Cherry 小助手和 Cherry Support seeder 不运行。
 6. **界面。** Web 版侧边栏加上 Agent。构建时替换两个 `src/shared` 模块,让运行时能力表只提供 Pi,为它隐藏心跳、技能、知识库和 MCP,并在 Agent 编辑器里列出浏览器里的工具。
 7. **测试。** 模拟服务商学会用工具调用来回复;`e2e/agent.spec.ts` 在 Chromium、WebKit 和 Firefox 中驱动 Agent 页面。
@@ -55,6 +55,7 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 - **在 `src/shared` 里新增一个 `web` Agent 类型。** 这样 Web 版的 Agent 有自己的身份,但要改共享的数据结构、能力描述表和渲染进程的多语言文案,而且桌面端会列出一个它跑不了的运行时。这交给维护者决定;以 `pi` 注册可以让桌面端保持不变。
 - **自己写一个 OPFS 文件系统。** 可以不把挂载内容放进内存,但要重新实现 Node `fs` 的语义,包括同步调用。ZenFS 有人维护,并且在三种浏览器中通过了写入、同步读取、列目录、改名和刷新后读取的检查。
 - **用 IndexedDB 存文件。** OPFS 已经存放了数据库,也能直接处理文件内容。
+- **让 Pyodide 和应用同源。** 这样不需要 iframe,但 Python 就能打开账号的 OPFS 目录,包括数据库。
 - **在页面里运行 Agent 循环。** Worker 已经负责 AI 层和数据库;放在页面里,运行工具时会卡住界面。
 
 ## Acceptance criteria
@@ -62,7 +63,7 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 - AC1 — 在 Chromium、WebKit 和 Firefox 中,Agent 页面列出预置的 Web 版 Cherry 小助手,新建 Agent 时只提供 Pi 运行时。(verification: 打包产物)
 - AC2 — 在 `default` 模式下,一轮 Agent 对话通过 OpenAI 兼容接口调用 `write`,等用户同意后在会话工作区里创建文件。刷新页面后,回复、工具调用和文件都还在。(verification: 打包产物)
 - AC3 — 用户拒绝审批时,这次工具调用以拒绝结束,文件不会被写入。在工作区里调用 `read`、`ls`、`find` 和 `grep` 不需要审批。(verification: 打包产物)
-- AC4 — `python_execute` 在页面的 Pyodide 中运行 Python 并返回输出。`js_execute` 返回脚本的结果,并在超时时停止死循环。(verification: 打包产物)
+- AC4 — `python_execute` 在页面的 Pyodide 中运行 Python 并返回输出,而且这段 Python 打不开应用的 OPFS。`js_execute` 返回脚本的结果,并在超时时停止死循环。(verification: 打包产物)
 - AC5 — 现有的 Web Core 测试仍然通过,Worker 构建中没有 Node 内置模块、Electron 或原生模块的引用,`src/main`、`src/preload`、`src/renderer` 和 `src/shared` 下没有文件被修改。记录 Worker 首次下载增加的大小和 QuickJS 模块的大小。(verification: 打包产物及变更范围报告,结果记入 implemented 笔记)
 
 ## Risks
@@ -72,5 +73,6 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 - **没有上下文压缩和中途插话。** 很长的会话可能超出模型的上下文窗口;一轮进行中发来的消息要等到下一轮。
 - **关掉标签页 Agent 就停。** 和设计文档说的一样,关闭页面会结束正在运行的这一轮。
 - **数据里是 Pi 类型。** 如果以后 Web 数据同步到桌面端,桌面端会用真正的 Pi 运行这些 Agent,而它还有 `bash`。
+- **Python 仍然能联网。** 沙箱拿走的是应用的存储,不是网络:被允许的 Python 代码可以把它拿到的内容(脚本和上下文)发给任何允许 CORS 的服务器。
 - **Pyodide 从 CDN 加载。** 页面从 jsDelivr 加载它;跨域隔离的页面要求 jsDelivr 一直返回 CORS 头,私有部署可能需要自己托管。
 - **工作区文件还没有备份。** 在备份(M4)完成之前,清除网站数据会丢失这些文件。
