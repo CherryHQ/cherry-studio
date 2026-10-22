@@ -7,7 +7,6 @@ import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
-import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import {
   FOLLOWUP_QUEUE_HEARTBEAT_MS,
   FOLLOWUP_QUEUE_LIMIT,
