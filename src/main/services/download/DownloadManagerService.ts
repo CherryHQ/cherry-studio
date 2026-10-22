@@ -289,20 +289,28 @@ export class DownloadManagerService extends BaseService {
    * download literally named `report.bin.crdownload` cannot alias the temporary
    * file of `report.bin`.
    */
+  /** Case-insensitive volumes and Unicode normalization aliases map to one file. */
+  private reservationKey(candidate: string): string {
+    return candidate.normalize('NFC').toLowerCase()
+  }
+
   private claim(filePath: string): void {
-    this.reserved.add(filePath)
-    this.reserved.add(`${filePath}.crdownload`)
+    this.reserved.add(this.reservationKey(filePath))
+    this.reserved.add(this.reservationKey(`${filePath}.crdownload`))
   }
 
   private release(filePath: string | null | undefined): void {
     if (!filePath) return
-    this.reserved.delete(filePath)
-    this.reserved.delete(`${filePath}.crdownload`)
+    this.reserved.delete(this.reservationKey(filePath))
+    this.reserved.delete(this.reservationKey(`${filePath}.crdownload`))
   }
 
   /** True when `candidate` is any task's final or temporary path. */
   private isReserved(candidate: string): boolean {
-    return this.reserved.has(candidate) || this.reserved.has(`${candidate}.crdownload`)
+    return (
+      this.reserved.has(this.reservationKey(candidate)) ||
+      this.reserved.has(this.reservationKey(`${candidate}.crdownload`))
+    )
   }
 
   /**
@@ -341,8 +349,15 @@ export class DownloadManagerService extends BaseService {
   cancel(taskId: string): void {
     // The reason distinguishes a user cancel from a pause when the runner
     // settles; without it the abort path overwrites `cancelled` with `paused`.
-    this.running.get(taskId)?.abort(DOWNLOAD_CANCELLED)
+    const controller = this.running.get(taskId)
     this.dequeue(taskId)
+    if (controller) {
+      // The worker may still be syncing or renaming. It keeps ownership until
+      // it settles; `runTask` releases the paths and removes the temp file.
+      controller.abort(DOWNLOAD_CANCELLED)
+      this.store.setState(taskId, 'cancelled')
+      return
+    }
     const entry = this.store.get(taskId)
     this.release(entry?.task.filePath)
     this.store.setState(taskId, 'cancelled')
@@ -451,6 +466,11 @@ export class DownloadManagerService extends BaseService {
       this.speeds.stop(taskId)
       this.running.delete(taskId)
       this.active -= 1
+      const entry = this.store.get(taskId)
+      if (entry?.task.state === 'cancelled') {
+        this.release(entry.task.filePath)
+        if (entry.task.tempPath) await fs.rm(entry.task.tempPath, { force: true }).catch(() => undefined)
+      }
       this.pump()
     }
   }

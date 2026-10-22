@@ -49,6 +49,15 @@ describe('uniquifyFileName', () => {
     expect(uniquifyFileName('report.pdf', 2)).toBe('report (2).pdf')
     expect(uniquifyFileName('archive.tar.gz', 1)).toBe('archive.tar (1).gz')
   })
+
+  it('keeps the suffix when the name is already at the length limit', () => {
+    const name = 'a'.repeat(120)
+    const unique = uniquifyFileName(name, 1)
+
+    expect(unique.length).toBeLessThanOrEqual(120)
+    expect(unique.endsWith(' (1)')).toBe(true)
+    expect(sanitizeDownloadFileName(unique)).toBe(unique)
+  })
 })
 
 describe('resolveDownloadPath', () => {

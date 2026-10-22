@@ -30,6 +30,17 @@ describe('RequestMethods', () => {
     expect(methods.methodFor('https://example.com/export')).toBeUndefined()
   })
 
+  it('keeps a pending POST ambiguous when a later GET arrives', () => {
+    let now = 0
+    const methods = new RequestMethods(4, 600_000, () => now)
+    methods.record('https://example.com/export', 'POST')
+
+    now = 120_000
+    methods.record('https://example.com/export', 'GET')
+
+    expect(methods.methodFor('https://example.com/export')).toBeUndefined()
+  })
+
   it('only treats requests without a body as replayable', () => {
     expect(isReplayableDownload('GET')).toBe(true)
     expect(isReplayableDownload('HEAD')).toBe(true)

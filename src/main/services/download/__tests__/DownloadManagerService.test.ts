@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -156,6 +156,31 @@ describe('DownloadManagerService recovery', () => {
     expect(first).toBe(join(dir, 'report.bin'))
     expect(second).not.toBe(`${first}.crdownload`)
     expect(second).toBe(join(dir, 'report.bin (1).crdownload'))
+  })
+
+  it('treats case and Unicode equivalent destinations as one reservation', async () => {
+    const service = new DownloadManagerService()
+    await service._doInit()
+
+    expect(await internals(service).reservePath(dir, 'report.bin', 'uniquify')).toBe(join(dir, 'report.bin'))
+    expect(await internals(service).reservePath(dir, 'REPORT.bin', 'uniquify')).toBe(join(dir, 'REPORT (1).bin'))
+    expect(await internals(service).reservePath(dir, 'café.bin', 'uniquify')).toBe(join(dir, 'café.bin'))
+    expect(await internals(service).reservePath(dir, 'cafe\u0301.bin', 'uniquify')).toBe(
+      join(dir, 'cafe\u0301 (1).bin')
+    )
+  })
+
+  it('keeps the unique suffix on a name already at the length limit', async () => {
+    const service = new DownloadManagerService()
+    await service._doInit()
+
+    const first = await internals(service).reservePath(dir, 'a'.repeat(120), 'uniquify')
+    const second = await internals(service).reservePath(dir, 'a'.repeat(120), 'uniquify')
+
+    expect(first).toBe(join(dir, 'a'.repeat(120)))
+    const secondName = basename(second)
+    expect(secondName.length).toBeLessThanOrEqual(120)
+    expect(secondName.endsWith(' (1)')).toBe(true)
   })
 
   it('keeps a failed task destination reserved across restart', async () => {

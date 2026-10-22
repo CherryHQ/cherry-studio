@@ -22,9 +22,13 @@ export function sanitizeDownloadFileName(input: string, fallback = 'download'): 
 /** `report.pdf` + 2 → `report (2).pdf`. */
 export function uniquifyFileName(fileName: string, attempt: number): string {
   if (attempt <= 0) return fileName
+  const suffix = ` (${attempt})`
   const extension = extname(fileName)
   const stem = extension ? fileName.slice(0, -extension.length) : fileName
-  return `${stem} (${attempt})${extension}`
+  // Reserve room for the suffix before the length cap truncates it away.
+  const safeExtension = extension.slice(0, Math.max(0, MAX_FILE_NAME - suffix.length - 1))
+  const maxStem = Math.max(1, MAX_FILE_NAME - suffix.length - safeExtension.length)
+  return `${stem.slice(0, maxStem)}${suffix}${safeExtension}`
 }
 
 /**
