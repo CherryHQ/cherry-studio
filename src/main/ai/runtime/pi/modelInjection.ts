@@ -39,6 +39,7 @@ import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@sh
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import { normalizeChatFunctionToolReasoning } from '../../provider/openaiChatCompatibility'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
@@ -127,9 +128,24 @@ export async function materializePiProviderStream(injection: PiProviderInjection
     : injection.providerName === 'cherryin' && injection.api === 'anthropic-messages'
       ? withCherryInThinkingReplay(injection.providerConfig, (await loadPiAnthropicMessagesApi()).streamSimple)
       : injection.providerConfig
+  const streamSimple = providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+  if (injection.usageCapture.owner !== 'agent-sdk' || injection.api !== 'openai-completions') {
+    return { providerConfig, streamSimple }
+  }
   return {
     providerConfig,
-    streamSimple: providerConfig.streamSimple ?? (await loadPiApiStreamSimple(injection.api))
+    streamSimple: (model, context, options) =>
+      streamSimple(model, context, {
+        ...options,
+        onPayload: async (payload, payloadModel) => {
+          const effectivePayload = (await options?.onPayload?.(payload, payloadModel)) ?? payload
+          return normalizeChatFunctionToolReasoning(
+            ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+            injection.modelId,
+            effectivePayload as Record<string, unknown>
+          )
+        }
+      })
   }
 }
 

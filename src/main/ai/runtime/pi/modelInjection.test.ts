@@ -48,6 +48,7 @@ import {
   assertPiProviderUsable,
   buildPiGatewayInjection,
   buildPiProviderInjection,
+  materializePiProviderStream,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiUnsupportedProviderError,
@@ -1282,5 +1283,124 @@ describe('Anthropic adaptive thinking projection', () => {
         rmSync(directory, { recursive: true, force: true })
       }
     })
+  })
+})
+
+describe('direct Pi chat function-tool reasoning serialization', () => {
+  it.each([
+    {
+      name: 'normalizes high after the real Pi serializer adds function tools',
+      reasoning: 'high',
+      tools: true,
+      expected: 'none'
+    },
+    { name: 'normalizes the session medium default', reasoning: 'medium', tools: true, expected: 'none' },
+    {
+      name: 'normalizes a replacement returned by the existing payload hook',
+      reasoning: 'medium',
+      tools: true,
+      replacement: true,
+      expected: 'none'
+    },
+    {
+      name: 'normalizes an existing hook that mutates in place',
+      reasoning: 'off',
+      tools: true,
+      mutation: true,
+      expected: 'none'
+    },
+    { name: 'preserves Pi off encoding', reasoning: 'off', tools: true, expected: 'none' },
+    { name: 'preserves tool-less high', reasoning: 'high', tools: false, expected: 'high' },
+    {
+      name: 'leaves the gateway inbound request unchanged',
+      reasoning: 'high',
+      tools: true,
+      gateway: true,
+      expected: 'high'
+    }
+  ] as const)('$name', async (testCase) => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://relay.invalid/v1' }
+      }
+    })
+    const model = makeModel({
+      id: 'p::gpt-5.6-luna',
+      apiModelId: 'gpt-5.6-luna',
+      capabilities: ['reasoning', 'function-call'],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }, { kind: 'toggle' }],
+        selectableEfforts: ['none', 'low', 'medium', 'high']
+      }
+    })
+    const injection =
+      'gateway' in testCase
+        ? buildPiGatewayInjection(provider, model, GATEWAY)
+        : buildPiProviderInjection(provider, model, REAL_KEY)
+    const materialized = await materializePiProviderStream(injection)
+    const configured = injection.providerConfig.models![0]
+    const piModel = {
+      ...configured,
+      api: 'session-specific-api',
+      provider: injection.providerName,
+      baseUrl: injection.providerConfig.baseUrl!
+    } as unknown as PiModel<PiApi>
+    const bodies: Record<string, unknown>[] = []
+    const context = normalizeContext({
+      messages: [
+        {
+          role: 'system',
+          content: 'Use tools when needed.',
+          timestamp: 0,
+          ...(testCase.tools
+            ? {
+                toolsAdded: [
+                  { name: 'lookup', description: 'Look up a value', parameters: { type: 'object', properties: {} } }
+                ]
+              }
+            : {})
+        },
+        { role: 'user', content: 'hello', timestamp: 1 }
+      ]
+    })
+    let hookPayload: unknown
+    const stream = materialized.streamSimple(piModel, context, {
+      apiKey: REAL_KEY,
+      reasoning: testCase.reasoning === 'off' ? undefined : testCase.reasoning,
+      maxRetries: 0,
+      onPayload: async (payload) => {
+        hookPayload = payload
+        if ('replacement' in testCase)
+          return { ...(payload as object), reasoning_effort: 'high', hook_marker: 'retained' }
+        if ('mutation' in testCase)
+          Object.assign(payload as object, { reasoning_effort: 'high', hook_marker: 'retained' })
+        return undefined
+      },
+      fetch: async (_input, init) => {
+        bodies.push(JSON.parse(String(init?.body)))
+        return new Response(
+          'data: {"id":"chatcmpl-test","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}\n\ndata: {"id":"chatcmpl-test","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { headers: { 'content-type': 'text/event-stream' } }
+        )
+      }
+    })
+    const result = await stream.result()
+    expect(result.stopReason).toBe('stop')
+    expect(bodies).toHaveLength(1)
+    const body = bodies[0]
+    expect(body.reasoning_effort).toBe(testCase.expected)
+    if (testCase.tools)
+      expect(body.tools).toEqual([
+        {
+          type: 'function',
+          function: { name: 'lookup', description: 'Look up a value', parameters: { type: 'object', properties: {} } }
+        }
+      ])
+    else expect(body.tools).toBeUndefined()
+    if ('replacement' in testCase || 'mutation' in testCase) expect(body.hook_marker).toBe('retained')
+    if (testCase.reasoning === 'high' && !('gateway' in testCase))
+      expect(hookPayload).toMatchObject({ reasoning_effort: 'high' })
+    expect(model.reasoning?.selectableEfforts).toContain('high')
   })
 })

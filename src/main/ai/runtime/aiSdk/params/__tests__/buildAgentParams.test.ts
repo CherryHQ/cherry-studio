@@ -2638,3 +2638,138 @@ describe('assistant browser tool selection', () => {
     expect(getDeferredToolsSystemPrompt(enabled.deferredEntries)).toMatch(/<namespace name="browser" count="\d+"\/>/)
   })
 })
+
+describe('final chat function-tool reasoning serialization', () => {
+  it.each([
+    { name: 'normalizes a conflicting assistant-less gateway hop', tools: true, effort: 'high', expected: 'none' },
+    { name: 'preserves explicit none', tools: true, effort: 'none', expected: 'none' },
+    { name: 'preserves high on tool-less turns', tools: false, effort: 'high', expected: 'high' },
+    { name: 'does not widen to bare gpt-6-luna', tools: true, effort: 'high', modelId: 'gpt-6-luna', expected: 'high' },
+    { name: 'normalizes real deferred meta-tools', tools: true, effort: 'high', deferred: true, expected: 'none' },
+    { name: 'normalizes raw custom effort reinjected after serialization', tools: true, raw: true, expected: 'none' },
+    { name: 'keeps explicit none above raw custom high', tools: true, raw: true, effort: 'none', expected: 'none' },
+    { name: 'preserves Responses nested reasoning', tools: true, effort: 'high', responses: true, expected: 'high' }
+  ] as const)('$name', async (testCase) => {
+    const { tools: withTools, expected } = testCase
+    const modelId = 'modelId' in testCase ? testCase.modelId : 'gpt-5.6-luna'
+    const responses = 'responses' in testCase
+    const deferred = 'deferred' in testCase
+    const raw = 'raw' in testCase
+    const effort = 'effort' in testCase ? testCase.effort : undefined
+    const endpoint = responses ? ENDPOINT_TYPE.OPENAI_RESPONSES : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const bodies: Record<string, unknown>[] = []
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: responses ? 'openai' : 'openai-chat',
+        providerSettings: {
+          apiKey: 'test',
+          baseURL: 'https://relay.invalid/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            bodies.push(JSON.parse(String(init?.body)))
+            return new Response(
+              JSON.stringify(
+                responses
+                  ? {
+                      id: 'resp-test',
+                      object: 'response',
+                      created_at: 0,
+                      model: modelId,
+                      output: [
+                        {
+                          id: 'msg-test',
+                          type: 'message',
+                          role: 'assistant',
+                          content: [{ type: 'output_text', text: 'ok', annotations: [] }]
+                        }
+                      ],
+                      usage: { input_tokens: 1, output_tokens: 1 }
+                    }
+                  : {
+                      id: 'chatcmpl-test',
+                      object: 'chat.completion',
+                      created: 0,
+                      model: modelId,
+                      choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+                      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+                    }
+              ),
+              { headers: { 'content-type': 'application/json' } }
+            )
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const probeTool: Tool = { description: 'Look up a value', inputSchema: z.object({ query: z.string() }) }
+    if (deferred)
+      registry.register({
+        name: 'compat_lookup',
+        namespace: 'compat',
+        description: 'Look up a value',
+        defer: 'always',
+        tool: probeTool
+      })
+    const assistant = raw
+      ? makeAssistant({ settings: { customParameters: [{ name: 'reasoning_effort', type: 'json', value: '"high"' }] } })
+      : undefined
+    try {
+      const built = await buildAgentParams({
+        request: {
+          conversation: CONVERSATION,
+          ...(effort ? { reasoningEffort: effort } : {}),
+          callOverrides: {
+            ...(withTools && !deferred ? { tools: { compat_lookup: probeTool } } : {}),
+            ...(raw && !effort ? { providerOptions: { openai: { reasoningEffort: undefined } } } : {})
+          }
+        },
+        signal: undefined,
+        provider: makeProvider({
+          id: 'openai',
+          defaultChatEndpoint: endpoint,
+          endpointConfigs: { [endpoint]: { adapterFamily: 'openai' } }
+        }),
+        model: makeModel({
+          id: `openai::${modelId}`,
+          providerId: 'openai',
+          apiModelId: modelId,
+          endpointTypes: [endpoint],
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+          reasoning: {
+            controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }, { kind: 'toggle' }],
+            selectableEfforts: ['none', 'low', 'medium', 'high']
+          }
+        }),
+        assistant
+      })
+      if (raw && !effort) expect(built.options.providerOptions?.openai?.reasoningEffort).toBeUndefined()
+      const result = await aiCoreGenerateText<AppProviderSettingsMap>(
+        built.sdkConfig.providerId,
+        built.sdkConfig.providerSettings,
+        {
+          model: built.sdkConfig.modelId,
+          prompt: 'hello',
+          tools: built.tools,
+          providerOptions: built.options.providerOptions
+        }
+      )
+      expect(result.text).toBe('ok')
+      expect(bodies).toHaveLength(1)
+      const body = bodies[0]
+      if (responses) {
+        expect(body.reasoning).toMatchObject({ effort: expected })
+        expect(body).not.toHaveProperty('reasoning_effort')
+      } else expect(body.reasoning_effort).toBe(expected)
+      if (withTools) {
+        const declarations = body.tools as Array<{ type: string; function?: { name: string }; name?: string }>
+        expect(declarations.every((tool) => tool.type === 'function')).toBe(true)
+        expect(declarations.map((tool) => tool.function?.name ?? tool.name).sort()).toEqual(
+          deferred ? ['tool_inspect', 'tool_invoke', 'tool_search'] : ['compat_lookup']
+        )
+      } else expect(body.tools).toBeUndefined()
+      if (effort) expect(built.options.providerOptions?.openai?.reasoningEffort).toBe(effort)
+      if (assistant) expect(assistant.settings.customParameters?.[0].value).toBe('"high"')
+    } finally {
+      if (deferred) registry.deregister('compat_lookup')
+    }
+  })
+})
