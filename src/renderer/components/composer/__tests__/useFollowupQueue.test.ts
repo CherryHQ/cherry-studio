@@ -204,7 +204,7 @@ describe('useFollowupQueue', () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
@@ -254,7 +254,7 @@ describe('useFollowupQueue', () => {
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
 
     mockUseQuery.mockImplementation((path: string) => {
       if (path === '/followup-queues') {
@@ -275,7 +275,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
 
@@ -297,7 +297,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledOnce()
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(onDrainFailed).not.toHaveBeenCalled()
@@ -320,7 +320,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
     expect(onDrain).not.toHaveBeenCalled()
     expect(onDrainFailed).toHaveBeenCalledOnce()
     expect(refetch).toHaveBeenCalled()
@@ -492,7 +492,7 @@ describe('useFollowupQueue', () => {
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
 
     mockUseQuery.mockImplementation(queryImpl([head]))
     await act(async () => {
@@ -500,7 +500,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
   })
@@ -520,7 +520,7 @@ describe('useFollowupQueue', () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
   })
 
   it('refuses to remove a freshly claimed item', async () => {
@@ -1452,7 +1452,7 @@ describe('useFollowupQueue', () => {
     await act(async () => {})
     expect(result.current.items.map((item) => item.draft.text)).toEqual(['head'])
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
 
     await act(async () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
@@ -1479,7 +1479,7 @@ describe('useFollowupQueue', () => {
       })
 
       expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
-      expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+      expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
       expect(onDrainFailed).toHaveBeenCalledOnce()
 
       claimHeadTrigger.mockResolvedValue({ claimed: true, id: 'h' })
@@ -1487,7 +1487,7 @@ describe('useFollowupQueue', () => {
         await vi.advanceTimersByTimeAsync(5000)
       })
 
-      expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+      expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
       expect(onDrain).toHaveBeenCalledOnce()
       expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     } finally {
@@ -1633,7 +1633,7 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledTimes(1)
     expect(onDrain).toHaveBeenCalledWith(first.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'x' } })
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
   })
 
   it('drains the new scope while the previous scope drain is in flight', async () => {
@@ -1700,7 +1700,7 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledWith(headB.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'a' }, body: { claimToken: expect.any(String) } })
-    expect(cacheService.getShared('followup-queue.consumed.s2')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s2')).toBe(100)
   })
 
   it('does not ack the new scope edge on a lost claim from the old scope', async () => {
@@ -1756,8 +1756,8 @@ describe('useFollowupQueue', () => {
       resolveClaim({ claimed: false })
     })
 
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
-    expect(cacheService.getShared('followup-queue.consumed.s2')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s2')).toBe(100)
   })
 
   it('skips the send for a row this profile already sent', async () => {
@@ -1776,7 +1776,7 @@ describe('useFollowupQueue', () => {
     expect(onDrain).not.toHaveBeenCalled()
     expect(markSentTrigger).not.toHaveBeenCalled()
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
   })
 
   it('records a sent row server-side before dequeuing it', async () => {
@@ -1868,7 +1868,7 @@ describe('useFollowupQueue', () => {
     })
     expect(claimHeadTrigger).not.toHaveBeenCalled()
     expect(onDrain).not.toHaveBeenCalled()
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
 
     // When the server echoes the pause, the hold releases onto the same value.
     await act(async () => {
@@ -1932,7 +1932,7 @@ describe('useFollowupQueue', () => {
       }
 
       expect(claimHeadTrigger).toHaveBeenCalledTimes(8)
-      expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+      expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
     } finally {
       vi.useRealTimers()
     }
@@ -1973,7 +1973,7 @@ describe('useFollowupQueue', () => {
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
 
     mockUseQuery.mockImplementation(queryImpl(false))
     await act(async () => {
@@ -1981,7 +1981,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
 
@@ -2058,7 +2058,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(second.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'y' } })
   })
@@ -2096,7 +2096,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
   })
 
   it('does not drain while paused and toggles pause through the API', async () => {

@@ -141,8 +141,8 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
 // Scope keys may contain ':' (topic scopes), which template keys forbid — encode it.
 // Keep the narrow template-literal type: widening to the SharedCacheKey union
 // makes getShared infer every cache value type (TS2322 at the lookup).
-const consumedKeyFor = (scopeKey: string): `followup-queue.consumed.${string}` =>
-  `followup-queue.consumed.${encodeURIComponent(scopeKey)}`
+const consumedKeyFor = (scopeKey: string): `followup_queue.consumed.${string}` =>
+  `followup_queue.consumed.${encodeURIComponent(scopeKey)}`
 const loadConsumed = (scopeKey: string): number | null => cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
 
 interface UseFollowupQueueParams {
