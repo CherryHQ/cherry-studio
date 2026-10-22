@@ -2016,7 +2016,10 @@ describe('persistBlobAttachments', () => {
         name: 'screenshot.png',
         origin_name: 'screenshot.png',
         ext: '.png',
-        path: '/data/files/entry-1.png'
+        path: '/data/files/entry-1.png',
+        // The managed entry id rides along so enqueue can register durable
+        // file ownership for the draft's queue lifetime.
+        entryId: 'entry-1'
       })
       expect(roundTripped.attachments[1]).toEqual(payload.attachments[1])
     } finally {
