@@ -42,35 +42,35 @@ export const REGRESSION_CASES = [
     capabilities: [],
     phase: '03-models-and-assistants',
     title: 'Multiple conversations keep their own messages after restart',
-    task: 'custom-provider-chat'
+    task: 'topics'
   },
   {
     id: 'TOPIC-02',
     capabilities: [],
     phase: '03-models-and-assistants',
     title: 'Rename a conversation and keep the new name after restart',
-    task: 'custom-provider-chat'
+    task: 'topics'
   },
   {
     id: 'CHAT-01',
     capabilities: [],
     phase: '03-models-and-assistants',
     title: 'Composer keeps a multi-line draft and clears it after sending',
-    task: 'custom-provider-chat'
+    task: 'composer'
   },
   {
     id: 'CHAT-02',
     capabilities: [],
     phase: '03-models-and-assistants',
     title: 'Message actions are offered on a reply and Delete removes it',
-    task: 'custom-provider-chat'
+    task: 'message-actions'
   },
   {
     id: 'SET-01',
     capabilities: [],
     phase: '03-models-and-assistants',
     title: 'Settings navigation opens each section and settings search finds them',
-    task: 'about'
+    task: 'settings-nav'
   },
   { id: 'T-01', capabilities: [], phase: '04-translation', title: 'Translate text', task: 'translation' },
   {
