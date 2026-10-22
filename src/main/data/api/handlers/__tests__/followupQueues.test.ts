@@ -120,8 +120,19 @@ describe('followupQueueHandlers', () => {
         body: { claimToken: 'token-1' }
       })
 
-      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, 'token-1')
+      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, 'token-1', undefined)
       expect(result).toEqual({ claimed: true, alreadySent: false })
+    })
+
+    it('should forward a completion marker to claim', async () => {
+      claimMock.mockReturnValueOnce({ claimed: true, alreadySent: false })
+
+      await followupQueueHandlers['/followup-queues/:id/claim'].POST({
+        params: { id: ITEM_ID },
+        body: { claimToken: 'token-1', completionAt: 100 }
+      })
+
+      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, 'token-1', 100)
     })
 
     it('should reject POST without a claim token', async () => {
