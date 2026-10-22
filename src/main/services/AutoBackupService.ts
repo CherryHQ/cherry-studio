@@ -31,6 +31,9 @@ const ACTIVE_WRITERS_POLL_MS = 30_000
 const ANCHOR_SEARCH_DAYS = 7
 /** An anchored slot is a wall-clock promise; an offset change moves its epoch by whole minutes. */
 const ANCHORED_TARGET_TOLERANCE_MS = 60_000
+// Longest a pending anchored one-shot may sleep before re-reading the wall clock: an eastward
+// offset change moves the slot's instant earlier than the one the timer was armed for.
+const ANCHORED_RECHECK_MS = 15 * 60_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: [
@@ -276,12 +279,30 @@ export class AutoBackupService extends BaseService {
     }
 
     const at = Date.now() + delay
-    if (settings.startMinute != null && delayOverride === undefined) this.rememberAnchoredTarget(type, at)
-    else this.anchoredTargets.delete(type)
+    if (settings.startMinute != null && delayOverride === undefined) {
+      this.armAnchoredSchedule(type, generation, at)
+      logger.debug('Automatic backup scheduled', { type, delayMs: Math.min(delay, ANCHORED_RECHECK_MS) })
+      return
+    }
+    this.anchoredTargets.delete(type)
     application
       .get('SchedulerService')
       .registerSchedule(this.scheduleId(type), { kind: 'once', at }, () => this.handleScheduledBackup(type, generation))
     logger.debug('Automatic backup scheduled', { type, delayMs: delay })
+  }
+
+  /**
+   * Arm the one-shot for `at`, remembering the wall clock it names. A long wait is cut into
+   * rechecks so a timezone change is reconciled before the stored instant arrives.
+   */
+  private armAnchoredSchedule(type: AutoBackupType, generation: number, at: number): void {
+    this.rememberAnchoredTarget(type, at)
+    const wakeAt = Math.min(at, Date.now() + ANCHORED_RECHECK_MS)
+    application
+      .get('SchedulerService')
+      .registerSchedule(this.scheduleId(type), { kind: 'once', at: wakeAt }, () =>
+        this.handleScheduledBackup(type, generation)
+      )
   }
 
   private rememberAnchoredTarget(type: AutoBackupType, at: number): void {
@@ -297,8 +318,8 @@ export class AutoBackupService extends BaseService {
   }
 
   /**
-   * An anchored one-shot names a local wall clock, not an instant: after a timezone change the
-   * stored epoch is a different local time, so re-arm the slot instead of firing early and again.
+   * An anchored one-shot names a local wall clock, not an instant, so a timezone change must
+   * re-arm it. The periodic recheck is what catches an eastward change before the slot.
    */
   private reconcileAnchoredTarget(type: AutoBackupType, generation: number): boolean {
     const target = this.anchoredTargets.get(type)
@@ -312,24 +333,33 @@ export class AutoBackupService extends BaseService {
       wall.getHours() === target.hours &&
       wall.getMinutes() === target.minutes
     const recomputed = wall.getTime()
-    if (Math.abs(recomputed - target.scheduledAt) < ANCHORED_TARGET_TOLERANCE_MS) return true
     const settings = this.getScheduleSettings(type)
-    if (!settings.enabled || settings.intervalMs <= 0 || settings.startMinute == null) return true
-    const nextAt =
-      wallClockMatches && recomputed > Date.now()
-        ? recomputed
-        : nextAnchoredRun(Date.now(), settings.startMinute, settings.intervalMinutes)
-    if (nextAt <= Date.now()) return true
-    this.rememberAnchoredTarget(type, nextAt)
-    application
-      .get('SchedulerService')
-      .registerSchedule(this.scheduleId(type), { kind: 'once', at: nextAt }, () =>
-        this.handleScheduledBackup(type, generation)
-      )
-    logger.debug('Anchored backup re-armed after the local timezone changed', {
-      type,
-      delayMs: nextAt - Date.now()
-    })
+    const startMinute = settings.startMinute
+    const anchored = settings.enabled && settings.intervalMs > 0 && startMinute !== null
+    const now = Date.now()
+
+    // Same zone as when armed: the instant is unchanged, so run when due or re-arm a recheck.
+    if (Math.abs(recomputed - target.scheduledAt) < ANCHORED_TARGET_TOLERANCE_MS) {
+      if (recomputed <= now) return true
+      if (anchored) this.armAnchoredSchedule(type, generation, recomputed)
+      return false
+    }
+
+    // The offset changed under the pending target, which now names a different instant.
+    if (!anchored || startMinute === null) return true
+    if (wallClockMatches) {
+      // Still a real wall clock: re-arm when it has moved later (westward), run it late when
+      // the new instant is already due (eastward change discovered after the slot passed).
+      if (recomputed > now) {
+        this.armAnchoredSchedule(type, generation, recomputed)
+        return false
+      }
+      return true
+    }
+    // A DST gap erased the stored wall clock; fall back to the next slot that exists.
+    const nextAt = nextAnchoredRun(now, startMinute, settings.intervalMinutes)
+    if (nextAt <= now) return true
+    this.armAnchoredSchedule(type, generation, nextAt)
     return false
   }
 
