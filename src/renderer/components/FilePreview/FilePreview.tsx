@@ -109,6 +109,7 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
+  sourceLocation?: FilePreviewPluginProps['sourceLocation']
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
   plugin: PreloadedFilePreviewPlugin
   refreshKey: number
@@ -132,11 +133,16 @@ function FilePreviewPluginRenderer({
   filePath,
   metadata,
   onSelectionReference,
+  sourceLocation,
   plugin,
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(() => plugin.modulePromise), [plugin])
+  const showSource = Boolean(sourceLocation && TEXT_CONTENT_PLUGIN_IDS.has(plugin.descriptor.id))
+  const PluginPreview = useMemo(
+    () => lazy(() => (showSource ? textFilePreviewPlugin.load() : plugin.modulePromise)),
+    [plugin, showSource]
+  )
 
   return (
     <ErrorBoundary
@@ -149,6 +155,7 @@ function FilePreviewPluginRenderer({
           fileName={fileName}
           metadata={metadata}
           onSelectionReference={onSelectionReference}
+          sourceLocation={sourceLocation}
           refreshKey={refreshKey}
           type={type}
         />
@@ -162,6 +169,7 @@ export interface FilePreviewProps {
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
+  sourceLocation?: FilePreviewPluginProps['sourceLocation']
   /** See {@link FilePreviewPluginProps.onSelectionReference}; forwarded to the active plugin as-is. */
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
 }
@@ -188,7 +196,8 @@ export function FilePreview({
   header,
   refreshKey = 0,
   type = 'file',
-  onSelectionReference
+  onSelectionReference,
+  sourceLocation
 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
@@ -263,6 +272,11 @@ export function FilePreview({
         {...resolution.file}
         metadata={resolution.metadata}
         onSelectionReference={onSelectionReference}
+        sourceLocation={
+          sourceLocation && Number.isInteger(sourceLocation.line) && sourceLocation.line > 0
+            ? sourceLocation
+            : undefined
+        }
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}

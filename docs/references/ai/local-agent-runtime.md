@@ -197,8 +197,11 @@ null names preserve the previous name during updates. Null location lines mean
 no specific line and retain the normal tool disclosure.
 The tool disclosure renders text, file diffs, file links with reported line numbers,
 and snapshots of client-owned terminal output. Unrecognized content retains a raw
-fallback. File links open the file; editor navigation to the reported line is not
-yet implemented. Stored terminal snapshots remain readable after process release.
+fallback. File locations with a positive one-based line open read-only source
+preview, scroll to that line and highlight it briefly. Repeated locations reuse the
+same file view; without an embedded file panel they reuse a file preview tab.
+Missing or invalid lines retain normal opening behavior. Stored
+terminal snapshots remain readable after process release.
 
 Enabled local sessions prewarm on opening so their options are available before
 the first message. Config notifications refresh the controls, including when a model

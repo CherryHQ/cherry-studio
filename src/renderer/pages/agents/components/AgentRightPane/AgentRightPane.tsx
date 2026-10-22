@@ -98,6 +98,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -259,7 +260,7 @@ interface AgentRightPaneActions {
   canOpenArtifactFile: boolean
   canPreviewInputFileInRightPane: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput, nested?: boolean) => void
-  openArtifactFile: (path: string) => void
+  openArtifactFile: (path: string, sourceLocation?: FileSourceLocation) => void
   openFileFromPreview: (path: string) => void
   previewInputFileInRightPane: (input: MessageInputFilePreview) => void
   openBrowserUrl?: (url: string) => void
@@ -446,13 +447,15 @@ function AgentRightPaneActionsProvider({
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
   const openArtifactFileTarget = useCallback(
-    (path: string, fromPreview: boolean) => {
+    (path: string, fromPreview: boolean, sourceLocation?: FileSourceLocation) => {
       if (!canOpenArtifactFile) return
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
-      const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      const resolved = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      const selection: ArtifactPaneFileSelection | null =
+        resolved && sourceLocation ? { ...resolved, sourceLocation, previewType: 'file', readOnly: true } : resolved
       const htmlUrl = selection ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
-      if (htmlUrl) {
+      if (htmlUrl && !sourceLocation) {
         openBrowserUrl(htmlUrl)
         panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
         return
@@ -504,7 +507,10 @@ function AgentRightPaneActionsProvider({
       workspacePath
     ]
   )
-  const openArtifactFile = useCallback((path: string) => openArtifactFileTarget(path, false), [openArtifactFileTarget])
+  const openArtifactFile = useCallback(
+    (path: string, sourceLocation?: FileSourceLocation) => openArtifactFileTarget(path, false, sourceLocation),
+    [openArtifactFileTarget]
+  )
   const openFileFromPreview = useCallback(
     (path: string) => openArtifactFileTarget(path, true),
     [openArtifactFileTarget]
@@ -800,6 +806,7 @@ function AgentRightPaneStateProvider({
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null, onAccepted?: () => void) => {
       if (isSameFileSelection(previewFileSelection, selection)) {
+        setPreviewFileSelection(selection)
         onAccepted?.()
         return
       }

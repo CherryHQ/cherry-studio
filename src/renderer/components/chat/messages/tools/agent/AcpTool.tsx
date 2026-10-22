@@ -54,8 +54,7 @@ export function AcpTool({ tool }: { tool: LocalAcpTool }): ToolDisclosureItem {
       <div className="space-y-2 text-xs">
         {tool.locations?.map((location) => (
           <div key={`${location.path}:${location.line}`}>
-            <ClickableFilePath path={location.path} />
-            {location.line != null && <span className="text-muted-foreground">:{location.line}</span>}
+            <ClickableFilePath path={location.path} line={location.line} />
           </div>
         ))}
         {tool.content?.map((value, index) => {
