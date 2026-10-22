@@ -226,7 +226,7 @@ The reindex job owns the destructive and stateful work:
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
 
-Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows. The cost is on restart: the jobs use `recovery: 'abandon'`, so a root whose job is still queued when the app quits is cancelled untouched. It keeps its old index, so a refresh simply does not happen, but an embedding backfill leaves that item `completed` without vectors. This predates per-root jobs, which only widen the window from one job's start to the whole time a backfill's jobs are queued (#22365).
+Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows. The cost is on restart: the jobs use `recovery: 'abandon'`, so a root whose job is still queued when the app quits is cancelled untouched. It keeps its old index, so a refresh simply does not happen, but an embedding backfill leaves that item `completed` without vectors. `main` has the same gap until its single backfill job reaches its lock section (#22365); per-root jobs widen it to the whole time a backfill's jobs are queued.
 
 One job per root matters because delete and `replace` cancel every job whose roots touch the subtree they remove. Roots sharing one job, such as the whole base when an embedding model is first enabled, would all be interrupted by a delete of any one of them, and the ones already activated would end up `failed`.
 
