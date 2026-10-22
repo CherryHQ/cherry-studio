@@ -228,7 +228,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(deleteTrigger).not.toHaveBeenCalled()
     expect(onDrainFailed).toHaveBeenCalledOnce()
   })
@@ -410,7 +410,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(steered).toBe(false)
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(deleteTrigger).not.toHaveBeenCalled()
   })
 
@@ -575,7 +575,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
@@ -628,7 +628,7 @@ describe('useFollowupQueue', () => {
 
     expect(taken).toBeUndefined()
     expect(takeDeleteTrigger).toHaveBeenCalledTimes(2)
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
@@ -943,7 +943,7 @@ describe('useFollowupQueue', () => {
     await act(async () => {})
 
     expect(onDrain).not.toHaveBeenCalled()
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
   })
 
   it('releases the head claim without sending when the hook unmounts mid-claim', async () => {
@@ -974,7 +974,7 @@ describe('useFollowupQueue', () => {
     await act(async () => {})
 
     expect(onDrain).not.toHaveBeenCalled()
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
   })
 
   it('sends through the drain-start handler when onDrain changes mid-claim', async () => {
@@ -1035,7 +1035,7 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
       })
-      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
 
       await act(async () => {
         resolveSend(true)
@@ -1046,7 +1046,7 @@ describe('useFollowupQueue', () => {
       // reclaim, while the payload itself went out exactly once.
       expect(onDrain).toHaveBeenCalledTimes(1)
       expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
-      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
       expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     } finally {
       vi.useRealTimers()
@@ -1079,7 +1079,7 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
       })
-      expect(heartbeatTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(heartbeatTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
 
       await act(async () => {
         resolveSend(true)
@@ -1122,7 +1122,7 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
       })
-      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
       expect(deleteTrigger).not.toHaveBeenCalled()
       expect(onDrainFailed).toHaveBeenCalledOnce()
 
@@ -1170,7 +1170,7 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         expect(await steered).toBe(false)
       })
-      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
       expect(deleteTrigger).not.toHaveBeenCalled()
 
       await act(async () => {
@@ -1461,7 +1461,7 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledTimes(1)
     expect(onDrain).toHaveBeenCalledWith(headB.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
-    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'a' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'a' }, body: { claimToken: expect.any(String) } })
     expect(markSeen).toHaveBeenCalledOnce()
   })
 
@@ -1560,7 +1560,7 @@ describe('useFollowupQueue', () => {
       expect(onDrain).toHaveBeenCalledOnce()
       // The send is journaled on the row before the dequeue write, so a crash
       // between the two replays as a skip instead of a second send.
-      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
       // The failed dequeue keeps retrying in the background while mounted...
       const attempts = deleteTrigger.mock.calls.length
       await act(async () => {
@@ -1592,7 +1592,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(onDrain).toHaveBeenCalledOnce()
-    expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     // The row is already gone, so the dequeue already took effect: no
     // background retry is scheduled.
     expect(deleteTrigger).toHaveBeenCalledOnce()

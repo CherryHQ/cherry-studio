@@ -277,10 +277,12 @@ export function useFollowupQueue({
   // Drafts orphaned when a scope switch lands mid-take and the replacement
   // enqueue keeps failing: retried until the write lands, like resolve retries.
   const pendingReenqueueRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  // Single-flight pause writes: rapid Pause/Resume coalesces to the latest
-  // request instead of letting concurrent PUTs resolve out of order.
-  const pausedInflightRef = useRef<{ scopeKey: string; paused: boolean } | null>(null)
-  const pausedQueuedRef = useRef<{ scopeKey: string; paused: boolean } | null>(null)
+  // Single-flight pause writes per scope: rapid Pause/Resume coalesces to the
+  // latest request instead of letting concurrent PUTs resolve out of order.
+  // Scoped slots, so a pending Resume in one conversation is never overwritten
+  // by a Pause in another.
+  const pausedInflightRef = useRef(new Set<string>())
+  const pausedQueuedRef = useRef(new Map<string, boolean>())
 
   // Track mount state for background timers. Resolve retries intentionally
   // survive unmount (a sent row must still be dequeued); claim retries stop.
@@ -327,7 +329,12 @@ export function useFollowupQueue({
       const claimToken = crypto.randomUUID()
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          return await claimTrigger({ params: { id }, body: { claimToken } })
+          const claim = await claimTrigger({ params: { id }, body: { claimToken } })
+          // A resolved-but-empty claim is a failure like a thrown one.
+          if (!claim) return undefined
+          // Settlements are fenced by the winning token: hand it to every
+          // fail/sent/heartbeat this claim later performs.
+          return { claim, claimToken }
         } catch {
           // Transient IPC/DB failure — retry once.
         }
@@ -344,12 +351,12 @@ export function useFollowupQueue({
       // deleting would race its send. Crash orphans are reclaimable, so they
       // stay removable.
       void (async () => {
-        const claim = await claimItem(id)
-        if (!claim) {
+        const result = await claimItem(id)
+        if (!result) {
           toast.error(t('message.error.operation_unavailable'))
           return
         }
-        if (!claim.claimed) {
+        if (!result.claim.claimed) {
           toast.error(t('message.error.operation_unavailable'))
           return
         }
@@ -360,7 +367,7 @@ export function useFollowupQueue({
           // Release the won claim so the item returns to the queue instead of
           // sitting `sending` until the reclaim lease expires.
           try {
-            await markFailedTrigger({ params: { id } })
+            await markFailedTrigger({ params: { id }, body: { claimToken: result.claimToken } })
           } catch {
             // Crash-orphan path: the reclaim lease still bounds the stall.
           }
@@ -377,17 +384,28 @@ export function useFollowupQueue({
       const scope = scopeKeyRef.current
       // Claim before deleting so the take arbitrates with in-flight drains:
       // a lost claim means another window owns (and is sending) the item.
-      const claim = await claimItem(id)
-      if (!claim) {
+      const result = await claimItem(id)
+      if (!result) {
         toast.error(t('message.error.operation_unavailable'))
         return undefined
       }
+      const { claim, claimToken } = result
       if (!claim.claimed) return undefined
+      // Unmounted while the claim was in flight: release it without deleting —
+      // no composer is left to receive the restored draft. The row stays queued.
+      if (!mountedRef.current) {
+        try {
+          await markFailedTrigger({ params: { id }, body: { claimToken } })
+        } catch {
+          // Crash-orphan path: the reclaim lease still bounds the stall.
+        }
+        return undefined
+      }
       // Scope switched mid-flight: release the claim instead of restoring a
       // stale-scope draft into the new composer.
       if (scopeKeyRef.current !== scope) {
         try {
-          await markFailedTrigger({ params: { id } })
+          await markFailedTrigger({ params: { id }, body: { claimToken } })
         } catch {
           // Crash-orphan path: the reclaim lease still bounds the stall.
         }
@@ -408,7 +426,7 @@ export function useFollowupQueue({
             // Release the won claim so the item returns to the queue instead of
             // sitting `sending` until the reclaim lease expires.
             try {
-              await markFailedTrigger({ params: { id } })
+              await markFailedTrigger({ params: { id }, body: { claimToken } })
             } catch {
               // Crash-orphan path: the reclaim lease still bounds the stall.
             }
@@ -421,10 +439,12 @@ export function useFollowupQueue({
         // correct dequeue, but restoring its draft would invite a resend.
         return undefined
       }
-      if (scopeKeyRef.current !== scope) {
-        // Scope moved while DELETE was pending: the row is gone, but its draft
-        // belongs to the old scope — put it back at the end of that scope's
-        // queue instead of restoring it into the new composer.
+      if (scopeKeyRef.current !== scope || !mountedRef.current) {
+        // Scope moved or the consumer unmounted while DELETE was pending: the
+        // row is gone, but its draft belongs to the old scope — put it back at
+        // the end of that scope's queue instead of restoring it into a composer
+        // that can no longer receive it. (Unmount keeps the stale scopeKey, so
+        // the scope comparison alone cannot see it.)
         let restored = false
         let conversationGone = false
         const restoreId = crypto.randomUUID()
@@ -468,13 +488,14 @@ export function useFollowupQueue({
       const scope = scopeKeyRef.current
       setPausedOverride({ scopeKey: scope, paused: nextPaused })
       const request = { scopeKey: scope, paused: nextPaused }
-      // Coalesce rapid toggles: only the latest queued request is sent after
-      // the in-flight PUT settles, so the server ends with the user's choice.
-      if (pausedInflightRef.current) {
-        pausedQueuedRef.current = request
+      // Coalesce rapid toggles within this scope: only the latest queued
+      // request is sent after the in-flight PUT settles, so the server ends
+      // with the user's choice. Other scopes' writes are untouched.
+      if (pausedInflightRef.current.has(scope)) {
+        pausedQueuedRef.current.set(scope, nextPaused)
         return
       }
-      pausedInflightRef.current = request
+      pausedInflightRef.current.add(scope)
       const send = async (current: { scopeKey: string; paused: boolean }) => {
         try {
           await setPausedTrigger({ body: { scopeKey: current.scopeKey, paused: current.paused } })
@@ -490,14 +511,13 @@ export function useFollowupQueue({
       }
       void (async () => {
         await send(request)
-        let queued = pausedQueuedRef.current
-        while (queued) {
-          pausedQueuedRef.current = null
-          pausedInflightRef.current = queued
-          await send(queued)
-          queued = pausedQueuedRef.current
+        let queued = pausedQueuedRef.current.get(scope)
+        while (queued !== undefined) {
+          pausedQueuedRef.current.delete(scope)
+          await send({ scopeKey: scope, paused: queued })
+          queued = pausedQueuedRef.current.get(scope)
         }
-        pausedInflightRef.current = null
+        pausedInflightRef.current.delete(scope)
       })()
     },
     [setPausedTrigger, t]
@@ -509,12 +529,12 @@ export function useFollowupQueue({
   // every owned-claim resolution). Transport failures keep beating — the send
   // still owns the row until it settles — and a dead row stops the timer.
   const startHeartbeat = useCallback(
-    (id: string) => {
+    (id: string, claimToken: string) => {
       if (pendingHeartbeatRef.current.has(id)) return
       const tick = () => {
         void (async () => {
           try {
-            const result = await heartbeatTrigger({ params: { id } })
+            const result = await heartbeatTrigger({ params: { id }, body: { claimToken } })
             if (!result.live) {
               const timer = pendingHeartbeatRef.current.get(id)
               if (timer !== undefined) clearInterval(timer)
@@ -538,8 +558,8 @@ export function useFollowupQueue({
   // statement — and refetch on success so mirrors converge; they survive
   // unmount because a sent row must still be dequeued when its composer
   // is gone.
-  const scheduleResolveRetryRef = useRef<(id: string, sent: boolean) => void>(() => {})
-  scheduleResolveRetryRef.current = (id: string, sent: boolean) => {
+  const scheduleResolveRetryRef = useRef<(id: string, sent: boolean, claimToken: string) => void>(() => {})
+  scheduleResolveRetryRef.current = (id: string, sent: boolean, claimToken: string) => {
     if (pendingResolveRef.current.has(id)) return
     const tick = () => {
       // Release the slot before attempting: the chained schedule on failure
@@ -549,7 +569,7 @@ export function useFollowupQueue({
       void (async () => {
         try {
           if (sent) await removeTrigger({ params: { id } })
-          else await markFailedTrigger({ params: { id } })
+          else await markFailedTrigger({ params: { id }, body: { claimToken } })
           if (mountedRef.current) void refetch()
         } catch (error) {
           if (isAlreadyResolved(error)) {
@@ -557,7 +577,7 @@ export function useFollowupQueue({
             if (mountedRef.current) void refetch()
             return
           }
-          scheduleResolveRetryRef.current(id, sent)
+          scheduleResolveRetryRef.current(id, sent, claimToken)
         }
       })()
     }
@@ -598,14 +618,14 @@ export function useFollowupQueue({
   // a successful send is not replayed after a lost dequeue write. Also stops
   // the ownership heartbeat: every owned claim ends here.
   const settleItem = useCallback(
-    async (id: string, sent: boolean) => {
+    async (id: string, sent: boolean, claimToken: string) => {
       const heartbeatTimer = pendingHeartbeatRef.current.get(id)
       if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer)
       pendingHeartbeatRef.current.delete(id)
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           if (sent) await removeTrigger({ params: { id } })
-          else await markFailedTrigger({ params: { id } })
+          else await markFailedTrigger({ params: { id }, body: { claimToken } })
           return true
         } catch (error) {
           // The row is already gone: resolving a deletion against it would
@@ -616,7 +636,7 @@ export function useFollowupQueue({
           // Transient IPC/DB failure — retry before giving up.
         }
       }
-      scheduleResolveRetryRef.current(id, sent)
+      scheduleResolveRetryRef.current(id, sent, claimToken)
       return false
     },
     [removeTrigger, markFailedTrigger]
@@ -626,18 +646,19 @@ export function useFollowupQueue({
   // settled as failed and stays queued, so reclaim and dequeue it without resending.
   const repairLateSend = useCallback(
     async (id: string) => {
-      const claim = await claimItem(id)
-      if (!claim?.claimed) return
-      startHeartbeat(id)
+      const result = await claimItem(id)
+      if (!result?.claim?.claimed) return
+      const { claimToken } = result
+      startHeartbeat(id, claimToken)
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          await markSentTrigger({ params: { id } })
+          await markSentTrigger({ params: { id }, body: { claimToken } })
           break
         } catch {
           // Transient failure — retry before settling.
         }
       }
-      await settleItem(id, true)
+      await settleItem(id, true, claimToken)
     },
     [claimItem, startHeartbeat, markSentTrigger, settleItem]
   )
@@ -648,33 +669,34 @@ export function useFollowupQueue({
     async (args: {
       id: string
       scope: string
+      claimToken: string
       payload: ComposerQueuedMessagePayload
       alreadySent: boolean
       send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
       /** Edge-driven ack hook: fires where the drain used to ack (pre-send + already-sent skip). */
       onCommitted?: () => void
     }): Promise<boolean> => {
-      const { id, scope, payload, alreadySent, send, onCommitted } = args
+      const { id, scope, claimToken, payload, alreadySent, send, onCommitted } = args
       // Unmounted while the claim was in flight: release it without sending —
       // no composer is left to own the result. The row stays queued.
       if (!mountedRef.current) {
-        await settleItem(id, false)
+        await settleItem(id, false, claimToken)
         return false
       }
       // Scope switched mid-flight: release the claim without sending — the payload
       // belongs to the previous scope. Only our own won claim reaches here.
       if (scopeKeyRef.current !== scope) {
-        await settleItem(id, false)
+        await settleItem(id, false, claimToken)
         return false
       }
       if (alreadySent) {
         // Crash recovery: already sent before dying — dequeue silently.
-        await settleItem(id, true)
+        await settleItem(id, true, claimToken)
         onCommitted?.()
         return true
       }
       onCommitted?.()
-      startHeartbeat(id)
+      startHeartbeat(id, claimToken)
       let sent = false
       try {
         const pending = send(payload)
@@ -698,14 +720,14 @@ export function useFollowupQueue({
         // a resend. Retried; if marking keeps failing the resolve retry still dequeues.
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
-            await markSentTrigger({ params: { id } })
+            await markSentTrigger({ params: { id }, body: { claimToken } })
             break
           } catch {
             // Transient failure — retry before settling.
           }
         }
       }
-      const settled = await settleItem(id, sent)
+      const settled = await settleItem(id, sent, claimToken)
       if (!settled && sent) {
         toast.error(t('message.error.operation_unavailable'))
       }
@@ -725,13 +747,20 @@ export function useFollowupQueue({
       const scope = scopeKeyRef.current
       activeIdsRef.current.add(id)
       try {
-        const claim = await claimItem(id)
-        if (!claim) {
+        const result = await claimItem(id)
+        if (!result) {
           toast.error(t('message.error.operation_unavailable'))
           return false
         }
-        if (!claim.claimed) return false
-        return await deliverWonClaim({ id, scope, payload: item.payload, alreadySent: claim.alreadySent, send })
+        if (!result.claim.claimed) return false
+        return await deliverWonClaim({
+          id,
+          scope,
+          claimToken: result.claimToken,
+          payload: item.payload,
+          alreadySent: result.claim.alreadySent,
+          send
+        })
       } finally {
         activeIdsRef.current.delete(id)
       }
@@ -769,6 +798,10 @@ export function useFollowupQueue({
     // Snapshot the send path with the scope: the handler closes over the current
     // conversation, so a scope switch mid-drain must not redirect the old payload.
     const sendForScope = onDrainRef.current
+    // Capture the acknowledgment with the completion that initiated this
+    // drain: markSeen is bound per completion, and by the time an alreadySent
+    // recovery settles, markSeenRef may point at a newer turn's callback.
+    const ackCompletion = markSeenRef.current
     if (drainBusyScopesRef.current.has(scope) || activeIdsRef.current.has(head.id)) return
     drainBusyScopesRef.current.add(scope)
     activeIdsRef.current.add(head.id)
@@ -795,7 +828,7 @@ export function useFollowupQueue({
         // mirror converges through its notification). A lost claim from an old
         // scope must never ack the newly selected scope's edge — otherwise the
         // new scope's queued head would wait for the next completion.
-        if (scopeKeyRef.current === scope && itemsRef.current[0]) markSeenRef.current()
+        if (scopeKeyRef.current === scope && itemsRef.current[0]) ackCompletion()
         return
       }
       const target = itemsRef.current.find((entry) => entry.id === won.id)
@@ -803,7 +836,7 @@ export function useFollowupQueue({
         // Won the true head but the mirror hasn't caught up: release it back
         // to failed (immediately reclaimable) and preserve the edge — the
         // resolve notification re-fires this cycle with fresh data.
-        await settleItem(won.id, false)
+        await settleItem(won.id, false, claimToken)
         onDrainFailedRef.current?.()
         void refetch()
         return
@@ -811,10 +844,11 @@ export function useFollowupQueue({
       const sent = await deliverWonClaim({
         id: won.id,
         scope,
+        claimToken,
         payload: target.payload,
         alreadySent: won.alreadySent,
         send: (payload) => sendForScope(payload),
-        onCommitted: () => markSeenRef.current()
+        onCommitted: ackCompletion
       })
       if (!sent) onDrainFailedRef.current?.()
     } finally {
@@ -840,3 +874,4 @@ export function useFollowupQueue({
 
   return { items, enqueue, removeId, reorder, paused, setPaused, steer, takeForEdit }
 }
+
