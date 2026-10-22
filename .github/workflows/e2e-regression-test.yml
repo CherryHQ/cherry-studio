@@ -36,7 +36,7 @@ on:
           - pi-runtime
           - agent-basic-task
       provider_mode:
-        description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection)"
+        description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
         required: true
         default: "real"
         type: choice
@@ -208,6 +208,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The fixtures in scripts/e2e/regression/mock-fixtures cover the provider prompts of the
+          # tasks below. Every other task needs the real provider — knowledge asserts semantic
+          # retrieval, the agent runtimes drive multi-leg tool loops, CherryIn and the image case
+          # call their own upstream models — so refuse the run here instead of failing phases that
+          # cannot pass whatever the application does.
+          case "${{ inputs.task }}" in
+            startup-smoke|mini-app|notes|custom-provider-chat|provider-model-scroll|custom-assistant|chat-stream-failure|translation|quick-assistant) ;;
+            *)
+              echo "::error::provider_mode=mock supports: startup-smoke, mini-app, notes, custom-provider-chat, provider-model-scroll, custom-assistant, chat-stream-failure, translation, quick-assistant. Task '${{ inputs.task }}' needs provider_mode=real (see scripts/e2e/regression/mock-fixtures/README.md)."
+              exit 1
+              ;;
+          esac
           PORT=4010
           LOG="$RUNNER_TEMP/aimock.log"
           npx --yes --package=@copilotkit/aimock llmock -p "$PORT" -h 127.0.0.1 \
