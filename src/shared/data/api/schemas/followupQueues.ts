@@ -148,7 +148,7 @@ export type FollowupQueueSchemas = {
   '/followup-queues/:id/claim': {
     POST: {
       params: { id: string }
-      body?: ClaimFollowupQueueBodyDto
+      body: ClaimFollowupQueueBodyDto
       response: ClaimFollowupQueueResult
     }
   }
