@@ -32,6 +32,11 @@ describe('validation selection', () => {
     expect(mixed.tasks).toContain('types-web')
     expect(mixed.projects).not.toContain('main')
   })
+  it('keeps a complete translation pair out of code tests', () => {
+    const plan = createPlan(['CONTRIBUTING.md', 'CONTRIBUTING.zh.md', 'CONTRIBUTING.i18n.yaml'])
+    expect(plan.tasks).toEqual(['format', 'docs'])
+    expect(plan.projects).toEqual([])
+  })
   it.each([
     ['packages/ai-sdk-provider/src/model.ts', ['ai-sdk-provider', 'aiCore', 'main', 'renderer']],
     ['packages/remote-protocol/src/agent.ts', ['remote-protocol', 'remote-transport', 'main', 'renderer']],
@@ -39,11 +44,17 @@ describe('validation selection', () => {
     ['packages/system-speech/src/SystemSpeechNativeClient.ts', ['system-speech', 'main', 'preload']],
     ['packages/ui/src/button.tsx', ['ui', 'file-preview', 'renderer']],
     ['packages/file-preview/src/Preview.tsx', ['file-preview', 'renderer']],
+    ['packages/web-search/src/providers/tavily.ts', ['web-search', 'shared', 'main', 'preload', 'renderer']],
     ['packages/provider-registry/src/index.ts', ['provider-registry', 'shared', 'main', 'renderer']],
     ['src/preload/types.d.ts', ['preload', 'main', 'renderer']],
     ['src/shared/types/agent.ts', ['main', 'renderer', 'scripts']]
   ])('includes own and consumer tests for %s', (file, projects) => {
     expect(createPlan([file]).projects).toEqual(expect.arrayContaining(projects))
+  })
+  it('selects the portable web search typecheck alongside its Desktop consumers', () => {
+    const plan = createPlan(['packages/web-search/src/providers/tavily.ts'])
+    expect(plan.tasks).toEqual(expect.arrayContaining(['types-web-search', 'types-node', 'types-web']))
+    expect(selectedGroups(plan).packages).toBe(true)
   })
   it('typechecks system speech and its Main consumers without selecting unrelated Renderer tests', () => {
     const plan = createPlan(['packages/system-speech/src/SystemSpeechNativeClient.ts'])
@@ -67,6 +78,7 @@ describe('validation selection', () => {
   it.each([
     'pnpm-lock.yaml',
     '.node-version',
+    '.github/workflows/release.i18n.yaml',
     'tests/new.setup.ts',
     'packages/new-package/src/index.ts',
     'scripts/validation/plan.mjs'

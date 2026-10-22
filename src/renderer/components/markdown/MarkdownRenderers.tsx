@@ -187,22 +187,27 @@ function MarkdownCodeRenderer({ children: rawChildren, className, node: _node }:
 
 export function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
   const { alt, node: _node, onError, src, style, ...imageProps } = props
+  const { resolveImageSrc } = useMarkdownHost()
   const [failedSource, setFailedSource] = useState<string | null>(null)
   void _node
 
   if (!src) return null
 
-  if (failedSource === src) {
-    if (!alt) return null
+  const effectiveSrc = resolveImageSrc ? resolveImageSrc(src) : src
+  const isResolvedRelative = Boolean(resolveImageSrc && effectiveSrc !== src)
+
+  if (effectiveSrc === null || failedSource === effectiveSrc) {
+    const label = isResolvedRelative ? alt?.trim() || src : alt
+    if (!label) return null
 
     return (
       <span
         role="img"
-        aria-label={alt}
-        className="inline-flex min-h-8 max-w-full items-center justify-center gap-1.5 rounded-md border-[0.5px] border-border-subtle bg-background-subtle px-2 py-1 text-muted-foreground text-sm"
+        aria-label={label}
+        className="inline-flex min-h-8 max-w-full items-center justify-center gap-1.5 rounded-md border-[0.5px] border-border-subtle bg-background-subtle px-2 py-1 text-sm text-muted-foreground"
         style={{ width: imageProps.width, height: imageProps.height, ...(style ?? IMAGE_STYLE) }}>
         <ImageOff className="size-4 shrink-0" aria-hidden="true" />
-        <span className="truncate">{alt}</span>
+        <span className="truncate">{label}</span>
       </span>
     )
   }
@@ -211,10 +216,10 @@ export function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
     <ImageViewer
       {...(imageProps as ImageViewerProps)}
       alt={alt}
-      src={src}
+      src={effectiveSrc}
       style={style ?? IMAGE_STYLE}
       onError={(event) => {
-        setFailedSource(src)
+        setFailedSource(effectiveSrc ?? null)
         onError?.(event)
       }}
     />

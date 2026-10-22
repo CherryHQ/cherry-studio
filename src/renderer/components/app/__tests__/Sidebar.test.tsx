@@ -194,6 +194,22 @@ describe('app Sidebar', () => {
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
+  it('clears a previous hover reveal when hiding the sidebar again', () => {
+    mocks.sidebarWidth = 0
+    const view = render(<Sidebar />)
+    fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+    expect(screen.getByTestId('floating-sidebar')).toBeVisible()
+
+    mocks.sidebarWidth = 200
+    view.rerender(<Sidebar />)
+    mocks.sidebarWidth = 0
+    view.rerender(<Sidebar />)
+
+    expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
+    fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+    expect(screen.getByTestId('floating-sidebar')).toBeVisible()
+  })
+
   it('keeps settings and update actions independent from the account menu', async () => {
     const user = userEvent.setup()
     render(<Sidebar />)

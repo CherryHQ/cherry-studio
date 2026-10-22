@@ -1,5 +1,11 @@
 # @cherrystudio/ai-sdk-provider
 
+## 0.1.9
+
+### Patch Changes
+
+- [#22001](https://github.com/CherryHQ/cherry-studio/pull/22001) [`9fb431d`](https://github.com/CherryHQ/cherry-studio/commit/9fb431de1807b6182b7b6bced728eb634444aa03) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Fix CherryIN Anthropic requests by omitting unsupported tool input examples in both generation and streaming calls while preserving the caller's tools and other endpoints.
+
 ## 0.1.8
 
 ### Patch Changes

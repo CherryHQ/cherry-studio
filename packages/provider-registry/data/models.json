@@ -13095,6 +13095,22 @@
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": true
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -13121,12 +13137,45 @@
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition"],
       "contextWindow": 1000000,
-      "id": "minimax-m3-1-flash-preview",
+      "family": "minimax",
+      "id": "minimax-m3-1-flash",
       "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 524288,
       "metadata": {},
-      "name": "MiniMax-M3.1-Flash-Preview",
+      "name": "MiniMax-M3.1-Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": true
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.015
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
       "reasoning": {
         "controls": [
           {
@@ -22968,5 +23017,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "371e196f7e841bbc"
+  "version": "6b81bfc9f3902e8c"
 }

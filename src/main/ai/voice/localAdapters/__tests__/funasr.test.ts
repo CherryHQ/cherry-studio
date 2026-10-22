@@ -10,7 +10,8 @@ import type { AsrInferenceService } from '@main/ai/localModel'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
 import { FUNASR_MODEL_ID } from '@shared/ai/localVoice'
 
-import { createLocalTranscriptionModel, downloadVoiceModel, getLocalVoiceStatus } from '../../localAdapters'
+import { downloadVoiceModel, getLocalVoiceStatus } from '../../localAdapters'
+import { createFunAsrTranscriptionModel } from '../funasr'
 
 const mocks = vi.hoisted(() => ({
   decode: vi.fn(),
@@ -98,7 +99,7 @@ describe('FunASR local adapter', () => {
   })
 
   it('decodes WebM, transcribes private WAV scratch, and returns timed segments', async () => {
-    const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const result = await createFunAsrTranscriptionModel({}).doGenerate({
       audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
       mediaType: 'audio/webm;codecs=opus'
     })
@@ -123,7 +124,7 @@ describe('FunASR local adapter', () => {
 
   it('rejects an explicit language because FunASR only supports automatic detection', async () => {
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, { language: 'zh-CN' }).doGenerate({
+      createFunAsrTranscriptionModel({ language: 'zh-CN' }).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -142,7 +143,7 @@ describe('FunASR local adapter', () => {
     )
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new TextEncoder().encode(canary),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -162,7 +163,7 @@ describe('FunASR local adapter', () => {
     )
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new TextEncoder().encode(canary),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -184,7 +185,7 @@ describe('FunASR local adapter', () => {
     )
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -204,7 +205,7 @@ describe('FunASR local adapter', () => {
       )
     })
 
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio: new Uint8Array([1]),
       mediaType: 'audio/webm;codecs=opus'
     })
@@ -229,7 +230,7 @@ describe('FunASR local adapter', () => {
   it('does not start decoding until the model is ready', async () => {
     mocks.refreshStatus.mockReturnValue({ status: 'not_downloaded' })
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+      createFunAsrTranscriptionModel({}).doGenerate({
         audio: new Uint8Array([1]),
         mediaType: 'audio/webm;codecs=opus'
       })
@@ -243,7 +244,7 @@ describe('FunASR local adapter', () => {
       assert(signal)
       return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
     })
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio: new Uint8Array([1]),
       mediaType: 'audio/webm;codecs=opus',
       abortSignal: controller.signal
@@ -267,7 +268,7 @@ describe('FunASR local adapter', () => {
       return { text: transcriptCanary, segments: [{ text: transcriptCanary, start: 0, end: 1 }] }
     })
 
-    const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const result = await createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -288,9 +289,10 @@ describe('FunASR local adapter', () => {
     mocks.decode.mockRejectedValue(new Error('decode must not run'))
     mocks.transcribe.mockRejectedValue(new Error('inference must not run'))
 
-    await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({ audio, mediaType })
-    ).rejects.toMatchObject({ reason: 'invalid_audio', message: 'invalid_audio' })
+    await expect(createFunAsrTranscriptionModel({}).doGenerate({ audio, mediaType })).rejects.toMatchObject({
+      reason: 'invalid_audio',
+      message: 'invalid_audio'
+    })
     expect(await readdir(directory)).toEqual([])
   })
 
@@ -300,7 +302,7 @@ describe('FunASR local adapter', () => {
     mocks.transcribe.mockRejectedValue(new Error('inference must not run'))
 
     await expect(
-      createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({ audio, mediaType: 'audio/wav' })
+      createFunAsrTranscriptionModel({}).doGenerate({ audio, mediaType: 'audio/wav' })
     ).rejects.toMatchObject({ reason: 'invalid_audio' })
     expect(await readdir(directory)).toEqual([])
   })
@@ -316,7 +318,7 @@ describe('FunASR local adapter', () => {
       return { text: transcriptCanary, segments: [] }
     })
 
-    const result = await createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const result = await createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -342,7 +344,7 @@ describe('FunASR local adapter', () => {
       )
     })
 
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav'
     })
@@ -361,7 +363,7 @@ describe('FunASR local adapter', () => {
       return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason)))
     })
 
-    const work = createLocalTranscriptionModel(FUNASR_MODEL_ID, {}).doGenerate({
+    const work = createFunAsrTranscriptionModel({}).doGenerate({
       audio,
       mediaType: 'audio/wav',
       abortSignal: controller.signal
