@@ -52,6 +52,7 @@ const MIN_ZOOM = 50
 const MAX_ZOOM = 200
 const ZOOM_STEP = 10
 const INITIAL_PREVIEW_HEIGHT = 240
+const MAX_BODY_BOX_EXCESS_PX = 24
 const MAX_STREAMING_PREVIEW_HEIGHT = 350
 /** Preview rebuild cadence floor/ceiling. Each rebuild re-parses the whole document in the
  *  iframe (O(html size)), so the interval scales with size to bound per-second work. */
@@ -110,13 +111,13 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       (Number.parseFloat(bodyStyle.paddingBottom) || 0) + (Number.parseFloat(bodyStyle.borderBottomWidth) || 0)
     const bodyMarginBottom = Number.parseFloat(bodyStyle.marginBottom) || 0
     const bodyHeight = body.getBoundingClientRect().height
-    const contentBoxHeight =
+    const bodyBoxHeight =
       bodyHeight > 0 ? bodyHeight + (Number.parseFloat(bodyStyle.marginTop) || 0) + bodyMarginBottom : 0
 
     // Scrollable: scrollHeight is authoritative (scrollbar-bounded); the sweep
     // exists only for collapsed bottom margins in non-scrolling documents.
     if (documentScrollHeight > iframe.clientHeight + 1) {
-      return Math.ceil(Math.max(documentScrollHeight, contentBoxHeight))
+      return documentScrollHeight
     }
 
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
@@ -147,7 +148,15 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       }
     }
 
-    const renderedContentHeight = Math.ceil(Math.max(renderedContentBottom, contentBoxHeight))
+    // Allow only last-line leading/descent beyond the sweep, not author padding.
+    // Exclude viewport-filling bodies (100vh/100%) that would feed the next frame height back into measurement.
+    const intrinsicBodyBoxHeight =
+      bodyHeight > 0 &&
+      bodyHeight <= iframe.clientHeight &&
+      bodyBoxHeight - renderedContentBottom <= MAX_BODY_BOX_EXCESS_PX
+        ? bodyBoxHeight
+        : 0
+    const renderedContentHeight = Math.ceil(Math.max(renderedContentBottom, intrinsicBodyBoxHeight))
     return renderedContentHeight > 0 ? renderedContentHeight : documentScrollHeight || null
   } catch {
     return null

@@ -587,9 +587,15 @@ describe('HtmlArtifactView', () => {
       value: () => ({ bottom: 462, height: 454, width: 100 }) as DOMRect
     })
 
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '475px' })
+
     await act(async () => {
       fireEvent.load(iframe)
     })
+    for (const callback of [...mocks.resizeObserverCallbacks]) {
+      await act(async () => callback([], {} as ResizeObserver))
+    }
     expect(surface).toHaveStyle({ height: '476px' })
 
     let styleMutations = 0
@@ -607,6 +613,86 @@ describe('HtmlArtifactView', () => {
         for (const callback of [...mocks.resizeObserverCallbacks]) {
           await act(async () => callback([], {} as ResizeObserver))
           expect(surface).toHaveStyle({ height: '476px' })
+        }
+        expect(styleMutations + observer.takeRecords().length).toBe(0)
+      }
+    } finally {
+      observer.disconnect()
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      } else {
+        Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+          configurable: true,
+          value: originalRangeGetBoundingClientRect
+        })
+      }
+    }
+  })
+
+  it('settles viewport-driven body geometry without further surface style mutations', async () => {
+    // A viewport-height body with bottom padding must not grow the preview on every measurement.
+    render(
+      <HtmlArtifactView
+        html='<style>body{min-height:100vh;margin:0;padding-bottom:1px}</style><div style="height:20px">x</div>'
+        title="Preview"
+      />
+    )
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.cssText = 'min-height:100vh;margin:0;padding-bottom:1px'
+    const child = frameDocument.createElement('div')
+    child.textContent = 'x'
+    child.style.height = '20px'
+    body.replaceChildren(child)
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    vi.spyOn(body, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: iframe.clientHeight + 1, height: iframe.clientHeight + 1, width: 100 }) as DOMRect
+    )
+    vi.spyOn(child, 'getBoundingClientRect').mockReturnValue({ bottom: 20, height: 20, width: 100 } as DOMRect)
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ bottom: 23, height: 20, width: 100 }) as DOMRect
+    })
+
+    let styleMutations = 0
+    const observer = new MutationObserver((records) => {
+      styleMutations += records.length
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.load(iframe)
+      })
+      expect(surface).toHaveStyle({ height: '24px' })
+      observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+
+      for (let round = 0; round < 10; round += 1) {
+        await act(async () => {
+          fireEvent.load(iframe)
+        })
+        expect(surface).toHaveStyle({ height: '24px' })
+        for (const callback of [...mocks.resizeObserverCallbacks]) {
+          await act(async () => callback([], {} as ResizeObserver))
+          expect(surface).toHaveStyle({ height: '24px' })
         }
         expect(styleMutations + observer.takeRecords().length).toBe(0)
       }
