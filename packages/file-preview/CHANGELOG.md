@@ -1,5 +1,17 @@
 # @cherrystudio/file-preview
 
+## 0.2.0
+
+### Minor Changes
+
+- [#22376](https://github.com/CherryHQ/cherry-studio/pull/22376) [`3d75b7a`](https://github.com/CherryHQ/cherry-studio/commit/3d75b7a0ac6078f0821ebba7ce88a6af8835665f) Thanks [@DeJeune](https://github.com/DeJeune)! - Add read-only RTF previews with formatted text, Unicode and legacy code pages, embedded images, safe links, and a 10 MiB source limit.
+
+## 0.1.3
+
+### Patch Changes
+
+- [#22031](https://github.com/CherryHQ/cherry-studio/pull/22031) [`0041d52`](https://github.com/CherryHQ/cherry-studio/commit/0041d522ff6856036ef008255c451d3291e4ac7d) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - DOCX preview now honours the OOXML default lineRule (auto) when w:spacing omits it.
+
 ## 0.1.2
 
 ### Patch Changes
