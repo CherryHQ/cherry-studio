@@ -50,6 +50,16 @@ import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
+/** Chunks that only frame a part or the message: none of them proves the turn produced content. */
+const STRUCTURAL_CHUNK_TYPES = new Set<string>([
+  'message-metadata',
+  'text-start',
+  'text-end',
+  'reasoning-start',
+  'reasoning-end',
+  'finish'
+])
+
 /**
  * A failed `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so consumers
  * narrow with `instanceof` and read structure — never by parsing the message prose (the SDK
@@ -523,8 +533,6 @@ export class ClaudeCodeStreamAdapter {
   private turnHasActivity = false
   /** Set while a synthetic API-error diagnostic renders: its chunks are shown but are no activity. */
   private suppressTurnActivity = false
-  /** Text parts the diagnostic opened: closing one later is a structural end, not answer activity. */
-  private readonly diagnosticTextPartIds = new Set<string>()
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -604,8 +612,9 @@ export class ClaudeCodeStreamAdapter {
   private createActivityTrackingSink(sink: StreamSink): StreamSink {
     return {
       enqueue: (chunk) => {
-        const closesDiagnosticPart = chunk.type === 'text-end' && this.diagnosticTextPartIds.delete(chunk.id)
-        if (!closesDiagnosticPart && !this.suppressTurnActivity && chunk.type !== 'message-metadata') {
+        // Part boundaries frame content without being any: an empty block that opens and closes
+        // before a provider failure must still leave the turn eligible for its fallback model.
+        if (!this.suppressTurnActivity && !STRUCTURAL_CHUNK_TYPES.has(chunk.type)) {
           this.turnHasActivity = true
         }
         sink.enqueue(chunk)
@@ -625,7 +634,6 @@ export class ClaudeCodeStreamAdapter {
   /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
   beginTurn(): void {
     this.turnHasActivity = false
-    this.diagnosticTextPartIds.clear()
     this.ctx = this.createTurnContext()
     this.turnActive = true
     this.autonomousTurn = false
@@ -1051,7 +1059,6 @@ export class ClaudeCodeStreamAdapter {
     // failure the provider produced without output, so replaying the turn cannot duplicate it. The
     // fallback gate must not read it as turn activity.
     const diagnostic = isApiErrorDiagnostic(message)
-    const textPartIdBeforeDiagnostic = diagnostic ? ctx.textPartId : undefined
     if (diagnostic) this.suppressTurnActivity = true
     try {
       // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
@@ -1087,13 +1094,7 @@ export class ClaudeCodeStreamAdapter {
         this.handleAssistantText(text, sdkParentToolUseId, ctx)
       }
     } finally {
-      if (diagnostic) {
-        // A terminal result finalizes this still-open part; its `text-end` must not reopen the gate.
-        if (ctx.textPartId && ctx.textPartId !== textPartIdBeforeDiagnostic) {
-          this.diagnosticTextPartIds.add(ctx.textPartId)
-        }
-        this.suppressTurnActivity = false
-      }
+      if (diagnostic) this.suppressTurnActivity = false
     }
   }
 

@@ -128,6 +128,53 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(adapter.hasTurnActivity).toBe(false)
     })
 
+    it('does not count an empty text or reasoning block boundary as turn activity', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+
+      expect(adapter.hasTurnActivity).toBe(false)
+
+      // Real content still closes the no-replay gate.
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 2, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 2, delta: { type: 'text_delta', text: 'hi' } })
+      )
+      expect(adapter.hasTurnActivity).toBe(true)
+    })
+
+    it('stays fallback-eligible when an empty text block closes with a terminal 529', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            terminal_reason: 'api_error',
+            errors: ['API Error: 529 overloaded'],
+            session_id: 'sdk-error'
+          })
+        )
+      ).toThrow('API Error: 529')
+
+      // The driver reads this flag before selecting the backup model: the finalize path must not
+      // turn an empty boundary into activity.
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+
     it('tracks tool-use chunks emitted by a parented assistant flow', () => {
       const { adapter } = createAdapter()
 
