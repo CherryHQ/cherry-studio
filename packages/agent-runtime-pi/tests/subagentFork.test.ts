@@ -2,6 +2,7 @@ import { Type } from '@earendil-works/pi-ai'
 import { createToolSearchExtension, defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
+import { assistantReply, createTestSession, hostStore, plain, tempDir } from './sessionSupport'
 import {
   noteTool,
   outputText,
@@ -11,8 +12,7 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, plain, gatewayModel, tempDir, textParts } from './gatewaySupport'
+} from './subagentSupport'
 
 const forkA = { description: 'Check A', prompt: 'TASK-A', fork: true }
 const forkB = { description: 'Check B', prompt: 'TASK-B', fork: true }
@@ -23,15 +23,13 @@ describe('subagent fork', () => {
     async (persistent) => {
       const { model, calls } = routedModel(({ userText, lastRole }) => {
         for (const task of ['TASK-A', 'TASK-B'])
-          if (userText.includes(task)) return [...textParts('r', `REPORT ${task}`), finish('stop')]
+          if (userText.includes(task)) return assistantReply([{ type: 'text', text: `REPORT ${task}` }])
         return lastRole === 'user'
-          ? [
-              toolCallPart('note_1', 'note'),
-              subagentCall('call_a', forkA),
-              subagentCall('call_b', forkB),
-              finish('tool-calls')
-            ]
-          : [...textParts('d', 'Done'), finish('stop')]
+          ? assistantReply(
+              [toolCallPart('note_1', 'note'), subagentCall('call_a', forkA), subagentCall('call_b', forkB)],
+              'toolUse'
+            )
+          : assistantReply([{ type: 'text', text: 'Done' }])
       })
       const host = recordingSubagentPort()
       const cwd = tempDir('parent')
@@ -39,28 +37,26 @@ describe('subagent fork', () => {
       const { session } = await createTestSession({
         cwd,
         sessionManager: manager,
-        port: gatewayModel(model).upstream,
+        stream: model,
         tools: [noteTool],
         subagents: host.port
       })
 
       await session.prompt('Check modules A and B')
 
-      const promptA = calls.find((call) => call.userText.includes('TASK-A'))!.options.prompt
-      const promptB = calls.find((call) => call.userText.includes('TASK-B'))!.options.prompt
-      const parentAfterTools = calls.at(-1)!.options.prompt
+      const promptA = calls.find((call) => call.userText.includes('TASK-A'))!.options.messages
+      const promptB = calls.find((call) => call.userText.includes('TASK-B'))!.options.messages
+      const parentAfterTools = calls.at(-1)!.options.messages
       expect(parentAfterTools.slice(0, 3).map((message) => message.role)).toEqual(['system', 'user', 'assistant'])
       expect(promptA.slice(0, 3)).toEqual(parentAfterTools.slice(0, 3))
       expect(promptA.slice(0, -1)).toEqual(promptB.slice(0, -1))
       expect(promptA.at(-1)).not.toEqual(promptB.at(-1))
-      const placeholders = promptA
-        .flatMap((message) => (message.role === 'tool' ? message.content : []))
-        .flatMap((part) => (part.type === 'tool-result' ? [part] : []))
+      const placeholders = promptA.filter((message) => message.role === 'toolResult')
       expect(placeholders.map((part) => part.toolCallId)).toEqual(['note_1', 'call_a', 'call_b'])
-      expect(new Set(placeholders.map((part) => JSON.stringify(part.output))).size).toBe(1)
+      expect(new Set(placeholders.map((part) => JSON.stringify(part.content))).size).toBe(1)
       // Pi answers calls left without a result with its own error result; these must be the package's.
-      expect(placeholders[0].output.type).toBe('text')
-      expect(outputText(placeholders[0].output)).toMatch(/still running/)
+      expect(placeholders[0].content[0].type).toBe('text')
+      expect(outputText(placeholders[0].content)).toMatch(/still running/)
       expect(JSON.stringify(placeholders)).not.toContain('noted')
       expect(host.subagents.map((subagent) => subagent.fork)).toEqual([true, true])
       expect(toolResultOf(session, 'call_a').details).toMatchObject({ fork: true })
@@ -83,15 +79,15 @@ describe('subagent fork', () => {
 
   it('forks from the latest assistant message holding the call when an earlier turn reused its id', async () => {
     const { model, calls } = routedModel(({ userText, lastRole }) => {
-      if (userText.includes('TASK-TWO')) return [...textParts('r', 'REPORT-TWO'), finish('stop')]
-      if (userText.includes('TASK-ONE')) return [...textParts('r', 'REPORT-ONE'), finish('stop')]
-      if (lastRole !== 'user') return [...textParts('d', 'Done'), finish('stop')]
+      if (userText.includes('TASK-TWO')) return assistantReply([{ type: 'text', text: 'REPORT-TWO' }])
+      if (userText.includes('TASK-ONE')) return assistantReply([{ type: 'text', text: 'REPORT-ONE' }])
+      if (lastRole !== 'user') return assistantReply([{ type: 'text', text: 'Done' }])
       return userText.includes('Second prompt')
-        ? [subagentCall('call_a', { description: 'Two', prompt: 'TASK-TWO', fork: true }), finish('tool-calls')]
-        : [subagentCall('call_a', { description: 'One', prompt: 'TASK-ONE' }), finish('tool-calls')]
+        ? assistantReply([subagentCall('call_a', { description: 'Two', prompt: 'TASK-TWO', fork: true })], 'toolUse')
+        : assistantReply([subagentCall('call_a', { description: 'One', prompt: 'TASK-ONE' })], 'toolUse')
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: recordingSubagentPort().port
     })
 
@@ -101,12 +97,12 @@ describe('subagent fork', () => {
     const fork = calls.find((call) => call.userText.includes('TASK-TWO'))!
     expect(fork.userText).toContain('First prompt')
     expect(fork.userText).toContain('Second prompt')
-    const lastAssistant = fork.options.prompt.findLast((message) => message.role === 'assistant')!
+    const lastAssistant = fork.options.messages.findLast((message) => message.role === 'assistant')!
     expect(lastAssistant.content).toEqual([
       expect.objectContaining({
-        type: 'tool-call',
-        toolCallId: 'call_a',
-        input: expect.objectContaining({ prompt: 'TASK-TWO' })
+        type: 'toolCall',
+        id: 'call_a',
+        arguments: expect.objectContaining({ prompt: 'TASK-TWO' })
       })
     ])
   })
@@ -123,17 +119,17 @@ describe('subagent fork', () => {
       }
     })
     const { model, calls } = routedModel(({ userText, lastRole }) => {
-      if (userText.includes('TASK-A')) return [...textParts('r', 'REPORT-A'), finish('stop')]
+      if (userText.includes('TASK-A')) return assistantReply([{ type: 'text', text: 'REPORT-A' }])
       if (userText.includes('Delegate'))
         return lastRole === 'user'
-          ? [subagentCall('call_a', forkA), finish('tool-calls')]
-          : [...textParts('d', 'Done'), finish('stop')]
+          ? assistantReply([subagentCall('call_a', forkA)], 'toolUse')
+          : assistantReply([{ type: 'text', text: 'Done' }])
       return lastRole === 'user'
-        ? [toolCallPart('search_1', 'tool_search', { query: 'weather forecast' }), finish('tool-calls')]
-        : [...textParts('l', 'Loaded.'), finish('stop')]
+        ? assistantReply([toolCallPart('search_1', 'tool_search', { query: 'weather forecast' })], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Loaded.' }])
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [weather],
       builtinTools: ['tool_search'],
       extensionFactories: [createToolSearchExtension()],
@@ -155,25 +151,27 @@ describe('subagent fork', () => {
     const { model, calls } = routedModel(({ userText, lastRole }) => {
       if (userText.includes('TASK-A'))
         return lastRole === 'user'
-          ? [
-              subagentCall('call_nested', { description: 'Nested', prompt: 'TASK-NESTED' }),
-              toolCallPart('call_message', 'message_subagent', { id: 'any', message: 'hello' }),
-              toolCallPart('call_stop', 'stop_subagent', { id: 'any' }),
-              finish('tool-calls')
-            ]
-          : [...textParts('r', 'REPORT-A'), finish('stop')]
+          ? assistantReply(
+              [
+                subagentCall('call_nested', { description: 'Nested', prompt: 'TASK-NESTED' }),
+                toolCallPart('call_message', 'message_subagent', { id: 'any', message: 'hello' }),
+                toolCallPart('call_stop', 'stop_subagent', { id: 'any' })
+              ],
+              'toolUse'
+            )
+          : assistantReply([{ type: 'text', text: 'REPORT-A' }])
       return lastRole === 'user'
-        ? [subagentCall('call_a', forkA), finish('tool-calls')]
-        : [...textParts('d', 'Done'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', forkA)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
     })
     const host = recordingSubagentPort()
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
 
     await session.prompt('Check module A')
 
     expect(host.subagents.map((subagent) => subagent.parentToolCallId)).toEqual(['call_a'])
     const refused = toolResults(calls.filter((call) => call.userText.includes('TASK-A'))[1]).slice(-3)
-    expect(refused.map((part) => [part.toolCallId, outputText(part.output)])).toEqual([
+    expect(refused.map((part) => [part.toolCallId, outputText(part.content)])).toEqual([
       ['call_nested', 'Subagents cannot start or manage subagents.'],
       ['call_message', 'Subagents cannot start or manage subagents.'],
       ['call_stop', 'Subagents cannot start or manage subagents.']
@@ -183,40 +181,40 @@ describe('subagent fork', () => {
   // Reopening a child must preserve the conversation it was forked from.
   it('restores the forked prefix from the child native branch', async () => {
     const { model, calls } = routedModel(({ userText, lastRole }) => {
-      if (userText.includes('TASK-A')) return [...textParts('r', 'REPORT-A'), finish('stop')]
+      if (userText.includes('TASK-A')) return assistantReply([{ type: 'text', text: 'REPORT-A' }])
       return lastRole === 'user'
-        ? [subagentCall('call_a', forkA), finish('tool-calls')]
-        : [...textParts('d', 'Done'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', forkA)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
     })
     const host = recordingSubagentPort()
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
     await session.prompt('Check module A with the codename ORCHID')
 
     const stored = host.sessions.get(host.subagents[0].sessionId)!.sessionManager.getBranch()
-    const rebuilt = await createTestSession({ port: gatewayModel(model).upstream, entries: plain(stored) })
+    const rebuilt = await createTestSession({ stream: model, entries: plain(stored) })
     await rebuilt.session.prompt('FOLLOW-UP')
 
     const request = calls.at(-1)!
     expect(request.userText).toContain('ORCHID')
     expect(request.userText).toContain('TASK-A')
     expect(toolResults(request).map((part) => part.toolCallId)).toEqual(['call_a'])
-    expect(outputText(toolResults(request)[0].output)).toMatch(/still running/)
+    expect(outputText(toolResults(request)[0].content)).toMatch(/still running/)
   })
 
   it('forks a session rebuilt from the host transcript with the replayed history', async () => {
-    const earlier = routedModel(() => [...textParts('a', 'Noted.'), finish('stop')])
+    const earlier = routedModel(() => assistantReply([{ type: 'text', text: 'Noted.' }]))
     const host = hostStore()
-    const first = await createTestSession({ port: gatewayModel(earlier.model).upstream, onEvent: host.onEvent })
+    const first = await createTestSession({ stream: earlier.model, onEvent: host.onEvent })
     await first.session.prompt('Remember the codename ORCHID')
 
     const { model, calls } = routedModel(({ userText, lastRole }) => {
-      if (userText.includes('TASK-A')) return [...textParts('r', 'REPORT-A'), finish('stop')]
+      if (userText.includes('TASK-A')) return assistantReply([{ type: 'text', text: 'REPORT-A' }])
       return lastRole === 'user'
-        ? [subagentCall('call_a', forkA), finish('tool-calls')]
-        : [...textParts('d', 'Done'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', forkA)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       entries: host.entries,
       subagents: recordingSubagentPort().port
     })

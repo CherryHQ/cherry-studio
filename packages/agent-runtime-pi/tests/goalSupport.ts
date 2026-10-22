@@ -1,9 +1,7 @@
-import type { LanguageModelV3CallOptions, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { AssistantMessage, Message } from '@earendil-works/pi-ai'
 import { Type } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { type AgentSession, defineTool, type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
-import { type LanguageModel, simulateReadableStream } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
 import { expect, onTestFinished } from 'vitest'
 
 import {
@@ -12,26 +10,24 @@ import {
   GOAL_NOTICE_TYPE,
   GOAL_ROUND_TYPE,
   GOAL_STATE_TYPE,
-  type ToolApprovalEvent,
   type GoalCleared,
   type GoalNotice,
   type GoalPort,
   type GoalSnapshot,
-  type RoundDetails
-} from '@cherrystudio/agent-runtime-pi'
-
-import { createTestBinding } from './gatewaySupport'
+  type RoundDetails,
+  type ToolApprovalEvent
+} from '../src'
+import { messageText, respondingModel, type TestStream } from './sessionSupport'
 import {
+  assistantReply,
+  createTestBinding,
   createTestSession,
-  finish,
   hostStore,
   MODEL,
   plain,
-  gatewayModel,
   tempDir,
-  type TestSessionOptions,
-  textParts
-} from './gatewaySupport'
+  type TestSessionOptions
+} from './sessionSupport'
 
 export function goalPort(
   overrides: Partial<Omit<GoalPort, 'defaults'>> & { defaults?: Partial<GoalPort['defaults']> } = {}
@@ -50,17 +46,13 @@ export function goalPort(
 }
 
 /** The goal view the model last read, parsed from the newest goal-tool result in the prompt. */
-export function readGoal(prompt: LanguageModelV3Prompt): { goal: GoalSnapshot | null; activation?: string } {
+export function readGoal(prompt: Message[]): { goal: GoalSnapshot | null; activation?: string } {
   for (let i = prompt.length - 1; i >= 0; i--) {
     const message = prompt[i]
-    if (message.role !== 'tool') continue
-    for (const part of message.content) {
-      if (part.type !== 'tool-result' || !['get_goal', 'create_goal', 'update_goal'].includes(part.toolName)) continue
-      const output = part.output as { type: string; value: unknown }
-      // The view is the first line; an accepted completion adds its closing instruction after it.
-      if (output.type === 'text' && typeof output.value === 'string' && output.value.startsWith('{'))
-        return JSON.parse(output.value.split('\n', 1)[0])
-    }
+    if (message.role !== 'toolResult' || !['get_goal', 'create_goal', 'update_goal'].includes(message.toolName))
+      continue
+    const output = messageText(message)
+    if (output.startsWith('{')) return JSON.parse(output.split('\n', 1)[0])
   }
   return { goal: null }
 }
@@ -69,28 +61,20 @@ export function readGoal(prompt: LanguageModelV3Prompt): { goal: GoalSnapshot | 
  * A model whose Nth call runs the Nth script with the prompt; scripts may read the goal the model
  * last saw. The last script repeats.
  */
-export function goalModel(scripts: ((prompt: LanguageModelV3Prompt, call: number) => LanguageModelV3StreamPart[])[]) {
-  const calls: LanguageModelV3CallOptions[] = []
-  const model = new MockLanguageModelV3({
-    doStream: async (options) => {
-      calls.push(options)
-      const script = scripts[Math.min(calls.length - 1, scripts.length - 1)]
-      return { stream: simulateReadableStream({ chunks: script(options.prompt, calls.length) }) }
-    }
-  })
-  return { model, calls }
+export function goalModel(scripts: ((prompt: Message[], call: number) => AssistantMessage)[]) {
+  return respondingModel((options, call) => scripts[Math.min(call - 1, scripts.length - 1)](options.messages, call))
 }
 
-export const say = (text: string): LanguageModelV3StreamPart[] => [...textParts('t', text), finish('stop')]
+export const say = (text: string): AssistantMessage => assistantReply([{ type: 'text', text: text }])
 
 /** A script whose replies differ per call, so every round counts as progress. */
-export const working = (_prompt: LanguageModelV3Prompt, call: number) => say(`working on step ${call}`)
+export const working = (_prompt: Message[], call: number) => say(`working on step ${call}`)
 
 /** The round a request starts, read from its last message (that round's prompt); undefined for any other request. */
-export function roundStart(prompt: LanguageModelV3Prompt): number | undefined {
+export function roundStart(prompt: Message[]): number | undefined {
   const last = prompt.at(-1)
   if (last?.role !== 'user') return undefined
-  const text = last.content.map((part) => (part.type === 'text' ? part.text : '')).join('')
+  const text = messageText(last)
   const round = text.startsWith('<goal_round>') ? /\nRound: (\d+)\//.exec(text) : null
   return round ? Number(round[1]) : undefined
 }
@@ -98,12 +82,8 @@ export function roundStart(prompt: LanguageModelV3Prompt): number | undefined {
 const ROUND_PROMPT = /<goal_round>[\s\S]*?<\/goal_round>/g
 
 /** Every goal-round prompt a request carries, oldest first. */
-export const roundPrompts = (prompt: LanguageModelV3Prompt): string[] =>
-  prompt.flatMap((message) =>
-    message.role === 'user'
-      ? message.content.flatMap((part) => (part.type === 'text' ? (part.text.match(ROUND_PROMPT) ?? []) : []))
-      : []
-  )
+export const roundPrompts = (prompt: Message[]): string[] =>
+  prompt.flatMap((message) => (message.role === 'user' ? (messageText(message).match(ROUND_PROMPT) ?? []) : []))
 
 /**
  * A `goalModel` whose calls wait until `release()`, so a test can act while a turn is in flight. An
@@ -112,16 +92,11 @@ export const roundPrompts = (prompt: LanguageModelV3Prompt): string[] =>
 export function heldModel(scripts: Parameters<typeof goalModel>[0] = [() => say('done')]) {
   let release!: () => void
   const gate = new Promise<void>((resolve) => (release = resolve))
-  const calls: LanguageModelV3CallOptions[] = []
   const waiting: { count: number; resolve: () => void }[] = []
-  const model = new MockLanguageModelV3({
-    doStream: async (options) => {
-      const call = calls.push(options)
-      for (const waiter of waiting) if (call >= waiter.count) waiter.resolve()
-      await gate
-      const script = scripts[Math.min(call - 1, scripts.length - 1)]
-      return { stream: simulateReadableStream({ chunks: script(options.prompt, call) }) }
-    }
+  const { model, calls } = respondingModel(async (options, call) => {
+    for (const waiter of waiting) if (call >= waiter.count) waiter.resolve()
+    await gate
+    return scripts[Math.min(call - 1, scripts.length - 1)](options.messages, call)
   })
   return {
     model,
@@ -130,11 +105,11 @@ export function heldModel(scripts: Parameters<typeof goalModel>[0] = [() => say(
     /** Resolves once the `n`th call (from 1) is waiting. */
     started: (n: number) =>
       new Promise<void>((resolve) => (calls.length >= n ? resolve() : waiting.push({ count: n, resolve }))),
-    aborted: (n: number) => calls[n - 1]?.abortSignal?.aborted === true
+    aborted: (n: number) => calls[n - 1]?.signal?.aborted === true
   }
 }
 
-type GoalSessionOptions = Omit<TestSessionOptions, 'port' | 'onEvent'> & {
+type GoalSessionOptions = Omit<TestSessionOptions, 'stream' | 'onEvent'> & {
   /** Loaded after the goal extension, so their settle handlers run after its decision. */
   laterExtensions?: ExtensionFactory[]
   /** The host can stop the native session independently of a tool or user prompt. */
@@ -158,7 +133,7 @@ async function expectRebuildAgrees(entries: SessionEntry[], live: unknown, port:
   const binding = await createTestBinding({
     model: MODEL,
 
-    port: gatewayModel(goalModel([() => say('unused')]).model).upstream
+    stream: goalModel([() => say('unused')]).model
   })
   const rebuilt = await createAgentRuntimeSession({
     ...binding,
@@ -182,13 +157,12 @@ async function expectRebuildAgrees(entries: SessionEntry[], live: unknown, port:
  * each settled run, and of the end, must report the goal the live session reported then.
  */
 export async function openGoalSession(
-  model: LanguageModel,
+  model: TestStream,
   port: GoalPort = goalPort(),
   { laterExtensions = [], hostSignal, ...extra }: GoalSessionOptions = {}
 ) {
   const host = hostStore()
-  const modelPort = gatewayModel(model).upstream
-  modelPort.signal = hostSignal
+
   const checkpoints: { entries: SessionEntry[]; view: Promise<unknown> }[] = []
   const live: { session?: AgentSession } = {}
   const checkpoint = () => {
@@ -197,7 +171,8 @@ export async function openGoalSession(
   }
   const runtime = await createTestSession({
     ...extra,
-    port: modelPort,
+    stream: model,
+    signal: hostSignal,
     extensionFactories: [...(extra.extensionFactories ?? []), createGoalExtension(port), ...laterExtensions],
     onEvent: (event) => {
       host.onEvent(event)

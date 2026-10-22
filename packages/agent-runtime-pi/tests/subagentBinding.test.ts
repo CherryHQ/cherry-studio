@@ -2,11 +2,9 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
-
-import { recordingSubagentPort, routedModel, subagentCall, toolResultOf } from './gatewaySubagentSupport'
-import { createTestBinding } from './gatewaySupport'
-import { finish, MODEL, gatewayModel, tempDir, textParts } from './gatewaySupport'
+import { createAgentRuntimeSession } from '../src'
+import { assistantReply, createTestBinding, MODEL, tempDir } from './sessionSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolResultOf } from './subagentSupport'
 
 /** Native validation must reject a non-string path before executing this tool. */
 function listFilesTool(calls: unknown[]) {
@@ -34,24 +32,19 @@ describe('subagent sessions on native Pi providers', () => {
       const { model } = routedModel(({ userText, lastRole }) => {
         if (userText.includes('TASK-A'))
           return lastRole === 'user'
-            ? [
-                {
-                  type: 'tool-call',
-                  toolCallId: 'call_bad',
-                  toolName: 'list_files',
-                  input: '{"path":{"nested":true}}'
-                },
-                finish('tool-calls')
-              ]
-            : [...textParts('r', 'REPORT-A'), finish('stop')]
+            ? assistantReply(
+                [{ type: 'toolCall', id: 'call_bad', name: 'list_files', arguments: { path: { nested: true } } }],
+                'toolUse'
+              )
+            : assistantReply([{ type: 'text', text: 'REPORT-A' }])
         return lastRole === 'user'
-          ? [subagentCall('call_a', { description: 'List A', prompt: 'TASK-A', fork }), finish('tool-calls')]
-          : [...textParts('d', 'Done'), finish('stop')]
+          ? assistantReply([subagentCall('call_a', { description: 'List A', prompt: 'TASK-A', fork })], 'toolUse')
+          : assistantReply([{ type: 'text', text: 'Done' }])
       })
       const host = recordingSubagentPort(() => ({ extensionFactories: [approvalPrompt] }))
       // A host that passes the binding on as it is and gives subagents only its approval extension.
       const binding = await createTestBinding({
-        port: gatewayModel(model).upstream,
+        stream: model,
 
         model: MODEL
       })

@@ -23,8 +23,8 @@ import { BaseService } from '@main/core/lifecycle'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import { lastAssistant, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
-import { tempDir, lastAssistant } from './gatewaySupport'
 
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
