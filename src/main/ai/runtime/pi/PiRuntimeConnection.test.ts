@@ -1,7 +1,8 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { AssistantMessage } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,14 +20,22 @@ import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
+import {
+  assistantReply,
+  createTestBinding,
+  MODEL,
+  scriptedModel,
+  tempDir
+} from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import * as PiApproval from './approvalExtension'
-import { createTestBinding, finish, gatewayModel, MODEL, scriptedModel, tempDir, textParts } from './gatewaySupport'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { buildPiLoginPathPrefix, PiRuntimeConnection } from './PiRuntimeConnection'
 import type * as PiSdk from './piSdk'
+
+const modelId = 'test::test-model'
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -67,7 +76,7 @@ vi.mock('./piSdk', async (original) => ({
 }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
 
-// Real Runtime, native Pi, AI SDK loop and SQLite; only provider/environment configuration is substituted.
+// Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi root connection', () => {
   const dbh = setupTestDatabase()
   let directory: string
@@ -87,7 +96,7 @@ describe('desktop Pi root connection', () => {
     })
     const agentId = uuid()
     const workspaceId = uuid()
-    input = { sessionId: uuid(), agentId, modelId: MODEL.id }
+    input = { sessionId: uuid(), agentId, modelId: modelId }
     dbh.db
       .insert(agentTable)
       .values({
@@ -108,11 +117,11 @@ describe('desktop Pi root connection', () => {
       .values({ id: input.sessionId, agentId, workspaceId, name: 'Chat', orderKey: 'a0' })
       .run()
     snapshot = {
-      agent: { ...agentService.getAgent(agentId)!, model: MODEL.id },
+      agent: { ...agentService.getAgent(agentId)!, model: modelId },
       session: agentSessionService.getById(input.sessionId),
       model: ModelSchema.parse({
-        id: MODEL.id,
-        providerId: 'cherry',
+        id: modelId,
+        providerId: 'test',
         name: 'Model',
         capabilities: [],
         supportsStreaming: true,
@@ -120,7 +129,7 @@ describe('desktop Pi root connection', () => {
         isHidden: false
       }),
       provider: ProviderSchema.parse({
-        id: 'cherry',
+        id: 'test',
         name: 'Provider',
         settings: {},
         reportsActualCost: false,
@@ -137,17 +146,41 @@ describe('desktop Pi root connection', () => {
     }
     mocks.capture.mockImplementation(async () => snapshot)
     mocks.prompt.mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
-    setScript([[...textParts('answer', 'Hello ', 'world'), finish('stop')]])
-    mocks.binding.mockImplementation(async () =>
-      createTestBinding({ model: MODEL, port: gatewayModel(script.model).upstream })
-    )
+    setScript([assistantReply('Hello world')])
+    mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
   afterEach(async () => {
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
-  function setScript(parts: LanguageModelV3StreamPart[][], delay?: number) {
+  function setScript(parts: AssistantMessage[], delay?: number) {
     script = scriptedModel(parts, delay)
+  }
+  function holdResponse(text: string) {
+    const fallback = script.model
+    let finish!: () => void
+    let started = false
+    script.model = (model, context, options) => {
+      if (started) return fallback(model, context, options)
+      started = true
+      const stream = createAssistantMessageEventStream()
+      const message = { ...assistantReply(text), model: model.id, api: model.api, provider: model.provider }
+      stream.push({ type: 'start', partial: message })
+      stream.push({ type: 'text_delta', contentIndex: 0, delta: text, partial: message })
+      const abort = () => {
+        message.stopReason = 'aborted'
+        stream.push({ type: 'error', reason: 'aborted', error: message })
+        stream.end(message)
+      }
+      options?.signal?.addEventListener('abort', abort, { once: true })
+      finish = () => {
+        options?.signal?.removeEventListener('abort', abort)
+        stream.push({ type: 'done', reason: 'stop', message })
+        stream.end(message)
+      }
+      return stream
+    }
+    return () => finish()
   }
   function message(text: string) {
     return messages.saveMessage({
@@ -234,19 +267,16 @@ describe('desktop Pi root connection', () => {
     await reopened.connection.send({ message: message('second question') })
     await done(reopened.events)
     expect(text(reopened.events)).toBe('Hello world')
-    expect(JSON.stringify(script.calls[1].prompt)).toContain('first question')
-    expect(JSON.stringify(script.calls[1].prompt)).toContain('Hello world')
+    expect(JSON.stringify(script.calls[1].messages)).toContain('first question')
+    expect(JSON.stringify(script.calls[1].messages)).toContain('Hello world')
     expect(nativeFiles()).toHaveLength(1)
   })
 
   it('executes a native tool once, projects its result, and sends it back through the model port', async () => {
     writeFileSync(join(directory, 'note.txt'), 'native tool result')
     setScript([
-      [
-        { type: 'tool-call', toolCallId: 'read-1', toolName: 'read', input: JSON.stringify({ path: 'note.txt' }) },
-        finish('tool-calls')
-      ],
-      [...textParts('answer', 'Read successfully'), finish('stop')]
+      assistantReply([{ type: 'toolCall', id: 'read-1', name: 'read', arguments: { path: 'note.txt' } }], 'toolUse'),
+      assistantReply([{ type: 'text', text: 'Read successfully' }])
     ])
     const { connection, events } = await connect()
     await connection.send({ message: message('read the note') })
@@ -257,7 +287,7 @@ describe('desktop Pi root connection', () => {
     expect(results).toHaveLength(1)
     expect(JSON.stringify(results)).toContain('native tool result')
     expect(script.calls).toHaveLength(2)
-    expect(JSON.stringify(script.calls[1].prompt)).toContain('native tool result')
+    expect(JSON.stringify(script.calls[1].messages)).toContain('native tool result')
   })
 
   it('rejects missing or ambiguous history without creating a replacement', async () => {
@@ -294,7 +324,7 @@ describe('desktop Pi root connection', () => {
   })
 
   it('preserves an original provider error and never announces a successful turn', async () => {
-    setScript([[{ type: 'error', error: new Error('provider unavailable') }]])
+    setScript([{ ...assistantReply([], 'error'), errorMessage: 'provider unavailable' }])
     const { connection, events } = await connect()
     const user = message('question')
     await connection.send({ message: user })
@@ -304,14 +334,7 @@ describe('desktop Pi root connection', () => {
   })
 
   it('seals admission during stop, saves the aborted input, and reopens for a new message', async () => {
-    script.model.doStream = async () => ({
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: 'text-start', id: 'held' })
-          controller.enqueue({ type: 'text-delta', id: 'held', delta: 'partial' })
-        }
-      })
-    })
+    holdResponse('partial')
     const first = await connect()
     const user = message('question')
     await first.connection.send({ message: user })
@@ -321,7 +344,7 @@ describe('desktop Pi root connection', () => {
     await closing
     expect(messages.readSubmission(input.sessionId, user.id).submission.outcome).toBe('aborted')
     expect(first.events.filter((event) => event.type === 'turn-complete')).toEqual([])
-    setScript([[...textParts('next', 'resumed'), finish('stop')]])
+    setScript([assistantReply([{ type: 'text', text: 'resumed' }])])
     const next = await connect()
     await next.connection.send({ message: message('continue') })
     await done(next.events)
@@ -330,9 +353,9 @@ describe('desktop Pi root connection', () => {
 
   it('rebuilds for changed per-turn settings and rejects startup configuration drift', async () => {
     const { connection } = await connect()
-    expect(await connection.reconcile({ modelId: MODEL.id, reasoningEffort: 'high' })).toBe('rebuild')
-    expect(await connection.reconcile({ modelId: MODEL.id, fastMode: true })).toBe('rebuild')
-    expect(await connection.reconcile({ modelId: MODEL.id, serviceTier: 'flex' })).toBe('rebuild')
+    expect(await connection.reconcile({ modelId: modelId, reasoningEffort: 'high' })).toBe('rebuild')
+    expect(await connection.reconcile({ modelId: modelId, fastMode: true })).toBe('rebuild')
+    expect(await connection.reconcile({ modelId: modelId, serviceTier: 'flex' })).toBe('rebuild')
     await connection.close()
     mocks.prompt.mockImplementation(async () => {
       snapshot = { ...snapshot, signature: 'changed' }
@@ -341,25 +364,7 @@ describe('desktop Pi root connection', () => {
     await expect(connect()).rejects.toThrow('configuration changed')
   })
   it('orders the steer boundary and preserves the two native response associations', async () => {
-    let release!: () => void
-    const normalStream = script.model.doStream.bind(script.model)
-    let calls = 0
-    script.model.doStream = async (options) => {
-      if (calls++ > 0) return normalStream(options)
-      return {
-        stream: new ReadableStream({
-          start(controller) {
-            controller.enqueue({ type: 'text-start', id: 'first' })
-            controller.enqueue({ type: 'text-delta', id: 'first', delta: 'before steer' })
-            release = () => {
-              controller.enqueue({ type: 'text-end', id: 'first' })
-              controller.enqueue(finish('stop'))
-              controller.close()
-            }
-          }
-        })
-      }
-    }
+    const release = holdResponse('before steer')
     let reserved = false
     input.onSteerInjected = () => {
       reserved = true
@@ -390,14 +395,7 @@ describe('desktop Pi root connection', () => {
   })
 
   it('cancels queued input on stop without automatically sending it in the next owner', async () => {
-    script.model.doStream = async () => ({
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: 'text-start', id: 'held' })
-          controller.enqueue({ type: 'text-delta', id: 'held', delta: 'waiting' })
-        }
-      })
-    })
+    holdResponse('waiting')
     const { connection, events } = await connect()
     await connection.send({ message: message('first') })
     await expect.poll(() => text(events)).toBe('waiting')
@@ -416,7 +414,7 @@ describe('desktop Pi root connection', () => {
     mocks.binding.mockImplementation(async () => ({
       ...(await createTestBinding({
         model: MODEL,
-        port: gatewayModel(script.model).upstream
+        stream: script.model
       })),
       compaction: { reserveTokens: 16_384, keepRecentTokens: 1 }
     }))
@@ -453,23 +451,18 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: user })
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(JSON.stringify(script.calls[0].prompt)).toContain('/tmp/note.txt')
+    expect(JSON.stringify(script.calls[0].messages)).toContain('/tmp/note.txt')
     expect(messages.getSessionMessage(input.sessionId, user.id)).not.toHaveProperty('submission')
   })
 
   it('blocks disabled native tools before they can modify the workspace', async () => {
     snapshot.agent.disabledTools = ['write']
     setScript([
-      [
-        {
-          type: 'tool-call',
-          toolCallId: 'blocked',
-          toolName: 'write',
-          input: JSON.stringify({ path: 'forbidden.txt', content: 'bad' })
-        },
-        finish('tool-calls')
-      ],
-      [...textParts('answer', 'Tool unavailable'), finish('stop')]
+      assistantReply(
+        [{ type: 'toolCall', id: 'blocked', name: 'write', arguments: { path: 'forbidden.txt', content: 'bad' } }],
+        'toolUse'
+      ),
+      assistantReply([{ type: 'text', text: 'Tool unavailable' }])
     ])
     const { connection, events } = await connect()
     await connection.send({ message: message('write something') })

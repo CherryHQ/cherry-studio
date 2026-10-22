@@ -1,9 +1,7 @@
-import type { LanguageModelV3CallOptions, LanguageModelV3Message, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { Type, type ToolResultMessage } from '@earendil-works/pi-ai'
+import type { AssistantMessage, JsonObject, Message, ToolCall } from '@earendil-works/pi-ai'
+import { type ToolResultMessage, Type } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { type AgentSession, defineTool, type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
-import { simulateReadableStream } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
 
 import {
   type AgentRuntimeEvent,
@@ -13,9 +11,10 @@ import {
   type SubagentSessionOptions,
   type SubagentState,
   type SubagentView
-} from '@cherrystudio/agent-runtime-pi'
-
-import { finish, textParts } from './gatewaySupport'
+} from '../src'
+import type { ModelCall } from './sessionSupport'
+import { messageText, respondingModel } from './sessionSupport'
+import { assistantReply } from './sessionSupport'
 
 export interface RoutedCall {
   /** Role of the last prompt message: `user` on a new request, `tool` after tool results. */
@@ -29,51 +28,47 @@ export interface RoutedCall {
    * '' for a request after tool results or one a notification starts.
    */
   humanText: string
-  options: LanguageModelV3CallOptions
+  options: ModelCall
 }
 
 /** The first line of every notification the parent's model gets. */
 export const NOTE = 'Background subagent update (automatic message, not from the user):'
 
 /** A final reply; `input` is its uncached input tokens (2 more are cached), `output` its output tokens. */
-export const reply = (text: string, input = 10, output = 5): LanguageModelV3StreamPart[] => [
-  ...textParts('t', text),
-  finish('stop', input, output)
-]
+export const reply = (text: string, input = 10, output = 5): AssistantMessage =>
+  assistantReply([{ type: 'text', text: text }], 'stop', input, output)
 
-function humanTextOf(prompt: LanguageModelV3Message[]): string {
+function humanTextOf(prompt: Message[]): string {
   const trailing: string[] = []
   for (let i = prompt.length - 1; i >= 0 && prompt[i].role === 'user'; i--) trailing.unshift(userTextOf(prompt[i]))
   return trailing.find((text) => !text.startsWith(NOTE)) ?? ''
 }
 
-const userTextOf = (message: LanguageModelV3Message) =>
-  message.role === 'user' ? message.content.map((part) => (part.type === 'text' ? part.text : '')).join('') : ''
+const userTextOf = (message: Message) => (message.role === 'user' ? messageText(message) : '')
 
 /**
  * A mock that answers each call with the script `route` picks for it, so a parent and its
  * subagents can share one model (and one port) the way they do in production. A route may wait
  * (on a {@link gate}) before it answers; an abort still ends the request.
  */
-export function routedModel(
-  route: (call: RoutedCall) => LanguageModelV3StreamPart[] | Promise<LanguageModelV3StreamPart[]>
-) {
+export function routedModel(route: (call: RoutedCall) => AssistantMessage | Promise<AssistantMessage>) {
   const calls: RoutedCall[] = []
-  const model = new MockLanguageModelV3({
-    doStream: async (options) => {
-      const last = options.prompt.at(-1)
-      const call: RoutedCall = {
-        lastRole: last?.role ?? '',
-        userText: options.prompt.map(userTextOf).join('\n'),
-        lastText: last ? userTextOf(last) : '',
-        humanText: humanTextOf(options.prompt),
-        options
-      }
-      calls.push(call)
-      return { stream: simulateReadableStream({ chunks: await route(call) }) }
+  const native = respondingModel(async (options) => {
+    const last = options.messages.at(-1)
+    const call: RoutedCall = {
+      lastRole: last?.role ?? '',
+      userText: options.messages
+        .filter((message) => message.role === 'user')
+        .map(messageText)
+        .join('\n'),
+      lastText: last?.role === 'user' ? messageText(last) : '',
+      humanText: humanTextOf(options.messages),
+      options
     }
+    calls.push(call)
+    return route(call)
   })
-  return { model, calls }
+  return { model: native.model, calls, requests: native.calls }
 }
 
 /** Holds the requests that `wait()` on it until `open()`; `reached` resolves once one waits. */
@@ -101,11 +96,11 @@ export async function waitFor(check: () => boolean, timeoutMs = 5_000): Promise<
   }
 }
 
-export const toolCallPart = (toolCallId: string, toolName: string, input: object = {}): LanguageModelV3StreamPart => ({
-  type: 'tool-call',
-  toolCallId,
-  toolName,
-  input: JSON.stringify(input)
+export const toolCallPart = (toolCallId: string, toolName: string, input: JsonObject = {}): ToolCall => ({
+  type: 'toolCall',
+  id: toolCallId,
+  name: toolName,
+  arguments: input
 })
 
 export const subagentCall = (
@@ -181,16 +176,11 @@ export function storingSubagentPort(
 
 /** Tool results in a call's prompt, in order. */
 export function toolResults(call: RoutedCall) {
-  return call.options.prompt
-    .flatMap((message) => (message.role === 'tool' ? message.content : []))
-    .flatMap((part) => (part.type === 'tool-result' ? [part] : []))
+  return call.options.messages.filter((message): message is ToolResultMessage => message.role === 'toolResult')
 }
 
-/** The text the model saw for a tool result output. */
-export function outputText(output: unknown): string {
-  const value = (output as { value?: unknown }).value
-  return typeof value === 'string' ? value : JSON.stringify(output)
-}
+export const outputText = (content: ToolResultMessage['content']) =>
+  content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
 
 /** The latest result Pi recorded for a tool call in a session (providers may reuse call ids). */
 export function toolResultOf(session: AgentSession, toolCallId: string): ToolResultMessage {

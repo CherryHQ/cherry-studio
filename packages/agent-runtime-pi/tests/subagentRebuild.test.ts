@@ -1,8 +1,9 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { SUBAGENT_STATUS_TYPE } from '@cherrystudio/agent-runtime-pi'
-
+import { SUBAGENT_STATUS_TYPE } from '../src'
+import { messageText } from './sessionSupport'
+import { assistantReply, createTestSession, hostStore, plain, tempDir } from './sessionSupport'
 import {
   gate,
   NOTE,
@@ -19,18 +20,13 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, plain, gatewayModel, tempDir } from './gatewaySupport'
-import { textOf } from './gatewayToolResults'
+} from './subagentSupport'
+import { textOf } from './toolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
 const lastTwoTexts = (call: RoutedCall) =>
-  call.options.prompt
-    .slice(-2)
-    .map((message) =>
-      message.role === 'user' ? message.content.map((part) => (part.type === 'text' ? part.text : '')).join('') : ''
-    )
+  call.options.messages.slice(-2).map((message) => (message.role === 'user' ? messageText(message) : ''))
 
 describe('subagents after a rebuild', () => {
   // Breaks when a rebuilt parent still counts a dead run as running, starts a turn on its own, says
@@ -41,13 +37,13 @@ describe('subagents after a rebuild', () => {
     const host = storingSubagentPort()
     const { model, calls } = routedModel(({ userText, humanText }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
       return reply('OK.')
     })
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -58,7 +54,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       entries: plain(first.entries),
       onEvent: second.onEvent
@@ -76,7 +72,7 @@ describe('subagents after a rebuild', () => {
 
     const again = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       entries: plain([...first.entries, ...second.entries])
     })
@@ -98,13 +94,13 @@ describe('subagents after a rebuild', () => {
     }))
     const { model, calls } = routedModel(({ userText, humanText }) => {
       if (userText.includes('TASK-A')) return reply('REPORT-A')
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
       return reply('OK.')
     })
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -117,7 +113,7 @@ describe('subagents after a rebuild', () => {
 
     const rebuilt = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       entries: plain(first.entries)
     })
@@ -141,13 +137,13 @@ describe('subagents after a rebuild', () => {
     const host = storingSubagentPort()
     const { model, calls } = routedModel(({ userText, humanText }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
       return reply('OK.')
     })
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -157,7 +153,7 @@ describe('subagents after a rebuild', () => {
 
     const rebuilt = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       extensionFactories: [roundCommand],
       entries: plain(first.entries)
@@ -186,18 +182,18 @@ describe('subagents after a rebuild', () => {
     const { model, calls } = routedModel(({ userText, lastText, humanText }) => {
       if (userText.includes('TASK-A'))
         return lastText.startsWith('Your previous run') ? reply('REPORT-A') : held.wait(reply('LATE'))
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
       if (humanText === 'Go on with A')
-        return [
-          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' }),
-          finish('tool-calls')
-        ]
+        return assistantReply(
+          [toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' })],
+          'toolUse'
+        )
       return reply('OK.')
     })
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -208,7 +204,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       entries: plain(first.entries),
       onEvent: second.onEvent
@@ -235,14 +231,14 @@ describe('subagents after a rebuild', () => {
     const host = storingSubagentPort()
     const { model, calls } = routedModel(({ userText, humanText }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
-      if (humanText === 'Do something long') return [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
+      if (humanText === 'Do something long') return assistantReply([toolCallPart('stop_1', 'stop_turn')], 'toolUse')
       return reply('OK.')
     })
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurn],
       subagents: host.port,
       onEvent: first.onEvent
@@ -258,7 +254,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain(first.entries),
@@ -272,7 +268,7 @@ describe('subagents after a rebuild', () => {
 
     const again = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain([...first.entries, ...second.entries])
@@ -295,22 +291,22 @@ describe('subagents after a rebuild', () => {
       const { userText, lastText, humanText } = call
       if (userText.includes('TASK-A'))
         return lastText === 'GO-ON' ? runTwo.wait(reply('REPORT-2')) : runOne.wait(reply('REPORT-1'))
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
       if (humanText === 'Continue A') {
         // Run 1 ends while this turn is busy, so its result waits for the settle.
         runOne.open()
         await waitFor(() => subagentStates(first.entries).some((state) => state.status === 'finished'))
         const id = host.subagents[0].sessionId
-        return [toolCallPart('call_msg', 'message_subagent', { id, message: 'GO-ON' }), finish('tool-calls')]
+        return assistantReply([toolCallPart('call_msg', 'message_subagent', { id, message: 'GO-ON' })], 'toolUse')
       }
       // The user stops the turn before its settle; the parent then closes.
       if (toolResults(call).at(-1)?.toolCallId === 'call_msg')
-        return [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
+        return assistantReply([toolCallPart('stop_1', 'stop_turn')], 'toolUse')
       return reply('OK.')
     })
     const before = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurn],
       subagents: host.port,
       onEvent: first.onEvent
@@ -324,7 +320,7 @@ describe('subagents after a rebuild', () => {
     const second = hostStore()
     const rebuilt = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain(first.entries),
@@ -339,7 +335,7 @@ describe('subagents after a rebuild', () => {
 
     const again = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurn],
       subagents: host.port,
       entries: plain([...first.entries, ...second.entries])
@@ -356,18 +352,18 @@ describe('subagents after a rebuild', () => {
     const { model, calls } = routedModel(({ userText, lastText, humanText }) => {
       if (userText.includes('TASK-A')) return reply(lastText === 'AGAIN' ? 'REPORT-2' : 'REPORT-1')
       if (humanText === 'Check A')
-        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls')]
+        return assistantReply([subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' })], 'toolUse')
       if (humanText === 'Ask A again')
-        return [
-          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'AGAIN' }),
-          finish('tool-calls')
-        ]
+        return assistantReply(
+          [toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'AGAIN' })],
+          'toolUse'
+        )
       return reply('OK.')
     })
     const first = hostStore()
     const before = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: first.onEvent
     })
@@ -376,7 +372,7 @@ describe('subagents after a rebuild', () => {
 
     const rebuilt = await createTestSession({
       cwd,
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       entries: plain(first.entries)
     })
@@ -395,11 +391,11 @@ describe('subagent status after a compaction', () => {
     const host = storingSubagentPort()
     const { model, calls } = routedModel(({ userText, humanText }) => {
       if (userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: parent.onEvent,
       compaction: { reserveTokens: 16_384, keepRecentTokens: 1, summarize: async () => 'SUMMARY' }

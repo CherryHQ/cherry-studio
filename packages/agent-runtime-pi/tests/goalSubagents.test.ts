@@ -2,8 +2,7 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort, ToolApprovalEvent } from '@cherrystudio/agent-runtime-pi'
-
+import type { SubagentPort, ToolApprovalEvent } from '../src'
 import {
   askAtTurnEnd,
   goalPort,
@@ -14,7 +13,9 @@ import {
   rounds,
   roundStart,
   snapshots
-} from './gatewayGoalSupport'
+} from './goalSupport'
+import { messageText } from './sessionSupport'
+import { assistantReply, plain, tempDir } from './sessionSupport'
 import {
   gate,
   NOTE,
@@ -30,23 +31,22 @@ import {
   toolResults,
   untilStopped,
   waitFor
-} from './gatewaySubagentSupport'
-import { finish, plain, tempDir } from './gatewaySupport'
-import { textOf } from './gatewayToolResults'
+} from './subagentSupport'
+import { textOf } from './toolResults'
 
 /** A background launch; the description never holds the task marker the routes look for. */
 const bg = (id: string, task: string) =>
   subagentCall(id, { description: `Check ${task.slice('TASK-'.length)}`, prompt: task, background: true })
 const isNotice = (call: RoutedCall) => call.lastText.startsWith(NOTE)
-const round = (call: RoutedCall) => (call.lastRole === 'user' ? roundStart(call.options.prompt) : undefined)
+const round = (call: RoutedCall) => (call.lastRole === 'user' ? roundStart(call.options.messages) : undefined)
 
 /** The user messages a request ends with: what started it. */
 const trailingUserTexts = (call: RoutedCall) => {
   const texts: string[] = []
-  for (let i = call.options.prompt.length - 1; i >= 0; i--) {
-    const message = call.options.prompt[i]
+  for (let i = call.options.messages.length - 1; i >= 0; i--) {
+    const message = call.options.messages[i]
     if (message.role !== 'user') break
-    texts.unshift(message.content.map((part) => (part.type === 'text' ? part.text : '')).join(''))
+    texts.unshift(messageText(message))
   }
   return texts
 }
@@ -58,7 +58,7 @@ describe('goal and background subagents', () => {
     const held = gate()
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (round(call) === 1) return assistantReply([bg('call_a', 'TASK-A')], 'toolUse')
       if (isNotice(call)) return reply('Read the report.')
       return reply(`working ${calls.length}`)
     })
@@ -87,8 +87,8 @@ describe('goal and background subagents', () => {
     const held = gate()
     const { model } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
-      if (call.lastRole === 'tool') return reply('Started A.')
+      if (round(call) === 1) return assistantReply([bg('call_a', 'TASK-A')], 'toolUse')
+      if (call.lastRole === 'toolResult') return reply('Started A.')
       return reply('Read the report.')
     })
     const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
@@ -126,7 +126,7 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
       if (isNotice(call)) return reply('Read the report.')
-      if (round(call) === 2) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (round(call) === 2) return assistantReply([bg('call_a', 'TASK-A')], 'toolUse')
       return reply(`working ${calls.length}`)
     })
     const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
@@ -164,7 +164,8 @@ describe('goal and background subagents', () => {
     })
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), toolCallPart('wait_1', 'wait_here'), finish('tool-calls')]
+      if (round(call) === 1)
+        return assistantReply([bg('call_a', 'TASK-A'), toolCallPart('wait_1', 'wait_here')], 'toolUse')
       return reply(`working ${calls.length}`)
     })
     const { session: s, host } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 2 } }), {
@@ -180,7 +181,7 @@ describe('goal and background subagents', () => {
         trailingUserTexts(call).map((text) =>
           text.startsWith(NOTE)
             ? 'notice'
-            : `round ${roundStart([{ role: 'user', content: [{ type: 'text', text }] }])}`
+            : `round ${roundStart([{ role: 'user', content: [{ type: 'text', text }], timestamp: 0 }])}`
         )
       )
     expect(starts).toEqual([['round 1'], ['notice'], ['round 2']])
@@ -192,9 +193,12 @@ describe('goal and background subagents', () => {
     const held = gate()
     const { model } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (call.humanText === 'Check A in the background') return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (call.humanText === 'Check A in the background') return assistantReply([bg('call_a', 'TASK-A')], 'toolUse')
       if (isNotice(call))
-        return [toolCallPart('call_goal', 'create_goal', { objective: 'Fix everything A found' }), finish('tool-calls')]
+        return assistantReply(
+          [toolCallPart('call_goal', 'create_goal', { objective: 'Fix everything A found' })],
+          'toolUse'
+        )
       return reply('OK.')
     })
     const { session: s, host } = await openGoalSession(model, goalPort(), { subagents: recordingSubagentPort().port })
@@ -225,7 +229,7 @@ describe('goal and background subagents', () => {
     }
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A', 5_000))
-      if (call.humanText === 'Check A in the background') return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (call.humanText === 'Check A in the background') return assistantReply([bg('call_a', 'TASK-A')], 'toolUse')
       if (isNotice(call)) return reply('Read the report.', 1_000, 0)
       if (round(call) === 1) {
         inRoundOne = true
@@ -254,7 +258,7 @@ describe('goal and background subagents', () => {
     const held = gate()
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A'))
-      if (call.humanText === 'Check A in the background') return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (call.humanText === 'Check A in the background') return assistantReply([bg('call_a', 'TASK-A')], 'toolUse')
       if (isNotice(call)) return reply('Read the report.', 1_000, 0)
       return reply(`working ${calls.length}`)
     })
@@ -284,8 +288,8 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-B')) return heldB.wait(reply('REPORT-B', 5_000))
       if (call.userText.includes('TASK-C')) return heldC.wait(reply('REPORT-C'))
-      if (round(call) === 1) return [bg('call_b', 'TASK-B'), bg('call_c', 'TASK-C'), finish('tool-calls')]
-      if (round(call) === 2) return [bg('call_d', 'TASK-D'), finish('tool-calls')]
+      if (round(call) === 1) return assistantReply([bg('call_b', 'TASK-B'), bg('call_c', 'TASK-C')], 'toolUse')
+      if (round(call) === 2) return assistantReply([bg('call_d', 'TASK-D')], 'toolUse')
       return reply(`working ${calls.length}`)
     })
     const { session: s, host } = await openGoalSession(
@@ -317,15 +321,15 @@ describe('goal and background subagents', () => {
     const child: { signal?: AbortSignal } = {}
     const { model } = routedModel((call) => {
       if (call.userText.includes('TASK-C')) {
-        child.signal = call.options.abortSignal
+        child.signal = call.options.signal
         return heldC.wait(reply('REPORT-C'))
       }
       if (call.humanText === 'a question from the user') {
         onUserTurn?.()
         return reply('Answered.')
       }
-      if (round(call) === 1) return [bg('call_c', 'TASK-C'), finish('tool-calls', 10, 0)]
-      return reply('Over budget now.', 200, 0)
+      if (round(call) === 1) return assistantReply([bg('call_c', 'TASK-C')], 'toolUse', 10, 0)
+      return heldC.reached.then(() => reply('Over budget now.', 200, 0))
     })
     const runtime = await openGoalSession(
       model,
@@ -356,12 +360,14 @@ describe('goal and background subagents', () => {
   // would run on through the person's turn.
   it("stops the goal's background subagent before a queued user message the settle yields to", async () => {
     const seen: { childStopped?: boolean } = {}
-    const run = await launchThenSpend('auto', 100, () => (seen.childStopped = run.finishedC()?.outcome === 'stopped'))
+    const run = await launchThenSpend('auto', 100, () => (seen.childStopped = run.child.signal?.aborted))
     askAtTurnEnd(run.session, 2)
     await promptIdle(run.session, '/goal Check C')
     await waitFor(() => seen.childStopped !== undefined)
 
     expect(seen.childStopped).toBe(true)
+    await waitFor(() => run.finishedC() !== undefined)
+    expect(run.finishedC()).toMatchObject({ outcome: 'stopped', stoppedBy: 'budget' })
   })
 
   // Breaks when any stop of the goal stops its children (spec §11.4: only a used-up budget does).
@@ -384,15 +390,17 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel(async (call) => {
       if (call.userText.includes('TASK-B'))
         return call.lastText.includes('TASK-B')
-          ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)]
+          ? assistantReply([toolCallPart('work_1', 'work')], 'toolUse', 5_000, 0)
           : reply('LATE', 10, 0)
-      if (round(call) === 1) return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
-      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
+      if (round(call) === 1) return assistantReply([bg('call_b', 'TASK-B')], 'toolUse', 10, 0)
+      if (call.lastRole === 'toolResult' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
         await work.reached
-        return [
-          toolCallPart('call_stop', 'stop_subagent', { id: host.subagents[0].sessionId }),
-          finish('tool-calls', 10, 0)
-        ]
+        return assistantReply(
+          [toolCallPart('call_stop', 'stop_subagent', { id: host.subagents[0].sessionId })],
+          'toolUse',
+          10,
+          0
+        )
       }
       return reply(`working ${calls.length}`, 10, 0)
     })
@@ -441,16 +449,18 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel(async (call) => {
       if (call.userText.includes('TASK-B'))
         return call.lastText.includes('TASK-B')
-          ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)]
+          ? assistantReply([toolCallPart('work_1', 'work')], 'toolUse', 5_000, 0)
           : reply('LATE', 10, 0)
-      if (round(call) === 1) return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
-      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
+      if (round(call) === 1) return assistantReply([bg('call_b', 'TASK-B')], 'toolUse', 10, 0)
+      if (call.lastRole === 'toolResult' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
         await started.reached
         user.stopSubagent!(host.subagents[0].sessionId)
-        return [
-          toolCallPart('call_stop', 'stop_subagent', { id: host.subagents[0].sessionId }),
-          finish('tool-calls', 10, 0)
-        ]
+        return assistantReply(
+          [toolCallPart('call_stop', 'stop_subagent', { id: host.subagents[0].sessionId })],
+          'toolUse',
+          10,
+          0
+        )
       }
       return reply(`working ${calls.length}`, 10, 0)
     })
@@ -479,8 +489,8 @@ describe('goal and background subagents', () => {
       if (call.userText.includes('TASK-B')) return reply('REPORT-B', 5_000, 0)
       if (call.userText.includes('TASK-A')) return reply('REPORT-A', 10, 0)
       if (isNotice(call) && call.lastRole === 'user' && ++notified === 1)
-        return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls', 10, 0)]
+        return assistantReply([bg('call_b', 'TASK-B')], 'toolUse', 10, 0)
+      if (round(call) === 1) return assistantReply([bg('call_a', 'TASK-A')], 'toolUse', 10, 0)
       return reply(`working ${calls.length}`, 10, 0)
     })
     const { session: s, host } = await openGoalSession(
@@ -515,17 +525,18 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel(async (call) => {
       if (call.userText.includes('TASK-B'))
         return call.lastText.includes('TASK-B')
-          ? [toolCallPart('work_1', 'work'), finish('tool-calls', 5_000, 0)]
+          ? assistantReply([toolCallPart('work_1', 'work')], 'toolUse', 5_000, 0)
           : reply('LATE', 10, 0)
-      if (round(call) === 1) return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
-      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
+      if (round(call) === 1) return assistantReply([bg('call_b', 'TASK-B')], 'toolUse', 10, 0)
+      if (call.lastRole === 'toolResult' && toolResults(call).at(-1)?.toolCallId === 'call_b') {
         await started.reached
         const id = host.subagents[0].sessionId
-        return [
-          toolCallPart('stop_1', 'stop_subagent', { id }),
-          toolCallPart('stop_2', 'stop_subagent', { id }),
-          finish('tool-calls', 10, 0)
-        ]
+        return assistantReply(
+          [toolCallPart('stop_1', 'stop_subagent', { id }), toolCallPart('stop_2', 'stop_subagent', { id })],
+          'toolUse',
+          10,
+          0
+        )
       }
       return reply(`working ${calls.length}`, 10, 0)
     })
@@ -551,7 +562,8 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return reply('REPORT-A', 500, 0)
       if (call.userText.includes('TASK-B')) return hung.wait(reply('REPORT-B'))
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), bg('call_b', 'TASK-B'), finish('tool-calls', 2_000, 0)]
+      if (round(call) === 1)
+        return assistantReply([bg('call_a', 'TASK-A'), bg('call_b', 'TASK-B')], 'toolUse', 2_000, 0)
       return reply('Waiting for the others.', 10, 0)
     })
     const live = await openGoalSession(model, port, { cwd, subagents })
@@ -577,12 +589,14 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return reply(call.lastText === 'GO-ON' ? 'REPORT-2' : 'REPORT-1', 5_000, 0)
       if (round(call) === 1)
-        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls', 10, 0)]
+        return assistantReply([subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' })], 'toolUse', 10, 0)
       if (round(call) === 2)
-        return [
-          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' }),
-          finish('tool-calls', 10, 0)
-        ]
+        return assistantReply(
+          [toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' })],
+          'toolUse',
+          10,
+          0
+        )
       return reply(`working ${calls.length}`, 10, 0)
     })
     const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 3 } }), {
@@ -606,12 +620,14 @@ describe('goal and background subagents', () => {
     const host = storingSubagentPort()
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A')) return reply(call.lastText === 'GO-ON' ? 'REPORT-2' : 'REPORT-1', 5_000, 0)
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls', 10, 0)]
+      if (round(call) === 1) return assistantReply([bg('call_a', 'TASK-A')], 'toolUse', 10, 0)
       if (call.lastRole === 'user' && call.lastText === 'Continue A')
-        return [
-          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' }),
-          finish('tool-calls', 10, 0)
-        ]
+        return assistantReply(
+          [toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'GO-ON' })],
+          'toolUse',
+          10,
+          0
+        )
       return reply(`working ${calls.length}`, 10, 0)
     })
     const { session: s, host: store } = await openGoalSession(model, goalPort({ defaults: { maxGoalRounds: 1 } }), {
@@ -645,9 +661,9 @@ describe('goal and background subagents', () => {
     const subagents = recordingSubagentPort().port
     const { model, calls } = routedModel(async (call) => {
       if (call.userText.includes('TASK-A')) return held.wait(reply('REPORT-A', 5_000, 0))
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls')]
+      if (round(call) === 1) return assistantReply([bg('call_a', 'TASK-A')], 'toolUse')
       // A finishes while round 1 still runs; the transcript is taken here, as a crash leaves it.
-      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_a') {
+      if (call.lastRole === 'toolResult' && toolResults(call).at(-1)?.toolCallId === 'call_a') {
         held.open()
         return hung.wait(reply('never'))
       }
@@ -685,12 +701,12 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel(async (call) => {
       if (call.userText.includes('TASK-A')) return heldA.wait(reply('REPORT-A'))
       if (call.userText.includes('TASK-B')) return reply('REPORT-B', 5_000, 0)
-      if (round(call) === 1) return [bg('call_a', 'TASK-A'), finish('tool-calls', 10, 0)]
+      if (round(call) === 1) return assistantReply([bg('call_a', 'TASK-A')], 'toolUse', 10, 0)
       // The resumed round's request ends with its round prompt and the notification that rode with it.
       if (trailingUserTexts(call).some((text) => text.startsWith('<goal_round>') && text.includes('Round: 2/')))
-        return [bg('call_b', 'TASK-B'), finish('tool-calls', 10, 0)]
+        return assistantReply([bg('call_b', 'TASK-B')], 'toolUse', 10, 0)
       // Round 2 goes on after B's launch; the app closes here, B's result not delivered.
-      if (call.lastRole === 'tool' && toolResults(call).at(-1)?.toolCallId === 'call_b')
+      if (call.lastRole === 'toolResult' && toolResults(call).at(-1)?.toolCallId === 'call_b')
         return hung.wait(reply('never'))
       return reply('Waiting.', 10, 0)
     })
@@ -764,10 +780,13 @@ describe('goal and background subagents', () => {
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-A'))
         return call.lastText.includes('TASK-A')
-          ? [toolCallPart('call_a', 'risky'), finish('tool-calls')]
+          ? assistantReply([toolCallPart('call_a', 'risky')], 'toolUse')
           : reply('REPORT-A')
       if (round(call) === 1)
-        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A', background }), finish('tool-calls')]
+        return assistantReply(
+          [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A', background })],
+          'toolUse'
+        )
       return reply(`working ${calls.length}`)
     })
     const recording = recordingSubagentPort(() => ({ extensionFactories: [denyAll] }))

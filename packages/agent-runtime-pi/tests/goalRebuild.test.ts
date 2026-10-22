@@ -1,10 +1,8 @@
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
-import type { SessionEntry } from '@earendil-works/pi-coding-agent'
-import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import type { Message } from '@earendil-works/pi-ai'
+import type { ExtensionFactory, SessionEntry } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createGoalExtension } from '@cherrystudio/agent-runtime-pi'
-
+import { createGoalExtension } from '../src'
 import {
   approvals,
   crashedEntries,
@@ -19,7 +17,8 @@ import {
   roundStart,
   snapshots,
   working
-} from './gatewayGoalSupport'
+} from './goalSupport'
+import { assistantReply, MODEL, plain, tempDir } from './sessionSupport'
 import {
   outputText,
   recordingSubagentPort,
@@ -27,8 +26,7 @@ import {
   subagentCall,
   toolCallPart,
   toolResults
-} from './gatewaySubagentSupport'
-import { finish, MODEL, plain, tempDir, textParts } from './gatewaySupport'
+} from './subagentSupport'
 
 describe('goal across sessions', () => {
   // Breaks when session_start restores the goal armed: the first message's settle would start round 2.
@@ -73,9 +71,9 @@ describe('goal across sessions', () => {
 
     const { session: s, host, calls } = await goalSession([working], goalPort(), { cwd, entries: crashed })
     await promptIdle(s, '/goal resume')
-    const roundsSent = (prompt: LanguageModelV3Prompt) => prompt.flatMap((message) => roundStart([message]) ?? [])
-    expect(roundStart(calls[0].prompt)).toBe(2)
-    expect(roundsSent(calls[0].prompt)).toEqual([1, 2])
+    const roundsSent = (prompt: Message[]) => prompt.flatMap((message) => roundStart([message]) ?? [])
+    expect(roundStart(calls[0].messages)).toBe(2)
+    expect(roundsSent(calls[0].messages)).toEqual([1, 2])
     await s.prompt('/goal')
     // Three rounds of one 17-token request each.
     expect(notices(host.entries).at(-1)).toContain('Rounds: 3/3 · Tokens: 51')
@@ -97,7 +95,7 @@ describe('goal across sessions', () => {
 
     expect(calls[0].tools?.map((tool) => tool.name) ?? []).not.toContain('get_goal')
     // Without the command, `/goal` reaches the model as text.
-    expect(JSON.stringify(calls[0].prompt.at(-1))).toContain('/goal')
+    expect(JSON.stringify(calls[0].messages.at(-1))).toContain('/goal')
     expect(notices(host.entries)).toEqual([])
     expect(lastSnapshot(host.entries)).toMatchObject({ phase: 'blocked', lastStop: { code: 'unsupported_model' } })
   })
@@ -130,10 +128,13 @@ describe('goal across sessions', () => {
       // Pi anchors its context estimate on reported usage, so report a prompt-sized input; ~1.2k tokens of
       // reply per round cross a 9k window with a 2k reserve after a few rounds.
       [
-        (prompt, call) => [
-          ...textParts('t', `step ${call}: ${'detail '.repeat(600)}`),
-          finish('stop', Math.ceil(JSON.stringify(prompt).length / 3.5), 1_200)
-        ]
+        (prompt, call) =>
+          assistantReply(
+            [{ type: 'text', text: `step ${call}: ${'detail '.repeat(600)}` }],
+            'stop',
+            Math.ceil(JSON.stringify(prompt).length / 3.5),
+            1_200
+          )
       ],
       goalPort({ defaults: { maxGoalRounds: 8 } }),
       {
@@ -144,9 +145,9 @@ describe('goal across sessions', () => {
     await promptIdle(s, '/goal Finish the OBJECTIVE-MARKER work')
 
     expect(host.entries.some((entry) => entry.type === 'compaction')).toBe(true)
-    const afterCompaction = calls.find((call) => JSON.stringify(call.prompt).includes('SUMMARY-MARKER'))!
-    expect(JSON.stringify(afterCompaction.prompt)).not.toContain('step 1:')
-    expect(JSON.stringify(afterCompaction.prompt.at(-1))).toContain('OBJECTIVE-MARKER')
+    const afterCompaction = calls.find((call) => JSON.stringify(call.messages).includes('SUMMARY-MARKER'))!
+    expect(JSON.stringify(afterCompaction.messages)).not.toContain('step 1:')
+    expect(JSON.stringify(afterCompaction.messages.at(-1))).toContain('OBJECTIVE-MARKER')
   })
 })
 
@@ -157,31 +158,35 @@ describe('goal inside a subagent', () => {
     const { model, calls } = routedModel((call) => {
       if (call.userText.includes('TASK-FORK')) {
         if (call.lastRole === 'user')
-          return [
-            toolCallPart('fork_get', 'get_goal'),
-            toolCallPart('fork_create', 'create_goal', { objective: 'A goal of the fork' }),
-            finish('tool-calls')
-          ]
+          return assistantReply(
+            [
+              toolCallPart('fork_get', 'get_goal'),
+              toolCallPart('fork_create', 'create_goal', { objective: 'A goal of the fork' })
+            ],
+            'toolUse'
+          )
         if (toolResults(call).at(-1)?.toolName === 'create_goal') {
           // Copy what get_goal returned, as a model would; a failed get_goal leaves nothing to copy.
-          const { goal } = readGoal(call.options.prompt)
-          return [
-            toolCallPart('fork_resume', 'update_goal', {
-              goal_id: goal?.id ?? 'none',
-              revision: goal?.revision ?? 0,
-              action: 'resume'
-            }),
-            finish('tool-calls')
-          ]
+          const { goal } = readGoal(call.options.messages)
+          return assistantReply(
+            [
+              toolCallPart('fork_resume', 'update_goal', {
+                goal_id: goal?.id ?? 'none',
+                revision: goal?.revision ?? 0,
+                action: 'resume'
+              })
+            ],
+            'toolUse'
+          )
         }
-        return [...textParts('r', 'FORK-REPORT'), finish('stop')]
+        return assistantReply([{ type: 'text', text: 'FORK-REPORT' }])
       }
       return call.lastRole === 'user'
-        ? [
-            subagentCall('call_fork', { description: 'Fork check', prompt: 'TASK-FORK', fork: true }),
-            finish('tool-calls')
-          ]
-        : [...textParts('d', 'The fork reported back.'), finish('stop')]
+        ? assistantReply(
+            [subagentCall('call_fork', { description: 'Fork check', prompt: 'TASK-FORK', fork: true })],
+            'toolUse'
+          )
+        : assistantReply([{ type: 'text', text: 'The fork reported back.' }])
     })
     const port = goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
     // A fork must get the parent's extensions (README "Subagents"), so the goal extension loads in it too.
@@ -195,12 +200,12 @@ describe('goal inside a subagent', () => {
     // get_goal and create_goal, update_goal, the report: no goal round follows in the fork.
     expect(forkCalls).toHaveLength(3)
     const goalResults = toolResults(forkCalls.at(-1)!).filter((part) => part.toolCallId.startsWith('fork_'))
-    expect(goalResults.map((part) => [part.toolName, part.output.type])).toEqual([
+    expect(goalResults.map((part) => [part.toolName, part.content[0].type])).toEqual([
       ['get_goal', 'text'],
       ['create_goal', 'text'],
       ['update_goal', 'text']
     ])
-    for (const part of goalResults) expect(outputText(part.output)).toMatch(/belong to the main agent/)
+    for (const part of goalResults) expect(outputText(part.content)).toMatch(/belong to the main agent/)
   })
 
   // Breaks when a fork subscribes to a single-listener approval port, displacing the parent's (its denial
@@ -208,15 +213,15 @@ describe('goal inside a subagent', () => {
   it("a fork does not take the parent's approval listener, which the parent releases at shutdown", async () => {
     const { port, tool, listening } = approvals('denied', { defaults: { maxGoalRounds: 2 } })
     const { model } = routedModel((call) => {
-      if (call.userText.includes('TASK-FORK')) return [...textParts('r', 'FORK-REPORT'), finish('stop')]
+      if (call.userText.includes('TASK-FORK')) return assistantReply([{ type: 'text', text: 'FORK-REPORT' }])
       if (call.lastRole === 'user')
-        return [
-          subagentCall('call_fork', { description: 'Fork check', prompt: 'TASK-FORK', fork: true }),
-          finish('tool-calls')
-        ]
+        return assistantReply(
+          [subagentCall('call_fork', { description: 'Fork check', prompt: 'TASK-FORK', fork: true })],
+          'toolUse'
+        )
       return toolResults(call).at(-1)?.toolName === 'subagent'
-        ? [toolCallPart('call_risky', 'risky'), finish('tool-calls')]
-        : [...textParts('d', 'Checked.'), finish('stop')]
+        ? assistantReply([toolCallPart('call_risky', 'risky')], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Checked.' }])
     })
     const subagents = recordingSubagentPort(() => ({ extensionFactories: [createGoalExtension(port)] }))
     const {

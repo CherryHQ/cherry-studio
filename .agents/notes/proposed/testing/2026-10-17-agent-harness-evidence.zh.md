@@ -308,10 +308,11 @@ OAR 基线 `141921ea5a818bd8b0a1c0c1e17a2593898dbefe` 的 `packages/oar/src/runt
 | [Pi 适配器](../../../../packages/agent-runtime-pi/tests/runtime.test.ts) | 多访问者共享内容身份；流式输出与 release 隔离；原生忙时拒绝；命令 preflight 与 follow-up 入队；错误原生身份拒绝；原生文件正常关闭和重开；经所有者执行的 child 续接及运行中 steering；child 重新绑定后关系稳定且观察持续；原生父方通知仅一次；shutdown 等待 child 接纳。 |
 | [Pi 原生会话](../../../../packages/agent-runtime-pi/tests/nativeSession.test.ts) | 原生提供商执行，以及调用方保有借入 model runtime 的所有权，不依赖 Cherry AI SDK 桥接。 |
 | [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts) | 当前视图与输入完成；忙时拒绝、去重、按会话撤回；后续状态读取失败不丢失接纳回执；owned child 独立观察及父访问释放后继续输入；关系稳定且父输出不变；SQLite 正常关闭重开；被动观察查询后显式 resume。 |
-| `src/main/ai/runtime/pi/gateway*.test.ts` 中的 Cherry 桥接测试 | 模型桥、原生历史、工具、压缩、goal、前后台子智能体、续接与结果交付。[子智能体停止测试](../../../../src/main/ai/runtime/pi/gatewaySubagentStop.test.ts)也覆盖通过所有者控制器中断 child thread。仅原生测试保留在 `packages/agent-runtime-pi/tests/`。 |
+| `packages/agent-runtime-pi/tests/` 中的原生行为测试 | 使用原生测试提供商，覆盖原生历史、工具、压缩、goal、前后台子智能体、续接与结果交付。[子智能体停止测试](../../../../packages/agent-runtime-pi/tests/subagentStop.test.ts)也覆盖通过所有者控制器中断 child thread。 |
+| [Cherry 网关集成](../../../../src/main/ai/runtime/pi/gatewayIntegration.test.ts) | 以本地回环上游验证真实网关执行、提供商选择、请求选项、取消与 SQLite 计费。 |
 | [校验范围选择](../../../../scripts/__tests__/validationPlan.test.ts)、[校验工作流](../../../../scripts/__tests__/validationWorkflow.test.ts) | 新包纳入影响范围选择；公共包变化包含两个适配器的消费者检查。 |
 
-[Pi 桥接 README](../../../../src/main/ai/runtime/pi/README.md)说明测试使用真实 AI SDK 流式处理和本地 HTTP 提供商。这不等于真实外部提供商验收、完整上游 SDK 测试套件或 Electron 验收。测试文件和历史通过记录不能替代这些边界。
+[Pi 集成 README](../../../../src/main/ai/runtime/pi/README.md)区分原生包测试、网关集成和桌面连接所有权测试。这些测试不代表真实外部提供商验收、完整上游 SDK 测试套件或 Electron 验收。测试文件和历史通过记录不能替代这些边界。
 
 #### 子智能体输入实现验证 — 2026-10-19
 

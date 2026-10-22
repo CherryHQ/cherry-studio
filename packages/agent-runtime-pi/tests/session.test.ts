@@ -5,15 +5,7 @@ import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import {
-  createTestSession,
-  finish,
-  lastAssistant,
-  scriptedModel,
-  gatewayModel,
-  tempDir,
-  textParts
-} from './gatewaySupport'
+import { assistantReply, createTestSession, lastAssistant, scriptedModel, tempDir } from './sessionSupport'
 
 const noopTool = (name: string) =>
   defineTool({
@@ -47,13 +39,12 @@ describe('createAgentRuntimeSession', () => {
         `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'loaded'); module.exports = () => {}`
       )
     }
-    const { model } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
-    const { upstream: port, requests } = gatewayModel(model)
-    const { session } = await createTestSession({ port, cwd, agentDir, builtinTools: ['read'] })
+    const { model, calls: requests } = scriptedModel([assistantReply([{ type: 'text', text: 'ok' }])])
+    const { session } = await createTestSession({ stream: model, cwd, agentDir, builtinTools: ['read'] })
     await session.prompt('hi')
 
-    expect(requests[0].system).toMatch(/^You are Cherry\./)
-    expect(requests[0].system).toContain('<cwd>')
+    expect(requests[0].systemPrompt).toMatch(/^You are Cherry\./)
+    expect(requests[0].systemPrompt).toContain('<cwd>')
     expect(JSON.stringify(requests[0])).not.toContain('MARKER')
     expect(existsSync(sentinel)).toBe(false)
   })
@@ -61,19 +52,18 @@ describe('createAgentRuntimeSession', () => {
   it('falls back to Pi’s own prompt, never a SYSTEM.md on disk, and keeps the host’s appended prompt', async () => {
     const agentDir = tempDir('agent')
     write(path.join(agentDir, 'SYSTEM.md'), 'MARKER system prompt')
-    const { model } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
-    const { upstream: port, requests } = gatewayModel(model)
+    const { model, calls: requests } = scriptedModel([assistantReply([{ type: 'text', text: 'ok' }])])
     const { session } = await createTestSession({
-      port,
+      stream: model,
       agentDir,
       systemPrompt: undefined,
       appendSystemPrompt: ['Answer in Chinese.']
     })
     await session.prompt('hi')
 
-    expect(requests[0].system).toContain('operating inside pi')
-    expect(requests[0].system).toContain('Answer in Chinese.')
-    expect(requests[0].system).not.toContain('MARKER')
+    expect(requests[0].systemPrompt).toContain('operating inside pi')
+    expect(requests[0].systemPrompt).toContain('Answer in Chinese.')
+    expect(requests[0].systemPrompt).not.toContain('MARKER')
   })
 
   it('loads workspace context files and host-enabled skills when asked', async () => {
@@ -81,10 +71,9 @@ describe('createAgentRuntimeSession', () => {
     write(path.join(cwd, 'AGENTS.md'), 'Use tabs in this repository.')
     const skillDir = path.join(tempDir('skills'), 'release-notes')
     write(path.join(skillDir, 'SKILL.md'), '---\nname: release-notes\ndescription: Drafts release notes\n---\nSteps')
-    const { model } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
-    const { upstream: port, requests } = gatewayModel(model)
+    const { model, calls: requests } = scriptedModel([assistantReply([{ type: 'text', text: 'ok' }])])
     const { session } = await createTestSession({
-      port,
+      stream: model,
       cwd,
       builtinTools: ['read'],
       contextFiles: true,
@@ -92,30 +81,28 @@ describe('createAgentRuntimeSession', () => {
     })
     await session.prompt('hi')
 
-    expect(requests[0].system).toContain('Use tabs in this repository.')
-    expect(requests[0].system).toContain('Drafts release notes')
+    expect(requests[0].systemPrompt).toContain('Use tabs in this repository.')
+    expect(requests[0].systemPrompt).toContain('Drafts release notes')
   })
 
   it('exposes only the requested built-in tools next to host and extension tools', async () => {
-    const { model } = scriptedModel([[...textParts('t', 'ok'), finish('stop')]])
-    const { upstream: port, requests } = gatewayModel(model)
+    const { model, calls: requests } = scriptedModel([assistantReply([{ type: 'text', text: 'ok' }])])
     const { session } = await createTestSession({
-      port,
+      stream: model,
       builtinTools: ['read'],
       tools: [noopTool('host_tool')],
       extensionFactories: [(pi) => pi.registerTool(noopTool('extension_tool'))]
     })
     await session.prompt('hi')
 
-    expect(Object.keys(requests[0].tools).sort()).toEqual(['extension_tool', 'host_tool', 'read'])
+    expect(requests[0].tools?.map((tool) => tool.name).sort()).toEqual(['extension_tool', 'host_tool', 'read'])
   })
 
-  it('keeps concurrent sessions of the same model on their own gateway endpoints', async () => {
+  it('keeps concurrent sessions of the same model on their own providers', async () => {
     const sessions = await Promise.all(
       ['A', 'B'].map(async (label) => {
-        const { model } = scriptedModel([[...textParts('t', `from ${label}`), finish('stop')]], 5)
-        const { upstream: port, requests } = gatewayModel(model)
-        const { session } = await createTestSession({ port })
+        const { model, calls: requests } = scriptedModel([assistantReply([{ type: 'text', text: `from ${label}` }])], 5)
+        const { session } = await createTestSession({ stream: model })
         return { label, session, requests }
       })
     )
@@ -130,10 +117,10 @@ describe('createAgentRuntimeSession', () => {
 
   it('dispose aborts the running turn and shuts extensions down', async () => {
     const chunks = Array.from({ length: 50 }, (_, i) => `chunk${i} `)
-    const { model } = scriptedModel([[...textParts('t', ...chunks), finish('stop')]], 30)
+    const { model } = scriptedModel([assistantReply([{ type: 'text', text: [...chunks].join('') }])], 30)
     const shutdowns: string[] = []
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       extensionFactories: [
         (pi) => {
           pi.on('session_shutdown', (event) => void shutdowns.push(event.reason))

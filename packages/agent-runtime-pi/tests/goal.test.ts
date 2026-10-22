@@ -1,4 +1,4 @@
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { Message } from '@earendil-works/pi-ai'
 import type { AgentSession, ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
@@ -20,10 +20,10 @@ import {
   say,
   snapshots,
   working
-} from './gatewayGoalSupport'
-import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './gatewaySubagentSupport'
-import { finish, plain, tempDir, textParts } from './gatewaySupport'
-import { textOf, toolResults } from './gatewayToolResults'
+} from './goalSupport'
+import { assistantReply, plain, tempDir } from './sessionSupport'
+import { recordingSubagentPort, routedModel, subagentCall, toolCallPart } from './subagentSupport'
+import { textOf, toolResults } from './toolResults'
 
 /** One round per command or resume, so command tests see a settled goal. */
 const confirmEachRound = goalPort({ defaults: { autonomy: () => 'confirm-each-round' } })
@@ -35,17 +35,18 @@ describe('goal tools', () => {
       host,
       calls
     } = await goalSession([
-      () => [
-        toolCallPart('c1', 'create_goal', { objective: 'Ship the docs gate', max_goal_rounds: 5 }),
-        finish('tool-calls')
-      ],
-      () => [toolCallPart('c2', 'get_goal', {}), finish('tool-calls')],
+      () =>
+        assistantReply(
+          [toolCallPart('c1', 'create_goal', { objective: 'Ship the docs gate', max_goal_rounds: 5 })],
+          'toolUse'
+        ),
+      () => assistantReply([toolCallPart('c2', 'get_goal', {})], 'toolUse'),
       () => say('Started.')
     ])
     await s.prompt('Please make every docs gate pass')
 
-    const created = readGoal(calls[1].prompt)
-    const read = readGoal(calls[2].prompt)
+    const created = readGoal(calls[1].messages)
+    const read = readGoal(calls[2].messages)
     expect(created.goal).toMatchObject({
       objective: 'Ship the docs gate',
       maxGoalRounds: 5,
@@ -58,25 +59,31 @@ describe('goal tools', () => {
 
   it('rejects a stale revision and returns the current view instead of applying the change', async () => {
     const { session: s, calls } = await goalSession([
-      () => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
-      (prompt) => [
-        toolCallPart('c2', 'update_goal', {
-          goal_id: readGoal(prompt).goal!.id,
-          revision: 1,
-          action: 'edit',
-          objective: 'g2'
-        }),
-        finish('tool-calls')
-      ],
-      (prompt) => [
-        toolCallPart('c3', 'update_goal', {
-          goal_id: readGoal(prompt).goal!.id,
-          revision: 1,
-          action: 'complete',
-          evidence: 'done'
-        }),
-        finish('tool-calls')
-      ],
+      () => assistantReply([toolCallPart('c1', 'create_goal', { objective: 'g' })], 'toolUse'),
+      (prompt) =>
+        assistantReply(
+          [
+            toolCallPart('c2', 'update_goal', {
+              goal_id: readGoal(prompt).goal!.id,
+              revision: 1,
+              action: 'edit',
+              objective: 'g2'
+            })
+          ],
+          'toolUse'
+        ),
+      (prompt) =>
+        assistantReply(
+          [
+            toolCallPart('c3', 'update_goal', {
+              goal_id: readGoal(prompt).goal!.id,
+              revision: 1,
+              action: 'complete',
+              evidence: 'done'
+            })
+          ],
+          'toolUse'
+        ),
       () => say('ok')
     ])
     await s.prompt('go')
@@ -86,13 +93,13 @@ describe('goal tools', () => {
     expect(textOf(stale)).toMatch(/stale/i)
     expect(textOf(stale)).toContain('"revision":2')
     expect(textOf(stale)).toContain('"objective":"g2"')
-    expect(readGoal(calls[3].prompt).goal).toMatchObject({ revision: 2, objective: 'g2', phase: 'active' })
+    expect(readGoal(calls[3].messages).goal).toMatchObject({ revision: 2, objective: 'g2', phase: 'active' })
   })
 
   it('refuses a second goal while one is unfinished', async () => {
     const { session: s } = await goalSession([
-      () => [toolCallPart('c1', 'create_goal', { objective: 'first' }), finish('tool-calls')],
-      () => [toolCallPart('c2', 'create_goal', { objective: 'second' }), finish('tool-calls')],
+      () => assistantReply([toolCallPart('c1', 'create_goal', { objective: 'first' })], 'toolUse'),
+      () => assistantReply([toolCallPart('c2', 'create_goal', { objective: 'second' })], 'toolUse'),
       () => say('ok')
     ])
     await s.prompt('go')
@@ -103,35 +110,39 @@ describe('goal tools', () => {
 
   it('treats empty strings and zero as omitted optional fields', async () => {
     const { session: s, calls } = await goalSession([
-      () => [
-        toolCallPart('c1', 'create_goal', { objective: 'g', max_goal_rounds: 0, budget_tokens: 0 }),
-        finish('tool-calls')
-      ],
-      (prompt) => [
-        toolCallPart('c2', 'update_goal', {
-          goal_id: readGoal(prompt).goal!.id,
-          revision: readGoal(prompt).goal!.revision,
-          action: 'pause',
-          objective: '',
-          blocked_reason: '',
-          max_goal_rounds: 0
-        }),
-        finish('tool-calls')
-      ],
+      () =>
+        assistantReply(
+          [toolCallPart('c1', 'create_goal', { objective: 'g', max_goal_rounds: 0, budget_tokens: 0 })],
+          'toolUse'
+        ),
+      (prompt) =>
+        assistantReply(
+          [
+            toolCallPart('c2', 'update_goal', {
+              goal_id: readGoal(prompt).goal!.id,
+              revision: readGoal(prompt).goal!.revision,
+              action: 'pause',
+              objective: '',
+              blocked_reason: '',
+              max_goal_rounds: 0
+            })
+          ],
+          'toolUse'
+        ),
       () => say('ok')
     ])
     await s.prompt('go')
-    expect(readGoal(calls[1].prompt).goal).toMatchObject({ maxGoalRounds: 100 })
-    expect(readGoal(calls[1].prompt).goal?.budget).toBeUndefined()
+    expect(readGoal(calls[1].messages).goal).toMatchObject({ maxGoalRounds: 100 })
+    expect(readGoal(calls[1].messages).goal?.budget).toBeUndefined()
 
     const [, paused] = toolResults(s)
     expect(paused.isError).toBe(false)
-    expect(readGoal(calls[2].prompt).goal).toMatchObject({ phase: 'paused' })
+    expect(readGoal(calls[2].messages).goal).toMatchObject({ phase: 'paused' })
   })
 
   it('rejects a negative round cap instead of treating it as omitted', async () => {
     const { session: s, host } = await goalSession([
-      () => [toolCallPart('c1', 'create_goal', { objective: 'g', max_goal_rounds: -1 }), finish('tool-calls')],
+      () => assistantReply([toolCallPart('c1', 'create_goal', { objective: 'g', max_goal_rounds: -1 })], 'toolUse'),
       () => say('ok')
     ])
     await s.prompt('go')
@@ -143,11 +154,12 @@ describe('goal tools', () => {
 
   it('refuses an edit that changes nothing and appends no snapshot', async () => {
     const { session: s, host } = await goalSession([
-      () => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
-      (prompt) => [
-        toolCallPart('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'edit' }),
-        finish('tool-calls')
-      ],
+      () => assistantReply([toolCallPart('c1', 'create_goal', { objective: 'g' })], 'toolUse'),
+      (prompt) =>
+        assistantReply(
+          [toolCallPart('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'edit' })],
+          'toolUse'
+        ),
       () => say('ok')
     ])
     await s.prompt('go')
@@ -164,17 +176,18 @@ describe('goal tools', () => {
       host,
       calls
     } = await goalSession([
-      () => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')],
-      (prompt) => [
-        toolCallPart('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'resume' }),
-        finish('tool-calls')
-      ],
+      () => assistantReply([toolCallPart('c1', 'create_goal', { objective: 'g' })], 'toolUse'),
+      (prompt) =>
+        assistantReply(
+          [toolCallPart('c2', 'update_goal', { goal_id: readGoal(prompt).goal!.id, revision: 1, action: 'resume' })],
+          'toolUse'
+        ),
       () => say('ok')
     ])
     await s.prompt('go')
     const [, resumed] = toolResults(s)
     expect(resumed.isError).toBe(false)
-    expect(readGoal(calls[2].prompt)).toMatchObject({ goal: { revision: 1, phase: 'active' }, activation: 'armed' })
+    expect(readGoal(calls[2].messages)).toMatchObject({ goal: { revision: 1, phase: 'active' }, activation: 'armed' })
     expect(snapshots(host.entries).filter((goal) => goal.roundsStarted === 0)).toHaveLength(1)
   })
 })
@@ -293,7 +306,7 @@ describe('/goal command', () => {
   // Breaks when the status prints the cost as a raw float sum, such as $0.000060599999999999996.
   it('shows the cost in the status text at a fixed precision', async () => {
     const { session: s, host } = await goalSession(
-      [() => [...textParts('t', 'done'), finish('stop', 40_000, 1_000)]],
+      [() => assistantReply([{ type: 'text', text: 'done' }], 'stop', 40_000, 1_000)],
       confirmEachRound
     )
     await promptIdle(s, '/goal Fix it')
@@ -419,8 +432,8 @@ describe('goal continuation', () => {
     await promptIdle(s, '/goal Keep working')
 
     // The command started the run itself: the round prompt is the request's only user message.
-    expect(calls[0].prompt.filter((message) => message.role === 'user')).toHaveLength(1)
-    expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, 2, 3])
+    expect(calls[0].messages.filter((message) => message.role === 'user')).toHaveLength(1)
+    expect(calls.map((call) => roundStart(call.messages))).toEqual([1, 2, 3])
     expect(rounds(host.entries).map((round) => round.round)).toEqual([1, 2, 3])
     expect(lastSnapshot(host.entries)).toMatchObject({ roundsStarted: 3 })
   })
@@ -461,7 +474,7 @@ describe('goal continuation', () => {
       }
     ]
   ])('leaves out a round prompt that never ran when %s, live and rebuilt', async (_name, stopper) => {
-    const roundsSent = (prompt: LanguageModelV3Prompt) => prompt.flatMap((message) => roundStart([message]) ?? [])
+    const roundsSent = (prompt: Message[]) => prompt.flatMap((message) => roundStart([message]) ?? [])
     const cwd = tempDir('cwd')
     const live = await goalSession([working], goalPort(), { cwd, laterExtensions: [stopper] })
     await promptIdle(live.session, '/goal Keep working')
@@ -473,8 +486,11 @@ describe('goal continuation', () => {
     const rebuilt = await goalSession([working], goalPort(), { cwd, entries })
     await promptIdle(rebuilt.session, 'what next?')
 
-    expect(roundsSent(live.calls[1].prompt)).toEqual([1])
-    expect(plain(rebuilt.calls[0].prompt)).toEqual(plain(live.calls[1].prompt))
+    expect(roundsSent(live.calls[1].messages)).toEqual([1])
+    const normalizeTimestamps = (messages: Message[]) => messages.map((message) => ({ ...message, timestamp: 0 }))
+    expect(plain(normalizeTimestamps(rebuilt.calls[0].messages))).toEqual(
+      plain(normalizeTimestamps(live.calls[1].messages))
+    )
   })
 
   // Breaks when the verifier is given a round prompt that never ran, as if the model had been asked
@@ -495,11 +511,11 @@ describe('goal continuation', () => {
     const { session: s } = await goalSession(
       [
         working,
-        () => [toolCallPart('g', 'get_goal', {}), finish('tool-calls')],
+        () => assistantReply([toolCallPart('g', 'get_goal', {})], 'toolUse'),
         (prompt) => {
           const { goal } = readGoal(prompt)
           const args = { goal_id: goal!.id, revision: goal!.revision, action: 'complete', evidence: 'done' }
-          return [toolCallPart('u', 'update_goal', args), finish('tool-calls')]
+          return assistantReply([toolCallPart('u', 'update_goal', args)], 'toolUse')
         },
         () => say('Not yet.')
       ],
@@ -541,7 +557,7 @@ describe('goal continuation', () => {
 
     expect(rounds(host.entries).map((round) => round.round)).toEqual([1, 2])
     expect(calls).toHaveLength(2)
-    expect(JSON.stringify(calls[1].prompt)).toContain('NOTE-MARKER')
+    expect(JSON.stringify(calls[1].messages)).toContain('NOTE-MARKER')
   })
 
   // Breaks when the goal yields to any pending message: Pi does not continue for an extension's
@@ -582,8 +598,8 @@ describe('goal continuation', () => {
     user.session = opened.session
     await promptIdle(opened.session, '/goal Keep working')
 
-    expect(opened.calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined, 2, 3])
-    expect(JSON.stringify(opened.calls[1].prompt.at(-1))).toContain('a question from the user')
+    expect(opened.calls.map((call) => roundStart(call.messages))).toEqual([1, undefined, 2, 3])
+    expect(JSON.stringify(opened.calls[1].messages.at(-1))).toContain('a question from the user')
     expect(lastSnapshot(opened.host.entries)).toMatchObject({ roundsStarted: 3, lastStop: { code: 'round_limit' } })
   })
 
@@ -593,7 +609,7 @@ describe('goal continuation', () => {
     askAtTurnEnd(s, 1)
     await promptIdle(s, '/goal Keep working')
 
-    expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined, 2])
+    expect(calls.map((call) => roundStart(call.messages))).toEqual([1, undefined, 2])
     // Two round replies of 17 tokens (`finish`: 10 + 2 cached input, 5 output); the question's reply is not the goal's.
     expect(lastSnapshot(host.entries)).toMatchObject({
       roundsStarted: 2,
@@ -627,7 +643,7 @@ describe('goal continuation', () => {
     askAtTurnEnd(s, 1)
     await promptIdle(s, '/goal Keep working')
 
-    expect(calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined])
+    expect(calls.map((call) => roundStart(call.messages))).toEqual([1, undefined])
     expect(lastSnapshot(host.entries)).toMatchObject({
       roundsStarted: 1,
       phase: 'paused',
@@ -654,7 +670,7 @@ describe('goal continuation', () => {
     user.session = opened.session
     await promptIdle(opened.session, '/goal Keep working')
 
-    expect(opened.calls.map((call) => roundStart(call.prompt))).toEqual([1, undefined, 2])
+    expect(opened.calls.map((call) => roundStart(call.messages))).toEqual([1, undefined, 2])
     expect(lastSnapshot(opened.host.entries)).toMatchObject({
       roundsStarted: 2,
       lastStop: { code: 'paused_each_round' }
@@ -663,7 +679,7 @@ describe('goal continuation', () => {
 
   it('a goal the model creates in a human turn continues in that run', async () => {
     const { session: s, host } = await goalSession(
-      [() => [toolCallPart('c1', 'create_goal', { objective: 'g' }), finish('tool-calls')], working],
+      [() => assistantReply([toolCallPart('c1', 'create_goal', { objective: 'g' })], 'toolUse'), working],
       goalPort({ defaults: { maxGoalRounds: 2 } })
     )
     await s.prompt('please do g')
@@ -679,7 +695,7 @@ describe('goal continuation', () => {
       host,
       held
     } = await heldGoalSession(goalPort({ defaults: { maxGoalRounds: 2 } }), {}, [
-      () => [toolCallPart('look', 'get_goal', {}), finish('tool-calls')],
+      () => assistantReply([toolCallPart('look', 'get_goal', {})], 'toolUse'),
       working
     ])
     const run = s.prompt('hello')
@@ -689,7 +705,7 @@ describe('goal continuation', () => {
     await run
 
     // The human turn's tool call and reply, then rounds 1 and 2.
-    expect(held.calls.map((call) => roundStart(call.prompt))).toEqual([undefined, undefined, 1, 2])
+    expect(held.calls.map((call) => roundStart(call.messages))).toEqual([undefined, undefined, 1, 2])
     expect(rounds(host.entries).map((round) => round.round)).toEqual([1, 2])
   })
 
@@ -697,17 +713,19 @@ describe('goal continuation', () => {
   it('refuses create, edit, pause and resume in a goal round', async () => {
     const { session: s } = await goalSession(
       [
-        () => [toolCallPart('g', 'get_goal', {}), finish('tool-calls')],
+        () => assistantReply([toolCallPart('g', 'get_goal', {})], 'toolUse'),
         (prompt) => {
           const { goal } = readGoal(prompt)
           const ref = { goal_id: goal!.id, revision: goal!.revision }
-          return [
-            toolCallPart('create', 'create_goal', { objective: 'another' }),
-            toolCallPart('edit', 'update_goal', { ...ref, action: 'edit', objective: 'changed' }),
-            toolCallPart('pause', 'update_goal', { ...ref, action: 'pause' }),
-            toolCallPart('resume', 'update_goal', { ...ref, action: 'resume' }),
-            finish('tool-calls')
-          ]
+          return assistantReply(
+            [
+              toolCallPart('create', 'create_goal', { objective: 'another' }),
+              toolCallPart('edit', 'update_goal', { ...ref, action: 'edit', objective: 'changed' }),
+              toolCallPart('pause', 'update_goal', { ...ref, action: 'pause' }),
+              toolCallPart('resume', 'update_goal', { ...ref, action: 'resume' })
+            ],
+            'toolUse'
+          )
         },
         () => say('ok')
       ],
@@ -727,11 +745,11 @@ describe('goal continuation', () => {
   // Breaks when turn_end counts only the assistant message's usage: the parent's 17 tokens per reply never reach the budget.
   it('counts the usage a subagent result reports toward the goal budget', async () => {
     const { model } = routedModel(({ userText, lastRole }) => {
-      if (userText.includes('TASK-SUB')) return [...textParts('r', 'REPORT'), finish('stop', 1_000, 500)]
-      if (lastRole !== 'user') return [...textParts('d', 'Delegated the check.'), finish('stop')]
+      if (userText.includes('TASK-SUB')) return assistantReply([{ type: 'text', text: 'REPORT' }], 'stop', 1_000, 500)
+      if (lastRole !== 'user') return assistantReply([{ type: 'text', text: 'Delegated the check.' }])
       return userText.includes('Do not start new work')
-        ? [...textParts('w', 'Summary: the check ran in a subagent.'), finish('stop')]
-        : [subagentCall('sub_1', { description: 'Check', prompt: 'TASK-SUB' }), finish('tool-calls')]
+        ? assistantReply([{ type: 'text', text: 'Summary: the check ran in a subagent.' }])
+        : assistantReply([subagentCall('sub_1', { description: 'Check', prompt: 'TASK-SUB' })], 'toolUse')
     })
     const { session: s, host } = await openGoalSession(
       model,
