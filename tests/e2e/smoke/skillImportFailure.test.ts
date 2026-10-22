@@ -4,7 +4,6 @@ import path from 'node:path'
 import { _electron as electron } from '@playwright/test'
 import AdmZip from 'adm-zip'
 
-import { selectSidebarApp } from '../regression/navigation'
 import { expect, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend<{ isolatedProfile: string }>({
@@ -81,7 +80,7 @@ test('local skill import reports complete Chinese failures and installs valid ZI
         fixtureRoot,
         profile: isolatedProfile,
         isolation:
-          'Unique absolute profile created before launch; CS_DEV_PROFILE_ROOT overrides the inherited profile; removed after Electron closes. No language changes or model/API calls.',
+          'Unique absolute profile created before launch; CS_DEV_PROFILE_ROOT overrides the inherited profile; removed after Electron closes. Only app.language in this isolated profile is pinned to zh-CN; no model/API calls.',
         archives: archives.map(({ name, entry }) => ({ name, entry })),
         directories,
         names
@@ -152,12 +151,28 @@ test('local skill import reports complete Chinese failures and installs valid ZI
   }
 
   try {
+    const shell = page.locator('[data-ui~="app.shell"]').first()
+    const onboarding = page.locator('[data-onboarding-language-select]')
     const skipOnboarding = page.getByRole('button', { name: '稍后设置', exact: true })
-    const shell = page.locator('[data-ui="app.shell"]').first()
-    await expect(shell.or(skipOnboarding).filter({ visible: true }).first()).toBeVisible({ timeout: 120_000 })
-    if (await skipOnboarding.isVisible()) await skipOnboarding.click({ timeout: 15_000 })
+    const settingsButton = shell.getByRole('button', { name: '设置', exact: true }).filter({ visible: true }).first()
+
+    // Host language decides the first screen (preference is null on a fresh profile), so pin it before
+    // asserting any localized text: this reaches the main-process locale as well.
+    await expect(shell.or(onboarding).filter({ visible: true }).first()).toBeVisible({ timeout: 120_000 })
+    await page.evaluate(() => window.api.preference.set('app.language', 'zh-CN'))
+    expect(await page.evaluate(() => window.api.preference.get('app.language'))).toBe('zh-CN')
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await expect(shell.or(onboarding).filter({ visible: true }).first()).toBeVisible({ timeout: 120_000 })
+    expect(await page.evaluate(() => window.api.preference.get('app.language'))).toBe('zh-CN')
+
+    await expect(skipOnboarding).toBeVisible({ timeout: 30_000 })
+    await expect(skipOnboarding).toBeEnabled({ timeout: 30_000 })
+    await skipOnboarding.click({ timeout: 30_000 })
+    await expect(onboarding).toBeHidden({ timeout: 60_000 })
     await expect(shell).toBeVisible({ timeout: 60_000 })
-    await selectSidebarApp(page, '设置')
+
+    await expect(settings.or(settingsButton).filter({ visible: true }).first()).toBeVisible({ timeout: 30_000 })
+    if (!(await settings.isVisible())) await settingsButton.click({ timeout: 30_000 })
     await expect(settings).toBeVisible({ timeout: 30_000 })
     await settings
       .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
