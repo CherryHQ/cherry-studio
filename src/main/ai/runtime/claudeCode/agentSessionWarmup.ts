@@ -796,11 +796,11 @@ function deriveRouteFacts(
           haiku: slotModelId(haikuRef)
         },
         budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
-        	providerId: ref.providerId,
-        	modelId: ref.modelId,
-        	contextWindow: ref.contextWindow,
-        	maxOutputTokens: ref.model?.maxOutputTokens,
-        	trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null, 'gateway-forwarding')
+          providerId: ref.providerId,
+          modelId: ref.modelId,
+          contextWindow: ref.contextWindow,
+          maxOutputTokens: ref.model?.maxOutputTokens,
+          trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null, 'gateway-forwarding')
         })),
         primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel, 'gateway-forwarding'),
         usageModels: []
