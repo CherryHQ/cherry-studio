@@ -2209,13 +2209,31 @@ describe('VoiceSessionService file and admission contract', () => {
     ])
   })
 
+  it.each(['timeout', 'model_load_failed'] as const)(
+    'logs the %s failure with its operation identity',
+    async (reason) => {
+      const speech = { sessionId: randomUUID(), requestId: randomUUID(), text: 'private-text', voice: 'exact' }
+      native.speech.mockRejectedValueOnce(new VoiceRuntimeError(reason))
+
+      await expect(service.speech(a, speech)).rejects.toMatchObject({ reason })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Voice operation failed',
+        expect.objectContaining({
+          sessionId: speech.sessionId,
+          requestId: speech.requestId,
+          operation: 'speech',
+          reason
+        })
+      )
+    }
+  )
+
   it('never logs source text, transcript, bytes or physical paths on success and failure', async () => {
     const input = await recording()
     await service.transcribe(a, input)
     const speech = { sessionId: randomUUID(), requestId: randomUUID(), text: 'private-text', voice: 'exact' }
     native.speech.mockRejectedValueOnce(new Error('private-text private-transcript ' + root))
     await expect(service.speech(a, speech)).rejects.toMatchObject({ reason: 'operation_failed' })
-    mockMainLoggerService.warn.mockClear()
     const terminal = await recording()
     vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValueOnce(
       Object.assign(new Error('private-text private-transcript ' + root), { code: 'EPERM', path: root, content: webm })
