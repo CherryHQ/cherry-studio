@@ -113,8 +113,7 @@ export interface ArtifactPaneProps {
 
 export { FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES } from '@renderer/hooks/useFileEditSession'
 
-/** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
-const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = `${ARTIFACT_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MiB`
 const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
 const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
 const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])

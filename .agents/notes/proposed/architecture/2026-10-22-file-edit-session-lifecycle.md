@@ -299,7 +299,7 @@ type ObservationEvent = ObservationLease & (
 | Route/event | Input → output | Contract |
 | --- | --- | --- |
 | `file.edit.open` | `{ handle }` → `EditResource` | Resolve and pin canonical address and locator; register owner before returning; does not create a missing file |
-| `file.edit.read` | `{ editId }` → `EditRead` | Validate pinned target; bounded consistent binary read with mandatory hash of returned bytes; enforce the existing 2 MiB editing limit before and during bounded reading, including file growth after stat |
+| `file.edit.read` | `{ editId }` → `EditRead` | Validate pinned target; bounded consistent binary read with mandatory hash of returned bytes; enforce the 8 MiB editing limit before and during bounded reading, including file growth after stat |
 | `file.edit.write` | `WriteRequest` → `FileWriteOutcome` | Register sequence before awaiting; validate target plus version/hash, commit once, record terminal outcome before replying |
 | `file.edit.settle_write` | `{ editId, sequence }` → `FileWriteOutcome` | Wait for a registered operation; if not started, record a terminal fence that rejects a late request for that sequence |
 | `file.edit.close` | `{ editId }` → void | Retire lease, reject new requests, settle submitted writes, then release outcome records; idempotent for its owner |

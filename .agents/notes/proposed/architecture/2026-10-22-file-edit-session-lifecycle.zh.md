@@ -299,7 +299,7 @@ type ObservationEvent = ObservationLease & (
 | 路由／事件 | 输入 → 输出 | 契约 |
 | --- | --- | --- |
 | `file.edit.open` | `{ handle }` → `EditResource` | 解析并固定规范地址与定位信息；返回前登记所有者；不创建缺失文件 |
-| `file.edit.read` | `{ editId }` → `EditRead` | 验证固定目标；有界的一致二进制读取，强制提供返回字节的哈希；Main 在读取前及有界读取期间执行现有 2 MiB 编辑上限，包括 stat 后文件增大的情况 |
+| `file.edit.read` | `{ editId }` → `EditRead` | 验证固定目标；有界的一致二进制读取，强制提供返回字节的哈希；Main 在读取前及有界读取期间执行8 MiB 编辑上限，包括 stat 后文件增大的情况 |
 | `file.edit.write` | `WriteRequest` → `FileWriteOutcome` | await 前登记序号；验证目标和版本／哈希，仅提交一次，回复前记录终态 |
 | `file.edit.settle_write` | `{ editId, sequence }` → `FileWriteOutcome` | 等待已登记操作；尚未开始则记录终态屏障，拒绝该序号晚到的请求 |
 | `file.edit.close` | `{ editId }` → void | 退役 lease、拒绝新请求、等待已提交写入结束，再释放结果记录；对其所有者幂等 |

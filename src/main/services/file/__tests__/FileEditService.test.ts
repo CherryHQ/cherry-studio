@@ -12,7 +12,6 @@ import { BaseService } from '@main/core/lifecycle'
 import { hashContent } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/ipc/schemas/fileEdit'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FileEditService } from '../FileEditService'
@@ -264,6 +263,33 @@ describe('FileEditService persistence contract', () => {
     expect(fileEntryService.getById(entry.id)).toMatchObject({ contentHash: null })
   })
 
+  it.each(['path', 'entry'] as const)('edits and reopens an 8 MiB %s file without losing bytes', async (kind) => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'large.md'))
+    const original = Buffer.alloc(8 * 1024 * 1024, 'a')
+    await writeFile(target, original)
+    const entry =
+      kind === 'entry' ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' }) : undefined
+    const handle: FileHandle = entry ? { kind: 'entry', entryId: entry.id } : { kind: 'path', path: target }
+    const { resource, snapshot } = await open(handle)
+    expect(Buffer.from(snapshot.data).equals(original)).toBe(true)
+    expect(snapshot.baseline.contentHash).toBe(hashContent(original))
+
+    const edited = Buffer.from(original)
+    edited.write('edited', edited.length - 6)
+    const outcome = await service.write(owner, {
+      editId: resource.editId,
+      sequence: 1,
+      expected: snapshot.baseline,
+      data: edited
+    })
+    expect(outcome).toMatchObject({ kind: 'committed', baseline: { contentHash: hashContent(edited) } })
+    await service.close(owner, resource.editId)
+    expect((await readFile(target)).equals(edited)).toBe(true)
+    const reopened = await open(handle)
+    expect(Buffer.from(reopened.snapshot.data).equals(edited)).toBe(true)
+    expect(reopened.snapshot.baseline.contentHash).toBe(hashContent(edited))
+  })
+
   it('does not create a missing file or return an editable empty oversized snapshot', async () => {
     const { resource, snapshot } = await open()
     await rm(resource.path)
@@ -277,7 +303,7 @@ describe('FileEditService persistence contract', () => {
       })
     ).toMatchObject({ kind: 'not-committed', code: fileErrorCodes.EDIT_MISSING })
     await expect(readFile(resource.path)).rejects.toMatchObject({ code: 'ENOENT' })
-    await writeFile(resource.path, Buffer.alloc(FILE_EDIT_MAX_SIZE_BYTES + 1))
+    await writeFile(resource.path, Buffer.alloc(8 * 1024 * 1024 + 1))
     await expect(service.read(owner, resource.editId)).rejects.toMatchObject({ code: fileErrorCodes.EDIT_UNSUPPORTED })
   })
 })

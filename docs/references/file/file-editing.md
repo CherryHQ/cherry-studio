@@ -38,7 +38,7 @@ A path and an entry resolving to the same permitted canonical address share a re
 | `file.edit.settle_write` | Recover a terminal receipt; fence a sequence that has not started |
 | `file.edit.close` | Stop admission, settle accepted reads/writes, then release the lease and temporary-entry retention |
 
-The existing 2 MiB limit applies before and during loading. An already-open editor can grow beyond that limit. The codec preserves UTF-8 BOM and LF/CRLF, and rejects unsupported encoding or mixed line endings. Opening or changing editor mode does not serialize an untouched rich document back to disk.
+The 8 MiB limit applies before and during loading. An already-open editor can grow beyond that limit. The codec preserves UTF-8 BOM and LF/CRLF, and rejects unsupported encoding or mixed line endings. Opening or changing editor mode does not serialize an untouched rich document back to disk.
 
 Writes return `committed`, `not-committed`, or `not-started`. A committed receipt includes the new baseline and `metadataRecoveryPending`; a metadata finalization failure must not replay committed bytes. If transport loses a receipt, the renderer settles the same sequence before issuing another write. It retains the attempt and draft while the result remains unknown.
 
