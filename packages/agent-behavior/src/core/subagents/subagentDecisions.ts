@@ -1,7 +1,7 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { booleanField, fieldsOf, stringField } from '../args'
-import { type ChildSpec, type Effect, type Step, type TurnInput, turnInput, type TxOp } from '../decisions'
+import { type Effect, type Step, type TurnInput, turnInput, type TxOp } from '../decisions'
 import { sha256Hex } from '../digest'
 import { ensureDriver, ensureReport, type ReportInput } from '../driver/jobs'
 import type {
@@ -87,7 +87,7 @@ export type SpawnDecision =
     }
 
 /**
- * `subagent` (D15): foreground or background is fixed here (§15 Q1). A background spawn creates its report job in
+ * `subagent` (D15): the first run's foreground or background boundary is fixed here. A background spawn creates its report job in
  * the same commit; a foreground one is messaged and awaited by the calling tool. Only the last assistant entry can
  * hold the running call, so a fork starts there (Z1). Once a stop is recorded for the current turn nothing is spawned:
  * that stop already took the turn's children.
@@ -144,25 +144,19 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
 export type MessageDecision =
   | { readonly kind: 'refused'; readonly text: string }
   | { readonly kind: 'queued'; readonly child: ThreadId; readonly text: string }
-  /**
-   * The message starts run `run` in the background. `child` is unset when a finished foreground child was forked into
-   * a new background child (S-j): read it from `TransactResult.spawned` under `key`. Reply with `continuedText(from, child)`.
-   */
+  /** The message starts the existing child's next run in the background. */
   | {
       readonly kind: 'continued'
-      readonly from: string
-      readonly child?: ThreadId
-      readonly key: Key
+      readonly child: ThreadId
       readonly run: number
     }
   /** Run `run` is being stopped: await `helpers.awaitAnswer(child, run, key)`, then decide again (its end is recorded). */
   | { readonly kind: 'stopping'; readonly child: ThreadId; readonly run: number; readonly key: Key }
 
 /**
- * `message_subagent` (D17, S-j): a running child reads the message after its current step; a finished one continues
- * in the background as its next run. A finished background child continues in place; a finished foreground child is
- * forked from its whole history into a new background child, and later calls on the old id reach the new one
- * (`resolveChild`). A message to a run being stopped waits for that stop to be recorded; a child the user stopped
+ * `message_subagent` (D17): a running child reads the message after its current step; a finished one continues
+ * in the background as its next run, keeping the same child id and history. A message to a run being stopped
+ * waits for that stop to be recorded; a child the user stopped
  * cannot be continued. A steer only joins a running run (G-C5): one whose first input has not arrived refuses it, and
  * when the run ends before taking it the caller records that (`decideSteerWithdrawn`) and decides again. A steer is
  * recorded before it is sent, and a rerun sends that steer again under its key instead of deciding afresh: the
@@ -179,7 +173,7 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
   const continued = facts.history.find((entry) => entry.kind === 'record' && entry.key === key)
   if (continued?.kind === 'record' && continued.record.type === 'subagent-run') {
     const { sessionId, run } = continued.record.value
-    return refuse({ kind: 'continued', from: id, child: sessionId, key, run })
+    return refuse({ kind: 'continued', child: sessionId, run })
   }
   const sent = pendingSteer(facts, call)
   if (sent) return steer(facts, call, sent.sessionId, sent.run, message)
@@ -206,6 +200,8 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
   if (turnStopping(facts.history)) return refuse({ kind: 'refused', text: TURN_STOPPED })
   const refusal = backgroundRefusal(facts, inputs)
   if (refusal) return refuse({ kind: 'refused', text: refusal })
+  if (!facts.children.has(child))
+    return refuse({ kind: 'refused', text: `Subagent ${child} cannot be continued: its history is not available.` })
   const interrupted = latest.outcome === 'interrupted' || latest.outcome === 'aborted'
   const text = interrupted ? `${RECOVERY_HINT}\n\n${message}` : message
   const origin: SubagentOrigin = {
@@ -213,22 +209,6 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
     fork: latest.fork,
     description: latest.description,
     modelKey: latest.modelKey
-  }
-  if (!latest.background) {
-    const at = facts.children.get(child)?.lastItem
-    if (!at)
-      return refuse({ kind: 'refused', text: `Subagent ${child} cannot be continued: its history is not available.` })
-    const spec: ChildSpec = {
-      boundary: 'background',
-      fork: { from: child, at },
-      origin,
-      record: { ...origin, background: true, run: 1, status: 'running' }
-    }
-    return {
-      ops: [{ type: 'spawn-child', spec, key }, ensureReport(facts, { runKey: key, run: 1, text })],
-      effects: [],
-      result: { kind: 'continued', from: id, key, run: 1 }
-    }
   }
   const run = nextRun(facts.history, child)
   const record: SubagentRunRecord = { ...origin, sessionId: child, background: true, run, status: 'running' }
@@ -239,7 +219,7 @@ export function decideMessage(facts: Facts, inputs: CallInputs, call: CallKey): 
       ensureReport(facts, report)
     ],
     effects: [],
-    result: { kind: 'continued', from: id, child, key, run }
+    result: { kind: 'continued', child, run }
   }
 }
 

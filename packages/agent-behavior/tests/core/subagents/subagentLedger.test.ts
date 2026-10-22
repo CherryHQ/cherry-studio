@@ -52,13 +52,14 @@ describe('subagent ledger', () => {
     expect(suppressed([stop, user()])).toBe(false)
   })
 
-  // Catches a message to a forwarded id reaching the old child instead of the one that continues it (S-j).
-  it('forwards an old id to the newest child of the same call', () => {
+  // Catches a shared tool origin merging two distinct child identities.
+  it('resolves each child by its own id even when the tool origin is shared', () => {
     const ledgers = readSubagents([
       finished('old', { parentToolCallId: 'k' }),
       runEntry(run('new', { parentToolCallId: 'k' }))
     ])
-    expect(resolveChild(ledgers, 'old')?.child).toBe('new')
+    expect(resolveChild(ledgers, 'old')?.child).toBe('old')
+    expect(resolveChild(ledgers, 'new')?.child).toBe('new')
     expect(resolveChild(ledgers, 'nope')).toBeUndefined()
   })
 

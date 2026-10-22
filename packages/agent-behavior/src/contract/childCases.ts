@@ -105,6 +105,77 @@ export const childCases: readonly ContractCase[] = [
       same(bgEnd, { outcome: 'completed', text: 'bg done' }, 'the background child must finish its run')
     }
   },
+  // Catches a completed foreground child's background continuation inheriting its first run's cancellation owner.
+  {
+    name: 'a foreground child continues in place without inheriting its completed run ownership',
+    covers: [
+      'ledger.transact',
+      'ledger.read',
+      'ledger.modelContext',
+      'helpers.message',
+      'helpers.awaitAnswer',
+      'helpers.stop',
+      'turns.stop'
+    ],
+    needs: [],
+    async run(open) {
+      const hold = holds()
+      let child!: ThreadId
+      const h = await open((p) => {
+        p.tools.register(hold.tool)
+        p.tools.register({
+          ...toolBase('spawner'),
+          async run(call, ports) {
+            const { spawned } = await ports.ledger.transact(call.thread, () =>
+              step(
+                [{ type: 'spawn-child', spec: childSpec('foreground', 'continue-fg'), key: key('continue-fg') }],
+                null
+              )
+            )
+            child = spawned[0].child
+            h.script(child, [
+              reply('first answer'),
+              callTool('hold', { id: 'continued-child' }),
+              reply('second answer')
+            ])
+            await ports.helpers.message(child, message('first task'), key('fg-first'))
+            return { text: (await ports.helpers.awaitAnswer(child, 1, key('fg-first'))).text, isError: false }
+          }
+        })
+      })
+      const parent = await h.createThread()
+      h.script(parent, [callTool('spawner', {}), callTool('hold', { id: 'parent' }), reply('parent done')])
+      await h.sendUser(parent, 'go')
+      await hold.started('parent')
+      const original = (await read(h, child)).history.map((entry) => entry.id)
+      const send = () => h.withCall(parent, (p) => p.helpers.message(child, message('more'), key('fg-second')))
+      same(await send(), { run: 2, status: 'started' }, 'continuation must start the next run on the same child')
+      await hold.started('continued-child')
+      await h.withCall(parent, (p) => p.turns.stop(parent, 'user'))
+      await h.withCall(parent, (p) => p.helpers.stop(child, 1))
+      const facts = await read(h, parent)
+      same([...facts.children.keys()], [child], 'continuation must not create another child')
+      check(
+        facts.children.get(child)?.running === true,
+        'neither the old owner nor a stale stop may stop the continuation'
+      )
+      same(facts.children.get(child)?.runUsage.length, 2, 'continuation must keep the run sequence')
+      same(
+        (await read(h, child)).history.slice(0, original.length).map((entry) => entry.id),
+        original,
+        'continuation must keep the original history entries'
+      )
+      const context = await h.withCall(child, (p) => p.ledger.modelContext(child))
+      check(JSON.stringify(context).includes('first answer'), 'the next run must retain the earlier answer in context')
+      hold.release('continued-child')
+      same(
+        await h.withCall(parent, (p) => p.helpers.awaitAnswer(child, 2, key('fg-second'))),
+        { outcome: 'completed', text: 'second answer' },
+        'the continuation must finish independently'
+      )
+      same(await send(), { run: 2, status: 'started' }, 'replaying the continuation key must not start another run')
+    }
+  },
   // Catches a repeated message key adding input or a run, also after its run ended (the report job's rerun), or a message to a running child starting a new one (DP S8).
   {
     name: 'message starts a child run once per key and joins a running run',
@@ -316,7 +387,7 @@ export const childCases: readonly ContractCase[] = [
     }
   },
   // Catches a fork that counts the inherited history as runs of its own, which charges the parent's usage to the child
-  // and shifts its run numbers (S-j, R3).
+  // and shifts its run numbers (R3).
   {
     name: 'a forked child counts no inherited entry as its own run or usage',
     covers: ['ledger.transact', 'ledger.read', 'helpers.message', 'helpers.awaitAnswer'],
@@ -458,10 +529,9 @@ export const childCases: readonly ContractCase[] = [
       )
     }
   },
-  // Catches an S-j fork answered with the fork placeholder (N1): the calls open in the conversation it forks ended with
-  // that conversation's run, so the model would be told they still run and wait for results that never come.
+  // Catches an explicit child fork promising results that belong to the source's open calls and will never arrive here.
   {
-    name: 'an S-j fork answers the calls open at its fork point as interrupted, not as still running',
+    name: 'an explicit child fork answers open calls as interrupted, not as still running',
     covers: ['ledger.transact', 'helpers.message', 'helpers.awaitAnswer'],
     needs: [],
     async run(open) {
@@ -472,7 +542,7 @@ export const childCases: readonly ContractCase[] = [
       h.script(source, [callTool('hold', { id: 'c39' }), reply('source done')])
       await h.withCall(t, (p) => p.helpers.message(source, message('work'), key('c39-work')))
       await hold.started('c39')
-      // The source ends in the reply whose call is still open, the shape S-j forks after a cut run.
+      // Fork before the source's open call has a result to copy.
       const at = (await read(h, source)).history.findLast((e) => e.kind === 'assistant')!.id
       const { spawned } = await transact(h, t, () =>
         step([{ type: 'spawn-child', spec: forkSpec('c39', source, at), key: key('c39') }], null)
@@ -486,7 +556,7 @@ export const childCases: readonly ContractCase[] = [
       same(
         answersTo(await read(h, fork), 'hold'),
         [{ answered: INTERRUPTED_CALL_RESULT }],
-        'an S-j fork must answer the calls open at its fork point as interrupted'
+        'an explicit child fork must answer the calls open at its fork point as interrupted'
       )
     }
   },

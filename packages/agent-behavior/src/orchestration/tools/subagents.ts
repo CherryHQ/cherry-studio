@@ -96,7 +96,7 @@ async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
   return runChild(context, call.thread, child, 1, decision.input, call.key)
 }
 
-/** D17, S-j: a running child reads the message after its step; a finished one continues in the background. */
+/** D17: a running child reads the message after its step; a finished one continues in the background. */
 async function message(context: Context, call: ToolCall): Promise<ToolOutcome> {
   for (;;) {
     const inputs = await gatherInputs(context, call.thread, { args: call.args })
@@ -115,14 +115,12 @@ async function message(context: Context, call: ToolCall): Promise<ToolOutcome> {
           continue
         }
         return { text: decision.text, isError: false, details: { sessionId: decision.child, continued: false } }
-      case 'continued': {
-        const child = decision.child ?? spawnedChild(executed.spawned, decision.key)
+      case 'continued':
         return {
-          text: continuedText(decision.from, child),
+          text: continuedText(decision.child),
           isError: false,
-          details: { sessionId: child, continued: true }
+          details: { sessionId: decision.child, continued: true }
         }
-      }
       case 'stopping':
         // Y5: the run is being stopped; once it ended, decide again.
         await context.ports.helpers.awaitAnswer(decision.child, decision.run, decision.key)
@@ -154,7 +152,7 @@ export function subagentTools(host: HostPorts): ToolDefinition[] {
       ...SUBAGENT_TOOL,
       name: 'message_subagent',
       description:
-        'Send a message to a subagent you started, by the id its result or notification gave. A running subagent reads it after its current step.',
+        'Send a message to a subagent you started, by the id its result or notification gave. A running subagent reads it after its current step. A finished subagent continues in the background with the same id and history; you are notified when it finishes.',
       schema: MESSAGE_SCHEMA,
       run: (call, ports) => message({ ports, host }, call)
     },
