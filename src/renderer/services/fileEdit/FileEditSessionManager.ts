@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { decodeFileText, encodeFileText, type DecodedFileText } from '@renderer/utils/fileTextSnapshot'
-import { isPathInside, isSamePath, toPathKey } from '@renderer/utils/path'
+import { toPathKey } from '@renderer/utils/path'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -84,6 +84,29 @@ function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
 
+// Mutation matching must include filesystem addresses that cannot be persistent entry keys.
+function toMutationPathKey(path: AbsoluteFilePath): string | null {
+  const unc = path.startsWith('\\\\')
+  if (!unc && !path.startsWith('//')) return toPathKey(path)
+  const parts = path.slice(2).split(unc ? /[/\\]+/ : /\/+/)
+  const root = parts.splice(0, 2)
+  const segments: string[] = []
+  for (const part of parts) {
+    if (part === '..') segments.pop()
+    else if (part && part !== '.') segments.push(part)
+  }
+  return (unc ? '\\\\' : '//') + [...root, ...segments].join('/')
+}
+
+function mutationRelativePath(root: AbsoluteFilePath, path: AbsoluteFilePath): string | null {
+  const parent = toMutationPathKey(root)
+  const child = toMutationPathKey(path)
+  if (parent === null || child === null) return null
+  if (parent === child) return ''
+  const prefix = parent.endsWith('/') ? parent : `${parent}/`
+  return child.startsWith(prefix) ? child.slice(prefix.length) : null
+}
+
 class AcquisitionInterruptedError extends Error {}
 
 export class FileEditSessionManager {
@@ -123,7 +146,7 @@ export class FileEditSessionManager {
   async prepareMutation(roots: readonly AbsoluteFilePath[]): Promise<PreparedFileMutation> {
     if (this.composing || this.mutationSettled) throw new Error('File editing is not ready for a transition')
     const affected = [...this.sessions.values()].filter((session) =>
-      roots.some((root) => isSamePath(session.resource.path, root) || isPathInside(session.resource.path, root))
+      roots.some((root) => mutationRelativePath(root, session.resource.path) !== null)
     )
     if (affected.some((session) => session.transition || session.snapshot.sealed))
       throw new Error('A file transition is already running')
@@ -163,14 +186,14 @@ export class FileEditSessionManager {
           affected.map(async (session) => {
             try {
               if (move) {
-                if (!isSamePath(session.resource.path, move.from) && !isPathInside(session.resource.path, move.from))
-                  return
-                const source = toPathKey(move.from)
-                const original = toPathKey(session.resource.path)
-                const target = toPathKey(move.to)
-                if (source === null || original === null || target === null)
-                  throw new Error('File move address is unsupported')
-                const path = AbsoluteFilePathSchema.parse(target + original.slice(source.length))
+                const relative = mutationRelativePath(move.from, session.resource.path)
+                if (relative === null) return
+                const target = toPathKey(move.to) ?? move.to
+                const separator = move.to.startsWith('\\\\') ? '\\' : '/'
+                const prefix = target.endsWith(separator) || target.endsWith('/') ? target : `${target}${separator}`
+                const path = AbsoluteFilePathSchema.parse(
+                  relative ? prefix + relative.replaceAll('/', separator) : target
+                )
                 const resource = await ipcApi.request('file.edit.open', { handle: { kind: 'path', path } })
                 if (this.sessions.has(resource.resourceKey) && this.sessions.get(resource.resourceKey) !== session) {
                   await ipcApi.request('file.edit.close', { editId: resource.editId })

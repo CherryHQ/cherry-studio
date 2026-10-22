@@ -56,6 +56,8 @@ Entry writes, entry rename/delete/cleanup, and path mutations coordinate in entr
 
 `prepareMutation(roots)` seals matching sessions and flushes accepted edits. Mutations serialize within a window. New acquisitions wait for settlement; acquisitions interrupted by preparation release their stale leases and retry. Callers perform the filesystem operation, then `commit()` retires deleted resources or `commit({ from, to })` verifies and binds moved resources. `cancel()` restores input after a failed operation. Once commit or cancellation releases the seal, the manager reevaluates detached sessions for eviction: clean sessions without pending work release their leases, while unsaved or failed sessions remain recoverable. A failed post-move verification retains the source snapshot with an error; it cannot undo an already completed filesystem move. Notes use this boundary for rename, move, and deletion, including directories.
 
+Mutation matching also covers UNC and leading-double-slash files and directory descendants. Comparisons preserve the network root, resolve dot segments within the share, and require a directory boundary; a single-slash local path or another share is not a match. Rebinding preserves the destination address and appends the relative descendant path using its separator style.
+
 ## Observation
 
 `file.observe.create` waits for watcher readiness and buffers events until `file.observe.activate`. IDs, generations, owner windows, sequence numbers, and bounded queues protect the handshake. `file.observe.dispose` releases one subscription; the final lease closes the native watcher. Equivalent roots/options/filter policies can share coverage with a tree builder.

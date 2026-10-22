@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -251,6 +254,92 @@ describe('file editing lifetime', () => {
     await prepared.commit()
     expect(lease.acceptEdit('d')).toBe(false)
     expect(manager.listRetained()).toEqual([])
+  })
+
+  it.each([
+    [String.raw`\\server\share\note.md`, String.raw`\\server\share\renamed.md`, '', false],
+    ['//server/share/note.md', '//server/share/renamed.md', '', false],
+    [String.raw`\\server\share\notes`, String.raw`\\server\share\moved`, String.raw`\nested\note.md`, true],
+    ['//server/share/notes/', '//server/share/moved/', 'nested/note.md', true],
+    [String.raw`\\server\share`, String.raw`\\backup\share`, String.raw`\nested\note.md`, true],
+    ['//server/share', '//backup/share', '/nested/note.md', true]
+  ])('flushes and rebinds network mutation %s', async (source, destination, suffix, directory) => {
+    const from = AbsoluteFilePathSchema.parse(source)
+    const to = AbsoluteFilePathSchema.parse(destination)
+    const sourceFile = AbsoluteFilePathSchema.parse(source + suffix)
+    const destinationFile = AbsoluteFilePathSchema.parse(destination + suffix)
+    const temp = mkdtempSync(join(tmpdir(), 'file-edit-move-'))
+    const physicalFrom = join(temp, 'source')
+    const physicalTo = join(temp, 'destination')
+    const oldFile = directory ? join(physicalFrom, 'nested', 'note.md') : physicalFrom
+    const newFile = directory ? join(physicalTo, 'nested', 'note.md') : physicalTo
+    if (directory) mkdirSync(join(physicalFrom, 'nested'), { recursive: true })
+    writeFileSync(oldFile, 'a')
+    const files = new Map([
+      [sourceFile, oldFile],
+      [destinationFile, newFile]
+    ])
+    const leases = new Map<string, string>()
+    const original = vi.mocked(ipcApi.request).getMockImplementation()!
+    vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
+      if (route === 'file.edit.open') {
+        const result = fileEditRequestSchemas[route].output.parse(await original(route, ...args))
+        const physical = files.get(result.path)
+        if (!physical) throw new Error(`Unexpected address: ${result.path}`)
+        leases.set(result.editId, physical)
+        return result
+      }
+      if (route === 'file.edit.read' || route === 'file.edit.write') {
+        const input = args[0]
+        if (!input || typeof input !== 'object' || !('editId' in input)) throw new Error('Missing edit ID')
+        const physical = leases.get(input.editId)
+        if (!physical) throw new Error('Missing file lease')
+        disk = snapshot(readFileSync(physical, 'utf8'))
+        const result = await original(route, ...args)
+        if (route === 'file.edit.write') writeFileSync(physical, disk.data)
+        return result
+      }
+      return original(route, ...args)
+    })
+    try {
+      const lease = await manager.acquire({ kind: 'path', path: sourceFile })
+      lease.acceptEdit('edited before rename')
+      const prepared = await manager.prepareMutation([from])
+      expect(readFileSync(oldFile, 'utf8')).toBe('edited before rename')
+      expect(lease.acceptEdit('during rename')).toBe(false)
+      renameSync(physicalFrom, physicalTo)
+      await prepared.commit({ from, to })
+      expect(lease.getSnapshot()).toMatchObject({ resourceKey: destinationFile, isDirty: false, sealed: false })
+      expect(lease.acceptEdit('stale source callback')).toBe(false)
+      lease.release()
+      const next = await manager.acquire({ kind: 'path', path: destinationFile })
+      expect(next.getSnapshot().draft).toBe('edited before rename')
+      expect(next.acceptEdit('edited after rename')).toBe(true)
+      await next.flush()
+      expect(readFileSync(newFile, 'utf8')).toBe('edited after rename')
+      expect(existsSync(oldFile)).toBe(false)
+      next.release()
+    } finally {
+      rmSync(temp, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    [String.raw`\\server\share\notes`, String.raw`\\server\share\notes-other\note.md`],
+    ['//server/share/notes', '//server/share/notes-other/note.md'],
+    ['//server/share/notes', '/server/share/notes/note.md'],
+    [String.raw`\\server\share\notes`, String.raw`\\server\other\notes\note.md`],
+    ['//server/share/notes', '//server/share/notes/../other/note.md']
+  ])('does not include unrelated network sibling %s -> %s', async (root, sibling) => {
+    const lease = await manager.acquire({ kind: 'path', path: AbsoluteFilePathSchema.parse(sibling) })
+    lease.acceptEdit('unsaved sibling')
+    const prepared = await manager.prepareMutation([AbsoluteFilePathSchema.parse(root)])
+    expect(new TextDecoder().decode(disk.data)).toBe('a')
+    expect(lease.getSnapshot().sealed).toBe(false)
+    prepared.cancel()
+    await lease.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('unsaved sibling')
+    lease.release()
   })
 
   it('cancel restores input with a fresh binding generation and keeps the document epoch', async () => {
