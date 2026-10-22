@@ -62,4 +62,18 @@ describe('AgentLaunchIndexProvider resume presentation', () => {
 
     expect(screen.getByTestId('has-header')).toHaveTextContent('header')
   })
+
+  // A delivered receipt whose request carries no summary names nothing to head its group with.
+  it('offers no resume header when the receipt carries no identity', () => {
+    const toolResponse = sendResponse('done', 'The child finished the audit.')
+    toolResponse.arguments = { to: 'agent-77' }
+
+    render(
+      <AgentLaunchIndexProvider value={null}>
+        <Probe toolResponse={toolResponse} canNavigate />
+      </AgentLaunchIndexProvider>
+    )
+
+    expect(screen.getByTestId('has-header')).toHaveTextContent('none')
+  })
 })

@@ -1,5 +1,4 @@
 import type { ReactElement } from 'react'
-import type { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, type ResumeReceiptState } from '../shared/agentToolTypes'
 import { ToolHeader } from '../shared/GenericTools'
@@ -12,27 +11,26 @@ function getStringArg(args: unknown, key: string): string | undefined {
 }
 
 /**
- * The presentation of a send-then-resume receipt — "continue handling" verb plus the launch
- * identity — shared by the chat row and the tool-group header so a resume reads exactly like the
- * launch card's continuation. Returns undefined when this receipt does not resolve to a launch.
+ * The header a send-then-resume receipt heads its group with: the launch identity, or the request
+ * summary when the launch is not loaded. Shared by the chat row and the tool-group header.
+ * Returns undefined when this receipt resolves to no identity at all.
  */
 export function buildResumeToolHeader(
   state: Exclude<ResumeReceiptState, { kind: 'none' }>,
-  toolResponse: ToolResponseLike,
-  t: ReturnType<typeof useTranslation>['t']
+  toolResponse: ToolResponseLike
 ): { header: ReactElement } | undefined {
   if (toolResponse.tool.name !== AgentToolsType.SendMessage) return undefined
-  // The label serves the resolved identity; an unresolvable receipt never reaches here, so the
-  // summary is only the fallback for hosts whose index carries no description.
+  // An unresolvable receipt never reaches here, so the summary is the fallback for hosts whose
+  // index carries no description.
   const identity =
     (state.kind === 'navigable' ? state.description : undefined) ?? getStringArg(toolResponse.arguments, 'summary')
+  if (!identity) return undefined
   return {
     header: (
       <ToolHeader
-        label={t('message.tools.activity.continueHandle')}
+        label={identity}
         toolName={toolResponse.tool.name}
         args={toolResponse.arguments}
-        params={identity}
         variant="collapse-label"
         showStatus={false}
       />

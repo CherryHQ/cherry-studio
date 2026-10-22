@@ -1,5 +1,4 @@
 import { createContext, type ReactElement, type ReactNode, use, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -44,7 +43,6 @@ export function AgentLaunchIndexProvider({
   liveness?: AgentTaskLiveness
   children: ReactNode
 }) {
-  const { t } = useTranslation()
   const presentation = useMemo<AgentResumePresentation>(
     () => ({
       renderResumeHeader: (toolResponse, canNavigate) => {
@@ -56,10 +54,10 @@ export function AgentLaunchIndexProvider({
           value,
           canNavigate
         )
-        return state.kind === 'none' ? undefined : buildResumeToolHeader(state, toolResponse, t)?.header
+        return state.kind === 'none' ? undefined : buildResumeToolHeader(state, toolResponse)?.header
       }
     }),
-    [t, value]
+    [value]
   )
   return (
     <AgentLaunchIndexContext value={value}>
