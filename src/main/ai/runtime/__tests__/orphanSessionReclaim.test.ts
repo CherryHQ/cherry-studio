@@ -224,30 +224,34 @@ describe('claude-code reclaimOrphanSessions', () => {
     for (const target of [transcript, subagent, directoryOnly]) expect(existsSync(target)).toBe(false)
   })
 
-  it.each([false, true])('protects the canonical project under a symlinked parent (archived: %s)', async (archived) => {
-    const realParent = path.join(root, 'real')
-    const alias = path.join(root, 'alias')
-    mkdirSync(realParent)
-    symlinkSync(realParent, alias, 'dir')
-    const workspace = path.join(alias, 'workspace')
-    if (!archived) mkdirSync(workspace)
-    const resolved = path.join(realpathSync(realParent), 'workspace')
-    expect(path.resolve(workspace)).not.toBe(resolved)
-    const project = claudeProjectDirectoryName(resolved)
-    const transcript = seedFile(`${projects}/${project}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl`)
-    makeStale(path.join(root, projects))
+  // Windows realpath may use a different short/long spelling than the async resolver, so the fixture key cannot be pinned.
+  it.skipIf(process.platform === 'win32').each([false, true])(
+    'protects the canonical project under a symlinked parent (archived: %s)',
+    async (archived) => {
+      const realParent = path.join(root, 'real')
+      const alias = path.join(root, 'alias')
+      mkdirSync(realParent)
+      symlinkSync(realParent, alias, 'dir')
+      const workspace = path.join(alias, 'workspace')
+      if (!archived) mkdirSync(workspace)
+      const resolved = path.join(realpathSync(realParent), 'workspace')
+      expect(path.resolve(workspace)).not.toBe(resolved)
+      const project = claudeProjectDirectoryName(resolved)
+      const transcript = seedFile(`${projects}/${project}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl`)
+      makeStale(path.join(root, projects))
 
-    const { removed } = await claudeDriver().reclaimOrphanSessions!(
-      {
-        resumeTokens: new Set(),
-        liveWorkspacePaths: new Set([workspace])
-      },
-      OPTIONS
-    )
+      const { removed } = await claudeDriver().reclaimOrphanSessions!(
+        {
+          resumeTokens: new Set(),
+          liveWorkspacePaths: new Set([workspace])
+        },
+        OPTIONS
+      )
 
-    expect(removed).toEqual([])
-    expect(existsSync(transcript)).toBe(true)
-  })
+      expect(removed).toEqual([])
+      expect(existsSync(transcript)).toBe(true)
+    }
+  )
 
   it.skipIf(process.platform !== 'darwin')('protects the SDK NFC project spelling on macOS', async () => {
     const workspace = path.join(root, 'cafe\u0301')
