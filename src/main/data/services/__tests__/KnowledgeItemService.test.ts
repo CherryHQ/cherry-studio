@@ -733,7 +733,7 @@ describe('KnowledgeItemService', () => {
       })
       if (!created) throw new Error('Expected deleting external item to be promoted')
       expect(
-        service.updateCompletedExternalMetadataTx(dbh.db, created.id, {
+        service.updateSettledExternalMetadataTx(dbh.db, created.id, {
           baseId: KNOWLEDGE_BASE_ID,
           source: 'Engineering Wiki',
           title: 'Document 1 renamed'

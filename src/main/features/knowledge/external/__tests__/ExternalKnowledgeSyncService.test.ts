@@ -1442,6 +1442,111 @@ describe('ExternalKnowledgeSyncService', () => {
     expect(materials.get(OLD_ITEM_ID)).toEqual({ content: 'old body' })
   })
 
+  it.each(['transient', 'invalid-provider-response', 'unsupported-resource'] as const)(
+    'continues synchronization after %s on a failed local owner',
+    async (warning) => {
+      const oldRelativePath = seedActiveDocument({ remoteRevision: 'revision-0' })
+      dbh.db
+        .update(knowledgeItemTable)
+        .set({ status: 'failed', error: 'reindex failed' })
+        .where(eq(knowledgeItemTable.id, OLD_ITEM_ID))
+        .run()
+      dbh.db
+        .insert(knowledgeItemTable)
+        .values({
+          ...dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, OLD_ITEM_ID)).get()!,
+          id: SECOND_OLD_ITEM_ID,
+          status: 'completed',
+          error: null
+        })
+        .run()
+      dbh.db
+        .insert(externalKnowledgeDocumentTable)
+        .values({
+          ...dbh.db
+            .select()
+            .from(externalKnowledgeDocumentTable)
+            .where(eq(externalKnowledgeDocumentTable.id, OLD_DOCUMENT_ID))
+            .get()!,
+          id: SECOND_OLD_DOCUMENT_ID,
+          remoteObjectId: 'missing-document',
+          knowledgeItemId: SECOND_OLD_ITEM_ID
+        })
+        .run()
+      const renamed = reference({ title: 'Renamed document' })
+      const healthy = reference({ remoteObjectId: 'healthy-document', nodeId: 'healthy-node' })
+      const service = createService(
+        'unused',
+        {},
+        async (_connectionId, scannedReference) => {
+          if (scannedReference.descriptor.remoteObjectId === 'doc-1') throw new ExternalKnowledgeRuntimeError(warning)
+          return 'healthy body'
+        },
+        async () => scanResult([renamed, healthy])
+      )
+
+      const result = await service.syncSource(sourceSyncInput())
+
+      expect(result).toMatchObject({
+        indexedCount: 1,
+        skippedCount: 1,
+        warnings: [{ code: warning, remoteObjectId: 'doc-1' }]
+      })
+      expect(
+        dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, OLD_ITEM_ID)).get()
+      ).toMatchObject({
+        status: 'failed',
+        error: 'reindex failed',
+        data: { title: 'Renamed document', relativePath: oldRelativePath }
+      })
+      expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: OLD_DOCUMENT_ID,
+            currentWarning: warning,
+            knowledgeItemId: OLD_ITEM_ID,
+            remoteRevision: 'revision-0',
+            contentHash: OLD_CONTENT_HASH
+          }),
+          expect.objectContaining({ id: SECOND_OLD_DOCUMENT_ID, availability: 'unavailable', knowledgeItemId: null }),
+          expect.objectContaining({
+            remoteObjectId: 'healthy-document',
+            availability: 'active',
+            knowledgeItemId: STAGED_ITEM_ID
+          })
+        ])
+      )
+      expect(deletionAdmissions).toContainEqual({ baseId: BASE_ID, rootItemIds: [SECOND_OLD_ITEM_ID] })
+      expect(snapshots.get(`${BASE_ID}:${oldRelativePath}`)).toBe('old body')
+    }
+  )
+
+  it.each(['processing', 'deleting'] as const)('rejects warning publication while the owner is %s', async (status) => {
+    seedActiveDocument({ remoteRevision: 'revision-0' })
+    dbh.db.update(knowledgeItemTable).set({ status }).where(eq(knowledgeItemTable.id, OLD_ITEM_ID)).run()
+    const service = createService('unused', {}, async () => {
+      throw new ExternalKnowledgeRuntimeError('transient')
+    })
+
+    const error = await captureSourceError(service.syncSource(sourceSyncInput()))
+
+    expect(error.code).toBe('stale-publication')
+    expect(
+      dbh.db
+        .select()
+        .from(externalKnowledgeDocumentTable)
+        .where(eq(externalKnowledgeDocumentTable.id, OLD_DOCUMENT_ID))
+        .get()
+    ).toMatchObject({
+      currentWarning: null,
+      knowledgeItemId: OLD_ITEM_ID,
+      remoteRevision: 'revision-0'
+    })
+    expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, OLD_ITEM_ID)).get()?.status).toBe(
+      status
+    )
+  })
+
   it('treats a changed document owner before warning publication as run-fatal stale state', async () => {
     seedActiveDocument({ remoteRevision: 'revision-0' })
     const lockManager = new KeyedMutex()

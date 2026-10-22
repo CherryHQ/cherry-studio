@@ -570,7 +570,7 @@ export class ExternalKnowledgeSyncService {
       if (knowledgeItemService.getById(latestDocument.knowledgeItemId).status !== 'completed') return null
 
       dbService.withWriteTx((tx) => {
-        const item = knowledgeItemService.updateCompletedExternalMetadataTx(tx, latestDocument.knowledgeItemId, {
+        const item = knowledgeItemService.updateSettledExternalMetadataTx(tx, latestDocument.knowledgeItemId, {
           baseId: input.fence.baseId,
           source: latestSource.name,
           title: input.reference.descriptor.title
@@ -640,7 +640,7 @@ export class ExternalKnowledgeSyncService {
       const expected = documentVersion(expectedDocument)!
 
       dbService.withWriteTx((tx) => {
-        const item = knowledgeItemService.updateCompletedExternalMetadataTx(tx, document.knowledgeItemId, {
+        const item = knowledgeItemService.updateSettledExternalMetadataTx(tx, document.knowledgeItemId, {
           baseId: input.fence.baseId,
           source: source.name,
           title: reference.descriptor.title
