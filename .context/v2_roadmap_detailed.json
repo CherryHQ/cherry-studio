@@ -1,84 +1,81 @@
 {
-  "generated_at": "2026-10-21T17:00:00.000000+00:00",
-  "date": "2026-10-21",
-  "v2_branch_status": {
-    "current_release": "v2.1.7",
-    "open_prs": 0,
-    "note": "v2 branch has no open PRs. All active development is trunk-based on main. Last v2 branch merge was May 2026.",
-    "merged_prs_30d_total": 548,
-    "velocity_prs_per_day": 18.3,
-    "merged_prs_last_7d": 168
-  },
-  "v2_tagged_open_issues": [
-    {"number": 10910, "title": "[Feature]: Add I18nService in main", "labels": ["feature", "v2"]},
-    {"number": 13578, "title": "[Bug]: cherry studio quit unexpectedly", "labels": ["bug", "performance", "v2"]},
-    {"number": 20940, "title": "[Bug]: Responses API stream TypeValidation abort (P1)", "labels": ["bug", "p1", "models", "v2", "chat"]},
-    {"number": 20941, "title": "[Bug]: Work/Agent turns terminate empty (P1)", "labels": ["bug", "p1", "v2", "agent", "chat"]},
-    {"number": 21085, "title": "[Bug]: File/KB inline large tool schemas overflow (P1)", "labels": ["bug", "p1", "rag", "v2", "performance"]},
-    {"number": 21418, "title": "[Bug]: Restore triggers auto-restart EPERM (P1, Windows)", "labels": ["bug", "p1", "windows", "data", "v2"]}
-  ],
-  "active_feature_branches_in_prs": [
+  "generated_at": "2026-10-22T18:00:00Z",
+  "v2_branch_open_prs": 0,
+  "v2_labeled_open_issues": [
     {
-      "stack": "orca/video-stack (SiinXu)",
-      "prs": [21838, 21839, 21840, 21841, 21842, 21851],
-      "status": "In Review",
-      "description": "Full video/audio analysis stack — frame sampling, model routing, agent integration, media preprocessing"
+      "number": 20940,
+      "title": "Responses API TypeValidation abort",
+      "priority": "p1"
     },
     {
-      "stack": "codex/external-knowledge-feishu (AtomsH4)",
-      "prs": [20742, 20800, 20856, 20903, 20998],
-      "status": "Draft — 5 chained PRs",
-      "description": "External knowledge management — Feishu Wiki integration with sync lifecycle"
+      "number": 20941,
+      "title": "Work/Agent terminate empty no-response",
+      "priority": "p1"
     },
     {
-      "stack": "feature/agent-behavior (MyPrototypeWhat)",
-      "prs": [21995, 22014],
-      "status": "In Review",
-      "description": "Harness-neutral agent behavior abstraction for Pi agent runtime"
+      "number": 21418,
+      "title": "Restore EPERM — data cannot be restored",
+      "priority": "p1"
     },
     {
-      "stack": "codex/user-shared-memory (WhiteZeek)",
-      "prs": [22068, 22088],
-      "status": "Draft",
-      "description": "Cross-agent user shared memory with desktop UI controls"
+      "number": 22121,
+      "title": "Responses reasoning delta uninitialized",
+      "priority": "p1"
     },
     {
-      "stack": "fix/subagent-resume (tommyzhang100504)",
-      "prs": [21933, 21934],
-      "status": "In Review",
-      "description": "Subagent resume routing and rendering fixes"
+      "number": 21667,
+      "title": "Agent blocked: pi-ai image history >20 MiB",
+      "priority": "p2"
     },
     {
-      "stack": "spec/web-core (1lck)",
-      "prs": [22062, 22052, 21006],
-      "status": "Spec/Draft",
-      "description": "Web-core architecture: desktop UI as web application with sandbox isolation"
+      "number": 20937,
+      "title": "DSH cannot read under Program Files (EPERM)",
+      "priority": "p1"
     }
   ],
-  "summary": {
-    "open_prs_main": 71,
-    "open_prs_feature_stacks": 29,
-    "draft_prs": 17,
-    "contributors_with_open_prs": 15,
-    "top_contributors_open_prs": {
-      "NatsUIJM": 16,
-      "SiinXu": 12,
-      "DeJeune": 11,
-      "ggbdpq": 7,
-      "lianshuang-photo": 6,
-      "AtomsH4": 6
+  "open_pr_stacks": [
+    {
+      "name": "orca/video-stack-20261016",
+      "prs": 4,
+      "target": "SiinXu/media-ffmpeg-linux-runtime",
+      "status": "In Review"
     },
-    "recently_shipped": [
-      "feat(local-model): run local chat models on macOS with agents (#21882)",
-      "feat(remote-access): expose desktop Assistants to paired clients (#21676)",
-      "feat(agent-sessions): allow pinned sessions drag ordering (#21948)",
-      "feat(voice): full streaming voice suite (PCM, Qwen3 ASR, dictation) — 5 PRs by DeJeune",
-      "feat(web-search): add DeepSeek Search & Fetch provider (#21909)"
-    ],
-    "next_milestones": [
-      "v2.1.8: subagent-resume routing fix, provider sampling fixes, tab-bar fixes",
-      "v2.2.x: video analysis stack (orca/video-stack), agent behavior harness",
-      "v2.3.x: external knowledge / Feishu Wiki, user shared memory, web-core spec"
-    ]
-  }
+    {
+      "name": "fix/subagent-resume",
+      "prs": 2,
+      "target": "main",
+      "status": "In Review"
+    },
+    {
+      "name": "split/20440 (hook + lifecycle)",
+      "prs": 2,
+      "target": "main",
+      "status": "In Review"
+    }
+  ],
+  "planned_features": [
+    {
+      "number": 20675,
+      "title": "Server-side Agent Integration: Grok Bot, Muse, OpenAI Agent API",
+      "assignee": "vaayne",
+      "label": "planned"
+    },
+    {
+      "number": 21728,
+      "title": "Cherry Studio Web client",
+      "label": "p2"
+    },
+    {
+      "number": 15690,
+      "title": "Market Page: Skills, Assistant Library, MCP",
+      "label": "p1,internal-team"
+    },
+    {
+      "number": 22400,
+      "title": "Agent-provided models as Cherry gateway upstreams",
+      "label": "p3"
+    }
+  ],
+  "all_prs_to_main": 72,
+  "ready_to_merge": 5
 }

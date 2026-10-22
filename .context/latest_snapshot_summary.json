@@ -1,156 +1,202 @@
 {
-  "generated_at": "2026-10-21T17:00:00.000000+00:00",
-  "date": "2026-10-21",
-  "open_issues_total": 1335,
-  "open_issues_delta_1d": "+110",
-  "open_prs_total": 689,
-  "open_prs_to_main": 615,
-  "open_prs_to_feature_branches": 74,
-  "v2_open_prs": 0,
-  "v2_merged_prs_note": "v2 branch inactive since May 2026; all development on main. 548 PRs merged to main in last 30d.",
-  "p1_issues_count": 106,
-  "p1_issues_delta_1d": "+56",
-  "p1_issues": [
+  "generated_at": "2026-10-22T18:00:00Z",
+  "source": "daily-agent-run",
+  "totals": {
+    "open_issues": 1381,
+    "open_prs": 100,
+    "p1_issues": 107,
+    "v2_open_prs": 0
+  },
+  "pr_breakdown": {
+    "to_main": 72,
+    "to_other_branches": 28,
+    "draft": 0,
+    "ready_to_merge": 5,
+    "do_not_merge": 2
+  },
+  "issue_type_distribution": {
+    "bug_pct": 66,
+    "feature_pct": 33,
+    "other_pct": 1,
+    "note": "estimated from top-100 issues by recent activity"
+  },
+  "label_top10_from_sample": {
+    "bug": 66,
+    "agent": 37,
+    "p2": 34,
+    "feature": 33,
+    "models": 29,
+    "p3": 24,
+    "needs-info": 23,
+    "ui-ux": 22,
+    "chat": 20,
+    "needs-review": 18
+  },
+  "no_priority_label_pct": 32.0,
+  "p1_health": {
+    "total": 107,
+    "active_le7d": 15,
+    "aging_8_30d": 27,
+    "stale_31_90d": 55,
+    "zombie_gt90d": 10
+  },
+  "top_p1_active_issues": [
     {
-      "number": 22137,
-      "title": "[Bug]: Conversations and two configured agents disappear around an update",
-      "labels": ["bug", "p1", "data", "needs-info"],
-      "created_at": "2026-10-21",
-      "updated_at": "2026-10-21",
-      "health": "Active"
+      "number": 20940,
+      "title": "Responses API stream TypeValidation abort",
+      "labels": [
+        "p1",
+        "v2",
+        "chat",
+        "models"
+      ],
+      "updated_at": "2026-10-22"
     },
     {
-      "number": 22121,
-      "title": "[Bug]: Responses reasoning delta reaches chat consumers without an initialized reasoning block",
-      "labels": ["bug", "p1"],
-      "created_at": "2026-10-21",
-      "updated_at": "2026-10-21",
-      "health": "Active"
+      "number": 19793,
+      "title": "Chat stream ends without finish reason",
+      "labels": [
+        "p1",
+        "chat",
+        "models"
+      ],
+      "updated_at": "2026-10-22",
+      "comments": 35
     },
     {
-      "number": 22026,
-      "title": "[Discussion]: Data stored via WebDAV before v2.0 cannot be restored",
-      "labels": ["p1", "data", "backup"],
-      "created_at": "2026-10-20",
-      "updated_at": "2026-10-20",
-      "health": "Active"
+      "number": 19321,
+      "title": "DeepSeek reasoning_text dropped on tool continuations",
+      "labels": [
+        "p1",
+        "agent",
+        "models"
+      ],
+      "updated_at": "2026-10-22",
+      "comments": 19
     },
     {
-      "number": 21905,
-      "title": "[Bug]: Work-mode Agent turns abort with \"Autocompact is thrashing\" and cannot recover",
-      "labels": ["bug", "p1"],
-      "created_at": "2026-10-17",
-      "updated_at": "2026-10-21",
-      "health": "Active"
-    },
-    {
-      "number": 21898,
-      "title": "[Bug]: Agent turns fail with \"Claude Code process failed to start\" when the bundled binary is absent",
-      "labels": ["bug", "p1", "windows", "claude-code"],
-      "created_at": "2026-10-17",
-      "updated_at": "2026-10-18",
-      "health": "Active"
-    },
-    {
-      "number": 21805,
-      "title": "[Bug]: SQLITE_CORRUPT blocks startup after reboot and persists after reinstall",
-      "labels": ["bug", "p1", "data", "needs-info"],
-      "created_at": "2026-10-14",
-      "updated_at": "2026-10-16",
-      "health": "Active"
+      "number": 19847,
+      "title": "DashScope Qwen agent mid-response server error no recovery",
+      "labels": [
+        "p1",
+        "agent",
+        "models"
+      ],
+      "updated_at": "2026-10-22",
+      "comments": 26
     },
     {
       "number": 21418,
-      "title": "[Bug]: Restore triggers app auto-restart, commit fails at startup (EPERM: rename)",
-      "labels": ["bug", "p1", "windows", "data"],
-      "created_at": "2026-10-07",
-      "updated_at": "2026-10-15",
-      "health": "Active"
+      "title": "Restore EPERM crash — data cannot be restored (Windows)",
+      "labels": [
+        "p1",
+        "windows",
+        "data",
+        "v2"
+      ],
+      "updated_at": "2026-10-22"
     },
     {
-      "number": 21085,
-      "title": "[Bug]: File/Knowledge Base scopes inline large builtin tool schemas and can overflow context",
-      "labels": ["bug", "p1", "rag", "assistant", "performance"],
-      "created_at": "2026-09-27",
-      "updated_at": "2026-09-27",
-      "health": "Active"
+      "number": 18373,
+      "title": "Data dir relocation leaves stale DB paths (Windows)",
+      "labels": [
+        "p1",
+        "windows",
+        "data"
+      ],
+      "updated_at": "2026-10-22",
+      "comments": 13
     },
     {
       "number": 20941,
-      "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "labels": ["bug", "p1", "agent", "chat"],
-      "created_at": "2026-09-17",
-      "updated_at": "2026-10-16",
-      "health": "Active"
+      "title": "Work/Agent terminate with empty no-response error",
+      "labels": [
+        "p1",
+        "v2",
+        "agent",
+        "chat"
+      ],
+      "updated_at": "2026-10-22",
+      "comments": 23
     },
     {
-      "number": 20940,
-      "title": "[Bug]: Responses API stream events fail client TypeValidation and abort the turn",
-      "labels": ["bug", "p1", "models", "chat"],
-      "created_at": "2026-09-17",
-      "updated_at": "2026-10-18",
-      "health": "Active"
+      "number": 22399,
+      "title": "Notes cached switch overwrites wrong file body",
+      "labels": [
+        "p1",
+        "data",
+        "ui-ux"
+      ],
+      "updated_at": "2026-10-22"
     },
     {
-      "number": 20937,
-      "title": "[Bug]: DSH cannot read dsh-bridge under Program Files (EPERM, JSON-RPC input closed)",
-      "labels": ["bug", "p1", "windows"],
-      "created_at": "2026-09-17",
-      "updated_at": "2026-09-17",
-      "health": "Aging"
+      "number": 22121,
+      "title": "Responses reasoning delta without initialized part",
+      "labels": [
+        "p1",
+        "v2",
+        "chat",
+        "models"
+      ],
+      "updated_at": "2026-10-22"
     },
     {
-      "number": 20695,
-      "title": "[Bug]: Parallel edit calls to the same file via built-in filesystem MCP cause data loss",
-      "labels": ["bug", "p1", "mcp", "agent"],
-      "created_at": "2026-09-15",
-      "updated_at": "2026-09-15",
-      "health": "Aging"
+      "number": 22401,
+      "title": "Orphan sweep deletes active Claude Code session",
+      "labels": [
+        "p1",
+        "agent",
+        "claude-code"
+      ],
+      "updated_at": "2026-10-22"
     },
     {
-      "number": 20692,
-      "title": "[Bug]: Agent compaction summary leaks into visible chat transcript as normal message",
-      "labels": ["bug", "p1", "agent"],
-      "created_at": "2026-09-15",
-      "updated_at": "2026-10-15",
-      "health": "Active"
+      "number": 22137,
+      "title": "Conversations and agents disappear after update",
+      "labels": [
+        "p1",
+        "data"
+      ],
+      "updated_at": "2026-10-21"
     },
     {
-      "number": 20532,
-      "title": "[Bug]: Cherry Studio crashes when saving a Chinese-named file",
-      "labels": ["bug", "p1"],
-      "created_at": "2026-09-11",
-      "updated_at": "2026-09-11",
-      "health": "Stale"
+      "number": 21905,
+      "title": "Work Agent aborts: Autocompact is thrashing",
+      "labels": [
+        "p1"
+      ],
+      "updated_at": "2026-10-20"
+    },
+    {
+      "number": 22026,
+      "title": "WebDAV pre-v2 data cannot be restored",
+      "labels": [
+        "p1",
+        "data",
+        "backup"
+      ],
+      "updated_at": "2026-10-20"
+    },
+    {
+      "number": 21864,
+      "title": "e2e harness: 3 defects block local PR verification",
+      "labels": [
+        "p1",
+        "macos",
+        "internal-team"
+      ],
+      "updated_at": "2026-10-20"
+    },
+    {
+      "number": 15690,
+      "title": "Market Page: Skills, Assistant Library, MCP (feature)",
+      "labels": [
+        "p1",
+        "feature",
+        "ui-ux",
+        "internal-team"
+      ],
+      "updated_at": "2026-10-20"
     }
-  ],
-  "issue_health": {
-    "active_last_7d": 828,
-    "active_pct": "62.0%",
-    "aging_7_30d": 67,
-    "aging_pct": "5.0%",
-    "stale_30_90d": 313,
-    "stale_pct": "23.4%",
-    "zombie_gt_90d": 127,
-    "zombie_pct": "9.5%",
-    "note": "Active=updated<7d; Aging=7-30d; Stale=30-90d; Zombie>90d"
-  },
-  "priority_distribution": {
-    "p1": 106,
-    "p2": 243,
-    "p3": 110,
-    "no_priority_label": 876,
-    "no_priority_pct": "65.6%",
-    "no_label_at_all": 17,
-    "duplicate_labeled": 36
-  },
-  "closed_issues_30d": {
-    "total": 382
-  },
-  "merged_prs_30d": {
-    "total": 548,
-    "velocity_per_day": 18.3,
-    "merged_last_7d": 168
-  },
-  "current_release": "v2.1.7"
+  ]
 }

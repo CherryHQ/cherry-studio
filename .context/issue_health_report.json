@@ -1,95 +1,188 @@
 {
-  "generated_at": "2026-10-21T17:00:00.000000+00:00",
-  "date": "2026-10-21",
-  "total_open_issues": 1335,
-  "p1_summary": {
-    "total": 106,
-    "windows_specific": 15,
-    "agent_related": 14,
-    "models_related": 9,
-    "data_related": 5,
-    "macos_specific": 4,
-    "linux_specific": 2,
-    "assistant_related": 3,
-    "code_mate_related": 2
+  "generated_at": "2026-10-22T18:00:00Z",
+  "summary": {
+    "total_open": 1381,
+    "p1_total": 107,
+    "p1_active_le7d": 15,
+    "p1_aging_8_30d": 27,
+    "p1_stale_31_90d": 55,
+    "p1_zombie_gt90d": 10,
+    "no_priority_label_pct": 32.0
   },
-  "p1_by_health": {
-    "Active_updated_lt_7d": {
-      "count": 12,
-      "examples": [22026, 21905, 21898, 20940, 20361, 20343, 20365]
-    },
-    "Aging_updated_7_30d": {
-      "count": 30,
-      "examples": [20692, 19847, 20941, 21085, 20344, 21805, 19989]
-    },
-    "Stale_updated_gt_30d": {
-      "count": 8,
-      "examples": [19805, 20027, 20217, 20216, 20338, 20265]
-    }
-  },
-  "overall_health_estimates": {
-    "methodology": "Based on GitHub updated_at filter queries against all 1335 open issues",
-    "Active_updated_lt_7d": {
-      "count": 828,
-      "pct": "62.0%"
-    },
-    "Aging_updated_7_30d": {
-      "count": 67,
-      "pct": "5.0%"
-    },
-    "Stale_updated_30_90d": {
-      "count": 313,
-      "pct": "23.4%"
-    },
-    "Zombie_updated_gt_90d": {
-      "count": 127,
-      "pct": "9.5%"
-    }
-  },
-  "high_engagement_open_issues": [
-    {"number": 19847, "comments": 22, "title": "Agent with DashScope Qwen3.8-Max terminates on mid-response server error", "labels": ["bug", "p1", "models", "agent"]},
-    {"number": 20692, "comments": 19, "title": "Agent compaction summary leaks into visible chat transcript", "labels": ["bug", "p1", "agent"]},
-    {"number": 20343, "comments": 17, "title": "OCR fallback fails for image input on non-vision models", "labels": ["bug", "p1", "windows", "models"]},
-    {"number": 21085, "comments": 6, "title": "File/KB scopes inline large builtin tool schemas and can overflow", "labels": ["bug", "p1", "rag", "performance"]},
-    {"number": 20941, "comments": 6, "title": "Work and Agent turns terminate with empty no-response error", "labels": ["bug", "p1", "v2", "agent"]},
-    {"number": 20940, "comments": 6, "title": "Responses API stream TypeValidation fails and aborts the turn", "labels": ["bug", "p1", "models", "v2"]}
+  "health_score_notes": [
+    "107 P1 issues open — 55 are stale (31-90d), indicating slow resolution rate on critical bugs",
+    "32% of all issues lack a priority label — triage bandwidth needed",
+    "Top domains: agent (37%), models/providers (29%), ui-ux (22%), chat (20%)",
+    "Duplicate rate ~15% in top-100 — intake deduplication could reduce noise"
   ],
-  "blocked_v2_issues": {
-    "count_estimate": 40,
-    "note": "Issues labeled 'blocked-v2' — may be closeable or re-triageable now v2 is released",
-    "sample": [
-      "#13607 Touchscreen right-click menu",
-      "#13179 chain of thought position error",
-      "#13169 Inverted mouse pointer in translation page",
-      "#13164 Uneven blank spaces in multi-model responses",
-      "#13129 Cannot delete all topics"
-    ]
+  "urgent_clusters": {
+    "streaming_failures": {
+      "issues": [
+        19793,
+        20940,
+        22121,
+        20282
+      ],
+      "description": "Stream end-without-finish-reason, TypeValidation aborts, reasoning delta uninitialized, HTTP-200 parse failures"
+    },
+    "data_corruption_loss": {
+      "issues": [
+        18373,
+        21418,
+        22399,
+        22137,
+        22026
+      ],
+      "description": "Stale DB paths after relocation, restore-to-crash (Windows), notes auto-save overwrite, WebDAV pre-v2 data lost"
+    },
+    "agent_runtime": {
+      "issues": [
+        20941,
+        19321,
+        19847,
+        22401,
+        21905
+      ],
+      "description": "Empty no-response termination, reasoning_text dropped, DashScope crash, orphan sweep deletes active session, autocompact thrash"
+    },
+    "provider_compat": {
+      "issues": [
+        22217,
+        22480,
+        22466,
+        21965,
+        22463,
+        21968
+      ],
+      "description": "reasoning_effort sent to incompatible models (DeepSeek Flash, GPT-4o, Gemini Argon, Copilot); tool-call name length overflow; Doubao unsupported field"
+    }
   },
-  "delta_from_yesterday": {
-    "open_issues": "+110 (1225 → 1335)",
-    "p1_issues": "+56 (50 → 106)",
-    "new_p1_today": [
-      "#22137 Conversations and agents disappear around update (p1, data)",
-      "#22121 Responses reasoning delta missing init block (p1, bug)"
-    ],
-    "closed_issues_30d": 382,
-    "merged_prs_30d": 548,
-    "merged_prs_7d": 168
-  },
-  "priority_uncategorized": {
-    "no_priority_label_count": 876,
-    "no_priority_label_pct": "65.6%",
-    "no_label_at_all_count": 17,
-    "duplicate_labeled_count": 36
-  },
-  "action_items": [
-    "CRITICAL: Fix SQLITE_CORRUPT startup block (#21805) — data loss risk for Windows users",
-    "CRITICAL: Fix conversations disappearing around update (#22137) — data loss",
-    "CRITICAL: Fix WebDAV v1→v2 backup incompatibility (#22026) — upgrade data loss",
-    "HIGH: Fix Responses API TypeValidation abort (#20940) — breaks core model flow",
-    "HIGH: Resolve Windows Agent startup failures — multiple P1 Windows issues",
-    "HIGH: Fix Agent compaction summary leak (#20692, 19 comments)",
-    "HIGH: 65.6% of open issues lack a priority label — triage backlog needed",
-    "MEDIUM: Review 127 zombie issues (90+ days no update) for closure"
+  "p1_active_list": [
+    {
+      "number": 20940,
+      "updated": "2026-10-22",
+      "labels": [
+        "v2",
+        "chat",
+        "models"
+      ]
+    },
+    {
+      "number": 19793,
+      "updated": "2026-10-22",
+      "comments": 35,
+      "labels": [
+        "chat",
+        "models"
+      ]
+    },
+    {
+      "number": 19321,
+      "updated": "2026-10-22",
+      "comments": 19,
+      "labels": [
+        "agent",
+        "models"
+      ]
+    },
+    {
+      "number": 19847,
+      "updated": "2026-10-22",
+      "comments": 26,
+      "labels": [
+        "agent",
+        "models"
+      ]
+    },
+    {
+      "number": 21418,
+      "updated": "2026-10-22",
+      "labels": [
+        "windows",
+        "data",
+        "v2"
+      ]
+    },
+    {
+      "number": 18373,
+      "updated": "2026-10-22",
+      "comments": 13,
+      "labels": [
+        "windows",
+        "data"
+      ]
+    },
+    {
+      "number": 20941,
+      "updated": "2026-10-22",
+      "comments": 23,
+      "labels": [
+        "v2",
+        "agent",
+        "chat"
+      ]
+    },
+    {
+      "number": 22399,
+      "updated": "2026-10-22",
+      "labels": [
+        "data",
+        "ui-ux"
+      ]
+    },
+    {
+      "number": 22121,
+      "updated": "2026-10-22",
+      "labels": [
+        "v2",
+        "chat",
+        "models"
+      ]
+    },
+    {
+      "number": 22401,
+      "updated": "2026-10-22",
+      "labels": [
+        "agent",
+        "claude-code"
+      ]
+    },
+    {
+      "number": 22137,
+      "updated": "2026-10-21",
+      "labels": [
+        "data"
+      ]
+    },
+    {
+      "number": 21905,
+      "updated": "2026-10-20",
+      "labels": []
+    },
+    {
+      "number": 22026,
+      "updated": "2026-10-20",
+      "labels": [
+        "data",
+        "backup"
+      ]
+    },
+    {
+      "number": 21864,
+      "updated": "2026-10-20",
+      "labels": [
+        "macos",
+        "internal-team"
+      ]
+    },
+    {
+      "number": 15690,
+      "updated": "2026-10-20",
+      "labels": [
+        "feature",
+        "ui-ux",
+        "internal-team"
+      ]
+    }
   ]
 }
