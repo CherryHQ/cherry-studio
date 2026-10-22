@@ -736,9 +736,11 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      void result.current.takeForEdit('h').then((value) => {
-        taken = value
-      })
+      void result.current
+        .takeForEdit('h', () => null)
+        .then((value) => {
+          taken = value
+        })
     })
     // Navigate away while the claim is in flight.
     await act(async () => {
@@ -770,9 +772,11 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      void result.current.takeForEdit('h').then((value) => {
-        taken = value
-      })
+      void result.current
+        .takeForEdit('h', () => null)
+        .then((value) => {
+          taken = value
+        })
     })
     // Navigate away while DELETE is pending: the committed delete must not lose
     // the draft — it goes back to the end of its own scope's queue.
