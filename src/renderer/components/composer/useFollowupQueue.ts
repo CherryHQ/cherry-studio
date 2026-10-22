@@ -113,8 +113,7 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
  */
 const consumedKeyFor = (scopeKey: string) =>
   `followup-queue.consumed.${scopeKey}` as `followup-queue.consumed.${string}`
-const loadConsumed = (scopeKey: string): number | null =>
-  cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
+const loadConsumed = (scopeKey: string): number | null => cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
 
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
@@ -703,7 +702,10 @@ export function useFollowupQueue({
         try {
           if (sent) {
             await removeTrigger({ params: { id } })
-            noteItemRemoved(id, itemsRef.current.findIndex((entry) => entry.id === id))
+            noteItemRemoved(
+              id,
+              itemsRef.current.findIndex((entry) => entry.id === id)
+            )
           } else await markFailedTrigger({ params: { id }, body: { claimToken } })
           if (mountedRef.current) void refetch()
         } catch (error) {
@@ -1023,4 +1025,3 @@ export function useFollowupQueue({
 
   return { items, enqueue, removeId, reorder, paused, setPaused, steer, takeForEdit, releaseEdit }
 }
-

@@ -196,12 +196,9 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      {
-        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
-      }
-    )
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+    })
 
     await act(async () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
@@ -251,10 +248,9 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
-    )
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'done', lastCompletedAt: 100 } }
+    })
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
@@ -490,10 +486,9 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
-    )
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'done', lastCompletedAt: 100 } }
+    })
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
@@ -515,10 +510,9 @@ describe('useFollowupQueue', () => {
     wireQuery([foreign])
     wireMutations()
 
-    const { result, rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
-    )
+    const { result, rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+    })
 
     expect(result.current.items).toEqual([])
 
@@ -1110,9 +1104,7 @@ describe('useFollowupQueue', () => {
   it('restores the outgoing edit but returns nothing when the incoming take was already sent', async () => {
     wireQuery([row('a', 'first'), row('b', 'second')])
     const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
-    claimTrigger
-      .mockResolvedValueOnce({ claimed: true })
-      .mockResolvedValueOnce({ claimed: true, alreadySent: true })
+    claimTrigger.mockResolvedValueOnce({ claimed: true }).mockResolvedValueOnce({ claimed: true, alreadySent: true })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
@@ -1121,7 +1113,10 @@ describe('useFollowupQueue', () => {
     })
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('b', () => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      taken = await result.current.takeForEdit('b', () => ({
+        draft: draft('first edited'),
+        payload: payload('first edited')
+      }))
     })
 
     expect(taken).toBeUndefined()
@@ -1428,10 +1423,9 @@ describe('useFollowupQueue', () => {
     })
     const { claimHeadTrigger } = wireMutations()
 
-    const { result, rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion })),
-      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
-    )
+    const { result, rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion })), {
+      initialProps: { completion: { status: 'done', lastCompletedAt: 100 } }
+    })
 
     await act(async () => {})
     expect(result.current.items.map((item) => item.draft.text)).toEqual(['head'])
@@ -1597,10 +1591,9 @@ describe('useFollowupQueue', () => {
     )
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
-    )
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+    })
 
     await act(async () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
@@ -1653,8 +1646,13 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { rerender } = renderHook(
-      ({ scopeKey, completion }: { scopeKey: string; completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null } }) =>
-      useFollowupQueue(baseProps({ scopeKey, ...completion, onDrain })),
+      ({
+        scopeKey,
+        completion
+      }: {
+        scopeKey: string
+        completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null }
+      }) => useFollowupQueue(baseProps({ scopeKey, ...completion, onDrain })),
       { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
@@ -1714,8 +1712,13 @@ describe('useFollowupQueue', () => {
     )
 
     const { rerender } = renderHook(
-      ({ scopeKey, completion }: { scopeKey: string; completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null } }) =>
-      useFollowupQueue(baseProps({ scopeKey, ...completion })),
+      ({
+        scopeKey,
+        completion
+      }: {
+        scopeKey: string
+        completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null }
+      }) => useFollowupQueue(baseProps({ scopeKey, ...completion })),
       { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
@@ -1740,10 +1743,9 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger, deleteTrigger, markSentTrigger } = wireMutations()
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: true })
     const onDrain = vi.fn(async () => true)
-    const { rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
-    )
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+    })
 
     await act(async () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
@@ -1943,10 +1945,9 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
-    )
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'done', lastCompletedAt: 100 } }
+    })
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
@@ -2026,10 +2027,9 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'y' })
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(
-      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
-      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
-    )
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
+    })
 
     await act(async () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
