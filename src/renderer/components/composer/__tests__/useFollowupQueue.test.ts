@@ -395,6 +395,30 @@ describe('useFollowupQueue', () => {
     expect(failTrigger).not.toHaveBeenCalled()
   })
 
+  it('routes a steer through the shared completion accounting', async () => {
+    // The manual send must record the current completion: a delayed automatic
+    // claim for the same turn is then fenced instead of delivering a second
+    // follow-up behind the steered one (cherry-pr-review). The turn is still
+    // streaming so the automatic drain stays parked and the steer goes first.
+    wireQuery([row('h', 'head')])
+    const { claimTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const send = vi.fn(async () => true)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps({ lastCompletedAt: 100 })))
+
+    let steered = false
+    await act(async () => {
+      steered = await result.current.steer('h', send)
+    })
+
+    expect(steered).toBe(true)
+    expect(claimTrigger).toHaveBeenCalledWith({
+      params: { id: 'h' },
+      body: { claimToken: expect.any(String), completionAt: 100 }
+    })
+  })
+
   it('marks the steered item failed when its send fails', async () => {
     wireQuery([row('h', 'head')])
     const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
@@ -1164,6 +1188,84 @@ describe('useFollowupQueue', () => {
       })
       await act(async () => {})
       expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('marks the background restore retry of a still-edited item as held', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      postTrigger
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+
+      // Space opens while 'a' is still in the editor: the retry lands, marked
+      // held so a completion cannot drain the edited content mid-session and
+      // duplicate it on the later submission (cherry-pr-review).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+      const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean } }]>
+      expect(bodies[0][0].body.held).toBeUndefined()
+      expect(bodies[1][0].body.held).toBeUndefined()
+      expect(bodies[2][0].body.held).toBeUndefined()
+      expect(bodies[3][0].body.held).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not mark an orphaned restore retry as held', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+      claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+      let resolveDelete!: () => void
+      takeDeleteTrigger.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDelete = () => resolve(undefined)
+        })
+      )
+      postTrigger.mockRejectedValue(new Error('db down'))
+
+      const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+        initialProps: { scopeKey: SCOPE }
+      })
+
+      await act(async () => {
+        void result.current.takeForEdit('h', () => null)
+      })
+      // The session is gone (scope changed) before the take settles: the
+      // orphaned restore retries WITHOUT held, so the copy stays deliverable.
+      await act(async () => {
+        rerender({ scopeKey: 's2' })
+      })
+      await act(async () => {
+        resolveDelete()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean } }]>
+      expect(bodies.length).toBeGreaterThan(0)
+      for (const [args] of bodies) expect(args.body.held).toBeUndefined()
     } finally {
       vi.useRealTimers()
     }

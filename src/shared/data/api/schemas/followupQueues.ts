@@ -43,7 +43,13 @@ export const CreateFollowupQueueSchema = z.strictObject({
   /** Managed file entries created by the renderer for blob attachments in the
    * payload. The service registers durable refs so the idle sweep keeps the
    * bytes alive until the draft is dequeued. */
-  fileEntryIds: z.array(z.uuid()).max(64).optional()
+  fileEntryIds: z.array(z.uuid()).max(64).optional(),
+  /** Insert the row as editor-owned recovery content: it stays ineligible for
+   * delivery (claim and claim:head skip it) until the edit session that owns
+   * it ends — the session removes a superseded copy itself. A copy orphaned
+   * by a crash self-heals once it ages past the stale-claim cutoff
+   * (cherry-pr-review). */
+  held: z.boolean().optional()
 })
 export type CreateFollowupQueueDto = z.infer<typeof CreateFollowupQueueSchema>
 
@@ -63,7 +69,14 @@ const FollowupQueueClaimTokenSchema = z.string().min(1).max(128)
 
 /** Body for `POST /followup-queues/:id/claim`. */
 export const ClaimFollowupQueueBodySchema = z.strictObject({
-  claimToken: FollowupQueueClaimTokenSchema
+  claimToken: FollowupQueueClaimTokenSchema,
+  /**
+   * The completion a manual delivery is for. Unlike claim:head this never
+   * rejects an already-consumed completion (steering is deliberate); it only
+   * records the consumption so a delayed automatic claim for the same turn
+   * cannot deliver a second row behind the manual send (cherry-pr-review).
+   */
+  completionAt: z.number().optional()
 })
 export type ClaimFollowupQueueBodyDto = z.infer<typeof ClaimFollowupQueueBodySchema>
 

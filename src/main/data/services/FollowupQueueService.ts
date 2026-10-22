@@ -19,7 +19,7 @@
  * `purgeForScopePrefixTx` — there is no FK by design.
  */
 
-import { and, asc, eq, gte, inArray, like, lt, ne, or } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, like, lt, ne, not, or } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -157,8 +157,54 @@ export class FollowupQueueService {
    * the client-side shared marker loses (a delayed claim winning after another
    * window already consumed the edge and removed the head). The durable
    * cross-restart consumption marker stays client-side.
+   *
+   * Each entry is one granted claim's reservation, tagged with its claim
+   * token: a scope can settle several completions in a row, so a single
+   * latest-value map would let a delayed retry carrying an older completion
+   * identity pass the equality check and deliver a second row for a turn
+   * that already delivered one (cherry-pr-review). A claim released without
+   * dispatch (markFailed with the winning token) drops its own reservation
+   * so an abandoned grant cannot strand the row for that completion, while
+   * completed deliveries keep their fence (cherry-pr-review).
    */
-  private readonly consumedCompletions = new Map<string, number>()
+  private readonly consumedCompletions = new Map<string, Array<{ completionAt: number; claimToken: string }>>()
+
+  /**
+   * claimToken sentinel marking an editor-owned recovery copy: such rows stay
+   * ineligible for delivery until the owning edit session ends (the session
+   * removes a superseded copy itself), so a background restore retry landing
+   * mid-session cannot be drained or steered while the item is still in the
+   * editor (cherry-pr-review). Rows aged past the stale-claim cutoff are
+   * treated as ordinary pending again: a renderer crash must not wedge the
+   * recovered content forever.
+   */
+  private static readonly HELD_RECOVERY_CLAIM_TOKEN = 'held:edit-restore'
+
+  /** Bounded FIFO per scope: recent completions stay fenced, ancient ones age out. */
+  private static readonly MAX_CONSUMED_COMPLETIONS_PER_SCOPE = 16
+
+  private hasConsumedCompletion(scopeKey: string, completionAt: number): boolean {
+    return this.consumedCompletions.get(scopeKey)?.some((entry) => entry.completionAt === completionAt) ?? false
+  }
+
+  private recordConsumedCompletion(scopeKey: string, completionAt: number, claimToken: string): void {
+    const entries = this.consumedCompletions.get(scopeKey) ?? []
+    if (!entries.some((entry) => entry.completionAt === completionAt && entry.claimToken === claimToken)) {
+      entries.push({ completionAt, claimToken })
+      if (entries.length > FollowupQueueService.MAX_CONSUMED_COMPLETIONS_PER_SCOPE) {
+        entries.splice(0, entries.length - FollowupQueueService.MAX_CONSUMED_COMPLETIONS_PER_SCOPE)
+      }
+      this.consumedCompletions.set(scopeKey, entries)
+    }
+  }
+
+  private releaseConsumedCompletion(scopeKey: string, claimToken: string): void {
+    const entries = this.consumedCompletions.get(scopeKey)
+    if (!entries) return
+    const kept = entries.filter((entry) => entry.claimToken !== claimToken)
+    if (kept.length === 0) this.consumedCompletions.delete(scopeKey)
+    else this.consumedCompletions.set(scopeKey, kept)
+  }
 
   private get db() {
     return application.get('DbService').getDb()
@@ -189,7 +235,33 @@ export class FollowupQueueService {
     const item = dbService.withWriteTx((tx) => {
       if (dto.id) {
         const [duplicate] = tx.select().from(followupQueueTable).where(eq(followupQueueTable.id, dto.id)).limit(1).all()
-        if (duplicate) return rowToItem(duplicate)
+        if (duplicate) {
+          // A held retry (its editor-owned recovery session is still live)
+          // re-stamps an already-landed copy so it cannot be claimed for
+          // delivery mid-session (cherry-pr-review). A delivery claim already
+          // in flight is left alone; each scheduled retry refreshes the
+          // liveness stamp, and an orphaned copy ages back into claimability.
+          if (
+            dto.held &&
+            duplicate.status !== 'closed' &&
+            duplicate.claimToken !== FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN
+          ) {
+            const liveDeliveryClaim =
+              duplicate.status === 'sending' &&
+              duplicate.claimToken !== null &&
+              duplicate.updatedAt >= Date.now() - STALE_SENDING_CLAIM_MS
+            if (!liveDeliveryClaim) {
+              const stampedAt = Date.now()
+              tx.update(followupQueueTable)
+                .set({ claimToken: FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN, updatedAt: stampedAt })
+                .where(eq(followupQueueTable.id, duplicate.id))
+                .run()
+              duplicate.claimToken = FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN
+              duplicate.updatedAt = stampedAt
+            }
+          }
+          return rowToItem(duplicate)
+        }
       }
       throwIfScopeConversationGoneTx(tx, dto.scopeKey)
       // Tombstones past the retry lifetime are collected opportunistically
@@ -221,7 +293,8 @@ export class FollowupQueueService {
           scopeKey: dto.scopeKey,
           draft: dto.draft,
           payload: dto.payload,
-          status: 'pending' as const
+          status: 'pending' as const,
+          claimToken: dto.held ? FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN : null
         },
         { pkColumn: followupQueueTable.id, scope: eq(followupQueueTable.scopeKey, dto.scopeKey) }
       )
@@ -353,7 +426,7 @@ export class FollowupQueueService {
    * the cross-window arbitration point. `alreadySent` reports a send recorded
    * before a crash between send and dequeue: dequeue it, don't resend it.
    */
-  claim(id: string, claimToken: string): { claimed: boolean; alreadySent: boolean } {
+  claim(id: string, claimToken: string, completionAt?: number): { claimed: boolean; alreadySent: boolean } {
     const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
     const [row] = this.db
       .update(followupQueueTable)
@@ -366,6 +439,14 @@ export class FollowupQueueService {
             and(eq(followupQueueTable.status, 'sending'), lt(followupQueueTable.updatedAt, cutoff)),
             // Retry of our own committed claim whose response was lost: re-acquire, don't lose to it.
             and(eq(followupQueueTable.status, 'sending'), eq(followupQueueTable.claimToken, claimToken))
+          ),
+          // Editor-owned recovery copies stay ineligible for delivery
+          // (including manual steers) until their edit session ends
+          // (cherry-pr-review); aged-out orphans rejoin.
+          or(
+            isNull(followupQueueTable.claimToken),
+            not(like(followupQueueTable.claimToken, `${FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN}%`)),
+            lt(followupQueueTable.updatedAt, cutoff)
           )
         )
       )
@@ -378,6 +459,10 @@ export class FollowupQueueService {
 
     if (!row) return { claimed: false, alreadySent: false }
 
+    // Manual delivery joins the completion accounting at grant time: a
+    // delayed automatic claim for the same turn is then fenced at claim:head.
+    // A release without dispatch drops the reservation again via markFailed.
+    if (completionAt != null) this.recordConsumedCompletion(row.scopeKey, completionAt, claimToken)
     notifyQueueChange('projection', row.scopeKey, [row.id])
     return { claimed: true, alreadySent: row.sentAt != null }
   }
@@ -451,6 +536,7 @@ export class FollowupQueueService {
   ): { claimed: true; id: string; alreadySent: boolean } | { claimed: false } {
     const dbService = application.get('DbService')
     const result = dbService.withWriteTx((tx) => {
+      const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
       const [head] = tx
         .select({
           id: followupQueueTable.id,
@@ -460,19 +546,31 @@ export class FollowupQueueService {
           claimToken: followupQueueTable.claimToken
         })
         .from(followupQueueTable)
-        .where(and(eq(followupQueueTable.scopeKey, scopeKey), ne(followupQueueTable.status, 'closed')))
+        // Live editor-owned recovery copies are skipped, not treated as a
+        // parked head: the rows behind them stay drainable while their edit
+        // session owns them (cherry-pr-review). Aged-out copies rejoin.
+        .where(
+          and(
+            eq(followupQueueTable.scopeKey, scopeKey),
+            ne(followupQueueTable.status, 'closed'),
+            or(
+              isNull(followupQueueTable.claimToken),
+              not(like(followupQueueTable.claimToken, `${FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN}%`)),
+              lt(followupQueueTable.updatedAt, cutoff)
+            )
+          )
+        )
         .orderBy(asc(followupQueueTable.orderKey))
         .limit(1)
         .all()
       if (!head) return { claimed: false as const }
-      const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
       // A retry carrying the token of a claim that committed but whose response was lost re-acquires it.
       const ownRetry = head.status === 'sending' && head.claimToken === claimToken
       // One delivery per completion, arbitrated here at the shared owner: the
       // winner's own retry re-acquires, but any other claim for an
       // already-consumed completion is obsolete and must not deliver a second
       // row for the same turn (cherry-pr-review).
-      if (!ownRetry && completionAt != null && this.consumedCompletions.get(scopeKey) === completionAt) {
+      if (!ownRetry && completionAt != null && this.hasConsumedCompletion(scopeKey, completionAt)) {
         return { claimed: false as const }
       }
       const claimable =
@@ -489,7 +587,7 @@ export class FollowupQueueService {
         .all()
       if (!updated) return { claimed: false as const }
       // Record consumption atomically with the grant (the tx is synchronous).
-      if (completionAt != null) this.consumedCompletions.set(scopeKey, completionAt)
+      if (completionAt != null) this.recordConsumedCompletion(scopeKey, completionAt, claimToken)
       return { claimed: true as const, id: head.id, alreadySent: head.sentAt != null }
     })
 
@@ -518,6 +616,11 @@ export class FollowupQueueService {
       .all()
 
     if (!row) return
+    // The winning claim ended without a delivery: drop its completion
+    // reservation so the completion can claim again. A delivered claim never
+    // passes through here, so completed deliveries stay fenced
+    // (cherry-pr-review).
+    this.releaseConsumedCompletion(row.scopeKey, claimToken)
     notifyQueueChange('projection', row.scopeKey, [row.id])
     logger.info('Marked followup failed', { id })
   }
