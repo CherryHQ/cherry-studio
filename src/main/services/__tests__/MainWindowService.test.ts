@@ -874,6 +874,12 @@ describe('MainWindowService', () => {
         const mixedCase = item('REPORT.pdf')
         handler({}, mixedCase)
         expect(mixedCase.savePath()).toBe(path.join(downloadsDir, 'REPORT (2).pdf'))
+
+        // macOS treats the composed and decomposed forms as one file.
+        handler({}, item('café.pdf'))
+        const decomposed = item('cafe\u0301.pdf')
+        handler({}, decomposed)
+        expect(decomposed.savePath()).toBe(path.join(downloadsDir, 'cafe\u0301 (1).pdf'))
       } finally {
         prefValues['app.browser.downloads.ask_where_to_save'] = true
         delete prefValues['app.browser.downloads.dir']

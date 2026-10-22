@@ -442,7 +442,9 @@ export class MainWindowService extends BaseService {
     // and `REPORT.pdf` are one file; on a case-sensitive one the cost is only
     // an extra suffix.
     const activeDownloads = new Set<string>()
-    const reservationKey = (candidate: string) => candidate.toLowerCase()
+    // macOS resolves composed and decomposed forms to the same file, so fold
+    // both case and Unicode normalization when claiming a destination.
+    const reservationKey = (candidate: string) => candidate.normalize('NFC').toLowerCase()
     const handleDownload = (_event: Electron.Event, item: Electron.DownloadItem) => {
       if (preferenceService.get('app.browser.downloads.ask_where_to_save')) return
       const dir = preferenceService.get('app.browser.downloads.dir') || application.getPath('sys.downloads')
