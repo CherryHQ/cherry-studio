@@ -617,7 +617,6 @@ export const followupQueueRefFields = {
 
 export const followupQueueFileRefSchema = createRefSchema(followupQueueRefFields)
 
-
 // ─── Single-file entity-image variants (provider logo / mini-app logo) ───
 //
 // Unlike the collection refs above (`chat_message`, `painting`), these model a

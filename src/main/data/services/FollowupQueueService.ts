@@ -24,13 +24,13 @@ import { and, asc, eq, gte, inArray, like, lt, ne, or } from 'drizzle-orm'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { followupQueueFileRefTable } from '@data/db/schemas/fileRelations'
 import {
   type FollowupQueueRow,
   type FollowupQueueStateRow,
   followupQueueStateTable,
   followupQueueTable
 } from '@data/db/schemas/followupQueue'
-import { followupQueueFileRefTable } from '@data/db/schemas/fileRelations'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -562,4 +562,3 @@ export class FollowupQueueService {
 }
 
 export const followupQueueService = new FollowupQueueService()
-
