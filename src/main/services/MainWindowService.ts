@@ -716,7 +716,10 @@ export class MainWindowService extends BaseService {
       // Windows或Linux未开启托盘、设置了直接关闭或托盘不可用时，直接退出
       if (isWin || isLinux) {
         if (!isShowTray || (isShowTray && !isTrayOnClose) || application.get('TrayService').isActivated !== true) {
-          return application.quit()
+          event.preventDefault()
+          // Let Electron finish cancelling this close before starting a new quit attempt.
+          setImmediate(() => application.quit())
+          return
         }
       }
 

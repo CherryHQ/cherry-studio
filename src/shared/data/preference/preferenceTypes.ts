@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { DirectEndpoint } from '@cherrystudio/remote-protocol'
 import type { RemoteProviderId, WebSearchCapability as SharedWebSearchCapability } from '@cherrystudio/web-search'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
@@ -84,6 +85,7 @@ export type LanguageVarious =
   | 'en-US'
   | 'es-ES'
   | 'fr-FR'
+  | 'it-IT'
   | 'ja-JP'
   | 'pt-PT'
   | 'ro-RO'
@@ -264,6 +266,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'crawl4ai',
   'parallel',
   'serply',
+  'yuanbao',
   'deepseek',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
@@ -452,3 +455,5 @@ export type CustomToolDefinition = {
   tool: string
   requestedVersion?: string
 }
+
+export type AdvertisedRemoteEndpoint = DirectEndpoint

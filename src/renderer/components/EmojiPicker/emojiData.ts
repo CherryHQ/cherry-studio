@@ -2,6 +2,7 @@ import dataDE from 'emoji-picker-element-data/de/cldr/data.json?url'
 import dataEN from 'emoji-picker-element-data/en/cldr/data.json?url'
 import dataES from 'emoji-picker-element-data/es/cldr/data.json?url'
 import dataFR from 'emoji-picker-element-data/fr/cldr/data.json?url'
+import dataIT from 'emoji-picker-element-data/it/cldr/data.json?url'
 import dataJA from 'emoji-picker-element-data/ja/cldr/data.json?url'
 import dataPT from 'emoji-picker-element-data/pt/cldr/data.json?url'
 import dataRU from 'emoji-picker-element-data/ru/cldr/data.json?url'
@@ -36,6 +37,7 @@ const DATA_URL_MAP: Record<LanguageVarious, string> = {
   'el-GR': dataEN,
   'es-ES': dataES,
   'fr-FR': dataFR,
+  'it-IT': dataIT,
   'ja-JP': dataJA,
   'pt-PT': dataPT,
   'ro-RO': dataEN,
