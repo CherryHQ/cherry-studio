@@ -119,6 +119,8 @@ patchedDependencies:
   "@sting8k/pi-vcc@0.8.1": patches/@sting8k__pi-vcc@0.8.1.patch
   # Normalize XML BOMs and propagate parsing failures instead of silently returning an empty deck.
   "@aiden0z/pptx-renderer@1.2.2": patches/@aiden0z__pptx-renderer@1.2.2.patch
+  "@modelcontextprotocol/core@2.3.0": patches/@modelcontextprotocol__core@2.3.0.patch
+  "@modelcontextprotocol/client@2.3.0": patches/@modelcontextprotocol__client@2.3.0.patch
 
 allowBuilds:
   "@google/genai": false

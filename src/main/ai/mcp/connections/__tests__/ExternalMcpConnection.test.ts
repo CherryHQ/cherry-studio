@@ -1,4 +1,11 @@
-import { SdkError, SdkErrorCode, SdkHttpError } from '@modelcontextprotocol/client'
+import {
+  Client,
+  InMemoryTransport,
+  isJSONRPCRequest,
+  SdkError,
+  SdkErrorCode,
+  SdkHttpError
+} from '@modelcontextprotocol/client'
 import { createMcpHandler, Server } from '@modelcontextprotocol/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,6 +64,38 @@ beforeEach(() => {
   fetchMock.mockReset()
 })
 
+describe('MCP protocol null response IDs', () => {
+  it('does not match an unattributed error to a pending request with ID zero', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const client = new Client({ name: 'test-client', version: '1' })
+    const onerror = vi.fn()
+    client.onerror = onerror
+    serverTransport.onmessage = async (message) => {
+      if (!isJSONRPCRequest(message) || message.method !== 'initialize') return
+      await serverTransport.send({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32700, message: 'Parse Error' }
+      })
+      await serverTransport.send({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          serverInfo: { name: 'test-server', version: '1' }
+        }
+      })
+    }
+    try {
+      await expect(client.connect(clientTransport, { prior: { kind: 'legacy' } })).resolves.toBeUndefined()
+      expect(onerror).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('null') }))
+    } finally {
+      await client.close()
+    }
+  })
+})
+
 describe('ExternalMcpConnection transport fallback policy', () => {
   it('coalesces authorization before credentials can be overwritten and releases failed attempts', async () => {
     const coordinator = new McpOAuthCoordinator()
@@ -101,6 +140,39 @@ describe('ExternalMcpConnection transport fallback policy', () => {
 })
 
 describe('ExternalMcpConnection legacy probe rejection', () => {
+  it('connects as legacy when server/discover returns a JSON-RPC error with a null id', async () => {
+    const handler = createLegacyHandler()
+    const log = createLog()
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+        return Response.json({
+          jsonrpc: '2.0',
+          id: null,
+          error: { code: -32700, message: 'Parse Error' }
+        })
+      }
+      return fetchMcpHandler(handler, input, init)
+    })
+    try {
+      const connection = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log,
+        connectTimeoutMs: 5_000
+      })
+      try {
+        expect(connection.era).toBe('legacy')
+        expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+      } finally {
+        await connection.close()
+      }
+    } finally {
+      await handler.close()
+    }
+  })
+
   it('connects and lists tools when a legacy server rejects server/discover with HTTP 500', async () => {
     const handler = createLegacyHandler()
     const log = createLog()

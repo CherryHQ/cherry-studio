@@ -174,7 +174,10 @@ export class ClientMcpConnection implements McpConnection {
       }
     }
     transport.onmessage = (message, extra) => {
-      const request = isJSONRPCResponse(message) && message.id !== undefined ? pending.get(message.id) : undefined
+      const request =
+        isJSONRPCResponse(message) && message.id !== undefined && message.id !== null
+          ? pending.get(message.id)
+          : undefined
       if (!request) {
         if (isJSONRPCRequest(message) && this.era === 'legacy' && this.activeRequests.size === 1) {
           const active = this.activeRequests.keys().next().value!

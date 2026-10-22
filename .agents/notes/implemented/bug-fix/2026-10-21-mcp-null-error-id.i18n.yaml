@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-21-mcp-null-error-id.md
+2026-10-21-mcp-null-error-id.md: 3ca7eb60305476432abdd0c0c26531215fae697a
+2026-10-21-mcp-null-error-id.zh.md: 0731fc8512bda62de632bbf7e1ff5a6ac2e771bf
