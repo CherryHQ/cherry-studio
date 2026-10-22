@@ -11,7 +11,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
+import {
+  FOLLOWUP_QUEUE_LIMIT,
+  STALE_SENDING_CLAIM_MS,
+  type FollowupQueueItem as FollowupQueueRow
+} from '@shared/data/types/followupQueue'
 
 import { persistBlobAttachments, useFollowupQueue } from '../useFollowupQueue'
 
@@ -1159,6 +1163,85 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('refreshes the held stamp of a landed restore while the edit session stays live', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      postTrigger
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+
+      // The retry lands held (4th call). A live edit session can outlast the
+      // service's stale-claim window: the hook re-stamps the landed copy on
+      // the refresh cadence so it never ages back into claimability mid-edit
+      // (cherry-pr-review).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(Math.floor(STALE_SENDING_CLAIM_MS / 2) + 1)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(5)
+      const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+      expect(bodies[4][0].body.id).toBe(bodies[3][0].body.id)
+      expect(bodies[4][0].body.held).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('holds the restored outgoing copy when the switch fails after the restore landed', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, postTrigger, takeDeleteTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+    // The outgoing restore lands, but both deletes of the incoming row fail:
+    // the composer keeps showing the outgoing draft, so the session is live
+    // and the landed copy must be held out of delivery (cherry-pr-review).
+    takeDeleteTrigger.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('db down'))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', captureOutgoing)
+    })
+    expect(taken).toBeUndefined()
+
+    // Restore POST then held re-stamp POST for the same copy; the failed
+    // take's claim is released.
+    await act(async () => {})
+    expect(postTrigger).toHaveBeenCalledTimes(2)
+    const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+    expect(bodies[1][0].body.id).toBe(bodies[0][0].body.id)
+    expect(bodies[1][0].body.held).toBe(true)
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { claimToken: expect.any(String) } })
+
+    // The session still owns the outgoing item: ending it removes the held copy.
+    await act(async () => {
+      result.current.releaseEdit()
+    })
+    await act(async () => {})
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: bodies[0][0].body.id } })
+  })
+
   it('does not mark an orphaned restore retry as held', async () => {
     vi.useFakeTimers()
     try {
@@ -1233,7 +1316,7 @@ describe('useFollowupQueue', () => {
 
   it('restores the outgoing edit but returns nothing when the incoming take was already sent', async () => {
     wireQuery([row('a', 'first'), row('b', 'second')])
-    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    const { claimTrigger, takeDeleteTrigger, postTrigger, deleteTrigger } = wireMutations()
     claimTrigger.mockResolvedValueOnce({ claimed: true }).mockResolvedValueOnce({ claimed: true, alreadySent: true })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
@@ -1250,16 +1333,30 @@ describe('useFollowupQueue', () => {
     })
 
     expect(taken).toBeUndefined()
-    expect(postTrigger).toHaveBeenCalledTimes(1)
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
-    // The session is cleared: a later take does not requeue 'a' again.
+    // The restored copy is re-stamped held: the composer still shows the
+    // outgoing draft (an undefined take changes nothing there), so the copy
+    // must not be deliverable while the edit session owns it
+    // (cherry-pr-review).
+    await act(async () => {})
+    expect(postTrigger).toHaveBeenCalledTimes(2)
+    const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+    expect(bodies[1][0].body.id).toBe(bodies[0][0].body.id)
+    expect(bodies[1][0].body.held).toBe(true)
+    // The session stays live on the outgoing item: re-taking it is refused,
+    // and ending the session removes the held copy.
     claimTrigger.mockResolvedValueOnce({ claimed: true })
-    let third: unknown
+    let third: unknown = 'unset'
     await act(async () => {
       third = await result.current.takeForEdit('a', () => ({ draft: draft('z'), payload: payload('z') }))
     })
-    expect((third as { draft: { text: string } }).draft.text).toBe('first')
-    expect(postTrigger).toHaveBeenCalledTimes(1)
+    expect(third).toBeUndefined()
+    expect(postTrigger).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      result.current.releaseEdit()
+    })
+    await act(async () => {})
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: bodies[0][0].body.id } })
   })
 
   it('releases the head claim without sending when the scope moves mid-claim', async () => {
@@ -1926,7 +2023,48 @@ describe('useFollowupQueue', () => {
     })
 
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
-    expect(cacheService.getShared('followup_queue.consumed.s2')).toBe(100)
+    // B's own lost claim parks the edge only in-session, never in the durable
+    // marker: if the winning window abandons the dispatch without sending,
+    // nothing survives and a reopen drains the stranded row (cherry-pr-review).
+    expect(cacheService.getShared('followup_queue.consumed.s2')).toBeUndefined()
+    // The local park still suppresses a duplicate drain cycle for the same edge.
+    await act(async () => {
+      rerender({ scopeKey: 's2', completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
+  })
+
+  it('lets a reopened window drain a completion whose winning claim was abandoned without sending', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    // The first window loses the claim: another window owns the head.
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: false })
+    const onDrainFirst = vi.fn(async () => true)
+
+    const first = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain: onDrainFirst })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+    await act(async () => {
+      first.rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+
+    // No durable consumption marker: the winner held only an in-flight
+    // reservation and abandoned it without sending (zero sends, row released
+    // failed), so the completion must stay drainable for a reopen.
+    expect(onDrainFirst).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+    first.unmount()
+
+    const onDrainSecond = vi.fn(async () => true)
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+    await act(async () => {
+      renderHook(() => useFollowupQueue(baseProps({ status: 'done', lastCompletedAt: 100, onDrain: onDrainSecond })))
+    })
+
+    expect(onDrainSecond).toHaveBeenCalledWith(row('h', 'head').payload)
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
   })
 
   it('skips the send for a row this profile already sent', async () => {
