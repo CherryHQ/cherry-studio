@@ -258,6 +258,21 @@ export class KnowledgeItemService {
     return this.getItemsByBaseId(baseId, { groupId: null })
   }
 
+  getCompletedLeafIds(baseId: string): string[] {
+    return this.db
+      .select({ id: knowledgeItemTable.id })
+      .from(knowledgeItemTable)
+      .where(
+        and(
+          eq(knowledgeItemTable.baseId, baseId),
+          eq(knowledgeItemTable.status, 'completed'),
+          ne(knowledgeItemTable.type, 'directory')
+        )
+      )
+      .all()
+      .map((row) => row.id)
+  }
+
   getOutermostSelectedItemIds(baseId: string, itemIds: string[]): string[] {
     const selectedIds = [...new Set(itemIds)]
     const selectedIdSet = new Set(selectedIds)
@@ -342,6 +357,63 @@ export class KnowledgeItemService {
       logger.info('Marked interrupted knowledge items as failed', { count: updatedRows.length })
     }
     return updatedRows.length
+  }
+
+  activateItemsTx(tx: DbOrTx, baseId: string, itemIds: string[]): void {
+    for (let offset = 0; offset < itemIds.length; offset += 500) {
+      const ids = itemIds.slice(offset, offset + 500)
+      const activated = tx
+        .update(knowledgeItemTable)
+        .set({
+          status: sql`CASE WHEN ${knowledgeItemTable.type} = 'directory' THEN 'preparing' ELSE 'processing' END`,
+          error: null
+        })
+        .where(
+          and(
+            eq(knowledgeItemTable.baseId, baseId),
+            inArray(knowledgeItemTable.id, ids),
+            inArray(knowledgeItemTable.status, ['completed', 'failed'])
+          )
+        )
+        .returning({ id: knowledgeItemTable.id })
+        .all()
+      if (activated.length !== ids.length) {
+        throw DataApiErrorFactory.validation({
+          item: ['Knowledge items changed before embedding backfill; retry the operation']
+        })
+      }
+    }
+  }
+
+  failActiveSubtrees(baseId: string, rootIds: string[], error: string): void {
+    const items = this.getSubtreeItems(baseId, rootIds, { includeRoots: true })
+    for (const item of items) {
+      if (KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES.some((status) => status === item.status)) {
+        this.updateStatus(item.id, 'failed', { error })
+      }
+    }
+  }
+
+  failCompletedItemsTx(tx: DbOrTx, baseId: string, itemIds: string[], error: string): number {
+    if (itemIds.length === 0) return 0
+    const rows = tx
+      .update(knowledgeItemTable)
+      .set({ status: 'failed', error })
+      .where(
+        and(
+          eq(knowledgeItemTable.baseId, baseId),
+          inArray(knowledgeItemTable.id, itemIds),
+          eq(knowledgeItemTable.status, 'completed')
+        )
+      )
+      .returning({ groupId: knowledgeItemTable.groupId })
+      .all()
+    this.reconcileContainersTx(
+      tx,
+      baseId,
+      rows.map((row) => row.groupId)
+    )
+    return rows.length
   }
 
   /** Create an item already in its active status (`preparing` for a directory container, `processing` for a leaf) and reconcile its parent container so an add into an already-completed directory pulls it back into an active status. */

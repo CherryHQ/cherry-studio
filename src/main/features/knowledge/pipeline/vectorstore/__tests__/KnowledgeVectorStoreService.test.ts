@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -160,6 +160,38 @@ describe('KnowledgeVectorStoreService', () => {
     expect(first).toBeInstanceOf(KnowledgeIndexStore)
     expect(loggerInfoMock).toHaveBeenCalledWith('Opened knowledge index store', { baseId: base.id, cacheSize: 1 })
     expect(loggerDebugMock).toHaveBeenCalledWith('Reusing cached knowledge index store', { baseId: base.id })
+  })
+
+  it('reports a missing index without creating its file', () => {
+    const service = createTrackedService()
+    expect(service.findIncompleteMaterials('kb-1', ['item-1'], 3)).toEqual(['item-1'])
+    expect(existsSync(getPathSyncMock('kb-1'))).toBe(false)
+  })
+
+  it('inspects an existing index without modifying its bytes', () => {
+    const base = createBase()
+    primeStoreOnDisk(base)
+    const before = readFileSync(getPathSyncMock(base.id))
+    expect(createTrackedService().findIncompleteMaterials(base.id, ['absent'], 3)).toEqual(['absent'])
+    expect(readFileSync(getPathSyncMock(base.id))).toEqual(before)
+  })
+
+  it('refuses an old schema without resetting it', () => {
+    const base = createBase()
+    primeStoreOnDisk(base)
+    withRawDriver(base, (driver) => driver.execute('UPDATE meta SET schema_version = 1'))
+    const before = readFileSync(getPathSyncMock(base.id))
+    expect(() => createTrackedService().findIncompleteMaterials(base.id, ['item-1'], 3)).toThrow(/unsupported/)
+    expect(readFileSync(getPathSyncMock(base.id))).toEqual(before)
+  })
+
+  it('refuses another base index or an unreadable database without treating either as missing vectors', () => {
+    const base = createBase()
+    primeStoreOnDisk(base)
+    withRawDriver(base, (driver) => driver.execute("UPDATE meta SET base_id = 'another-base'"))
+    expect(() => createTrackedService().findIncompleteMaterials(base.id, ['item-1'], 3)).toThrow(/different base/)
+    writeFileSync(getPathSyncMock('broken'), 'not a SQLite database')
+    expect(() => createTrackedService().findIncompleteMaterials('broken', ['item-1'], 3)).toThrow()
   })
 
   it('synchronous open makes a second call observe the already-cached store', () => {

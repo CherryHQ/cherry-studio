@@ -1818,6 +1818,8 @@
   "knowledge.empty_action": "Bilgi Tabanı Oluştur",
   "knowledge.empty_description": "Yapay zekâ ile bilgi birikimi oluşturun",
   "knowledge.error.directory_not_migrated": "Klasör taşıma işlemi başarısız oldu. Klasörü silip yeniden yükleyin.",
+  "knowledge.error.embedding_index_incomplete": "Gömme dizini eksik. Tamamlamak için bu öğeyi yeniden dizine ekleyin.",
+  "knowledge.error.embedding_integrity_check_failed": "Gömme dizini denetlenemedi. Yeniden denemek için bu bilgi tabanını tekrar açın.",
   "knowledge.error.failed_base_unknown": "Bu bilgi tabanı taşıma sırasında başarısız oldu. Yeniden oluşturup yeni bir gömme modeli seçin.",
   "knowledge.error.failed_to_create": "Bilgi tabanı oluşturulamadı",
   "knowledge.error.failed_to_delete": "Bilgi tabanı silinemedi",

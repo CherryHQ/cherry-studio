@@ -1818,6 +1818,8 @@
   "knowledge.empty_action": "Δημιουργία Βάσης Γνώσης",
   "knowledge.empty_description": "Ανάπτυξη γνώσεων με τη βοήθεια της ΤΝ",
   "knowledge.error.directory_not_migrated": "Η μεταφορά του φακέλου απέτυχε. Παρακαλώ διαγράψτε τον και ανεβάστε τον ξανά.",
+  "knowledge.error.embedding_index_incomplete": "Το ευρετήριο ενσωματώσεων είναι ελλιπές. Δημιουργήστε ξανά το ευρετήριο αυτού του στοιχείου.",
+  "knowledge.error.embedding_integrity_check_failed": "Δεν ήταν δυνατός ο έλεγχος του ευρετηρίου ενσωματώσεων. Ανοίξτε ξανά αυτή τη βάση γνώσεων για νέα προσπάθεια.",
   "knowledge.error.failed_base_unknown": "Αυτή η βάση γνώσεων απέτυχε κατά τη μετεγκατάσταση. Ανακατασκευάστε την και επιλέξτε ένα νέο μοντέλο ενσωμάτωσης.",
   "knowledge.error.failed_to_create": "Αποτυχία δημιουργίας βάσης γνώσεων",
   "knowledge.error.failed_to_delete": "Αποτυχία διαγραφής της βάσης γνώσεων",

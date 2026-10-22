@@ -1818,6 +1818,8 @@
   "knowledge.empty_action": "Crear Base de Conocimientos",
   "knowledge.empty_description": "Amplía tus conocimientos con IA",
   "knowledge.error.directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
+  "knowledge.error.embedding_index_incomplete": "El índice de embeddings está incompleto. Vuelva a indexar este elemento para completarlo.",
+  "knowledge.error.embedding_integrity_check_failed": "No se pudo comprobar el índice de embeddings. Vuelva a abrir esta base de conocimientos para reintentarlo.",
   "knowledge.error.failed_base_unknown": "Esta base de conocimiento falló durante la migración. Reconstrúyela y elige un nuevo modelo de embeddings.",
   "knowledge.error.failed_to_create": "Error al crear la base de conocimientos",
   "knowledge.error.failed_to_delete": "Error al eliminar la base de conocimientos",

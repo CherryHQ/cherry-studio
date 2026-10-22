@@ -20,6 +20,8 @@ import type { PosixRelativeFilePath } from '@shared/utils/file'
 import KnowledgePage from '../KnowledgePage'
 import type { KnowledgeFilePreviewTarget } from '../types'
 
+vi.mock('../hooks/useKnowledgeEmbeddingIntegrity', () => ({ useKnowledgeEmbeddingIntegrity: vi.fn() }))
+
 function RoutedKnowledgePage() {
   const [baseId, setBaseId] = useState<string>()
   return <KnowledgePage baseId={baseId} onBaseIdChange={setBaseId} />

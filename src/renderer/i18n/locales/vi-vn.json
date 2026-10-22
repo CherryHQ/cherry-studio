@@ -1818,6 +1818,8 @@
   "knowledge.empty_action": "Tạo Cơ sở Tri thức",
   "knowledge.empty_description": "Xây dựng tri thức của bạn cùng AI",
   "knowledge.error.directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",
+  "knowledge.error.embedding_index_incomplete": "Chỉ mục embedding chưa đầy đủ. Hãy lập chỉ mục lại mục này để hoàn tất.",
+  "knowledge.error.embedding_integrity_check_failed": "Không thể kiểm tra chỉ mục embedding. Hãy mở lại cơ sở kiến thức này để thử lại.",
   "knowledge.error.failed_base_unknown": "Cơ sở tri thức này đã thất bại trong quá trình di chuyển. Hãy xây dựng lại và chọn một mô hình embedding mới.",
   "knowledge.error.failed_to_create": "Không thể tạo cơ sở tri thức",
   "knowledge.error.failed_to_delete": "Không thể xóa cơ sở tri thức",

@@ -139,6 +139,8 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
     deleteItemsByIds: deleteItemsByIdsMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
+    failActiveSubtrees: (baseId: string, ids: string[], error: string) =>
+      knowledgeItemSetSubtreeStatusMock(baseId, ids, 'failed', { error }),
     updateIndexedRelativePath: knowledgeItemUpdateIndexedRelativePathMock,
     updateSnapshotRelativePath: knowledgeItemUpdateSnapshotRelativePathMock,
     updateStatus: knowledgeItemUpdateStatusMock

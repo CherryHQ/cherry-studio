@@ -14,6 +14,7 @@ type KnowledgeErrorTranslator = (
     | 'knowledge.error.missing_vector_store'
     | 'knowledge.error.directory_not_migrated'
     | 'knowledge.error.indexing_interrupted'
+    | 'knowledge.error.embedding_index_incomplete'
 ) => string
 
 /** Localized copy for a known base error code. Exhaustive over `KnowledgeBaseErrorCode`. */
@@ -50,6 +51,8 @@ const translateKnowledgeItemErrorCode = (code: KnowledgeItemErrorCode, t: Knowle
       return t('knowledge.error.directory_not_migrated')
     case 'indexing_interrupted':
       return t('knowledge.error.indexing_interrupted')
+    case 'embedding_index_incomplete':
+      return t('knowledge.error.embedding_index_incomplete')
     default:
       return code satisfies never
   }

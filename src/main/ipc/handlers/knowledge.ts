@@ -30,6 +30,8 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   },
   'knowledge.enable_embedding_model': async ({ baseId, patch }) =>
     application.get('KnowledgeService').enableEmbeddingModel(baseId, patch),
+  'knowledge.check_embedding_integrity': async ({ baseId }) =>
+    application.get('KnowledgeService').checkEmbeddingIntegrity(baseId),
   'knowledge.search': async ({ baseId, query }) => application.get('KnowledgeService').search(baseId, query),
   'knowledge.get_file_path': async ({ itemId }) => {
     try {

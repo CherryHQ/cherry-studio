@@ -1818,6 +1818,8 @@
   "knowledge.empty_action": "สร้างฐานความรู้",
   "knowledge.empty_description": "สร้างฐานความรู้ด้วย AI",
   "knowledge.error.directory_not_migrated": "การย้ายโฟลเดอร์ล้มเหลว กรุณาลบและอัปโหลดใหม่",
+  "knowledge.error.embedding_index_incomplete": "ดัชนีเอ็มเบดดิงไม่สมบูรณ์ โปรดสร้างดัชนีของรายการนี้ใหม่ให้เสร็จสมบูรณ์",
+  "knowledge.error.embedding_integrity_check_failed": "ไม่สามารถตรวจสอบดัชนีเอ็มเบดดิงได้ โปรดเปิดฐานความรู้นี้อีกครั้งเพื่อลองใหม่",
   "knowledge.error.failed_base_unknown": "ฐานความรู้นี้ล้มเหลวระหว่างการย้าย สร้างใหม่และเลือกโมเดล Embedding ใหม่",
   "knowledge.error.failed_to_create": "ไม่สามารถสร้างฐานความรู้",
   "knowledge.error.failed_to_delete": "ไม่สามารถลบฐานความรู้",

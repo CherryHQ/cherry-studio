@@ -1,17 +1,25 @@
 import '../tasks/jobTypes'
+import { setImmediate } from 'node:timers/promises'
+import { isDeepStrictEqual } from 'node:util'
+
 import { application } from '@application'
+import { jobService } from '@data/services/JobService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
   type CreateKnowledgeItemDto,
   DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY,
   KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
+  KNOWLEDGE_ITEM_ERROR_EMBEDDING_INDEX_INCOMPLETE,
+  isCompletedVectorKnowledgeBase,
+  type KnowledgeEmbeddingIntegrityResult,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
   type KnowledgeAddItemsResult,
@@ -259,21 +267,99 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * to roll back to once it is committed.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const base = assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
     const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
     const rootItemIds = rootItems.map((item) => item.id)
+    const items = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
 
     if (rootItemIds.length > 0) {
-      assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
       await this.assertSubtreesCanReindex(baseId, rootItemIds)
     }
 
-    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+    return this.knowledgeLockManager.runExclusive(baseId, () => {
+      const current = knowledgeBaseService.getById(baseId)
+      const currentRoots = knowledgeItemService
+        .getRootItemsByBaseId(baseId)
+        .filter((item) => item.status !== 'deleting')
+      const currentItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+      const queue = knowledgeQueueName(toKnowledgeBaseId(baseId))
+      if (
+        !isDeepStrictEqual(base, current) ||
+        !isDeepStrictEqual(rootItems, currentRoots) ||
+        !isDeepStrictEqual(items, currentItems)
+      ) {
+        throw DataApiErrorFactory.validation({
+          item: ['Knowledge base changed during backfill admission; retry the operation']
+        })
+      }
+      if (current.embeddingModelId !== null || !patch.embeddingModelId) {
+        throw DataApiErrorFactory.validation({
+          embeddingModelId: ['Embedding backfill requires a first-time embedding model']
+        })
+      }
+      if (jobService.count({ queue, status: [...ACTIVE_JOB_STATUSES] }) > 0) {
+        throw DataApiErrorFactory.validation({ item: ['Wait for existing knowledge tasks before enabling embeddings'] })
+      }
+      return application.get('DbService').withWriteTx((tx) => {
+        const updated = knowledgeBaseService.updateTx(tx, baseId, patch, { allowEmbeddingModelBackfill: true })
+        knowledgeItemService.activateItemsTx(
+          tx,
+          baseId,
+          items.map((item) => item.id)
+        )
+        if (rootItemIds.length > 0) {
+          application.get('JobManager').enqueueTx(
+            tx,
+            'knowledge.reindex-subtree',
+            { baseId, rootItemIds },
+            {
+              queue,
+              idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(
+                toKnowledgeBaseId(baseId),
+                toKnowledgeItemIds(rootItemIds)
+              )
+            }
+          )
+        }
+        return updated
+      })
+    })
+  }
 
-    if (rootItemIds.length > 0) {
-      await this.reindexItems(baseId, rootItemIds)
+  async checkEmbeddingIntegrity(baseId: string): Promise<KnowledgeEmbeddingIntegrityResult> {
+    const base = knowledgeBaseService.getById(baseId)
+    let changedCount = 0
+    if (!isCompletedVectorKnowledgeBase(base)) return { status: 'not_applicable', changedCount }
+    const itemIds = knowledgeItemService.getCompletedLeafIds(baseId)
+    for (let offset = 0; offset < itemIds.length; offset += 500) {
+      const status = await this.knowledgeLockManager.runExclusive(baseId, () => {
+        const current = knowledgeBaseService.getById(baseId)
+        if (!isCompletedVectorKnowledgeBase(current)) return 'not_applicable' as const
+        if (
+          jobService.count({ queue: knowledgeQueueName(toKnowledgeBaseId(baseId)), status: [...ACTIVE_JOB_STATUSES] }) >
+          0
+        ) {
+          return 'deferred' as const
+        }
+        const missing = application
+          .get('KnowledgeVectorStoreService')
+          .findIncompleteMaterials(baseId, itemIds.slice(offset, offset + 500), current.dimensions)
+        changedCount += application
+          .get('DbService')
+          .withWriteTx((tx) =>
+            knowledgeItemService.failCompletedItemsTx(
+              tx,
+              baseId,
+              missing,
+              KNOWLEDGE_ITEM_ERROR_EMBEDDING_INDEX_INCOMPLETE
+            )
+          )
+        return 'checked' as const
+      })
+      if (status !== 'checked') return { status, changedCount }
+      await setImmediate()
     }
-
-    return updatedBase
+    return { status: 'checked', changedCount }
   }
 
   async scheduleItem(

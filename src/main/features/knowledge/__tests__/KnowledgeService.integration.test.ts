@@ -3,10 +3,17 @@ import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { groupTable } from '@data/db/schemas/group'
+import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { jobService } from '@data/services/JobService'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { loggerService } from '@logger'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { runStartupRecovery } from '@main/core/job/runtime/recovery'
+import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -14,17 +21,25 @@ import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
-const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
-  () => ({
-    getIndexStoreMock: vi.fn(),
-    deleteStoreMock: vi.fn(),
-    enqueueMock: vi.fn(),
-    enqueueTxMock: vi.fn(),
-    listMock: vi.fn(),
-    registerHandlerMock: vi.fn()
-  })
-)
+const {
+  findIncompleteMaterialsMock,
+  getIndexStoreMock,
+  deleteStoreMock,
+  enqueueMock,
+  enqueueTxMock,
+  listMock,
+  registerHandlerMock
+} = vi.hoisted(() => ({
+  findIncompleteMaterialsMock: vi.fn(),
+  getIndexStoreMock: vi.fn(),
+  deleteStoreMock: vi.fn(),
+  enqueueMock: vi.fn(),
+  enqueueTxMock: vi.fn(),
+  listMock: vi.fn(),
+  registerHandlerMock: vi.fn()
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -38,6 +53,7 @@ vi.mock('@application', async () => {
       registerHandler: registerHandlerMock
     },
     KnowledgeVectorStoreService: {
+      findIncompleteMaterials: findIncompleteMaterialsMock,
       getIndexStore: getIndexStoreMock,
       deleteStore: deleteStoreMock,
       getIndexStoreIfExists: vi.fn()
@@ -56,6 +72,8 @@ vi.mock('@logger', () => ({
 }))
 
 const { KnowledgeService } = await import('../KnowledgeService')
+const { KnowledgeIngestionService } = await import('../ingestion/KnowledgeIngestionService')
+const { createReindexSubtreeJobHandler } = await import('../tasks/reindexSubtreeJobHandler')
 
 const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_GROUP_ID = '22222222-2222-4222-8222-222222222222'
@@ -72,6 +90,7 @@ describe('KnowledgeService integration', () => {
     // can `new KnowledgeService()` without tripping the already-instantiated guard.
     BaseService.resetInstances()
     getIndexStoreMock.mockResolvedValue({})
+    findIncompleteMaterialsMock.mockReset().mockReturnValue([])
     deleteStoreMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     enqueueTxMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
@@ -134,6 +153,263 @@ describe('KnowledgeService integration', () => {
         error: null
       }
     ])
+  })
+
+  describe('first embedding backfill recovery', () => {
+    const patch = { embeddingModelId, dimensions: 1536 }
+
+    beforeEach(() => {
+      dbh.db.update(knowledgeBaseTable).set({ status: 'completed', error: null }).run()
+      dbh.db.update(knowledgeItemTable).set({ status: 'completed', groupId: null }).run()
+      enqueueTxMock.mockImplementation((tx, type, input, options) => {
+        const snapshot = jobService.createTx(tx, {
+          type,
+          input,
+          queue: options.queue,
+          status: 'pending',
+          scheduledAt: Date.now(),
+          attempt: 0,
+          maxAttempts: 1,
+          metadata: {},
+          cancelRequested: false
+        })
+        return { id: snapshot.id, snapshot, finished: Promise.resolve(snapshot) }
+      })
+    })
+
+    it.each(['pending', 'running'] as const)(
+      'recovers an abandoned %s backfill without losing completed items',
+      async (status) => {
+        const lock = new KeyedMutex()
+        const ingestion = new KnowledgeIngestionService(lock)
+        await ingestion.enableEmbeddingModel(SOURCE_BASE_ID, patch)
+        expect(knowledgeItemService.getItemsByBaseId(SOURCE_BASE_ID).map((item) => item.status)).toEqual([
+          'processing',
+          'processing'
+        ])
+        dbh.db.update(jobTable).set({ status }).run()
+        if (status === 'running') knowledgeItemService.updateStatus(SOURCE_ROOT_ITEM_ID, 'completed')
+
+        runStartupRecovery(
+          new Map([['knowledge.reindex-subtree', createReindexSubtreeJobHandler(lock, ingestion) as JobHandler]]),
+          () => false
+        )
+        ingestion.recoverInterruptedItems()
+
+        expect(jobService.list().map((job) => job.status)).toEqual(['cancelled'])
+        expect(knowledgeItemService.getById(SOURCE_CHILD_ITEM_ID)).toMatchObject({
+          status: 'failed',
+          error: 'indexing_interrupted'
+        })
+        expect(knowledgeItemService.getById(SOURCE_ROOT_ITEM_ID).status).toBe(
+          status === 'running' ? 'completed' : 'failed'
+        )
+        expect(dbh.db.select().from(knowledgeBaseTable).get()?.embeddingModelId).toBe(embeddingModelId)
+      }
+    )
+
+    it('rolls back model, items and job when transactional enqueue fails', async () => {
+      const enqueue = enqueueTxMock.getMockImplementation()!
+      enqueueTxMock.mockImplementation((...args) => {
+        enqueue(...args)
+        throw new Error('synthetic enqueue failure')
+      })
+      await expect(new KnowledgeService().enableEmbeddingModel(SOURCE_BASE_ID, patch)).rejects.toThrow(
+        'synthetic enqueue failure'
+      )
+      expect(dbh.db.select().from(knowledgeBaseTable).get()?.embeddingModelId).toBeNull()
+      expect(knowledgeItemService.getItemsByBaseId(SOURCE_BASE_ID).every((item) => item.status === 'completed')).toBe(
+        true
+      )
+      expect(jobService.list()).toEqual([])
+    })
+
+    it('rejects changes during admission without committing the model', async () => {
+      const lock = new KeyedMutex()
+      const gate = Promise.withResolvers<void>()
+      const held = lock.runExclusive(SOURCE_BASE_ID, () => gate.promise)
+      const enabling = new KnowledgeIngestionService(lock).enableEmbeddingModel(SOURCE_BASE_ID, patch)
+      knowledgeItemService.updateStatus(SOURCE_CHILD_ITEM_ID, 'deleting')
+      gate.resolve()
+      await held
+      await expect(enabling).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      expect(dbh.db.select().from(knowledgeBaseTable).get()?.embeddingModelId).toBeNull()
+      expect(jobService.list()).toEqual([])
+    })
+
+    it('rejects a repeated setup without creating another job', async () => {
+      const service = new KnowledgeService()
+      await service.enableEmbeddingModel(SOURCE_BASE_ID, patch)
+      await expect(service.enableEmbeddingModel(SOURCE_BASE_ID, patch)).rejects.toThrow()
+      expect(jobService.list()).toHaveLength(1)
+    })
+
+    it('sets up an empty base without a job and excludes deleting items', async () => {
+      dbh.db.update(knowledgeItemTable).set({ status: 'deleting' }).run()
+      const base = await new KnowledgeService().enableEmbeddingModel(SOURCE_BASE_ID, patch)
+      expect(base.embeddingModelId).toBe(embeddingModelId)
+      expect(jobService.list()).toEqual([])
+      expect(
+        dbh.db
+          .select()
+          .from(knowledgeItemTable)
+          .all()
+          .every((item) => item.status === 'deleting')
+      ).toBe(true)
+    })
+
+    it('marks only completed leaves with incomplete embeddings and leaves successful and failed siblings alone', async () => {
+      dbh.db.update(knowledgeBaseTable).set(patch).run()
+      findIncompleteMaterialsMock.mockReturnValue([SOURCE_CHILD_ITEM_ID])
+      const service = new KnowledgeService()
+      expect(await service.checkEmbeddingIntegrity(SOURCE_BASE_ID)).toEqual({ status: 'checked', changedCount: 1 })
+      expect(knowledgeItemService.getById(SOURCE_ROOT_ITEM_ID).status).toBe('completed')
+      expect(knowledgeItemService.getById(SOURCE_CHILD_ITEM_ID)).toMatchObject({
+        status: 'failed',
+        error: 'embedding_index_incomplete'
+      })
+      expect(await service.checkEmbeddingIntegrity(SOURCE_BASE_ID)).toEqual({ status: 'checked', changedCount: 0 })
+      expect(knowledgeItemService.getById(SOURCE_CHILD_ITEM_ID).status).toBe('failed')
+    })
+
+    it('does not scan BM25 bases or mark items failed while a job is still active', async () => {
+      const service = new KnowledgeService()
+      expect(await service.checkEmbeddingIntegrity(SOURCE_BASE_ID)).toEqual({
+        status: 'not_applicable',
+        changedCount: 0
+      })
+      await service.enableEmbeddingModel(SOURCE_BASE_ID, patch)
+      knowledgeItemService.updateStatus(SOURCE_ROOT_ITEM_ID, 'completed')
+      expect(await service.checkEmbeddingIntegrity(SOURCE_BASE_ID)).toEqual({ status: 'deferred', changedCount: 0 })
+      expect(knowledgeItemService.getById(SOURCE_ROOT_ITEM_ID).status).toBe('completed')
+      expect(findIncompleteMaterialsMock).not.toHaveBeenCalled()
+    })
+
+    it('leaves item states intact when the index cannot be inspected', async () => {
+      dbh.db.update(knowledgeBaseTable).set(patch).run()
+      findIncompleteMaterialsMock.mockImplementation(() => {
+        throw new Error('unreadable index')
+      })
+      await expect(new KnowledgeService().checkEmbeddingIntegrity(SOURCE_BASE_ID)).rejects.toThrow('unreadable index')
+      expect(knowledgeItemService.getItemsByBaseId(SOURCE_BASE_ID).every((item) => item.status === 'completed')).toBe(
+        true
+      )
+    })
+  })
+
+  it('rolls up incomplete children without failing completed siblings', async () => {
+    const siblingId = '0198f3f2-7d1c-7abc-8def-123456789abc'
+    dbh.db
+      .update(knowledgeBaseTable)
+      .set({ status: 'completed', error: null, embeddingModelId, dimensions: 1536 })
+      .run()
+    dbh.db
+      .update(knowledgeItemTable)
+      .set({ type: 'directory', status: 'completed', data: { source: '/synthetic-directory' } })
+      .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+      .run()
+    dbh.db
+      .update(knowledgeItemTable)
+      .set({ status: 'completed' })
+      .where(eq(knowledgeItemTable.id, SOURCE_CHILD_ITEM_ID))
+      .run()
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({
+        id: siblingId,
+        baseId: SOURCE_BASE_ID,
+        groupId: SOURCE_ROOT_ITEM_ID,
+        type: 'note',
+        data: { source: 'good', content: 'complete sibling' },
+        status: 'completed'
+      })
+      .run()
+    findIncompleteMaterialsMock.mockReturnValue([SOURCE_CHILD_ITEM_ID])
+    await new KnowledgeService().checkEmbeddingIntegrity(SOURCE_BASE_ID)
+    expect(knowledgeItemService.getById(SOURCE_ROOT_ITEM_ID).status).toBe('failed')
+    expect(knowledgeItemService.getById(SOURCE_CHILD_ITEM_ID).status).toBe('failed')
+    expect(knowledgeItemService.getById(siblingId).status).toBe('completed')
+  })
+
+  it('inspects every batch when the base has more than 500 completed leaves', async () => {
+    dbh.db
+      .update(knowledgeBaseTable)
+      .set({ status: 'completed', error: null, embeddingModelId, dimensions: 1536 })
+      .run()
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values(
+        Array.from({ length: 501 }, (_, index) => ({
+          id: `0198f3f2-7d1d-7abc-8def-${String(index).padStart(12, '0')}`,
+          baseId: SOURCE_BASE_ID,
+          type: 'note' as const,
+          data: { source: `note-${index}`, content: 'synthetic text' },
+          status: 'completed' as const
+        }))
+      )
+      .run()
+    findIncompleteMaterialsMock.mockImplementation((_baseId: string, ids: string[]) => ids)
+    expect(await new KnowledgeService().checkEmbeddingIntegrity(SOURCE_BASE_ID)).toEqual({
+      status: 'checked',
+      changedCount: 501
+    })
+    expect(knowledgeItemService.getCompletedLeafIds(SOURCE_BASE_ID)).toEqual([])
+    expect(findIncompleteMaterialsMock.mock.calls.every(([, ids]) => ids.length <= 500)).toBe(true)
+  })
+
+  it('settles only active members of an interrupted subtree', () => {
+    dbh.db
+      .update(knowledgeItemTable)
+      .set({ type: 'directory', status: 'preparing', data: { source: '/synthetic-directory' } })
+      .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+      .run()
+    dbh.db
+      .update(knowledgeItemTable)
+      .set({ status: 'completed' })
+      .where(eq(knowledgeItemTable.id, SOURCE_CHILD_ITEM_ID))
+      .run()
+    knowledgeItemService.failActiveSubtrees(SOURCE_BASE_ID, [SOURCE_ROOT_ITEM_ID], 'indexing_interrupted')
+    expect(knowledgeItemService.getById(SOURCE_ROOT_ITEM_ID).status).toBe('failed')
+    expect(knowledgeItemService.getById(SOURCE_CHILD_ITEM_ID).status).toBe('completed')
+  })
+
+  it('fails an activated backfill root when its source disappears before reset', async () => {
+    dbh.db
+      .update(knowledgeBaseTable)
+      .set({ status: 'completed', error: null, embeddingModelId, dimensions: 1536 })
+      .run()
+    dbh.db
+      .update(knowledgeItemTable)
+      .set({
+        type: 'file',
+        status: 'processing',
+        data: { source: '/nonexistent-issue22365/source.txt', relativePath: 'source.txt' as PosixRelativeFilePath }
+      })
+      .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+      .run()
+    dbh.db
+      .update(knowledgeItemTable)
+      .set({ groupId: null, status: 'completed' })
+      .where(eq(knowledgeItemTable.id, SOURCE_CHILD_ITEM_ID))
+      .run()
+    const lock = new KeyedMutex()
+    const handler = createReindexSubtreeJobHandler(lock, new KnowledgeIngestionService(lock))
+    await handler.execute({
+      jobId: 'synthetic-reindex',
+      input: { baseId: SOURCE_BASE_ID, rootItemIds: [SOURCE_ROOT_ITEM_ID] },
+      attempt: 1,
+      parentId: null,
+      signal: new AbortController().signal,
+      metadata: {},
+      patchMetadata: vi.fn(),
+      reportProgress: vi.fn(),
+      logger: loggerService.withContext('backfill-test')
+    })
+    expect(knowledgeItemService.getById(SOURCE_ROOT_ITEM_ID)).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('Source is no longer available')
+    })
+    expect(knowledgeItemService.getById(SOURCE_CHILD_ITEM_ID).status).toBe('completed')
   })
 
   it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {

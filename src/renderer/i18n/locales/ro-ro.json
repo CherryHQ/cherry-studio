@@ -1818,6 +1818,8 @@
   "knowledge.empty_action": "Creează o bază de cunoștințe",
   "knowledge.empty_description": "Dezvoltă-ți cunoștințele cu ajutorul AI",
   "knowledge.error.directory_not_migrated": "Migrarea directorului a eșuat. Te rugăm să-l ștergi și să-l reîncarci.",
+  "knowledge.error.embedding_index_incomplete": "Indexul de embeddinguri este incomplet. Reindexați acest element pentru a-l finaliza.",
+  "knowledge.error.embedding_integrity_check_failed": "Indexul de embeddinguri nu a putut fi verificat. Redeschideți această bază de cunoștințe pentru a reîncerca.",
   "knowledge.error.failed_base_unknown": "Această bază de cunoștințe a eșuat în timpul migrării. Reconstruiește-o și alege un nou model de embedding.",
   "knowledge.error.failed_to_create": "Nu s-a reușit crearea bazei de cunoștințe",
   "knowledge.error.failed_to_delete": "Nu s-a reușit ștergerea bazei de cunoștințe",
