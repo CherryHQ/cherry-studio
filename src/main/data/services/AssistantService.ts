@@ -26,7 +26,7 @@ import type {
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { topicFollowupScopePrefix } from '@shared/data/types/followupQueue'
+import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { followupQueueService } from './FollowupQueueService'
@@ -638,9 +638,11 @@ export class AssistantDataService {
         if (!shouldDeleteTopics) {
           // Surviving topics keep their rows with the assistant FK nulled, but
           // their queued follow-ups can never drain — purge those scopes here.
+          // Scoped to the deleted assistant exactly: a whole-topic prefix would
+          // also purge every other assistant's scope on a retained topic.
           // Deleted topics purge through the topic path instead.
           for (const topicId of projectedTopicIds)
-            followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(topicId))
+            followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id))
         }
         return {
           deleted: this.permanentlyDeleteTx(tx, id),
@@ -742,10 +744,12 @@ export class AssistantDataService {
     // Rows moved to the Recycle Bin before this release were soft-deleted without a binding purge.
     promptService.purgeForTargetsTx(tx, 'assistant', ids)
     // Surviving topics keep their rows, but their queued follow-ups can never
-    // drain — purge those scopes, mirroring the permanent-delete path.
+    // drain — purge those scopes, mirroring the permanent-delete path. Scoped
+    // to the purged assistant exactly: a whole-topic prefix would also purge
+    // every other assistant's scope on a retained topic.
     for (const id of ids) {
       for (const topicId of topicService.listIdsByAssistantTx(tx, id)) {
-        followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(topicId))
+        followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id))
       }
     }
     tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()
@@ -830,3 +834,4 @@ export class AssistantDataService {
 }
 
 export const assistantDataService = new AssistantDataService()
+

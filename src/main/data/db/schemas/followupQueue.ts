@@ -15,7 +15,10 @@ import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex, uuidPrima
  * `followupQueueService.purgeForScopePrefixTx` in their delete paths.
  *
  * Ordering within a scope uses a fractional-indexing `orderKey`
- * (cf. `pin`). Items are immutable and hard-deleted on dequeue.
+ * (cf. `pin`). Items are immutable; removal transitions them to the
+ * terminal `closed` receipt (retained past the retry lifetime, then
+ * collected) instead of hard-deleting, so a same-id enqueue retry cannot
+ * resurrect a dequeued item.
  */
 export const followupQueueTable = sqliteTable(
   'followup_queue',
@@ -43,7 +46,7 @@ export const followupQueueTable = sqliteTable(
     index('followup_queue_scope_key_idx').on(t.scopeKey),
     index('followup_queue_status_idx').on(t.status),
     scopedOrderKeyIndex('followup_queue', 'scopeKey')(t),
-    check('followup_queue_status_check', sql`${t.status} IN ('pending', 'sending', 'failed')`)
+    check('followup_queue_status_check', sql`${t.status} IN ('pending', 'sending', 'failed', 'closed')`)
   ]
 )
 

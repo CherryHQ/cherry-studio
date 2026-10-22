@@ -64,6 +64,13 @@ export const FOLLOWUP_QUEUE_HEARTBEAT_MS = 5 * 60 * 1000
 // instead of holding its heartbeat-renewed claim and wedging FIFO forever.
 export const FOLLOWUP_QUEUE_SEND_TIMEOUT_MS = 30 * 60 * 1000
 
+/**
+ * How long a `closed` removal receipt is retained: long enough to cover any
+ * transport retry of the original enqueue, then collected opportunistically
+ * on the enqueue write path (and with the conversation on scope purge).
+ */
+export const FOLLOWUP_QUEUE_RECEIPT_RETENTION_MS = 24 * 60 * 60 * 1000
+
 /** Canonical membership dimension for `/followup-queues` change effects. */
 export const FOLLOWUP_QUEUE_SCOPE_DIMENSION = 'scopeKey'
 
@@ -80,9 +87,12 @@ export type FollowupQueueId = z.infer<typeof FollowupQueueIdSchema>
 /**
  * Drain status driving cross-window send arbitration. `pending` and `failed`
  * rows are claimable; `sending` rows are owned by the claiming window until
- * the send resolves (delete) or fails (back to `failed`).
+ * the send resolves (close) or fails (back to `failed`). `closed` is the
+ * terminal removal receipt: invisible to listings, claims and the limit
+ * count, retained past the retry lifetime so a same-id enqueue retry cannot
+ * resurrect a dequeued (or user-removed) item for a second delivery.
  */
-export const FollowupQueueStatusSchema = z.enum(['pending', 'sending', 'failed'])
+export const FollowupQueueStatusSchema = z.enum(['pending', 'sending', 'failed', 'closed'])
 export type FollowupQueueStatus = z.infer<typeof FollowupQueueStatusSchema>
 
 /**

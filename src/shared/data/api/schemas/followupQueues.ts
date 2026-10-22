@@ -84,6 +84,16 @@ export const ClaimHeadFollowupQueueSchema = z.union([
 ])
 export type ClaimHeadFollowupQueueResult = z.infer<typeof ClaimHeadFollowupQueueSchema>
 
+/**
+ * Body for the settlement mutations (`fail`, `sent`, `heartbeat`). The winning
+ * claim token is required and verified: a retried settlement from a previous
+ * owner must not release (or refresh) the row's new live claim.
+ */
+export const FollowupQueueSettlementBodySchema = z.strictObject({
+  claimToken: FollowupQueueClaimTokenSchema
+})
+export type FollowupQueueSettlementBodyDto = z.infer<typeof FollowupQueueSettlementBodySchema>
+
 /** Response for `POST /followup-queues/:id/heartbeat` — whether the caller still owns a live claim. */
 export const HeartbeatFollowupQueueSchema = z.strictObject({
   live: z.boolean()

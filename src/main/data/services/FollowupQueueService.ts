@@ -19,7 +19,7 @@
  * `purgeForScopePrefixTx` — there is no FK by design.
  */
 
-import { and, asc, eq, gte, inArray, like, lt, or } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, like, lt, ne, or } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -39,6 +39,7 @@ import type { CreateFollowupQueueDto } from '@shared/data/api/schemas/followupQu
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
   FOLLOWUP_QUEUE_LIMIT,
+  FOLLOWUP_QUEUE_RECEIPT_RETENTION_MS,
   FOLLOWUP_QUEUE_SCOPE_DIMENSION,
   FOLLOWUP_SESSION_SCOPE_PREFIX,
   STALE_SENDING_CLAIM_MS,
@@ -157,7 +158,7 @@ export class FollowupQueueService {
     const rows = this.db
       .select()
       .from(followupQueueTable)
-      .where(eq(followupQueueTable.scopeKey, scopeKey))
+      .where(and(eq(followupQueueTable.scopeKey, scopeKey), ne(followupQueueTable.status, 'closed')))
       .orderBy(asc(followupQueueTable.orderKey))
       .all()
     return rows.map(rowToItem)
@@ -167,7 +168,10 @@ export class FollowupQueueService {
    * Enqueue one item at the end of the scope. Count check + insert run in one
    * transaction so concurrent enqueues cannot overshoot the limit. A caller
    * supplied `id` is an idempotency key: a transport retry of a committed
-   * insert returns the existing row instead of duplicating it.
+   * insert returns the existing row instead of duplicating it — and removal
+   * leaves a `closed` receipt behind, so a retry that lands after the dequeue
+   * (or after a user removal) returns that receipt instead of resurrecting
+   * the item for a second delivery.
    */
   enqueue(dto: CreateFollowupQueueDto): FollowupQueueItem {
     const dbService = application.get('DbService')
@@ -177,10 +181,20 @@ export class FollowupQueueService {
         if (duplicate) return rowToItem(duplicate)
       }
       throwIfScopeConversationGoneTx(tx, dto.scopeKey)
+      // Tombstones past the retry lifetime are collected opportunistically
+      // here, so receipts cannot accumulate without bound.
+      tx.delete(followupQueueTable)
+        .where(
+          and(
+            eq(followupQueueTable.status, 'closed'),
+            lt(followupQueueTable.updatedAt, Date.now() - FOLLOWUP_QUEUE_RECEIPT_RETENTION_MS)
+          )
+        )
+        .run()
       const existing = tx
         .select({ id: followupQueueTable.id })
         .from(followupQueueTable)
-        .where(eq(followupQueueTable.scopeKey, dto.scopeKey))
+        .where(and(eq(followupQueueTable.scopeKey, dto.scopeKey), ne(followupQueueTable.status, 'closed')))
         .all()
       if (existing.length >= FOLLOWUP_QUEUE_LIMIT) {
         throw DataApiErrorFactory.conflict(
@@ -207,11 +221,31 @@ export class FollowupQueueService {
     return item
   }
 
-  /** Remove one item by id. Hard delete. */
+  /**
+   * Remove one item by id. The row transitions to the terminal `closed`
+   * receipt instead of being hard-deleted, so a same-id enqueue retry landing
+   * after the removal returns the receipt instead of resurrecting the item
+   * (duplicate delivery after a lost dequeue response; undone user removal).
+   * Receipts are invisible to listings, claims and the limit count, and are
+   * collected once older than the retry lifetime. Idempotent: removing an
+   * already-closed row is a no-op, so a retried DELETE settles cleanly.
+   */
   remove(id: string): void {
-    const [row] = this.db.delete(followupQueueTable).where(eq(followupQueueTable.id, id)).returning().all()
+    const [row] = this.db
+      .update(followupQueueTable)
+      .set({ status: 'closed' })
+      .where(and(eq(followupQueueTable.id, id), ne(followupQueueTable.status, 'closed')))
+      .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
+      .all()
 
     if (!row) {
+      const [existing] = this.db
+        .select({ id: followupQueueTable.id })
+        .from(followupQueueTable)
+        .where(eq(followupQueueTable.id, id))
+        .limit(1)
+        .all()
+      if (existing) return
       throw DataApiErrorFactory.notFound('FollowupQueue', id)
     }
 
@@ -322,11 +356,17 @@ export class FollowupQueueService {
    * claim observes `alreadySent`), never as a second send. Best-effort: when
    * the row is already gone the dequeue already took effect.
    */
-  markSent(id: string): void {
+  markSent(id: string, claimToken: string): void {
     const [row] = this.db
       .update(followupQueueTable)
       .set({ sentAt: Date.now() })
-      .where(and(eq(followupQueueTable.id, id), eq(followupQueueTable.status, 'sending')))
+      .where(
+        and(
+          eq(followupQueueTable.id, id),
+          eq(followupQueueTable.status, 'sending'),
+          eq(followupQueueTable.claimToken, claimToken)
+        )
+      )
       .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
       .all()
 
@@ -337,13 +377,15 @@ export class FollowupQueueService {
 
   /**
    * Refresh the claim lease on a live `sending` row while its owner's send is
-   * still in flight. Without this, a send outliving the fixed reclaim lease
-   * could be reclaimed by another window and delivered twice. Not a new claim:
+   * still in flight. Fenced by the winning claim token, so a stale heartbeat
+   * from a previous owner cannot keep a re-claimed row alive. Without this, a
+   * send outliving the fixed reclaim lease could be reclaimed by another
+   * window and delivered twice. Not a new claim:
    * stale or absent rows report `live: false` and are left for the reclaim path.
    * Silent: mirrors already show the row as sending from the claim, so no
    * notification is published and idle composers never refetch on heartbeats.
    */
-  heartbeat(id: string): { live: boolean } {
+  heartbeat(id: string, claimToken: string): { live: boolean } {
     const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
     const [row] = this.db
       .update(followupQueueTable)
@@ -352,6 +394,7 @@ export class FollowupQueueService {
         and(
           eq(followupQueueTable.id, id),
           eq(followupQueueTable.status, 'sending'),
+          eq(followupQueueTable.claimToken, claimToken),
           gte(followupQueueTable.updatedAt, cutoff)
         )
       )
@@ -384,7 +427,7 @@ export class FollowupQueueService {
           claimToken: followupQueueTable.claimToken
         })
         .from(followupQueueTable)
-        .where(eq(followupQueueTable.scopeKey, scopeKey))
+        .where(and(eq(followupQueueTable.scopeKey, scopeKey), ne(followupQueueTable.status, 'closed')))
         .orderBy(asc(followupQueueTable.orderKey))
         .limit(1)
         .all()
@@ -412,12 +455,23 @@ export class FollowupQueueService {
     return result
   }
 
-  /** `sending` → `failed` after a failed drain attempt; stays queued for retry. */
-  markFailed(id: string): void {
+  /**
+   * `sending` → `failed` after a failed drain attempt; stays queued for retry.
+   * The winning claim token is required: a settlement retried after its row
+   * was re-claimed by another window must not release that window's live
+   * claim (which would admit a second concurrent sender).
+   */
+  markFailed(id: string, claimToken: string): void {
     const [row] = this.db
       .update(followupQueueTable)
       .set({ status: 'failed', claimToken: null })
-      .where(and(eq(followupQueueTable.id, id), eq(followupQueueTable.status, 'sending')))
+      .where(
+        and(
+          eq(followupQueueTable.id, id),
+          eq(followupQueueTable.status, 'sending'),
+          eq(followupQueueTable.claimToken, claimToken)
+        )
+      )
       .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
       .all()
 
@@ -496,3 +550,4 @@ export class FollowupQueueService {
 }
 
 export const followupQueueService = new FollowupQueueService()
+
