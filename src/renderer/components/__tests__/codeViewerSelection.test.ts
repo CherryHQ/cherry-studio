@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { resolveCodeViewerBoundary } from '../codeViewerSelection'
+import { mergeCodeViewerSelection, resolveCodeViewerBoundary } from '../codeViewerSelection'
 
 const sides = ['start', 'end'] as const
 
@@ -206,5 +206,56 @@ describe('resolveCodeViewerBoundary', () => {
     const { scroller } = fixture()
     const other = fixture()
     expect(resolveCodeViewerBoundary(scroller, other.rows[0].content, 0, 'start')).toBeNull()
+  })
+})
+
+describe('mergeCodeViewerSelection', () => {
+  it('keeps a captured start when the container boundary moves earlier', () => {
+    const previous = { startLine: 10, startOffset: 0, endLine: 29, endOffset: 2 }
+    expect(
+      mergeCodeViewerSelection(
+        previous,
+        { line: 0, offset: 0, source: 'container' },
+        { line: 29, offset: 2, source: 'line' }
+      )
+    ).toEqual(previous)
+  })
+
+  it('keeps a captured end when the container boundary moves later', () => {
+    const previous = { startLine: 10, startOffset: 0, endLine: 20, endOffset: 2 }
+    expect(
+      mergeCodeViewerSelection(
+        previous,
+        { line: 10, offset: 0, source: 'line' },
+        { line: 29, offset: 2, source: 'container' }
+      )
+    ).toEqual(previous)
+  })
+
+  it('takes real line boundaries in both directions', () => {
+    const previous = { startLine: 10, startOffset: 0, endLine: 20, endOffset: 2 }
+    for (const [startLine, startOffset, endLine, endOffset] of [
+      [0, 0, 29, 2],
+      [11, 1, 19, 1],
+      [10, 1, 20, 1]
+    ]) {
+      expect(
+        mergeCodeViewerSelection(
+          previous,
+          { line: startLine, offset: startOffset, source: 'line' },
+          { line: endLine, offset: endOffset, source: 'line' }
+        )
+      ).toEqual({ startLine, startOffset, endLine, endOffset })
+    }
+  })
+
+  it('accepts container boundaries when nothing was captured', () => {
+    expect(
+      mergeCodeViewerSelection(
+        null,
+        { line: 10, offset: 0, source: 'container' },
+        { line: 29, offset: 2, source: 'container' }
+      )
+    ).toEqual({ startLine: 10, startOffset: 0, endLine: 29, endOffset: 2 })
   })
 })

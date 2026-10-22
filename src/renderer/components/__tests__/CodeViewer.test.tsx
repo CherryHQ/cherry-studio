@@ -402,8 +402,8 @@ describe('CodeViewer', () => {
     const wide = 'nst value1 = "abcdefghij"\nconst value2 = "abcdefghij"\nconst value3 = "abcdefghij"\nco'
     const narrow = 'const value2 = "abcdefghij"\nconst value3 = "abcdefghij"\nco'
 
-    function setup(expanded = false, onRequestExpand?: () => void) {
-      const props = { value, onRequestExpand, language: 'typescript', expanded }
+    function setup(expanded = false, onRequestExpand?: () => void, code = value) {
+      const props = { value: code, onRequestExpand, language: 'typescript', expanded }
       const view = render(<CodeViewer {...props} />)
       const scroller = view.container.querySelector<HTMLElement>('.shiki-scroller')!
       const wrapper = scroller.querySelector<HTMLElement>('.shiki-list > div')!
@@ -475,6 +475,35 @@ describe('CodeViewer', () => {
       expect(window.getSelection()!.getRangeAt(0).startContainer).toBe(view.wrapper)
       fireEvent.scroll(view.scroller)
       expect(view.copy()).toEqual({ text: wide, prevented: true })
+    })
+
+    it('scrolls a captured selection away and back without widening it', () => {
+      const lines = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`)
+      const code = lines.join('\n')
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, code)
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+
+      mocks.firstRenderedRow = 20
+      mocks.lastRenderedRow = 59
+      view.rerender(<CodeViewer value={code} language="typescript" expanded={false} className="scrolled-away" />)
+      // Model Chromium relocating the removed row's endpoint to its wrapper.
+      view.select(view.wrapper, 0, view.text(29), 2)
+      fireEvent.scroll(view.scroller)
+
+      mocks.firstRenderedRow = 0
+      mocks.lastRenderedRow = 39
+      view.rerender(<CodeViewer value={code} language="typescript" expanded={false} className="scrolled-back" />)
+      // Chromium keeps offset zero on scrollback; jsdom adjusts it as rows are inserted.
+      view.select(view.wrapper, 0, view.text(29), 2)
+      fireEvent.scroll(view.scroller)
+
+      const expected = [...lines.slice(10, 29), 'co'].join('\n')
+      expect(expected).toHaveLength(553)
+      expect(view.copy()).toEqual({ text: expected, prevented: true })
     })
 
     // Before fix: RED — completion outside the viewer never captured the logical range.

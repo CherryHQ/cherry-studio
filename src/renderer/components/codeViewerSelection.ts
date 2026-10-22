@@ -7,6 +7,26 @@ export interface CodeViewerBoundary {
   source: 'line' | 'container'
 }
 
+export interface CodeViewerSavedSelection {
+  startLine: number
+  startOffset: number
+  endLine: number
+  endOffset: number
+}
+
+export function mergeCodeViewerSelection(
+  previous: CodeViewerSavedSelection | null,
+  start: CodeViewerBoundary,
+  end: CodeViewerBoundary
+): CodeViewerSavedSelection {
+  return {
+    startLine: start.source === 'line' || !previous ? start.line : previous.startLine,
+    startOffset: start.source === 'line' || !previous ? start.offset : previous.startOffset,
+    endLine: end.source === 'line' || !previous ? end.line : previous.endLine,
+    endOffset: end.source === 'line' || !previous ? end.offset : previous.endOffset
+  }
+}
+
 /** Both sides currently use the same DOM-order rule; the side parameter reserves directional handling. */
 export function resolveCodeViewerBoundary(
   scroller: HTMLElement,

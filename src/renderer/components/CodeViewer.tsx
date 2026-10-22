@@ -12,16 +12,13 @@ import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 
-import { resolveCodeViewerBoundary } from './codeViewerSelection'
+import {
+  type CodeViewerSavedSelection as SavedSelection,
+  mergeCodeViewerSelection,
+  resolveCodeViewerBoundary
+} from './codeViewerSelection'
 
 const logger = loggerService.withContext('CodeViewer')
-
-interface SavedSelection {
-  startLine: number
-  startOffset: number
-  endLine: number
-  endOffset: number
-}
 
 interface CodeViewerProps {
   /** Code string value. */
@@ -211,20 +208,7 @@ const CodeViewer = ({
     if (!parsed) return null
     const { start, end } = parsed
     const previous = savedSelectionRef.current
-    const keepStart =
-      previous &&
-      start.source === 'container' &&
-      (start.line > previous.startLine || (start.line === previous.startLine && start.offset > previous.startOffset))
-    const keepEnd =
-      previous &&
-      end.source === 'container' &&
-      (end.line < previous.endLine || (end.line === previous.endLine && end.offset < previous.endOffset))
-    const saved = {
-      startLine: keepStart ? previous.startLine : start.line,
-      startOffset: keepStart ? previous.startOffset : start.offset,
-      endLine: keepEnd ? previous.endLine : end.line,
-      endOffset: keepEnd ? previous.endOffset : end.offset
-    }
+    const saved = mergeCodeViewerSelection(previous, start, end)
     savedSelectionRef.current = saved
     return saved
   }, [saveSelection])
