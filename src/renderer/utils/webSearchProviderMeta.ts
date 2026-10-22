@@ -95,6 +95,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://tavily.com',
     apiKeyWebsite: 'https://app.tavily.com/home'
   },
+  yuanbao: {
+    descriptionKey: 'settings.tool.websearch.provider_description.yuanbao',
+    iconRef: providerIconRef('yuanbao'),
+    officialWebsite: 'https://cloud.tencent.com/document/product/1806/130615',
+    apiKeyWebsite: 'https://console.cloud.tencent.com/wsa'
+  },
   zhipu: {
     descriptionKey: 'settings.tool.websearch.provider_description.zhipu',
     iconRef: providerIconRef('zhipu'),
