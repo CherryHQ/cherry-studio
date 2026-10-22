@@ -31,7 +31,7 @@ type WebSearchProviderDisplayMeta = {
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
   crawl4ai: {
     descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
-    officialWebsite: 'https://docs.crawl4ai.com/core/self-hosting/'
+    officialWebsite: 'https://crawl4ai.com'
   },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
@@ -94,6 +94,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('tavily'),
     officialWebsite: 'https://tavily.com',
     apiKeyWebsite: 'https://app.tavily.com/home'
+  },
+  yuanbao: {
+    descriptionKey: 'settings.tool.websearch.provider_description.yuanbao',
+    iconRef: providerIconRef('yuanbao'),
+    officialWebsite: 'https://cloud.tencent.com/document/product/1806/130615',
+    apiKeyWebsite: 'https://console.cloud.tencent.com/wsa'
   },
   zhipu: {
     descriptionKey: 'settings.tool.websearch.provider_description.zhipu',
