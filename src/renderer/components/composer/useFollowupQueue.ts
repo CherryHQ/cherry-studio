@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
 import {
@@ -103,13 +104,25 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
   }
 }
 
+/**
+ * Cross-window record of the stream completion this scope already drained.
+ * The drain trigger is the completion itself (not the conversation list read
+ * receipt), so consumption needs its own marker: one completion sends at most
+ * one follow-up, even when the turn was already marked read or another window
+ * won the send.
+ */
+const consumedKeyFor = (scopeKey: string) =>
+  `followup-queue.consumed.${scopeKey}` as `followup-queue.consumed.${string}`
+const loadConsumed = (scopeKey: string): number | null =>
+  cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
+
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
   scopeKey: string
-  /** `done`-and-unacknowledged edge from `useTopicStreamStatus` — the live→idle drain trigger. */
-  isFulfilled: boolean
-  /** Acknowledge the completion so the drain fires once per turn. */
-  markSeen: () => void
+  /** Stream completion is the drain trigger, independent of the conversation list read receipt. */
+  status: TopicStreamStatus | undefined
+  /** Timestamp of the last completed turn; a completion drains at most one queued follow-up. */
+  lastCompletedAt: number | null
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when auto-drain fails and leaves the queued item in place. */
@@ -147,8 +160,8 @@ export interface FollowupQueueController {
  */
 export function useFollowupQueue({
   scopeKey,
-  isFulfilled,
-  markSeen,
+  status,
+  lastCompletedAt,
   onDrain,
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
@@ -253,10 +266,10 @@ export function useFollowupQueue({
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
-  const markSeenRef = useRef(markSeen)
-  markSeenRef.current = markSeen
-  const isFulfilledRef = useRef(isFulfilled)
-  isFulfilledRef.current = isFulfilled
+  const statusRef = useRef(status)
+  statusRef.current = status
+  const lastCompletedAtRef = useRef(lastCompletedAt)
+  lastCompletedAtRef.current = lastCompletedAt
   const mountedRef = useRef(true)
   // Ids with a claim held by this window (drain or steer in flight).
   const activeIdsRef = useRef(new Set<string>())
@@ -793,7 +806,14 @@ export function useFollowupQueue({
       const head = itemsRef.current.find((entry) => entry.id === id)
       // Gates that closed since scheduling park the retry instead of
       // bypassing them — the effect re-fires the drain when they reopen.
-      if (!isFulfilledRef.current || drainBlockedRef.current || !head) return
+      if (
+        statusRef.current !== 'done' ||
+        lastCompletedAtRef.current == null ||
+        loadConsumed(scopeKeyRef.current) === lastCompletedAtRef.current ||
+        drainBlockedRef.current ||
+        !head
+      )
+        return
       void drainHeadRef.current(head)
     }
     pendingClaimRef.current.set(id, setTimeout(tick, 5000))
@@ -809,10 +829,13 @@ export function useFollowupQueue({
     // Snapshot the send path with the scope: the handler closes over the current
     // conversation, so a scope switch mid-drain must not redirect the old payload.
     const sendForScope = onDrainRef.current
-    // Capture the acknowledgment with the completion that initiated this
-    // drain: markSeen is bound per completion, and by the time an alreadySent
-    // recovery settles, markSeenRef may point at a newer turn's callback.
-    const ackCompletion = markSeenRef.current
+    // Bind the consumption marker to the completion that initiated this
+    // drain: by the time an alreadySent recovery settles, lastCompletedAtRef
+    // may point at a newer turn, which must drain its own follow-up.
+    const completionAt = lastCompletedAtRef.current
+    const ackCompletion = () => {
+      if (completionAt != null) cacheService.setShared(consumedKeyFor(scope), completionAt)
+    }
     if (drainBusyScopesRef.current.has(scope) || activeIdsRef.current.has(head.id)) return
     drainBusyScopesRef.current.add(scope)
     activeIdsRef.current.add(head.id)
@@ -877,11 +900,12 @@ export function useFollowupQueue({
   // Resolution writes are retried so a successful send is not replayed after
   // a lost dequeue.
   useEffect(() => {
-    if (!isFulfilled || paused || !queriesReady || !pauseKnown) return
+    if (status !== 'done' || lastCompletedAt == null || paused || !queriesReady || !pauseKnown) return
+    if (loadConsumed(scopeKey) === lastCompletedAt) return
     const head = itemsRef.current[0]
     if (!head || head.id !== headId) return
     void drainHeadRef.current(head)
-  }, [isFulfilled, paused, queriesReady, pauseKnown, headId, scopeKey])
+  }, [status, lastCompletedAt, paused, queriesReady, pauseKnown, headId, scopeKey])
 
   return { items, enqueue, removeId, reorder, paused, setPaused, steer, takeForEdit }
 }
