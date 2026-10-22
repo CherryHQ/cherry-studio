@@ -121,8 +121,10 @@ The Job output and metadata contain only validated counts, stable error/warning
 codes, and remote object ids. Credentials, account details, raw provider
 payloads, and provider error messages are not written to Job rows or Source
 summaries. Job settlement updates the Source only while its revision and
-`activeJobId` still match, and DataApi read-model notifications are emitted
-only after the owning transaction commits.
+`activeJobId` still match. If a lifecycle change advances the revision, the terminal
+Job only clears its own active reference; it cannot overwrite the summary or clear
+a replacement Job. DataApi read-model notifications are emitted only after the
+owning transaction commits.
 
 Terminal credential failures mark the Connection `reauthorization-required`,
 pause every dependent Source, and disable their schedules. Successful

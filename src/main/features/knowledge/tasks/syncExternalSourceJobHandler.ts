@@ -120,8 +120,8 @@ export function settleExternalSourceSync(
         : event.error?.code === JOB_ERROR_CODES.HANDLER_TIMEOUT
           ? 'timeout'
           : (failedMetadata?.code ?? 'failed')
-  const settled = application.get('DbService').withWriteTx((tx) =>
-    externalKnowledgeSourceService.settleSyncTx(tx, {
+  const settled = application.get('DbService').withWriteTx((tx) => {
+    const projected = externalKnowledgeSourceService.settleSyncTx(tx, {
       sourceId: event.input.sourceId,
       expectedRevision: event.input.sourceRevision,
       jobId: event.jobId,
@@ -133,7 +133,15 @@ export function settleExternalSourceSync(
       warningCount: summary.warningCount,
       errorSummary
     })
-  )
+    if (projected) return true
+    const source = externalKnowledgeSourceService.getByIdTx(tx, event.input.sourceId)
+    if (!source || source.baseId !== event.input.baseId) return false
+    return externalKnowledgeSourceService.clearActiveJobTx(tx, {
+      sourceId: source.id,
+      expectedRevision: source.revision,
+      expectedActiveJobId: event.jobId
+    })
+  })
   if (settled) {
     notifyExternalKnowledgeSourceChange(event.input.baseId, event.input.sourceId, 'projection')
   }

@@ -18,6 +18,8 @@ The large-batch regression also exposed a recursive status-update plan that scan
 
 Schedule mutations use the same base mutex and deletion admission fence as teardown. In-flight disconnects own a transient exclusion until settlement and final deletion finish; reauthorization skips those sources, while explicit schedule/state mutations reject them. Failed disconnects release the exclusion and retain the existing paused/retry behavior; this does not add restart-resumable disconnects.
 
+Terminal synchronization cleanup is separate from result publication. Authorization failure pauses the Source and advances its revision, so the old Job cannot publish its summary. Settlement still clears that Job's own active reference under the current Source revision, in the same transaction, and notifies after commit. A replacement Job remains protected by its different id. Requiring the original revision for this cleanup leaves manual-only Sources blocked after successful reauthorization.
+
 ## Alternatives considered
 
 Checking item status cannot distinguish completed → processing → completed. Holding the base mutation lock during network acquisition blocks unrelated mutations. Adding persistent generations requires a schema change for work that never resumes across restart.
@@ -36,3 +38,5 @@ Newer overlapping work wins while unrelated roots can still proceed. Ordinary de
 
 - Regression — `ExternalKnowledgeSourceLifecycle.test.ts`: schedule mutation queued during base teardown cannot leave an orphan schedule.
 - Regression — `ExternalKnowledgeDisconnect.test.ts`: reauthorization commits while cancellation is deferred without changing the disconnect revision; final source/document deletion succeeds.
+
+- Regression — `ExternalKnowledgeSourceLifecycle.test.ts` and `syncExternalSourceJobHandler.test.ts`: credential failure followed by settlement and reauthorization in either order clears only the terminal Job binding, preserves newer-revision results and replacement Jobs, and notifies after commit.
