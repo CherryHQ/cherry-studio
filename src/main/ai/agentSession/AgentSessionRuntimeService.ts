@@ -2413,13 +2413,20 @@ export class AgentSessionRuntimeService extends BaseService {
     const consumed = consumer !== undefined && hasAgentSessionRuntimeOpenStream(entry.runtimeState, consumer)
     const authorities = this.backgroundTaskAuthorities.get(entry.sessionId) ?? new Map<string, boolean>()
     const completed = this.completedBackgroundTasks.get(entry.sessionId) ?? new Map<string, boolean>()
+    const consumedIds = new Set<string>()
     for (const id of live) if (!authorities.has(id)) authorities.set(id, spawnedHeadless)
     for (const id of previous) {
       if (live.has(id)) continue
       drained.add(id)
       const authority = authorities.get(id)
       authorities.delete(id)
-      if (authority !== undefined && !consumed) completed.set(id, authority)
+      if (consumed) consumedIds.add(id)
+      else if (authority !== undefined) completed.set(id, authority)
+    }
+    // A consumed completion was delivered into the desktop reply, so the chat that was owed it is
+    // paid: retiring the id keeps a later private wake from claiming that chat's recipients.
+    if (consumedIds.size > 0) {
+      application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, consumedIds)
     }
     this.backgroundTaskAuthorities.set(entry.sessionId, authorities)
     this.completedBackgroundTasks.set(entry.sessionId, completed)

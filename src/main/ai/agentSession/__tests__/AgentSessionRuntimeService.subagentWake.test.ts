@@ -386,6 +386,46 @@ describe('subagent settlement wake (incident replay)', () => {
     void service.closeSession('session-1')
   })
 
+  // A completion drained into a desktop reply is paid to that reply. Leaving it in the external
+  // chat's stashed debt let a later private wake claim the recipients and post desktop output there.
+  it('retires a completion consumed by a desktop turn from the chat’s stashed debt', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+
+    // A scheduled fire spawns A beside a long-lived server task S, which keeps work alive.
+    service.beginTurn({ ...baseTurnInput, headless: true })
+    const entry = getEntry(service)
+    entry.runtimeState.connection = {
+      kind: 'connected',
+      connection: { send: vi.fn(), close: vi.fn(), events: [], reconcile: vi.fn() },
+      occupancy: {}
+    }
+    handleRuntimeEvent({
+      type: 'background-tasks',
+      tasks: [
+        { id: 'task-a', type: 'task', description: 'fire' },
+        { id: 'task-server', type: 'task', description: 'server' }
+      ]
+    })
+    handleRuntimeEvent({ type: 'background-work-state', active: true })
+    service.markTurnTerminal('session-1', 'success')
+
+    // A desktop generation is streaming when A settles: that reply consumes A, no wake reports it.
+    service.beginTurn(baseTurnInput)
+    const desktopTurn = currentTurn(entry)
+    const desktopReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: desktopTurn.turnId, signal: new AbortController().signal })
+      .getReader()
+    await expect(desktopReader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+    handleRuntimeEvent({
+      type: 'background-tasks',
+      tasks: [{ id: 'task-server', type: 'task', description: 'server' }]
+    })
+
+    expect(mocks.retireStashedWakeTaskIds).toHaveBeenCalledWith('agent-session:session-1', new Set(['task-a']))
+    void service.closeSession('session-1')
+  })
+
   // A connection-wide ledger of every id the session ever published made an EARLIER fire's
   // completed task count as debt for a later one. That task's absence then "discharged" the new
   // stash, so an unrelated desktop task's wake claimed the external chat and posted its output
