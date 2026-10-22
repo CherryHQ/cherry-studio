@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "Ключ шифрования",
   "agent.channels.feishu.encryptKeyPlaceholder": "Введите ключ шифрования вашего приложения Feishu",
   "agent.channels.feishu.loginHint": "Учетные данные не настроены. Включите канал, чтобы начать регистрацию по QR-коду, или введите App ID и App Secret вручную.",
+  "agent.channels.feishu.mentionOnlyHint": "Отключите, чтобы получать сообщения пользователей в группах, даже если они не @упоминают бота. Приложению необходимо предоставить разрешение на получение всех сообщений групп (im:message.group_msg) на открытой платформе Feishu. Сообщения в группах с @all по-прежнему не будут вызывать ответ ИИ.",
+  "agent.channels.feishu.mentionOnlyLabel": "Отвечать в группах только на @упоминания",
   "agent.channels.feishu.qrExpired": "QR-код истёк. Повторите попытку, переключив канал.",
   "agent.channels.feishu.qrHint": "Ожидание сканирования QR-кода...",
   "agent.channels.feishu.qrScanHint": "Откройте Feishu на телефоне и отсканируйте QR-код, чтобы создать бота-приложение.",

@@ -239,6 +239,7 @@ type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected
 export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   const cfg = channel.config as FeishuChannelConfig
+  const mentionOnly = (cfg.mention_only as boolean) ?? true
   const hasCredentials = !!(cfg.app_id && cfg.app_secret)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
@@ -314,7 +315,22 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
             secret: true
           }
         ]}
-        extraContent={<FeishuDomainSelector channel={channel} onConfigChange={onConfigChange} />}
+        extraContent={
+          <>
+            <div className="col-span-2 flex items-center gap-3 pt-1">
+              <Switch
+                aria-label={t('agent.channels.feishu.mentionOnlyLabel')}
+                checked={mentionOnly}
+                onCheckedChange={(checked) => onConfigChange({ config: { ...cfg, mention_only: checked } })}
+              />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm">{t('agent.channels.feishu.mentionOnlyLabel')}</span>
+                <span className="text-muted-foreground text-xs">{t('agent.channels.feishu.mentionOnlyHint')}</span>
+              </div>
+            </div>
+            <FeishuDomainSelector channel={channel} onConfigChange={onConfigChange} />
+          </>
+        }
         chatIds={{
           label: t('agent.channels.feishu.chatIds'),
           placeholder: t('agent.channels.feishu.chatIdsPlaceholder'),

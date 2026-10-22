@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "Clé de chiffrement",
   "agent.channels.feishu.encryptKeyPlaceholder": "Saisissez la clé de chiffrement de votre application Feishu",
   "agent.channels.feishu.loginHint": "Aucune information d’identification configurée. Activez le canal pour démarrer l’enregistrement par code QR, ou saisissez manuellement l’ID de l’application et le secret de l’application.",
+  "agent.channels.feishu.mentionOnlyHint": "Désactivez cette option pour recevoir les messages des utilisateurs dans les groupes même sans @mention du bot. L’application doit disposer de l’autorisation de recevoir tous les messages de groupe (im:message.group_msg) sur la plateforme ouverte Feishu. Les messages de groupe avec @all ne déclencheront toujours pas de réponse de l’IA.",
+  "agent.channels.feishu.mentionOnlyLabel": "Répondre uniquement aux @mentions dans les groupes",
   "agent.channels.feishu.qrExpired": "Code QR expiré. Veuillez réessayer en basculant le canal.",
   "agent.channels.feishu.qrHint": "En attente de la numérisation du code QR...",
   "agent.channels.feishu.qrScanHint": "Ouvrez Feishu sur votre téléphone et scannez le code QR pour créer une application bot.",

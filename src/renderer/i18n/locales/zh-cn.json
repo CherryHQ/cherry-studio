@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "加密密钥",
   "agent.channels.feishu.encryptKeyPlaceholder": "请输入来自你飞书应用的加密密钥",
   "agent.channels.feishu.loginHint": "未配置凭证。启用频道后将自动开始扫码注册，或手动输入 App ID 和 App Secret。",
+  "agent.channels.feishu.mentionOnlyHint": "关闭后，可接收群聊中未 @机器人的用户消息。需在飞书开放平台为应用授予“获取群组中所有消息（im:message.group_msg）”权限。群聊中的 @所有人 消息仍不会触发智能体回复。",
+  "agent.channels.feishu.mentionOnlyLabel": "仅响应群聊中 @机器人的消息",
   "agent.channels.feishu.qrExpired": "二维码已过期，请重新切换频道开关重试。",
   "agent.channels.feishu.qrHint": "等待扫描二维码...",
   "agent.channels.feishu.qrScanHint": "打开手机飞书，扫描二维码以创建机器人应用。",

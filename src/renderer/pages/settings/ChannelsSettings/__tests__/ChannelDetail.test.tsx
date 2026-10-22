@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -273,6 +274,46 @@ describe('ChannelDetail', () => {
       ['channel-1', { configPatch: { bot_id: 'new-bot' } }],
       ['channel-1', { configPatch: { secret: ' secret ' } }]
     ])
+  })
+
+  it('saves Feishu mention-only changes and renders reloaded values', async () => {
+    const user = userEvent.setup()
+    const config = {
+      app_id: 'app-id',
+      app_secret: 'app-secret',
+      encrypt_key: 'encrypt-key',
+      verification_token: 'verification-token',
+      domain: 'lark',
+      allowed_chat_ids: ['chat-1']
+    }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
+    channelMocks.updateChannel.mockImplementationOnce(async (_id, patch) => ({
+      ...channelMocks.channels[0],
+      ...patch
+    }))
+    const { rerender } = render(<ChannelDetail channelDef={feishuChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    const mentionSwitch = await screen.findByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' })
+    expect(mentionSwitch).toHaveAttribute('aria-checked', 'true')
+    await user.click(mentionSwitch)
+    await waitFor(() => {
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        config: { ...config, mention_only: false }
+      })
+    })
+
+    const savedChannel = await channelMocks.updateChannel.mock.results.at(-1)!.value
+    channelMocks.channels = [savedChannel]
+    rerender(<ChannelDetail channelDef={feishuChannelDef} />)
+    const reloadedSwitch = screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' })
+    expect(reloadedSwitch).toHaveAttribute('aria-checked', 'false')
+    await user.click(reloadedSwitch)
+    await waitFor(() => {
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        config: { ...config, mention_only: true }
+      })
+    })
   })
 
   it('sends null permissionMode when clearing an existing override to inherit', async () => {

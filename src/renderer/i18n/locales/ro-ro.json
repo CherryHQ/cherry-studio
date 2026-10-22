@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "Cheie de criptare",
   "agent.channels.feishu.encryptKeyPlaceholder": "Introdu cheia de criptare din aplicația Feishu",
   "agent.channels.feishu.loginHint": "Nu sunt configurate credențiale. Activează canalul pentru a începe înregistrarea prin cod QR sau introdu manual ID-ul aplicației și secretul aplicației.",
+  "agent.channels.feishu.mentionOnlyHint": "Dezactivați pentru a primi mesaje de grup de la utilizatori chiar și atunci când nu @menționează botul. Aplicației trebuie să i se acorde permisiunea de a primi toate mesajele de grup (im:message.group_msg) pe platforma deschisă Feishu. Mesajele de grup cu @all nu vor declanșa în continuare un răspuns AI.",
+  "agent.channels.feishu.mentionOnlyLabel": "Răspunde doar la @mențiuni în grupuri",
   "agent.channels.feishu.qrExpired": "Codul QR a expirat. Comută canalul și încearcă din nou.",
   "agent.channels.feishu.qrHint": "Se așteaptă scanarea codului QR...",
   "agent.channels.feishu.qrScanHint": "Deschide Feishu pe telefonul tău și scanează codul QR pentru a crea o aplicație bot.",

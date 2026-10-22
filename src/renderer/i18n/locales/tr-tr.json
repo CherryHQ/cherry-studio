@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "Şifreleme Anahtarı",
   "agent.channels.feishu.encryptKeyPlaceholder": "Feishu uygulamasındaki Şifreleme Anahtarını girin",
   "agent.channels.feishu.loginHint": "Yapılandırılmış kimlik bilgisi yok. QR koduyla kaydı başlatmak için kanalı etkinleştirin veya Uygulama Kimliği ile Uygulama Gizli Anahtarını manuel olarak girin.",
+  "agent.channels.feishu.mentionOnlyHint": "Bot @etiketlenmese bile kullanıcılardan gelen grup mesajlarını almak için kapatın. Uygulamaya Feishu Açık Platformu üzerinde tüm grup mesajlarını alma (im:message.group_msg) izni verilmelidir. @all içeren grup mesajları yine de yapay zekâ yanıtını tetiklemez.",
+  "agent.channels.feishu.mentionOnlyLabel": "Gruplarda yalnızca @bahsetmelere yanıt ver",
   "agent.channels.feishu.qrExpired": "QR kodunun süresi doldu. Kanalı kapatıp açarak yeniden deneyin.",
   "agent.channels.feishu.qrHint": "QR kodunun taranması bekleniyor...",
   "agent.channels.feishu.qrScanHint": "Bir bot uygulaması oluşturmak için telefonda Feishu'yu açıp QR kodunu tarayın.",

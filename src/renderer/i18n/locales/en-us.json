@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "Encrypt Key",
   "agent.channels.feishu.encryptKeyPlaceholder": "Enter the Encrypt Key from your Feishu app",
   "agent.channels.feishu.loginHint": "No credentials configured. Enable the channel to start QR code registration, or enter App ID and App Secret manually.",
+  "agent.channels.feishu.mentionOnlyHint": "Turn off to receive group messages from users even when they don't @mention the bot. The app must be granted permission to receive all group messages (im:message.group_msg) on the Feishu Open Platform. Group messages with @all still won't trigger an AI reply.",
+  "agent.channels.feishu.mentionOnlyLabel": "Only respond to @mentions in groups",
   "agent.channels.feishu.qrExpired": "QR code expired. Please retry by toggling the channel.",
   "agent.channels.feishu.qrHint": "Waiting for QR code scan...",
   "agent.channels.feishu.qrScanHint": "Open Feishu on your phone and scan the QR code to create a bot app.",

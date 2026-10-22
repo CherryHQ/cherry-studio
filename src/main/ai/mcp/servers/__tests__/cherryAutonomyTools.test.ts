@@ -1647,7 +1647,8 @@ describe('cherry-tools autonomy tools', () => {
               encrypt_key: 'old-encrypt-key',
               verification_token: 'old-verification-token',
               allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              domain: 'lark',
+              mention_only: false
             }
           },
           'config'
@@ -1662,7 +1663,8 @@ describe('cherry-tools autonomy tools', () => {
               encrypt_key: '',
               verification_token: '',
               allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              domain: 'lark',
+              mention_only: false
             }
           }),
           30_000
@@ -1709,7 +1711,12 @@ describe('cherry-tools autonomy tools', () => {
       })
 
       it('should reuse one unverified Feishu channel without losing the new setup options', async () => {
-        const existingChannel = { ...feishuChannel, id: 'ch_existing', isActive: false }
+        const existingChannel = {
+          ...feishuChannel,
+          id: 'ch_existing',
+          isActive: false,
+          config: { ...feishuChannel.config, mention_only: false }
+        }
         const updatedChannel = {
           ...existingChannel,
           name: 'Updated Feishu',
@@ -1766,7 +1773,8 @@ describe('cherry-tools autonomy tools', () => {
               encrypt_key: '',
               verification_token: '',
               allowed_chat_ids: ['chat-1'],
-              domain: 'lark'
+              domain: 'lark',
+              mention_only: false
             },
             isActive: true
           },

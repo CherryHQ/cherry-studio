@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "Κλειδί κρυπτογράφησης",
   "agent.channels.feishu.encryptKeyPlaceholder": "Εισαγάγετε το κλειδί κρυπτογράφησης της εφαρμογής Feishu",
   "agent.channels.feishu.loginHint": "Δεν έχουν διαμορφωθεί διαπιστευτήρια. Ενεργοποιήστε το κανάλι για να ξεκινήσει η εγγραφή μέσω κωδικού QR ή εισάγετε χειροκίνητα το App ID και το App Secret.",
+  "agent.channels.feishu.mentionOnlyHint": "Απενεργοποιήστε το για να λαμβάνετε μηνύματα ομάδας από χρήστες ακόμη και χωρίς @αναφορά στο bot. Η εφαρμογή πρέπει να έχει άδεια λήψης όλων των μηνυμάτων ομάδας (im:message.group_msg) στην ανοιχτή πλατφόρμα Feishu. Τα μηνύματα ομάδας με @all εξακολουθούν να μην ενεργοποιούν απάντηση AI.",
+  "agent.channels.feishu.mentionOnlyLabel": "Απάντηση μόνο σε @αναφορές σε ομάδες",
   "agent.channels.feishu.qrExpired": "Ο κωδικός QR έληξε. Προσπαθήστε ξανά εναλλάσσοντας το κανάλι.",
   "agent.channels.feishu.qrHint": "Αναμονή για σάρωση κωδικού QR...",
   "agent.channels.feishu.qrScanHint": "Ανοίξτε το Feishu στο κινητό σας και σαρώστε τον κωδικό QR για να δημιουργήσετε μια εφαρμογή bot.",

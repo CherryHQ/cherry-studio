@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "加密金鑰",
   "agent.channels.feishu.encryptKeyPlaceholder": "從您的飛書應用程式輸入加密金鑰",
   "agent.channels.feishu.loginHint": "未設定憑證。啟用頻道以開始 QR 碼註冊，或手動輸入應用程式 ID 與應用程式金鑰。",
+  "agent.channels.feishu.mentionOnlyHint": "關閉後，可接收群組聊天中未 @機器人的使用者訊息。需在飛書開放平台為應用程式授予「取得群組中所有訊息（im:message.group_msg）」權限。群組聊天中的 @所有人 訊息仍不會觸發智慧代理回覆。",
+  "agent.channels.feishu.mentionOnlyLabel": "僅回應群組聊天中 @機器人的訊息",
   "agent.channels.feishu.qrExpired": "QR 碼已過期，請切換頻道後重試。",
   "agent.channels.feishu.qrHint": "等待掃描 QR 碼...",
   "agent.channels.feishu.qrScanHint": "在手機上開啟飛書，掃描 QR Code 以建立機器人應用程式。",

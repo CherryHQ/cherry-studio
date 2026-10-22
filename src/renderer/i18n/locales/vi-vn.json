@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "Khóa Mã Hóa",
   "agent.channels.feishu.encryptKeyPlaceholder": "Nhập Khóa Mã hóa từ ứng dụng Feishu của bạn",
   "agent.channels.feishu.loginHint": "Chưa cấu hình thông tin xác thực. Kích hoạt kênh để bắt đầu đăng ký mã QR hoặc nhập thủ công App ID và App Secret.",
+  "agent.channels.feishu.mentionOnlyHint": "Tắt để nhận tin nhắn nhóm từ người dùng ngay cả khi họ không @nhắc đến bot. Ứng dụng phải được cấp quyền nhận tất cả tin nhắn nhóm (im:message.group_msg) trên nền tảng mở Feishu. Tin nhắn nhóm có @tất cả vẫn sẽ không kích hoạt phản hồi AI.",
+  "agent.channels.feishu.mentionOnlyLabel": "Chỉ trả lời khi được @nhắc đến trong nhóm",
   "agent.channels.feishu.qrExpired": "Mã QR đã hết hạn. Vui lòng thử lại bằng cách chuyển đổi kênh.",
   "agent.channels.feishu.qrHint": "Đang chờ quét mã QR...",
   "agent.channels.feishu.qrScanHint": "Mở Feishu trên điện thoại của bạn và quét mã QR để tạo một ứng dụng bot.",

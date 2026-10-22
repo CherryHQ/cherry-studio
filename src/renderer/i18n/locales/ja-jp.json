@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "暗号化キー",
   "agent.channels.feishu.encryptKeyPlaceholder": "Feishuアプリの暗号化キーを入力してください",
   "agent.channels.feishu.loginHint": "資格情報が設定されていません。QRコード登録を開始するにはチャネルを有効にするか、アプリIDとアプリシークレットを手動で入力してください。",
+  "agent.channels.feishu.mentionOnlyHint": "オフにすると、ボットへの @メンションがないユーザーのグループメッセージも受信できます。Feishu オープンプラットフォームで、アプリに「グループ内のすべてのメッセージを取得（im:message.group_msg）」権限を付与する必要があります。グループ内の @全員 メッセージは引き続き AI の返信をトリガーしません。",
+  "agent.channels.feishu.mentionOnlyLabel": "グループではボットへの @メンションにのみ応答する",
   "agent.channels.feishu.qrExpired": "QRコードの有効期限が切れました。チャンネルを切り替えて再試行してください。",
   "agent.channels.feishu.qrHint": "QRコードのスキャンを待っています...",
   "agent.channels.feishu.qrScanHint": "スマートフォンでFeishuを開き、QRコードをスキャンしてボットアプリを作成してください。",

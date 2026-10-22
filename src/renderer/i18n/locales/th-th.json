@@ -60,6 +60,8 @@
   "agent.channels.feishu.encryptKey": "คีย์เข้ารหัส",
   "agent.channels.feishu.encryptKeyPlaceholder": "ป้อน Encrypt Key จากแอป Feishu ของคุณ",
   "agent.channels.feishu.loginHint": "ยังไม่ได้ตั้งค่าข้อมูลประจำตัว เปิดแชนแนลเพื่อเริ่มลงทะเบียน QR หรือป้อน App ID และ App Secret ด้วยตนเอง",
+  "agent.channels.feishu.mentionOnlyHint": "ปิดเพื่อรับข้อความกลุ่มจากผู้ใช้แม้ไม่ได้ @กล่าวถึงบอต ต้องให้สิทธิ์แอปในการรับข้อความทั้งหมดในกลุ่ม (im:message.group_msg) บนแพลตฟอร์มเปิดของ Feishu ข้อความกลุ่มที่มี @ทุกคน จะยังไม่เรียกให้ AI ตอบกลับ",
+  "agent.channels.feishu.mentionOnlyLabel": "ตอบกลับเฉพาะเมื่อมีการ @กล่าวถึงบอตในกลุ่ม",
   "agent.channels.feishu.qrExpired": "QR หมดอายุแล้ว โปรดลองอีกครั้งโดยสลับแชนแนล",
   "agent.channels.feishu.qrHint": "กำลังรอการสแกน QR...",
   "agent.channels.feishu.qrScanHint": "เปิด Feishu บนโทรศัพท์แล้วสแกน QR เพื่อสร้างแอปบอท",
