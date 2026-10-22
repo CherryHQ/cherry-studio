@@ -78,7 +78,13 @@ export type ClaimFollowupQueueResult = z.infer<typeof ClaimFollowupQueueSchema>
 /** Body for `POST /followup-queues/claim:head` (atomic oldest-row claim). */
 export const ClaimFollowupQueueHeadSchema = z.strictObject({
   scopeKey: FollowupQueueScopeKeySchema,
-  claimToken: FollowupQueueClaimTokenSchema
+  claimToken: FollowupQueueClaimTokenSchema,
+  /**
+   * The completion this drain is for. When present, the service grants at most
+   * one claim per completion per scope: a delayed claim for an already-consumed
+   * completion is rejected instead of delivering a second row for one turn.
+   */
+  completionAt: z.number().optional()
 })
 export type ClaimFollowupQueueHeadDto = z.infer<typeof ClaimFollowupQueueHeadSchema>
 

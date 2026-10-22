@@ -1916,6 +1916,7 @@ const ChatComposerInner = ({
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,
+      filesRef,
       handleModelSelect,
       loading,
       missingAssistantMessage,

@@ -289,6 +289,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
+    subscribeFilesDispatch: vi.fn(() => () => {}),
     setMentionedModels: mocks.setMentionedModels,
     setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: mocks.setIsExpanded,

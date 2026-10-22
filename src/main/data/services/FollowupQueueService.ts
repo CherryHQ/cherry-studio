@@ -150,6 +150,16 @@ function notifyQueueChange(
 }
 
 export class FollowupQueueService {
+  /**
+   * Per-scope record of the completion that already claimed its one drain.
+   * In-memory by design: the service is the single main-process owner every
+   * window's claim passes through, so this arbitrates cross-window races that
+   * the client-side shared marker loses (a delayed claim winning after another
+   * window already consumed the edge and removed the head). The durable
+   * cross-restart consumption marker stays client-side.
+   */
+  private readonly consumedCompletions = new Map<string, number>()
+
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -436,7 +446,8 @@ export class FollowupQueueService {
    */
   claimHead(
     scopeKey: string,
-    claimToken: string
+    claimToken: string,
+    completionAt?: number
   ): { claimed: true; id: string; alreadySent: boolean } | { claimed: false } {
     const dbService = application.get('DbService')
     const result = dbService.withWriteTx((tx) => {
@@ -457,6 +468,13 @@ export class FollowupQueueService {
       const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
       // A retry carrying the token of a claim that committed but whose response was lost re-acquires it.
       const ownRetry = head.status === 'sending' && head.claimToken === claimToken
+      // One delivery per completion, arbitrated here at the shared owner: the
+      // winner's own retry re-acquires, but any other claim for an
+      // already-consumed completion is obsolete and must not deliver a second
+      // row for the same turn (cherry-pr-review).
+      if (!ownRetry && completionAt != null && this.consumedCompletions.get(scopeKey) === completionAt) {
+        return { claimed: false as const }
+      }
       const claimable =
         ownRetry ||
         head.status === 'pending' ||
@@ -470,6 +488,8 @@ export class FollowupQueueService {
         .returning({ id: followupQueueTable.id })
         .all()
       if (!updated) return { claimed: false as const }
+      // Record consumption atomically with the grant (the tx is synchronous).
+      if (completionAt != null) this.consumedCompletions.set(scopeKey, completionAt)
       return { claimed: true as const, id: head.id, alreadySent: head.sentAt != null }
     })
 

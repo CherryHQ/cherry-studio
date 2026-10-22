@@ -97,4 +97,36 @@ describe('fakeFollowupQueueBackend', () => {
     const reorderMissing = await reorder({ body: { moves: [{ id: 'nope', anchor: {} }] } }).catch((e: unknown) => e)
     expect((reorderMissing as DataApiError<ErrorCode.NOT_FOUND>).code).toBe(ErrorCode.NOT_FOUND)
   })
+
+  it('grants at most one claim:head per completion like production', async () => {
+    const post = triggerFor('POST', '/followup-queues')
+    const first = (await post({ body: { scopeKey: 's', draft: draft('a'), payload: payload('a') } })) as { id: string }
+    const second = (await post({ body: { scopeKey: 's', draft: draft('b'), payload: payload('b') } })) as {
+      id: string
+    }
+
+    const claimHead = triggerFor('POST', '/followup-queues/claim:head')
+    // The winner claims the head for completion 100; its own retry (same
+    // token) re-acquires the committed claim instead of losing to the gate.
+    await expect(
+      claimHead({ body: { scopeKey: 's', claimToken: 'winner', completionAt: 100 } })
+    ).resolves.toMatchObject({ claimed: true, id: first.id })
+    await expect(
+      claimHead({ body: { scopeKey: 's', claimToken: 'winner', completionAt: 100 } })
+    ).resolves.toMatchObject({ claimed: true, id: first.id })
+
+    // The row leaves (the winner settled): a delayed claim for the SAME
+    // completion is obsolete even though the new head is freely claimable.
+    const del = triggerFor('DELETE', '/followup-queues/:id')
+    await del({ params: { id: first.id } })
+    await expect(claimHead({ body: { scopeKey: 's', claimToken: 'late', completionAt: 100 } })).resolves.toMatchObject({
+      claimed: false
+    })
+
+    // A new completion drains the next row.
+    await expect(claimHead({ body: { scopeKey: 's', claimToken: 'next', completionAt: 101 } })).resolves.toMatchObject({
+      claimed: true,
+      id: second.id
+    })
+  })
 })
