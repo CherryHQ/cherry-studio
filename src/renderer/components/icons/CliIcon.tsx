@@ -30,6 +30,9 @@ import {
   OpenaiCodex,
   OpenCode,
   PiCli,
+  OmpCli,
+  SnowCli,
+  ZcodeCli,
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
@@ -70,6 +73,9 @@ const CLI_ICONS: Record<string, SvgIcon> = {
   'mistral-vibe': MistralVibeCli,
   'amp-acp': AmpCli,
   'pi-acp': PiCli,
+  omp: OmpCli,
+  snow: SnowCli,
+  zcode: ZcodeCli,
   deepagents: DeepagentsCli,
   'glm-acp-agent': GlmAcpAgentCli,
   'grok-build': GrokBuildCli,

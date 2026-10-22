@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "Timp menținere conexiune",
   "local_agents.advanced_hint": "Opțional. Păstrați valorile implicite pentru a folosi configurația CLI existentă.",
   "local_agents.allow_always": "Permite întotdeauna",
+  "local_agents.allow_once": "Permite o singură dată",
   "local_agents.allow_session": "Permite pentru această sesiune",
   "local_agents.arguments": "Argumente (matrice JSON)",
   "local_agents.auth_region_unavailable": "Acest cont nu poate utiliza agentul în regiunea actuală.",

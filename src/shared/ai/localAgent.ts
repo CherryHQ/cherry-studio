@@ -27,6 +27,8 @@ export interface LocalAgentPreset {
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
   env?: Readonly<Record<string, string>>
   helpUrl: string
+  npmPackage?: string
+  requiredRuntime?: 'bun'
 }
 
 export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
@@ -259,6 +261,38 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     helpUrl: 'https://github.com/svkozak/pi-acp'
   },
   {
+    id: 'omp',
+    name: 'Oh My Pi',
+    protocol: 'acp',
+    executable: 'omp',
+    args: ['acp'],
+    terminalArgs: [],
+    npmPackage: '@oh-my-pi/pi-coding-agent',
+    requiredRuntime: 'bun',
+    helpUrl: 'https://github.com/can1357/oh-my-pi'
+  },
+  {
+    id: 'snow',
+    name: 'Snow CLI',
+    protocol: 'acp',
+    executable: 'snow',
+    args: ['--acp'],
+    terminalArgs: [],
+    npmPackage: 'snow-ai',
+    helpUrl: 'https://github.com/MayDay-wpf/snow-cli'
+  },
+  {
+    id: 'zcode',
+    name: 'ZCode',
+    protocol: 'acp',
+    executable: 'zcode-acp',
+    args: ['server'],
+    terminalArgs: [],
+    npmPackage: 'zcode-acp-server',
+    env: { ZCODE_ACP_MODE: 'build' },
+    helpUrl: 'https://github.com/william0wang/zcode-acp'
+  },
+  {
     id: 'deepagents',
     name: 'DeepAgents',
     protocol: 'acp',
@@ -422,7 +456,7 @@ export const LocalAgentInstallResultSchema = z.discriminatedUnion('ok', [
       'not_detected',
       'stopping'
     ]),
-    manager: z.enum(['npm', 'uv']).optional(),
+    manager: z.enum(['npm', 'uv', 'bun']).optional(),
     detail: z.string().optional()
   })
 ])
@@ -452,9 +486,10 @@ export type LocalAgentPlan = z.infer<typeof LocalAgentPlanSchema>
 export const LocalAcpToolSchema = z.object({
   turnEnded: z.boolean().optional(),
   title: z.string(),
+  name: z.string().optional(),
   kind: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'completed', 'failed']).optional(),
-  locations: z.array(z.object({ path: z.string(), line: z.number().optional() })).optional(),
+  locations: z.array(z.object({ path: z.string(), line: z.number().nullish() })).optional(),
   content: z.array(z.unknown()).optional(),
   rawInput: z.unknown().optional(),
   rawOutput: z.unknown().optional(),

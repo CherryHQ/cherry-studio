@@ -21,6 +21,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
         'local_agents.allow_always': '始终允许',
+        'local_agents.allow_once': '允许一次',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
@@ -107,12 +108,12 @@ describe('PermissionRequestComposer', () => {
     )
   })
 
-  it('translates standard ACP approval names without widening custom grants', async () => {
+  it.each(['Always Allow', 'Always allow'])('translates %s without widening custom grants', async (name) => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const request = makeRequest()
     request.toolResponse.arguments = {
       localPermissionOptions: [
-        { optionId: 'allow_always', kind: 'allow_always', name: 'Always Allow' },
+        { optionId: 'allow_always', kind: 'allow_always', name },
         { optionId: 'custom', kind: 'allow_always', name: 'Allow only /tmp/project' },
         { optionId: 'reject', kind: 'reject_once', name: 'Reject' }
       ]
@@ -128,6 +129,21 @@ describe('PermissionRequestComposer', () => {
         updatedInput: { localPermissionOption: 'allow_always' }
       })
     )
+  })
+
+  it('translates a one-time ACP grant and returns its original option ID', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [{ optionId: 'once', kind: 'allow_once', name: 'Allow once' }]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('button', { name: '允许一次' }))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: { localPermissionOption: 'once' }
+    })
   })
 
   it('submits an approval decision', async () => {

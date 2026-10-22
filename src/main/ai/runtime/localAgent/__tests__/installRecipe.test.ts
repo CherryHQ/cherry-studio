@@ -7,6 +7,18 @@ import { resolveInstallRecipe, resolveCliInstallRecipe } from '../installRecipe'
 const registry = (id: string, distribution: unknown) => ({ agents: [{ id, distribution }] })
 
 describe('system agent install recipes', () => {
+  it.each([
+    ['omp', '@oh-my-pi/pi-coding-agent'],
+    ['snow', 'snow-ai'],
+    ['zcode', 'zcode-acp-server']
+  ])('installs %s from its published package without an ACP registry entry', (id, packageName) => {
+    expect(resolveInstallRecipe(id, undefined)).toEqual({
+      manager: 'npm',
+      package: packageName,
+      args: ['install', '--global', packageName]
+    })
+  })
+
   it('installs Kimi Code instead of the retired Kimi package in the ACP registry', () => {
     const expected = { manager: 'npm', package: '@moonshot-ai/kimi-code' }
     expect(resolveInstallRecipe('kimi', registry('kimi', { uvx: { package: 'kimi-cli' } }))).toMatchObject(expected)

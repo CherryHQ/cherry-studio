@@ -307,13 +307,15 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
                         } as const
                       )[option.label]
                     )
-                  : option.name === 'Allow' && option.kind === 'allow_once'
+                  : /^allow$/i.test(option.name) && option.kind === 'allow_once'
                     ? t('agent.toolPermission.button.allow')
-                    : option.name === 'Reject' && option.kind === 'reject_once'
-                      ? t('agent.toolPermission.button.deny')
-                      : option.name === 'Always Allow' && option.kind === 'allow_always'
-                        ? t('local_agents.allow_always')
-                        : option.name}
+                    : /^allow once$/i.test(option.name) && option.kind === 'allow_once'
+                      ? t('local_agents.allow_once')
+                      : /^reject$/i.test(option.name) && option.kind === 'reject_once'
+                        ? t('agent.toolPermission.button.deny')
+                        : /^always allow$/i.test(option.name) && option.kind === 'allow_always'
+                          ? t('local_agents.allow_always')
+                          : option.name}
               </Button>
             ))
           ) : (

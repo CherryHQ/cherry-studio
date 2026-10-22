@@ -197,6 +197,7 @@ export class AcpConnection extends LocalConnection {
         return { outcome }
       })
       .onRequest('fs/read_text_file', async ({ params }) => {
+        this.requireSession(params.sessionId)
         const content = await fs.readFile(params.path, 'utf8')
         const lines = content.split('\n')
         return {
@@ -209,8 +210,8 @@ export class AcpConnection extends LocalConnection {
         }
       })
       .onRequest('fs/write_text_file', async ({ params }) => {
-        if (!this.active || params.sessionId !== this.nativeId || this.abort.signal.aborted)
-          throw RequestError.invalidParams('Inactive ACP session')
+        this.requireSession(params.sessionId)
+        if (!this.active) throw RequestError.invalidParams('Inactive ACP session')
         const id = randomUUID()
         const signal = this.turnAbort.signal
         const grant = this.approvedWrites.findIndex(
@@ -231,13 +232,15 @@ export class AcpConnection extends LocalConnection {
         }
       })
       .onRequest('terminal/create', async ({ params }) => {
+        this.requireSession(params.sessionId)
         const id = randomUUID()
+        const signal = this.turnAbort.signal
         const answer = await this.approve(id, 'ACP: Terminal', {
           command: params.command,
           args: params.args,
           cwd: params.cwd ?? cwd
         })
-        if (!answer.approved) {
+        if (!answer.approved || this.abort.signal.aborted || signal.aborted) {
           this.result(id, 'Terminal execution denied', true)
           throw new Error('Terminal execution denied')
         }
@@ -252,21 +255,24 @@ export class AcpConnection extends LocalConnection {
           output: '',
           truncated: false,
           exited: new Promise((resolve) => {
-            proc.once('exit', (code, signal) => resolve({ exitCode: code ?? undefined, signal: signal ?? undefined }))
+            proc.once('close', (code, signal) => resolve({ exitCode: code ?? undefined, signal: signal ?? undefined }))
             proc.once('error', () => resolve({ exitCode: 1 }))
           })
         }
-        const limit = Math.max(1, Math.min(params.outputByteLimit ?? 1024 * 1024, 1024 * 1024))
-        const receive = (data: Buffer) => {
-          terminal.output += data.toString()
-          if (Buffer.byteLength(terminal.output) > limit) {
-            terminal.output = Buffer.from(terminal.output).subarray(-limit).toString()
+        const limit = Math.min(params.outputByteLimit ?? 1024 * 1024, 1024 * 1024)
+        const receive = (data: string) => {
+          terminal.output += data
+          const bytes = Buffer.from(terminal.output)
+          if (bytes.length > limit) {
+            let start = bytes.length - limit
+            while ((bytes[start] & 0xc0) === 0x80) start++
+            terminal.output = bytes.subarray(start).toString('utf8')
             terminal.truncated = true
           }
           this.publishTerminal(terminalId)
         }
-        proc.stdout?.on('data', receive)
-        proc.stderr?.on('data', receive)
+        proc.stdout?.setEncoding('utf8').on('data', receive)
+        proc.stderr?.setEncoding('utf8').on('data', receive)
         this.terminals.set(terminalId, terminal)
         void terminal.exited.then((status) => {
           terminal.exitStatus = status
@@ -276,19 +282,25 @@ export class AcpConnection extends LocalConnection {
         return { terminalId }
       })
       .onRequest('terminal/output', async ({ params }) => {
+        this.requireSession(params.sessionId)
         const terminal = this.terminal(params.terminalId)
         return {
           output: terminal.output,
           truncated: terminal.truncated,
-          ...(terminal.child.exitCode !== null ? { exitStatus: { exitCode: terminal.child.exitCode } } : {})
+          ...(terminal.exitStatus ? { exitStatus: terminal.exitStatus } : {})
         }
       })
-      .onRequest('terminal/wait_for_exit', ({ params }) => this.terminal(params.terminalId).exited)
+      .onRequest('terminal/wait_for_exit', ({ params }) => {
+        this.requireSession(params.sessionId)
+        return this.terminal(params.terminalId).exited
+      })
       .onRequest('terminal/kill', async ({ params }) => {
+        this.requireSession(params.sessionId)
         await this.stopProcess(this.terminal(params.terminalId).child)
         return {}
       })
       .onRequest('terminal/release', async ({ params }) => {
+        this.requireSession(params.sessionId)
         await this.stopProcess(this.terminal(params.terminalId).child)
         this.terminals.delete(params.terminalId)
         return {}
@@ -461,11 +473,12 @@ export class AcpConnection extends LocalConnection {
 
   private readConfigOptions(options?: SessionConfigOption[] | null) {
     if (options != null) this.legacyMode = undefined
+    const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
+    const thought = options?.find((option) => option.category === 'thought_level' && option.type === 'select')
+    const model = options?.find((option) => option.category === 'model' && option.type === 'select')
     this.localSessionInfo.configOptions =
       options
-        ?.filter(
-          (option) => option.type !== 'select' || !['model', 'mode', 'thought_level'].includes(option.category ?? '')
-        )
+        ?.filter((option) => option !== mode && option !== thought && option !== model)
         .map(({ id, name, description, ...option }) => ({
           id,
           name,
@@ -475,7 +488,6 @@ export class AcpConnection extends LocalConnection {
             : { type: 'select' as const, currentValue: option.currentValue, options: option.options })
         })) ?? []
 
-    const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
     this.modeConfigId = mode?.id
     if (mode?.type === 'select') {
       this.localSessionInfo.mode = {
@@ -498,7 +510,6 @@ export class AcpConnection extends LocalConnection {
     } else {
       this.localSessionInfo.mode = undefined
     }
-    const thought = options?.find((option) => option.category === 'thought_level' && option.type === 'select')
     this.localSessionInfo.thoughtLevel =
       thought?.type === 'select'
         ? {
@@ -509,7 +520,6 @@ export class AcpConnection extends LocalConnection {
               .map(({ value, name }) => ({ value, name }))
           }
         : undefined
-    const model = options?.find((option) => option.category === 'model' && option.type === 'select')
     this.modelConfigId = model?.id
     if (model?.type === 'select') {
       this.localSessionInfo.activeModel = { id: model.currentValue }
@@ -518,6 +528,10 @@ export class AcpConnection extends LocalConnection {
         .map((option) => ({ id: option.value, name: option.name }))
     }
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+  }
+  private requireSession(sessionId: string) {
+    if (sessionId !== this.nativeId || this.closed || this.abort.signal.aborted)
+      throw RequestError.invalidParams('Inactive ACP session')
   }
   private terminal(id: string): Terminal {
     const terminal = this.terminals.get(id)
@@ -592,7 +606,7 @@ export class AcpConnection extends LocalConnection {
       this.endContent()
       const previous = this.toolInputs.get(update.toolCallId)
       const tool: LocalAcpTool = { title: 'Tool', ...previous }
-      for (const key of ['title', 'kind', 'status', 'content', 'locations', 'rawInput', 'rawOutput'] as const) {
+      for (const key of ['title', 'name', 'kind', 'status', 'content', 'locations', 'rawInput', 'rawOutput'] as const) {
         if (update[key] != null) Object.assign(tool, { [key]: update[key] })
       }
       this.toolInputs.set(update.toolCallId, tool)

@@ -1,4 +1,4 @@
-import { Check, Info, RefreshCw, Search, X } from 'lucide-react'
+import { Check, RefreshCw, Search, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,7 +28,6 @@ export function LocalAgentModelList({
   models,
   showFollowCli = true,
   groupFallback,
-  hint,
   value,
   loaded,
   loading,
@@ -40,7 +39,6 @@ export function LocalAgentModelList({
   showFollowCli?: boolean
   models: LocalAgentModelOption[]
   groupFallback?: string
-  hint?: string
   value?: string
   loaded: boolean
   loading: boolean
@@ -81,80 +79,80 @@ export function LocalAgentModelList({
     'h-auto w-full justify-start rounded-lg font-normal hover:bg-accent/40 aria-pressed:hover:bg-transparent disabled:opacity-100'
   )
   return (
-    <section className="space-y-3 pt-3" aria-labelledby="local-agent-model-label">
-      <div className="flex min-h-8 flex-wrap items-center gap-1">
-        <h2 id="local-agent-model-label" className="text-sm font-semibold">
-          {t('settings.models.list_title')}
-        </h2>
-        {hint && (
-          <Tooltip content={hint}>
-            <Button variant="ghost" className={iconButtonClass} aria-label={t('common.help')}>
-              <Info className="lucide-custom size-3 text-muted-foreground" />
-            </Button>
-          </Tooltip>
-        )}
-        <span className="mr-1 ml-1 text-xs tabular-nums text-muted-foreground">{models.length}</span>
-        {searchOpen || query ? (
-          <InputGroup className="h-8 w-[min(38vw,220px)] min-w-36 rounded-[10px] border-border-subtle shadow-none">
-            <InputGroupAddon className="pl-2.5">
-              <Search className="lucide-custom size-3 text-muted-foreground" />
-            </InputGroupAddon>
-            <InputGroupInput
-              autoFocus
-              placeholder={t('models.search.placeholder')}
-              aria-label={t('models.search.placeholder')}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onBlur={() => {
-                if (!query) setSearchOpen(false)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.stopPropagation()
-                  closeSearch()
-                }
-              }}
-            />
-            {query && (
-              <InputGroupAddon align="inline-end" className="pr-2">
-                <InputGroupButton size="icon-xs" aria-label={t('common.clear')} onClick={closeSearch}>
-                  <X className="size-3" />
-                </InputGroupButton>
-              </InputGroupAddon>
-            )}
-          </InputGroup>
-        ) : (
-          <Tooltip content={t('common.search')}>
-            <Button
-              variant="ghost"
-              className={iconButtonClass}
-              aria-label={t('common.search')}
-              onClick={() => setSearchOpen(true)}>
-              <Search className="lucide-custom size-3 text-muted-foreground" />
-            </Button>
-          </Tooltip>
-        )}
-        <Tooltip content={t('common.refresh')}>
-          <Button
-            variant="ghost"
-            className={iconButtonClass}
-            aria-label={t('common.refresh')}
-            aria-busy={refreshing}
-            disabled={disabled || loadDisabled}
-            onClick={async () => {
-              if (loading || refreshing) return
-              setRefreshing(true)
-              try {
-                await onLoad()
-              } finally {
-                setRefreshing(false)
-              }
-            }}>
-            <RefreshCw className={cn('lucide-custom size-3 text-muted-foreground', refreshing && 'animate-spin')} />
-          </Button>
-        </Tooltip>
-      </div>
-      <LocalAgentModelTabs tabs={tabs}>
+    <section className="space-y-3" aria-labelledby="local-agent-model-label">
+      <LocalAgentModelTabs
+        tabs={tabs}
+        renderHeader={(tabList) => (
+          <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="flex shrink-0 items-center gap-1">
+              <h2 id="local-agent-model-label" className="mr-2 text-sm font-semibold">
+                {t('settings.models.list_title')}
+              </h2>
+              <Tooltip content={t('common.refresh')}>
+                <Button
+                  variant="ghost"
+                  className={iconButtonClass}
+                  aria-label={t('common.refresh')}
+                  aria-busy={refreshing}
+                  disabled={disabled || loadDisabled}
+                  onClick={async () => {
+                    if (loading || refreshing) return
+                    setRefreshing(true)
+                    try {
+                      await onLoad()
+                    } finally {
+                      setRefreshing(false)
+                    }
+                  }}>
+                  <RefreshCw
+                    className={cn('lucide-custom size-3 text-muted-foreground', refreshing && 'animate-spin')}
+                  />
+                </Button>
+              </Tooltip>
+              {searchOpen || query ? (
+                <InputGroup className="h-8 w-[min(38vw,220px)] min-w-36 rounded-[10px] border-border-subtle shadow-none">
+                  <InputGroupAddon className="pl-2.5">
+                    <Search className="lucide-custom size-3 text-muted-foreground" />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    autoFocus
+                    placeholder={t('models.search.placeholder')}
+                    aria-label={t('models.search.placeholder')}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onBlur={() => {
+                      if (!query) setSearchOpen(false)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.stopPropagation()
+                        closeSearch()
+                      }
+                    }}
+                  />
+                  {query && (
+                    <InputGroupAddon align="inline-end" className="pr-2">
+                      <InputGroupButton size="icon-xs" aria-label={t('common.clear')} onClick={closeSearch}>
+                        <X className="size-3" />
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  )}
+                </InputGroup>
+              ) : (
+                <Tooltip content={t('common.search')}>
+                  <Button
+                    variant="ghost"
+                    className={iconButtonClass}
+                    aria-label={t('common.search')}
+                    onClick={() => setSearchOpen(true)}>
+                    <Search className="lucide-custom size-3 text-muted-foreground" />
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+            {tabList && <div className="ml-auto flex min-w-0 justify-end">{tabList}</div>}
+          </div>
+        )}>
         {showFollowCli && tabs.source === 'native' && (
           <div className="overflow-hidden rounded-lg border border-border-subtle p-1.5">
             <Button

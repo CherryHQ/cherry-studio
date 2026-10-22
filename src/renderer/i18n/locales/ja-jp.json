@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "保持時間",
   "local_agents.advanced_hint": "通常は変更不要です。既定値のままで CLI の既存の設定を使用できます。",
   "local_agents.allow_always": "常に許可",
+  "local_agents.allow_once": "今回のみ許可",
   "local_agents.allow_session": "このセッションで許可",
   "local_agents.arguments": "引数（JSON 配列）",
   "local_agents.auth_region_unavailable": "このアカウントの地域では、このエージェントを利用できません。",

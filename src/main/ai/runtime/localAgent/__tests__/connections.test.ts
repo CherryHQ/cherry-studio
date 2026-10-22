@@ -309,15 +309,26 @@ describe('local protocol processes', () => {
     expect(plans[0].id).toBe(plans[1].id)
     expect(plans[1].data).toEqual({ entries: [{ content: 'Inspect', priority: 'high', status: 'completed' }] })
     const tools = chunks.filter((chunk) => chunk.type === 'tool-input-available')
+    expect(tools).toContainEqual(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          localAcpTool: expect.objectContaining({ name: 'edit_file', status: 'in_progress' })
+        })
+      })
+    )
     expect(tools.at(-1)).toMatchObject({
       toolCallId: 'edit',
       input: {
         localAcpTool: {
           title: 'Edit example',
+          name: 'apply_edit',
           kind: 'edit',
           status: 'completed',
           rawInput: { path: '/example' },
-          locations: [{ path: '/example', line: 2 }],
+          locations: [
+            { path: '/example', line: 2 },
+            { path: '/example', line: null }
+          ],
           content: [{ type: 'diff', path: '/example', oldText: 'old', newText: 'new' }]
         }
       }
@@ -923,6 +934,67 @@ describe('local protocol processes', () => {
     expect(Object.values(terminal.localAcpTool.terminalDetails)).toEqual([{ truncated: false, exitCode: 0 }])
   })
 
+  it.each([
+    ['terminal-split', '你好🌸界', false, 1024],
+    ['terminal-limit:6', '🌸!', true, 6],
+    ['terminal-limit:2', '!', true, 2],
+    ['terminal-limit:0', '', true, 0]
+  ])('retains complete UTF-8 characters in terminal output (%s)', async (scenario, expected, truncated, limit) => {
+    const { connection, events, text } = create('acp', scenario)
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const approval = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
+    await sending
+    expect(JSON.parse(text())).toEqual({ output: expected, truncated, exitStatus: { exitCode: 0 } })
+    expect(Buffer.byteLength(JSON.parse(text()).output)).toBeLessThanOrEqual(limit)
+  })
+
+  it.skipIf(process.platform === 'win32')('reports signal termination in terminal output', async () => {
+    const { connection, events, text } = create('acp', 'terminal-signal')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const approval = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
+    await sending
+    expect(JSON.parse(text())).toEqual({ output: '', truncated: false, exitStatus: { signal: 'SIGTERM' } })
+  })
+
+  it('keeps a completed terminal queryable until release after its prompt ends', async () => {
+    const { connection, events } = create('acp', 'terminal-idle')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const approval = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
+    await sending
+    await vi.waitFor(async () => {
+      const wire = await readWire()
+      expect(wire.some((response) => response.result?.output === 'prefix你好🌸')).toBe(true)
+      expect(wire.some((response) => response.error?.data?.details === 'Unknown session terminal')).toBe(true)
+    })
+  })
+
+  it('rejects foreign-session file and terminal callbacks before accessing resources or requesting approval', async () => {
+    await writeFile(path.join(cwd, 'marker.txt'), 'private marker')
+    const { connection, events, text } = create('acp', 'callback-boundaries')
+    await connection.start(cwd)
+    let finished = false
+    const sending = connection.send(input).finally(() => {
+      finished = true
+    })
+    const approval = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
+    await vi.waitFor(() =>
+      expect(finished || events.filter((event) => event.type === 'tool-approval-request').length > 1).toBe(true)
+    )
+    for (const event of events.filter((event) => event.type === 'tool-approval-request').slice(1))
+      toolApprovalRegistry.dispatch(event.request.approvalId, { approved: false })
+    await sending
+    expect(JSON.parse(text())).toEqual(Array.from({ length: 7 }, () => expect.objectContaining({ code: -32602 })))
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
+    await expect(readFile(path.join(cwd, 'foreign.txt'))).rejects.toThrow()
+  })
+
   it.each(['resume-only', 'resume-both', 'resume-null'])(
     'restores ACP state using negotiated capabilities: %s',
     async (scenario) => {
@@ -1029,6 +1101,32 @@ describe('local protocol processes', () => {
       { sessionId: 'native-session', configId: 'verbosity', value: 'verbose' },
       { sessionId: 'native-session', configId: 'notifications', type: 'boolean', value: true }
     ])
+  })
+
+  it('keeps additional model, mode and reasoning selectors editable without changing primary selections', async () => {
+    const { connection } = create('acp', 'config-multiple')
+    await connection.start(cwd)
+    const acp = connection as AcpConnection
+    expect(acp.localSessionInfo.configOptions?.map((option) => option.id)).toEqual([
+      'secondary-mode',
+      'secondary-thought',
+      'secondary-model',
+      'verbosity',
+      'notifications'
+    ])
+    await acp.setConfigOption('secondary-mode', 'plan')
+    await acp.setConfigOption('secondary-thought', 'deep')
+    await acp.setConfigOption('secondary-model', 'other-model')
+    expect(acp.localSessionInfo.configOptions?.slice(0, 3).map((option) => option.currentValue)).toEqual([
+      'plan',
+      'deep',
+      'other-model'
+    ])
+    expect(acp.localSessionInfo).toMatchObject({
+      mode: { id: 'agent-mode', currentValue: 'ask' },
+      thoughtLevel: { id: 'reasoning-budget', currentValue: 'balanced' },
+      activeModel: { id: 'fixture-model' }
+    })
   })
 
   it.each(['completed', 'failed', 'cancel', 'crash', 'unfinished'])(

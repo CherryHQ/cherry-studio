@@ -61,10 +61,11 @@ export function resolveInstallRecipe(
     preset.protocol !== 'acp' || presetId === 'kimi'
       ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
       : undefined
-  const entry = native
-    ? undefined
-    : registrySchema.parse(registry).agents.find((agent) => agent.id === (registryIds[presetId] ?? presetId))
-  const npmPackage = native?.packageName ?? entry?.distribution.npx?.package
+  const entry =
+    native || preset.npmPackage
+      ? undefined
+      : registrySchema.parse(registry).agents.find((agent) => agent.id === (registryIds[presetId] ?? presetId))
+  const npmPackage = native?.packageName ?? preset.npmPackage ?? entry?.distribution.npx?.package
   if (npmPackage) {
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*(?:@[a-zA-Z0-9.+_-]+)?$/.test(npmPackage)) {
       throw new Error('Invalid npm package in ACP registry')

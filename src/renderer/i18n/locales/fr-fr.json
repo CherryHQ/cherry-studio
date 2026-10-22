@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "Maintenir le temps d'activité",
   "local_agents.advanced_hint": "Facultatif. Conservez les valeurs par défaut pour utiliser la configuration existante du CLI.",
   "local_agents.allow_always": "Toujours autoriser",
+  "local_agents.allow_once": "Autoriser une fois",
   "local_agents.allow_session": "Autoriser pour cette session",
   "local_agents.arguments": "Arguments (tableau JSON)",
   "local_agents.auth_region_unavailable": "Ce compte ne peut pas utiliser cet agent dans sa région actuelle.",

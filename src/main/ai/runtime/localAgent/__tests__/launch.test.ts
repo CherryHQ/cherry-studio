@@ -68,7 +68,10 @@ describe('local agent installation resolution', () => {
   it.each([
     ['goose', 'goose', ['session']],
     ['kiro', 'kiro-cli', ['chat']],
-    ['cline', 'cline', []]
+    ['cline', 'cline', []],
+    ['omp', 'omp', []],
+    ['snow', 'snow', []],
+    ['zcode', 'zcode-acp', []]
   ] as const)('opens %s interactively without ACP or custom protocol arguments', async (presetId, executable, args) => {
     inventory.snapshots[executable] = {
       name: executable,
@@ -81,6 +84,20 @@ describe('local agent installation resolution', () => {
         args
       })
     )
+  })
+
+  it.each([
+    ['omp', 'omp', ['acp']],
+    ['snow', 'snow', ['--acp']],
+    ['zcode', 'zcode-acp', ['server']]
+  ] as const)('launches %s in protocol mode rather than its interactive UI', async (presetId, executable, args) => {
+    inventory.snapshots[executable] = {
+      name: executable,
+      availability: { source: 'system', path: `/user/bin/${executable}` }
+    }
+    const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId })
+    expect(launch).toMatchObject({ executable: `/user/bin/${executable}`, args: [...args] })
+    if (presetId === 'zcode') expect(launch.env.ZCODE_ACP_MODE).toBe('build')
   })
 
   it('opens the native Pi binary rather than the ACP wrapper', async () => {

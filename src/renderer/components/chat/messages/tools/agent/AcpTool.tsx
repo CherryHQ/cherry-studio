@@ -1,4 +1,15 @@
-import { FileEdit, FileSearch, FileText, Globe, Route, Terminal, Wrench } from 'lucide-react'
+import {
+  Brain,
+  FileEdit,
+  FileSearch,
+  FileSymlink,
+  FileText,
+  FileX2,
+  Globe,
+  Route,
+  Terminal,
+  Wrench
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
@@ -19,9 +30,12 @@ const ContentSchema = z.discriminatedUnion('type', [
 const icons = {
   read: FileText,
   edit: FileEdit,
+  delete: FileX2,
+  move: FileSymlink,
   search: FileSearch,
   execute: Terminal,
   fetch: Globe,
+  think: Brain,
   switch_mode: Route
 }
 

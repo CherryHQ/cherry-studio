@@ -79,7 +79,7 @@
     },
     {
       "path": "docs/references/ai/local-agent-runtime.md",
-      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/localAgent","src/renderer/components/localAgent/LocalAgentDirectory.tsx","src/renderer/pages/code/CodeCliPage.tsx","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts"]
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/localAgent","src/main/features/apiGateway/proxyStream.ts","src/renderer/components/localAgent/LocalAgentDirectory.tsx","src/renderer/pages/code/CodeCliPage.tsx","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts"]
     },
     {
       "path": "docs/references/ai/local-models.md",

@@ -11,6 +11,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { LocalAgentInstallService } from '../LocalAgentInstallService'
 
 const state = vi.hoisted(() => ({
+  runtimeAvailable: true,
   root: '',
   name: 'kilo',
   manager: '',
@@ -62,11 +63,15 @@ vi.mock('@main/utils/shellEnv', () => ({
     ...state.env
   })
 }))
-vi.mock('@main/utils/commandResolver', () => ({ findExecutableInEnv: async () => state.manager || null }))
+vi.mock('@main/utils/commandResolver', () => ({
+  findExecutableInEnv: async (name: string) =>
+    name === 'bun' ? (state.runtimeAvailable ? '/user/bin/bun' : null) : state.manager || null
+}))
 
 describe('local agent system installation', () => {
   beforeEach(async () => {
     BaseService.resetInstances()
+    state.runtimeAvailable = true
     state.name = 'kilo'
     state.root = await mkdtemp(path.join(os.tmpdir(), 'agent system install '))
     state.manager = path.join(state.root, 'npm')
@@ -112,6 +117,32 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   afterEach(async () => {
     vi.unstubAllGlobals()
     await rm(state.root, { recursive: true, force: true })
+  })
+
+  it('reports missing Bun before installing an unusable omp executable', async () => {
+    state.name = 'omp'
+    state.runtimeAvailable = false
+    expect(await new LocalAgentInstallService().install('omp')).toMatchObject({
+      ok: false,
+      reason: 'missing_runtime',
+      manager: 'bun'
+    })
+    await expect(readFile(path.join(state.root, 'calls'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it.each([
+    ['omp', '@oh-my-pi/pi-coding-agent'],
+    ['snow', 'snow-ai'],
+    ['zcode', 'zcode-acp-server']
+  ])('installs %s even when the ACP registry is unavailable', async (id, packageName) => {
+    state.name = id === 'zcode' ? 'zcode-acp' : id
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Registry unavailable')))
+    expect(await new LocalAgentInstallService().install(id)).toMatchObject({ ok: true, reused: false })
+    expect(JSON.parse((await readFile(path.join(state.root, 'calls'), 'utf8')).trim())).toEqual([
+      'install',
+      '--global',
+      packageName
+    ])
   })
 
   it('uses a China mirror only for the install and falls back without changing system configuration', async () => {

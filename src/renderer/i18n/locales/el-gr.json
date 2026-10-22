@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "Χρόνος διατήρησης ενεργοποίησης",
   "local_agents.advanced_hint": "Προαιρετικό. Διατηρήστε τις προεπιλογές για να χρησιμοποιήσετε την υπάρχουσα διαμόρφωση CLI.",
   "local_agents.allow_always": "Να επιτρέπεται πάντα",
+  "local_agents.allow_once": "Να επιτρέπεται μία φορά",
   "local_agents.allow_session": "Να επιτρέπεται σε αυτή τη συνεδρία",
   "local_agents.arguments": "Ορίσματα (πίνακας JSON)",
   "local_agents.auth_region_unavailable": "Αυτός ο λογαριασμός δεν μπορεί να χρησιμοποιήσει τον πράκτορα στην τρέχουσα περιοχή.",

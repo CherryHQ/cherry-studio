@@ -7,6 +7,14 @@ if (process.env.FIXTURE_LOG) writeFileSync(`${process.env.FIXTURE_LOG}.pid`, Str
 const emit = (message) => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`)
 const reply = (id, result) => emit({ id, result })
 const update = (value) => emit({ method: 'session/update', params: { sessionId: 'native-session', update: value } })
+const callbacks = new Map()
+let callbackId = 0
+const requestClient = (method, params) =>
+  new Promise((resolve) => {
+    const id = `callback-${++callbackId}`
+    callbacks.set(id, resolve)
+    emit({ id, method, params })
+  })
 const text = (value) =>
   protocol === 'acp'
     ? update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: value } })
@@ -72,6 +80,29 @@ const extraConfig = () => [
   },
   { id: 'notifications', name: 'Notifications', type: 'boolean', currentValue: notifications }
 ]
+const secondaryValues = {}
+const multipleConfig = () => {
+  const model = {
+    id: 'model',
+    name: 'Model',
+    category: 'model',
+    type: 'select',
+    currentValue: 'fixture-model',
+    options: [
+      { value: 'fixture-model', name: 'Fixture model' },
+      { value: 'other-model', name: 'Other model' }
+    ]
+  }
+  return [
+    mode(),
+    thought(),
+    model,
+    { ...mode(), id: 'secondary-mode', currentValue: secondaryValues['secondary-mode'] ?? 'ask' },
+    { ...thought(), id: 'secondary-thought', currentValue: secondaryValues['secondary-thought'] ?? 'balanced' },
+    { ...model, id: 'secondary-model', currentValue: secondaryValues['secondary-model'] ?? 'fixture-model' },
+    ...extraConfig()
+  ]
+}
 let promptId
 const finish = () => {
   if (protocol === 'acp')
@@ -104,6 +135,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   const message = JSON.parse(line)
   if (process.env.FIXTURE_LOG) appendFileSync(process.env.FIXTURE_LOG, `${line}\n`)
   const { id, method } = message
+  if (callbacks.has(id)) {
+    callbacks.get(id)(message)
+    callbacks.delete(id)
+    return
+  }
   if (method === 'initialize') {
     if (scenario.startsWith('compaction') && !message.params.clientCapabilities?.session?.compaction)
       return emit({ id, error: { code: -32602, message: 'Compaction capability required' } })
@@ -237,27 +273,29 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         : {}),
       sessionId: 'native-session',
       configOptions:
-        scenario === 'mode-legacy' || scenario === 'mode-legacy-upgrade'
-          ? undefined
-          : scenario === 'mode-legacy-null'
-            ? null
-            : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
-              ? []
-              : [
-                  ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
-                    ? [mode()]
-                    : []),
-                  ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
-                  ...(scenario.startsWith('config') ? extraConfig() : []),
-                  {
-                    id: 'model',
-                    category: 'model',
-                    name: 'Model',
-                    type: 'select',
-                    currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
-                    options: [{ value: 'fixture-model', name: 'Fixture model' }]
-                  }
-                ]
+        scenario === 'config-multiple'
+          ? multipleConfig()
+          : scenario === 'mode-legacy' || scenario === 'mode-legacy-upgrade'
+            ? undefined
+            : scenario === 'mode-legacy-null'
+              ? null
+              : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
+                ? []
+                : [
+                    ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
+                      ? [mode()]
+                      : []),
+                    ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
+                    ...(scenario.startsWith('config') ? extraConfig() : []),
+                    {
+                      id: 'model',
+                      category: 'model',
+                      name: 'Model',
+                      type: 'select',
+                      currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
+                      options: [{ value: 'fixture-model', name: 'Fixture model' }]
+                    }
+                  ]
     })
   } else if (method === 'session/close') {
     if (scenario === 'close-hang') return
@@ -270,6 +308,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
     reply(id, {})
   } else if (method === 'session/set_config_option') {
+    if (scenario === 'config-multiple') {
+      secondaryValues[message.params.configId] = message.params.value
+      return reply(id, { configOptions: multipleConfig() })
+    }
     if (scenario.startsWith('config')) {
       if (scenario === 'config-error') return emit({ id, error: { code: -32602, message: 'Configuration rejected' } })
       if (message.params.configId === 'verbosity') verbosity = message.params.value
@@ -320,6 +362,50 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })
     promptId = id
     turn++
+    if (scenario.startsWith('terminal-') || scenario === 'callback-boundaries') {
+      void (async () => {
+        const script =
+          scenario === 'terminal-split'
+            ? 'const a=Buffer.from("你好🌸"),b=Buffer.from("界");process.stdout.write(a.subarray(0,2));process.stderr.write(b.subarray(0,1));setTimeout(()=>{process.stdout.end(a.subarray(2));setTimeout(()=>process.stderr.end(b.subarray(1)),30)},30)'
+            : scenario === 'terminal-signal'
+              ? 'process.kill(process.pid,"SIGTERM")'
+              : scenario.startsWith('terminal-limit:')
+                ? 'process.stdout.write("prefix你好🌸!")'
+                : 'process.stdout.write("prefix你好🌸")'
+        const created = await requestClient('terminal/create', {
+          sessionId: 'native-session',
+          command: process.execPath,
+          args: ['-e', script],
+          outputByteLimit: scenario.startsWith('terminal-limit:') ? Number(scenario.split(':')[1]) : 1024
+        })
+        const terminalId = created.result.terminalId
+        if (scenario === 'callback-boundaries') {
+          const foreign = { sessionId: 'foreign-session' }
+          const results = await Promise.all([
+            requestClient('fs/read_text_file', { ...foreign, path: `${cwd}/marker.txt` }),
+            requestClient('fs/write_text_file', { ...foreign, path: `${cwd}/foreign.txt`, content: 'wrong session' }),
+            requestClient('terminal/create', {
+              ...foreign,
+              command: process.execPath,
+              args: ['-e', 'process.exit(0)']
+            }),
+            ...['output', 'wait_for_exit', 'kill', 'release'].map((method) =>
+              requestClient(`terminal/${method}`, { ...foreign, terminalId })
+            )
+          ])
+          text(JSON.stringify(results.map((response) => response.error ?? response.result)))
+        }
+        await requestClient('terminal/wait_for_exit', { sessionId: 'native-session', terminalId })
+        if (scenario === 'terminal-idle') finish()
+        const output = await requestClient('terminal/output', { sessionId: 'native-session', terminalId })
+        if (scenario !== 'callback-boundaries') text(JSON.stringify(output.result))
+        await requestClient('terminal/release', { sessionId: 'native-session', terminalId })
+        if (scenario === 'terminal-idle')
+          await requestClient('terminal/output', { sessionId: 'native-session', terminalId })
+        if (scenario !== 'terminal-idle') finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
     if (protocol === 'codex') {
       reply(id, { turn: { id: 'turn', status: 'inProgress' } })
       emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
@@ -405,6 +491,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         sessionUpdate: 'tool_call',
         toolCallId: 'edit',
         title: 'Edit example',
+        name: 'edit_file',
         kind: 'edit',
         status: 'pending',
         rawInput: { path: '/example' }
@@ -413,10 +500,20 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         sessionUpdate: 'tool_call_update',
         toolCallId: 'edit',
         status: 'in_progress',
-        locations: [{ path: '/example', line: 2 }],
+        name: null,
+        locations: [
+          { path: '/example', line: 2 },
+          { path: '/example', line: null }
+        ],
         content: [{ type: 'diff', path: '/example', oldText: 'old', newText: 'new' }]
       })
-      update({ sessionUpdate: 'tool_call_update', toolCallId: 'edit', status: 'completed', rawInput: null })
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'edit',
+        name: 'apply_edit',
+        status: 'completed',
+        rawInput: null
+      })
       update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Then answer' } })
       update({ sessionUpdate: 'plan', entries: [{ content: 'Inspect', priority: 'high', status: 'completed' }] })
       text('Done')

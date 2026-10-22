@@ -31,7 +31,7 @@ import { selectAvailableInstallation } from './launch'
 import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninstallBinaryAgent } from './uninstall'
 
 const logger = loggerService.withContext('LocalAgentInstallService')
-type InstallTarget = Pick<LocalAgentPreset, 'id' | 'executable' | 'aliases'> & {
+type InstallTarget = Pick<LocalAgentPreset, 'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime'> & {
   protocol?: LocalAgentPreset['protocol']
   cli?: CodeCliToolPreset
 }
@@ -162,7 +162,9 @@ export class LocalAgentInstallService extends BaseService {
       ? resolveCliInstallRecipe(target.cli, targetVersion)
       : resolveInstallRecipe(
           target.id,
-          target.protocol === 'acp' && target.id !== 'kimi' ? await this.fetchRegistry() : undefined
+          target.protocol === 'acp' && target.id !== 'kimi' && !target.npmPackage
+            ? await this.fetchRegistry()
+            : undefined
         )
     if (!recipe || !targetVersion || target.cli || recipe.manager === 'script') return recipe
     if (!valid(targetVersion)) throw new Error('Invalid agent version')
@@ -335,6 +337,9 @@ export class LocalAgentInstallService extends BaseService {
         return installed.source === 'none'
           ? { ok: false, reason: 'not_detected' }
           : { ok: true, reused: false, path: installed.path }
+      }
+      if (preset.requiredRuntime && !(await findExecutableInEnv(preset.requiredRuntime, { env }))) {
+        return { ok: false, reason: 'missing_runtime', manager: preset.requiredRuntime }
       }
       const command = await findExecutableInEnv(recipe.manager, { env })
       if (!command) return { ok: false, reason: 'missing_runtime', manager: recipe.manager }

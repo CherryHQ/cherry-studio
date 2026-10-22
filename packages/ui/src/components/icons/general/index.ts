@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-09-28T06:30:32.490Z
- * Total icons: 45
+ * Generated at: 2026-10-14T08:04:01.193Z
+ * Total icons: 48
  */
 
 export { AddCategory } from './add-category'
@@ -41,13 +41,16 @@ export { KiroCli } from './kiro-cli'
 export { MessageAi1 } from './message-ai-1'
 export { MessageBalloonAi1 } from './message-balloon-ai-1'
 export { MistralVibeCli } from './mistral-vibe-cli'
+export { OmpCli } from './omp-cli'
 export { OpenCode } from './open-code'
 export { OpenaiCodex } from './openai-codex'
 export { PiCli } from './pi-cli'
 export { PoolsideCli } from './poolside-cli'
 export { QoderCli } from './qoder-cli'
 export { QwenCode } from './qwen-code'
+export { SnowCli } from './snow-cli'
 export { StakpakCli } from './stakpak-cli'
 export { TraeCli } from './trae-cli'
 export { Vector } from './vector'
 export { VtcodeCli } from './vtcode-cli'
+export { ZcodeCli } from './zcode-cli'

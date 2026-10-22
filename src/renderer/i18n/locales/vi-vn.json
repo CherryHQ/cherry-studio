@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "Thời gian giữ hoạt động",
   "local_agents.advanced_hint": "Không bắt buộc. Giữ giá trị mặc định để dùng cấu hình CLI hiện có.",
   "local_agents.allow_always": "Luôn cho phép",
+  "local_agents.allow_once": "Cho phép một lần",
   "local_agents.allow_session": "Cho phép trong phiên này",
   "local_agents.arguments": "Tham số (mảng JSON)",
   "local_agents.auth_region_unavailable": "Tài khoản này không thể sử dụng tác nhân ở khu vực hiện tại.",

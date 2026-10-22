@@ -5,6 +5,7 @@ sources:
   - src/shared/ai/executionIdentity.ts
   - src/main/ai/runtime/localAgent
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/features/apiGateway/proxyStream.ts
   - src/renderer/components/localAgent/LocalAgentDirectory.tsx
   - src/renderer/pages/code/CodeCliPage.tsx
 ---
@@ -53,6 +54,55 @@ provider is required. “Local” refers to the CLI process, not an offline mode
 - A new local task defaults to its own managed directory. An empty task can select
   an existing project; sending its first message locks the agent and directory.
   Missing user directories are reported rather than created.
+
+## Additional ACP presets
+
+| Preset | Chat command | System npm package | Requirements |
+| --- | --- | --- | --- |
+| Oh My Pi | `omp acp` | `@oh-my-pi/pi-coding-agent` | Bun 1.3.14 or newer on the user's shell PATH; configure providers in the CLI |
+| Snow CLI | `snow --acp` | `snow-ai` | Node.js 22 or newer; configure the active profile in the CLI |
+| ZCode | `zcode-acp server` | `zcode-acp-server` | Community adapter; Node.js 22 or newer and a separately installed/configured ZCode runtime |
+
+These presets use explicit published npm packages because they are absent from
+our ACP registry snapshot. Installation, upgrade and uninstall reuse the existing
+system-package lifecycle and ownership checks without requiring the registry.
+Missing Bun is reported before installing omp. Terminal actions start the interactive CLI without ACP arguments. ZCode uses the
+adapter's interactive CLI, which discovers the native ZCode backend itself; its
+help link documents backend discovery and `ZCODE_BIN` overrides. Installing or
+uninstalling the adapter does not install or remove the ZCode desktop app.
+
+Cherry supplies `ZCODE_ACP_MODE=build` rather than the adapter's unrestricted
+default. User environment overrides and the adapter's own configuration retain
+their documented precedence. ACP model and configuration controls depend on what
+the connected version returns. Snow currently provides no model selection through
+ACP; it follows its CLI profile. No new global-model writer is implied by these
+presets. Existing user credentials remain owned by each CLI.
+
+On 2026-10-14, isolated npm installations of omp 18.10.4, Snow 0.9.5 and
+zcode-acp-server 0.69.3 passed real stdio initialization and session creation with
+no non-JSON stdout. No model inference was requested. ZCode creates sessions
+lazily, so this does not verify its native backend, credentials or conversation.
+A subsequent real prompt with the machine's native configuration failed for all
+three: omp reported no selected model, Snow returned HTTP 401 for a missing API
+key, and ZCode reported a dead backend. No native ZCode executable or desktop app
+was found. These are setup blockers, not successful conversation acceptance.
+A follow-up used isolated CLI configurations with Cherry's running unified gateway
+and `deepseek:deepseek-flash`; no native user configuration was changed:
+
+| Agent | Real gateway checks | Remaining limitations |
+|---|---|---|
+| omp 18.10.4 | Text, file read/write with verified contents, cancellation, process restart, session load and context recall passed | First tool turn exceeded a 55-second probe deadline; a repeat with a longer deadline passed. Permission denial and full Cherry chat UI remain unverified. |
+| Snow 0.9.5 | Text, allow-once permissions, verified file read/write and cancellation passed | `session/load` returned success after process restart, but context recall failed. Cross-process recovery is not certified; permission denial and full Cherry chat UI remain unverified. |
+| ZCode adapter 0.69.3 | Initialization and lazy session creation only | Missing native ZCode backend blocks inference, tools, cancellation and recovery tests. |
+
+These checks exercise real CLI subprocesses over ACP, not the complete Cherry
+chat UI. The temporary gateway profiles do not add automatic global-model
+configuration support to these presets.
+
+Icon artwork is sourced from [Magpie](https://github.com/yetone/magpie/tree/63ad2b7c76ef57a02d3ca025a760a9d610ae5b74/internal/gui/assets/icons).
+Protocol implementations: [omp](https://github.com/can1357/oh-my-pi),
+[Snow](https://github.com/MayDay-wpf/snow-cli), and
+[ZCode adapter](https://github.com/william0wang/zcode-acp).
 
 ## Installation and connection
 
@@ -136,6 +186,9 @@ They are not synthetic tool calls. Loading native history suppresses both though
 and plans to avoid duplicating Cherry's persisted transcript.
 
 Tool updates merge native status, input/output, content and locations by call ID.
+Programmatic tool names are stored separately from readable titles; omitted or
+null names preserve the previous name during updates. Null location lines mean
+no specific line and retain the normal tool disclosure.
 The tool disclosure renders text, file diffs, file links with reported line numbers,
 and snapshots of client-owned terminal output. Unrecognized content retains a raw
 fallback. File links open the file; editor navigation to the reported line is not
@@ -179,6 +232,22 @@ idle TTL reclamation; explicit view/connection closure can still make them
 non-resumable.
 
 ## Compatibility record
+
+The unified gateway caps a caller's output token budget at the selected model's
+configured `maxOutputTokens` before deriving reasoning options. Smaller budgets,
+missing budgets and models with no known ceiling retain their original behavior.
+Custom provider limits must reflect that provider's served model: a generic model
+catalog ceiling does not establish the limit for every endpoint.
+
+Pi ACP 0.0.34 discards native model failure information and resolves a settled
+prompt as `end_turn`, even after retries fail. Cherry cannot reliably classify
+that result as a failure from ACP alone. This remains an upstream adapter
+limitation; retry text is not used to infer message status.
+
+Focused gateway acceptance on 2026-10-14 passed real file reads and terminal
+Unicode output with Pi ACP 0.0.34, OpenCode 1.19.0 and Kilo 7.8.8 through the
+configured Aliyun Coding Plan Kimi K2.5 model. Its provider-specific output
+ceiling was configured as 98,304; its context window remained 262,144.
 
 Validation environment: macOS ARM64; installed-agent acceptance refreshed 2026-09-30. Other platforms require real CLI
 acceptance before being marked verified. Presets are discoverable configuration

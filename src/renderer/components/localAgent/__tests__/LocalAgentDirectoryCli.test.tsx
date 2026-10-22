@@ -125,3 +125,25 @@ it.each([
     .filter((button) => button.hasAttribute('aria-pressed'))
   expect(rows[4]).toHaveAccessibleName(/^Claude Code ·/)
 })
+
+it('places popular CLI-only and ACP agents together in the default order', async () => {
+  mockPreferenceState.set('feature.code_cli.agent_order', [])
+  vi.mocked(ipcApi.request).mockImplementation(async () => [] as never)
+  render(<LocalAgentDirectory renderCli={() => null} />)
+  await waitFor(() => {
+    const rows = within(screen.getByRole('complementary'))
+      .getAllByRole('button')
+      .filter((button) => button.hasAttribute('aria-pressed'))
+    expect(rows.slice(0, 9).map((button) => button.getAttribute('aria-label')?.split(' · ')[0])).toEqual([
+      'Claude Code',
+      'Codex',
+      'Cursor',
+      'OpenCode',
+      'GitHub Copilot',
+      'OpenClaw',
+      'DeepSeek Harness',
+      'Pi',
+      'Hermes'
+    ])
+  })
+})

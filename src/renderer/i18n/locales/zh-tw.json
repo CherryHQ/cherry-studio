@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "保持活躍時間",
   "local_agents.advanced_hint": "通常不需修改，保留預設值即可沿用 CLI 的現有設定。",
   "local_agents.allow_always": "一律允許",
+  "local_agents.allow_once": "允許一次",
   "local_agents.allow_session": "本次工作階段內允許",
   "local_agents.arguments": "啟動參數（JSON 陣列）",
   "local_agents.auth_region_unavailable": "目前帳號所在地區暫不支援此智慧體。",

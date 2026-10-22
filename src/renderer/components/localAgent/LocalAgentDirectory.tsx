@@ -80,6 +80,48 @@ const CLI_ONLY_TOOLS = CODE_CLI_TOOL_PRESETS.filter(
   (tool) => !LOCAL_AGENT_PRESETS.some((preset) => codeCliForLocalAgent(preset.id) === tool.id)
 )
 
+const DEFAULT_AGENT_ORDER = new Map(
+  [
+    'claude',
+    'codex',
+    'cursor',
+    'opencode',
+    'copilot',
+    'cli:openclaw',
+    'cli:deepseek-harness',
+    'pi-acp',
+    'hermes',
+    'kimi',
+    'qwen',
+    'cline',
+    'kilo',
+    'omp',
+    'minimax',
+    'antigravity-acp',
+    'codebuddy-code',
+    'qoder',
+    'trae',
+    'goose',
+    'kiro',
+    'mistral-vibe',
+    'factory-droid',
+    'auggie',
+    'junie',
+    'devin',
+    'grok-build',
+    'amp-acp',
+    'deepagents',
+    'fast-agent',
+    'cortex-code',
+    'poolside',
+    'stakpak',
+    'vtcode',
+    'snow',
+    'zcode',
+    'glm-acp-agent'
+  ].map((id, index) => [id, index])
+)
+
 const logger = loggerService.withContext('LocalAgentDirectory')
 
 export function LocalAgentDirectory({
@@ -186,7 +228,9 @@ export function LocalAgentDirectory({
   ].sort(
     (a, b) =>
       getPriority(b) - getPriority(a) ||
-      (orderIndex.get(a.id) ?? agentOrder.length) - (orderIndex.get(b.id) ?? agentOrder.length)
+      (orderIndex.get(a.id) ?? agentOrder.length) - (orderIndex.get(b.id) ?? agentOrder.length) ||
+      (DEFAULT_AGENT_ORDER.get(a.id) ?? DEFAULT_AGENT_ORDER.size) -
+        (DEFAULT_AGENT_ORDER.get(b.id) ?? DEFAULT_AGENT_ORDER.size)
   )
   const entry = entries.find((e) => e.id === selected || e.agent?.id === selected)
   const cliTool = entry?.preset
@@ -896,7 +940,6 @@ function LocalAgentDetails({
             {(preset || agent) && (
               <LocalAgentModelList
                 models={modelSelection.models}
-                hint={LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? ''] ? t('local_agents.model_hint') : undefined}
                 groupFallback={agent?.name ?? preset?.name}
                 value={modelSelection.value}
                 disabled={busy || !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? '']}

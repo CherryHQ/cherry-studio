@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "Bağlantıyı Canlı Tutma Süresi",
   "local_agents.advanced_hint": "İsteğe bağlı. Mevcut CLI yapılandırmasını kullanmak için varsayılanları koruyun.",
   "local_agents.allow_always": "Her zaman izin ver",
+  "local_agents.allow_once": "Bir kez izin ver",
   "local_agents.allow_session": "Bu oturum için izin ver",
   "local_agents.arguments": "Argümanlar (JSON dizisi)",
   "local_agents.auth_region_unavailable": "Bu hesap mevcut bölgesinde bu aracıyı kullanamıyor.",

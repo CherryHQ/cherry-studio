@@ -1,11 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { LocalAcpTool } from '@shared/ai/localAgent'
+import { LocalAcpToolSchema, type LocalAcpTool } from '@shared/ai/localAgent'
 
 import { AcpTool } from '../AcpTool'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 
 function Tool({ tool }: { tool: LocalAcpTool }) {
   const item = AcpTool({ tool })
@@ -18,6 +19,28 @@ function Tool({ tool }: { tool: LocalAcpTool }) {
 }
 
 describe('ACP tool details', () => {
+  it('reads saved native names and nullable locations while showing the readable title', () => {
+    const tool = LocalAcpToolSchema.parse(
+      JSON.parse(
+        JSON.stringify({
+          name: 'read_file',
+          title: 'Read report',
+          locations: [
+            { path: '/report.txt', line: null },
+            { path: '/other.txt', line: 7 }
+          ]
+        })
+      )
+    )
+    expect(tool.name).toBe('read_file')
+    render(<Tool tool={tool} />)
+    expect(screen.getByText('Read report')).toBeInTheDocument()
+    expect(screen.queryByText('read_file')).not.toBeInTheDocument()
+    expect(screen.getByText('/report.txt')).toBeInTheDocument()
+    expect(screen.getByText(':7')).toBeInTheDocument()
+    expect(screen.queryByText(':null')).not.toBeInTheDocument()
+  })
+
   it('shows updated terminal output and retains it when the native terminal no longer exists', () => {
     const tool = {
       title: 'Run checks',

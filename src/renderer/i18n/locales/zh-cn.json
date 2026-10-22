@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "保持活跃时间",
   "local_agents.advanced_hint": "通常无需修改，保留默认值即可沿用 CLI 的现有配置。",
   "local_agents.allow_always": "始终允许",
+  "local_agents.allow_once": "允许一次",
   "local_agents.allow_session": "本次会话内允许",
   "local_agents.arguments": "启动参数（JSON 数组）",
   "local_agents.auth_region_unavailable": "当前账号所在地区暂不支持此智能体。",

@@ -2206,6 +2206,7 @@
   "lmstudio.keep_alive_time.title": "Время жизни модели",
   "local_agents.advanced_hint": "Необязательно. Оставьте значения по умолчанию для использования существующей конфигурации CLI.",
   "local_agents.allow_always": "Всегда разрешать",
+  "local_agents.allow_once": "Разрешить один раз",
   "local_agents.allow_session": "Разрешить на время сеанса",
   "local_agents.arguments": "Аргументы (массив JSON)",
   "local_agents.auth_region_unavailable": "Этот аккаунт не может использовать агента в текущем регионе.",
