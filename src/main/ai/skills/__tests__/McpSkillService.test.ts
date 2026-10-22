@@ -359,7 +359,11 @@ describe('session MCP skills through real protocol and persistence', () => {
       getPermissionMode: () => mode,
       getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
       isDisabled: () => false,
-      autoApprovedTools: new Set(),
+      autoApprovedTools: new Set(
+        listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
+          buildPiMcpToolName(serverName, toolName)
+        )
+      ),
       approvalRequiredTools: new Set(),
       nonBypassableApprovalTools: new Set(),
       delegationTools: new Set(
@@ -393,12 +397,17 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(skills.toolApproval(sessionId, 'mcp__example__lookup', {})).toBeUndefined()
   })
 
-  describe.each(['session_create', 'session_send'])('remote-skill delegation through %s', (name) => {
+  describe.each([
+    {
+      name: 'session_create',
+      input: { message: 'Run echo delegated', target_agent_id: 'destination-agent', title: 'Delegated work' }
+    },
+    { name: 'session_send', input: { message: 'Run echo delegated', target_session_id: 'destination-session' } },
+    { name: 'cron', input: { action: 'add', name: 'Scheduled work', message: 'Run echo scheduled', every: '1h' } },
+    { name: 'cron', input: { action: 'update', id: 'scheduled-task', message: 'Run echo replacement' } },
+    { name: 'cron', input: { action: 'update', id: 'scheduled-task', every: '1m' } }
+  ])('remote-skill execution through $name with $input', ({ name, input }) => {
     const toolName = `mcp__cherry-tools__${name}`
-    const input =
-      name === 'session_create'
-        ? { message: 'Run echo delegated', target_agent_id: 'destination-agent', title: 'Delegated work' }
-        : { message: 'Run echo delegated', target_session_id: 'destination-session' }
 
     it('requires Claude approval in Auto only after a remote skill is loaded', async () => {
       const context = {
@@ -423,18 +432,43 @@ describe('session MCP skills through real protocol and persistence', () => {
     })
 
     it('requires a fresh Pi decision for each Auto call while Full Access does not prompt', async () => {
-      const call = { toolName: buildPiMcpToolName('cherry-tools', name), toolCallId: 'delegation', input }
+      const call = { toolName: buildPiMcpToolName('cherry-tools', name), toolCallId: 'execution', input }
       const unexpectedApproval = () => {
-        throw new Error('This delegation must not request approval')
+        throw new Error('This call must not request approval')
       }
       await expect(authorizer(false, unexpectedApproval, 'auto')(call)).resolves.toBeUndefined()
       await skills.load(sessionId, serverId, fixture.uri)
       await expect(authorizer(true, undefined, 'auto')(call)).resolves.toBeUndefined()
       await expect(
-        authorizer(false, undefined, 'auto')({ ...call, toolCallId: 'delegation-again' })
+        authorizer(false, undefined, 'auto')({ ...call, toolCallId: 'execution-again' })
       ).resolves.toMatchObject({ block: true })
       await expect(authorizer(false, unexpectedApproval, 'bypassPermissions')(call)).resolves.toBeUndefined()
     })
+  })
+
+  it.each(['list', 'remove'])('does not add skill approval to cron %s', async (action) => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    const input = { action, id: 'scheduled-task' }
+    await expect(
+      evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+        sessionId,
+        toolName: 'mcp__cherry-tools__cron',
+        input,
+        permissionMode: 'default',
+        builtinRole: undefined,
+        mountedServers: new Set(['cherry-tools']),
+        pluginDirectories: new Map(),
+        cwd: '/tmp',
+        agentDataPath: '/tmp/agent',
+        interaction: { currentTurn: 'interactive', userResponse: 'stream' },
+        isDisabled: () => false
+      })
+    ).resolves.toBeUndefined()
+    await expect(
+      authorizer(false, () => {
+        throw new Error('Listing or removing a task must not request skill execution approval')
+      })({ toolName: buildPiMcpToolName('cherry-tools', 'cron'), toolCallId: 'manage-task', input })
+    ).resolves.toBeUndefined()
   })
 
   it('passes execution and nested activation without approval in Full Access', async () => {

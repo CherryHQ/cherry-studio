@@ -415,7 +415,10 @@ export class McpSkillService extends BaseService {
     if (!session) return undefined
     const active = [...session.skills.values()].filter((held) => held.loaded)
     const isLoad = toolName === 'mcp__skills__load_mcp_skill'
-    if (!isLoad && (!active.length || !executionTools.has(toolName))) return undefined
+    const schedulesExecution =
+      (toolName === 'mcp__cherry-tools__cron' || toolName === 'mcp__cherry_tools__cron') &&
+      (input.action === 'add' || input.action === 'update')
+    if (!isLoad && (!active.length || (!executionTools.has(toolName) && !schedulesExecution))) return undefined
     let target: { fingerprint: string; abort: AbortController } | undefined
     const targetId = isLoad && typeof input.server_id === 'string' ? input.server_id : undefined
     if (targetId) {
