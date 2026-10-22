@@ -185,6 +185,27 @@ describe('ResourceEntityRail', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
+  it('offers recovery from the error state instead of a dead end', () => {
+    const onErrorRetry = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={[]}
+        status="error"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onErrorRetry={onErrorRetry}
+        onSelect={vi.fn()}
+      />
+    )
+
+    // The rail's failure screen reaches the queries that failed, so recovery needs no remount.
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(onErrorRetry).toHaveBeenCalledTimes(1)
+  })
+
   it('renders row trailing actions next to the more menu without selecting the entity', () => {
     const onContextMenuAction = vi.fn()
     const onSelect = vi.fn()

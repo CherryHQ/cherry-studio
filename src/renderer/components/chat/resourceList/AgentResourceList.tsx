@@ -126,7 +126,8 @@ export function AgentResourceList({
   const {
     groups: agentGroups,
     isLoading: isAgentGroupsLoading,
-    error: agentGroupsError
+    error: agentGroupsError,
+    refetch: refetchAgentGroups
   } = useGroups('agent', { enabled: dataEnabled && isGroupGrouping })
   const { reorderGroup: reorderAgentGroup } = useGroupReorder()
   const closeConversationTabs = useCloseConversationTabs()
@@ -284,6 +285,15 @@ export function AgentResourceList({
     },
     [reorderAgentGroup, t]
   )
+  // Recovery and reorder refresh share one fetch: the error state must re-ask every query it
+  // reports, groups included, or a rail stuck on the group error never leaves that screen.
+  const refetchRail = useCallback(
+    () =>
+      Promise.allSettled([refetchAgents(), reload(), ...(isGroupGrouping ? [refetchAgentGroups()] : [])]).then(
+        () => undefined
+      ),
+    [refetchAgents, reload, refetchAgentGroups, isGroupGrouping]
+  )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     activeEntityId: activeAgentEntityId,
@@ -300,7 +310,7 @@ export function AgentResourceList({
     onCreateResource: createSessionForAgent,
     onActivationError: handleActivationError,
     reorder: reorderAgentEntity,
-    refetchEntities: refetchAgents,
+    refetchEntities: refetchRail,
     onReorderError: handleReorderError
   })
 
@@ -614,6 +624,7 @@ export function AgentResourceList({
         reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
+        onErrorRetry={() => void refetchRail()}
       />
       <ResourceEditDialogHost
         target={editDialogTarget}

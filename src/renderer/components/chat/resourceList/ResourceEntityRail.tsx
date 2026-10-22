@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
@@ -110,6 +110,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   onAdd: () => void | Promise<void>
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onCollapsedStateChange?: (collapsedIds: string[]) => void
+  /** Recovery action offered by the list's error state; omitted when nothing can be refetched. */
+  onErrorRetry?: () => void
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   /** Reorder canonical groups while `groupByGroup` is enabled. Pinned and ungrouped buckets stay fixed. */
   onGroupReorder?: (groupId: string, anchor: ResourceListOrderAnchor) => void | Promise<void>
@@ -146,6 +148,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   onAdd,
   onCollapsedStateChange,
   onContextMenuAction,
+  onErrorRetry,
   onReorder,
   onGroupReorder,
   reorderEnabled: reorderEnabledProp = true,
@@ -376,7 +379,20 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
           draggable={hasReorderHandler}
           ariaLabel={ariaLabel}
           virtualClassName="pt-1 pb-3"
-          errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
+          errorFallback={
+            <ResourceList.ErrorState
+              message={
+                <div className="flex flex-col items-start gap-2">
+                  <span>{t('error.boundary.default.message')}</span>
+                  {onErrorRetry && (
+                    <Button size="sm" variant="outline" onClick={onErrorRetry}>
+                      {t('common.retry')}
+                    </Button>
+                  )}
+                </div>
+              }
+            />
+          }
           emptyFallback={empty}
           renderItem={renderItem}
         />
