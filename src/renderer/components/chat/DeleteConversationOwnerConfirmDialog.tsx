@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, ConfirmDialog, Label } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -68,12 +69,16 @@ export function DeleteConversationOwnerConfirmDialog({
 }: DeleteConversationOwnerConfirmDialogProps) {
   const { t } = useTranslation()
   const checkboxId = useId()
+  const [archiveRelatedTopics, setArchiveRelatedTopics] = usePreference('assistant.archive.related_topics')
   const [deleteChildren, setDeleteChildren] = useState(false)
   const { runConfirm, handleOpenChange } = useDeletionConfirmGuard(open, pending, onOpenChange, () =>
     setDeleteChildren(false)
   )
   const permanent = mode === 'permanent'
   const displayName = name?.trim() || t('common.unnamed')
+  // Permanent cascades stay unchecked and unsaved. Only assistant archive
+  // reuses the remembered related-topics choice.
+  const shouldDeleteChildren = type === 'assistant' && !permanent ? archiveRelatedTopics : deleteChildren
   const checkboxLabel = t(
     permanent
       ? type === 'agent'
@@ -96,15 +101,24 @@ export function DeleteConversationOwnerConfirmDialog({
       confirmLoading={pending}
       confirmDisabled={pending}
       onOpenChange={handleOpenChange}
-      onConfirm={() => runConfirm(() => onConfirm(deleteChildren))}
+      onConfirm={() => runConfirm(() => onConfirm(shouldDeleteChildren))}
       content={
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Checkbox
               id={checkboxId}
-              checked={deleteChildren}
+              checked={shouldDeleteChildren}
               disabled={pending}
-              onCheckedChange={(checked) => setDeleteChildren(checked === true)}
+              onCheckedChange={(checked) => {
+                const next = checked === true
+                if (type === 'agent' || permanent) {
+                  setDeleteChildren(next)
+                  return
+                }
+                void setArchiveRelatedTopics(next).catch((error) => {
+                  toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
+                })
+              }}
             />
             <Label htmlFor={checkboxId}>{checkboxLabel}</Label>
           </div>
