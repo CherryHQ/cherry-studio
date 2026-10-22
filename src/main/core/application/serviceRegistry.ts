@@ -38,6 +38,7 @@ import { FileProcessingService, TesseractRuntimeService } from '@main/features/f
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
+import { AdblockService } from '@main/services/adblock'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppService } from '@main/services/AppService'
@@ -124,6 +125,7 @@ export const services = {
   SentryLogService,
   TesseractRuntimeService,
   AnalyticsService,
+  AdblockService,
   AppMenuService,
   AppService,
   CodeCliService,

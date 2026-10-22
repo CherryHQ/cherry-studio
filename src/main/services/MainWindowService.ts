@@ -15,6 +15,7 @@ import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/win
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
+import { isBlockedByAdblock } from '@main/services/adblock'
 import { openRequestPath } from '@main/services/file'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
@@ -369,6 +370,7 @@ export class MainWindowService extends BaseService {
         return true
       },
       undefined,
+      true,
       true
     )
     this.setupRestrictedWebviewSession(
@@ -387,7 +389,8 @@ export class MainWindowService extends BaseService {
     partition: string,
     isAllowed: (details: Electron.OnBeforeRequestListenerDetails) => boolean | Promise<boolean>,
     clearPolicy?: () => void,
-    allowDownloads = false
+    allowDownloads = false,
+    applyAdblock = false
   ) {
     const restrictedSession = session.fromPartition(partition)
     const handleWillDownload = (event: Electron.Event) => event.preventDefault()
@@ -401,6 +404,12 @@ export class MainWindowService extends BaseService {
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
     if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      // The ad blocker shares this slot instead of registering a second listener,
+      // which Electron would silently drop.
+      if (applyAdblock && isBlockedByAdblock(details)) {
+        callback({ cancel: true })
+        return
+      }
       try {
         const result = isAllowed(details)
         if (typeof result === 'boolean') {

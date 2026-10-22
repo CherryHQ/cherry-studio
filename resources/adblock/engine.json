@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-22T05:56:12.768Z",
+  "engineBytes": 3924809,
+  "ruleCount": 98643,
+  "preloadVersion": "2.20.1",
+  "lists": [
+    {
+      "name": "EasyList",
+      "version": "202610220516",
+      "source": "cache",
+      "rules": 34205
+    },
+    {
+      "name": "EasyList China",
+      "version": "202610220522",
+      "source": "cache",
+      "rules": 17669
+    },
+    {
+      "name": "EasyPrivacy",
+      "version": "202610220516",
+      "source": "cache",
+      "rules": 46746
+    }
+  ],
+  "customRules": 23
+}

@@ -49,6 +49,12 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'agent.session.position': PreferenceTypes.TopicTabPosition
     // target-key-definitions/complex/complex
+    'app.browser.adblock.ai_rules': boolean
+    // target-key-definitions/complex/complex
+    'app.browser.adblock.enabled': boolean
+    // target-key-definitions/complex/complex
+    'app.browser.adblock.search_ads': boolean
+    // target-key-definitions/complex/complex
     'app.browser.agent_control.enabled': boolean
     // target-key-definitions/complex/complex
     'app.browser.open_links_in_browser': boolean
@@ -638,6 +644,9 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.language': null,
     'agent.session.display_mode': 'agent',
     'agent.session.position': 'left',
+    'app.browser.adblock.ai_rules': true,
+    'app.browser.adblock.enabled': true,
+    'app.browser.adblock.search_ads': true,
     'app.browser.agent_control.enabled': true,
     'app.browser.open_links_in_browser': true,
     'app.computer_use.agent_control.enabled': false,
