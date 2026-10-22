@@ -10,8 +10,8 @@ function portFromEnv(name: string, fallback: number): number {
 }
 
 // Overridable so a second regression run can share the host (CI and a local session used to fight over 9222).
-export const CDP_PORT = portFromEnv('CHERRY_QA_CDP_PORT', 9222)
-export const MAIN_INSPECTOR_PORT = portFromEnv('CHERRY_QA_INSPECTOR_PORT', 9229)
+export const CDP_PORT = portFromEnv('CHERRY_CDP_PORT', 9222)
+export const MAIN_INSPECTOR_PORT = portFromEnv('CHERRY_INSPECTOR_PORT', 9229)
 
 export function isAlive(pid: number): boolean {
   try {
