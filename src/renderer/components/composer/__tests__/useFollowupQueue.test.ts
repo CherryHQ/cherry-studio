@@ -395,6 +395,30 @@ describe('useFollowupQueue', () => {
     expect(failTrigger).not.toHaveBeenCalled()
   })
 
+  it('routes a steer through the shared completion accounting', async () => {
+    // The manual send must record the current completion: a delayed automatic
+    // claim for the same turn is then fenced instead of delivering a second
+    // follow-up behind the steered one (cherry-pr-review). The turn is still
+    // streaming so the automatic drain stays parked and the steer goes first.
+    wireQuery([row('h', 'head')])
+    const { claimTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const send = vi.fn(async () => true)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps({ lastCompletedAt: 100 })))
+
+    let steered = false
+    await act(async () => {
+      steered = await result.current.steer('h', send)
+    })
+
+    expect(steered).toBe(true)
+    expect(claimTrigger).toHaveBeenCalledWith({
+      params: { id: 'h' },
+      body: { claimToken: expect.any(String), completionAt: 100 }
+    })
+  })
+
   it('marks the steered item failed when its send fails', async () => {
     wireQuery([row('h', 'head')])
     const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()

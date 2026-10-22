@@ -63,7 +63,14 @@ const FollowupQueueClaimTokenSchema = z.string().min(1).max(128)
 
 /** Body for `POST /followup-queues/:id/claim`. */
 export const ClaimFollowupQueueBodySchema = z.strictObject({
-  claimToken: FollowupQueueClaimTokenSchema
+  claimToken: FollowupQueueClaimTokenSchema,
+  /**
+   * The completion a manual delivery is for. Unlike claim:head this never
+   * rejects an already-consumed completion (steering is deliberate); it only
+   * records the consumption so a delayed automatic claim for the same turn
+   * cannot deliver a second row behind the manual send (cherry-pr-review).
+   */
+  completionAt: z.number().optional()
 })
 export type ClaimFollowupQueueBodyDto = z.infer<typeof ClaimFollowupQueueBodySchema>
 

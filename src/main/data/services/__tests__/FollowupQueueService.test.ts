@@ -256,6 +256,94 @@ describe('FollowupQueueService', () => {
     })
   })
 
+  describe('completion fencing', () => {
+    it('should reject a delayed claim carrying an older consumed completion', () => {
+      // Two completions settle in order; a delayed transport retry still
+      // carrying the first completion's identity must not deliver a second
+      // row for a turn that already delivered one (cherry-pr-review).
+      const first = enqueueIn(SCOPE_A, 'a')
+      const second = enqueueIn(SCOPE_A, 'b')
+      const third = enqueueIn(SCOPE_A, 'c')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 100)).toEqual({
+        claimed: true,
+        id: first.id,
+        alreadySent: false
+      })
+      followupQueueService.markSent(first.id, 'token-1')
+      followupQueueService.remove(first.id)
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 200)).toEqual({
+        claimed: true,
+        id: second.id,
+        alreadySent: false
+      })
+      followupQueueService.markSent(second.id, 'token-2')
+      followupQueueService.remove(second.id)
+
+      // The delayed retry for completion 100 is obsolete even though 200 is newer.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-3', 100)).toEqual({ claimed: false })
+      expect(followupQueueService.listByScope(SCOPE_A).find((item) => item.id === third.id)).toMatchObject({
+        status: 'pending'
+      })
+    })
+
+    it('should release the reservation when the winning claim ends without a delivery', () => {
+      // The composer unmounted (or lost its mirror) before dispatching a
+      // granted claim: the release must free the completion so reopening the
+      // conversation can drain the row for the same turn (cherry-pr-review).
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 300)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      followupQueueService.markFailed(item.id, 'token-1')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 300)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+    })
+
+    it('should keep the fence for a completed delivery and for foreign releases', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      // A release attempted with the wrong token touches neither the row nor
+      // the reservation.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 400)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      followupQueueService.markFailed(item.id, 'token-foreign')
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2', 400)).toEqual({ claimed: false })
+
+      // Delivery completes: the fence survives the dequeue.
+      followupQueueService.markSent(item.id, 'token-1')
+      followupQueueService.remove(item.id)
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-3', 400)).toEqual({ claimed: false })
+    })
+
+    it('should let the winning token re-acquire its own consumed completion', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 500)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+      // A retry carrying the token of a committed claim re-acquires it.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1', 500)).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: false
+      })
+    })
+  })
+
   describe('markFailed', () => {
     it('should park a sending row as failed while ignoring rows that are not sending', () => {
       const sending = enqueueIn(SCOPE_A, 'a')

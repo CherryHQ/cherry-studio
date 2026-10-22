@@ -404,11 +404,11 @@ export function useFollowupQueue({
   // One claim token spans the retries, so a retry after a committed claim whose
   // response was lost re-acquires that claim instead of reporting it lost.
   const claimItem = useCallback(
-    async (id: string) => {
+    async (id: string, completionAt?: number) => {
       const claimToken = crypto.randomUUID()
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const claim = await claimTrigger({ params: { id }, body: { claimToken } })
+          const claim = await claimTrigger({ params: { id }, body: { claimToken, completionAt } })
           // A resolved-but-empty claim is a failure like a thrown one.
           if (!claim) return undefined
           // Settlements are fenced by the winning token: hand it to every
@@ -986,7 +986,12 @@ export function useFollowupQueue({
       const scope = scopeKeyRef.current
       activeIdsRef.current.add(id)
       try {
-        const result = await claimItem(id)
+        // Join the shared completion accounting: without it a delayed
+        // automatic claim for the same turn wins the next row behind the
+        // manual send and two follow-ups go out for one completion
+        // (cherry-pr-review). Recording-only — steering stays allowed even
+        // when this completion already delivered (deliberate manual action).
+        const result = await claimItem(id, lastCompletedAtRef.current ?? undefined)
         if (!result) {
           toast.error(t('message.error.operation_unavailable'))
           return false

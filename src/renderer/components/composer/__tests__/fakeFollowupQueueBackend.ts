@@ -33,8 +33,25 @@ export function installFakeFollowupQueueBackend() {
   let counter = 0
   // Server-side claim tokens (not part of the entity); mirrors production's retry-stable claims.
   const claimTokens = new Map<string, string | undefined>()
-  // Mirrors production's completion-scoped claim:head arbitration.
-  const consumedCompletions = new Map<string, number>()
+  // Mirrors production's completion-scoped claim:head arbitration: a bounded
+  // set of reservations tagged with the granting claim's token.
+  const consumedCompletions = new Map<string, Array<{ completionAt: number; claimToken?: string }>>()
+  const hasConsumed = (scopeKey: string, completionAt: number) =>
+    consumedCompletions.get(scopeKey)?.some((entry) => entry.completionAt === completionAt) ?? false
+  const recordConsumed = (scopeKey: string, completionAt: number, claimToken?: string) => {
+    const entries = consumedCompletions.get(scopeKey) ?? []
+    if (!entries.some((entry) => entry.completionAt === completionAt && entry.claimToken === claimToken)) {
+      entries.push({ completionAt, claimToken })
+      consumedCompletions.set(scopeKey, entries)
+    }
+  }
+  const releaseConsumed = (scopeKey: string, claimToken?: string) => {
+    const entries = consumedCompletions.get(scopeKey)
+    if (!entries) return
+    const kept = entries.filter((entry) => entry.claimToken !== claimToken)
+    if (kept.length === 0) consumedCompletions.delete(scopeKey)
+    else consumedCompletions.set(scopeKey, kept)
+  }
 
   // Production treats a `sending` row as live (owned) until the reclaim
   // lease expires; only stale ones are claimable or reorderable-around.
@@ -172,18 +189,28 @@ export function installFakeFollowupQueueBackend() {
     if (method === 'POST' && path === '/followup-queues/:id/claim') {
       return {
         ...shell,
-        trigger: vi.fn(async ({ params, body }: { params: { id: string }; body?: { claimToken?: string } }) => {
-          const row = state.rows.find((candidate) => candidate.id === params.id)
-          const ownRetry =
-            !!body?.claimToken && row?.status === 'sending' && claimTokens.get(row.id) === body.claimToken
-          if (row && (ownRetry || isClaimable(row))) {
-            row.status = 'sending'
-            claimTokens.set(row.id, body?.claimToken)
-            row.updatedAt = new Date().toISOString()
-            return { claimed: true, alreadySent: row.sentAt != null }
+        trigger: vi.fn(
+          async ({
+            params,
+            body
+          }: {
+            params: { id: string }
+            body?: { claimToken?: string; completionAt?: number }
+          }) => {
+            const row = state.rows.find((candidate) => candidate.id === params.id)
+            const ownRetry =
+              !!body?.claimToken && row?.status === 'sending' && claimTokens.get(row.id) === body.claimToken
+            if (row && (ownRetry || isClaimable(row))) {
+              row.status = 'sending'
+              claimTokens.set(row.id, body?.claimToken)
+              row.updatedAt = new Date().toISOString()
+              // Mirror production: manual delivery joins the completion accounting.
+              if (body?.completionAt != null) recordConsumed(row.scopeKey, body.completionAt, body.claimToken)
+              return { claimed: true, alreadySent: row.sentAt != null }
+            }
+            return { claimed: false, alreadySent: false }
           }
-          return { claimed: false, alreadySent: false }
-        })
+        )
       }
     }
     if (method === 'POST' && path === '/followup-queues/claim:head') {
@@ -197,13 +224,13 @@ export function installFakeFollowupQueueBackend() {
             !!body.claimToken && head?.status === 'sending' && claimTokens.get(head.id) === body.claimToken
           // Mirror production: one delivery per completion; the winner's own
           // retry re-acquires, other claims for a consumed completion are obsolete.
-          if (!ownRetry && body.completionAt != null && consumedCompletions.get(body.scopeKey) === body.completionAt)
+          if (!ownRetry && body.completionAt != null && hasConsumed(body.scopeKey, body.completionAt))
             return { claimed: false }
           if (!head || !(ownRetry || isClaimable(head))) return { claimed: false }
           head.status = 'sending'
           claimTokens.set(head.id, body.claimToken)
           head.updatedAt = new Date().toISOString()
-          if (body.completionAt != null) consumedCompletions.set(body.scopeKey, body.completionAt)
+          if (body.completionAt != null) recordConsumed(body.scopeKey, body.completionAt, body.claimToken)
           return { claimed: true, id: head.id, alreadySent: head.sentAt != null }
         })
       }
@@ -216,6 +243,9 @@ export function installFakeFollowupQueueBackend() {
           if (row && row.status === 'sending') {
             row.status = 'failed'
             row.updatedAt = new Date().toISOString()
+            // Mirror production: a claim released without dispatch drops its
+            // completion reservation.
+            releaseConsumed(row.scopeKey, claimTokens.get(row.id))
           }
           return undefined
         })
