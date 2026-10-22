@@ -219,6 +219,18 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     reset: resetExecutionMessages,
     clear: clearExecutionMessages
   } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, EMPTY_UI_MESSAGES, {
+    onUpdate: (executionId, event) => {
+      const context = voiceExecutionContextsRef.current.get(`${executionId}:${event.attemptId}`)
+      if (!context || context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current)
+        return
+      autoReadService.update({
+        ...event,
+        enabled: autoReadEnabled,
+        eligible: context.eligible,
+        scope: temporaryTopicId ?? 'pending-temp'
+      })
+    },
+    onLeave: () => autoReadService.cancelScope(temporaryTopicId ?? 'pending-temp'),
     onFinish: handleExecutionFinish
   })
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])

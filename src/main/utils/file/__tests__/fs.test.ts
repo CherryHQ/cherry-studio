@@ -34,6 +34,7 @@ import {
   isSameFile,
   mkdir as fsMkdir,
   move as fsMove,
+  openReadableFileSnapshot,
   PathStaleVersionError,
   prepareAtomicWrite,
   probeReadable,
@@ -613,6 +614,21 @@ describe('atomicWriteIfUnchanged', () => {
     expect(await readFile(target, 'utf-8')).toBe('second')
     expect(next.size).toBe(6)
     expect(next.mtime).toBeGreaterThanOrEqual(expected.mtime)
+  })
+
+  it('accepts an unchanged snapshot version after a sub-millisecond timestamp read', async () => {
+    const target = path.join(tmp, 'snapshot.txt') as AbsoluteFilePath
+    await writeFile(target, 'first')
+    const modifiedAtSeconds = 1_700_000_000 + 0.1239999
+    await utimes(target, modifiedAtSeconds, modifiedAtSeconds)
+    const snapshot = await openReadableFileSnapshot(target)
+    const version = { mtime: snapshot.modifiedAt, size: snapshot.size }
+    await snapshot.close()
+
+    const saved = await atomicWriteIfUnchanged(target, 'second', version)
+
+    expect(await readFile(target, 'utf8')).toBe('second')
+    expect(saved.size).toBe(6)
   })
 
   it('throws PathStaleVersionError when size differs', async () => {

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
 import {
@@ -103,13 +104,25 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
   }
 }
 
+/**
+ * Cross-window record of the stream completion this scope already drained.
+ * The drain trigger is the completion itself (not the conversation list read
+ * receipt), so consumption needs its own marker: one completion sends at most
+ * one follow-up, even when the turn was already marked read or another window
+ * won the send.
+ */
+const consumedKeyFor = (scopeKey: string) =>
+  `followup-queue.consumed.${scopeKey}` as `followup-queue.consumed.${string}`
+const loadConsumed = (scopeKey: string): number | null =>
+  cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
+
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
   scopeKey: string
-  /** `done`-and-unacknowledged edge from `useTopicStreamStatus` — the live→idle drain trigger. */
-  isFulfilled: boolean
-  /** Acknowledge the completion so the drain fires once per turn. */
-  markSeen: () => void
+  /** Stream completion is the drain trigger, independent of the conversation list read receipt. */
+  status: TopicStreamStatus | undefined
+  /** Timestamp of the last completed turn; a completion drains at most one queued follow-up. */
+  lastCompletedAt: number | null
   /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when auto-drain fails and leaves the queued item in place. */
@@ -131,11 +144,20 @@ export interface FollowupQueueController {
   steer: (id: string, send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>) => Promise<boolean>
   /**
    * Atomic take for edit: claims the item before deleting it, so the take
-   * arbitrates with in-flight drains instead of racing them. Resolves the
+   * arbitrates with in-flight drains instead of racing them. When another
+   * item is already being edited, captureOutgoing rebuilds its draft +
+   * payload from the live editor and it returns to its queue slot first, so
+   * the queue stays the single owner of every queued message. Resolves the
    * item, or undefined (with a toast on transport failure) when the item is
-   * missing or owned by another window's send.
+   * missing, owned by another window's send, or captureOutgoing refuses the
+   * switch by returning null.
    */
-  takeForEdit: (id: string) => Promise<FollowupQueueItem | undefined>
+  takeForEdit: (
+    id: string,
+    captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
+  ) => Promise<FollowupQueueItem | undefined>
+  /** End the edit session: the composer draft was sent, cleared, or replaced, so the taken item is not returned to the queue. */
+  releaseEdit: () => void
 }
 
 /**
@@ -147,8 +169,8 @@ export interface FollowupQueueController {
  */
 export function useFollowupQueue({
   scopeKey,
-  isFulfilled,
-  markSeen,
+  status,
+  lastCompletedAt,
   onDrain,
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
@@ -249,14 +271,23 @@ export function useFollowupQueue({
   scopeKeyRef.current = scopeKey
   const itemsRef = useRef(items)
   itemsRef.current = items
+  // Volatile record of the item taken out for editing plus its insertion
+  // slot. Deliberately not persisted and scope-bound: a scope change drops
+  // it instead of requeueing anything.
+  const takenEditRef = useRef<{ item: FollowupQueueItem; slot: number; scopeKey: string } | null>(null)
+  const prevScopeForEditRef = useRef(scopeKey)
+  if (prevScopeForEditRef.current !== scopeKey) {
+    prevScopeForEditRef.current = scopeKey
+    takenEditRef.current = null
+  }
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
-  const markSeenRef = useRef(markSeen)
-  markSeenRef.current = markSeen
-  const isFulfilledRef = useRef(isFulfilled)
-  isFulfilledRef.current = isFulfilled
+  const statusRef = useRef(status)
+  statusRef.current = status
+  const lastCompletedAtRef = useRef(lastCompletedAt)
+  lastCompletedAtRef.current = lastCompletedAt
   const mountedRef = useRef(true)
   // Ids with a claim held by this window (drain or steer in flight).
   const activeIdsRef = useRef(new Set<string>())
@@ -355,12 +386,26 @@ export function useFollowupQueue({
     [claimTrigger]
   )
 
+  // Keep the taken item's restore slot aligned as earlier rows leave the
+  // queue; removing the taken item's own requeued copy ends the session.
+  // `index` is captured by the caller before the removal lands.
+  const noteItemRemoved = useCallback((removedId: string, index: number) => {
+    const taken = takenEditRef.current
+    if (!taken) return
+    if (taken.item.id === removedId) {
+      takenEditRef.current = null
+      return
+    }
+    if (index >= 0 && index < taken.slot) takenEditRef.current = { ...taken, slot: taken.slot - 1 }
+  }, [])
+
   const removeId = useCallback(
     (id: string) => {
       // Claim before deleting so the remove arbitrates with in-flight sends:
       // a lost claim means another window owns (and is sending) the item, so
       // deleting would race its send. Crash orphans are reclaimable, so they
       // stay removable.
+      const removalIndex = itemsRef.current.findIndex((entry) => entry.id === id)
       void (async () => {
         const result = await claimItem(id)
         if (!result) {
@@ -373,6 +418,7 @@ export function useFollowupQueue({
         }
         try {
           await removeTrigger({ params: { id } })
+          noteItemRemoved(id, removalIndex)
         } catch {
           toast.error(t('message.error.operation_unavailable'))
           // Release the won claim so the item returns to the queue instead of
@@ -385,11 +431,16 @@ export function useFollowupQueue({
         }
       })()
     },
-    [claimItem, removeTrigger, markFailedTrigger, t]
+    [claimItem, removeTrigger, markFailedTrigger, noteItemRemoved, t]
   )
 
   const takeForEdit = useCallback(
-    async (id: string) => {
+    async (
+      id: string,
+      captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
+    ) => {
+      // Re-taking the current edit target would restore it into itself.
+      if (takenEditRef.current?.item.id === id) return undefined
       const item = itemsRef.current.find((entry) => entry.id === id)
       if (!item) return undefined
       const scope = scopeKeyRef.current
@@ -402,25 +453,77 @@ export function useFollowupQueue({
       }
       const { claim, claimToken } = result
       if (!claim.claimed) return undefined
-      // Unmounted while the claim was in flight: release it without deleting —
-      // no composer is left to receive the restored draft. The row stays queued.
-      if (!mountedRef.current) {
+      const releaseClaim = async () => {
+        // Release the won claim so the item returns to the queue instead of
+        // sitting `sending` until the reclaim lease expires.
         try {
           await markFailedTrigger({ params: { id }, body: { claimToken } })
         } catch {
           // Crash-orphan path: the reclaim lease still bounds the stall.
         }
+      }
+      // Unmounted while the claim was in flight: release it without deleting —
+      // no composer is left to receive the restored draft. The row stays queued.
+      if (!mountedRef.current) {
+        await releaseClaim()
         return undefined
       }
       // Scope switched mid-flight: release the claim instead of restoring a
       // stale-scope draft into the new composer.
       if (scopeKeyRef.current !== scope) {
-        try {
-          await markFailedTrigger({ params: { id }, body: { claimToken } })
-        } catch {
-          // Crash-orphan path: the reclaim lease still bounds the stall.
-        }
+        await releaseClaim()
         return undefined
+      }
+      // Switching the edit target: return the outgoing item to its slot —
+      // rebuilt from the live editor — BEFORE deleting the incoming one, so a
+      // crash mid-switch leaves a duplicate in the queue rather than losing
+      // the outgoing draft entirely.
+      const taken = takenEditRef.current
+      let incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
+      if (taken) {
+        let outgoing: Pick<FollowupQueueItem, 'draft' | 'payload'> | null = null
+        try {
+          outgoing = captureOutgoing(taken.item)
+        } catch {
+          outgoing = null
+        }
+        if (!outgoing) {
+          // The editor cannot produce a message right now (unsynchronised
+          // attachments): refuse the switch and change nothing.
+          await releaseClaim()
+          return undefined
+        }
+        let restored = false
+        for (let attempt = 0; attempt < 3 && !restored; attempt++) {
+          try {
+            await enqueueTrigger({
+              body: { id: taken.item.id, scopeKey: scope, draft: outgoing.draft, payload: outgoing.payload }
+            })
+            restored = true
+          } catch (error) {
+            // The conversation was permanently deleted: nothing to restore
+            // into. Otherwise transient — retry inline, then in the background.
+            if (isAlreadyResolved(error)) break
+          }
+        }
+        if (!restored) {
+          await releaseClaim()
+          toast.error(t('message.error.operation_unavailable'))
+          scheduleReenqueueRetryRef.current(taken.item.id, scope, outgoing.draft, outgoing.payload)
+          return undefined
+        }
+        // Move the restored row back to the slot it was taken from; the slot
+        // follows removals of earlier rows via noteItemRemoved.
+        const current = itemsRef.current
+        const restoreSlot = Math.min(taken.slot, current.length)
+        const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
+        try {
+          await reorderTrigger({ body: { moves: [{ id: taken.item.id, anchor }] } })
+        } catch {
+          // The draft is safe at the end of the queue; only its position is off.
+          toast.error(t('message.error.operation_unavailable'))
+        }
+        if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       // A committed DELETE can still time out: retry once and treat NOT_FOUND
       // as deleted, so a lost response cannot drop the draft.
@@ -434,20 +537,21 @@ export function useFollowupQueue({
             deleted = true
           } else if (attempt === 1) {
             toast.error(t('message.error.operation_unavailable'))
-            // Release the won claim so the item returns to the queue instead of
-            // sitting `sending` until the reclaim lease expires.
-            try {
-              await markFailedTrigger({ params: { id }, body: { claimToken } })
-            } catch {
-              // Crash-orphan path: the reclaim lease still bounds the stall.
+            if (taken) {
+              // The outgoing item is back in the queue and the take failed:
+              // the edit session is over, its content stays as ordinary draft.
+              takenEditRef.current = null
             }
+            await releaseClaim()
             return undefined
           }
         }
       }
       if (claim.alreadySent) {
         // The content was already sent before a crash: the delete above is the
-        // correct dequeue, but restoring its draft would invite a resend.
+        // correct dequeue, but restoring its draft would invite a resend. The
+        // outgoing item (if any) is back in the queue, so the session is over.
+        if (taken) takenEditRef.current = null
         return undefined
       }
       if (scopeKeyRef.current !== scope || !mountedRef.current) {
@@ -476,12 +580,18 @@ export function useFollowupQueue({
           toast.error(t('message.error.operation_unavailable'))
           scheduleReenqueueRetryRef.current(restoreId, scope, item.draft, item.payload)
         }
+        takenEditRef.current = null
         return undefined
       }
+      takenEditRef.current = { item, slot: Math.max(incomingSlot, 0), scopeKey: scope }
       return item
     },
-    [claimItem, takeDeleteTrigger, enqueueTrigger, markFailedTrigger, t]
+    [claimItem, takeDeleteTrigger, enqueueTrigger, reorderTrigger, markFailedTrigger, t]
   )
+
+  const releaseEdit = useCallback(() => {
+    takenEditRef.current = null
+  }, [])
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
@@ -579,8 +689,10 @@ export function useFollowupQueue({
       pendingResolveRef.current.delete(id)
       void (async () => {
         try {
-          if (sent) await removeTrigger({ params: { id } })
-          else await markFailedTrigger({ params: { id }, body: { claimToken } })
+          if (sent) {
+            await removeTrigger({ params: { id } })
+            noteItemRemoved(id, itemsRef.current.findIndex((entry) => entry.id === id))
+          } else await markFailedTrigger({ params: { id }, body: { claimToken } })
           if (mountedRef.current) void refetch()
         } catch (error) {
           if (isAlreadyResolved(error)) {
@@ -633,10 +745,13 @@ export function useFollowupQueue({
       const heartbeatTimer = pendingHeartbeatRef.current.get(id)
       if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer)
       pendingHeartbeatRef.current.delete(id)
+      const removalIndex = sent ? itemsRef.current.findIndex((entry) => entry.id === id) : -1
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          if (sent) await removeTrigger({ params: { id } })
-          else await markFailedTrigger({ params: { id }, body: { claimToken } })
+          if (sent) {
+            await removeTrigger({ params: { id } })
+            noteItemRemoved(id, removalIndex)
+          } else await markFailedTrigger({ params: { id }, body: { claimToken } })
           return true
         } catch (error) {
           // The row is already gone: resolving a deletion against it would
@@ -650,7 +765,7 @@ export function useFollowupQueue({
       scheduleResolveRetryRef.current(id, sent, claimToken)
       return false
     },
-    [removeTrigger, markFailedTrigger]
+    [removeTrigger, markFailedTrigger, noteItemRemoved]
   )
 
   // A send abandoned by the timeout can still report success late. The row was
@@ -793,7 +908,14 @@ export function useFollowupQueue({
       const head = itemsRef.current.find((entry) => entry.id === id)
       // Gates that closed since scheduling park the retry instead of
       // bypassing them — the effect re-fires the drain when they reopen.
-      if (!isFulfilledRef.current || drainBlockedRef.current || !head) return
+      if (
+        statusRef.current !== 'done' ||
+        lastCompletedAtRef.current == null ||
+        loadConsumed(scopeKeyRef.current) === lastCompletedAtRef.current ||
+        drainBlockedRef.current ||
+        !head
+      )
+        return
       void drainHeadRef.current(head)
     }
     pendingClaimRef.current.set(id, setTimeout(tick, 5000))
@@ -809,10 +931,13 @@ export function useFollowupQueue({
     // Snapshot the send path with the scope: the handler closes over the current
     // conversation, so a scope switch mid-drain must not redirect the old payload.
     const sendForScope = onDrainRef.current
-    // Capture the acknowledgment with the completion that initiated this
-    // drain: markSeen is bound per completion, and by the time an alreadySent
-    // recovery settles, markSeenRef may point at a newer turn's callback.
-    const ackCompletion = markSeenRef.current
+    // Bind the consumption marker to the completion that initiated this
+    // drain: by the time an alreadySent recovery settles, lastCompletedAtRef
+    // may point at a newer turn, which must drain its own follow-up.
+    const completionAt = lastCompletedAtRef.current
+    const ackCompletion = () => {
+      if (completionAt != null) cacheService.setShared(consumedKeyFor(scope), completionAt)
+    }
     if (drainBusyScopesRef.current.has(scope) || activeIdsRef.current.has(head.id)) return
     drainBusyScopesRef.current.add(scope)
     activeIdsRef.current.add(head.id)
@@ -877,12 +1002,13 @@ export function useFollowupQueue({
   // Resolution writes are retried so a successful send is not replayed after
   // a lost dequeue.
   useEffect(() => {
-    if (!isFulfilled || paused || !queriesReady || !pauseKnown) return
+    if (status !== 'done' || lastCompletedAt == null || paused || !queriesReady || !pauseKnown) return
+    if (loadConsumed(scopeKey) === lastCompletedAt) return
     const head = itemsRef.current[0]
     if (!head || head.id !== headId) return
     void drainHeadRef.current(head)
-  }, [isFulfilled, paused, queriesReady, pauseKnown, headId, scopeKey])
+  }, [status, lastCompletedAt, paused, queriesReady, pauseKnown, headId, scopeKey])
 
-  return { items, enqueue, removeId, reorder, paused, setPaused, steer, takeForEdit }
+  return { items, enqueue, removeId, reorder, paused, setPaused, steer, takeForEdit, releaseEdit }
 }
 

@@ -13,6 +13,54 @@ export type UtilityProcessMethod<Input, Output, Event = never> = {
 /** The method map a definition and its entry share. */
 export type UtilityProcessContract = {
   methods: Record<string, UtilityProcessMethod<unknown, unknown, unknown>>
+  streams?: Record<
+    string,
+    UtilityProcessStreamMethod<unknown, UtilityProcessStreamFrame, UtilityProcessStreamFrame, unknown>
+  >
+}
+
+/** Flat metadata and an optional byte view; arbitrary object graphs are not stream frames. */
+export type UtilityProcessStreamFrame = {
+  metadata: Readonly<Record<string, string | number | boolean | null>>
+  payload?: Uint8Array
+}
+
+export type UtilityProcessStreamMethod<
+  Request,
+  Input extends UtilityProcessStreamFrame,
+  Output extends UtilityProcessStreamFrame,
+  Result
+> = {
+  request: Request
+  input: Input
+  output: Output
+  result: Result
+}
+
+export type UtilityProcessStreams<C extends UtilityProcessContract> = NonNullable<C['streams']>
+
+export interface UtilityProcessStreamLimits {
+  maxFrameBytes: number
+  maxBufferedBytes: number
+  maxBufferedFrames: number
+  maxPendingWrites: number
+}
+
+export interface UtilityProcessStreamOptions {
+  signal?: AbortSignal
+  input: UtilityProcessStreamLimits
+  output: UtilityProcessStreamLimits
+}
+
+export interface UtilityProcessStream<Input, Output, Result> {
+  /** Single consumer; advancing releases capacity for the previous frame. */
+  readonly output: AsyncIterable<Output>
+  readonly completed: Promise<Result>
+  /** Resolves only after handler cleanup acknowledgement or confirmed process exit. */
+  readonly closed: Promise<void>
+  write(frame: Input): Promise<void>
+  finishInput(): Promise<void>
+  cancel(): Promise<void>
 }
 
 /**
@@ -55,6 +103,18 @@ export interface UtilityProcessResetOptions {
 }
 
 export interface UtilityProcessClient<Contract extends UtilityProcessContract> {
+  openStream<M extends keyof UtilityProcessStreams<Contract> & string>(
+    method: M,
+    input: UtilityProcessStreams<Contract>[M]['request'],
+    options: UtilityProcessStreamOptions
+  ): Promise<
+    UtilityProcessStream<
+      UtilityProcessStreams<Contract>[M]['input'],
+      UtilityProcessStreams<Contract>[M]['output'],
+      UtilityProcessStreams<Contract>[M]['result']
+    >
+  >
+
   request<M extends keyof Contract['methods'] & string>(
     method: M,
     input: Contract['methods'][M]['input'],

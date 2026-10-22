@@ -24,6 +24,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
@@ -180,6 +181,7 @@ export interface ChatComposerProps {
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  previewInputFile?: ComposerInputFilePreviewAction
 }
 
 interface SavedComposerDraft {
@@ -402,6 +404,7 @@ const ChatComposerRoot = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -461,6 +464,7 @@ const ChatComposerRoot = ({
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
             onCreateEmptyTopic={onCreateEmptyTopic}
+            previewInputFile={previewInputFile}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
             deferQuickPanel={deferQuickPanel}
@@ -501,6 +505,7 @@ const ChatComposerInner = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -553,10 +558,11 @@ const ChatComposerInner = ({
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
-  const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
+  const { isPending, status: streamStatus, lastCompletedAt } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const releaseFollowupEditRef = useRef<() => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -607,6 +613,7 @@ const ChatComposerInner = ({
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
+      releaseFollowupEditRef.current()
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
@@ -1131,6 +1138,7 @@ const ChatComposerInner = ({
 
     if (!savedDraft) return
 
+    releaseFollowupEditRef.current()
     exitInputHistoryPreview()
     actionsRef.current.replaceDraft({ text: savedDraft.text, tokens: savedDraft.draftTokens })
     setText(savedDraft.text)
@@ -1168,6 +1176,7 @@ const ChatComposerInner = ({
   }, [editingMessageId])
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
+    releaseFollowupEditRef.current()
     const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
@@ -1544,6 +1553,7 @@ const ChatComposerInner = ({
     draftEditRevisionRef.current += 1
   }, [files])
   const clearCurrentDraft = useCallback(() => {
+    releaseFollowupEditRef.current()
     setText('')
     setDraftTokens(undefined)
     setFiles([])
@@ -1564,16 +1574,19 @@ const ChatComposerInner = ({
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    takeForEdit: takeFollowupForEdit,
+    releaseEdit,
     paused: followupPaused,
     setPaused: setFollowupPaused,
-    steer: steerFollowup,
-    takeForEdit: takeFollowupForEdit
+    steer: steerFollowup
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
-    isFulfilled,
-    markSeen,
+    status: streamStatus,
+    lastCompletedAt,
     onDrain: sendQueuedPayload
   })
+  releaseFollowupEditRef.current = releaseEdit
+
   const queuedFollowupModelsDataEnabled = queuedFollowups.some(
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
@@ -1583,8 +1596,21 @@ const ChatComposerInner = ({
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
-  // Edit a queued item = atomically restore the whole editor draft plus its managed tools, then drop
-  // it from the queue. Atomic replacement also preserves unmanaged tokens when the text is unchanged.
+  const captureOutgoingFollowup = useCallback(
+    (taken: FollowupQueueItem) => {
+      const draft = actionsRef.current.getDraft()
+      const payload = buildQueuedPayload(draft)
+      if (payload === null) {
+        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
+        return null
+      }
+      return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
+    },
+    [actionsRef, buildQueuedPayload, files]
+  )
+
+  // After takeForEdit removes the queued item, atomic replacement preserves unmanaged tokens
+  // even when the restored text is unchanged.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       resetHistoryIndex()
@@ -2001,11 +2027,24 @@ const ChatComposerInner = ({
                   await steerFollowup(id, sendQueuedPayload)
                 }}
                 onEdit={async (id) => {
+                  if (directSendInFlightRef.current) return
+                  if (editingMessageForCurrentTopic) {
+                    // A message-edit session owns the composer: taking a queued
+                    // item must not try to capture it as an outgoing followup.
+                    releaseEdit()
+                    const item = await takeFollowupForEdit(id, () => null)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    return
+                  }
                   // Atomic take: undefined when the item is owned by an
                   // in-flight drain, so an edit can never race its send.
-                  const item = await takeFollowupForEdit(id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
+                  // Switching the edit target returns the outgoing draft to
+                  // its queue slot, rebuilt from the live editor, first.
+                  const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
+                  if (!incoming) return
+                  restoreFollowupDraft(incoming)
+
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
@@ -2015,6 +2054,7 @@ const ChatComposerInner = ({
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
+          previewInputFile={previewInputFile}
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}

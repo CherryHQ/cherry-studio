@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -34,6 +34,20 @@ describe('heartbeatDocument', () => {
     expect((await readHeartbeatDocument('a1')).content).toBe('- Check my inbox\n')
     expect(await readFile(path.join(root, 'a1', 'heartbeat.md'), 'utf8')).toBe(saved.content)
     expect(dbh.db.select().from(agentTable).all()[0].configuration).toEqual({})
+  })
+
+  it('saves an unchanged document after reading a sub-millisecond modification time', async () => {
+    await readHeartbeatDocument('a1')
+    const target = path.join(root, 'a1', 'heartbeat.md')
+    const modifiedAtSeconds = 1_700_000_000 + 0.1239999
+    await utimes(target, modifiedAtSeconds, modifiedAtSeconds)
+
+    const document = await readHeartbeatDocument('a1')
+    expect(document.version.mtime).toBe(Math.floor((await stat(target)).mtimeMs))
+    const saved = await writeHeartbeatDocument('a1', { ...document, content: '- Updated checklist\n' })
+
+    expect(await readFile(target, 'utf8')).toBe('- Updated checklist\n')
+    expect(saved.version.mtime).toBe(Math.floor((await stat(target)).mtimeMs))
   })
 
   it('rejects a stale edit without overwriting externally updated tasks', async () => {

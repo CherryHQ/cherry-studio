@@ -1,7 +1,9 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
@@ -113,8 +115,8 @@ function wireMutations() {
 function baseProps(overrides: Record<string, unknown> = {}) {
   return {
     scopeKey: SCOPE,
-    isFulfilled: false,
-    markSeen: vi.fn(),
+    status: 'streaming' as const,
+    lastCompletedAt: null as number | null,
     onDrain: vi.fn(async () => true),
     ...overrides
   }
@@ -123,6 +125,7 @@ function baseProps(overrides: Record<string, unknown> = {}) {
 describe('useFollowupQueue', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
+    MockCacheUtils.resetMocks()
   })
 
   it('surfaces the persisted rows as items', () => {
@@ -192,20 +195,19 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger, deleteTrigger, failTrigger } = wireMutations()
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
       {
-        initialProps: { isFulfilled: false }
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
       }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(markSeen).toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
@@ -220,12 +222,12 @@ describe('useFollowupQueue', () => {
     const onDrainFailed = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
@@ -248,16 +250,15 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger } = wireMutations()
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-      { initialProps: { isFulfilled: true } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
     )
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
 
     mockUseQuery.mockImplementation((path: string) => {
       if (path === '/followup-queues') {
@@ -274,11 +275,11 @@ describe('useFollowupQueue', () => {
     })
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(markSeen).toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
 
@@ -288,20 +289,19 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockRejectedValueOnce(new Error('ipc down'))
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
     const onDrainFailed = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain, onDrainFailed })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
-    expect(markSeen).toHaveBeenCalledOnce()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledOnce()
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(onDrainFailed).not.toHaveBeenCalled()
@@ -312,20 +312,19 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger } = wireMutations()
     claimHeadTrigger.mockRejectedValue(new Error('ipc down'))
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
     const onDrainFailed = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain, onDrainFailed })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
     expect(onDrain).not.toHaveBeenCalled()
     expect(onDrainFailed).toHaveBeenCalledOnce()
     expect(refetch).toHaveBeenCalled()
@@ -338,12 +337,12 @@ describe('useFollowupQueue', () => {
     deleteTrigger.mockRejectedValueOnce(new Error('db busy'))
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
-      initialProps: { isFulfilled: false }
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
     })
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(onDrain).toHaveBeenCalledOnce()
@@ -361,12 +360,12 @@ describe('useFollowupQueue', () => {
     const onDrainFailed = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(onDrain).toHaveBeenCalledOnce()
@@ -490,24 +489,23 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger, deleteTrigger } = wireMutations()
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-      { initialProps: { isFulfilled: true } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
     )
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
 
     mockUseQuery.mockImplementation(queryImpl([head]))
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(markSeen).toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
   })
@@ -516,20 +514,19 @@ describe('useFollowupQueue', () => {
     const foreign = { ...row('h', 'head'), scopeKey: 'other-topic:other-assistant' }
     wireQuery([foreign])
     wireMutations()
-    const markSeen = vi.fn()
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     expect(result.current.items).toEqual([])
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
   })
 
   it('refuses to remove a freshly claimed item', async () => {
@@ -983,6 +980,163 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('returns the outgoing edit to its slot with the rebuilt draft when switching targets', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    let taken: unknown
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', captureOutgoing)
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('second')
+    expect(captureOutgoing).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }))
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: {
+        id: 'a',
+        scopeKey: SCOPE,
+        draft: { text: 'first edited', tokens: [] },
+        payload: { text: 'first edited', userMessageParts: [] }
+      }
+    })
+    // 'a' was taken from slot 0, so its rebuilt copy goes back to the head.
+    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: 'a', anchor: { position: 'first' } }] } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+  })
+
+  it('refuses the switch when captureOutgoing cannot build a message', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', () => null)
+    })
+
+    expect(taken).toBeUndefined()
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(takeDeleteTrigger).not.toHaveBeenCalledWith({ params: { id: 'b' } })
+    // The won claim on 'b' is released so the row returns to the queue.
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { claimToken: expect.any(String) } })
+  })
+
+  it('ignores a re-take of the item already being edited', async () => {
+    wireQuery([row('a', 'first')])
+    const { claimTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    let again: unknown = 'unset'
+    await act(async () => {
+      again = await result.current.takeForEdit('a', () => null)
+    })
+
+    expect(again).toBeUndefined()
+    expect(claimTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not requeue the previous edit after releaseEdit', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    act(() => {
+      result.current.releaseEdit()
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('x'), payload: payload('x') }))
+    let taken: unknown
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', captureOutgoing)
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('second')
+    expect(captureOutgoing).not.toHaveBeenCalled()
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+  })
+
+  it('moves the restore slot up when an earlier row leaves the queue', async () => {
+    wireQuery([row('x', 'head'), row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    // Take 'a' from slot 1, then remove the earlier row 'x': the restore slot follows to 0.
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    await act(async () => {
+      result.current.removeId('x')
+    })
+    await act(async () => {
+      await result.current.takeForEdit('b', () => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    })
+
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: {
+        id: 'a',
+        scopeKey: SCOPE,
+        draft: { text: 'first edited', tokens: [] },
+        payload: { text: 'first edited', userMessageParts: [] }
+      }
+    })
+    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: 'a', anchor: { position: 'first' } }] } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+  })
+
+  it('restores the outgoing edit but returns nothing when the incoming take was already sent', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger
+      .mockResolvedValueOnce({ claimed: true })
+      .mockResolvedValueOnce({ claimed: true, alreadySent: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', () => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    })
+
+    expect(taken).toBeUndefined()
+    expect(postTrigger).toHaveBeenCalledTimes(1)
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    // The session is cleared: a later take does not requeue 'a' again.
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    let third: unknown
+    await act(async () => {
+      third = await result.current.takeForEdit('a', () => ({ draft: draft('z'), payload: payload('z') }))
+    })
+    expect((third as { draft: { text: string } }).draft.text).toBe('first')
+    expect(postTrigger).toHaveBeenCalledTimes(1)
+  })
+
   it('releases the head claim without sending when the scope moves mid-claim', async () => {
     wireQuery([row('h', 'head')])
     const { claimHeadTrigger, failTrigger } = wireMutations()
@@ -994,16 +1148,16 @@ describe('useFollowupQueue', () => {
     )
     const onDrain = vi.fn(async () => true)
     const { rerender } = renderHook(
-      ({ scopeKey, isFulfilled }) => useFollowupQueue(baseProps({ scopeKey, isFulfilled, onDrain })),
-      { initialProps: { scopeKey: SCOPE, isFulfilled: false } }
+      ({ scopeKey, completion }) => useFollowupQueue(baseProps({ scopeKey, ...completion, onDrain })),
+      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ scopeKey: SCOPE, isFulfilled: true })
+      rerender({ scopeKey: SCOPE, completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     await act(async () => {
-      rerender({ scopeKey: 's2', isFulfilled: true })
+      rerender({ scopeKey: 's2', completion: { status: 'done', lastCompletedAt: 100 } })
     })
     await act(async () => {
       resolveClaim({ claimed: true, id: 'h', alreadySent: false })
@@ -1025,12 +1179,12 @@ describe('useFollowupQueue', () => {
     )
     const onDrain = vi.fn(async () => true)
     const { rerender, unmount } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
     await act(async () => {
@@ -1057,15 +1211,15 @@ describe('useFollowupQueue', () => {
     const firstDrain = vi.fn(async () => true)
     const secondDrain = vi.fn(async () => true)
     const { rerender } = renderHook(
-      ({ isFulfilled, onDrain }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
-      { initialProps: { isFulfilled: false, onDrain: firstDrain } }
+      ({ completion, onDrain }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null }, onDrain: firstDrain } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true, onDrain: firstDrain })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 }, onDrain: firstDrain })
     })
     await act(async () => {
-      rerender({ isFulfilled: true, onDrain: secondDrain })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 }, onDrain: secondDrain })
     })
     await act(async () => {
       resolveClaim({ claimed: true, id: 'h', alreadySent: false })
@@ -1093,12 +1247,12 @@ describe('useFollowupQueue', () => {
       )
       const onDrainFailed = vi.fn()
       const { rerender } = renderHook(
-        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
-        { initialProps: { isFulfilled: false } }
+        ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
       )
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
@@ -1134,12 +1288,12 @@ describe('useFollowupQueue', () => {
             resolveSend = resolve
           })
       )
-      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
-        initialProps: { isFulfilled: false }
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
       })
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
       expect(onDrain).toHaveBeenCalledOnce()
       expect(heartbeatTrigger).not.toHaveBeenCalled()
@@ -1178,12 +1332,12 @@ describe('useFollowupQueue', () => {
       )
       const onDrainFailed = vi.fn()
       const { rerender } = renderHook(
-        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
-        { initialProps: { isFulfilled: false } }
+        ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
       )
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
       expect(onDrain).toHaveBeenCalledOnce()
 
@@ -1273,20 +1427,19 @@ describe('useFollowupQueue', () => {
       }
     })
     const { claimHeadTrigger } = wireMutations()
-    const markSeen = vi.fn()
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })),
-      { initialProps: { isFulfilled: true } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion })),
+      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
     )
 
     await act(async () => {})
     expect(result.current.items.map((item) => item.draft.text)).toEqual(['head'])
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(claimHeadTrigger).not.toHaveBeenCalled()
   })
@@ -1298,20 +1451,19 @@ describe('useFollowupQueue', () => {
       const { claimHeadTrigger, deleteTrigger } = wireMutations()
       claimHeadTrigger.mockRejectedValue(new Error('ipc down'))
       const onDrain = vi.fn(async () => true)
-      const markSeen = vi.fn()
       const onDrainFailed = vi.fn()
 
       const { rerender } = renderHook(
-        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain, onDrainFailed })),
-        { initialProps: { isFulfilled: false } }
+        ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
       )
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
 
       expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
-      expect(markSeen).not.toHaveBeenCalled()
+      expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
       expect(onDrainFailed).toHaveBeenCalledOnce()
 
       claimHeadTrigger.mockResolvedValue({ claimed: true, id: 'h' })
@@ -1319,7 +1471,7 @@ describe('useFollowupQueue', () => {
         await vi.advanceTimersByTimeAsync(5000)
       })
 
-      expect(markSeen).toHaveBeenCalled()
+      expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
       expect(onDrain).toHaveBeenCalledOnce()
       expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     } finally {
@@ -1337,12 +1489,12 @@ describe('useFollowupQueue', () => {
       const onDrain = vi.fn(async () => true)
 
       const { rerender, unmount } = renderHook(
-        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
-        { initialProps: { isFulfilled: false } }
+        ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+        { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
       )
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
 
       expect(deleteTrigger).toHaveBeenCalledTimes(3)
@@ -1369,12 +1521,12 @@ describe('useFollowupQueue', () => {
       deleteTrigger.mockRejectedValue(new Error('db down'))
       const onDrain = vi.fn(async () => true)
 
-      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
-        initialProps: { isFulfilled: false }
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
       })
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
 
       expect(deleteTrigger).toHaveBeenCalledTimes(3)
@@ -1407,12 +1559,12 @@ describe('useFollowupQueue', () => {
     deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'gone', 404))
     const onDrain = vi.fn(async () => true)
 
-    const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
-      initialProps: { isFulfilled: false }
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
     })
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(onDrain).toHaveBeenCalledOnce()
@@ -1444,21 +1596,20 @@ describe('useFollowupQueue', () => {
       () => new Promise((resolve) => (resolveClaim = resolve as (value: unknown) => void))
     )
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     // A concurrent reorder swaps the head while the first claim is in flight.
     mockUseQuery.mockImplementation(queryImpl([second, first]))
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
     await act(async () => {
       resolveClaim({ claimed: true, id: 'x' })
@@ -1467,7 +1618,7 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledTimes(1)
     expect(onDrain).toHaveBeenCalledWith(first.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'x' } })
-    expect(markSeen).toHaveBeenCalledOnce()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
   })
 
   it('drains the new scope while the previous scope drain is in flight', async () => {
@@ -1500,16 +1651,15 @@ describe('useFollowupQueue', () => {
       () => new Promise((resolve) => pending.push(resolve as (value: unknown) => void))
     )
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ scopeKey, isFulfilled }: { scopeKey: string; isFulfilled: boolean }) =>
-        useFollowupQueue(baseProps({ scopeKey, isFulfilled, markSeen, onDrain })),
-      { initialProps: { scopeKey: SCOPE, isFulfilled: false } }
+      ({ scopeKey, completion }: { scopeKey: string; completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null } }) =>
+      useFollowupQueue(baseProps({ scopeKey, ...completion, onDrain })),
+      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ scopeKey: SCOPE, isFulfilled: true })
+      rerender({ scopeKey: SCOPE, completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(pending).toHaveLength(1)
 
@@ -1517,7 +1667,7 @@ describe('useFollowupQueue', () => {
     // must start its own drain instead of stalling on the shared guard, while
     // A's cycle releases its claim without sending into the new scope.
     await act(async () => {
-      rerender({ scopeKey: 's2', isFulfilled: true })
+      rerender({ scopeKey: 's2', completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(pending).toHaveLength(2)
 
@@ -1530,7 +1680,7 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledWith(headB.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'a' }, body: { claimToken: expect.any(String) } })
-    expect(markSeen).toHaveBeenCalledOnce()
+    expect(cacheService.getShared('followup-queue.consumed.s2')).toBe(100)
   })
 
   it('does not ack the new scope edge on a lost claim from the old scope', async () => {
@@ -1562,27 +1712,27 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockImplementationOnce(
       () => new Promise((resolve) => (resolveClaim = resolve as (value: unknown) => void))
     )
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ scopeKey, isFulfilled }: { scopeKey: string; isFulfilled: boolean }) =>
-        useFollowupQueue(baseProps({ scopeKey, isFulfilled, markSeen })),
-      { initialProps: { scopeKey: SCOPE, isFulfilled: false } }
+      ({ scopeKey, completion }: { scopeKey: string; completion: { status: 'streaming' | 'done'; lastCompletedAt: number | null } }) =>
+      useFollowupQueue(baseProps({ scopeKey, ...completion })),
+      { initialProps: { scopeKey: SCOPE, completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ scopeKey: SCOPE, isFulfilled: true })
+      rerender({ scopeKey: SCOPE, completion: { status: 'done', lastCompletedAt: 100 } })
     })
     // Switch scopes while A's claim is in flight, then lose it: only B's own
     // cycle may ack, never A's stale one.
     await act(async () => {
-      rerender({ scopeKey: 's2', isFulfilled: true })
+      rerender({ scopeKey: 's2', completion: { status: 'done', lastCompletedAt: 100 } })
     })
     await act(async () => {
       resolveClaim({ claimed: false })
     })
 
-    expect(markSeen).toHaveBeenCalledTimes(1)
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
+    expect(cacheService.getShared('followup-queue.consumed.s2')).toBe(100)
   })
 
   it('skips the send for a row this profile already sent', async () => {
@@ -1590,20 +1740,19 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger, deleteTrigger, markSentTrigger } = wireMutations()
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: true })
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(onDrain).not.toHaveBeenCalled()
     expect(markSentTrigger).not.toHaveBeenCalled()
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
-    expect(markSeen).toHaveBeenCalledOnce()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
   })
 
   it('records a sent row server-side before dequeuing it', async () => {
@@ -1615,14 +1764,14 @@ describe('useFollowupQueue', () => {
       deleteTrigger.mockRejectedValue(new Error('db down'))
       const onDrain = vi.fn(async () => true)
       const { rerender, unmount } = renderHook(
-        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
+        ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
         {
-          initialProps: { isFulfilled: false }
+          initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
         }
       )
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
 
       expect(onDrain).toHaveBeenCalledOnce()
@@ -1651,12 +1800,12 @@ describe('useFollowupQueue', () => {
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
     deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'gone', 404))
     const onDrain = vi.fn(async () => true)
-    const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
-      initialProps: { isFulfilled: false }
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
     })
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(onDrain).toHaveBeenCalledOnce()
@@ -1676,11 +1825,10 @@ describe('useFollowupQueue', () => {
       })
     )
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     // Pause while the PUT is still in flight...
@@ -1692,11 +1840,11 @@ describe('useFollowupQueue', () => {
     // ...then the completion edge lands before the server echoes it back: the
     // drain must stay parked instead of sending into a paused queue.
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(claimHeadTrigger).not.toHaveBeenCalled()
     expect(onDrain).not.toHaveBeenCalled()
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
 
     // When the server echoes the pause, the hold releases onto the same value.
     await act(async () => {
@@ -1743,14 +1891,13 @@ describe('useFollowupQueue', () => {
       wireQuery([row('h', 'head')])
       const { claimHeadTrigger } = wireMutations()
       claimHeadTrigger.mockRejectedValue(new Error('ipc down'))
-      const markSeen = vi.fn()
 
-      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })), {
-        initialProps: { isFulfilled: false }
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
       })
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
 
       expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
@@ -1761,7 +1908,7 @@ describe('useFollowupQueue', () => {
       }
 
       expect(claimHeadTrigger).toHaveBeenCalledTimes(8)
-      expect(markSeen).not.toHaveBeenCalled()
+      expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
     } finally {
       vi.useRealTimers()
     }
@@ -1795,24 +1942,23 @@ describe('useFollowupQueue', () => {
     const { claimHeadTrigger } = wireMutations()
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-      { initialProps: { isFulfilled: true } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'done', lastCompletedAt: 100 } } }
     )
 
     await act(async () => {})
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
 
     mockUseQuery.mockImplementation(queryImpl(false))
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(markSeen).toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
 
@@ -1825,12 +1971,12 @@ describe('useFollowupQueue', () => {
       deleteTrigger.mockRejectedValue(new Error('db down'))
       const onDrain = vi.fn(async () => true)
 
-      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
-        initialProps: { isFulfilled: false }
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
       })
 
       await act(async () => {
-        rerender({ isFulfilled: true })
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
       })
 
       expect(onDrain).toHaveBeenCalledOnce()
@@ -1857,12 +2003,12 @@ describe('useFollowupQueue', () => {
     const onDrainFailed = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain, onDrainFailed })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(onDrain).not.toHaveBeenCalled()
@@ -1879,19 +2025,18 @@ describe('useFollowupQueue', () => {
     // wins the true head, and the drain sends its payload — not the mirror's.
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'y' })
     const onDrain = vi.fn(async () => true)
-    const markSeen = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
-    expect(markSeen).toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(second.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'y' } })
   })
@@ -1919,18 +2064,17 @@ describe('useFollowupQueue', () => {
       }
     })
     const { claimHeadTrigger } = wireMutations()
-    const markSeen = vi.fn()
 
-    const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })), {
-      initialProps: { isFulfilled: false }
+    const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion })), {
+      initialProps: { completion: { status: 'streaming', lastCompletedAt: null } }
     })
 
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
     expect(claimHeadTrigger).not.toHaveBeenCalled()
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(cacheService.getShared('followup-queue.consumed.s1')).toBeUndefined()
   })
 
   it('does not drain while paused and toggles pause through the API', async () => {
@@ -1939,13 +2083,13 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
-      { initialProps: { isFulfilled: false } }
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null } } }
     )
 
     expect(result.current.paused).toBe(true)
     await act(async () => {
-      rerender({ isFulfilled: true })
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(onDrain).not.toHaveBeenCalled()
 
