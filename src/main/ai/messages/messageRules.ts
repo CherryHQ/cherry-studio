@@ -168,6 +168,58 @@ export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[]
 }
 
 /**
+ * Two persisted parts can share one wire id (#22441). Strict providers require exactly
+ * one call and one result per id, so keep the strongest local evidence in its own slot.
+ */
+export function deduplicateLocalToolParts<T extends UIMessage>(messages: T[]): T[] {
+  const groups = new Map<
+    string,
+    { messageIndex: number; partIndex: number; priority: number; providerExecuted: boolean }
+  >()
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    message.parts.forEach((part, partIndex) => {
+      if (!isToolUIPart(part)) return
+      const priority =
+        part.state === 'output-error' ||
+        part.state === 'output-denied' ||
+        (part.state === 'output-available' && part.preliminary !== true)
+          ? 2
+          : part.state === 'approval-responded'
+            ? 1
+            : 0
+      const group = groups.get(part.toolCallId)
+      if (!group) {
+        groups.set(part.toolCallId, {
+          messageIndex,
+          partIndex,
+          priority,
+          providerExecuted: part.providerExecuted === true
+        })
+      } else {
+        group.providerExecuted ||= part.providerExecuted === true
+        if (priority > group.priority) Object.assign(group, { messageIndex, partIndex, priority })
+      }
+    })
+  })
+
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    const parts = message.parts.filter((part, partIndex) => {
+      if (!isToolUIPart(part)) return true
+      const group = groups.get(part.toolCallId)!
+      return group.providerExecuted || (group.messageIndex === messageIndex && group.partIndex === partIndex)
+    })
+    if (parts.length !== message.parts.length) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
  * Give the model the same attributed wording the runtimes send. Rewrites the copy handed to
  * `convertToModelMessages`, covering both the answered (`approval-responded`) and the terminal
  * (`output-denied`) shapes; the stored part keeps the raw reason for the card and the DB.
@@ -214,7 +266,7 @@ export async function toModelMessages(
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
-    dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
+    deduplicateLocalToolParts(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
   )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
