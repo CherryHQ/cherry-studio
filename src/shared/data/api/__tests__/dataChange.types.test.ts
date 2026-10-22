@@ -37,6 +37,7 @@ describe('endpoint classification', () => {
       | '/files/entries/:id/refs'
       | '/files/entries/ref-counts'
       | '/files/refs'
+      | '/followup-queues'
       | '/groups'
       | '/jobs'
       | '/knowledge-bases'

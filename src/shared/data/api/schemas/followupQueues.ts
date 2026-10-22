@@ -160,6 +160,7 @@ export type FollowupQueueSchemas = {
   '/followup-queues/:id/fail': {
     POST: {
       params: { id: string }
+      body: FollowupQueueSettlementBodyDto
       response: void
     }
   }
@@ -187,6 +188,7 @@ export type FollowupQueueSchemas = {
   '/followup-queues/:id/sent': {
     POST: {
       params: { id: string }
+      body: FollowupQueueSettlementBodyDto
       response: void
     }
   }
@@ -200,6 +202,7 @@ export type FollowupQueueSchemas = {
   '/followup-queues/:id/heartbeat': {
     POST: {
       params: { id: string }
+      body: FollowupQueueSettlementBodyDto
       response: HeartbeatFollowupQueueResult
     }
   }
