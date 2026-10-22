@@ -9,13 +9,16 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { modelService } from '@data/services/ModelService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 const controls = vi.hoisted(() => ({
   settled: vi.fn().mockResolvedValue(undefined),
   closeWarm: vi.fn().mockResolvedValue(undefined),
+  terminateHeldTopicStream: vi.fn(),
   startRuntimeTurn: vi.fn<(input: any) => void>()
 }))
 
@@ -28,6 +31,7 @@ vi.mock('@application', async () => {
       return {
         whenTerminalDispatchSettled: controls.settled,
         startRuntimeTurn: controls.startRuntimeTurn,
+        terminateHeldTopicStream: controls.terminateHeldTopicStream,
         broadcastTopicError: vi.fn()
       }
     if (name === 'ClaudeCodeWarmQueryManager') return { close: controls.closeWarm }
@@ -440,22 +444,58 @@ describe('Claude foreground runtime recovery', () => {
     expect(agentSessionMessageService.getLastRuntimeResumeToken('target')).toBeNull()
   })
 
-  it('freezes queued messages through teardown and launches them once against a fresh entry', async () => {
+  it.each([
+    { scenario: 'model changed during closure', nextModel: 'provider::other' as UniqueModelId },
+    { scenario: 'model unchanged during closure', nextModel: modelId },
+    { scenario: 'model deleted during closure', nextModel: null }
+  ])('restores queued work with $scenario', async ({ nextModel }) => {
     await terminal(begin())
     await terminal(begin())
     const third = begin()
+    const closure = deferred()
+    const close = vi.fn(() => closure.promise)
+    third.entry.runtimeState.connection = { kind: 'connected', connection: { close }, occupancy: {} }
     service.enqueueUserMessage('target', {
       id: 'queued-user',
       data: { parts: [{ type: 'text', text: 'next' }] }
     } as any)
     await terminal(third)
-    await service.ensureRuntimeResetComplete('target')
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    const reset = service.ensureRuntimeResetComplete('target')
+    await vi.waitFor(() => expect((service as any).closingSessions.has('target')).toBe(true))
+    expect((service as any).entries.has('target')).toBe(false)
+    if (nextModel === null) {
+      modelService.delete('provider', 'model')
+      expect(agentService.getAgent('agent')?.model).toBeNull()
+    } else if (nextModel !== modelId) {
+      expect(agentService.updateAgent('agent', { model: nextModel })?.model).toBe(nextModel)
+    }
+    const beforeRestore = rows()
+    closure.resolve()
+    await reset
+    await vi.waitFor(() => {
+      if (nextModel) expect(controls.startRuntimeTurn).toHaveBeenCalledOnce()
+      else expect(controls.terminateHeldTopicStream).toHaveBeenCalledOnce()
+    })
     const fresh = (service as any).entries.get('target')
     expect(fresh).not.toBe(third.entry)
     expect(fresh.lastResumeToken).toBeUndefined()
     expect(fresh.runtimeState.queue).toEqual([])
-    expect(controls.startRuntimeTurn).toHaveBeenCalledTimes(1)
-    expect(controls.startRuntimeTurn.mock.calls[0][0].request.messages[0].id).toBe('queued-user')
+    if (nextModel) {
+      const started = controls.startRuntimeTurn.mock.calls[0][0]
+      expect(started.request.messages[0].id).toBe('queued-user')
+      expect(rows().filter((row) => !beforeRestore.some((old) => old.id === row.id))).toEqual([
+        expect.objectContaining({ id: started.request.messageId, role: 'assistant', modelId: nextModel })
+      ])
+      expect(started.modelId).toBe(nextModel)
+    } else {
+      expect(controls.startRuntimeTurn).not.toHaveBeenCalled()
+      expect(rows().map((row) => row.id)).toEqual(beforeRestore.map((row) => row.id))
+      expect(controls.terminateHeldTopicStream).toHaveBeenCalledWith(
+        'agent-session:target',
+        modelId,
+        expect.objectContaining({ message: 'Agent agent has no model configured' })
+      )
+      expect(fresh.runtimeState.execution.kind).toBe('idle')
+    }
   })
 })

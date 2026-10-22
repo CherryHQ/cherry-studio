@@ -473,12 +473,13 @@ export class AgentSessionRuntimeService extends BaseService {
     this.requiredResets.delete(sessionId)
     if (reset.entry && reset.queue.length) {
       const old = reset.entry
+      const liveAgent = agentService.getAgent(old.agentId)
       const fresh: AgentSessionRuntimeEntry = {
         sessionId,
         topicId: old.topicId,
         agentId: old.agentId,
         agentType: old.agentType,
-        modelId: old.modelId,
+        modelId: liveAgent?.model ?? old.modelId,
         sessionTraceId: old.sessionTraceId,
         runtimeState: { ...createAgentSessionRuntimeState(), queue: reset.queue }
       }
