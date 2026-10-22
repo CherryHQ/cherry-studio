@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-22-sandbox-diagnostic-scenarios.md
+2026-10-22-sandbox-diagnostic-scenarios.md: 08f054b20e429ade7d407a8bcd58b42555f9e27b
+2026-10-22-sandbox-diagnostic-scenarios.zh.md: 9a5f7ac0f9cc71767cf4dccad665e8970f35bc50
