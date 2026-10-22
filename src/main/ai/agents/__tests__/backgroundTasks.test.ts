@@ -67,6 +67,18 @@ import {
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
 const nodeBin = `"${process.execPath}"`
+// A worker that leaves the task's process group in place needs `setsid()`, which Node does not
+// expose; the daemonizing-worker regression drives it through python3 and skips where absent.
+const python3Available =
+  process.platform !== 'win32' &&
+  (() => {
+    try {
+      execFileSync('python3', ['--version'], { stdio: 'ignore', timeout: 5_000 })
+      return true
+    } catch {
+      return false
+    }
+  })()
 // Exercise the shell's own output so this test isolates the detached task log redirection.
 const okCommand = 'echo bg-ok'
 // Lives long enough that the persisted record is still "running" when read back on fast runners.
@@ -209,8 +221,9 @@ describe('backgroundTasks', () => {
       expect(options.detached).toBe(true)
       expect(options.windowsHide).toBe(true)
       expect(options.cwd).toBe('/workspace')
-      // stdin closed, stdout and stderr both point at the task log fd.
-      expect(options.stdio).toEqual(['ignore', 7, 7])
+      // stdin closed, stdout and stderr both point at the task log fd. POSIX adds the liveness
+      // pipe the supervisor hands to the shell, so the app sees EOF only when all work is gone.
+      expect(options.stdio).toEqual(process.platform === 'win32' ? ['ignore', 7, 7] : ['ignore', 7, 7, 'pipe'])
     })
 
     it.skipIf(process.platform !== 'win32')('routes the command through the detached Node runner', () => {
@@ -571,6 +584,77 @@ describe('backgroundTasks', () => {
           } catch {
             // the group is already gone
           }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps a task unresolved while a worker that left the group holds the liveness pipe',
+      async () => {
+        // `setsid()` puts the worker in a session of its own, so the PGID probe cannot see it.
+        // Without a liveness channel the supervisor would exit with the shell, completion would
+        // publish a terminal status, and the survivor's workspace and tracking would be swept.
+        const pidFile = path.join(storageDir, 'daemon.pid')
+        const shellDoneFile = path.join(storageDir, 'shell.done')
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command:
+            `python3 -c "import os,sys,time; os.setsid(); open(sys.argv[1],'w').write(str(os.getpid())); time.sleep(30)" "${pidFile}"` +
+            ` & sleep 0.5; : > "${shellDoneFile}"`,
+          cwd: storageDir,
+          onExit
+        })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          // The shell's own exit is the moment the group probe stops seeing the work.
+          await vi.waitFor(
+            async () => {
+              expect(await readFile(shellDoneFile, 'utf8').catch(() => null)).toBe('')
+            },
+            { timeout: 10_000 }
+          )
+          await new Promise((resolve) => setTimeout(resolve, 1_000))
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          const task = await getDetachedBackgroundTask(storageDir, record.id)
+          expect(task?.status).toBe('running')
+          expect(onExit).not.toHaveBeenCalled()
+
+          // Stop stays reachable and honest: the group signal cannot reach the worker, so the
+          // task must not read as finished while the worker lives.
+          const afterStop = await stopDetachedBackgroundTask(storageDir, record.id)
+          expect(afterStop?.status).toBe('running')
+          expect(isPidAlive(workerPid)).toBe(true)
+
+          // The group kill cannot reach the worker either; the liveness pipe is the only proof
+          // that anything survived, and it must withhold the stopped record.
+          const afterKill = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(afterKill?.status).toBe('running')
+          expect(isPidAlive(workerPid)).toBe(true)
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          // Once the worker is gone the pipe closes and the task settles; wait for it so the
+          // record and sentinel writes don't race the storage-dir cleanup.
+          await vi
+            .waitFor(
+              async () => {
+                expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).not.toBe('running')
+              },
+              { timeout: 10_000 }
+            )
+            .catch(() => {})
         }
       }
     )

@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto'
 import { renameSync, rmSync, writeFileSync } from 'node:fs'
 import { access, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import type { Readable } from 'node:stream'
 import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
@@ -44,6 +45,11 @@ interface OwnedGroup {
   members: Map<number, string>
   /** Whether this app has reaped the leader it spawned; its pid is the OS's to reuse from then on. */
   leaderReaped: boolean
+  /**
+   * POSIX liveness pipe: `open` while some descendant still holds its write end. A worker that
+   * left the group through setsid is invisible to the pgid probe and visible only here.
+   */
+  liveness?: { open: boolean }
 }
 
 /** Accounts for the group's live members that can be verified as this task's own work. */
@@ -774,6 +780,7 @@ boot()
  */
 export const POSIX_DETACHED_TASK_SUPERVISOR = `
 const { spawn, execFileSync } = require('node:child_process')
+const fs = require('node:fs')
 const self = process.pid
 const pgid = self
 // The app ran this process with ELECTRON_RUN_AS_NODE=1 to get a Node here, and that flag is for
@@ -784,7 +791,24 @@ delete env.ELECTRON_RUN_AS_NODE
 for (const ignored of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
   try { process.on(ignored, () => {}) } catch (error) {}
 }
-const task = spawn(process.argv[1], { shell: true, stdio: 'inherit', env })
+// fd 3 is the app's liveness pipe and fd 4 a second one kept here. Both are inherited by the
+// shell and, through fork/exec, by every descendant — setsid() does not close descriptors — so
+// they reach EOF only once the work is gone, including a member that left this group entirely.
+const task = spawn(process.argv[1], { shell: true, stdio: ['inherit', 'inherit', 'inherit', 3, 'pipe'], env })
+// Keeping a copy of the app's pipe would end it at this process's exit rather than the work's.
+try { fs.closeSync(3) } catch (error) {}
+const liveness = task.stdio[4]
+let livenessClosed = false
+const noteLivenessClosed = () => { livenessClosed = true }
+if (liveness) {
+  // Drain it so a descendant that writes cannot block on a full pipe.
+  liveness.on('end', noteLivenessClosed)
+  liveness.on('close', noteLivenessClosed)
+  liveness.on('error', noteLivenessClosed)
+  liveness.resume()
+} else {
+  livenessClosed = true
+}
 task.on('error', () => process.exit(1))
 task.on('exit', (code, signal) => {
   const status = signal ? 1 : (code == null ? 1 : code)
@@ -807,7 +831,9 @@ task.on('exit', (code, signal) => {
     } catch (error) {
       return
     }
-    if (live === 0) {
+    // A worker that called setsid() is invisible to the group probe; the pipe is what keeps the
+    // anchor, and the task's terminal status, waiting for it.
+    if (live === 0 && livenessClosed) {
       clearInterval(poll)
       process.exit(status)
     }
@@ -856,7 +882,13 @@ export function buildDetachedBackgroundTaskSpawn(
   return {
     file: process.execPath,
     args: ['-e', POSIX_DETACHED_TASK_SUPERVISOR, command],
-    options: { ...options, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } }
+    // fd 3 is the liveness pipe: the supervisor hands it to the shell, which every descendant
+    // inherits, so the app sees EOF only once the whole tree — including a setsid worker — is gone.
+    options: {
+      ...options,
+      stdio: ['ignore', stdoutFd, stderrFd, 'pipe'],
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+    }
   }
 }
 
@@ -901,6 +933,27 @@ export async function startDetachedBackgroundTask(
     const child = spawn(target.file, target.args, target.options)
     child.unref()
 
+    // The supervisor hands this pipe to the shell, and every descendant inherits it through
+    // fork/exec; setsid() does not close it. EOF therefore arrives only once the whole tree —
+    // including a worker the pgid probe cannot see — has exited.
+    const livenessStream =
+      process.platform === 'win32'
+        ? null
+        : ((child.stdio[3] as (Readable & { unref?: () => void }) | null | undefined) ?? null)
+    const liveness = livenessStream ? { open: true } : undefined
+    if (livenessStream) {
+      const noteClosed = () => {
+        if (liveness) liveness.open = false
+      }
+      livenessStream.on('end', noteClosed)
+      livenessStream.on('close', noteClosed)
+      livenessStream.on('error', noteClosed)
+      // Drain it so a descendant that writes cannot block on a full pipe, and never let the
+      // task's tail hold the app open on its own.
+      livenessStream.resume()
+      livenessStream.unref?.()
+    }
+
     const record: BackgroundTaskRecord = {
       id,
       name: input.name?.trim() || t('background_task.name.unnamed'),
@@ -920,7 +973,7 @@ export async function startDetachedBackgroundTask(
     if (record.pid > 0) {
       const members = new Map<number, string>()
       if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
-      ownedTaskGroups.set(id, { pgid: record.pid, members, leaderReaped: false })
+      ownedTaskGroups.set(id, { pgid: record.pid, members, leaderReaped: false, liveness })
       // The stamp lookup is a one-shot call that can time out, and its result is the seed every
       // member is verified from: without one the task can never be owned, so Stop/Kill stays
       // refused while it runs, restart has no identity, and a purge cannot discover it. Recover it
@@ -955,9 +1008,15 @@ export async function startDetachedBackgroundTask(
     // Publishes the observed completion once the task's group holds no live member. A live
     // member keeps both the completion and the ownership — the only thing that makes a
     // leaderless group verifiably this task's — so Stop/Kill stays reachable and the completion
-    // lands as observed, with the leader's own exit evidence, once the group drains.
+    // lands as observed, with the leader's own exit evidence, once the group drains. The liveness
+    // pipe is the same evidence for work the group no longer contains: as long as it has a writer,
+    // a worker that called setsid() may still be running, so nothing may be published or owned away.
     const settleThroughGroupDrain = async (): Promise<void> => {
-      if (process.platform !== 'win32' && record.pid > 0 && groupHasLiveMember(record.pid)) {
+      if (
+        process.platform !== 'win32' &&
+        record.pid > 0 &&
+        (groupHasLiveMember(record.pid) || ownedTaskGroups.get(id)?.liveness?.open)
+      ) {
         const poll = setTimeout(() => void settleThroughGroupDrain(), LEADERLESS_GROUP_POLL_MS)
         poll.unref?.()
         return
@@ -1068,7 +1127,7 @@ export async function startDetachedBackgroundTask(
           // lives, never adopted from its presence in the group.
           const members = new Map<number, string>()
           if (record.pidStartTime) members.set(record.pid, record.pidStartTime)
-          ownedTaskGroups.set(id, { pgid: record.pid, members, leaderReaped: false })
+          ownedTaskGroups.set(id, { pgid: record.pid, members, leaderReaped: false, liveness })
           if (observedCompletion) {
             const { status, exitCode, signal } = observedCompletion
             finalize(status, exitCode, signal)
@@ -1246,6 +1305,12 @@ async function stopDetachedBackgroundTaskUnlocked(
   if (process.platform !== 'win32' && !(await waitForGroupDrain(record.pid))) {
     return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
   }
+  // A worker that called setsid() is not in the group the kill reaches, so an empty group says
+  // nothing about it. The liveness pipe does: until it closes, the record must not claim stopped
+  // or the survivor loses its tracking and its workspace is free to be erased underneath it.
+  if (process.platform !== 'win32' && !(await waitForLivenessClose(record.id))) {
+    return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+  }
   // On Windows the kill is only as good as taskkill's live-parent walk, which cannot reach a
   // worker past the shell that spawned it. Until the table proves nothing of the task is left,
   // the record stays `running` and stop-requested: stoppable again, refusing the purge, and
@@ -1313,6 +1378,23 @@ function groupHasLiveMember(pgid: number): boolean {
   return !groupIsEmpty(pgid)
 }
 
+/**
+ * Bounded wait for the task's liveness pipe to lose its last writer. The group signal cannot reach
+ * a member that left the group through setsid(), so an empty group is not enough to certify a kill:
+ * only the pipe closing proves the whole tree is gone. No ownership entry (after a restart) means
+ * no pipe to wait on.
+ */
+async function waitForLivenessClose(taskId: string): Promise<boolean> {
+  const owned = ownedTaskGroups.get(taskId)
+  if (!owned?.liveness) return true
+  const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  while (owned.liveness.open) {
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+  return true
+}
+
 /** A live member of a process group: its pid, its parent, and the start stamp identifying it. */
 interface GroupMember {
   pid: number
@@ -1376,6 +1458,9 @@ export async function hasLiveTaskEvidence(storageDir: string, record: Background
 
 export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   if (record.pid <= 0) return false
+  // Work that left the group (setsid) is live even when the leader and the group are gone: the
+  // pipe still has a writer. Destructive cleanup must not read this task as finished.
+  if (ownedTaskGroups.get(record.id)?.liveness?.open) return true
   // A live pid is only this task's work while its recorded start stamp matches: a task that
   // finished while the app was closed leaves its pid free for an unrelated occupant. Group
   // members stay conservative — unreadable or unattributed evidence still counts as live.
@@ -1745,6 +1830,10 @@ async function reconcileDetachedBackgroundTask(
     const recycled = isRecycledPid(record) || (await hasReplacedWindowsRunner(storageDir, record, readTable))
     return recycled ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') } : record
   }
+  // The leader is gone but the liveness pipe still has a writer: a member that left the group
+  // (setsid) is alive, and the record must stay unresolved rather than fold into a status no
+  // control path can act on.
+  if (ownedTaskGroups.get(record.id)?.liveness?.open) return record
   // The leader is gone but its group can still be working (a member ignoring SIGTERM) — the
   // task stays running and controllable, but only while this app still owns the group from the
   // spawn: a pgid is a plain number, and one a restart no longer owns can have been reused by
