@@ -83,9 +83,9 @@ export function LocalAgentModelList({
       <LocalAgentModelTabs
         tabs={tabs}
         renderHeader={(tabList) => (
-          <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div className="flex shrink-0 items-center gap-1">
-              <h2 id="local-agent-model-label" className="mr-2 text-sm font-semibold">
+          <>
+            <div className="flex min-h-9 flex-wrap items-center gap-1">
+              <h2 id="local-agent-model-label" className="mr-2 shrink-0 text-sm font-semibold">
                 {t('settings.models.list_title')}
               </h2>
               <Tooltip content={t('common.refresh')}>
@@ -150,8 +150,8 @@ export function LocalAgentModelList({
                 </Tooltip>
               )}
             </div>
-            {tabList && <div className="ml-auto flex min-w-0 justify-end">{tabList}</div>}
-          </div>
+            {tabList}
+          </>
         )}>
         {showFollowCli && tabs.source === 'native' && (
           <div className="overflow-hidden rounded-lg border border-border-subtle p-1.5">

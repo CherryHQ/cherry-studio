@@ -175,6 +175,12 @@ ACP session modes localize recognized names and descriptions in the composer whi
 preserving custom text and native IDs. When `configOptions` is provided, including
 an empty list, it takes precedence over legacy `modes` / `session/set_mode`. Legacy
 modes are used only when configuration options are omitted or null.
+Configuration labels, descriptions, choice groups and recognized values follow the
+interface language. Model names, model groups and unknown custom text remain native.
+The complete configuration snapshot retains native categories and priority order;
+unknown option types are ignored. Model parameters (`model_config`) appear in the
+model picker and remain session-owned. Model selection continues to save the global
+CLI default. Confirmed snapshots replace removed options and model catalogs.
 Mode and reasoning changes share an in-flight guard; confirmed notifications refresh
 the controls, and failed requests preserve the last confirmed value. Modes remain
 session-owned and do not change Cherry's permission policy or the global Agent.
@@ -230,6 +236,12 @@ invalidated the native ID, existing history is retained and sending fails rather
 than silently starting an unrelated native session. Non-resumable connections skip
 idle TTL reclamation; explicit view/connection closure can still make them
 non-resumable.
+
+Request-level `$/cancel_request` uses the SDK's request signal independently of
+turn cancellation. Permission, form, Cursor extension, file and terminal handlers
+observe it; cancelled approvals cannot authorize later writes or process starts.
+Cancelling a terminal wait releases the wait without terminating the terminal.
+ACP initialization reports Cherry's actual application version.
 
 ## Compatibility record
 

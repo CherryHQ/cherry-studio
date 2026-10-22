@@ -59,17 +59,17 @@ export function registerCursorExtension(
   host: {
     isActive(): boolean
     signal: AbortSignal
-    approve(id: string, name: string, input: Record<string, unknown>): Promise<DispatchDecision>
+    approve(id: string, name: string, input: Record<string, unknown>, signal?: AbortSignal): Promise<DispatchDecision>
     text(text: string): void
     result(id: string, output: unknown): void
   }
 ) {
   app
-    .onRequest('cursor/ask_question', CursorQuestionSchema, async ({ params }) => {
+    .onRequest('cursor/ask_question', CursorQuestionSchema, async ({ params, signal }) => {
       if (!host.isActive()) return { outcome: { outcome: 'cancelled' } }
-      const answer = await host.approve(params.toolCallId, 'AskUserQuestion', cursorQuestionInput(params))
+      const answer = await host.approve(params.toolCallId, 'AskUserQuestion', cursorQuestionInput(params), signal)
       const outcome =
-        answer.approved && !host.signal.aborted
+        answer.approved && !host.signal.aborted && !signal.aborted
           ? cursorQuestionOutcome(params, answer.updatedInput)
           : { outcome: 'cancelled' as const }
       host.result(params.toolCallId, {
@@ -94,17 +94,24 @@ export function registerCursorExtension(
       })
       return { outcome }
     })
-    .onRequest('cursor/create_plan', CursorPlanSchema, async ({ params }) => {
+    .onRequest('cursor/create_plan', CursorPlanSchema, async ({ params, signal }) => {
       if (!host.isActive()) return { outcome: { outcome: 'cancelled' } }
       host.text(`${params.plan}\n`)
-      const answer = await host.approve(params.toolCallId, `ACP: ${params.name ?? 'Plan'}`, {
-        plan: params.plan,
-        localPermissionOptions: [
-          { optionId: 'accept', name: 'Accept', label: 'allow', kind: 'allow_once' },
-          { optionId: 'reject', name: 'Reject', label: 'deny', kind: 'reject_once' }
-        ]
-      })
-      const outcome = { outcome: host.signal.aborted ? 'cancelled' : answer.approved ? 'accepted' : 'rejected' }
+      const answer = await host.approve(
+        params.toolCallId,
+        `ACP: ${params.name ?? 'Plan'}`,
+        {
+          plan: params.plan,
+          localPermissionOptions: [
+            { optionId: 'accept', name: 'Accept', label: 'allow', kind: 'allow_once' },
+            { optionId: 'reject', name: 'Reject', label: 'deny', kind: 'reject_once' }
+          ]
+        },
+        signal
+      )
+      const outcome = {
+        outcome: host.signal.aborted || signal.aborted ? 'cancelled' : answer.approved ? 'accepted' : 'rejected'
+      }
       host.result(params.toolCallId, outcome)
       return { outcome }
     })

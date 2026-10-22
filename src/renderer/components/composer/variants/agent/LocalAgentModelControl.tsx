@@ -21,16 +21,19 @@ import {
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
+import { LocalAgentConfigControl } from './LocalAgentConfigControl'
 
 export function LocalAgentModelControl({
   agent,
   info,
+  sessionId,
   disabled,
   side,
   iconOnly = false
 }: {
   agent: AgentEntity
   info?: LocalAgentSessionInfo | null
+  sessionId?: string
   disabled: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
@@ -45,6 +48,7 @@ export function LocalAgentModelControl({
   )
   const selection = useLocalAgentModelSelection(config, freshCatalog?.models ?? info?.models ?? catalog?.models ?? [])
   const { models, value } = selection
+  const modelConfigOptions = info?.configOptions?.filter((option) => option.category === 'model_config')
   const label = value ? models.find((model) => model.id === value)?.name || value : t('local_agents.follow_cli')
 
   const selectedModel = value ? { id: value, name: label } : undefined
@@ -76,6 +80,17 @@ export function LocalAgentModelControl({
       side={side}
       onLoad={loadModels}
       onSelect={selectModel}
+      configuration={
+        sessionId && !!modelConfigOptions?.length ? (
+          <LocalAgentConfigControl
+            sessionId={sessionId}
+            presetId={config.presetId}
+            options={modelConfigOptions}
+            side="bottom"
+            disabled={disabled || saving || !info}
+          />
+        ) : undefined
+      }
       footer={
         !LOCAL_AGENT_MODEL_CONFIG[config.presetId ?? ''] ? (
           <p className="text-xs text-muted-foreground">{t('local_agents.global_model_unavailable')}</p>

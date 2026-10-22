@@ -400,6 +400,7 @@ export type LocalAgentConfigOption = {
   id: string
   name: string
   description?: string | null
+  category?: string | null
 } & (
   | { type: 'boolean'; currentValue: boolean }
   | {

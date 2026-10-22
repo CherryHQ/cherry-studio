@@ -52,6 +52,50 @@ beforeEach(() => {
 })
 
 describe('local agent model persistence', () => {
+  it('edits session model parameters in the model picker without changing the global model', async () => {
+    const user = userEvent.setup()
+    render(
+      <LocalAgentModelControl
+        agent={agent}
+        sessionId="session"
+        info={{
+          ...info,
+          configOptions: [
+            {
+              id: 'context-size',
+              name: 'Context size',
+              category: 'model_config',
+              type: 'select',
+              currentValue: 'small',
+              options: [
+                { value: 'small', name: 'Small' },
+                { value: 'large', name: 'Large' }
+              ]
+            },
+            { id: 'notifications', name: 'Notifications', type: 'boolean', currentValue: false }
+          ]
+        }}
+        disabled={false}
+        side="bottom"
+      />
+    )
+    expect(screen.queryByRole('button', { name: '智能体配置' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '选择模型' }))
+    await user.click(screen.getByRole('button', { name: '智能体配置' }))
+    expect(screen.getByRole('dialog')).toContainElement(screen.getByRole('menuitemradio', { name: '大' }))
+    expect(screen.queryByText('通知')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('menuitemradio', { name: '大' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+        sessionId: 'session',
+        configId: 'context-size',
+        value: 'large'
+      })
+    )
+    expect(updateNativeModel).not.toHaveBeenCalled()
+    expect(screen.getByRole('menuitemradio', { name: '小' })).toHaveAttribute('aria-checked', 'true')
+  })
+
   it.each([
     ['Second', 'second'],
     ['跟随 CLI', undefined]

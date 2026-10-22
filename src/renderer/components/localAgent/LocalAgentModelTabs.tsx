@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { LOCAL_AGENT_MODEL_SOURCE_LABELS } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+import { Tabs, TabsContent } from '@cherrystudio/ui'
 import type { useLocalAgentModelTabs } from '@renderer/hooks/agent/useLocalAgentModelTabs'
+
+import { LocalAgentModelTabList } from './LocalAgentModelTabList'
 
 export function LocalAgentModelTabs({
   tabs,
@@ -14,17 +14,7 @@ export function LocalAgentModelTabs({
   renderHeader?: (tabList: ReactNode) => ReactNode
   children: ReactNode
 }) {
-  const { t } = useTranslation()
-  const tabList =
-    tabs.sources.length > 1 ? (
-      <TabsList className="h-auto min-h-9 max-w-full shrink-0 flex-wrap" aria-label={t('settings.models.list_title')}>
-        {tabs.sources.map((source) => (
-          <TabsTrigger key={source} value={source} className="text-xs">
-            {t(LOCAL_AGENT_MODEL_SOURCE_LABELS[source])}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    ) : null
+  const tabList = tabs.sources.length > 1 ? <LocalAgentModelTabList sources={tabs.sources} /> : null
   const header = renderHeader ? renderHeader(tabList) : tabList
   if (!tabList)
     return (

@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 
+import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 
 const modeNameKeys = new Map(
@@ -169,25 +170,83 @@ const configLabels = new Map([
   ]
 ])
 
+const configNameKeys: Record<string, string> = {
+  Model: 'common.model',
+  'Select the model for this session': 'local_agents.config.model_description',
+  Mode: 'local_agents.mode',
+  'Session Mode': 'local_agents.mode',
+  Thinking: 'assistants.settings.reasoning_effort.label',
+  Reasoning: 'assistants.settings.reasoning_effort.label',
+  Effort: 'assistants.settings.reasoning_effort.label',
+  'Thinking levels': 'assistants.settings.reasoning_effort.label',
+  Levels: 'assistants.settings.reasoning_effort.label',
+  'Set the reasoning effort for this session': 'local_agents.config.reasoning_description',
+  'Available effort levels for this model': 'local_agents.config.effort_description',
+  'Context size': 'local_agents.config.context_size',
+  'Context window': 'models.detail.context_window',
+  Temperature: 'library.config.basic.temperature',
+  'Max tokens': 'library.config.basic.max_tokens',
+  'Answer detail': 'local_agents.config.answer_detail',
+  Verbosity: 'local_agents.config.answer_detail',
+  'Detail levels': 'local_agents.config.answer_detail',
+  'Response length': 'local_agents.config.response_length',
+  Notifications: 'settings.notification.title'
+}
+
+const configChoiceKeys = new Map<string, Record<string, string>>([
+  ['Context size', { Small: 'local_agents.config.small', Large: 'local_agents.config.large' }],
+  ...['Answer detail', 'Verbosity'].map((name): [string, Record<string, string>] => [
+    name,
+    {
+      Brief: 'local_agents.config.brief',
+      Detailed: 'agent.speed.summary.detailed',
+      'Include explanation': 'local_agents.config.include_explanation'
+    }
+  ])
+])
+
 export function localAgentConfigOptions(options: LocalAgentConfigOption[], presetId: string | undefined, t: TFunction) {
   const config = presetId ? configLabels.get(presetId) : undefined
-  if (!config) return options
   return options.map((option) => {
-    const labels = config.get(option.id)
-    if (!labels) return option
-    const translate = <T extends { name: string; description?: string | null }>(item: T): T =>
-      translateLabel(item, labels, t)
-    const translated = translate(option)
+    const labels = config?.get(option.id) ?? {}
+    const translated = translateLabel(option, { ...configNameKeys, ...labels }, t)
+    const translate = (choice: { value: string; name: string; description?: string | null }) => {
+      if (option.category === 'mode')
+        return localAgentModeOptions(
+          {
+            id: option.id,
+            currentValue: String(option.currentValue),
+            options: [{ ...choice, description: choice.description ?? undefined }]
+          },
+          t,
+          presetId
+        )[0]
+      const result = translateLabel(
+        choice,
+        {
+          ...configChoiceKeys.get(option.name),
+          ...labels
+        },
+        t
+      )
+      return option.category === 'thought_level'
+        ? { ...result, name: reasoningEffortLabel(choice.value, t, result.name) }
+        : result
+    }
     return translated.type === 'select'
       ? {
           ...translated,
           options: translated.options.map((choice) =>
             'group' in choice
               ? {
-                  ...choice,
-                  options: choice.options.map(translate)
+                  ...(option.category === 'model'
+                    ? choice
+                    : translateLabel(choice, { ...configNameKeys, ...labels }, t)),
+                  options: option.category === 'model' ? choice.options : choice.options.map(translate)
                 }
-              : translate(choice)
+              : option.category === 'model'
+                ? choice
+                : translate(choice)
           )
         }
       : translated

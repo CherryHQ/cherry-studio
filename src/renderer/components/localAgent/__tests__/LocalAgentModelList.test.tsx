@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -157,5 +157,38 @@ describe('local agent model search', () => {
     await user.click(screen.getByRole('button', { name: 'Models' }))
     expect(screen.getByRole('tab', { name: '统一网关' })).toHaveAttribute('aria-selected', 'true')
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('searches within the current source and selects the visible model with the keyboard', async () => {
+    HTMLElement.prototype.scrollIntoView = vi.fn()
+    const user = userEvent.setup()
+    const onSelect = vi.fn(async () => true)
+    render(
+      <LocalAgentModelSelector
+        trigger={<button type="button">Models</button>}
+        models={[
+          { id: 'native', name: 'Native model', source: 'native' },
+          { id: 'alpha', name: 'Alpha', source: 'gateway', group: 'Provider A' },
+          { id: 'beta', name: 'Beta', source: 'gateway', group: 'Provider B' }
+        ]}
+        value="alpha"
+        loaded
+        onLoad={async () => {}}
+        onSelect={onSelect}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Models' }))
+    const search = screen.getByRole('textbox')
+    expect(search).toHaveFocus()
+    await user.type(search, 'Provider B')
+    expect(screen.getByRole('option', { name: 'Beta' })).toBeVisible()
+    expect(screen.queryByRole('option', { name: 'Alpha' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Native model' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '清除' }))
+    expect(search).toHaveFocus()
+    expect(screen.getByRole('option', { name: 'Alpha', selected: true })).toBeVisible()
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onSelect).toHaveBeenCalledWith('beta')
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
   })
 })

@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { once } from 'node:events'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Readable, Writable } from 'node:stream'
@@ -19,6 +20,7 @@ import {
   type SetSessionConfigOptionResponse
 } from '@agentclientprotocol/sdk'
 import type { FinishReason } from 'ai'
+import { app as electronApp } from 'electron'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
@@ -110,7 +112,7 @@ export class AcpConnection extends LocalConnection {
             this.pendingUpdates.push(params)
         } else if (params.sessionId === this.nativeId) this.update(params.update)
       })
-      .onRequest('elicitation/create', async ({ params }) => {
+      .onRequest('elicitation/create', async ({ params, signal: requestSignal }) => {
         if (params.mode !== 'form') throw RequestError.invalidParams('Unsupported elicitation mode')
         if (!this.active || !('sessionId' in params) || params.sessionId !== this.nativeId || this.abort.signal.aborted)
           return { action: 'cancel' }
@@ -140,8 +142,8 @@ export class AcpConnection extends LocalConnection {
             agentName: this.localSessionInfo.protocolInfo?.agent?.name ?? this.config.presetId ?? 'ACP'
           }
         }
-        const signal = this.turnAbort.signal
-        const answer = await this.approve(id, 'AskUserQuestion', input)
+        const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
+        const answer = await this.approve(id, 'AskUserQuestion', input, signal)
         const validated = validator.safeParse(answer.updatedInput?.elicitationContent)
         const action =
           signal.aborted || this.abort.signal.aborted || answer.updatedInput?.elicitationAction === 'cancel'
@@ -155,7 +157,7 @@ export class AcpConnection extends LocalConnection {
           action === 'accept'
             ? ({ action, content: validated.data as ElicitationContent } as const)
             : ({ action } as const)
-        if (!signal.aborted)
+        if (this.active)
           this.result(id, {
             ...input,
             answers: action === 'accept' ? answer.updatedInput?.answers : {},
@@ -163,18 +165,23 @@ export class AcpConnection extends LocalConnection {
           })
         return outcome
       })
-      .onRequest('session/request_permission', async ({ params }) => {
+      .onRequest('session/request_permission', async ({ params, signal: requestSignal }) => {
         if (!this.active || params.sessionId !== this.nativeId || this.abort.signal.aborted)
           return { outcome: { outcome: 'cancelled' } }
         const id = params.toolCall.toolCallId
-        const signal = this.turnAbort.signal
+        const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const knownTool = this.tools.has(id)
         const options = params.options
-        const answer = await this.approve(id, `ACP: ${params.toolCall.title ?? 'Tool'}`, {
-          localAcpTool: this.toolInputs.get(id),
-          tool: params.toolCall,
-          localPermissionOptions: options
-        })
+        const answer = await this.approve(
+          id,
+          `ACP: ${params.toolCall.title ?? 'Tool'}`,
+          {
+            localAcpTool: this.toolInputs.get(id),
+            tool: params.toolCall,
+            localPermissionOptions: options
+          },
+          signal
+        )
         const requested = answer.updatedInput?.localPermissionOption
         const selected =
           this.abort.signal.aborted || signal.aborted
@@ -193,12 +200,15 @@ export class AcpConnection extends LocalConnection {
               this.approvedWrites.push({ path: path.resolve(cwd, content.path), content: content.newText })
           }
         }
-        if (!knownTool && !signal.aborted) this.result(id, outcome)
+        if (!knownTool && this.active) this.result(id, outcome)
         return { outcome }
       })
-      .onRequest('fs/read_text_file', async ({ params }) => {
+      .onRequest('fs/read_text_file', async ({ params, signal }) => {
         this.requireSession(params.sessionId)
-        const content = await fs.readFile(params.path, 'utf8')
+        const content = await fs.readFile(params.path, { encoding: 'utf8', signal }).catch((error) => {
+          if (signal.aborted) throw RequestError.requestCancelled()
+          throw error
+        })
         const lines = content.split('\n')
         return {
           content: lines
@@ -209,39 +219,43 @@ export class AcpConnection extends LocalConnection {
             .join('\n')
         }
       })
-      .onRequest('fs/write_text_file', async ({ params }) => {
+      .onRequest('fs/write_text_file', async ({ params, signal: requestSignal }) => {
         this.requireSession(params.sessionId)
         if (!this.active) throw RequestError.invalidParams('Inactive ACP session')
         const id = randomUUID()
-        const signal = this.turnAbort.signal
+        const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const grant = this.approvedWrites.findIndex(
           (write) => write.path === path.resolve(cwd, params.path) && write.content === params.content
         )
         if (grant >= 0) this.approvedWrites.splice(grant, 1)
         try {
           if (grant < 0) {
-            const answer = await this.approve(id, 'ACP: Write', { path: params.path, content: params.content })
+            const answer = await this.approve(id, 'ACP: Write', { path: params.path, content: params.content }, signal)
             if (!answer.approved || this.abort.signal.aborted || signal.aborted) throw new Error('File write denied')
           }
-          await fs.writeFile(params.path, params.content)
+          if (signal.aborted) throw RequestError.requestCancelled()
+          await fs.writeFile(params.path, params.content, { signal })
           if (grant < 0) this.result(id, { path: params.path })
           return {}
         } catch (error) {
           if (grant < 0) this.result(id, String(error), true)
+          if (signal.aborted) throw RequestError.requestCancelled()
           throw error
         }
       })
-      .onRequest('terminal/create', async ({ params }) => {
+      .onRequest('terminal/create', async ({ params, signal: requestSignal }) => {
         this.requireSession(params.sessionId)
         const id = randomUUID()
-        const signal = this.turnAbort.signal
-        const answer = await this.approve(id, 'ACP: Terminal', {
-          command: params.command,
-          args: params.args,
-          cwd: params.cwd ?? cwd
-        })
+        const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
+        const answer = await this.approve(
+          id,
+          'ACP: Terminal',
+          { command: params.command, args: params.args, cwd: params.cwd ?? cwd },
+          signal
+        )
         if (!answer.approved || this.abort.signal.aborted || signal.aborted) {
           this.result(id, 'Terminal execution denied', true)
+          if (signal.aborted) throw RequestError.requestCancelled()
           throw new Error('Terminal execution denied')
         }
         const terminalId = randomUUID()
@@ -290,9 +304,15 @@ export class AcpConnection extends LocalConnection {
           ...(terminal.exitStatus ? { exitStatus: terminal.exitStatus } : {})
         }
       })
-      .onRequest('terminal/wait_for_exit', ({ params }) => {
+      .onRequest('terminal/wait_for_exit', async ({ params, signal }) => {
         this.requireSession(params.sessionId)
-        return this.terminal(params.terminalId).exited
+        const terminal = this.terminal(params.terminalId)
+        if (!terminal.exitStatus) {
+          await once(terminal.child, 'close', { signal }).catch(() => {
+            if (signal.aborted) throw RequestError.requestCancelled()
+          })
+        }
+        return terminal.exited
       })
       .onRequest('terminal/kill', async ({ params }) => {
         this.requireSession(params.sessionId)
@@ -308,7 +328,7 @@ export class AcpConnection extends LocalConnection {
     registerCursorExtension(app, {
       isActive: () => this.active && !this.abort.signal.aborted,
       signal: this.abort.signal,
-      approve: (id, name, input) => this.approve(id, name, input),
+      approve: (id, name, input, signal) => this.approve(id, name, input, signal),
       text: (text) => this.content(text),
       result: (id, output) => this.result(id, output)
     })
@@ -317,7 +337,7 @@ export class AcpConnection extends LocalConnection {
     )
     const response = await this.connection.agent.request('initialize', {
       protocolVersion: 1,
-      clientInfo: { name: 'cherry-studio', version: '1' },
+      clientInfo: { name: 'cherry-studio', version: electronApp.getVersion() },
       clientCapabilities: {
         fs: { readTextFile: true, writeTextFile: true },
         terminal: true,
@@ -478,15 +498,16 @@ export class AcpConnection extends LocalConnection {
     const model = options?.find((option) => option.category === 'model' && option.type === 'select')
     this.localSessionInfo.configOptions =
       options
-        ?.filter((option) => option !== mode && option !== thought && option !== model)
-        .map(({ id, name, description, ...option }) => ({
+        ?.filter((option) => option.type === 'select' || option.type === 'boolean')
+        .map(({ id, name, description, category, ...option }) => ({
           id,
           name,
           description,
+          category,
           ...(option.type === 'boolean'
             ? { type: 'boolean' as const, currentValue: option.currentValue }
             : { type: 'select' as const, currentValue: option.currentValue, options: option.options })
-        })) ?? []
+        })) ?? undefined
 
     this.modeConfigId = mode?.id
     if (mode?.type === 'select') {
@@ -521,6 +542,10 @@ export class AcpConnection extends LocalConnection {
           }
         : undefined
     this.modelConfigId = model?.id
+    if (!model && !this.legacyModels) {
+      this.localSessionInfo.activeModel = undefined
+      this.localSessionInfo.models = []
+    }
     if (model?.type === 'select') {
       this.localSessionInfo.activeModel = { id: model.currentValue }
       this.localSessionInfo.models = model.options

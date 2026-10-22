@@ -1857,6 +1857,7 @@ const AgentComposerInner = ({
 
   const controlSlots = renderControls({
     localInfo,
+    localSessionId: sessionId,
     localModelDisabled: isStreaming,
     agent,
     model,
@@ -1898,7 +1899,11 @@ const AgentComposerInner = ({
           key={`config:${sessionId}`}
           sessionId={sessionId}
           presetId={agent.configuration?.localRuntime?.presetId}
-          options={localOptions.configOptions}
+          options={localOptions.configOptions?.filter(
+            (option) =>
+              option.category !== 'model_config' &&
+              option !== localOptions.configOptions?.find((item) => item.category === 'model' && item.type === 'select')
+          )}
           mode={localOptions.mode}
           thoughtLevel={localOptions.thoughtLevel}
           disabled={isStreaming || !localInfo}

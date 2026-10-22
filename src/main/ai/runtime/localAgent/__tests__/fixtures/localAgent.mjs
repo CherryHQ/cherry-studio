@@ -103,6 +103,25 @@ const multipleConfig = () => {
     ...extraConfig()
   ]
 }
+const semanticConfig = () => [
+  extraConfig()[0],
+  thought(),
+  multipleConfig()[2],
+  {
+    id: 'context-size',
+    name: 'Context size',
+    category: 'model_config',
+    type: 'select',
+    currentValue: 'small',
+    options: [
+      { value: 'small', name: 'Small' },
+      { value: 'large', name: 'Large' }
+    ]
+  },
+  mode(),
+  { id: 'future-option', name: 'Future', type: 'future', currentValue: 'default' },
+  extraConfig()[1]
+]
 let promptId
 const finish = () => {
   if (protocol === 'acp')
@@ -273,29 +292,31 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         : {}),
       sessionId: 'native-session',
       configOptions:
-        scenario === 'config-multiple'
-          ? multipleConfig()
-          : scenario === 'mode-legacy' || scenario === 'mode-legacy-upgrade'
-            ? undefined
-            : scenario === 'mode-legacy-null'
-              ? null
-              : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
-                ? []
-                : [
-                    ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
-                      ? [mode()]
-                      : []),
-                    ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
-                    ...(scenario.startsWith('config') ? extraConfig() : []),
-                    {
-                      id: 'model',
-                      category: 'model',
-                      name: 'Model',
-                      type: 'select',
-                      currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
-                      options: [{ value: 'fixture-model', name: 'Fixture model' }]
-                    }
-                  ]
+        scenario === 'config-semantics'
+          ? semanticConfig()
+          : scenario === 'config-multiple'
+            ? multipleConfig()
+            : scenario === 'mode-legacy' || scenario === 'mode-legacy-upgrade'
+              ? undefined
+              : scenario === 'mode-legacy-null'
+                ? null
+                : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
+                  ? []
+                  : [
+                      ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
+                        ? [mode()]
+                        : []),
+                      ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
+                      ...(scenario.startsWith('config') ? extraConfig() : []),
+                      {
+                        id: 'model',
+                        category: 'model',
+                        name: 'Model',
+                        type: 'select',
+                        currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
+                        options: [{ value: 'fixture-model', name: 'Fixture model' }]
+                      }
+                    ]
     })
   } else if (method === 'session/close') {
     if (scenario === 'close-hang') return
@@ -308,6 +329,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
     reply(id, {})
   } else if (method === 'session/set_config_option') {
+    if (scenario === 'config-semantics') return reply(id, { configOptions: [extraConfig()[1], mode()] })
     if (scenario === 'config-multiple') {
       secondaryValues[message.params.configId] = message.params.value
       return reply(id, { configOptions: multipleConfig() })
@@ -362,6 +384,75 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })
     promptId = id
     turn++
+    if (scenario.startsWith('request-cancel:')) {
+      void (async () => {
+        const kind = scenario.split(':')[1]
+        const sessionId = 'native-session'
+        let response
+        if (kind === 'wait') {
+          const created = await requestClient('terminal/create', {
+            sessionId,
+            command: process.execPath,
+            args: ['-e', 'setTimeout(() => {}, 60000)']
+          })
+          const terminalId = created.result.terminalId
+          const waiting = requestClient('terminal/wait_for_exit', { sessionId, terminalId })
+          setTimeout(() => emit({ method: '$/cancel_request', params: { requestId: 'callback-2' } }), 50)
+          response = await waiting
+          await requestClient('terminal/kill', { sessionId, terminalId })
+          await requestClient('terminal/release', { sessionId, terminalId })
+        } else {
+          const requests = {
+            'cursor-question': [
+              'cursor/ask_question',
+              {
+                toolCallId: 'cancelled-tool',
+                questions: [{ id: 'q', prompt: 'Continue?', options: [{ id: 'yes', label: 'Yes' }] }]
+              }
+            ],
+            'cursor-plan': ['cursor/create_plan', { toolCallId: 'cancelled-tool', plan: '' }],
+            permission: [
+              'session/request_permission',
+              {
+                sessionId,
+                toolCall: { toolCallId: 'cancelled-tool', title: 'Cancelled operation' },
+                options: [
+                  { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+                  { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+                ]
+              }
+            ],
+            form: [
+              'elicitation/create',
+              {
+                sessionId,
+                mode: 'form',
+                message: 'Enter a value',
+                requestedSchema: { type: 'object', properties: { value: { type: 'string' } } }
+              }
+            ],
+            write: ['fs/write_text_file', { sessionId, path: `${cwd}/cancelled.txt`, content: 'must not be written' }],
+            terminal: [
+              'terminal/create',
+              {
+                sessionId,
+                command: process.execPath,
+                args: [
+                  '-e',
+                  `require('node:fs').writeFileSync(${JSON.stringify(`${cwd}/cancelled.txt`)}, 'must not run')`
+                ]
+              }
+            ]
+          }
+          const pending = requestClient(...requests[kind])
+          setTimeout(() => emit({ method: '$/cancel_request', params: { requestId: 'callback-1' } }), 50)
+          response = await pending
+        }
+        text(JSON.stringify(response.error ?? response.result))
+        finish()
+      })()
+      return
+    }
     if (scenario.startsWith('terminal-') || scenario === 'callback-boundaries') {
       void (async () => {
         const script =

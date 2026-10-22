@@ -333,7 +333,7 @@ export function LocalAgentDirectory({
                       {...dragHandleProps?.listeners}
                       variant="ghost"
                       className={cn(
-                        'h-8 w-full justify-start gap-2.5 rounded-[10px] border border-transparent py-0 pr-2.5 pl-3 text-left font-normal shadow-none hover:bg-muted',
+                        'h-8 w-full justify-start gap-2.5 rounded-[10px] border border-transparent py-0 pr-2.5 pl-2 text-left font-normal shadow-none hover:bg-muted',
                         entry?.id === e.id && 'bg-muted font-medium'
                       )}
                       aria-pressed={entry?.id === e.id}

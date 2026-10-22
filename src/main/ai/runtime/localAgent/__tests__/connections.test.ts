@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -1073,7 +1074,7 @@ describe('local protocol processes', () => {
     const { connection } = create('acp', 'config-extra')
     await connection.start(cwd)
     const acp = connection as AcpConnection
-    expect(acp.localSessionInfo.configOptions).toHaveLength(2)
+    expect(acp.localSessionInfo.configOptions).toHaveLength(3)
     expect(acp.localSessionInfo.configOptions?.[0]).toMatchObject({
       name: 'Answer detail',
       description: 'Response length',
@@ -1108,6 +1109,9 @@ describe('local protocol processes', () => {
     await connection.start(cwd)
     const acp = connection as AcpConnection
     expect(acp.localSessionInfo.configOptions?.map((option) => option.id)).toEqual([
+      'agent-mode',
+      'reasoning-budget',
+      'model',
       'secondary-mode',
       'secondary-thought',
       'secondary-model',
@@ -1117,7 +1121,7 @@ describe('local protocol processes', () => {
     await acp.setConfigOption('secondary-mode', 'plan')
     await acp.setConfigOption('secondary-thought', 'deep')
     await acp.setConfigOption('secondary-model', 'other-model')
-    expect(acp.localSessionInfo.configOptions?.slice(0, 3).map((option) => option.currentValue)).toEqual([
+    expect(acp.localSessionInfo.configOptions?.slice(3, 6).map((option) => option.currentValue)).toEqual([
       'plan',
       'deep',
       'other-model'
@@ -1128,6 +1132,52 @@ describe('local protocol processes', () => {
       activeModel: { id: 'fixture-model' }
     })
   })
+
+  it('preserves config categories and priority, ignores unknown types, and replaces dependent options completely', async () => {
+    const { connection } = create('acp', 'config-semantics')
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.configOptions?.map(({ id, category }) => [id, category])).toEqual([
+      ['verbosity', '_verbosity'],
+      ['reasoning-budget', 'thought_level'],
+      ['model', 'model'],
+      ['context-size', 'model_config'],
+      ['agent-mode', 'mode'],
+      ['notifications', undefined]
+    ])
+    expect((await readWire()).find(({ method }) => method === 'initialize').params.clientInfo.version).toBe(
+      app.getVersion()
+    )
+    await (connection as AcpConnection).setConfigOption('context-size', 'large')
+    expect(connection.localSessionInfo.configOptions?.map(({ id }) => id)).toEqual(['notifications', 'agent-mode'])
+    expect(connection.localSessionInfo.thoughtLevel).toBeUndefined()
+    expect(connection.localSessionInfo.models).toEqual([])
+    expect(connection.localSessionInfo.activeModel).toBeUndefined()
+    await expect((connection as AcpConnection).setConfigOption('context-size', 'small')).rejects.toThrow(
+      'no longer available'
+    )
+  })
+
+  it.each(['permission', 'form', 'write', 'terminal', 'wait', 'cursor-question', 'cursor-plan'])(
+    'settles a cancelled %s request without lingering approval or unapproved side effects',
+    async (kind) => {
+      const { connection, events, text } = create('acp', `request-cancel:${kind}`)
+      await connection.start(cwd)
+      const sending = connection.send(input)
+      const approval = await waitForApproval(events)
+      if (kind === 'wait') toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
+      await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
+      await sending
+      expect(toolApprovalRegistry.hasSession('session')).toBe(false)
+      expect(toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })).toBeUndefined()
+      const response = JSON.parse(text())
+      if (kind === 'permission') expect(response).toEqual({ outcome: { outcome: 'cancelled' } })
+      else if (kind.startsWith('cursor-')) expect(response).toEqual({ outcome: { outcome: 'cancelled' } })
+      else if (kind === 'form') expect(response).toEqual({ action: 'cancel' })
+      else expect(response.code).toBe(-32800)
+      await expect(readFile(path.join(cwd, 'cancelled.txt'))).rejects.toThrow()
+      expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+    }
+  )
 
   it.each(['completed', 'failed', 'cancel', 'crash', 'unfinished'])(
     'settles compaction on %s without inventing a successful history anchor',

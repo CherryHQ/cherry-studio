@@ -8,7 +8,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -30,7 +29,8 @@ export function LocalAgentConfigControl({
   options: nativeOptions = [],
   mode,
   thoughtLevel,
-  disabled
+  disabled,
+  side = 'top'
 }: {
   sessionId: string
   presetId?: string
@@ -38,6 +38,7 @@ export function LocalAgentConfigControl({
   mode?: LocalAgentSelection
   thoughtLevel?: LocalAgentSelection
   disabled: boolean
+  side?: 'top' | 'bottom'
 }) {
   const { t } = useTranslation()
   const options = localAgentConfigOptions(nativeOptions, presetId, t)
@@ -60,12 +61,17 @@ export function LocalAgentConfigControl({
     .filter(Boolean)
     .join(' · ')
   const selections: Array<{ kind: 'mode' | 'thought'; option: LocalAgentConfigOption }> = []
-  if (mode && modeOptions.length > 1)
+  if (mode && modeOptions.length > 1 && !options.some((option) => option.id === mode.id))
     selections.push({
       kind: 'mode',
       option: { ...mode, type: 'select', name: t('local_agents.mode'), options: modeOptions }
     })
-  if (thoughtLevel && thoughtOptions && thoughtOptions.length > 1)
+  if (
+    thoughtLevel &&
+    thoughtOptions &&
+    thoughtOptions.length > 1 &&
+    !options.some((option) => option.id === thoughtLevel.id)
+  )
     selections.push({
       kind: 'thought',
       option: {
@@ -75,7 +81,37 @@ export function LocalAgentConfigControl({
         options: thoughtOptions
       }
     })
-  const rows = [...selections, ...options.map((option) => ({ kind: 'config' as const, option }))]
+  const rows = [
+    ...selections,
+    ...options
+      .filter(
+        (option) =>
+          option.type !== 'select' ||
+          (option.id !== mode?.id && option.id !== thoughtLevel?.id) ||
+          option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice])).length > 1
+      )
+      .map((option) => {
+        if (option.type !== 'select') return { kind: 'config' as const, option }
+        const kind: 'mode' | 'thought' | 'config' =
+          option.id === mode?.id ? 'mode' : option.id === thoughtLevel?.id ? 'thought' : 'config'
+        const translated = kind === 'mode' ? modeOptions : kind === 'thought' ? thoughtOptions : undefined
+        if (!translated) return { kind, option }
+        const translate = (choice: { value: string; name: string; description?: string | null }) => ({
+          ...choice,
+          ...translated.find((value) => value.value === choice.value)
+        })
+        return {
+          kind,
+          option: {
+            ...option,
+            name: t(kind === 'mode' ? 'local_agents.mode' : 'assistants.settings.reasoning_effort.label'),
+            options: option.options.map((choice) =>
+              'group' in choice ? { ...choice, options: choice.options.map(translate) } : translate(choice)
+            )
+          }
+        }
+      })
+  ]
   if (!rows.length) return null
   const single = rows.length === 1
   const selectedName = (option: LocalAgentConfigOption) =>
@@ -141,9 +177,9 @@ export function LocalAgentConfigControl({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        side="top"
-        align="end"
-        alignOffset={single ? 0 : 288}
+        side={side}
+        align={side === 'bottom' ? 'start' : 'end'}
+        alignOffset={single || side === 'bottom' ? 0 : 288}
         className={cn('overflow-hidden p-1.5', single ? 'w-72' : 'w-64')}>
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           {single ? rows[0].option.name : t('local_agents.configuration')}
@@ -184,7 +220,6 @@ export function LocalAgentConfigControl({
             if (single) return <Fragment key={`${kind}:${option.id}`}>{content}</Fragment>
             return (
               <Fragment key={`${kind}:${option.id}`}>
-                {kind === 'config' && option === options[0] && selections.length > 0 && <DropdownMenuSeparator />}
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger
                     aria-label={option.name}

@@ -14,6 +14,82 @@ beforeAll(async () => {
 })
 
 describe('installed agent translations', () => {
+  it('translates canonical reasoning descriptions and groups without promoted controls', () => {
+    const option: LocalAgentConfigOption = {
+      id: 'effort',
+      name: 'Effort',
+      category: 'thought_level',
+      type: 'select',
+      currentValue: 'medium',
+      description: 'Available effort levels for this model',
+      options: [
+        {
+          group: 'native-levels',
+          name: 'Thinking levels',
+          options: [
+            { value: 'medium', name: 'Medium' },
+            { value: 'custom', name: 'Project reasoning', description: 'Project policy' }
+          ]
+        }
+      ]
+    }
+    expect(localAgentConfigOptions([option], 'opencode', i18n.t)).toEqual([
+      {
+        ...option,
+        name: '思考强度',
+        description: '此模型可用的思考强度档位',
+        options: [
+          {
+            group: 'native-levels',
+            name: '思考强度',
+            options: [
+              { value: 'medium', name: '中' },
+              { value: 'custom', name: 'Project reasoning', description: 'Project policy' }
+            ]
+          }
+        ]
+      }
+    ])
+    expect(localAgentConfigOptions([option], 'opencode', i18n.getFixedT('en'))[0]).toMatchObject({
+      name: 'Reasoning effort',
+      description: 'Available effort levels for this model',
+      options: [{ group: 'native-levels', name: 'Reasoning effort' }]
+    })
+    expect(option.name).toBe('Effort')
+  })
+
+  it('preserves native model names, model groups and unknown configuration text', () => {
+    const options: LocalAgentConfigOption[] = [
+      {
+        id: 'model',
+        name: 'Model',
+        category: 'model',
+        type: 'select',
+        currentValue: 'native-balanced',
+        description: 'Select the model for this session',
+        options: [
+          {
+            group: 'native',
+            name: 'Thinking levels',
+            options: [{ value: 'native-balanced', name: 'Balanced', description: 'Project model' }]
+          }
+        ]
+      },
+      {
+        id: 'custom',
+        name: 'Project setting',
+        type: 'select',
+        currentValue: 'project',
+        description: 'Project policy',
+        options: [{ group: 'project', name: 'Project tiers', options: [{ value: 'project', name: 'Project choice' }] }]
+      }
+    ]
+    expect(localAgentConfigOptions(options, undefined, i18n.t)).toEqual([
+      { ...options[0], name: '模型', description: '选择当前会话使用的模型' },
+      options[1]
+    ])
+  })
+
   it.each([
     ['antigravity-acp', 'Auto Edit', 'Auto-approve file edit tools', '自动批准文件编辑工具。'],
     [

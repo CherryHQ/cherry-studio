@@ -39,6 +39,55 @@ beforeEach(() => {
 })
 
 describe('LocalAgentConfigControl', () => {
+  it('keeps native priority and grouped choices without duplicating promoted controls', async () => {
+    const user = userEvent.setup()
+    const mode = {
+      id: 'native-mode',
+      currentValue: 'ask',
+      options: [
+        { value: 'ask', name: 'Always Ask' },
+        { value: 'plan', name: 'Plan' }
+      ]
+    }
+    const thoughtLevel = {
+      id: 'native-reasoning',
+      currentValue: 'low',
+      options: [
+        { value: 'low', name: 'Low' },
+        { value: 'high', name: 'High' }
+      ]
+    }
+    render(
+      <LocalAgentConfigControl
+        sessionId="session"
+        disabled={false}
+        mode={mode}
+        thoughtLevel={thoughtLevel}
+        options={[
+          options[1],
+          {
+            ...thoughtLevel,
+            name: 'Reasoning',
+            category: 'thought_level',
+            type: 'select',
+            options: [{ group: 'levels', name: 'Thinking levels', options: thoughtLevel.options }]
+          },
+          options[0],
+          { ...mode, name: 'Mode', category: 'mode', type: 'select' }
+        ]}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: '智能体配置' }))
+    expect(screen.getAllByRole('menuitem').map((item) => item.getAttribute('aria-label'))).toEqual([
+      '通知',
+      '思考强度',
+      '回答详细程度',
+      '会话模式'
+    ])
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: '思考强度' }), { key: 'ArrowRight' })
+    expect(screen.getByRole('menuitemradio', { name: '低' })).toHaveAttribute('aria-checked', 'true')
+  })
+
   it.each([
     ['mode', 'ai.local_agents.set_mode'],
     ['thoughtLevel', 'ai.local_agents.set_thought_level']
@@ -127,7 +176,7 @@ describe('LocalAgentConfigControl', () => {
     )
     expect(reasoning).toHaveTextContent(originalValue)
     expect(screen.getByRole('menuitem', { name: '会话模式' })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('menuitem', { name: 'Notifications' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: '通知' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('keeps high-risk permissions visible in the collapsed summary', () => {
@@ -153,9 +202,8 @@ describe('LocalAgentConfigControl', () => {
     vi.mocked(ipcApi.request).mockResolvedValue(null)
     const { rerender } = render(<LocalAgentConfigControl sessionId="session" options={options} disabled={false} />)
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
-    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Answer detail' }), { key: 'ArrowRight' })
-    expect(screen.getByText('Detail levels')).toBeVisible()
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Detailed Include explanation' }))
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: '回答详细程度' }), { key: 'ArrowRight' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '详细 包含解释' }))
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
         sessionId: 'session',
@@ -163,7 +211,7 @@ describe('LocalAgentConfigControl', () => {
         value: 'full'
       })
     )
-    expect(screen.getByRole('menuitem', { name: 'Answer detail' })).toHaveTextContent('Brief')
+    expect(screen.getByRole('menuitem', { name: '回答详细程度' })).toHaveTextContent('简短')
     rerender(
       <LocalAgentConfigControl
         sessionId="session"
@@ -171,7 +219,7 @@ describe('LocalAgentConfigControl', () => {
         disabled={false}
       />
     )
-    expect(screen.getByRole('menuitem', { name: 'Answer detail' })).toHaveTextContent('Detailed')
+    expect(screen.getByRole('menuitem', { name: '回答详细程度' })).toHaveTextContent('详细')
     rerender(<LocalAgentConfigControl sessionId="session" options={[]} disabled={false} />)
     expect(screen.queryByRole('button', { name: '智能体配置' })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument()
@@ -182,11 +230,11 @@ describe('LocalAgentConfigControl', () => {
     vi.mocked(ipcApi.request).mockReturnValue(new Promise(() => {}))
     render(<LocalAgentConfigControl sessionId="session" options={options} disabled={false} />)
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
-    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Notifications' }), { key: 'ArrowRight' })
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: '通知' }), { key: 'ArrowRight' })
     expect(screen.getByRole('menuitemradio', { name: '已禁用' })).toHaveAttribute('aria-checked', 'true')
     await user.click(screen.getByRole('menuitemradio', { name: '已启用' }))
-    expect(screen.getByRole('menuitem', { name: 'Notifications' })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('menuitem', { name: 'Answer detail' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: '通知' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: '回答详细程度' })).toHaveAttribute('aria-disabled', 'true')
     expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
       sessionId: 'session',
       configId: 'notify',
@@ -198,7 +246,7 @@ describe('LocalAgentConfigControl', () => {
     const user = userEvent.setup()
     render(<LocalAgentConfigControl sessionId="session" options={options} disabled />)
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
-    expect(screen.getByRole('menuitem', { name: 'Notifications' })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('menuitem', { name: 'Answer detail' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: '通知' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: '回答详细程度' })).toHaveAttribute('aria-disabled', 'true')
   })
 })
