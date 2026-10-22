@@ -58,6 +58,7 @@ import {
   POSIX_DETACHED_TASK_SUPERVISOR,
   WINDOWS_DETACHED_TASK_RUNNER,
   buildDetachedBackgroundTaskSpawn,
+  forgetDetachedTaskOwnershipForTest,
   getDetachedBackgroundTask,
   isPidAlive,
   listDetachedBackgroundTasks,
@@ -660,10 +661,57 @@ describe('backgroundTasks', () => {
     )
 
     it.skipIf(process.platform === 'win32' || !python3Available)(
-      'keeps a force kill unresolved when a restart lost the liveness pipe',
+      'keeps a worker that closed the liveness pipes holding its task open',
       async () => {
-        // After a restart no pipe survives, so a group kill cannot prove a setsid worker died with
-        // it. The record must stay unresolved rather than say stopped over a live survivor.
+        // Popen's default close_fds=True drops the inherited pipes, and start_new_session leaves the
+        // group: only the environment marker still names the worker.
+        const pidFile = path.join(storageDir, 'close-fds-worker.pid')
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command:
+            `python3 -c "import subprocess,sys; p=subprocess.Popen(['sleep','30'], start_new_session=True); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"` +
+            ` & sleep 0.6`,
+          cwd: storageDir,
+          onExit
+        })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          // The shell and every inherited pipe are gone by now; the marker is what holds the task.
+          await new Promise((resolve) => setTimeout(resolve, 1_000))
+          expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('running')
+          expect(onExit).not.toHaveBeenCalled()
+
+          process.kill(workerPid, 'SIGKILL')
+          await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+          expect(onExit.mock.calls[0][0].record.status).toBe('completed')
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'certifies a force kill after a restart through the inherited marker',
+      async () => {
+        // After a restart no pipe survives. The marker does: it names the setsid worker, so the kill
+        // reaches it and only then may the record say stopped.
         const pidFile = path.join(storageDir, 'restart-daemon.pid')
         const record = await startDetachedBackgroundTask({
           storageDir,
@@ -682,16 +730,15 @@ describe('backgroundTasks', () => {
             { timeout: 10_000 }
           )
 
-          // A record read after a restart owns nothing in memory: same supervisor pid, fresh id.
-          const restarted = { ...record, id: 'bt-restarted', name: 'restarted' }
-          await writeFile(path.join(storageDir, 'bt-restarted.json'), JSON.stringify(restarted))
+          // A restart forgets every in-memory ownership entry; the marker outlives it.
+          forgetDetachedTaskOwnershipForTest(record.id)
 
-          const afterKill = await stopDetachedBackgroundTask(storageDir, 'bt-restarted', true)
-          expect(afterKill?.status).not.toBe('stopped')
-          expect(afterKill?.terminationUnverified).toBe(true)
-          expect(isPidAlive(workerPid)).toBe(true)
-          // Destructive cleanup must keep refusing this record.
-          await expect(hasLiveTaskEvidence(storageDir, afterKill!)).resolves.toBe(true)
+          const afterKill = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          // The survivor was reached through the marker, killed, and only then certified.
+          expect(afterKill?.status).toBe('stopped')
+          expect(afterKill?.terminationUnverified).toBeUndefined()
+          expect(isPidAlive(workerPid)).toBe(false)
+          await expect(hasLiveTaskEvidence(storageDir, afterKill!)).resolves.toBe(false)
         } finally {
           try {
             if (workerPid > 0) process.kill(workerPid, 'SIGKILL')

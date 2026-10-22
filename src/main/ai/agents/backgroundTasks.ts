@@ -176,6 +176,9 @@ export const BACKGROUND_TASK_EVIDENCE_EXT = '.pids'
 
 export const MAX_BACKGROUND_TASK_COMMAND_LENGTH = 10_000
 
+/** Env marker every task descendant inherits; unlike an fd it survives setsid() and close_fds. */
+const BACKGROUND_TASK_MARKER_ENV = 'CHERRY_BG_TASK_ID'
+
 /** How often a leaderless group is polled for its last member's exit. */
 const LEADERLESS_GROUP_POLL_MS = 250
 /** How long a forced stop waits for the group to drain before treating a member as a survivor. */
@@ -809,6 +812,30 @@ if (liveness) {
 } else {
   livenessClosed = true
 }
+// The environment marker survives both setsid() and a worker that closes inherited descriptors, so
+// it is the ownership evidence a detached, descriptor-closing generation still carries.
+const marker = process.env.CHERRY_BG_TASK_ID || ''
+const markerSurvivors = () => {
+  if (!marker) return 0
+  try {
+    // The probe runs without the marker so ps cannot count itself.
+    const table = execFileSync('ps', ['eww', '-axo', 'pid=,command='], {
+      encoding: 'utf8',
+      timeout: 5000,
+      env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
+    })
+    let count = 0
+    for (const row of table.split('\\n')) {
+      const trimmed = row.trim()
+      if (!trimmed) continue
+      if (Number(trimmed.split(/\\s+/)[0]) === self) continue
+      if (trimmed.includes('CHERRY_BG_TASK_ID=' + marker)) count++
+    }
+    return count
+  } catch (error) {
+    return 1
+  }
+}
 task.on('error', () => process.exit(1))
 task.on('exit', (code, signal) => {
   const status = signal ? 1 : (code == null ? 1 : code)
@@ -831,9 +858,9 @@ task.on('exit', (code, signal) => {
     } catch (error) {
       return
     }
-    // A worker that called setsid() is invisible to the group probe; the pipe is what keeps the
-    // anchor, and the task's terminal status, waiting for it.
-    if (live === 0 && livenessClosed) {
+    // A worker that called setsid() is invisible to the group probe, and one that also closed the
+    // inherited descriptors is invisible to the pipe: only the environment marker still names it.
+    if (live === 0 && livenessClosed && markerSurvivors() === 0) {
       clearInterval(poll)
       process.exit(status)
     }
@@ -897,6 +924,64 @@ export function buildDetachedBackgroundTaskSpawn(
  * are not pids at all — `process.kill` reads 0 and negatives as whole process groups — so nothing
  * may be reported alive through them, especially not a pid that failed to parse.
  */
+/**
+ * Live processes still carrying the task's inherited marker. `null` when the table cannot be read,
+ * which is never evidence of anything; the probe runs without the marker so ps cannot count itself.
+ */
+function readMarkerProcesses(taskId: string): number[] | null {
+  if (process.platform === 'win32') return null
+  let table: string
+  try {
+    table = execFileSync('ps', ['eww', '-axo', 'pid=,command='], {
+      encoding: 'utf8',
+      timeout: 5_000,
+      maxBuffer: 16 * 1024 * 1024,
+      env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
+    })
+  } catch {
+    return null
+  }
+  const marker = `${BACKGROUND_TASK_MARKER_ENV}=${taskId}`
+  const pids: number[] = []
+  for (const row of table.split('\n')) {
+    const trimmed = row.trim()
+    if (!trimmed) continue
+    const pid = Number(trimmed.split(/\s+/)[0])
+    if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) continue
+    if (trimmed.includes(marker)) pids.push(pid)
+  }
+  return pids
+}
+
+/**
+ * SIGKILL every process still carrying the task marker and wait for the table to lose them. Unlike
+ * the group signal this reaches a setsid() worker that closed its descriptors; unlike the pipe it
+ * works after a restart. `unknown` when the table cannot be read — never a certification.
+ */
+async function killMarkerSurvivors(taskId: string): Promise<'clear' | 'survivors' | 'unknown'> {
+  const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
+  while (true) {
+    const pids = readMarkerProcesses(taskId)
+    if (pids === null) return 'unknown'
+    if (pids.length === 0) return 'clear'
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 'SIGKILL')
+      } catch {
+        // already gone
+      }
+    }
+    if (Date.now() >= deadline) return 'survivors'
+    await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
+  }
+}
+
+/** Test seam: emulate a process restart, which forgets every in-memory ownership entry. */
+export function forgetDetachedTaskOwnershipForTest(taskId?: string): void {
+  if (taskId === undefined) ownedTaskGroups.clear()
+  else ownedTaskGroups.delete(taskId)
+}
+
 export function isPidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false
   try {
@@ -930,6 +1015,9 @@ export async function startDetachedBackgroundTask(
   const logHandle = await open(logFile, 'a', 0o600)
   try {
     const target = buildDetachedBackgroundTaskSpawn(command, input.cwd, logHandle.fd, logHandle.fd, evidenceFile)
+    // The marker rides the environment, not a descriptor: it names the work even after setsid() and
+    // a child that closed inherited fds, and it outlives this app for a restart to verify.
+    target.options.env = { ...target.options.env, [BACKGROUND_TASK_MARKER_ENV]: id }
     const child = spawn(target.file, target.args, target.options)
     child.unref()
 
@@ -1314,13 +1402,16 @@ async function stopDetachedBackgroundTaskUnlocked(
   if (process.platform !== 'win32') {
     const liveness = await waitForLivenessClose(ownedLiveness)
     if (liveness === 'open') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
-    if (liveness === 'unknown') {
-      // No pipe outlives a restart, so this kill cannot prove the whole tree died. Keep the record
-      // unresolved so a setsid survivor neither loses its tracking nor its workspace.
+    // The pipe is the in-process proof; after a restart the inherited marker is. Survivors are the
+    // task's own, so the kill may reach them even though the group could not, and only their
+    // absence certifies the termination.
+    const markers = await killMarkerSurvivors(record.id)
+    if (markers === 'unknown') {
       const unverified: BackgroundTaskRecord = { ...requested, terminationUnverified: true }
       await writeRecord(storageDir, unverified)
       return unverified
     }
+    if (markers === 'survivors') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
   }
   // On Windows the kill is only as good as taskkill's live-parent walk, which cannot reach a
   // worker past the shell that spawned it. Until the table proves nothing of the task is left,
@@ -1470,8 +1561,11 @@ export async function hasLiveTaskEvidence(storageDir: string, record: Background
 
 export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   if (record.pid <= 0) return false
-  // A kill this app could not verify may have left a setsid survivor behind.
-  if (record.terminationUnverified) return true
+  // The inherited marker names work that left the group and closed its descriptors, and it is the
+  // only evidence a restart can still read.
+  const markers = readMarkerProcesses(record.id)
+  if (markers === null) return true
+  if (markers.length > 0) return true
   // Work that left the group (setsid) is live even when the leader and the group are gone: the
   // pipe still has a writer. Destructive cleanup must not read this task as finished.
   if (ownedTaskGroups.get(record.id)?.liveness?.open) return true
@@ -1840,9 +1934,19 @@ async function reconcileDetachedBackgroundTask(
   if (completion) {
     return { ...record, ...completion, status: completion.status }
   }
-  // A kill that could not be verified stays unresolved: folding it into a terminal status would
-  // let destructive cleanup erase the tracking and workspace of work that may still be running.
-  if (record.terminationUnverified) return record
+  // A kill that could not be verified stays unresolved until the inherited marker shows nothing is
+  // left: then the kill did land, and the record may settle instead of blocking cleanup forever.
+  if (record.terminationUnverified) {
+    if (hasLiveGroupEvidence(record)) return record
+    return {
+      ...record,
+      terminationUnverified: undefined,
+      status: 'stopped',
+      signal: record.stopSignal ?? 'SIGKILL',
+      finishedAt: record.finishedAt ?? new Date().toISOString(),
+      note: t('background_task.note.stopped_no_event')
+    }
+  }
   if (record.pid > 0 && isPidAlive(record.pid)) {
     const recycled = isRecycledPid(record) || (await hasReplacedWindowsRunner(storageDir, record, readTable))
     return recycled ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') } : record
