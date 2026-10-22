@@ -41,7 +41,9 @@ export async function persistBlobAttachments(
       const path = await window.api.file.getPhysicalPath({ id: entry.id })
       const rest = { ...attachment }
       delete rest.blob
-      return { ...rest, path }
+      // Keep the managed entry id so enqueue can register durable file
+      // ownership; without it the idle sweep can delete the bytes mid-queue.
+      return { ...rest, path, entryId: entry.id }
     })
   )
   return { ...payload, attachments: persisted }
@@ -308,8 +310,17 @@ export function useFollowupQueue({
         // service returns the existing row instead of duplicating it.
         const scopeKey = scopeKeyRef.current
         const durablePayload = await persistBlobAttachments(payload)
+        const fileEntryIds = (durablePayload.attachments ?? [])
+          .map((attachment) => attachment.entryId)
+          .filter((id): id is string => typeof id === 'string')
         await enqueueTrigger({
-          body: { id: crypto.randomUUID(), scopeKey, draft, payload: durablePayload }
+          body: {
+            id: crypto.randomUUID(),
+            scopeKey,
+            draft,
+            payload: durablePayload,
+            ...(fileEntryIds.length > 0 ? { fileEntryIds } : {})
+          }
         })
         return true
       } catch {
