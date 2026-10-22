@@ -241,6 +241,48 @@ describe('authorization recovery ownership', () => {
     await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
   })
 
+  it.each(['begin', 'cancel'] as const)('preserves in-flight token rotation when reconnect %s runs', async (stage) => {
+    let now = 1_000
+    const api = provider()
+    const runtime = await start(api, () => now)
+    const original = await connected(runtime)
+    const reconnect = stage === 'cancel' ? await runtime.beginReconnect(original.id) : undefined
+    now += token.expiresIn * 1_000
+    const entered = deferred()
+    const release = deferred()
+    api.refreshUserToken.mockImplementationOnce(async () => {
+      entered.resolve()
+      await release.promise
+      return { ...token, accessToken: 'rotated-access', refreshToken: 'rotated-refresh' }
+    })
+    const refreshing = runtime.acquireAccessToken(original.id).catch((error: unknown) => error)
+    await entered.promise
+
+    if (reconnect) {
+      const cancelling = runtime.cancelUserAuthorization(reconnect.authorizationSessionId)
+      release.resolve()
+      await cancelling
+    } else {
+      const read = credentials.read.bind(credentials)
+      vi.spyOn(credentials, 'read').mockImplementationOnce(async (reference) => {
+        const stored = await read(reference)
+        queueMicrotask(release.resolve)
+        return stored
+      })
+      const begun = await runtime.beginReconnect(original.id)
+      await runtime.cancelUserAuthorization(begun.authorizationSessionId)
+    }
+    await expect(refreshing).resolves.toBe('rotated-access')
+    expect(connections.getById(original.id)?.authorizationStatus).toBe('connected')
+    await expect(credentials.read(original.credentialReference)).resolves.toMatchObject({
+      status: 'ok',
+      credential: { accessToken: 'rotated-access', refreshToken: 'rotated-refresh' }
+    })
+    await runtime.stop()
+    const restarted = await start(api, () => now)
+    await expect(restarted.acquireAccessToken(original.id)).resolves.toBe('rotated-access')
+  })
+
   it('still invalidates active credentials when token refresh loses required scopes', async () => {
     let now = 1_000
     const api = provider()
