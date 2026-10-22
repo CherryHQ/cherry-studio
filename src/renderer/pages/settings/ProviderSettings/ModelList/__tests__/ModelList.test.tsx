@@ -160,6 +160,76 @@ describe('useProviderModelList', () => {
     expect(result.current.sections.enabledSections.flatMap((section) => section.items)).toEqual([{ model: models[1] }])
   })
 
+  it('keeps the failed filter exact for a provider with 100+ models', () => {
+    const scaledModels = Array.from({ length: 120 }, (_, index) => ({
+      id: `openai::model-${index}`,
+      name: `Model ${index}`,
+      group: `group-${index % 4}`,
+      capabilities: ['reasoning'],
+      isEnabled: true,
+      providerId: 'openai'
+    })) as any[]
+
+    useModelsMock.mockReturnValue({ models: scaledModels, isLoading: false, refetch: refetchModelsMock })
+
+    const failedKey = {
+      kind: 'failed',
+      credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+      status: 'failed',
+      checking: false
+    }
+    const okKey = {
+      kind: 'ok',
+      credential: { kind: 'provider-auth', id: 'provider-auth', key: '' },
+      status: 'success',
+      checking: false,
+      latency: 10
+    }
+
+    const fullyFailed = scaledModels.slice(0, 30)
+    const partiallyFailed = scaledModels.slice(30, 45)
+
+    completedModelStatusesMock.mockReturnValue([
+      ...fullyFailed.map((model) => ({
+        kind: 'failed',
+        model,
+        status: 'failed',
+        checking: false,
+        keyResults: [failedKey]
+      })),
+      ...partiallyFailed.map((model) => ({
+        kind: 'failed',
+        model,
+        status: 'failed',
+        checking: false,
+        keyResults: [failedKey, okKey]
+      })),
+      ...scaledModels.slice(45).map((model) => ({
+        kind: 'ok',
+        model,
+        status: 'success',
+        checking: false,
+        keyResults: [okKey],
+        latency: 10
+      }))
+    ])
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    // Partially working models are not completely failed, so they stay out of the count.
+    expect(result.current.header.failedModelCount).toBe(30)
+
+    act(() => result.current.header.setSelectedFilter('failed'))
+
+    const filtered = result.current.sections.enabledSections.flatMap((section) => section.items)
+    expect(filtered).toHaveLength(30)
+    expect(filtered.map((item) => item.model.id).sort()).toEqual(fullyFailed.map((model) => model.id).sort())
+
+    // The filter is a read-only view: clearing it brings every model back.
+    act(() => result.current.header.setSelectedFilter('all'))
+    expect(result.current.sections.enabledSections.flatMap((section) => section.items)).toHaveLength(120)
+  })
+
   it('guards edit and delete commands while model checks are running', async () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai', disabled: true }))
 
