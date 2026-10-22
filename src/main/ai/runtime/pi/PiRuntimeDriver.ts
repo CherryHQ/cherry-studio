@@ -15,6 +15,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentSessionRuntimeDriver,
+  OrphanSessionKeepSet,
   OrphanSessionReclaimOptions
 } from '../types'
 import { assertPiProviderUsable } from './modelInjection'
@@ -95,7 +96,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
    * generation of a claimed token is kept — the connection resumes from the newest.
    */
   async reclaimOrphanSessions(
-    keptResumeTokens: ReadonlySet<string>,
+    keep: OrphanSessionKeepSet,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }> {
     const sessionDir = application.getPath('feature.agents.pi.sessions')
@@ -104,7 +105,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     for (const entry of await listEntries(sessionDir)) {
       if (!entry.isFile()) continue
       const token = piResumeTokenOf(entry.name)
-      if (!token || keptResumeTokens.has(token)) continue
+      if (!token || keep.resumeTokens.has(token)) continue
       const target = path.resolve(sessionDir, entry.name)
       if (await reclaimStale(target, options)) removed.push(target)
     }

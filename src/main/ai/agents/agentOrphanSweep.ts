@@ -1,15 +1,18 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { eq } from 'drizzle-orm'
+
 import { application } from '@application'
 import { hasPendingRestore } from '@data/db/restore/restoreJournal'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { listEntries, reclaimStale } from '@main/ai/runtime/orphanSessionReclaim'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
-import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
+import type { OrphanSessionKeepSet, OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
 
 import { WORKSPACE_STORAGE_SUFFIXES } from './agentWorkspaceStorage'
 import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
@@ -32,7 +35,7 @@ export interface AgentSweepReport {
  * Orphan sweep for the app-managed agent disk state. DB rows are the durable
  * source of truth (Recycle Bin RFC §4.2) for agent and workspace artifacts.
  * Runtime session artifacts additionally survive while the live runtime snapshot
- * claims their resume token, and are reclaimed once neither source claims them.
+ * claims their resume token; surviving sessions also claim their runtime project directories.
  *
  * Three passes, because the layouts differ:
  *  - `{agents.data}/{agent.id}` — per-agent identity/memory dirs. They sit next
@@ -42,7 +45,8 @@ export interface AgentSweepReport {
  *    workspaces, claimed by `agent_workspace.path`. Workspace rows survive
  *    Delete and are removed at session purge.
  *  - each runtime driver's own session persistence, claimed by the union of
- *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot.
+ *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot,
+ *    plus workspace paths of surviving sessions.
  *
  * Trashed sessions claim compressed workspaces and interrupted-operation artifacts
  * too, so restore stays lossless. Removal failures are logged for the next run.
@@ -150,13 +154,30 @@ async function reclaimRuntimeSessions(
     ...agentSessionMessageService.listAllRuntimeResumeTokens(),
     ...application.get('AgentSessionRuntimeService').listClaimedResumeTokens()
   ])
+  const db = application.get('DbService').getDb()
+  const liveWorkspacePaths = new Set(
+    db
+      .selectDistinct({ path: agentWorkspaceTable.path })
+      .from(agentSessionTable)
+      .innerJoin(agentWorkspaceTable, eq(agentSessionTable.workspaceId, agentWorkspaceTable.id))
+      .all()
+      .map((row) => row.path)
+  )
+  const keep: OrphanSessionKeepSet = { resumeTokens: keptResumeTokens, liveWorkspacePaths }
   const runtimeSessions: Record<string, number> = {}
   const failedDrivers: string[] = []
 
   for (const driver of drivers) {
     signal?.throwIfAborted()
     try {
-      const result = await driver.reclaimOrphanSessions!(keptResumeTokens, options)
+      const result = await driver.reclaimOrphanSessions!(keep, options)
+      if (result.removed.length > 0) {
+        logger.info('agent-orphan-sweep-runtime-removed', {
+          event: 'agent-orphan-sweep-runtime-removed',
+          runtime: driver.type,
+          removedPaths: result.removed
+        })
+      }
       removed.push(...result.removed)
       runtimeSessions[driver.type] = result.removed.length
     } catch (error) {
