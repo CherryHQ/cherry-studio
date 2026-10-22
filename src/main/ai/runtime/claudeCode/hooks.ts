@@ -16,16 +16,21 @@ import type { HookCallback, HookInput, HookJSONOutput } from '@anthropic-ai/clau
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
-import { CHERRY_MCP_SERVER, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import {
+  CHERRY_MCP_SERVER,
+  findBuiltinToolPolicy,
+  resolveDelegationApproval,
+  toMcpRuntimeName
+} from '@main/ai/toolApproval/builtinToolPolicy'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import type { AgentRuntimeUserInput } from '../types'
-import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
+import { createClaudeCodeIdentityHooks } from './identityHooks'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
 
@@ -74,7 +79,6 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
-  agentsMdLoader: AgentsMdLoader
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
@@ -92,6 +96,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     // Live state by id at fire-time: mode and disabled-set follow mid-session agent updates on warm
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
+    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
       toolName,
       input: toolInput,
@@ -103,11 +108,18 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       agentDataPath,
       signal: options?.signal,
       supportsImages: ctx.supportsImages,
-      interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
+      interaction,
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
     if (!decision) {
+      if (
+        snapshot &&
+        findBuiltinToolPolicy(toolName, ctx.mountedServers)?.approval === 'delegation' &&
+        resolveDelegationApproval(snapshot.getPermissionMode(), interaction) === 'allow'
+      ) {
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow' } }
+      }
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
       // self-correct; exactly-at-threshold fires it once, before the run grows past it.
@@ -219,8 +231,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
-  const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
-
   // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
@@ -304,7 +314,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   }
 
   return {
-    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
+    ...createClaudeCodeIdentityHooks(agentDataPath),
+    PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],

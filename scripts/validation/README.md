@@ -11,14 +11,18 @@ unstaged, and untracked files. `--base <parent>` supports stacked branches.
 `--committed --base <commit> --head <commit>` compares exact commits for CI;
 renames include both old and new paths. Missing history falls back to full validation.
 
-Ordinary Markdown under docs, agent notes, and changesets, root Markdown, and source
-READMEs select format and documentation checks. Runtime Markdown under resources
+Ordinary Markdown under docs, agent notes, and changesets, root Markdown, source
+READMEs, and translation-pairing `.i18n.yaml` sidecars select format and documentation checks. Runtime Markdown under resources
 retains full checks. Skill files select the skill gate as well. Unknown inputs,
 root configuration, workflow changes, and the planner itself select all tasks.
 
 Source changes select their project and known consumers. Shared changes select all
 projects. Source changes retain full lint and i18n scans because imports and translation
-references cross file boundaries. This first implementation selects whole projects;
+references cross file boundaries. Test-only changes omit only scanners that exclude
+those paths: catalog coverage ignores `__tests__` but still reads adjacent main tests;
+hardcoded detection ignores `__tests__` and `.test.ts(x)`, but not adjacent `.spec.ts(x)`.
+Unused-key analysis stays selected because the renderer catalog reads test sources too.
+Unclassified/configuration inputs still select all checks. The planner selects whole projects;
 it does not claim that file-level affected tests cover runtime dependencies.
 
 ## Execution
@@ -45,14 +49,18 @@ remain covered. Pushes compare the event's before/after range. A daily schedule 
 manual dispatch run the full plan. PR concurrency cancels superseded runs; pushes
 are not cancelled. Pull requests targeting a parent stack branch also run CI.
 
-Repository, lint, typecheck, and i18n groups run independently. Main/preload retain
+Repository, typecheck, lint and i18n groups share one dependency installation in
+`basic-checks`, with separate plan conditions and step outcomes; later groups still
+run after an earlier group fails. Main/preload retain
 three Linux shards; renderer retains five. Selected package tests run once in their
-own job. macOS/Windows retain the platform-gated test inventory (now including the
-DSH bridge); platform selection is deliberately conservative whenever main is selected.
+own job. macOS/Windows retain the platform-gated test inventory (including
+system speech); platform selection is deliberately conservative whenever main is selected.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and
-accepts a skipped dependency only when the plan explicitly excludes it. Schema drift,
+accepts a skipped dependency only when the plan explicitly excludes it. The basic
+gate also checks all four group outcomes in the same job, rejecting missing or
+unexpectedly skipped work even if that job reports success. Schema drift,
 provider generation, changeset policy, and catalog edit guards remain CI checks.
 
 ## Performance observations
@@ -63,11 +71,17 @@ needs no dependency installation. The observer becomes active after its workflow
 scripts reach the default branch. It has read-only permissions and is not a required
 check; collection failures do not fail the CI gate.
 
-The summary and 30-day JSON artifact distinguish initial queue time, execution wall
-time, total elapsed time, and the sum of job durations. The latter is runner time,
-not billed minutes; initial queue time does not include later dependency/runner waits.
-Queue and total elapsed are omitted for reruns because their creation time belongs to
-the original attempt. The JSON preserves individual step durations for installation/cache analysis.
+The summary and 30-day JSON artifact preserve initial queue time, execution window,
+total elapsed time, and the sum of job durations. The latter is runner time, not billed
+minutes; the execution window includes later waits. Per-job created/start/end timestamps,
+created-to-start scheduling waits, execution durations and P50/P90/max distributions expose
+later queues. Run-to-job-creation time includes dependencies and orchestration, not isolated
+dependency wait; scheduling intervals do not establish a runner-capacity cause. Without
+the measured dependency graph, no critical path is inferred. Missing/inconsistent times
+remain unavailable with sample counts; parallel intervals are not summed as wall time.
+Wait and total elapsed metrics are omitted for reruns because timestamps can span attempts.
+Existing JSON fields and baseline keys are retained. Individual step durations support
+installation/cache analysis.
 
 Baseline P50/P90 values use matching successful runs from the latest 20 successful
 runs of the same CI workflow/event, before the measured run. Comparisons require the

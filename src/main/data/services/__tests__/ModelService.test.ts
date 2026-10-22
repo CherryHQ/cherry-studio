@@ -433,6 +433,28 @@ describe('ModelService.update', () => {
     expect(row.pricing).toEqual(pricing)
   })
 
+  it.each([false, true])('round-trips an image-only price for a model with registry match %s', async (hasPreset) => {
+    await seedExistingModel()
+    if (hasPreset) {
+      resolveModelMock.mockReturnValue({
+        presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+        registryOverride: null,
+        reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+      })
+    }
+    const pricing = {
+      input: { perMillionTokens: null, currency: 'USD' as const },
+      output: { perMillionTokens: null, currency: 'USD' as const },
+      perImage: { price: 0.04, unit: 'image' as const }
+    }
+    modelService.update('openai', 'gpt-4o', { pricing })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { name: 'My image model' })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing).toEqual(pricing)
+    modelService.update('openai', 'gpt-4o', { pricing: { ...pricing, perImage: { price: 0, unit: 'image' } } })
+    expect(modelService.getByKey('openai', 'gpt-4o').pricing?.perImage).toEqual({ price: 0, unit: 'image' })
+  })
+
   it('stores model group edits in the sparse group column', async () => {
     await seedExistingModel()
 
@@ -2108,6 +2130,7 @@ describe('ModelService.delete', () => {
       })
     )
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,
@@ -2296,6 +2319,7 @@ describe('ModelService.bulkDelete', () => {
       })
     ])
     await dbh.db.insert(knowledgeBaseTable).values({
+      orderKey: 'a0',
       name: 'Docs',
       dimensions: 1536,
       embeddingModelId: targetModelId,

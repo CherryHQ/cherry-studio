@@ -6,7 +6,9 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
+import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
@@ -101,6 +103,9 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.claude_code.binary.status': async () => application.get('ClaudeCodeBinaryService').getStatus(),
+  'ai.claude_code.binary.ensure': async () => application.get('ClaudeCodeBinaryService').ensure(),
+  'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
   'ai.text.generate': ({ requestId, ...request }) => {
@@ -189,6 +194,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
+  'ai.agent.assistant_session.create': async () => ({ sessionId: createBuiltinAssistantSession().id }),
   'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
@@ -230,6 +236,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },
+  'ai.agent.workspace.register': async ({ path, name }) =>
+    agentWorkspaceStorageService.registerWorkspace(path, { name }),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 

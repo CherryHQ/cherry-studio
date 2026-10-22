@@ -50,7 +50,7 @@ function MarkdownContent({
   transformSource = removeSvgEmptyLines
 }: AppMarkdownProps & { id: string }) {
   const { t } = useTranslation()
-  const { openFilePath } = useMarkdownHost()
+  const { openFilePath, resolveImageSrc } = useMarkdownHost()
   const [hasStreamed, setHasStreamed] = useState(isStreaming)
   if (isStreaming && !hasStreamed) setHasStreamed(true)
 
@@ -90,7 +90,9 @@ function MarkdownContent({
           {content}
         </StreamingMarkdown>
       ) : (
-        <Markdown {...commonProps}>{content}</Markdown>
+        <Markdown {...commonProps} preserveRelativeImageSrcs={Boolean(resolveImageSrc)}>
+          {content}
+        </Markdown>
       )}
     </MarkdownStreamingContext>
   )

@@ -274,14 +274,17 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     (destination, options) => {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
-        if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) return
         const existing = destination.conversation
-          ? findConversationTab(tabs, destination.conversation)
+          ? (activeTab && findConversationTab([activeTab], destination.conversation)) ||
+            findConversationTab(tabs, destination.conversation)
           : tabs.find(
               (tab) => tab.type === 'route' && (destination.matchesTab?.(tab.url) ?? tab.url === destination.url)
             )
         if (existing) {
-          setActiveTab(existing.id)
+          if (destination.metadata) {
+            updateTab(existing.id, { metadata: { ...existing.metadata, ...destination.metadata } })
+          }
+          if (existing.id !== activeTab?.id) setActiveTab(existing.id)
           return
         }
         if (activeTab && !activeTab.isPinned) {
@@ -291,7 +294,8 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
             openTab(destination.url, {
               forceNew: true,
               title: destination.title,
-              icon: destination.icon
+              icon: destination.icon,
+              metadata: destination.metadata
             })
             return
           }
@@ -299,7 +303,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
             url: destination.url,
             title: destination.title,
             icon: destination.icon,
-            metadata: undefined
+            metadata: destination.metadata ?? {}
           })
           return
         }
@@ -307,7 +311,8 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
       openTab(destination.url, {
         forceNew: true,
         title: destination.title,
-        icon: destination.icon
+        icon: destination.icon,
+        metadata: destination.metadata
       })
     },
     [activeTab, openTab, setActiveTab, tabs, updateTab]

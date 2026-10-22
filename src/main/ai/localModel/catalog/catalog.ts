@@ -1,5 +1,9 @@
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
 
+import kokoroRelease from './kokoro-v1.1.json'
+import mlxNodeRelease from './mlxNodeRelease.json'
+import qwen3AsrRelease from './qwen3AsrRelease.json'
+import sherpaRuntimeRelease from './sherpaRuntimeRelease.json'
 import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
 /**
@@ -12,15 +16,50 @@ import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
  * per-model. See `docs/references/ai/local-models.md` for the checklist.
  *
  * ## Obtaining `sha256`
- * Both mirrors publish the digest, so no download is needed:
+ * The upstream APIs publish the digest, so no download is needed:
  *   - HuggingFace: `GET /api/models/<repo>/tree/main?recursive=true` → `lfs.oid`
  *     (LFS files only — small files report a git blob SHA-1 instead).
  *   - ModelScope: `GET /api/v1/models/<repo>/repo/files?Revision=master` → `Sha256`.
- * Every file below was confirmed byte-identical across both mirrors, which is what
- * lets one digest serve a download that may fall back between them.
+ * Files with explicit sources below were confirmed byte-identical across the listed
+ * immutable revisions, so one digest can safely serve all declared fallbacks.
  */
 
+const ONNXRUNTIME_NODE_TARBALL_SHA256 = '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9'
+
+const mlxRuntimeReleaseUrl = `https://github.com/${mlxNodeRelease.runtime.repository}/releases/download/${mlxNodeRelease.runtime.tag}`
+const mlxModelReleaseUrl = `https://github.com/${mlxNodeRelease.model.repository}/releases/download/${mlxNodeRelease.model.tag}`
+const mlxRuntimeMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.runtime.modelscope.repo}/resolve/${mlxNodeRelease.runtime.modelscope.revision}`
+const mlxModelMirrorUrl = `https://www.modelscope.cn/models/${mlxNodeRelease.model.modelscope.repo}/resolve/${mlxNodeRelease.model.modelscope.revision}`
+
 export const SHARED_ARTIFACTS = {
+  'mlx-node': {
+    id: 'mlx-node',
+    version: mlxNodeRelease.sourceRevision,
+    minimumMacOS: '26.2',
+    installDirKey: 'feature.mlx.binary',
+    provenance: {
+      license: {
+        spdx: 'MIT',
+        url: `https://github.com/mlx-node/mlx-node/blob/${mlxNodeRelease.sourceRevision}/LICENSE`
+      },
+      upstream: { url: 'https://github.com/mlx-node/mlx-node', revision: mlxNodeRelease.sourceRevision }
+    },
+    platforms: {
+      'darwin-arm64': {
+        packageName: 'cherry-mlx-node',
+        tarballUrls: {
+          china: `${mlxRuntimeMirrorUrl}/${mlxNodeRelease.runtime.asset}`,
+          global: `${mlxRuntimeReleaseUrl}/${mlxNodeRelease.runtime.asset}`
+        },
+        tarballSha256: mlxNodeRelease.runtime.sha256,
+        tarballPrefix: 'runtime/',
+        // The native files are unchanged; retain the directory of existing installations.
+        installSubdir: 'mlx-node-5db3d24bc87a-r1/darwin/arm64',
+        entryFile: mlxNodeRelease.runtime.entryFile,
+        supportFiles: mlxNodeRelease.runtime.supportFiles
+      }
+    }
+  },
   /** Native onnxruntime binding, downloaded on demand rather than bundled: the npm
    * package carries every platform's binaries, so shipping it would add hundreds of
    * MB to an installer for users who never touch a local model. `dist/binding.js` is
@@ -28,48 +67,232 @@ export const SHARED_ARTIFACTS = {
    * `CHERRY_ONNXRUNTIME_BINDING_PATH`. `version` must match package.json's pin. */
   'onnxruntime-node': {
     id: 'onnxruntime-node',
-    packageName: 'onnxruntime-node',
     version: '1.25.1',
-    tarballSha256: '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9',
     installDirKey: 'feature.onnxruntime.binary',
     // No darwin-x64: onnxruntime-node ships no binding for it, so both bundles read
     // as `unsupported` on Intel Macs instead of offering a download that cannot work.
     platforms: {
       'darwin-arm64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: ONNXRUNTIME_NODE_TARBALL_SHA256,
         tarballPrefix: 'package/bin/napi-v6/darwin/arm64/',
         installSubdir: 'napi-v6/darwin/arm64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['libonnxruntime.1.25.1.dylib']
       },
       'linux-x64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: ONNXRUNTIME_NODE_TARBALL_SHA256,
         tarballPrefix: 'package/bin/napi-v6/linux/x64/',
         installSubdir: 'napi-v6/linux/x64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['libonnxruntime.so.1']
       },
       'linux-arm64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: ONNXRUNTIME_NODE_TARBALL_SHA256,
         tarballPrefix: 'package/bin/napi-v6/linux/arm64/',
         installSubdir: 'napi-v6/linux/arm64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['libonnxruntime.so.1']
       },
       'win32-x64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: ONNXRUNTIME_NODE_TARBALL_SHA256,
         tarballPrefix: 'package/bin/napi-v6/win32/x64/',
         installSubdir: 'napi-v6/win32/x64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['onnxruntime.dll', 'DirectML.dll', 'dxil.dll', 'dxcompiler.dll']
       },
       'win32-arm64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: ONNXRUNTIME_NODE_TARBALL_SHA256,
         tarballPrefix: 'package/bin/napi-v6/win32/arm64/',
         installSubdir: 'napi-v6/win32/arm64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['onnxruntime.dll', 'DirectML.dll', 'dxil.dll', 'dxcompiler.dll']
       }
     }
+  },
+  'sherpa-onnx': {
+    id: 'sherpa-onnx',
+    version: '1.13.6',
+    installDirKey: 'feature.sherpa_onnx.binary',
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: 'https://github.com/k2-fsa/sherpa-onnx/blob/1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911/LICENSE'
+      },
+      upstream: {
+        url: 'https://github.com/k2-fsa/sherpa-onnx',
+        revision: '1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911'
+      }
+    },
+    platforms: {
+      'darwin-arm64': {
+        packageName: 'sherpa-onnx-darwin-arm64',
+        tarballSha256: '213f438edec89d2adc85861a4377ee9620e5dd602db079252530637e79a325ab',
+        tarballPrefix: 'package/',
+        installSubdir: 'darwin/arm64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: ['libsherpa-onnx-c-api.dylib', 'libsherpa-onnx-cxx-api.dylib', 'libonnxruntime.dylib']
+      },
+      'darwin-x64': {
+        packageName: 'sherpa-onnx-darwin-x64',
+        tarballSha256: 'd8a60dd2656a81281235f2315dc6ff623257446c187f2b43fd6cb32daf45fbda',
+        tarballPrefix: 'package/',
+        installSubdir: 'darwin/x64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: ['libsherpa-onnx-c-api.dylib', 'libsherpa-onnx-cxx-api.dylib', 'libonnxruntime.dylib']
+      },
+      'linux-x64': {
+        packageName: 'sherpa-onnx-linux-x64',
+        tarballSha256: '9aeb779dc87702db2640cbb29c097ac0585a34ecbc5b1c72f056903e2d74d7d5',
+        tarballPrefix: 'package/',
+        installSubdir: 'linux/x64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: ['libsherpa-onnx-c-api.so', 'libsherpa-onnx-cxx-api.so', 'libonnxruntime.so']
+      },
+      'linux-arm64': {
+        packageName: 'sherpa-onnx-linux-arm64',
+        tarballSha256: '14479ecdf502b36c49281c0eb2cfde43c406309039e49d124aee30761f436fbf',
+        tarballPrefix: 'package/',
+        installSubdir: 'linux/arm64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: ['libsherpa-onnx-c-api.so', 'libsherpa-onnx-cxx-api.so', 'libonnxruntime.so']
+      },
+      'win32-x64': {
+        packageName: 'sherpa-onnx-win-x64',
+        tarballSha256: '3efca85485f3d56c09b62912d473e15b583a831d9541ed91c6fdab08e713025d',
+        tarballPrefix: 'package/',
+        installSubdir: 'win32/x64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: [
+          'onnxruntime_providers_shared.dll',
+          'onnxruntime.dll',
+          'sherpa-onnx-c-api.dll',
+          'sherpa-onnx-cxx-api.dll'
+        ]
+      },
+      'win32-arm64': {
+        packageName: 'cherry-sherpa-onnx-win-arm64',
+        tarballUrls: [
+          `https://github.com/${sherpaRuntimeRelease.repository}/releases/download/${sherpaRuntimeRelease.tag}/${sherpaRuntimeRelease.asset}`
+        ],
+        tarballSha256: sherpaRuntimeRelease.sha256,
+        tarballPrefix: 'runtime/',
+        installSubdir: 'win32/arm64',
+        entryFile: 'sherpa-onnx.node',
+        supportFiles: [
+          'onnxruntime_providers_shared.dll',
+          'onnxruntime.dll',
+          'sherpa-onnx-c-api.dll',
+          'sherpa-onnx-cxx-api.dll',
+          'LICENSE',
+          'build-info.json'
+        ]
+      }
+    }
   }
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 
 export const LOCAL_MODEL_BUNDLES = {
+  'kokoro-multi-lang-v1.1': {
+    id: 'kokoro-multi-lang-v1.1',
+    capability: 'tts',
+    installDirKey: 'feature.tts.kokoro',
+    requires: ['sherpa-onnx'],
+    runtime: { architecture: 'kokoro' },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: `https://huggingface.co/${kokoroRelease.repo}/blob/${kokoroRelease.revision}/LICENSE`
+      },
+      upstream: {
+        url: 'https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh',
+        revision: '01e7505bd6a7a2ac4975463114c3a7650a9f7218'
+      },
+      conversion: {
+        url: `https://huggingface.co/${kokoroRelease.repo}`,
+        revision: kokoroRelease.revision,
+        license: {
+          spdx: 'Apache-2.0',
+          url: `https://huggingface.co/${kokoroRelease.repo}/blob/${kokoroRelease.revision}/LICENSE`
+        }
+      }
+    },
+    files: kokoroRelease.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(0.01, file.sizeBytes / 1_000_000),
+      sources: [
+        { source: 'huggingface', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath },
+        { source: 'hf-mirror', repo: kokoroRelease.repo, revision: kokoroRelease.revision, remoteFile: file.relPath }
+      ]
+    }))
+  },
+  'qwen3-asr-1.7b-8bit': {
+    id: 'qwen3-asr-1.7b-8bit',
+    capability: 'asr',
+    installDirKey: 'feature.asr.qwen3',
+    requires: ['mlx-node'],
+    runtime: { architecture: 'qwen3-asr' },
+    provenance: {
+      license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf' },
+      upstream: { url: `https://huggingface.co/${qwen3AsrRelease.upstream}`, revision: qwen3AsrRelease.modelRevision },
+      conversion: {
+        url: 'https://github.com/mlx-node/mlx-node',
+        revision: qwen3AsrRelease.sourceRevision,
+        license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf' }
+      }
+    },
+    files: qwen3AsrRelease.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      urls: {
+        china: `https://www.modelscope.cn/models/${qwen3AsrRelease.modelscope.repo}/resolve/${qwen3AsrRelease.modelscope.revision}/${file.relPath}`,
+        global: `https://github.com/${qwen3AsrRelease.repository}/releases/download/${qwen3AsrRelease.tag}/${file.asset}`
+      },
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(1, Math.round(file.sizeBytes / 1_000_000))
+    }))
+  },
+  'qwen3-tts-0.6b-customvoice-8bit': {
+    id: 'qwen3-tts-0.6b-customvoice-8bit',
+    capability: 'tts',
+    installDirKey: 'feature.tts.qwen3',
+    requires: ['mlx-node'],
+    runtime: { architecture: 'qwen3-tts' },
+    provenance: {
+      license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice' },
+      upstream: {
+        url: 'https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice',
+        revision: mlxNodeRelease.modelRevision
+      },
+      conversion: {
+        url: 'https://github.com/mlx-node/mlx-node',
+        revision: mlxNodeRelease.sourceRevision,
+        license: { spdx: 'Apache-2.0', url: 'https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice' }
+      }
+    },
+    files: mlxNodeRelease.model.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      urls: {
+        china: `${mlxModelMirrorUrl}/${file.relPath}`,
+        global: `${mlxModelReleaseUrl}/${file.asset}`
+      },
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(1, Math.round(file.sizeBytes / 1_000_000))
+    }))
+  },
   /** Text embedding for the knowledge base. The four files are what transformers.js
    * needs to load the q8 weights offline; the repo's other quantizations are not fetched. */
   'qwen3-embedding-0.6b': {
@@ -166,6 +389,223 @@ export const LOCAL_MODEL_BUNDLES = {
         derivation: 'paddle_dict_from_inference_yml'
       }
     ]
+  },
+  'funasr-nano-int8': {
+    id: 'funasr-nano-int8',
+    capability: 'asr',
+    installDirKey: 'feature.asr.funasr',
+    requires: ['sherpa-onnx'],
+    runtime: { architecture: 'funasr-nano' },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: 'https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/blob/272c57b82523ada6fd87095e955f8e29100979ab/README.md'
+      },
+      upstream: {
+        url: 'https://huggingface.co/FunAudioLLM/Fun-ASR-Nano-2512/tree/272c57b82523ada6fd87095e955f8e29100979ab',
+        revision: '272c57b82523ada6fd87095e955f8e29100979ab'
+      },
+      conversion: {
+        url: 'https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx',
+        revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+        license: {
+          spdx: 'Apache-2.0',
+          url: 'https://www.modelscope.cn/models/zengshuishui/FunASR-nano-onnx'
+        }
+      }
+    },
+    files: [
+      {
+        key: 'encoder',
+        relPath: 'encoder_adaptor.int8.onnx',
+        sha256: 'f36dea2e30fbc33b5db1d7a7265cc976c5e5586c77b042d5adb1ad27c72db422',
+        sizeBytes: 237_792_748,
+        minBytes: 150_000_000,
+        weight: 238,
+        sources: [
+          {
+            source: 'huggingface',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'encoder_adaptor.int8.onnx'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'encoder_adaptor.int8.onnx'
+          },
+          {
+            source: 'modelscope',
+            repo: 'zengshuishui/FunASR-nano-onnx',
+            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+            remoteFile: 'encoder_adaptor.int8.onnx'
+          }
+        ]
+      },
+      {
+        key: 'llm',
+        relPath: 'llm.int8.onnx',
+        sha256: 'dfbf9aa3be41bccc257587f151e15c63fbe1b549f2b517f5ccd5bdce3bf4322a',
+        sizeBytes: 600_356_593,
+        minBytes: 400_000_000,
+        weight: 600,
+        sources: [
+          {
+            source: 'huggingface',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'llm.int8.onnx'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'llm.int8.onnx'
+          },
+          {
+            source: 'modelscope',
+            repo: 'zengshuishui/FunASR-nano-onnx',
+            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+            remoteFile: 'llm_int8/llm.int8.onnx'
+          }
+        ]
+      },
+      {
+        key: 'embedding',
+        relPath: 'embedding.int8.onnx',
+        sha256: '95e61cd0c9c3b9543339a4cf973c95c116815e745ccc1e0285cbd81f76d18644',
+        sizeBytes: 155_584_380,
+        minBytes: 100_000_000,
+        weight: 156,
+        sources: [
+          {
+            source: 'huggingface',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'embedding.int8.onnx'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'embedding.int8.onnx'
+          },
+          {
+            source: 'modelscope',
+            repo: 'zengshuishui/FunASR-nano-onnx',
+            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+            remoteFile: 'embedding.int8.onnx'
+          }
+        ]
+      },
+      {
+        key: 'tokenizerVocab',
+        relPath: 'Qwen3-0.6B/tokenizer.json',
+        sha256: 'aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4',
+        sizeBytes: 11_422_654,
+        minBytes: 5_000_000,
+        weight: 11,
+        sources: [
+          {
+            source: 'huggingface',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'Qwen3-0.6B/tokenizer.json'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'Qwen3-0.6B/tokenizer.json'
+          },
+          {
+            source: 'modelscope',
+            repo: 'zengshuishui/FunASR-nano-onnx',
+            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+            remoteFile: 'Qwen3-0.6B/tokenizer.json'
+          }
+        ]
+      },
+      {
+        key: 'tokenizerBpeVocab',
+        relPath: 'Qwen3-0.6B/vocab.json',
+        sha256: 'ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910',
+        sizeBytes: 2_776_833,
+        minBytes: 1_000_000,
+        weight: 3,
+        sources: [
+          {
+            source: 'huggingface',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'Qwen3-0.6B/vocab.json'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'Qwen3-0.6B/vocab.json'
+          },
+          {
+            source: 'modelscope',
+            repo: 'zengshuishui/FunASR-nano-onnx',
+            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+            remoteFile: 'Qwen3-0.6B/vocab.json'
+          }
+        ]
+      },
+      {
+        key: 'tokenizerBpeMerges',
+        relPath: 'Qwen3-0.6B/merges.txt',
+        sha256: '8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5',
+        sizeBytes: 1_671_853,
+        minBytes: 500_000,
+        weight: 2,
+        sources: [
+          {
+            source: 'huggingface',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'Qwen3-0.6B/merges.txt'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'csukuangfj/sherpa-onnx-funasr-nano-int8-2025-12-30',
+            revision: '6f16bd378457e13f36ccf3910df9017f96c346fb',
+            remoteFile: 'Qwen3-0.6B/merges.txt'
+          },
+          {
+            source: 'modelscope',
+            repo: 'zengshuishui/FunASR-nano-onnx',
+            revision: '2f25d8e45c1534925cda6a4977d497f383b01535',
+            remoteFile: 'Qwen3-0.6B/merges.txt'
+          }
+        ]
+      },
+      {
+        key: 'voiceActivityDetector',
+        relPath: 'silero_vad.onnx',
+        sha256: 'a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28',
+        sizeBytes: 1_807_522,
+        minBytes: 1_000_000,
+        weight: 2,
+        sources: [
+          {
+            source: 'huggingface',
+            repo: 'csukuangfj/vad',
+            revision: 'fba88cd2e921609e7675c3aaf51e0b9b295da4bc',
+            remoteFile: 'silero_vad.onnx'
+          },
+          {
+            source: 'hf-mirror',
+            repo: 'csukuangfj/vad',
+            revision: 'fba88cd2e921609e7675c3aaf51e0b9b295da4bc',
+            remoteFile: 'silero_vad.onnx'
+          }
+        ]
+      }
+    ]
   }
 } as const satisfies Record<LocalModelBundleId, ModelBundle>
 
@@ -179,10 +619,9 @@ export function getSharedArtifact(id: SharedArtifactId): SharedArtifact {
   return SHARED_ARTIFACTS[id]
 }
 
-/** The one bundle serving a capability. Throws rather than returning undefined:
- * a capability with no bundle is a catalog bug, not a runtime condition. */
-export function bundleForCapability(capability: ModelBundle['capability']): ModelBundle {
-  return getModelBundle(LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
+/** Recommended bundle for consumers without explicit model selection. */
+export function defaultBundleForCapability(capability: ModelBundle['capability']): ModelBundle {
+  return getModelBundle(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
 }
 
 /** The transformers.js quantization selector for a bundle's weights. Throws when the

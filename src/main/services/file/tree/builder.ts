@@ -173,6 +173,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private disposed = false
   private initialScanPromise: Promise<void> | null = null
   private rootMissingAtInit = false
+  private readonly pendingAdds = new Map<string, symbol>()
   // Paths recently affected by an explicit `rename()` — used to suppress the
   // chokidar `unlink(oldPath)` + `add(newPath)` events that follow shortly
   // after, so the renderer doesn't apply `removed` + `added` on top of the
@@ -400,12 +401,17 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     if (ev.kind === 'add' || ev.kind === 'addDir') {
       const isDir = ev.kind === 'addDir'
       if (!isDir && !passesExtensionFilter(evPath, this.options)) return
+      const pending = Symbol()
+      this.pendingAdds.set(evPath, pending)
       const stats = this.options.withStats ? await statQuiet(evPath) : undefined
+      if (this.pendingAdds.get(evPath) !== pending) return
+      this.pendingAdds.delete(evPath)
       this.insertNode(evPath, isDir ? 'directory' : 'file', stats, /* emit */ true)
       return
     }
 
     if (ev.kind === 'unlink' || ev.kind === 'unlinkDir') {
+      this.invalidatePendingAdds(evPath)
       if (evPath === this.rootPath) {
         for (const child of Object.values(this.root.children)) {
           this.removeNode(child.path, /* emit */ true)
@@ -426,6 +432,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
           this.emitter.fire({ type: 'updated', path: evPath, stats })
         }
       }
+    }
+  }
+
+  private invalidatePendingAdds(absPath: string): void {
+    for (const pendingPath of this.pendingAdds.keys()) {
+      if (pendingPath === absPath || pendingPath.startsWith(`${absPath}/`)) this.pendingAdds.delete(pendingPath)
     }
   }
 
@@ -542,6 +554,8 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // If unlink won the race, let the pending add recreate the target node.
     if (!node) return false
 
+    this.invalidatePendingAdds(oldNorm)
+    this.pendingAdds.delete(newNorm)
     if (this.shouldIgnorePath(newNorm)) {
       this.markRenamed(oldNorm, newNorm)
       this.removeNode(oldNorm, /* emit */ true)
@@ -610,6 +624,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.pendingAdds.clear()
     this.watcherSubscription?.dispose()
     this.watcherSubscription = null
     const watcher = this.watcher
@@ -627,6 +642,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       return
     }
     this.disposed = true
+    this.pendingAdds.clear()
     this.watcherSubscription?.dispose()
     this.watcherSubscription = null
     // Capture the watcher before nulling so we can await its close. The
