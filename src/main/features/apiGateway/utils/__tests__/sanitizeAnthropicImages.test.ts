@@ -1,6 +1,8 @@
 import type { ContentBlockParam, MessageParam } from '@anthropic-ai/sdk/resources/messages'
 import sharp from 'sharp'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import * as imageUtils from '@main/utils/image'
 
 import { sanitizeAnthropicRequestImages, UNDECODABLE_IMAGE_PLACEHOLDER } from '../sanitizeAnthropicImages'
 
@@ -87,5 +89,44 @@ describe('sanitizeAnthropicRequestImages', () => {
 
     expect(replacedCount).toBe(0)
     expect(out).toBe(messages)
+  })
+
+  it('caches decode verdicts by content hash across repeated requests', async () => {
+    const corrupt = (await truncatedPng()).toString('base64')
+    const messages: MessageParam[] = [
+      {
+        role: 'user',
+        content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: corrupt } }]
+      }
+    ]
+
+    const spy = vi.spyOn(imageUtils, 'isDecodableImage')
+    afterEach(() => spy.mockRestore())
+
+    const first = await sanitizeAnthropicRequestImages(messages)
+    const second = await sanitizeAnthropicRequestImages(messages)
+    const third = await sanitizeAnthropicRequestImages(messages)
+
+    expect(first.replacedCount).toBe(1)
+    expect(second.replacedCount).toBe(1)
+    expect(third.replacedCount).toBe(1)
+    // cache cold on first sight only; later turns reuse the verdict
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(1)
+  })
+
+  it('keeps a cached decodable verdict from ever replacing a good image', async () => {
+    const good = PNG_1X1.toString('base64')
+    const messages: MessageParam[] = [
+      {
+        role: 'user',
+        content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: good } }]
+      }
+    ]
+
+    await sanitizeAnthropicRequestImages(messages)
+    const again = await sanitizeAnthropicRequestImages(messages)
+
+    expect(again.replacedCount).toBe(0)
+    expect(again.messages).toBe(messages)
   })
 })

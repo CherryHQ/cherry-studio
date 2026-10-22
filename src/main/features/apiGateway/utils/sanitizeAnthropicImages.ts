@@ -8,6 +8,8 @@ import type {
 
 type ToolResultContentBlock = Exclude<ToolResultBlockParam['content'], string | undefined>[number]
 
+import { createHash } from 'node:crypto'
+
 import { isDecodableImage } from '@main/utils/image'
 
 export const UNDECODABLE_IMAGE_PLACEHOLDER = '[image could not be decoded]'
@@ -21,10 +23,28 @@ function textPlaceholder(): TextBlockParam {
   return { type: 'text', text: UNDECODABLE_IMAGE_PLACEHOLDER }
 }
 
+/**
+ * A long Agent transcript replays every stored image on every turn, and a full
+ * sharp decode costs ~300ms per screenshot - so verdicts are cached by content
+ * hash (bounded FIFO). Bytes are only materialized on a cache miss.
+ */
+const DECODE_VERDICT_CACHE_LIMIT = 256
+const decodeVerdictCache = new Map<string, boolean>()
+
 async function sanitizeImageBlock(block: ImageBlockParam): Promise<ContentBlockParam> {
   if (block.source.type !== 'base64') return block
-  const bytes = Buffer.from(block.source.data, 'base64')
-  if (await isDecodableImage(bytes)) return block
+  const data = block.source.data
+  const key = createHash('sha256').update(data).digest('hex')
+  let decodable = decodeVerdictCache.get(key)
+  if (decodable === undefined) {
+    decodable = await isDecodableImage(Buffer.from(data, 'base64'))
+    decodeVerdictCache.set(key, decodable)
+    if (decodeVerdictCache.size > DECODE_VERDICT_CACHE_LIMIT) {
+      const oldest = decodeVerdictCache.keys().next().value
+      if (oldest !== undefined) decodeVerdictCache.delete(oldest)
+    }
+  }
+  if (decodable) return block
   return textPlaceholder()
 }
 
