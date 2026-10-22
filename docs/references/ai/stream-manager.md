@@ -139,6 +139,11 @@ Choose by **consumer / producer fanout**:
 - **`ai.stream.attach` is required.** The listener channel requires
   explicit consumer registration; `attach` is the entry point and also
   returns a compact replay to fill the "before I subscribed" gap.
+- **Replay has an execution cutoff.** Managed chunks carry an attempt-scoped
+  `sequence`; `attach` returns `replayThrough[attemptId]` with the compact replay.
+  Main flushes the previous window listener's pending deltas before replacing
+  it, so a coalesced payload cannot cross that cutoff. Renderer consumers apply
+  replay before queued live events and discard live chunks covered by the cutoff.
 - **Bootstrap needs no extra IPC.** A new window pulls all shared cache
   entries via `Cache_GetAllShared` on mount; every
   `topic.stream.statuses.${topicId}` entry comes through without a
@@ -349,6 +354,7 @@ interface StreamExecution {
   // Independent buffers prevent a chatty model from evicting a slower
   // model's replay (a shared buffer would).
   buffer: StreamChunkPayload[]
+  sequence: number                 // source chunk counter within this attempt
   droppedChunks: number
 
   finalMessage?: CherryUIMessage
@@ -826,7 +832,7 @@ chunks-only prompt stream with no message target. See
 
 | Channel | Payload | Notes |
 |---|---|---|
-| `ai.stream.chunk` | `{ topicId, executionId?, chunk }` | Multi-model carries `executionId`; **only sent to attached windows** |
+| `ai.stream.chunk` | `{ topicId, executionId?, attemptId?, sequence?, anchorMessageId?, chunk }` | Managed executions include `attemptId` and `sequence`; **only sent to attached windows** |
 | `ai.stream.done` | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` — natural completion vs user abort; **only sent to attached windows** |
 | `ai.stream.error` | `{ topicId, executionId?, isTopicDone, error }` | `SerializedError`; **only sent to attached windows** |
 
