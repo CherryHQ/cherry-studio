@@ -66,6 +66,11 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
   const getInstallErrorMessage = useCallback(
     (e: unknown, fallbackName?: string) => {
       const prefix = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
+      // The main process throws "No skill directory found" for archives without SKILL.md.
+      // Show a localized, actionable message instead of the raw error (which may leak a temp path).
+      if (e instanceof Error && e.message.includes('No skill directory found')) {
+        return `${prefix}: ${t('settings.skills.noSkillDirectoryFound')}`
+      }
       return e instanceof Error && e.message ? formatErrorMessageWithPrefix(e, prefix) : prefix
     },
     [t]
