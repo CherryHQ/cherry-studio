@@ -76,7 +76,7 @@ export interface UseRichEditorReturn {
     onCancel: () => void
   }
 
-  /** Set markdown content */
+  /** Load or synchronize Markdown content without firing content-change callbacks. */
   setMarkdown: (content: string) => void
   /** Clear all content */
   clear: () => void
@@ -706,17 +706,14 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     (content: string) => {
       try {
         setMarkdownState(content)
-        onChange?.(content)
 
         // Parse markdown straight into the ProseMirror doc via the native AST.
-        editor.commands.setContent(content, { contentType: 'markdown' })
-
-        onHtmlChange?.(editor.getHTML())
+        editor.commands.setContent(content, { contentType: 'markdown', emitUpdate: false })
       } catch (error) {
         logger.error('Error setting markdown content:', error as Error)
       }
     },
-    [editor, onChange, onHtmlChange]
+    [editor]
   )
 
   const clear = useCallback(() => {
