@@ -3,7 +3,11 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError, PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport
+} from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
@@ -165,6 +169,7 @@ class TokenhubTransport implements ImageGenerationTransport {
           'POST',
           buildHunyuanBody(input, bag),
           {
+            timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
             signal: input.signal
           }
         )
@@ -176,6 +181,7 @@ class TokenhubTransport implements ImageGenerationTransport {
           'POST',
           buildSeedreamBody(input, bag),
           {
+            timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
             signal: input.signal
           }
         )
@@ -187,6 +193,7 @@ class TokenhubTransport implements ImageGenerationTransport {
           'POST',
           buildViduBody(input, bag),
           {
+            timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
             signal: input.signal
           }
         )
@@ -264,7 +271,7 @@ class TokenhubTransport implements ImageGenerationTransport {
     body: Record<string, unknown> | undefined,
     options: { timeout?: number; signal?: AbortSignal }
   ): Promise<T> {
-    const timeout = options.timeout ?? 120000
+    const timeout = options.timeout ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS
     const externalSignal = options.signal
     const controller = new AbortController()
     let externallyAborted = false

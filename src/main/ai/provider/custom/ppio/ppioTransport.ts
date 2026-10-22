@@ -1,6 +1,10 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport
+} from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
@@ -197,13 +201,14 @@ class PpioTransport implements ImageGenerationTransport {
 
     if (descriptor.isSync) {
       const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams, 'POST', {
+        timeout: input.requestTimeoutMs ?? DEFAULT_TIMEOUT,
         signal: input.signal
       })
       return { imageUrls: this.extractSyncImageUrls(result) }
     }
 
     const result = await this.request<{ task_id: string }>(descriptor.endpoint, requestParams, 'POST', {
-      timeout: 120000,
+      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal
     })
     return { taskId: result.task_id }

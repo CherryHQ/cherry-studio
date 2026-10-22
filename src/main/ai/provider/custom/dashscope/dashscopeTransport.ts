@@ -1,9 +1,10 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportDescriptor
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport,
+  type ImageTransportDescriptor
 } from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
@@ -387,7 +388,7 @@ class DashScopeTransport implements ImageGenerationTransport {
     const extraHeaders: Record<string, string> = descriptor.isSync ? {} : { 'X-DashScope-Async': 'enable' }
 
     const response = await this.request<DashScopeTaskResult>(descriptor.endpoint, 'POST', body, {
-      timeout: 120000,
+      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal,
       extraHeaders
     })

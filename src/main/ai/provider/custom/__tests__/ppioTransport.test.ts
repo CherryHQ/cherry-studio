@@ -196,6 +196,44 @@ describe('PpioTransport', () => {
     expect((error as Error).message).toBe(`PPIO API request timeout after ${DEFAULT_TIMEOUT / 1000}s`)
   })
 
+  it('honors an explicit request timeout for async submits', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal as AbortSignal
+          signal.addEventListener('abort', () => {
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        })
+    )
+
+    const promise = transport
+      .submit({
+        modelId: 'jimeng-txt2img-v3.1',
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
+        providerParams: { model: 'jimeng-txt2img-v3.1' },
+        requestTimeoutMs: 15_000
+      })
+      .catch((error) => error)
+
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    // Racing a sentinel keeps the pre-fix behaviour (override ignored → 120s
+    // default still pending at 15s) a fast failure instead of a hung test.
+    const outcome = await Promise.race([promise, Promise.resolve('still-pending' as const)])
+    expect(outcome).toBeInstanceOf(Error)
+    expect((outcome as Error).message).toBe('PPIO API request timeout after 15s')
+  })
+
   it('supports official Seedream 5.0 Lite sync endpoint and object image results', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(

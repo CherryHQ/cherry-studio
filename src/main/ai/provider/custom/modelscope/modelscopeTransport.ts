@@ -1,7 +1,11 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport
+} from '../imageGenerationModel'
 import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal } from '../transportUtils'
 
 /**
@@ -102,7 +106,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
     if (input.seed !== undefined) body.seed = input.seed
 
     const response = await this.request<{ task_id: string }>(`/v1/images/generations`, 'POST', body, {
-      timeout: 120000,
+      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal,
       extraHeaders: { 'X-ModelScope-Async-Mode': 'true' }
     })
