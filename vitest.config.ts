@@ -220,6 +220,7 @@ export default defineConfig({
         }
       },
       ...[
+        ['agent-behavior', 'tests'],
         ['agent-runtime', 'tests'],
         ['agent-runtime-pi', 'tests'],
         ['agent-runtime-pi-durable', 'tests'],
