@@ -4991,6 +4991,8 @@
   "settings.models.filter.label": "モデルをフィルター",
   "settings.models.filter.scroll_left": "モデルタイプを左にスクロール",
   "settings.models.filter.scroll_right": "モデルタイプを右にスクロール",
+  "settings.models.include_reasoning_in_context.label": "コンテキストに推論を含める",
+  "settings.models.include_reasoning_in_context.tooltip": "以前の思考チェーンをモデルに送信します。トークン使用量を減らすにはオフにしてください。モデルの API が署名付き推論ラウンドトリップを必要とする場合（Anthropic または Gemini のネイティブエンドポイント。Vertex、Bedrock、ゲートウェイ経路を含む）、推論は常に保持されます",
   "settings.models.list_title": "モデル",
   "settings.models.manage.add_listed.label": "すべてのモデルを追加",
   "settings.models.manage.add_partial_failure": "部分的な成功: {{added}}件を追加し、{{failed}}件が失敗しました",

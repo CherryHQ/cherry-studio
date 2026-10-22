@@ -4991,6 +4991,8 @@
   "settings.models.filter.label": "筛选模型",
   "settings.models.filter.scroll_left": "向左滚动模型类型",
   "settings.models.filter.scroll_right": "向右滚动模型类型",
+  "settings.models.include_reasoning_in_context.label": "在上下文中包含思考内容",
+  "settings.models.include_reasoning_in_context.tooltip": "将历史思考链发送给模型。关闭可减少 token 消耗。当模型的 API 要求回传带签名的思考内容时会始终保留（Anthropic 或 Gemini 原生端点，包括 Vertex、Bedrock 及网关路由）",
   "settings.models.list_title": "模型",
   "settings.models.manage.add_listed.label": "添加全部模型",
   "settings.models.manage.add_partial_failure": "部分添加成功:成功 {{added}} 个,失败 {{failed}} 个",

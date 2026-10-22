@@ -196,6 +196,13 @@
       "when": 1791545804060,
       "tag": "0027_knowledge_base_order",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1792570973112,
+      "tag": "0028_heavy_wallop",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -4991,6 +4991,8 @@
   "settings.models.filter.label": "Modelle filtern",
   "settings.models.filter.scroll_left": "Modelltypen nach links scrollen",
   "settings.models.filter.scroll_right": "Modelltypen nach rechts scrollen",
+  "settings.models.include_reasoning_in_context.label": "Reasoning im Kontext einschließen",
+  "settings.models.include_reasoning_in_context.tooltip": "Vorherige Chain-of-Thought an das Modell senden. Deaktivieren, um den Tokenverbrauch zu reduzieren. Reasoning wird immer beibehalten, wenn die API des Modells signierte Reasoning-Roundtrips erfordert (native Anthropic- oder Gemini-Endpunkte, einschließlich Vertex, Bedrock und Gateway-Routen)",
   "settings.models.list_title": "Modelle",
   "settings.models.manage.add_listed.label": "Alle Modelle hinzufügen",
   "settings.models.manage.add_partial_failure": "Teilweise erfolgreich: {{added}} Modell(e) hinzugefügt, {{failed}} fehlgeschlagen",

@@ -49,8 +49,10 @@ describe('knowledge ordering migrate-forward', () => {
       .insert(knowledgeItemTable)
       .values({ baseId: values[0].id, type: 'note', data: content, status: 'completed' })
       .run()
+    // Undo the schema effects of every migration at or after 0027 so the replay below
+    // exercises them; the journal delete makes drizzle re-apply the whole suffix.
     dbh.sqlite.exec(
-      'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
+      'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key; ALTER TABLE user_model DROP COLUMN include_reasoning_in_context'
     )
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
     applyMigrations(dbh.db, migrationsFolder)

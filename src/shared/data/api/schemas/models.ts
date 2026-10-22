@@ -57,6 +57,8 @@ export const CreateModelSchema = z.strictObject({
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
   /** Context window size */
   contextWindow: PositiveModelTokenLimitSchema.optional(),
+  /** Whether prior reasoning (chain-of-thought) is included in the request context */
+  includeReasoningInContext: z.boolean().optional(),
   /** Maximum input tokens */
   maxInputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Maximum output tokens */

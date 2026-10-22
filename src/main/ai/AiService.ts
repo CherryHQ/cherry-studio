@@ -623,7 +623,8 @@ export class AiService extends BaseService {
       assistant,
       hookParts,
       nativeFileSupport,
-      fileAttachments
+      fileAttachments,
+      stripHistoryReasoning
     } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const usageContext = createCaptureContext({
       provider,
@@ -768,7 +769,8 @@ export class AiService extends BaseService {
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
         mediaCapabilities,
         resolveModelTokenDialect(provider, model)
-      )
+      ),
+      stripHistoryReasoning
     })
     agentRef.current = agent
 

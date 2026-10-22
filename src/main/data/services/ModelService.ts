@@ -82,6 +82,7 @@ const PRESET_DELTA_FIELDS = [
   'outputModalities',
   'endpointTypes',
   'contextWindow',
+  'includeReasoningInContext',
   'maxInputTokens',
   'maxOutputTokens',
   'supportsStreaming',
@@ -173,6 +174,7 @@ export interface UserModelOverlay {
   outputModalities?: Modality[] | null
   endpointTypes?: EndpointType[] | null
   contextWindow?: number | null
+  includeReasoningInContext?: boolean | null
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
   supportsStreaming?: boolean | null
@@ -214,6 +216,9 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   }
   if (overlay.contextWindow != null) {
     result.contextWindow = overlay.contextWindow
+  }
+  if (overlay.includeReasoningInContext != null) {
+    result.includeReasoningInContext = overlay.includeReasoningInContext
   }
   if (overlay.maxInputTokens != null) {
     result.maxInputTokens = overlay.maxInputTokens
@@ -295,6 +300,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   ['parameterSupport', 'parameters'],
   'supportsStreaming',
   'contextWindow',
+  'includeReasoningInContext',
   'maxInputTokens',
   'maxOutputTokens',
   'pricing',
@@ -323,6 +329,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
     supportsStreaming: dto.supportsStreaming ?? true,
+    includeReasoningInContext: dto.includeReasoningInContext ?? true,
     reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
@@ -385,6 +392,7 @@ function presetDeltaToNewUserModel(
     outputModalities: fields.has('outputModalities') ? (dto.outputModalities ?? null) : null,
     endpointTypes: fields.has('endpointTypes') ? (dto.endpointTypes ?? null) : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
+    includeReasoningInContext: fields.has('includeReasoningInContext') ? (dto.includeReasoningInContext ?? null) : null,
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
     supportsStreaming: fields.has('supportsStreaming') ? (dto.supportsStreaming ?? null) : null,
@@ -406,6 +414,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     outputModalities: row.outputModalities,
     endpointTypes: row.endpointTypes,
     contextWindow: row.contextWindow,
+    includeReasoningInContext: row.includeReasoningInContext,
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,
@@ -444,6 +453,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     inputModalities: row.inputModalities ?? undefined,
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
+    includeReasoningInContext: row.includeReasoningInContext ?? undefined,
     maxInputTokens: row.maxInputTokens ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,

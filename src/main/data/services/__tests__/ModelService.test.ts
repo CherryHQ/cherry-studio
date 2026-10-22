@@ -153,6 +153,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'parameterSupport',
       'supportsStreaming',
       'contextWindow',
+      'includeReasoningInContext',
       'maxInputTokens',
       'maxOutputTokens',
       'pricing',
@@ -294,6 +295,20 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.name).toBe('Updated Name')
+  })
+
+  it('preserves the reasoning opt-out through preset update and read round trips', async () => {
+    await seedExistingModel()
+    resolveModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o', includeReasoningInContext: true },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const updated = modelService.update('openai', 'gpt-4o', { includeReasoningInContext: false })
+
+    expect(updated.includeReasoningInContext).toBe(false)
+    expect(modelService.getByKey('openai', 'gpt-4o').includeReasoningInContext).toBe(false)
   })
 
   it('removes an override when a PATCH echoes the current registry baseline', async () => {

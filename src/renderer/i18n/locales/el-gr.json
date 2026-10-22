@@ -4991,6 +4991,8 @@
   "settings.models.filter.label": "Φιλτράρισμα μοντέλων",
   "settings.models.filter.scroll_left": "Κύλιση τύπων μοντέλων προς τα αριστερά",
   "settings.models.filter.scroll_right": "Κύλιση τύπων μοντέλων προς τα δεξιά",
+  "settings.models.include_reasoning_in_context.label": "Συμπερίληψη συλλογισμού στο πλαίσιο",
+  "settings.models.include_reasoning_in_context.tooltip": "Αποστολή προηγούμενης αλυσίδας σκέψης στο μοντέλο. Απενεργοποιήστε για μείωση της χρήσης token. Ο συλλογισμός διατηρείται πάντα όταν το API του μοντέλου απαιτεί υπογεγραμμένα round-trips συλλογισμού (εγγενή endpoints Anthropic ή Gemini, συμπεριλαμβανομένων των Vertex, Bedrock και διαδρομών gateway)",
   "settings.models.list_title": "Μοντέλα",
   "settings.models.manage.add_listed.label": "Προσθήκη όλων των μοντέλων",
   "settings.models.manage.add_partial_failure": "Μερική επιτυχία: {{added}} προστέθηκαν, {{failed}} απέτυχαν",

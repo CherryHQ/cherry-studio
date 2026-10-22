@@ -225,13 +225,15 @@ describe('mergePresetModel + applyUserOverlay', () => {
     const overlay: UserModelOverlay = {
       name: null,
       contextWindow: null,
-      capabilities: null
+      capabilities: null,
+      includeReasoningInContext: null
     }
-    const baseline = mergePresetModel(presetModel, null, 'openai')
+    const baseline = { ...mergePresetModel(presetModel, null, 'openai'), includeReasoningInContext: true }
     const model = applyUserOverlay(baseline, overlay)
     expect(model.name).toBe('GPT-4o')
     expect(model.contextWindow).toBe(128_000)
     expect(model.capabilities).toContain(CAPABILITY.IMAGE_RECOGNITION)
+    expect(model.includeReasoningInContext).toBe(true)
   })
 })
 
