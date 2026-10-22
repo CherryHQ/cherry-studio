@@ -1488,6 +1488,10 @@ describe('cherry-tools autonomy tools', () => {
           required_fields: ['client_id', 'client_secret', 'robot_code'],
           optional_fields: ['allowed_chat_ids', 'allowed_user_ids', 'card_template_id']
         })
+        expect(parsed.supported_channel_types.find((type: any) => type.type === 'feishu')).toMatchObject({
+          required_fields: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
+          optional_fields: ['allowed_chat_ids', 'mention_only']
+        })
         expect(parsed.soul_enabled).toBeUndefined()
         expect(parsed.heartbeat_enabled).toBe(true)
       })
