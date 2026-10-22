@@ -2,20 +2,23 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ReactNode, useEffect } from 'react'
+import { type ComponentType, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
+import { voiceTargetManager } from '@renderer/services/voice'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import type * as ComposerSurfaceModule from '../../ComposerSurface'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
@@ -57,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   topicPending: false,
   awaitingApproval: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  realSurface: undefined as ComponentType<ComposerSurfaceProps> | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
@@ -217,7 +221,10 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
   }
 
   return {
-    default: MockComposerSurface
+    default: (props: ComposerSurfaceProps) => {
+      const Surface = mocks.realSurface ?? MockComposerSurface
+      return <Surface {...props} />
+    }
   }
 })
 
@@ -267,7 +274,9 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
+  ComposerToolFooterActionsSync: () => null,
   ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
+  useComposerPinnedTools: () => mocks.pinnedToolIds,
   useComposerTokenReconcile: () => mocks.reconcileTokens,
   useComposerToolState: () => ({
     files: mocks.files ?? [],
@@ -702,7 +711,6 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.set).mockReset()
     vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
     vi.mocked(cacheService.setCasual).mockReset()
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
@@ -791,6 +799,7 @@ describe('ChatComposer', () => {
     mocks.topicPending = false
     mocks.awaitingApproval = false
     mocks.surfaceProps = undefined
+    mocks.realSurface = undefined
     mocks.derivedToolState = undefined
     mocks.toolLaunchers = []
     mocks.toolLaunchersVersion = 0
@@ -2374,7 +2383,7 @@ describe('ChatComposer', () => {
     })
 
     expect(onSend).not.toHaveBeenCalled()
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('does not submit a text draft before a newly attached file token is reflected in the editor', async () => {
@@ -2389,7 +2398,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toHaveLength(1)
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('does not submit a text draft while only some attached file tokens are reflected in the editor', async () => {
@@ -2418,7 +2427,7 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.files).toEqual([syncedFile, unsyncedFile])
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
@@ -2441,7 +2450,7 @@ describe('ChatComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
-    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).toHaveBeenCalledWith(expect.objectContaining({ message: 'send failed' }))
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
@@ -2638,7 +2647,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.draftTokens).toEqual([fileToken, quoteToken])
     expect(mocks.surfaceProps?.editable).toBe(true)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
-    expect(toast.error).not.toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.errorFromException).not.toHaveBeenCalled()
   })
 
   it('wires ArrowUp input history navigation and applies the latest history text to the composer', async () => {
@@ -3093,7 +3102,9 @@ describe('ChatComposer', () => {
         url: 'file:///p/fe-1.pdf',
         mediaType: 'application/pdf',
         filename: 'doc.pdf',
-        providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
+        providerMetadata: {
+          cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1', originalPath: '/tmp/doc.pdf' }
+        }
       }
     ])
   })
@@ -4680,6 +4691,53 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
+  it('rejects late dictation during an edit save and accepts explicit recovery after saving', async ({
+    onTestFinished
+  }) => {
+    const user = userEvent.setup()
+    const createRange = document.createRange.bind(document)
+    const rangeSpy = vi.spyOn(document, 'createRange').mockImplementation(() => {
+      const range = createRange()
+      range.getBoundingClientRect = () => new DOMRect()
+      range.getClientRects = () => [] as unknown as DOMRectList
+      return range
+    })
+    onTestFinished(() => rangeSpy.mockRestore())
+    mocks.realSurface = (await vi.importActual<typeof ComposerSurfaceModule>('../../ComposerSurface')).default
+    const save = createDeferred<void>()
+    const editMessage = vi.fn(() => save.promise)
+    mocks.chatWrite = { pause: vi.fn(), editMessage }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    }
+    render(
+      <QuickPanelProvider>
+        <MessageEditingProvider>
+          <StartEditingOnMount message={message} parts={[{ type: 'text', text: 'saved text' }]} />
+          <ChatComposer topic={topic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      </QuickPanelProvider>
+    )
+    const editor = await screen.findByRole('textbox')
+    await user.click(editor)
+    const target = voiceTargetManager.captureCurrent()
+    expect(target).not.toBeNull()
+    await user.click(await screen.findByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(editMessage).toHaveBeenCalled())
+
+    expect(voiceTargetManager.insert(target!, 'late transcript')).toBe('unavailable')
+    await act(async () => save.resolve())
+    expect(editMessage).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'saved text' }])
+    act(() => {
+      expect(voiceTargetManager.insertIntoCurrent('late transcript', 'user_recovery')).toBe('inserted')
+    })
+    expect(await screen.findByText('late transcript')).toBeVisible()
+  })
+
   it('prevents concurrent saves of the same edited message', async () => {
     let resolveSave: () => void = () => undefined
     const pendingSave = new Promise<void>((resolve) => {
@@ -5348,6 +5406,302 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
+  })
+  describe('queued edit switching', () => {
+    async function setup(texts = ['A', 'B']) {
+      mocks.topicPending = true
+      mocks.getDraft.mockImplementation((props) => ({ text: props.text, tokens: [] }))
+      const send = vi.fn().mockResolvedValue(undefined)
+      const component = (busy = true) => {
+        mocks.topicPending = busy
+        return <ChatComposer topic={topic} onSend={send} />
+      }
+      const view = render(component())
+      const dock = () => (mocks.surfaceProps?.queueContent as any)?.props
+      for (const text of texts) {
+        await act(async () => {
+          await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+        })
+      }
+      const originals = [...dock().items]
+      const edit = async (id: string) => {
+        await act(async () => {
+          dock().onEdit(id)
+        })
+      }
+      return { dock, originals, edit, view, component, send }
+    }
+
+    it('rebuilds live controls without reviving removed Fast mode', async () => {
+      mocks.model = { ...model, supportsFastMode: true }
+      mocks.mentionedModels = [mocks.model]
+      mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
+      const {
+        dock,
+        originals: [a, b],
+        edit
+      } = await setup()
+      act(() => {
+        dock().onRemove(a.id)
+      })
+      act(() => mocks.speedControlProps?.onFastModeChange(true))
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'fast A', tokens: [] })
+      })
+      const fastA = dock().items[1]
+      expect(fastA.payload.fastMode, 'the queued snapshot must start with Fast enabled').toBe(true)
+      await edit(fastA.id)
+      act(() => mocks.speedControlProps?.onFastModeChange(false))
+      await edit(b.id)
+      expect(dock()?.items, 'the outgoing item must be returned after live controls change').toHaveLength(1)
+      expect(dock().items[0].id, 'rebuilding controls must preserve the original queued identity').toBe(fastA.id)
+      expect(
+        dock().items[0].payload,
+        'capturing must rebuild instead of spreading obsolete optional fields'
+      ).not.toHaveProperty('fastMode')
+    })
+
+    it('returns unchanged A under its original identity and supports switching back', async () => {
+      const {
+        dock,
+        originals: [a, b],
+        edit
+      } = await setup()
+      await edit(a.id)
+      await edit(b.id)
+      expect(dock()?.items, 'switching to B must preserve the entire queued A').toEqual([a])
+      expect(mocks.surfaceProps?.text, 'B must own the editor after the switch').toBe('B')
+      await edit(a.id)
+      expect(dock()?.items, 'switching back must preserve B under its original id').toEqual([b])
+      expect(mocks.surfaceProps?.text, 'A must reopen').toBe('A')
+    })
+
+    it('rebuilds edited A from the live document before restoring B', async () => {
+      const {
+        dock,
+        originals: [a, b],
+        edit,
+        send
+      } = await setup()
+      await edit(a.id)
+      act(() => mocks.surfaceProps?.onTextChange('A-prime'))
+      await edit(b.id)
+      expect(dock()?.items?.[0], 'A edits must survive under the existing id').toMatchObject({
+        id: a.id,
+        draft: { text: 'A-prime', tokens: [] },
+        payload: { text: 'A-prime', userMessageParts: [{ type: 'text', text: 'A-prime' }] }
+      })
+      await act(async () => {
+        await dock().onSteer(a.id)
+      })
+      expect(JSON.stringify(send.mock.calls), 'the actual queued dispatch must carry the edited content').toContain(
+        'A-prime'
+      )
+      expect(mocks.surfaceProps?.text, 'steering returned A must leave B in the editor').toBe('B')
+      expect(dock(), 'accepted A must leave the visible queue').toBeFalsy()
+    })
+
+    it('returns the original draft and payload together when A is empty', async () => {
+      const {
+        dock,
+        originals: [a, b],
+        edit
+      } = await setup()
+      await edit(a.id)
+      act(() => mocks.surfaceProps?.onTextChange('   '))
+      await edit(b.id)
+      expect(dock()?.items, 'blank editing must not discard or mismatch A draft and payload').toEqual([a])
+      expect(mocks.surfaceProps?.text, 'the valid switch must open B').toBe('B')
+    })
+
+    it('refuses a switch with unsynchronised files without touching queue cache or editor', async () => {
+      const {
+        dock,
+        originals: [a, b],
+        edit,
+        view,
+        component
+      } = await setup()
+      await edit(a.id)
+      mocks.files = [{ fileTokenSourceId: 'pending', name: 'pending.pdf', path: '/tmp/pending.pdf' } as any]
+      view.rerender(component())
+      const writes = vi
+        .mocked(cacheService.setCasual)
+        .mock.calls.filter(([key]) => key.startsWith('followup-queue.')).length
+      const restores = mocks.replaceDraft.mock.calls.length
+      await edit(b.id)
+      expect(dock()?.items, 'pending files must leave B queued').toEqual([b])
+      expect(mocks.surfaceProps?.text, 'pending files must leave A in the editor').toBe('A')
+      expect(mocks.replaceDraft.mock.calls.length, 'refusal must not restore B').toBe(restores)
+      expect(
+        vi.mocked(cacheService.setCasual).mock.calls.filter(([key]) => key.startsWith('followup-queue.')).length,
+        'refusal must not persist a changed queue'
+      ).toBe(writes)
+    })
+
+    it('adjusts the insertion slot after removing an earlier row', async () => {
+      const {
+        dock,
+        originals: [x, a, b, c],
+        edit
+      } = await setup(['X', 'A', 'B', 'C'])
+      await edit(a.id)
+      act(() => {
+        dock().onRemove(x.id)
+      })
+      await edit(b.id)
+      expect(dock()?.items, 'removing X must restore A before C').toEqual([a, c])
+      act(() => {
+        dock().onReorder([c, a])
+      })
+      expect(dock()?.items, 'returned items must remain reorderable').toEqual([c, a])
+    })
+
+    it.each(['enqueue', 'direct send'])('does not resurrect a consumed edit after successful %s', async (mode) => {
+      const {
+        dock,
+        originals: [a, b],
+        edit,
+        view,
+        component
+      } = await setup()
+      await edit(a.id)
+      if (mode === 'direct send') view.rerender(component(false))
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'A-consumed', tokens: [] })
+      })
+      await edit(b.id)
+      expect(
+        dock()?.items?.map((entry: any) => entry.id) ?? [],
+        'consuming A must end its old queue identity'
+      ).not.toContain(a.id)
+      expect(mocks.surfaceProps?.text, 'B must open after consumption').toBe('B')
+      if (mode === 'enqueue') {
+        expect(dock()?.items, 'busy enqueue must keep exactly one fresh tail item').toHaveLength(1)
+        expect(dock().items[0].payload.text, 'the fresh tail item must contain the consumed document').toBe(
+          'A-consumed'
+        )
+      }
+    })
+
+    it('refuses editing and duplicate steering until manual steer acceptance resolves', async () => {
+      const {
+        dock,
+        originals: [a, b],
+        edit,
+        send
+      } = await setup()
+      let resolve!: (sent: boolean) => void
+      send.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((done) => {
+            resolve = done
+          })
+      )
+      let pending!: Promise<void>
+      act(() => {
+        pending = dock().onSteer(a.id)
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const editor = mocks.surfaceProps?.text
+      const writes = vi.mocked(cacheService.setCasual).mock.calls.length
+      await edit(a.id)
+      await act(async () => {
+        await dock().onSteer(a.id)
+      })
+      expect(dock()?.items, 'admitted A must remain queued and unavailable to Edit').toEqual([a, b])
+      expect(mocks.surfaceProps?.text, 'admission refusal must not replace the editor').toBe(editor)
+      expect(vi.mocked(cacheService.setCasual).mock.calls.length, 'admission refusal must not write cache').toBe(writes)
+      expect(send.mock.calls.length, 'one admitted id must produce only one dispatch').toBe(1)
+      await act(async () => {
+        resolve(false)
+        await pending
+      })
+      await edit(a.id)
+      expect(dock()?.items, 'failed acceptance must release A for editing').toEqual([b])
+      expect(mocks.surfaceProps?.text, 'A must open after admission release').toBe('A')
+    })
+
+    it('refuses switching while a direct send awaits acceptance', async () => {
+      const {
+        dock,
+        originals: [a, b],
+        edit,
+        send,
+        view,
+        component
+      } = await setup()
+      await edit(a.id)
+      view.rerender(component(false))
+      let resolve!: (sent: boolean) => void
+      send.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((done) => {
+            resolve = done
+          })
+      )
+      let pending!: Promise<void>
+      act(() => {
+        pending = mocks.surfaceProps!.onSendDraft({ text: 'A', tokens: [] }) as Promise<void>
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      await edit(b.id)
+      expect(dock()?.items, 'pending direct send must leave B queued').toEqual([b])
+      expect(mocks.surfaceProps?.text, 'pending direct send must retain A document').toBe('A')
+      await act(async () => {
+        resolve(true)
+        await pending
+      })
+      await edit(b.id)
+      expect(dock(), 'successful direct send must not resurrect A').toBeFalsy()
+      expect(mocks.surfaceProps?.text, 'B must open after acceptance').toBe('B')
+    })
+
+    it.each([undefined, { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const])(
+      'preserves the captured target %j when the current target changes',
+      async (target) => {
+        mocks.topicPending = true
+        mocks.getDraft.mockImplementation((props) => ({ text: props.text, tokens: [] }))
+        const send = vi.fn().mockResolvedValue(undefined)
+        const view = render(<ChatComposer topic={topic} chatTarget={target} onSend={send} />)
+        const dock = () => (mocks.surfaceProps?.queueContent as any)?.props
+        for (const text of ['A', 'B']) {
+          await act(async () => {
+            await mocks.surfaceProps?.onSendDraft({ text, tokens: [] })
+          })
+        }
+        const [a, b] = dock().items
+        act(() => {
+          dock().onEdit(a.id)
+        })
+        mocks.topicPending = false
+        view.rerender(
+          <ChatComposer
+            topic={topic}
+            chatTarget={{ parentAnchorId: 'new-target', mode: 'active-path' }}
+            onSend={send}
+          />
+        )
+        act(() => {
+          dock().onEdit(b.id)
+        })
+        expect(dock()?.items, 'switching must retain A with its captured target').toHaveLength(1)
+        expect(dock().items[0].payload.chatTarget, 'returned A must retain even a captured undefined target').toEqual(
+          target
+        )
+        await act(async () => {
+          await dock().onSteer(a.id)
+        })
+        expect(send.mock.calls[0], 'actual dispatch must use the captured target').toEqual([
+          'A',
+          expect.objectContaining({ chatTarget: target })
+        ])
+      }
+    )
   })
 })
 

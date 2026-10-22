@@ -104,6 +104,8 @@ export interface ToolComposerToolbarContribution {
   kind: ComposerToolLauncherKind
   order: number
   icon: React.ReactNode
+  /** Lets a resolved tool bypass the composer's chat-model-required guard. */
+  availableWithoutModel?: boolean
 }
 
 export interface ToolTokenContribution<
@@ -149,6 +151,7 @@ export interface ToolDefinition<
   condition?: (context: ToolContext) => boolean
   visibleInScopes?: ComposerToolScope[]
   defaultHidden?: boolean
+  availableWithoutModel?: boolean
 
   // Dependencies
   dependencies?: {

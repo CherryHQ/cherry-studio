@@ -1,9 +1,8 @@
-import { getAppEdition } from '@renderer/utils/appEdition'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import type { ModelConfiguredCli } from '@shared/utils/cliConfig'
-import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isEmbeddingModel, isPublicGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import {
   isAgentOnlyProvider,
   isCherryAIProvider,
@@ -141,12 +140,10 @@ export function isCliChatModel(tool: CodeCli | ModelConfiguredCli, model: Model)
 
 export function getGatewayProviderIds(providers: Provider[]): Set<string> {
   return new Set(
-    providers
-      .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider, getAppEdition()))
-      .map((provider) => provider.id)
+    providers.filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider)).map((provider) => provider.id)
   )
 }
 
 export function isCliGatewayModel(providerIds: ReadonlySet<string>, model: Model): boolean {
-  return providerIds.has(model.providerId) && isGatewayRoutableModel(model)
+  return providerIds.has(model.providerId) && isPublicGatewayRoutableModel(model)
 }

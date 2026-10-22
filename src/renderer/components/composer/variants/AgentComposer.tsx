@@ -2,7 +2,7 @@ import { LoaderCircle, ScanLine, Settings2, Terminal, ToolCase } from 'lucide-re
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Tooltip } from '@cherrystudio/ui'
+import { Alert, Badge, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
@@ -53,7 +53,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
@@ -94,6 +94,7 @@ import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toF
 
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
+import type { ComposerInputFilePreviewAction } from '../filePreview'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -132,6 +133,7 @@ import {
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from './shared/ComposerDictationButton'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
@@ -340,6 +342,7 @@ type Props = {
   isStreaming: boolean
   sendDisabled?: boolean
   compactWhenSingleLine?: boolean
+  previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
 }
 
@@ -369,6 +372,7 @@ const AgentComposerRoot = ({
   isStreaming,
   sendDisabled = false,
   compactWhenSingleLine = false,
+  previewInputFile,
   launchOptions,
   renderControls,
   forceNarrowLayout = false,
@@ -502,6 +506,7 @@ const AgentComposerRoot = ({
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         compactWhenSingleLine={compactWhenSingleLine}
+        previewInputFile={previewInputFile}
         launchOptions={launchOptions}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
@@ -544,6 +549,7 @@ interface InnerProps {
   isStreaming: boolean
   sendDisabled: boolean
   compactWhenSingleLine: boolean
+  previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
@@ -770,6 +776,7 @@ const AgentComposerInner = ({
   isStreaming,
   sendDisabled,
   compactWhenSingleLine,
+  previewInputFile,
   launchOptions,
   renderControls,
   forceNarrowLayout = false,
@@ -805,7 +812,6 @@ const AgentComposerInner = ({
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
-  const isModelDisabled = useAgentModelDisabled()
   const isModelUnavailable = Boolean(agent) && agent?.type !== 'local' && !model && !modelPending
   const missingModelMessage =
     agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled
@@ -877,6 +883,7 @@ const AgentComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const releaseFollowupEditRef = useRef<() => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -899,6 +906,7 @@ const AgentComposerInner = ({
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const workspaceWarning = resolvedWorkspaceWarning ?? undefined
+  const compaction = useAgentSessionCompaction(sessionId)
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
@@ -995,6 +1003,7 @@ const AgentComposerInner = ({
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
+      releaseFollowupEditRef.current()
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(nextDraftTokens)
@@ -1491,16 +1500,16 @@ const AgentComposerInner = ({
 
   const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, sendMessageShortcut)
   const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, sendMessageShortcut, resolvedNewlineShortcut)
+  // The `resolve*` helpers hand back a fresh array each render, so the memo keys on the labels.
+  const sendKeyLabel = getComposerShortcutLabel(sendMessageShortcut)
+  const steerKeyLabel = getComposerShortcutLabel(resolvedSteerShortcut)
 
   const placeholderText = useMemo(
     () =>
       isStreaming
-        ? t('agent.input.placeholder_streaming', {
-            sendKey: getComposerShortcutLabel(sendMessageShortcut),
-            steerKey: getComposerShortcutLabel(resolvedSteerShortcut)
-          })
-        : t('agent.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) }),
-    [isStreaming, resolvedSteerShortcut, sendMessageShortcut, t]
+        ? t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
+        : t('agent.input.placeholder'),
+    [isStreaming, sendKeyLabel, steerKeyLabel, t]
   )
 
   const buildQueuedPayload = useCallback(
@@ -1564,7 +1573,7 @@ const AgentComposerInner = ({
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
-        toast.error(t('chat.input.send_failed'))
+        toast.errorFromException(error)
         return false
       }
     },
@@ -1577,12 +1586,12 @@ const AgentComposerInner = ({
       launchOptions,
       saveHistory,
       sessionId,
-      sessionTopicId,
-      t
+      sessionTopicId
     ]
   )
 
   const clearCurrentDraft = useCallback(() => {
+    releaseFollowupEditRef.current()
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1618,20 +1627,24 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
+  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
+    sendId: sendFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    takeForEdit: takeFollowupForEdit,
+    releaseEdit,
     paused: followupPaused,
     setPaused: setFollowupPaused
   } = useFollowupQueue({
     scopeKey: launchOptions?.editing ? `${sessionTopicId}:edit:${launchOptions.editing.messageId}` : sessionTopicId,
-    isFulfilled: !sendDisabled && !launchOptions?.editing && sessionFulfilled,
-    markSeen: markSessionSeen,
+    status: sendDisabled || launchOptions?.editing ? undefined : sessionStatus,
+    lastCompletedAt,
     onDrain: sendQueuedPayload
   })
+  releaseFollowupEditRef.current = releaseEdit
 
   useEffect(() => {
     if (launchOptions?.editing) return
@@ -1640,8 +1653,21 @@ const AgentComposerInner = ({
       .catch((error) => logger.warn('Failed to publish pending input count', { error }))
   }, [launchOptions?.editing, queuedFollowups.length, sessionId])
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
-  // state and the managed file/knowledge/skill selections before dropping it from the queue.
+  const captureOutgoingFollowup = useCallback(
+    (taken: FollowupQueueItem) => {
+      const draft = actionsRef.current.getDraft()
+      const payload = buildQueuedPayload(draft)
+      if (payload === null) {
+        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
+        return null
+      }
+      return { draft, payload }
+    },
+    [actionsRef, buildQueuedPayload, files]
+  )
+
+  // After takeForEdit removes the queued item, keep live tokens and managed selections aligned
+  // with the restored draft so subsequent edits retain its tools.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
@@ -1848,14 +1874,13 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
-    isModelDisabled,
     renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     onWorkspaceChange,
     workspaceChanging
   })
 
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {model && !launchOptions?.editing ? (
         <ModelSpeedControl
@@ -1880,6 +1905,7 @@ const AgentComposerInner = ({
         />
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
+      <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )
 
@@ -1888,13 +1914,12 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {(model || agent?.type === 'local') && (
-        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />
-      )}
+      <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
           showAiDisclaimer
+          voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
           text={text}
           onTextChange={handleTextChange}
           editable={!isDirectSending}
@@ -1930,24 +1955,34 @@ const AgentComposerInner = ({
           onPause={abortAgentSession}
           queueContent={
             <>
+              {compaction.status === 'failed' && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  className="mb-2"
+                  message={t('chat.compaction.failed')}
+                  description={compaction.error}
+                />
+              )}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}
                   paused={followupPaused}
                   onTogglePause={() => setFollowupPaused(!followupPaused)}
-                  onSteer={async (id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    // Only drop the item once the send actually succeeds; a failed manual
-                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                    const sent = await sendQueuedPayload(item.payload)
-                    if (sent) removeFollowup(id)
-                  }}
+                  onSteer={sendFollowup}
                   onEdit={(id) => {
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    restoreFollowupDraft(item)
-                    removeFollowup(id)
+                    if (directSendInFlightRef.current) return
+                    if (launchOptions?.editing) {
+                      releaseEdit()
+                      const item = queuedFollowups.find((entry) => entry.id === id)
+                      if (!item) return
+                      restoreFollowupDraft(item)
+                      removeFollowup(id)
+                      return
+                    }
+                    const incoming = takeFollowupForEdit(id, captureOutgoingFollowup)
+                    if (!incoming) return
+                    restoreFollowupDraft(incoming)
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
@@ -1977,6 +2012,7 @@ const AgentComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}
           compactWhenSingleLine={compactWhenSingleLine}
+          previewInputFile={previewInputFile}
           deferQuickPanel={deferQuickPanel}
           {...controlSlots}
         />
@@ -2031,9 +2067,7 @@ const MissingAgentHomeComposerInner = ({
   const handleBlockedSend = useCallback(() => {
     toast.error(selectAgentMessage)
   }, [selectAgentMessage])
-  const placeholderText = t('agent.input.placeholder', {
-    key: getComposerShortcutLabel(sendMessageShortcut)
-  })
+  const placeholderText = t('agent.input.placeholder')
   const controlSlots = renderAgentToolbarControls({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,

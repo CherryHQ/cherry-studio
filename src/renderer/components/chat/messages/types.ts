@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
@@ -199,6 +200,8 @@ export interface OpenAgentToolFlowInput {
   title?: string
 }
 
+export type MessageInputFilePreview = InputFilePreview
+
 export interface RemoveMessageErrorPartInput {
   messageId: string
   partId: string
@@ -258,6 +261,7 @@ export interface MessageRenderConfig {
   messageFont: string
   fontSize: number
   renderInputMessageAsMarkdown: boolean
+  userMessageDefaultExpanded: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
@@ -276,6 +280,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   messageFont: 'system',
   fontSize: 14,
   renderInputMessageAsMarkdown: false,
+  userMessageDefaultExpanded: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
@@ -381,6 +386,7 @@ export interface MessageListActions {
   openArtifactFile?: (path: string) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
+  previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
   isDirectory?: (path: string) => Promise<boolean>
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>

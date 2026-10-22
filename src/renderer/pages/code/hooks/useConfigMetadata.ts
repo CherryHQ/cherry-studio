@@ -50,7 +50,8 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       (model: Model): boolean => {
         // The gateway does dialect conversion, so any chat model of any enabled provider is usable
         // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
-        // keeping only what the gateway can route (same predicate as its /v1/models listing).
+        // keeping only what Code Mate may route through the gateway. Cherry Cloud does not expose
+        // a Code Mate feature entitlement, so its managed models are never offered here.
         if (isApiGatewayProviderId(providerId)) {
           return isCliGatewayModel(gatewayProviderIds, model)
         }

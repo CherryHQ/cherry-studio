@@ -43,7 +43,9 @@ const MAX_STRING = 300
 
 /**
  * Deep redaction of nested objects for logging/diagnostics: sensitive keys by
- * name, long strings truncated, circular graphs short-circuited.
+ * name, long strings truncated, circular graphs short-circuited. A reference
+ * shared by several parents is not circular, so it is redacted at every
+ * occurrence rather than reported as `[Circular]`.
  */
 export function redactDeep(value: unknown): unknown {
   const redact = (val: any, seen: WeakSet<object>, parentKey?: string): any => {
@@ -54,12 +56,20 @@ export function redactDeep(value: unknown): unknown {
     if (typeof val !== 'object') return val
     if (seen.has(val)) return '[Circular]'
     seen.add(val)
-    if (Array.isArray(val)) return val.map((v) => redact(v, seen))
-    const out: Record<string, any> = {}
-    for (const [k, v] of Object.entries(redactLocalAgentConfiguration(val, parentKey) as object)) {
-      out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen, k)
+    let result: any
+    if (Array.isArray(val)) {
+      result = val.map((v) => redact(v, seen))
+    } else {
+      const out: Record<string, any> = {}
+      for (const [k, v] of Object.entries(redactLocalAgentConfiguration(val, parentKey) as object)) {
+        out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen, k)
+      }
+      result = out
     }
-    return out
+    // Only ancestors are circular. Removing the node on the way out keeps a
+    // shared (DAG) reference redacted on every occurrence instead of misreported.
+    seen.delete(val)
+    return result
   }
   return redact(value, new WeakSet())
 }

@@ -1,6 +1,7 @@
 import {
   Activity,
   Archive,
+  AudioLines,
   Bell,
   Bot,
   CalendarClock,
@@ -13,6 +14,7 @@ import {
   HardDrive,
   Info,
   MonitorSmartphone,
+  MousePointer2,
   Package,
   Palette,
   PictureInPicture2,
@@ -23,6 +25,7 @@ import {
   Terminal,
   TextCursorInput,
   ToolCase,
+  UserRound,
   Zap
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -30,6 +33,7 @@ import { createElement } from 'react'
 
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 
 /** Resolve the section label without changing the default settings tab title. */
@@ -41,7 +45,6 @@ export function getSettingsSectionTitleKey(url: string): string | undefined {
     (pathname === '/settings/search' ? 'common.search' : undefined)
   )
 }
-
 export interface SettingsMenuEntry {
   /** Settings section route; also the aggregation key for `.search.ts` leaves */
   route: string
@@ -59,6 +62,9 @@ export interface SettingsMenuEntry {
  * title searchable — the settings search baseline is structural, not manual.
  */
 export const settingsMenu: readonly SettingsMenuEntry[] = [
+  ...(getAppEdition() === 'global'
+    ? [{ route: '/settings/profile', titleKey: 'settings.profile.title', icon: createElement(UserRound) }]
+    : []),
   { route: '/settings/provider', titleKey: 'settings.provider.title', icon: createElement(Cloud) },
   { route: '/settings/local-agents', titleKey: 'local_agents.title', icon: createElement(Bot) },
   { route: '/settings/model', titleKey: 'settings.model', icon: createElement(Package) },
@@ -84,6 +90,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/prompts',
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/computer-use',
+    titleKey: 'settings.computerUse.title',
+    icon: createElement(MousePointer2),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
@@ -126,6 +138,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/notifications',
     titleKey: 'settings.notification.title',
     icon: createElement(Bell),
+    groupKey: 'settings.menuGroups.personal'
+  },
+  {
+    route: '/settings/voice',
+    titleKey: 'settings.voice.title',
+    icon: createElement(AudioLines),
     groupKey: 'settings.menuGroups.personal'
   },
   {

@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { RemoteProviderId, WebSearchCapability as SharedWebSearchCapability } from '@cherrystudio/web-search'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -83,10 +84,12 @@ export type LanguageVarious =
   | 'en-US'
   | 'es-ES'
   | 'fr-FR'
+  | 'it-IT'
   | 'ja-JP'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'th-TH'
   | 'tr-TR'
   | 'vi-VN'
 
@@ -261,14 +264,17 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'firecrawl',
   'crawl4ai',
   'parallel',
-  'serply'
-] as const
+  'serply',
+  'yuanbao',
+  'deepseek',
+  'duckduckgo'
+] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
 export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
 
-export type WebSearchCapability = (typeof WEB_SEARCH_CAPABILITIES)[number]
+export type WebSearchCapability = SharedWebSearchCapability
 
 export type WebSearchProviderCapabilityOverride = {
   apiHost?: string

@@ -98,7 +98,9 @@ export const defaultServiceInstances = {
   CodeCliService: { openTerminal: vi.fn(async () => ({ success: true })) },
   LocalAgentInstallService: { isUninstalling: vi.fn(() => false) },
   AgentSessionRuntimeService: { closeLocalAgentForUninstall: vi.fn(async () => true) },
-  BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) }
+  BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) },
+  PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
+  RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 
 /** Type for per-service overrides */
