@@ -434,7 +434,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.sessionId,
       this.input.agentId,
       request.connectionConfig?.live.toolPolicy.mcps ?? [],
-      this.mcpToolMetadata
+      this.mcpToolMetadata,
+      request.settings.boundedMcpToolNames
     )
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
     // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.

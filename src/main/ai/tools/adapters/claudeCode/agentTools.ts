@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { planClaudeMcpToolNames } from '@main/ai/mcp/mcpToolNames'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
@@ -149,12 +150,23 @@ function injectedRuntimeToolRequiringApproval(runtimeName: string): Tool {
   }
 }
 
+// Accept exact runtime names, <serverKey>__* wildcards (including global mcp__*),
+// and bare <serverKey> rules that disable every tool on that server.
+function matchesMcpDisableRule(runtimeName: string, rule: string): boolean {
+  if (rule === runtimeName || rule === 'mcp__*') return true
+  if (rule.endsWith('__*')) return runtimeName.startsWith(rule.slice(0, -1))
+  return !rule.slice(5).includes('__') && runtimeName.startsWith(`${rule}__`)
+}
+
 export interface ClaudeAgentToolPolicySnapshot {
   resolve(runtimeName: string, input?: unknown): Tool | undefined
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
+  update(
+    agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>,
+    options?: { boundedMcpToolNames?: boolean }
+  ): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -165,6 +177,7 @@ export async function createClaudeAgentToolPolicySnapshot(
     // Runtime names that match an auto-allow list/prefix but must still require per-call approval
     // (e.g. mutating cherry-tools like kb_manage). Checked against the full runtime name.
     autoAllowRuntimeNameExceptions?: readonly string[]
+    boundedMcpToolNames?: boolean
     conditionContext?: ClaudeToolContext
   } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
@@ -172,6 +185,8 @@ export async function createClaudeAgentToolPolicySnapshot(
   let policy: ClaudeToolPolicy = {}
   let disallowed = new Set<string>()
   let rebuildSequence = 0
+  let boundedMcpToolNames = options.boundedMcpToolNames ?? false
+  let runtimeDescriptors = new Map<string, ClaudeToolDescriptor>()
 
   const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
@@ -193,12 +208,30 @@ export async function createClaudeAgentToolPolicySnapshot(
         existingIds.add(descriptor.id)
       }
     }
+    const nextRuntimeDescriptors = new Map<string, ClaudeToolDescriptor>()
+    if (boundedMcpToolNames) {
+      for (const mcpId of nextAgent.mcps ?? []) {
+        const server = mcpServerService.findByIdOrName(mcpId)
+        if (!server) continue
+        const tools = nextDescriptors.filter(
+          (item) => item.origin === 'mcp' && item.sourceId === server.id && item.sourceToolName
+        )
+        const plan = planClaudeMcpToolNames(
+          { serverId: server.id, sdkServerKey: mcpId },
+          tools.map((item) => item.sourceToolName!)
+        )
+        for (const descriptor of tools) {
+          nextRuntimeDescriptors.set(`mcp__${plan.serverKey}__${plan.toolName(descriptor.sourceToolName!)}`, descriptor)
+        }
+      }
+    }
+    runtimeDescriptors = nextRuntimeDescriptors
     descriptors = nextDescriptors
     policy = buildClaudeToolPolicy(nextAgent)
     // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
     // user opt-out + dependency cascade).
-    disallowed = new Set(resolveDisallowedTools(nextAgent, options.conditionContext))
+    disallowed = new Set(resolveDisallowedTools(nextAgent, options.conditionContext, boundedMcpToolNames))
   }
 
   await rebuild(agent)
@@ -214,14 +247,20 @@ export async function createClaudeAgentToolPolicySnapshot(
       ) {
         return injectedRuntimeTool(runtimeName)
       }
-      const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
+      const descriptor = runtimeDescriptors.get(runtimeName) ?? findRuntimeDescriptor(descriptors, runtimeName)
       if (!descriptor) return undefined
       const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
       return descriptorToToolWithAccess(descriptor, access)
     },
 
     isDisabled(runtimeName) {
-      return disallowed.has(runtimeName) || disallowed.has(normalizeClaudeBuiltinName(runtimeName))
+      if (disallowed.has(runtimeName) || disallowed.has(normalizeClaudeBuiltinName(runtimeName))) return true
+      if (boundedMcpToolNames && runtimeName.startsWith('mcp__')) {
+        for (const rule of disallowed) {
+          if (matchesMcpDisableRule(runtimeName, rule)) return true
+        }
+      }
+      return false
     },
 
     getPermissionMode() {
@@ -232,7 +271,8 @@ export async function createClaudeAgentToolPolicySnapshot(
       policy = { ...policy, permissionMode }
     },
 
-    update(agent) {
+    update(agent, nextOptions) {
+      if (nextOptions?.boundedMcpToolNames !== undefined) boundedMcpToolNames = nextOptions.boundedMcpToolNames
       return rebuild(agent)
     }
   }

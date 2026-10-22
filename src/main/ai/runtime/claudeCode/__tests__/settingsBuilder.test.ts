@@ -8,15 +8,18 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { planClaudeMcpToolNames } from '@main/ai/mcp/mcpToolNames'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import type * as ClaudeAgentTools from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BrowserSessionService } from '@main/features/browser'
 import type * as FileUtils from '@main/utils/file'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { buildClaudeMcpToolName, buildClaudeMcpWildcard } from '@shared/ai/claudecode/toolRules'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies()
   .filter(({ approval }) => approval !== 'auto')
@@ -1704,6 +1707,89 @@ describe('buildClaudeCodeSessionSettings', () => {
         }
       }
     })
+  })
+
+  it('requires approval for a bounded source tool and honors a denial', async () => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    const name = 'tool_abcdefghijklmnopqr'
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [id],
+      configuration: { permission_mode: 'bypassPermissions' }
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    mocks.findByIdOrName.mockReturnValue({ id, name: 'User MCP', disabledAutoApproveTools: [name] })
+    mocks.listMcpTools.mockReturnValue([{ id: 'tool-id', name, inputSchema: { type: 'object' } }])
+    const { createClaudeAgentToolPolicySnapshot } = await vi.importActual<typeof ClaudeAgentTools>(
+      '@main/ai/tools/adapters/claudeCode/agentTools'
+    )
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent as never, { boundedMcpToolNames: true })
+    mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { boundedMcpToolNames: true }
+    )
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, [name])
+    const alias = `mcp__${plan.serverKey}__${plan.toolName(name)}`
+    const emit = vi.fn()
+    settings.approvalEmitter!.emit = emit
+    const pending = settings.canUseTool!(
+      alias,
+      { value: 7 },
+      {
+        signal: new AbortController().signal,
+        toolUseID: 'bounded-approval',
+        requestId: 'bounded-request'
+      }
+    )
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ toolName: alias }))
+    mocks.approvalRegister.mock.lastCall![0].resolve({ approved: false })
+    await expect(pending).resolves.toEqual({ behavior: 'deny', message: 'User denied permission for this tool' })
+  })
+
+  it.each([false, true])('emits logical MCP disable rules in bounded mode %s', async (bounded) => {
+    const id = 'x'.repeat(60)
+    const name = 'tool_' + 'a'.repeat(50)
+    const server = { id, name: 'User MCP', type: 'stdio' }
+    mocks.findByIdOrName.mockReturnValue(server)
+    mocks.listMcpTools.mockReturnValue([{ id: 'tool-id', name, inputSchema: { type: 'object' } }])
+    const rules = [buildClaudeMcpToolName(server.name, name), buildClaudeMcpWildcard(server.name)]
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [id],
+      disabledTools: rules,
+      configuration: {}
+    })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { boundedMcpToolNames: bounded }
+    )
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, [name])
+    expect(settings.disallowedTools).toEqual(
+      expect.arrayContaining(
+        bounded ? [`mcp__${plan.serverKey}__${plan.toolName(name)}`, `mcp__${plan.serverKey}__*`] : rules
+      )
+    )
+    expect(mocks.getAgent().disabledTools).toEqual(rules)
+    if (bounded)
+      expect(settings.mcpToolMetadata?.[`mcp__${plan.serverKey}__${plan.toolName(name)}`]).toMatchObject({
+        serverId: id,
+        name
+      })
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
@@ -3769,31 +3855,46 @@ describe('buildClaudeCodeSessionSettings', () => {
       })
     })
 
-    it('keeps the live policy snapshot and metadata aligned with later MCP tool-list changes', async () => {
-      const snapshot = {
-        resolve: vi.fn(),
-        isDisabled: vi.fn(() => false),
-        update: vi.fn(),
-        setPermissionMode: vi.fn()
+    it.each([false, true])(
+      'keeps live policy and metadata aligned with catalog changes (bounded %s)',
+      async (bounded) => {
+        const snapshot = {
+          resolve: vi.fn(),
+          isDisabled: vi.fn(() => false),
+          update: vi.fn(),
+          setPermissionMode: vi.fn()
+        }
+        mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+        mocks.listMcpTools.mockReturnValue([{ id: 'old-tool', name: 'old_tool', description: 'Old' }])
+        const session = sessionWithMcps(['srv-a'])
+
+        const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
+          boundedMcpToolNames: bounded
+        })
+        expect(settings.mcpToolMetadata).toHaveProperty('mcp__srv-a__old_tool')
+        registerMcpSessionCatalogSync('session-1', 'agent-1', ['srv-a'], settings.mcpToolMetadata, bounded)
+
+        const longName = 'new_tool_' + 'x'.repeat(60)
+        mocks.listMcpTools.mockReturnValue([
+          { id: 'new-tool', name: 'new_tool', description: 'New' },
+          { id: 'long-tool', name: longName }
+        ])
+        const listener = mocks.onToolsCacheUpdated.mock.calls.at(-1)?.[0]
+        listener?.({ serverId: 'srv-a' })
+
+        await vi.waitFor(() => {
+          expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
+          expect(settings.mcpToolMetadata).toHaveProperty('mcp__srv-a__new_tool')
+          if (bounded) {
+            const plan = planClaudeMcpToolNames({ serverId: 'srv-a', sdkServerKey: 'srv-a' }, [longName])
+            expect(settings.mcpToolMetadata?.[`mcp__${plan.serverKey}__${plan.toolName(longName)}`]).toMatchObject({
+              name: longName
+            })
+          }
+        })
+        expect(settings.mcpToolMetadata).not.toHaveProperty('mcp__srv-a__old_tool')
       }
-      mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
-      mocks.listMcpTools.mockReturnValue([{ id: 'old-tool', name: 'old_tool', description: 'Old' }])
-      const session = sessionWithMcps(['srv-a'])
-
-      const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-      expect(settings.mcpToolMetadata).toHaveProperty('mcp__srv-a__old_tool')
-      registerMcpSessionCatalogSync('session-1', 'agent-1', ['srv-a'], settings.mcpToolMetadata)
-
-      mocks.listMcpTools.mockReturnValue([{ id: 'new-tool', name: 'new_tool', description: 'New' }])
-      const listener = mocks.onToolsCacheUpdated.mock.calls.at(-1)?.[0]
-      listener?.({ serverId: 'srv-a' })
-
-      await vi.waitFor(() => {
-        expect(snapshot.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }))
-        expect(settings.mcpToolMetadata).toHaveProperty('mcp__srv-a__new_tool')
-      })
-      expect(settings.mcpToolMetadata).not.toHaveProperty('mcp__srv-a__old_tool')
-    })
+    )
 
     it('does not subscribe during a warm-only settings build', async () => {
       const session = sessionWithMcps(['srv-a'])

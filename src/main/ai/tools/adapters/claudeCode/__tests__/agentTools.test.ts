@@ -8,6 +8,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { planClaudeMcpToolNames } from '@main/ai/mcp/mcpToolNames'
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import {
   findBuiltinToolPolicy,
@@ -17,6 +18,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
+import { buildClaudeMcpToolName, buildClaudeMcpWildcard } from '@shared/ai/claudecode/toolRules'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const mocks = vi.hoisted(() => ({
@@ -61,6 +63,56 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     })
     mocks.listMcpTools.mockReturnValue([])
   })
+
+  it('resolves bounded aliases with source approval and rejects removed or unknown aliases', async () => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    const name = 'tool_abcdefghijklmnopqr'
+    mocks.findMcpServer.mockReturnValue({ id, name: 'User MCP', disabledAutoApproveTools: [name] })
+    mocks.listMcpTools.mockReturnValue([{ id: 'tool-id', name }])
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, [name])
+    const alias = `mcp__${plan.serverKey}__${plan.toolName(name)}`
+    const agent = makeAgent([], [id])
+    agent.configuration = { permission_mode: 'bypassPermissions' }
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent, { boundedMcpToolNames: true })
+    expect(snapshot.resolve(alias)).toMatchObject({
+      id: buildClaudeMcpToolName('User MCP', name),
+      sourceId: id,
+      name,
+      approval: 'prompt'
+    })
+    expect(snapshot.resolve(alias + '_unknown')).toBeUndefined()
+    mocks.listMcpTools.mockReturnValue([])
+    await snapshot.update(agent)
+    expect(snapshot.resolve(alias)).toBeUndefined()
+  })
+
+  it.each(['exact', 'canonical', 'server', 'wildcard', 'canonical-wildcard', 'global'])(
+    'keeps bounded tools disabled by a %s rule across live updates',
+    async (kind) => {
+      const id = '12345678-1234-4234-8234-123456789abc'
+      const name = 'tool_abcdefghijklmnopqr'
+      mocks.findMcpServer.mockReturnValue({ id, name: 'User MCP' })
+      mocks.listMcpTools.mockReturnValue([{ id: 'tool-id', name }])
+      const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, [name])
+      const alias = `mcp__${plan.serverKey}__${plan.toolName(name)}`
+      const rules: Record<string, string> = {
+        exact: `mcp__${id}__${name}`,
+        canonical: buildClaudeMcpToolName('User MCP', name),
+        server: `mcp__${id}`,
+        wildcard: `mcp__${id}__*`,
+        'canonical-wildcard': buildClaudeMcpWildcard('User MCP'),
+        global: 'mcp__*'
+      }
+      const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([rules[kind]], [id]), {
+        boundedMcpToolNames: true
+      })
+      expect(snapshot.isDisabled(alias)).toBe(true)
+      await snapshot.update(makeAgent([], [id]))
+      expect(snapshot.isDisabled(alias)).toBe(false)
+      await snapshot.update(makeAgent([rules[kind]], [id]))
+      expect(snapshot.isDisabled(alias)).toBe(true)
+    }
+  )
 
   it('reflects a disabledTools change after update() without a connection rebuild', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]))

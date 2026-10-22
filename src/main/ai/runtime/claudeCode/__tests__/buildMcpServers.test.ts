@@ -11,6 +11,9 @@ import { AGENT_TYPES, type AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 const {
+  mockFindMcpServer,
+  mockListMcpTools,
+  mockCallMcpTool,
   mockGetAgent,
   mockGetPathStatus,
   mockMkdir,
@@ -20,6 +23,9 @@ const {
   mockListOrOutlineKnowledge,
   mockEnsureManagedDirectory
 } = vi.hoisted(() => ({
+  mockFindMcpServer: vi.fn(),
+  mockListMcpTools: vi.fn(),
+  mockCallMcpTool: vi.fn(),
   mockGetAgent: vi.fn(),
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
@@ -61,7 +67,16 @@ vi.mock('@application', async () => {
       get: (name: string) =>
         name === 'AgentSessionRuntimeService'
           ? { getTurnTrustedNotifyChannels: () => undefined }
-          : module.application.get(name),
+          : name === 'McpCatalogService'
+            ? { listTools: mockListMcpTools, onToolsCacheUpdated: () => ({ dispose() {} }) }
+            : name === 'McpRuntimeService'
+              ? {
+                  callTool: mockCallMcpTool,
+                  getConnectedServerInstructions: () => undefined,
+                  onResourceUpdated: () => ({ dispose() {} }),
+                  onCatalogChanged: () => ({ dispose() {} })
+                }
+              : module.application.get(name),
       getPath: mockGetPath
     }
   }
@@ -92,6 +107,8 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: vi.fn(() => null), listChannels: vi.fn().mockResolvedValue([]) }
 }))
+
+vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { findByIdOrName: mockFindMcpServer } }))
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mockGetAgent }
@@ -252,6 +269,84 @@ describe('adjustAllowedToolsForMcp', () => {
 describe('buildMcpServers', () => {
   beforeEach(() => {
     mockGetAgent.mockReset()
+  })
+
+  it.each([false, true])('round-trips a UUID / 23-character tool with bounded mode %s', async (bounded) => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    const original = 'tool_abcdefghijklmnopqr'
+    expect(original).toHaveLength(23)
+    mockFindMcpServer.mockReturnValue({ id, name: 'User MCP', type: 'stdio' })
+    mockListMcpTools.mockReturnValue([{ id: 'tool-id', name: original, inputSchema: { type: 'object' } }])
+    mockCallMcpTool.mockImplementation(async ({ name, args }) => ({
+      content: [
+        { type: 'text', text: name === original && args.value === 7 ? 'original-backend-marker' : 'wrong-tool' }
+      ]
+    }))
+    const result = buildMcpServers(
+      session,
+      { ...agent, mcps: [id] },
+      WITHOUT_HOST_TOOLS,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      bounded
+    )!
+    const { instance, name } = result[id] as McpSdkServerConfigWithInstance
+    expect(name).toBe(id)
+    expect((result['cherry-tools'] as McpSdkServerConfigWithInstance).name).toBe('cherry-tools')
+    const client = await connectMcpTestClient(instance)
+    try {
+      if (bounded) {
+        mockListMcpTools.mockReturnValueOnce([])
+        expect((await client.listTools()).tools).toEqual([])
+      }
+      const { tools } = await client.listTools()
+      expect(tools).toHaveLength(1)
+      const fullName = `mcp__${id}__${tools[0].name}`
+      if (bounded) expect(fullName.length).toBeLessThanOrEqual(64)
+      else {
+        expect(fullName).toHaveLength(66)
+        expect(tools[0].name).toBe(original)
+      }
+      expect(await client.callTool({ name: tools[0].name, arguments: { value: 7 } })).toMatchObject({
+        content: [{ type: 'text', text: 'original-backend-marker' }]
+      })
+      if (bounded) {
+        mockCallMcpTool.mockClear()
+        await expect(client.callTool({ name: 'unknown_alias', arguments: {} })).rejects.toThrow(/Unknown MCP tool/)
+        expect(mockCallMcpTool).not.toHaveBeenCalled()
+        mockListMcpTools.mockReturnValue([])
+        await expect(client.callTool({ name: tools[0].name, arguments: {} })).rejects.toThrow(/Unknown MCP tool/)
+        expect(mockCallMcpTool).not.toHaveBeenCalled()
+      }
+    } finally {
+      await client.close()
+    }
+  })
+
+  it('registers a compact SDK record key and nested name, leaving injected entries intact', () => {
+    const id = 'x'.repeat(60)
+    mockFindMcpServer.mockReturnValue({ id, name: 'Long server', type: 'stdio' })
+    const result = buildMcpServers(
+      session,
+      { ...agent, mcps: [id] },
+      WITHOUT_HOST_TOOLS,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true
+    )!
+    const key = Object.keys(result).find((key) => key.startsWith('s_'))!
+    expect(key).toHaveLength(22)
+    expect((result[key] as McpSdkServerConfigWithInstance).name).toBe(key)
+    expect(result[id]).toBeUndefined()
+    expect((result['agent-memory'] as McpSdkServerConfigWithInstance).name).toBe('agent-memory')
+    const unchanged = buildMcpServers(session, { ...agent, mcps: [id] }, WITHOUT_HOST_TOOLS)!
+    expect((unchanged[id] as McpSdkServerConfigWithInstance).name).toBe(id)
   })
 
   it('serves memory tools and instructions when mounted', async () => {

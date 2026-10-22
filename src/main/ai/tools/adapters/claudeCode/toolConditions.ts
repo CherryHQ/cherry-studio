@@ -10,7 +10,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
+import { planClaudeMcpToolNames } from '@main/ai/mcp/mcpToolNames'
 import { CLAUDE_TOOL_DEFS } from '@shared/ai/claudecode/toolRegistry'
+import { buildClaudeMcpToolName, buildClaudeMcpWildcard } from '@shared/ai/claudecode/toolRules'
 
 /** Raw session context the enable-predicates compute from (not pre-digested per-condition flags). */
 export interface ClaudeToolContext {
@@ -48,8 +52,9 @@ const TOOL_ENABLE_PREDICATES: Record<string, (ctx: ClaudeToolContext) => boolean
  * are known).
  */
 export function resolveDisallowedTools(
-  agent: { disabledTools?: readonly string[] | null },
-  ctx?: ClaudeToolContext
+  agent: { disabledTools?: readonly string[] | null; mcps?: readonly string[] | null },
+  ctx?: ClaudeToolContext,
+  boundedMcpToolNames = false
 ): string[] {
   const userDisabled = new Set(agent.disabledTools ?? [])
   const registeredToolNames = new Set(CLAUDE_TOOL_DEFS.map((def) => def.name))
@@ -86,5 +91,34 @@ export function resolveDisallowedTools(
     if (toolName.startsWith('mcp__') && !registeredToolNames.has(toolName)) blocked.add(toolName)
   }
 
-  return [...blocked]
+  if (!boundedMcpToolNames) return [...blocked]
+  const serverPlans = (agent.mcps ?? []).flatMap((mcpId) => {
+    const server = mcpServerService.findByIdOrName(mcpId)
+    if (!server) return []
+    return [
+      {
+        server,
+        plan: planClaudeMcpToolNames({ serverId: server.id, sdkServerKey: mcpId }, []),
+        tools: application.get('McpCatalogService').listTools(server.id),
+        keys: new Set([mcpId, server.id, server.name])
+      }
+    ]
+  })
+
+  return [...blocked].map((rule) => {
+    if (!rule.startsWith('mcp__') || registeredToolNames.has(rule)) return rule
+    for (const { server, plan, tools, keys } of serverPlans) {
+      if (rule === buildClaudeMcpWildcard(server.name)) return `mcp__${plan.serverKey}__*`
+      const tool = tools.find((tool) => rule === buildClaudeMcpToolName(server.name, tool.name))
+      if (tool) return `mcp__${plan.serverKey}__${plan.toolName(tool.name)}`
+      for (const key of keys) {
+        const prefix = `mcp__${key}`
+        if (rule === prefix || rule === `${prefix}__*`) return `mcp__${plan.serverKey}__*`
+        if (!rule.startsWith(`${prefix}__`)) continue
+        const original = rule.slice(prefix.length + 2)
+        return `mcp__${plan.serverKey}__${plan.toolName(original)}`
+      }
+    }
+    return rule
+  })
 }
