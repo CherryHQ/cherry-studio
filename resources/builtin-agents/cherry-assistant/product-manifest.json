@@ -500,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "afa17e5976dcef2e",
-    "count": 66,
+    "version": "3e5ff222065d35c9",
+    "count": 67,
     "entries": [
       {
         "id": "cherryin",
@@ -766,6 +766,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "tokendos",
+        "name": "TokenDos"
       }
     ]
   },
