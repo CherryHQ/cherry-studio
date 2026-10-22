@@ -15,7 +15,7 @@ export function compilePolicy(spec: SandboxSpec): { request: ContainerRequest; e
   if (
     spec.environmentId !== 'native' ||
     spec.runtimeProfileId !== 'mxc-command-v1' ||
-    spec.network.mode !== 'deny' ||
+    (spec.network.mode !== 'deny' && (spec.network.mode !== 'proxy' || process.platform !== 'darwin')) ||
     spec.channel === 'dedicated' ||
     spec.mounts?.length ||
     spec.limits.memoryBytes !== undefined ||
@@ -23,7 +23,7 @@ export function compilePolicy(spec: SandboxSpec): { request: ContainerRequest; e
   )
     throw new SandboxError(
       'POLICY_UNSUPPORTED',
-      'MXC demo supports native commands, deny networking, and none/stdio channels; process and memory quotas are not enforced'
+      'MXC demo supports native commands, deny networking (or macOS proxy networking), and none/stdio channels; process and memory quotas are not enforced'
     )
   accessSync(spec.command.executable, constants.X_OK)
   accessSync(spec.command.cwd, constants.R_OK)

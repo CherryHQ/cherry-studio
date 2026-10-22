@@ -28,3 +28,40 @@ describe('sandbox IPC boundary', () => {
     expect(sandboxRequestSchemas['sandbox.stop'].input.safeParse({ ownerId: 'another-window' }).success).toBe(false)
   })
 })
+
+it('only accepts fixed diagnostic groups, never renderer-selected capabilities', () => {
+  const schema = sandboxRequestSchemas['sandbox.diagnose'].input
+  for (const group of ['files', 'rpc', 'instances', 'network']) expect(schema.safeParse({ group }).success).toBe(true)
+  for (const input of [
+    { group: 'arbitrary' },
+    { group: 'network', url: 'http://internal/' },
+    { group: 'files', path: '/' },
+    { group: 'rpc', method: 'main.secret' }
+  ])
+    expect(schema.safeParse(input).success).toBe(false)
+})
+
+it('bounds interactive parameters and keeps executable, ownership and filesystem grants host-owned', () => {
+  const schema = sandboxRequestSchemas['sandbox.request'].input
+  expect(schema.parse({ kind: 'rpc', value: 7, allowCallback: false })).toEqual({
+    kind: 'rpc',
+    value: 7,
+    allowCallback: false
+  })
+  expect(schema.safeParse({ kind: 'network', url: 'https://example.com/path?q=1', allowedOrigins: [] }).success).toBe(
+    true
+  )
+  for (const input of [
+    { kind: 'rpc', value: Infinity, allowCallback: true },
+    { kind: 'rpc', value: 1000001, allowCallback: true },
+    { kind: 'rpc', value: 1, allowCallback: true, method: 'host.secret' },
+    { kind: 'network', url: 'not a URL', allowedOrigins: [] },
+    { kind: 'network', url: 'file:///etc/passwd', allowedOrigins: [] },
+    { kind: 'network', url: 'https://user:password@example.com', allowedOrigins: [] },
+    { kind: 'network', url: 'https://example.com', allowedOrigins: ['https://example.com/path'] },
+    { kind: 'network', url: 'https://example.com', allowedOrigins: Array(65).fill('https://example.com') },
+    { kind: 'network', url: 'https://example.com', allowedOrigins: [], ownerId: 'other-window' },
+    { kind: 'network', url: 'https://example.com', allowedOrigins: [], filesystem: { write: ['/'] } }
+  ])
+    expect(schema.safeParse(input).success).toBe(false)
+})

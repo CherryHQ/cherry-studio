@@ -4,6 +4,9 @@
   "private": true,
   "description": "MXC-backed process sandbox and bidirectional RPC for Cherry Studio",
   "type": "module",
+  "imports": {
+    "#diagnostic-guest": "./dist/diagnosticGuest.cjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/src/host/SandboxManager.d.ts",
@@ -16,10 +19,14 @@
     "./rpc": {
       "types": "./dist/src/rpc/peer.d.ts",
       "default": "./dist/src/rpc/peer.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/src/diagnostics/run.d.ts",
+      "default": "./dist/src/diagnostics/run.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/buildGuest.mjs",
     "demo": "node examples/host.mjs",
     "demo:rpc": "node examples/rpcHost.mjs",
     "lab": "node dist/src/cli/lab.js",
@@ -30,10 +37,15 @@
   },
   "dependencies": {
     "@microsoft/mxc-sdk": "1.0.1",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
+    "ipaddr.js": "^2.5.0",
+    "proxy-chain": "^3.0.1",
     "vscode-jsonrpc": "9.0.3"
   },
   "devDependencies": {
     "@types/node": "24.10.4",
+    "esbuild": "^0.25.0",
     "typescript": "5.9.3",
     "vitest": "^5.0.1"
   }

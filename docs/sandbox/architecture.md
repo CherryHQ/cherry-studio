@@ -1,7 +1,7 @@
 ---
 description: 当前 MXC 沙盒实现的进程边界、模块职责、双向 RPC、生命周期与支持范围
 status: implemented
-date: 2026-10-12
+date: 2026-10-22
 sources:
   - packages/sandbox/package.json
   - packages/sandbox/src/types.ts
@@ -11,6 +11,8 @@ sources:
   - packages/sandbox/src/backends/mxc/policy.ts
   - packages/sandbox/src/backends/mxc/lease.ts
   - packages/sandbox/src/rpc/peer.ts
+  - packages/sandbox/src/backends/mxc/proxy.ts
+  - packages/sandbox/src/diagnostics
   - packages/sandbox/src/cli/lab.ts
   - src/main/services/SandboxService.ts
   - src/shared/ipc/schemas/sandbox.ts
@@ -19,11 +21,21 @@ sources:
 
 # Sandbox 当前架构
 
-本文描述 2026-10-12 的实际代码：**Cherry 管理实例、权限映射、生命周期和双向 RPC；MXC 负责操作系统隔离。** 独立包 `@cherrystudio/sandbox` 已接通 macOS Seatbelt 和 Windows ProcessContainer，CLI 与程序调用使用同一实现。Windows 不接受上游尚未可靠执行的显式 deny 覆盖策略。自研 Seatbelt 后端、C supervisor 和对应构建脚本已删除。
+本文描述当前实际代码：**Cherry 管理实例、权限映射、生命周期和双向 RPC；MXC 负责操作系统隔离。** 独立包 `@cherrystudio/sandbox` 已接通 macOS Seatbelt 和 Windows ProcessContainer，CLI 与程序调用使用同一实现。Windows 不接受上游尚未可靠执行的显式 deny 覆盖策略。自研 Seatbelt 后端、C supervisor 和对应构建脚本已删除。
 
 包仍为 private `0.0.1`，已由 Cherry Electron 主进程的 `SandboxService` 托管。设置 → 关于中的沙箱诊断入口通过类型化 IPC 提供环境检测、JavaScript 执行和停止。Electron 44.9.3 内置 Node 24.22.0，满足 Windows 标准流要求。本文是当前实现说明；[design](./design.md)、[api](./api.md)保留更完整的设计目标，不代表这些目标已经实现。运行命令与示例见[包 README](../../packages/sandbox/README.md)。
 
-应用 IPC 固定使用内置 Electron 的 Node 模式，禁止网络，只授予运行时文件读取和单次临时目录写入，限制 30 秒及 64 KiB 输出。调用窗口身份来自主进程，不接受 renderer 指定权限、命令或 owner。每个窗口最多一个实例；停止、窗口销毁和应用退出均会取消运行。源码写入单次临时目录中的 CommonJS 文件后执行，避免有效的 32,768 字符脚本超过 Windows 命令行长度限制。后端完成清理后删除脚本和临时目录，状态未知时保留并记录日志。当前后端不执行内存和进程数配额。SDK 与 Koffi 在打包时解包，通过 `MXC_FFI_DIR` 指向真实原生库目录。应用入口暂不提供 Python 或 RPC；双向 RPC 继续由独立包提供。
+脚本执行 IPC 固定使用内置 Electron 的 Node 模式，禁止网络，只授予运行时文件读取和单次临时目录写入，限制 30 秒及 64 KiB 输出。调用窗口身份来自主进程，不接受 renderer 指定权限、命令或 owner。每个窗口最多一个操作，最多四个窗口同时运行；停止、窗口销毁和应用退出均会取消运行。源码写入单次临时目录中的 CommonJS 文件后执行，避免有效的 32,768 字符脚本超过 Windows 命令行长度限制。后端完成清理后删除脚本和临时目录，状态未知时保留并记录日志。当前后端不执行内存和进程数配额。SDK 与 Koffi 在打包时解包，通过 `MXC_FFI_DIR` 指向真实原生库目录。应用入口不提供 Python 执行；固定功能诊断通过独立包的双向 RPC 调用沙盒 guest。
+
+诊断弹窗默认展示文件权限、双向 RPC、实例管理和网络白名单四组功能测试。分组入口说明检查范围并保留各自结果，选择分组后可运行此组或查看已有结果；重新运行仅替换对应组的结果。逐项结果使用本地化名称，预期、实际证据和完整报告按需展开。运行与停止按钮位于固定操作栏。RPC 和网络分组还提供交互输入：编辑数值与回调授权，或编辑请求 URL 与来源 URL 白名单，点击“发送请求”后查看实际生效策略、请求、宿主回调、返回值和清理记录。调用过程在请求结束后展示，并非实时事件流。
+
+独立的“自定义脚本”页签提供可编辑的测试示例：运行时信息、目录内文件操作、越界写入、环境变量名称、回环网络探测、非零退出、超时及输出上限。选择示例会加载脚本、对应时限和预期结果，仍使用同一个 `sandbox.run` 入口。实际输出需与预期对照，不自动标记验收通过；编辑脚本后隐藏原示例的预期提示。网络探测只把 `EACCES` / `EPERM` 归为权限拒绝，连接拒绝或超时显示 `inconclusive`，不能证明隔离生效。
+
+交互入口 `sandbox.request` 只接收有界 RPC 数值、回调授权或 HTTP(S) URL 与最多 64 个白名单来源；禁止 URL 凭据，renderer 不能选择宿主方法、可执行文件、owner 或文件授权。RPC 固定调用 `compute(value) → host.double(value) → +1`，网络在沙盒内使用 HTTP/HTTPS 代理发出 GET，保留 TLS 证书校验，最多显示 4 KiB 响应且不自动跟随重定向。手动请求结果不自动标记为隔离验收通过，外部服务不可达与策略拒绝需分别判断。
+
+固定功能诊断通过 `sandbox.diagnose` 仅接收分组名，支持单组、顺序运行全部和停止。文件权限检查原文件即时写入、只读目录、未授权同级目录与拒绝后的内容完整性；RPC 检查嵌套回调、授权拒绝、并发响应和取消恢复；实例管理检查独立授权及停止 A 后 B 继续响应。单组最多两个实例，30 秒总时限，由现有 SandboxService 管理取消与临时目录。
+
+网络组在宿主创建两个真实可达 HTTP 服务，以请求计数验证白名单访问、其他 host/port 拒绝、CONNECT 放行/拒绝、重定向后再次授权及直连绕过被 OS 拒绝。结果逐项显示通过、失败、不支持、取消或无法判定，并附预期和实际证据。macOS 已接通；Windows 代理模式仍拒绝，不会放宽策略或误标通过。此组验证 HTTP/CONNECT，不等于 HTTPS 证书链验收。
 
 ## 1. 进程与依赖边界
 
@@ -37,6 +49,7 @@ flowchart TB
         Backend --> Lease[BackendLease：进程与标准流]
         Policy --> Lease
         Lease --> SDK[MXC Node SDK / 原生 FFI]
+        Lease --> Proxy[实例专属 HTTP/CONNECT 白名单代理]
         Manager --> RPC[RpcPeer / vscode-jsonrpc]
         Methods[注册的宿主方法与授权回调] <--> RPC
     end
@@ -46,6 +59,7 @@ flowchart TB
     SDK -->|启动与停止| Guest
     RPC <-->|stdin / stdout：JSON-RPC| Guest
     Guest -->|stderr：诊断输出| Lease
+    Guest -->|macOS proxy 模式的网络出口| Proxy
 ```
 
 `@microsoft/mxc-sdk@1.0.1` 在宿主内加载原生库并启动目标进程；Cherry 没有再启动一个自研沙盒管理进程，也不通过上游 MXC CLI 执行命令。目标必须是独立进程，OS 隔离约束施加在该进程上，宿主保留管理及执行授权方法的能力。
@@ -61,10 +75,12 @@ RPC 使用 `vscode-jsonrpc@9.0.3`，通过 MXC 暴露的标准流传输。图中
 | [MxcBackend](../../packages/sandbox/src/backends/mxc/MxcBackend.ts) | 探测 macOS Seatbelt / Windows ProcessContainer、Node 运行时和 Windows 初始化要求，编译策略并创建 lease |
 | [policy](../../packages/sandbox/src/backends/mxc/policy.ts) | 将公共 `SandboxSpec` 映射为 MXC `ContainerRequest`，拒绝不支持的配置，报告有效策略和限制 |
 | [lease](../../packages/sandbox/src/backends/mxc/lease.ts) | 持有 `MxcProcess`，适配 spawn/wait/kill/dispose、标准流、启动期限与 I/O 预算 |
+| [proxy](../../packages/sandbox/src/backends/mxc/proxy.ts) | 实例专属回环代理、目标 host/port 校验、私网 DNS 拒绝与连接回收 |
+| [diagnostics](../../packages/sandbox/src/diagnostics/run.ts) | 通过公共 manager 运行固定功能检查、收集宿主证据并回收测试资源 |
 | [RpcPeer](../../packages/sandbox/src/rpc/peer.ts) | 双向请求、显式方法注册、授权、取消、超时与断线结算；复用 JSON-RPC 协议库 |
 | [CLI](../../packages/sandbox/src/cli/lab.ts) | 解析参数、调用公共 manager、转发标准流并映射退出码 |
 
-公共入口只有包根的 `SandboxManager`、`/types` 的契约和 `/rpc` 的 `createRpcPeer`。后端、策略编译与 lease 都是包内实现。宿主业务方法由调用方注册，包本身不包含插件加载、Agent 编排或业务持久化。
+公共入口包括包根的 `SandboxManager`、`/types` 的契约、`/rpc` 的 `createRpcPeer`，以及 `/diagnostics` 的固定功能诊断。诊断 guest 在构建时打包现有 RPC 实现，不需要授权读取开发依赖目录。后端、策略编译与 lease 都是包内实现。宿主业务方法由调用方注册，包本身不包含插件加载、Agent 编排或业务持久化。
 
 ## 3. 启动与策略映射
 
@@ -72,7 +88,7 @@ RPC 使用 `vscode-jsonrpc@9.0.3`，通过 MXC 暴露的标准流传输。图中
 
 `probe(spec)` 只检查配置及 SDK 后端可用性，返回策略预览，不执行目标。`start(spec)` 可独立调用，在启动时重新编译策略。加载、策略或启动失败时返回失败结果，不降级为普通进程执行。
 
-当前支持 `environmentId: native`、`runtimeProfileId: mxc-command-v1`、`network.mode: deny`：
+当前支持 `environmentId: native`、`runtimeProfileId: mxc-command-v1`、`network.mode: deny`，macOS 另支持 `proxy`：
 
 | 公共描述 | MXC 映射与效果 |
 | --- | --- |
@@ -82,6 +98,9 @@ RPC 使用 `vscode-jsonrpc@9.0.3`，通过 MXC 暴露的标准流传输。图中
 | denyRead | macOS 映射 deniedPaths，同时禁止该路径写入；Windows 拒绝 |
 | denyWrite | macOS 映射 readonlyPaths，必须处于已有 read/write 授权内；Windows 拒绝 |
 | network deny | ingress 与 egress 默认拒绝；可写目录内 Unix socket 是已接受的例外 |
+| network proxy | macOS egress 仅可连接实例专属回环代理；代理按 host/port 精确白名单转发 HTTP/CONNECT；Windows 拒绝 |
+
+代理复用 `proxy-chain`，由 lease 持有和关闭。域名解析到私网或特殊用途地址时拒绝，私网目标需显式 IP 授权；CONNECT 授权的是 TCP 端点，不校验隧道内 TLS 身份、路径或方法。MXC 注入代理环境变量，客户端需实际使用代理；原始直连仍被拒绝。停止时撤销代理连接，代理服务异常触发目标停止，失败清理保留重试责任。
 
 MXC 还提供运行所需的系统资源基线。`effectivePolicy.runtimeAccess` 当前概括报告该基线，并未逐文件列举所有额外访问。`limitations` 明示路径硬链接、Unix socket、进程组回收差异；2026-10-12 决策接受这些差异，不把它们作为启动阻断条件。
 
@@ -148,7 +167,8 @@ sequenceDiagram
 | Node / Python 双向回调 | 已有示例及回归测试；另覆盖授权拒绝、超时、断线与合并帧读取 |
 | Windows 原生命令与 RPC | 已接通 ProcessContainer；实测允许读写、越界拒绝、只读保护、loopback 拒绝、ACL 回收；早期本机 detached 子进程停止结果不能代表托管 BaseContainer，后者的子进程启动与后代回收尚未验收，不纳入当前 demo 必需门槛 |
 | Linux | 当前 adapter 明确拒绝 |
-| 内存/进程数配额、挂载映射、专用通道、其他网络模式 | 当前拒绝请求，不声称已强制执行 |
+| 内存/进程数配额、挂载映射、专用通道、unrestricted 网络及 Windows proxy | 当前拒绝请求，不声称已强制执行 |
+| macOS 网络白名单 | HTTP/CONNECT 代理和固定诊断已实现；不包含 TLS 身份校验 |
 | Electron 集成 | Electron 44.9.3 / Node 24.22.0；主进程服务与开发者诊断入口已接通，Windows 原生库在 ASAR 外加载；签名分发另行验证 |
 | 插件加载、编排、Durable API | 不属于本包职责 |
 

@@ -5,6 +5,7 @@ import { app } from 'electron'
 
 import { application } from '@application'
 import { SandboxManager } from '@cherrystudio/sandbox'
+import { type DiagnosticGroup, type DiagnosticInteraction, runDiagnostics } from '@cherrystudio/sandbox/diagnostics'
 import type { SandboxSpec } from '@cherrystudio/sandbox/types'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -17,7 +18,7 @@ const logger = loggerService.withContext('SandboxService')
 @DependsOn(['WindowManager'])
 export class SandboxService extends BaseService {
   private manager = new SandboxManager()
-  private runs = new Map<string, { controller: AbortController; done: Promise<OutputFor<'sandbox.run'>> }>()
+  private runs = new Map<string, { controller: AbortController; done: Promise<unknown> }>()
 
   protected async onInit() {
     // FFI loads need a real filesystem path, outside Electron's ASAR virtual filesystem.
@@ -44,6 +45,46 @@ export class SandboxService extends BaseService {
   }
 
   async run(input: InputFor<'sandbox.run'>, senderId: string | null): Promise<OutputFor<'sandbox.run'>> {
+    return this.withRun(senderId, (ownerId, signal) => this.execute(input, ownerId, signal))
+  }
+
+  async diagnose(input: InputFor<'sandbox.diagnose'>, senderId: string | null): Promise<OutputFor<'sandbox.diagnose'>> {
+    return this.runDiagnostic(input.group, senderId)
+  }
+
+  async request(input: InputFor<'sandbox.request'>, senderId: string | null): Promise<OutputFor<'sandbox.request'>> {
+    return this.runDiagnostic(input.kind, senderId, input)
+  }
+
+  private async runDiagnostic(group: DiagnosticGroup, senderId: string | null, interaction?: DiagnosticInteraction) {
+    return this.withRun(senderId, async (ownerId, signal) => {
+      const cwd = await mkdtemp(path.join(application.getPath('feature.sandbox.temp'), 'diagnostic-'))
+      let removable = false
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 30000)
+      try {
+        const spec = await this.createSpec(ownerId, cwd, [], 30000)
+        const result = await runDiagnostics(
+          this.manager,
+          group,
+          spec,
+          AbortSignal.any([signal, controller.signal]),
+          interaction
+        )
+        removable = result.removable
+        return { results: result.results, trace: result.trace, report: result.report }
+      } finally {
+        clearTimeout(timer)
+        if (removable) await rm(cwd, { recursive: true, force: true })
+        else logger.warn('Retaining diagnostic workspace after incomplete cleanup', { cwd })
+      }
+    })
+  }
+
+  private async withRun<T>(
+    senderId: string | null,
+    execute: (ownerId: string, signal: AbortSignal) => Promise<T>
+  ): Promise<T> {
     if (!this.isReady) throw new Error('Sandbox service is not ready')
     const window = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
     if (!senderId || !window || window.isDestroyed()) throw new Error('Sandbox requires a managed window')
@@ -51,7 +92,7 @@ export class SandboxService extends BaseService {
     const controller = new AbortController()
     const stop = () => controller.abort()
     window.webContents.once('destroyed', stop)
-    const done = this.execute(input, senderId, controller.signal)
+    const done = execute(senderId, controller.signal)
     this.runs.set(senderId, { controller, done })
     try {
       return await done

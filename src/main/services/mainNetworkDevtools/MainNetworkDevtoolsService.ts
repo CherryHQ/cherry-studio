@@ -76,15 +76,17 @@ export function redactUrl(rawUrl: string): string {
 }
 
 export function redactHeaders(
-  headers: Headers | Record<string, unknown> | undefined
+  headers: Headers | Record<string, unknown> | readonly string[] | undefined
 ): Record<string, string> | undefined {
   if (!headers) return undefined
 
   const result: Record<string, string> = {}
   const entries: [string, unknown][] = []
 
-  if (typeof (headers as Headers).forEach === 'function') {
-    ;(headers as Headers).forEach((value, key) => entries.push([key, value]))
+  if (Array.isArray(headers)) {
+    for (let index = 0; index + 1 < headers.length; index += 2) entries.push([headers[index], headers[index + 1]])
+  } else if (headers instanceof Headers) {
+    headers.forEach((value, key) => entries.push([key, value]))
   } else {
     entries.push(...Object.entries(headers))
   }
@@ -123,7 +125,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   const normalizedPath =
     path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://') ? path : `/${path}`
 
-  const requestHeaders = redactHeaders(options.headers as Record<string, unknown> | undefined)
+  const requestHeaders = redactHeaders(options.headers)
 
   return {
     method: String(options.method ?? 'GET').toUpperCase(),

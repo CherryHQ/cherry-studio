@@ -50,6 +50,22 @@ export function validateSpec(spec: SandboxSpec): SandboxSpec {
     !spec.limits
   )
     invalid()
+  if (spec.network.mode === 'proxy') {
+    if (
+      !Array.isArray(spec.network.targets) ||
+      spec.network.targets.length > 64 ||
+      spec.network.targets.some(
+        (target) =>
+          !target ||
+          typeof target.host !== 'string' ||
+          !/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?|\[[a-fA-F0-9:]+\])$/.test(target.host) ||
+          !Number.isInteger(target.port) ||
+          target.port < 1 ||
+          target.port > 65535
+      )
+    )
+      invalid()
+  }
   for (const key of [
     'startupTimeoutMs',
     'stopGraceMs',

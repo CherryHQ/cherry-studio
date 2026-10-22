@@ -5,5 +5,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 export const sandboxHandlers: IpcHandlersFor<typeof sandboxRequestSchemas> = {
   'sandbox.probe': async () => application.get('SandboxService').probe(),
   'sandbox.run': async (input, { senderId }) => application.get('SandboxService').run(input, senderId),
+  'sandbox.diagnose': async (input, { senderId }) => application.get('SandboxService').diagnose(input, senderId),
+  'sandbox.request': async (input, { senderId }) => application.get('SandboxService').request(input, senderId),
   'sandbox.stop': async (_, { senderId }) => application.get('SandboxService').stopRun(senderId)
 }

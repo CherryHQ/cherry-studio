@@ -189,8 +189,9 @@ it('ends collection after SDK kill throws and retains the instance for a success
     collected = value
   })
   try {
-    const first = await process.instance.stop()
-    await vi.advanceTimersByTimeAsync(process.request.limits.cleanupTimeoutMs)
+    const stopping = process.instance.stop()
+    await vi.advanceTimersByTimeAsync(process.request.limits.stopTimeoutMs + process.request.limits.cleanupTimeoutMs)
+    const first = await stopping
     expect(first).toMatchObject({ tree: 'unknown', cleanup: 'incomplete' })
     expect(first.issues).toEqual(
       expect.arrayContaining([
@@ -321,3 +322,119 @@ it('reports unread buffered bytes discarded at the drain deadline even after EOF
   })
   expect(await readAll(process.instance.stdout)).toBe('')
 })
+
+// A kill error is not evidence that the process is still alive when exit races RPC closure.
+it('accepts an independently confirmed exit after SDK kill races the exiting process', async () => {
+  vi.useFakeTimers()
+  const process = await sdkProcess({}, () => {
+    throw new Error('Already exiting')
+  })
+  const output = Promise.all([readAll(process.instance.stdout), readAll(process.instance.stderr)])
+  const stopped = process.instance.stop()
+  await process.exit()
+  process.output.end()
+  process.errors.end()
+  await vi.advanceTimersByTimeAsync(process.request.limits.stopTimeoutMs)
+  expect(await stopped).toMatchObject({
+    tree: 'unverified',
+    cleanup: 'complete',
+    target: { status: 'exited' },
+    issues: []
+  })
+  await output
+})
+
+it('revokes the owned proxy when native spawn fails after proxy initialization', async () => {
+  let proxyUrl = ''
+  spawn.mockImplementation(async (request: mxc.ContainerRequest) => {
+    proxyUrl = request.network?.runtimeConfig?.networkProxy ?? ''
+    throw new Error('Native launch refused')
+  })
+  const request = spec()
+  const policy = compilePolicy(request)
+  request.network = { mode: 'proxy', targets: [] }
+  const instance = createInstance(
+    'proxy-spawn-error',
+    request,
+    createLease(request, async () => policy),
+    'mxc'
+  )
+  await expect(instance.ready).rejects.toThrow('Native launch refused')
+  expect(await instance.completion).toMatchObject({ target: { status: 'not-started' }, cleanup: 'complete' })
+  expect(proxyUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
+  await expect(fetch(proxyUrl)).rejects.toMatchObject({ cause: { code: 'ECONNREFUSED' } })
+})
+
+it.each(['stop', 'timeout'] as const)(
+  'retries termination after delayed spawn and repeated kill failures following %s',
+  async (cause) => {
+    vi.useFakeTimers()
+    const { MxcProcess } = await vi.importActual<typeof mxc>('@microsoft/mxc-sdk/v1')
+    const input = new PassThrough(),
+      output = new PassThrough(),
+      errors = new PassThrough()
+    let running = true,
+      killFails = true
+    const child = new MxcProcess({
+      id: 1,
+      standardInput: input,
+      standardOutput: output,
+      standardError: errors,
+      poll: () => ({ running, exitCode: 0, timedOut: false }),
+      wait: async () => ({ exitCode: 0, timedOut: false }),
+      warnings: () => [],
+      outputMetadata: () => undefined,
+      kill() {
+        if (killFails) throw new Error('Transient native kill failure')
+        running = false
+      },
+      killForTimeout() {
+        running = false
+      },
+      free: async () => undefined
+    })
+    const pending = deferred<mxc.MxcProcess>()
+    const spawning = deferred<void>()
+    spawn.mockImplementation(() => {
+      spawning.resolve()
+      return pending.promise
+    })
+    const request = spec()
+    const lease = createLease(request, async () => compilePolicy(request))
+    const instance = createInstance('delayed-spawn', request, lease, 'mxc')
+    const collected = Promise.all([readAll(instance.stdout), readAll(instance.stderr)])
+    try {
+      await spawning.promise
+      if (cause === 'timeout') await vi.advanceTimersByTimeAsync(request.limits.startupTimeoutMs)
+      const stopping = instance.stop()
+      pending.resolve(child)
+      await vi.advanceTimersByTimeAsync(request.limits.stopTimeoutMs + request.limits.cleanupTimeoutMs)
+      const first = await stopping
+      expect(first).toMatchObject({ tree: 'unknown', cleanup: 'incomplete' })
+      expect(running).toBe(true)
+      expect(output.destroyed).toBe(false)
+      expect(instance.snapshot().state).toBe('failed')
+      await expect(collected).resolves.toEqual(['', ''])
+      killFails = false
+      const retried = instance.stop()
+      await vi.advanceTimersByTimeAsync(request.limits.stopTimeoutMs + request.limits.cleanupTimeoutMs)
+      expect(await retried).toMatchObject({ target: { status: 'exited' }, tree: 'unverified', cleanup: 'complete' })
+      expect(running).toBe(false)
+      expect(output.destroyed).toBe(true)
+      expect(instance.snapshot().state).toBe('stopped')
+      expect(await instance.completion).toBe(first)
+      await expect(lease.failure).resolves.toMatchObject({
+        code: cause === 'timeout' ? 'START_TIMEOUT' : 'START_FAILED'
+      })
+    } finally {
+      running = false
+      pending.resolve(child)
+      await vi.advanceTimersByTimeAsync(100)
+      child.dispose()
+      input.destroy()
+      output.destroy()
+      errors.destroy()
+      await collected
+    }
+  }
+)

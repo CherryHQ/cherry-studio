@@ -65,10 +65,17 @@ Windows streams require Node 24.21+ (24.x) or 26.8+. This checkout uses Electron
 
 ## Application diagnostics
 
-Open **Settings → About & Feedback → Sandbox diagnostics** to probe or run JavaScript
+Open **Settings → About & Feedback → Sandbox diagnostics** for four capability test
+groups. Each group describes its coverage and retains its own results; rerunning a
+group replaces only that group’s results. Localized case names lead to expandable
+expected/actual evidence and reports. Run and stop controls remain above the scrollable
+content. RPC and network groups also accept interactive input: edit the numeric value
+and callback authorization, or edit a request URL and origin allowlist, then **Send
+request**. The completed trace shows the effective policy, request, host callbacks,
+response and cleanup; it is not a live event stream. The separate **Custom script** tab probes the backend or runs JavaScript
 with the bundled Electron executable in Node mode. `SandboxService` owns the manager
 through the application lifecycle. The typed `sandbox.probe`, `sandbox.run` and
-`sandbox.stop` IPC routes expose a fixed policy: no network, an isolated temporary
+`sandbox.stop` IPC routes expose a fixed script policy: no network, an isolated temporary
 write directory, runtime-file read grants, 30 seconds maximum and 64 KiB output.
 The renderer cannot choose an executable, environment, owner or filesystem grants.
 Only one run per managed window is allowed; stop affects that window's run.
@@ -79,11 +86,44 @@ Source is staged as a CommonJS file inside the per-run workspace, keeping accept
 cleanup: uncertain cleanup retains it with the workspace. Memory/process quotas are
 not enforced by this adapter.
 
+The same dialog offers fixed **File permissions**, **Bidirectional RPC**, **Instance
+management**, and **Network allowlist** diagnostics, individually or sequentially
+with **Run all**. `sandbox.diagnose` accepts only a group name; the host chooses
+fixtures and grants. Results distinguish passed, failed, unsupported, cancelled,
+and inconclusive, and expose expected/actual evidence. Stop, window destruction,
+and shutdown cancel the active group. One operation per window (four windows
+maximum) owns up to two sandbox instances, with a 30-second group deadline.
+
+The separate `sandbox.request` IPC accepts bounded RPC numbers and callback authorization,
+or an HTTP(S) URL and up to 64 origin URLs. URL credentials are rejected; executable,
+owner, host method names and filesystem grants remain host-owned. Interactive RPC runs
+`compute(value) → host.double(value) → +1`. Network requests execute GET inside the guest
+using the instance proxy, with normal TLS certificate verification, a 4 KiB response
+preview and no automatic redirects. Host/port grants ignore the origin URL's scheme.
+An empty allowlist denies all targets. A manual response is not an isolation verdict;
+unreachable external services can fail independently of sandbox policy.
+
+The `/diagnostics` package entry runs these fixtures through `SandboxManager`.
+Its Node guest is bundled at build time with the existing RPC peer; it needs no
+read grant to the checkout or development dependencies. File tests use separate
+read-only, writable and private directories, verify denied files remain unchanged,
+and observe writes through an already-open host descriptor. RPC tests cover a
+nested callback, authorization denial, concurrent responses and cancellation with
+recovery. Instance tests check independent grants and stopping A while B responds.
+
+Network diagnostics use two reachable, host-owned HTTP fixtures. macOS tests an
+allowed HTTP target, rejected host/port, CONNECT admission, redirects to an
+unlisted target, and direct TCP bypass denial. Destination counters and host
+positive controls distinguish policy denial from an unreachable service. This is
+HTTP/CONNECT acceptance, not end-to-end HTTPS certificate validation. Windows
+proxy mode is currently unsupported and reported as such. These results do not
+certify hard-link isolation or complete descendant cleanup.
+
 The package builds during installation. Rebuild it after editing sandbox source:
 `pnpm --filter @cherrystudio/sandbox build`. Windows packaging unpacks the MXC SDK
 and Koffi; the service supplies MXC's supported `MXC_FFI_DIR` override for native
 loading outside ASAR. Python RPC remains available through the package examples;
-the application diagnostics entry executes JavaScript only.
+the application diagnostics entry executes JavaScript only, including its bundled RPC guest.
 
 Electron 44.7 validates its installation directory ACL. A development checkout
 inheriting package-specific AppContainer entries may need `ALL APPLICATION PACKAGES`
@@ -127,7 +167,7 @@ from the repository root to observe exact codes without pnpm's error wrapper.
 ## Host API and RPC
 
 `new SandboxManager()` needs no supervisor path. Use `environmentId: native`,
-`runtimeProfileId: mxc-command-v1`, and `network: { mode: deny }`.
+`runtimeProfileId: mxc-command-v1`, and `network: { mode: deny }` (or macOS proxy mode below).
 The manager owns instances, cancellation, startup/lifetime deadlines and bounded
 I/O. Start returns an instance with `ready`, `completion`, `stop` and `snapshot`.
 `dispose()` stops all owned instances. After target exit, stdout/stderr collection
@@ -161,6 +201,27 @@ version handshakes, schema-bound method types, and the draft's complete per-fram
 validation/quotas are not implemented. The Python example handles one nested
 callback at a time; it is an interoperability example, not a general guest SDK.
 
+## Network proxy policy
+
+On macOS, `network: { mode: 'proxy', targets: [{ host: 'example.com', port: 443 }] }`
+starts a separate loopback HTTP/CONNECT proxy for each instance. MXC restricts
+network egress to that proxy and supplies proxy environment variables. Clients
+must honor those variables or configure their proxy explicitly. Ordinary Node
+HTTP clients do not automatically use them; direct connections remain denied.
+
+The adapter uses `proxy-chain` for forwarding and applies exact, case-insensitive
+host/port grants to every HTTP request and CONNECT tunnel; wildcards are rejected.
+DNS names resolving to private/special addresses are refused at connection time.
+Private services require an explicit IP grant, such as `127.0.0.1` and its port.
+CONNECT grants a TCP endpoint, not a TLS identity, URL path or HTTP method policy.
+There is no TLS interception or certificate validation bypass. A permitted service
+that itself proxies traffic is within the granted trust boundary.
+
+Stopping an instance closes the proxy and its active client connections; failed
+cleanup remains owned for retry. Unexpected proxy server failure stops the target.
+Windows proxy policy and unrestricted networking remain rejected. The editable
+JavaScript runner continues to use `network: deny`.
+
 ## Accepted backend semantics
 
 - On macOS, directory grants are path-based. Existing hard links in a grant can access an
@@ -173,7 +234,7 @@ callback at a time; it is an interoperability example, not a general guest SDK.
   `tree: unknown` still indicates an operational stop failure and remains owned
   for a retry. CLI success does not require a stronger tree guarantee.
 - Unsupported process/memory quotas, mount remapping, dedicated channels and
-  network modes are rejected instead of being silently reported as enforced.
+  unsupported network modes are rejected instead of being silently reported as enforced.
 - On macOS, `denyWrite` maps to MXC readonly paths and must lie within existing
   read/write grants. `denyRead` maps to fully denied paths (including writes).
 - On Windows, all explicit `denyRead` / `denyWrite` overrides are rejected with

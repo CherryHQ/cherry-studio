@@ -8,12 +8,14 @@ import { SandboxError } from '../../host/SandboxError.js'
 import type { SandboxSpec } from '../../types.js'
 import type { BackendLease } from '../types.js'
 import type { compilePolicy } from './policy.js'
+import { createProxy } from './proxy.js'
 
 export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType<typeof compilePolicy>>): BackendLease {
   const started = deferred<Awaited<BackendLease['started']>>()
   const targetExit = deferred<Awaited<BackendLease['targetExit']>>()
   const failure = deferred<SandboxError>()
   let child: MxcProcess | undefined
+  let proxy: Awaited<ReturnType<typeof createProxy>> | undefined
   let stopped = false
   let exited = false
   let spawnFailed = false
@@ -39,6 +41,15 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
   const launched = (async () => {
     try {
       const policy = await prepare()
+      if (spec.network.mode === 'proxy') {
+        proxy = await createProxy(spec.network.targets, () =>
+          fail(new SandboxError('START_FAILED', 'Sandbox proxy failed'))
+        )
+        policy.request.network = {
+          ...policy.request.network,
+          runtimeConfig: { networkProxy: proxy.url }
+        }
+      }
       const { spawn } = await import('@microsoft/mxc-sdk/v1')
       if (stopped) throw new SandboxError('CANCELLED', 'Stopped before MXC launch')
       child = await spawn(policy.request)
@@ -79,7 +90,11 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
     } catch (error) {
       if (child) {
         outputTruncated = true
-        child.kill()
+        try {
+          child.kill()
+        } catch {
+          // Retain the child without rejecting launched, so terminate can retry the native kill.
+        }
       } else {
         spawnFailed = true
         targetExit.resolve({ status: 'not-started' })
@@ -131,8 +146,18 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
         ))
       )
         return 'unknown'
+      await proxy?.close()
       if (spawnFailed) return 'gone'
-      if (!exited) child?.kill()
+      if (!exited) {
+        try {
+          child?.kill()
+        } catch (error) {
+          // Closing RPC can let the guest exit before MXC observes the kill.
+          const exit = await within(targetExit.promise, timeoutMs, { status: 'unknown' as const })
+          if (exit.status === 'exited') return 'unverified'
+          throw error
+        }
+      }
       const exit = await within(targetExit.promise, timeoutMs, { status: 'unknown' as const })
       return exit.status === 'exited' ? 'unverified' : 'unknown'
     },
@@ -155,6 +180,7 @@ export function createLease(spec: SandboxSpec, prepare: () => Promise<ReturnType
       const unread = [stdout.discard(), stderr.discard()].some(Boolean)
       const truncated = outputTruncated || !drained || unread
       child?.dispose()
+      await proxy?.close()
       return {
         status: 'complete',
         issues: truncated
