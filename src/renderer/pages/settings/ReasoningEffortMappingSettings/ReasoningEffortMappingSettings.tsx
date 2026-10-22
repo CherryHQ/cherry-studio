@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ReasoningEffort } from '@cherrystudio/provider-registry'
@@ -60,6 +60,10 @@ const ReasoningEffortMappingSettings: FC = () => {
   const { theme } = useTheme()
   const { providers } = useProviders()
   const [overrides, setOverrides] = usePreference('feature.reasoning.effort_mappings')
+  // PreferenceService refreshes its cache only when each queued write starts, so rapid edits
+  // must chain on the last enqueued value rather than the cache — otherwise a second and third
+  // edit both build on the first edit's snapshot and the middle edits are lost.
+  const pendingOverridesRef = useRef<ReasoningEffortMappingOverrides | null>(null)
   const [scope, setScope] = useState<MappingScope>('global')
   const [providerId, setProviderId] = useState('')
 
@@ -76,11 +80,23 @@ const ReasoningEffortMappingSettings: FC = () => {
     [overrides, scope, selectedProviderId]
   )
 
+  // Clear the chain once the store catches up to the last enqueued value (writes are small,
+  // deterministic objects, so serialized comparison is exact).
+  useEffect(() => {
+    if (
+      pendingOverridesRef.current !== null &&
+      JSON.stringify(pendingOverridesRef.current) === JSON.stringify(overrides)
+    ) {
+      pendingOverridesRef.current = null
+    }
+  }, [overrides])
+
   const updateTier = useCallback(
     (source: ReasoningEffort, target: string) => {
       if (scope === 'provider' && !selectedProviderId) return
 
-      const currentOverrides = preferenceService.getCachedValue('feature.reasoning.effort_mappings') ?? overrides
+      const currentOverrides =
+        pendingOverridesRef.current ?? preferenceService.getCachedValue('feature.reasoning.effort_mappings') ?? overrides
       const currentScopeMap = readScopeMap(currentOverrides, scope, selectedProviderId)
       const nextMap = { ...currentScopeMap }
       if (target === AUTOMATIC_VALUE) {
@@ -88,7 +104,9 @@ const ReasoningEffortMappingSettings: FC = () => {
       } else {
         nextMap[source] = target as ReasoningEffort
       }
-      void setOverrides(writeScopeMap(currentOverrides, scope, selectedProviderId, nextMap))
+      const nextOverrides = writeScopeMap(currentOverrides, scope, selectedProviderId, nextMap)
+      pendingOverridesRef.current = nextOverrides
+      void setOverrides(nextOverrides)
     },
     [overrides, scope, selectedProviderId, setOverrides]
   )

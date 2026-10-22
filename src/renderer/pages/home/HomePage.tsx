@@ -42,7 +42,6 @@ import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
@@ -295,8 +294,6 @@ const HomePage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest topic without resubscribing.
   }, [currentTabId])
 
-  // Label this tab with its assistant emoji + topic name so multiple chat tabs
-  // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
   const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
   // Start the managed model query before assistant details resolve; Chat shares the same SWR request.
@@ -309,15 +306,11 @@ const HomePage: FC = () => {
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
-  // While the bound topic is still loading, keep the tab's stored title/icon instead of stamping
-  // a generic one.
   const targetTopicId = activeTopicId ?? undefined
   const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
-  const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
-  const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -620,13 +613,17 @@ const HomePage: FC = () => {
             allTopics.map(getTopicAssistantDisplayGroupId).filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
-        cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
+        if (isWindowFrame) {
+          cacheService.set('ui.window.chat.topic.expansion.assistant', collapsedAssistantGroupIds)
+        } else {
+          cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
+        }
       }
       await setPanePosition(position)
       setTopicPaneOpen(position === 'right', { force: true })
       setShellPaneOpen(true)
     },
-    [allTopics, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
+    [allTopics, isWindowFrame, setPanePosition, setShellPaneOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
   )
   // Classic layout = entity rail + right topic panel; modern layout = one left navigation panel (HomeTabs).
   const pane =
@@ -724,13 +721,7 @@ const HomePage: FC = () => {
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
-      <HomeTabRuntime
-        title={tabTitle}
-        emoji={visibleAssistant?.emoji}
-        preserveVisuals={preserveTabVisuals}
-        activeTopicId={activeTopic?.id}
-        activeTopicSource={activeTopicSource}
-      />
+      <HomeTabRuntime activeTopicId={activeTopic?.id} activeTopicSource={activeTopicSource} />
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <Chat

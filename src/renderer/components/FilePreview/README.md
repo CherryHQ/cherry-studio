@@ -1,8 +1,8 @@
 # FilePreview
 
-`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, text and video remain local plugins.
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, text and video remain local plugins.
 
-The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
@@ -104,9 +104,9 @@ Embedded and tab previews are host composition choices, not `FilePreview` displa
 
 ## Plugin Structure
 
-The public package has a static registry for its five formats. `ElectronFilePreview` supplies
+The public package has a static registry for its document and image formats. `ElectronFilePreview` supplies
 `PreviewSource` through file IPC, forwards PDF resource reads and diagnostics, and builds
-`SelectionReference` from its own path and metadata props. The desktop registry routes those formats through
+`SelectionReference` from its path and the same metadata request used to open the document. The desktop registry routes those formats through
 that adapter. Only HTML, Markdown, text and video keep application-owned plugins under `plugins/`.
 All formats reuse layout and toolbar components exported by the package.
 
@@ -236,7 +236,7 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - The desktop adapter converts the package's structural selection into a `SelectionReference` using the
   file path and metadata. What to do with a reference (show an action, inject it into a conversation) is the
   embedding surface's concern; neither the host nor the plugin renders reference UI.
-- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+- The host never synthesizes a `null` — a plugin unmount (file switch) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
@@ -281,17 +281,26 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 - Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
   they never access Electron APIs. The adapter serves whole-document reads with one full
   `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
-  metadata version. Size/mtime consistency checks apply to DOCX, PPTX, XLSX and images as
+  metadata version. Size/mtime consistency checks apply to DOCX, PPTX, XLSX, RTF and images as
   well as PDF. A file changed after metadata was read fails the session; refresh to read new metadata.
-- Shared full reads enforce source budgets: DOCX/PPTX 25 MiB, XLSX 20 MiB, images 64 MiB.
+- Shared full reads enforce source budgets: DOCX/PPTX 25 MiB, XLSX 20 MiB, RTF 10 MiB, images 64 MiB.
   PDF keeps a 16 MiB assembled-range cap, not a whole-file size cap, and delegates its external
   fallback to the host.
 - The public preview closes sessions on replacement, refresh, failure and unmount, including late
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
   Synchronous parsing cannot be interrupted.
-- Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
-  opened document changes. Do not request metadata again inside a format plugin.
+- Local loading effects depend on `filePath`, `refreshKey`, and the host's metadata request. Text,
+  Markdown, and restricted HTML wait for that request before checking size or reading content.
+  Shared plugins reload when their opened document changes. Do not request metadata again inside a format plugin.
+- A same-path refresh retains a compatible preview while metadata and content reload. Local plugins
+  and the portable preview package preserve valid reading state; different paths or formats reset it.
+  The consumer clears held selections when requesting refresh. `FilePreview` rejects callbacks from
+  an obsolete metadata resolution, and `Preview` rejects obsolete document selections and failures.
+  Format plugins cancel their own selection work and clamp positions when refreshed content shrinks.
+- The desktop source changes as soon as a refresh is committed and waits for the host's single metadata
+  request before opening. Metadata completion keeps that source stable. Activity reconnections start a
+  fresh metadata request even when the path and refresh key are unchanged.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - The desktop adapter routes package `onDiagnostic` events to `loggerService`, preserving `Error`
