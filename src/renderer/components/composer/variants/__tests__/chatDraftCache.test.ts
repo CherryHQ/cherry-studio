@@ -5,6 +5,7 @@ import { cacheService } from '@data/CacheService'
 import type { ComposerSerializedToken } from '../../tokens'
 import {
   type ChatComposerDraftCache,
+  clearChatDraftCacheIfMatches,
   getChatDraftCacheKey,
   hasChatDraftContent,
   readChatDraftCache,
@@ -124,5 +125,83 @@ describe('chatDraftCache', () => {
     expect(hasChatDraftContent({ ...emptyDraft, knowledgeBaseIds: ['base-1'] })).toBe(true)
     expect(hasChatDraftContent({ ...emptyDraft, mentionedModelIds: ['provider::model-a'] })).toBe(true)
     expect(hasChatDraftContent({ ...emptyDraft, modelMultiSelectMode: true })).toBe(false)
+  })
+})
+
+describe('clearChatDraftCacheIfMatches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const submitted = {
+    text: 'queued follow-up',
+    tokens: [quoteToken],
+    files: [],
+    knowledgeBaseIds: []
+  }
+
+  it('clears the document while preserving newer model-selector fields', () => {
+    // The user changed the mentioned-model selection after submitting; the
+    // settlement clear must not silently revert that newer selection
+    // (cherry-pr-review inv_b9cdc5f7ec400343).
+    vi.mocked(cacheService.get).mockReturnValue({
+      ...submitted,
+      mentionedModelIds: ['provider::model-a'],
+      modelMultiSelectMode: true
+    })
+
+    clearChatDraftCacheIfMatches('topic-a', submitted)
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-a',
+      {
+        text: '',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        mentionedModelIds: ['provider::model-a'],
+        modelMultiSelectMode: true
+      },
+      expect.any(Number)
+    )
+  })
+
+  it('clears to a fully empty record when model fields were untouched', () => {
+    vi.mocked(cacheService.get).mockReturnValue({
+      ...submitted,
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
+    })
+
+    clearChatDraftCacheIfMatches('topic-a', submitted)
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-a',
+      {
+        text: '',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      },
+      expect.any(Number)
+    )
+  })
+
+  it('preserves the whole record when newer document edits diverge', () => {
+    const edited = {
+      text: 'edited after submit',
+      tokens: [quoteToken],
+      files: [],
+      knowledgeBaseIds: [],
+      mentionedModelIds: ['provider::model-a'],
+      modelMultiSelectMode: true
+    }
+    vi.mocked(cacheService.get).mockReturnValue(edited)
+
+    clearChatDraftCacheIfMatches('topic-a', submitted)
+
+    expect(cacheService.set).not.toHaveBeenCalled()
   })
 })

@@ -37,14 +37,17 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   }
 }
 
-export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
+export function hasChatDraftDocument(draft: ChatComposerDraftCache): boolean {
   return (
     draft.text.length > 0 ||
     draft.tokens.length > 0 ||
     draft.files.length > 0 ||
-    draft.knowledgeBaseIds.length > 0 ||
-    draft.mentionedModelIds.length > 0
+    draft.knowledgeBaseIds.length > 0
   )
+}
+
+export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
+  return hasChatDraftDocument(draft) || draft.mentionedModelIds.length > 0
 }
 
 export function readChatDraftPresence(topicId: string): boolean {
@@ -61,6 +64,11 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
  * text, and without this reconcile the queued message reappears in the input
  * on reopen (cherry-pr-review). Newer edits rewrite the cache entry, so a
  * mismatch is preserved untouched.
+ *
+ * Only the submitted document fields participate in the match and the reset.
+ * The model-selector fields (mentionedModelIds, modelMultiSelectMode) are
+ * composer-scope state the user may have changed after submitting; clearing
+ * them here would silently revert that newer selection (cherry-pr-review).
  */
 export function clearChatDraftCacheIfMatches(
   topicId: string,
@@ -71,7 +79,11 @@ export function clearChatDraftCacheIfMatches(
   if (JSON.stringify(cached.tokens) !== JSON.stringify(submitted.tokens)) return
   if (JSON.stringify(cached.files) !== JSON.stringify(submitted.files)) return
   if (JSON.stringify(cached.knowledgeBaseIds) !== JSON.stringify(submitted.knowledgeBaseIds)) return
-  writeChatDraftCache(topicId, EMPTY_DRAFT_CACHE)
+  writeChatDraftCache(topicId, {
+    ...EMPTY_DRAFT_CACHE,
+    mentionedModelIds: cached.mentionedModelIds,
+    modelMultiSelectMode: cached.modelMultiSelectMode
+  })
 }
 
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {

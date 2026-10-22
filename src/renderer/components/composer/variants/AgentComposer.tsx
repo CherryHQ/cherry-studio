@@ -778,7 +778,8 @@ const AgentComposerInner = ({
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
   const { files, isExpanded, selectedKnowledgeBases } = useComposerToolState()
-  const { setFiles, setIsExpanded, setSelectedKnowledgeBases, toolsRegistry } = useComposerToolDispatch()
+  const { setFiles, subscribeFilesDispatch, setIsExpanded, setSelectedKnowledgeBases, toolsRegistry } =
+    useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -1567,6 +1568,17 @@ const AgentComposerInner = ({
   useEffect(() => {
     draftEditRevisionRef.current += 1
   }, [files])
+  // The effect above runs after React commits — too late when an enqueue
+  // resolves in the same window. Tool dispatches (the attachment picker,
+  // runtime tools) bypass the revision wrapper below, so track attachment
+  // mutations synchronously at the dispatch boundary itself (cherry-pr-review).
+  useEffect(
+    () =>
+      subscribeFilesDispatch(() => {
+        draftEditRevisionRef.current += 1
+      }),
+    [subscribeFilesDispatch]
+  )
   // The effect above runs only after React commits, which is too late when an
   // enqueue resolves in the same window: an attachment update dispatched while
   // the enqueue is pending would not have bumped the revision yet, so the

@@ -84,7 +84,9 @@ import { ChatConversationControls, type ChatConversationControlsProps } from './
 import {
   clearChatDraftCacheIfMatches,
   type ChatComposerDraftCache,
+  hasChatDraftDocument,
   readChatDraftCache,
+  subscribeChatDraftCache,
   writeChatDraftCache
 } from './chat/chatDraftCache'
 import {
@@ -1606,6 +1608,33 @@ const ChatComposerInner = ({
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
   }, [resetHistoryIndex, setFiles, setText])
+
+  // Reconcile the active draft owner when an enqueue submitted while this
+  // topic's previous composer instance was mounted settles: settlement removes
+  // the submitted document from the topic cache, but a composer that reopened
+  // the topic before settlement already loaded that draft into the editor, and
+  // clearing only the cache would leave the queued message submittable a
+  // second time. When the cached document disappears while this editor still
+  // holds exactly the draft it loaded at mount, clear the editor too; any edit
+  // since mount diverges from the snapshot and is preserved (cherry-pr-review).
+  // Model-selector fields are excluded from both checks: they survive
+  // settlement clears by design (see clearChatDraftCacheIfMatches).
+  useEffect(() => {
+    if (!hasChatDraftDocument(initialDraft)) return
+    return subscribeChatDraftCache(draftCacheScopeKey, () => {
+      const cached = readChatDraftCache(draftCacheScopeKey)
+      if (hasChatDraftDocument(cached)) return
+      const visibleDraft = actionsRef.current.getDraft()
+      if (
+        visibleDraft.text === initialDraft.text &&
+        JSON.stringify(visibleDraft.tokens ?? []) === JSON.stringify(initialDraft.tokens) &&
+        JSON.stringify(filesRef.current) === JSON.stringify(initialDraft.files) &&
+        JSON.stringify(knowledgeBaseIdsRef.current) === JSON.stringify(initialDraft.knowledgeBaseIds)
+      ) {
+        clearCurrentDraft()
+      }
+    })
+  }, [actionsRef, clearCurrentDraft, draftCacheScopeKey, filesRef, initialDraft])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
