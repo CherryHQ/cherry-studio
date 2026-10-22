@@ -381,6 +381,12 @@ export class AgentTaskService {
     return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 
+  getTaskDetail(taskId: string): ScheduledTaskListItem | null {
+    const task = this.getTaskById(taskId)
+    if (!task) return null
+    return { ...task, runSummary: this.getRunSummariesByScheduleIds([taskId]).get(taskId) ?? null }
+  }
+
   /**
    * Fetch one task, guarding identity in a single lookup: the row must exist,
    * be an `agent.task` schedule, and belong to `agentId` — the three failure

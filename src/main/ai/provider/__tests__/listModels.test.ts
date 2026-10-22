@@ -6,8 +6,11 @@ import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
+import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { resolveEffectiveEndpoint } from '../endpoint'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
+import { AIHubMixModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -41,7 +44,12 @@ vi.mock('@main/data/services/ProviderService', () => ({
 
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    isRegistryProvider: isRegistryProviderMock
+    isRegistryProvider: isRegistryProviderMock,
+    getProviderPreset: () => ({
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://router.huggingface.co/v1' }
+      }
+    })
   }
 }))
 
@@ -151,6 +159,17 @@ describe('listModels — default grouping', () => {
       expect(models.map((model) => model.group)).not.toContain(providerId)
     }
   )
+})
+
+describe('AIHubMix model list response', () => {
+  it('accepts null pricing without dropping the model', () => {
+    const response = AIHubMixModelsResponseSchema.parse({
+      data: [{ model_id: 'media-model', pricing: null }]
+    })
+
+    expect(response.data).toHaveLength(1)
+    expect(response.data[0]).toMatchObject({ model_id: 'media-model', pricing: null })
+  })
 })
 
 describe('listModels — malformed OpenAI-compatible rows', () => {
@@ -463,11 +482,53 @@ describe('listModels — Ollama capabilities', () => {
       capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     expect(models[0].reasoning).toBeUndefined()
-    expect(models[1]).toMatchObject({ capabilities: [] })
+    expect(models[1]).toMatchObject({
+      apiModelId: 'qwen3-embedding:4b',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
     expect(models[1].reasoning).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
     })
+  })
+
+  it.each([
+    {
+      label: 'embedding support for a non-catalog name',
+      nativeModel: { name: 'acme-retriever:latest', capabilities: ['embedding'] },
+      expected: [MODEL_CAPABILITY.EMBEDDING]
+    },
+    {
+      label: 'chat-only support without embedding',
+      nativeModel: { name: 'llama3', capabilities: ['completion'] },
+      expected: []
+    },
+    {
+      label: 'omitted capabilities without inventing flags',
+      nativeModel: { name: 'unclassified:latest' },
+      expected: []
+    },
+    {
+      label: 'unknown flags without inventing capabilities',
+      nativeModel: { name: 'future:latest', capabilities: ['future-capability'] },
+      expected: []
+    },
+    {
+      label: 'additive capabilities in deterministic order',
+      nativeModel: {
+        name: 'multitask:latest',
+        capabilities: ['embedding', 'tools', 'thinking', 'completion', 'future-capability']
+      },
+      expected: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.EMBEDDING]
+    }
+  ])('lists a model with $label', async ({ nativeModel, expected }) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [nativeModel] } })
+
+    const { models } = await listModels(makeOllamaProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe(nativeModel.name)
+    expect(models[0].capabilities).toEqual(expected)
   })
 
   it('maps the tools flag to the function-call capability without thinking', async () => {
@@ -1702,4 +1763,88 @@ describe('listModels — ComfyUI credentials', () => {
     // shorter list than the server has.
     expect(listing.skippedModels).toEqual(['a#b', 'c?d'])
   })
+})
+
+describe('listModels — huggingFaceFetcher (router dialects)', () => {
+  // The listing carries no endpoint field, so without this the models fall back to the provider
+  // default and a Claude Code Agent can only reach the router through the translating gateway.
+  it('declares both router dialects on every model, Chat Completions leading', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'deepseek-ai/DeepSeek-V4-Pro-0813', owned_by: 'deepseek-ai' },
+          { id: 'zai-org/GLM-5.1', owned_by: 'zai-org' }
+        ]
+      }
+    })
+
+    const provider = makeProvider({
+      id: 'huggingface',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://router.huggingface.co/v1/' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://router.huggingface.co/v1/' }
+      }
+    })
+    const { models } = await listModels(provider)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://router.huggingface.co/v1/models')
+    expect(models.map((model) => model.apiModelId)).toEqual(['deepseek-ai/DeepSeek-V4-Pro-0813', 'zai-org/GLM-5.1'])
+    for (const model of models) {
+      expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+      expect(resolveEffectiveEndpoint(provider, makeModel(model), ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        baseUrl: 'https://router.huggingface.co/v1/'
+      })
+    }
+  })
+
+  it('routes a copied Hugging Face provider (uuid id + presetProviderId) through the same fetcher', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'zai-org/GLM-5.1' }] } })
+
+    const { models } = await listModels(
+      makeProvider({
+        id: 'a4f1e6c0-0d2b-4f0e-9d1a-2b3c4d5e6f70',
+        presetProviderId: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' }
+        }
+      })
+    )
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+
+  it.each(['huggingface', 'huggingface-copy'])(
+    'keeps discovered models on the configured Responses server for %s',
+    async (providerId) => {
+      const baseUrl = 'https://hf-proxy.example/v1'
+      const provider = makeProvider({
+        id: providerId,
+        presetProviderId: 'huggingface',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://router.huggingface.co/v1' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://router.huggingface.co/v1/' }
+        }
+      })
+      aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'custom/model' }] } })
+
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+      expect(aiSdkGetFromApiMock.mock.calls[0][0].url).toBe(`${baseUrl}/models`)
+      expect(models[0].endpointTypes).toBeUndefined()
+      const model = makeModel({ ...models[0] })
+      for (const preferredEndpoint of [undefined, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]) {
+        expect(resolveEffectiveEndpoint(provider, model, preferredEndpoint)).toMatchObject({
+          endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          baseUrl
+        })
+      }
+    }
+  )
 })

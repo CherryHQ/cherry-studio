@@ -12,7 +12,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -36,7 +36,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
@@ -77,6 +77,16 @@ interface RuntimeModelRef {
   contextWindow?: number
   provider?: Provider
   model?: Model
+}
+
+/** Why one model slot cannot take the direct branch — mirrors the gateway predicate. */
+type GatewayDegradeReason = 'agent-gateway-provider' | 'cross-provider' | 'non-anthropic-endpoint'
+
+interface GatewayDegradedSlot {
+  slot: 'sonnet' | 'haiku'
+  providerId: string
+  modelId: string
+  reasons: GatewayDegradeReason[]
 }
 
 interface ClaudeCodeRouteFacts {
@@ -123,11 +133,17 @@ interface ClaudeCodeRouteFacts {
   }>
 }
 
+/** Route facts plus gateway-only observability that must never enter the rebuild signature. */
+interface DerivedRouteFacts {
+  facts: ClaudeCodeRouteFacts
+  /** Background slots that pulled a direct-eligible primary onto the gateway; absent otherwise. */
+  gatewayDegradedBy?: GatewayDegradedSlot[]
+}
+
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
   apiKey?: string
   customHeaders?: string | Readonly<Record<string, string>>
   usageCapture: AgentSessionUsageCapture
-  internalRequestToken?: string
 }
 
 /** The gateway is local even when it binds a non-default loopback address such as 127.0.0.2. */
@@ -401,7 +417,7 @@ async function deriveConnectionConfigFromSnapshot(
       baseUrl,
       pinSubModelsToPrimary ? undefined : agent.planModel,
       pinSubModelsToPrimary ? undefined : agent.smallModel
-    )
+    ).facts
   }
   const skills = materialized?.skills ?? (await buildSkillWhitelist(agent, cwd))
   const notificationContext = materialized?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id)
@@ -427,6 +443,7 @@ async function deriveConnectionConfigFromSnapshot(
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName: agent.modelName || null,
     browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+    computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -673,7 +690,7 @@ function deriveRouteFacts(
   primaryBaseUrl: string,
   planModel: UniqueModelId | null | undefined,
   smallModel: UniqueModelId | null | undefined
-): ClaudeCodeRouteFacts {
+): DerivedRouteFacts {
   const primaryRef: RuntimeModelRef = {
     providerId: primaryProvider.id,
     modelId: primaryModelId,
@@ -689,7 +706,6 @@ function deriveRouteFacts(
   // model (consistent env values, no spurious gateway switch when the edit points at another provider).
   const sonnetRef = resolveRuntimeModelRef(planModel, primaryRef)
   const haikuRef = resolveRuntimeModelRef(smallModel, primaryRef)
-  const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
 
   // ToolSearch is gated on the *primary* model only: it is the only one that can emit ToolSearch
   // calls, and every dynamically-loaded tool declaration lands in the shared conversation the
@@ -720,53 +736,75 @@ function deriveRouteFacts(
       haiku: externalRefs.haiku.apiModelId
     }
     return {
-      branch: 'external-cli',
-      credentialsFingerprint: 'external-cli',
-      toolSearchCompatible,
-      modelIds,
-      budgetSlots: [],
-      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
-      usageModels: buildUsageModels([
-        { sdkModelId: modelIds.primary, ref: externalRefs.primary },
-        { sdkModelId: modelIds.opus, ref: externalRefs.opus },
-        { sdkModelId: modelIds.sonnet, ref: externalRefs.sonnet },
-        { sdkModelId: modelIds.haiku, ref: externalRefs.haiku }
-      ])
+      facts: {
+        branch: 'external-cli',
+        credentialsFingerprint: 'external-cli',
+        toolSearchCompatible,
+        modelIds,
+        budgetSlots: [],
+        primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
+        usageModels: buildUsageModels([
+          { sdkModelId: modelIds.primary, ref: externalRefs.primary },
+          { sdkModelId: modelIds.opus, ref: externalRefs.opus },
+          { sdkModelId: modelIds.sonnet, ref: externalRefs.sonnet },
+          { sdkModelId: modelIds.haiku, ref: externalRefs.haiku }
+        ])
+      }
     }
   }
 
-  const shouldUseGateway = modelRefs.some(
-    (ref) =>
-      requiresAgentGateway(ref.providerId) ||
-      ref.providerId !== primaryProvider.id ||
-      !usesAnthropicMessagesEndpoint(ref)
-  )
+  const gatewayReasons = (ref: RuntimeModelRef): GatewayDegradeReason[] => {
+    const reasons: GatewayDegradeReason[] = []
+    if (requiresAgentGateway(ref.providerId)) reasons.push('agent-gateway-provider')
+    if (ref.providerId !== primaryProvider.id) reasons.push('cross-provider')
+    if (!usesAnthropicMessagesEndpoint(ref)) reasons.push('non-anthropic-endpoint')
+    return reasons
+  }
+  const primaryReasons = gatewayReasons(primaryRef)
+  // A sub-model pinned to `primaryRef` (unset, or a captured turn) adds no reason of its own.
+  const sonnetReasons = sonnetRef === primaryRef ? [] : gatewayReasons(sonnetRef)
+  const haikuReasons = haikuRef === primaryRef ? [] : gatewayReasons(haikuRef)
+  const shouldUseGateway = primaryReasons.length > 0 || sonnetReasons.length > 0 || haikuReasons.length > 0
 
   if (shouldUseGateway) {
-    const apiGatewayService = application.get('ApiGatewayService')
-    const config = apiGatewayService.getCurrentConfig()
-    const host = config.host || '127.0.0.1'
-    const port = config.port || 23333
+    const degradedSlot = (
+      slot: GatewayDegradedSlot['slot'],
+      ref: RuntimeModelRef,
+      reasons: GatewayDegradeReason[]
+    ): GatewayDegradedSlot => ({ slot, providerId: ref.providerId, modelId: ref.modelId, reasons })
+    const slotModelId = (ref: RuntimeModelRef) =>
+      toGatewayModelId(ref, isFirstPartyAnthropicSlot(ref, primaryRef, primaryBaseUrl))
     return {
-      branch: 'gateway',
-      baseUrl: gatewayClientOrigin(host, port),
-      credentialsFingerprint: gatewayCredentialsFingerprint(),
-      toolSearchCompatible,
-      modelIds: {
-        primary: toGatewayModelId(primaryRef),
-        opus: toGatewayModelId(opusRef),
-        sonnet: toGatewayModelId(sonnetRef),
-        haiku: toGatewayModelId(haikuRef)
-      },
-      budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
-        providerId: ref.providerId,
-        modelId: ref.modelId,
-        contextWindow: ref.contextWindow,
-        maxOutputTokens: ref.model?.maxOutputTokens,
-        trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null, 'gateway-forwarding')
-      })),
-      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel, 'gateway-forwarding'),
-      usageModels: []
+      // A direct-eligible primary pushed onto the gateway by a background slot is user-visible
+      // degradation; when the primary itself needs the gateway this is the expected route.
+      gatewayDegradedBy:
+        primaryReasons.length > 0
+          ? undefined
+          : [
+              ...(sonnetReasons.length ? [degradedSlot('sonnet', sonnetRef, sonnetReasons)] : []),
+              ...(haikuReasons.length ? [degradedSlot('haiku', haikuRef, haikuReasons)] : [])
+            ],
+      facts: {
+        branch: 'gateway',
+        baseUrl: application.get('ApiGatewayService').getInternalGatewayOrigin(),
+        credentialsFingerprint: gatewayCredentialsFingerprint(),
+        toolSearchCompatible,
+        modelIds: {
+          primary: slotModelId(primaryRef),
+          opus: slotModelId(opusRef),
+          sonnet: slotModelId(sonnetRef),
+          haiku: slotModelId(haikuRef)
+        },
+        budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
+        	providerId: ref.providerId,
+        	modelId: ref.modelId,
+        	contextWindow: ref.contextWindow,
+        	maxOutputTokens: ref.model?.maxOutputTokens,
+        	trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null, 'gateway-forwarding')
+        })),
+        primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel, 'gateway-forwarding'),
+        usageModels: []
+      }
     }
   }
 
@@ -790,22 +828,24 @@ function deriveRouteFacts(
     haiku: with1mSuffix(haikuRef.apiModelId, haikuRef.contextWindow, isAnthropicNative)
   }
   return {
-    branch: 'direct',
-    baseUrl: anthropicBaseUrl,
-    credentialsFingerprint: fingerprintCredentials([
-      ...enabledKeys.map((key) => `api-key:${key}`),
-      ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
-    ]),
-    toolSearchCompatible,
-    modelIds,
-    budgetSlots: [],
-    primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
-    usageModels: buildUsageModels([
-      { sdkModelId: modelIds.primary, ref: primaryRef },
-      { sdkModelId: modelIds.opus, ref: opusRef },
-      { sdkModelId: modelIds.sonnet, ref: sonnetRef },
-      { sdkModelId: modelIds.haiku, ref: haikuRef }
-    ])
+    facts: {
+      branch: 'direct',
+      baseUrl: anthropicBaseUrl,
+      credentialsFingerprint: fingerprintCredentials([
+        ...enabledKeys.map((key) => `api-key:${key}`),
+        ...(customHeaders ? [`custom-headers:${customHeaders}`] : [])
+      ]),
+      toolSearchCompatible,
+      modelIds,
+      budgetSlots: [],
+      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
+      usageModels: buildUsageModels([
+        { sdkModelId: modelIds.primary, ref: primaryRef },
+        { sdkModelId: modelIds.opus, ref: opusRef },
+        { sdkModelId: modelIds.sonnet, ref: sonnetRef },
+        { sdkModelId: modelIds.haiku, ref: haikuRef }
+      ])
+    }
   }
 }
 
@@ -820,7 +860,22 @@ async function resolveClaudeCodeRuntimeRoute(
   smallModel: UniqueModelId | null | undefined,
   source: SourceSnapshot
 ): Promise<ClaudeCodeRuntimeRoute> {
-  const facts = deriveRouteFacts(primaryProvider, primaryModel, primaryModelId, primaryBaseUrl, planModel, smallModel)
+  const { facts, gatewayDegradedBy } = deriveRouteFacts(
+    primaryProvider,
+    primaryModel,
+    primaryModelId,
+    primaryBaseUrl,
+    planModel,
+    smallModel
+  )
+  if (gatewayDegradedBy?.length) {
+    logger.warn('Claude Code route degraded to the internal gateway by a background model slot', {
+      sessionId,
+      primaryProviderId: primaryProvider.id,
+      primaryModelId,
+      slots: gatewayDegradedBy
+    })
+  }
 
   switch (facts.branch) {
     case 'external-cli':
@@ -843,7 +898,6 @@ async function resolveClaudeCodeRuntimeRoute(
         apiKey: gateway.apiKey,
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
-        internalRequestToken: gateway.internalRequestToken,
         credentialsFingerprint: gatewayCredentialsFingerprint()
       }
     }
@@ -943,8 +997,23 @@ function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   )
 }
 
-function toGatewayModelId(ref: RuntimeModelRef): string {
-  return formatGatewayModelId(ref.providerId, ref.apiModelId)
+/**
+ * Gateway-slotted id. Anthropic-dialect slots keep the direct branch's `[1m]` marker, which raises
+ * the CLI's local budget; the CLI strips it before egress and the gateway tolerates a stray marker.
+ */
+function toGatewayModelId(ref: RuntimeModelRef, isAnthropicNative: boolean): string {
+  const apiModelId = usesAnthropicMessagesEndpoint(ref)
+    ? with1mSuffix(ref.apiModelId, ref.contextWindow, isAnthropicNative)
+    : ref.apiModelId
+  return formatGatewayModelId(ref.providerId, apiModelId)
+}
+
+/** Per-slot first-party check: each gateway slot resolves its own provider, unlike the direct branch. */
+function isFirstPartyAnthropicSlot(ref: RuntimeModelRef, primaryRef: RuntimeModelRef, primaryBaseUrl: string): boolean {
+  const provider = ref.provider
+  if (!provider) return false
+  const baseUrl = resolveAnthropicBaseUrl(provider, ref === primaryRef ? primaryBaseUrl : '')
+  return Boolean(baseUrl) && isAnthropicOfficialHost(baseUrl)
 }
 
 function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
@@ -960,8 +1029,8 @@ function mergeRuntimeSettings(
   fastModeTransport?: NonNullable<Provider['fastMode']>['transport']
 ): ClaudeCodeSettings {
   const fastModeHeaders =
-    route.branch === 'gateway' && fastModeTransport === 'openai-priority' && route.internalRequestToken
-      ? `${CHERRY_FAST_MODE_HEADER}: true\n${CHERRY_INTERNAL_REQUEST_TOKEN_HEADER}: ${route.internalRequestToken}`
+    route.branch === 'gateway' && fastModeTransport === 'openai-priority'
+      ? `${CHERRY_FAST_MODE_HEADER}: true`
       : undefined
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,

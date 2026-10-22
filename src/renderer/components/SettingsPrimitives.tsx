@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { Divider as SettingDivider } from '@cherrystudio/ui'
+import { Divider as SettingDivider, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
@@ -28,13 +28,10 @@ export const SettingsContentColumn = ({
   theme,
   children,
   ...rest
-}: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; innerClassName?: string }) => (
-  <div
-    data-theme-mode={theme}
-    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden', className)}
-    {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
-  </div>
+}: React.ComponentPropsWithoutRef<typeof Scrollbar> & { theme?: ThemeMode; innerClassName?: string }) => (
+  <Scrollbar data-theme-mode={theme} className={cn('flex min-h-0 min-w-0 flex-1 flex-col p-6', className)} {...rest}>
+    <div className={cn('mx-auto w-full max-w-3xl shrink-0 [scrollbar-color:auto]', innerClassName)}>{children}</div>
+  </Scrollbar>
 )
 
 // Body variant for pages that handle their own Scrollbar (e.g. ShortcutSettings).

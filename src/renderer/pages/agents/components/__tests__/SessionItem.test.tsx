@@ -21,10 +21,6 @@ vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useOptionalRightPanelState: () => undefined
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [[]]
-}))
-
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({
     status: undefined,

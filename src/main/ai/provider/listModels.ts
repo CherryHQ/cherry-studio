@@ -20,6 +20,7 @@ import {
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
+import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
@@ -293,6 +294,7 @@ const ollamaFetcher: ModelFetcher = {
         const capabilities: Model['capabilities'] = []
         if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
         if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+        if (m.capabilities?.includes('embedding')) capabilities.push(MODEL_CAPABILITY.EMBEDDING)
         return toModel(m.name, provider, {
           ownedBy: 'ollama',
           capabilities,
@@ -909,6 +911,34 @@ const jinaFetcher: ModelFetcher = {
   }
 }
 
+// The public router serves both dialects; custom destinations may only support their configured one.
+const huggingFaceFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.huggingface),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const routerBaseUrl = providerRegistryService.getProviderPreset(SystemProviderIds.huggingface, ['endpointConfigs'])
+      .endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
+    if (!routerBaseUrl || baseUrl !== formatApiHost(routerBaseUrl)) {
+      return listOpenAICompatibleModels(provider, baseUrl, signal)
+    }
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    warnSkippedOpenAIModelEntries(provider.id, response)
+    return listing(
+      dedup(response.data, (m) => m.id).map((m) =>
+        toModel(m.id, provider, {
+          ownedBy: m.owned_by,
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        })
+      )
+    )
+  }
+}
+
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
@@ -1137,6 +1167,7 @@ const fetchers: ModelFetcher[] = [
   gatewayFetcher,
   anthropicFetcher,
   jinaFetcher,
+  huggingFaceFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]

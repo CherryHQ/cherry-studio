@@ -85,6 +85,27 @@ function unwrapNestedErrors(error: SerializedError): SerializedError[] {
   )
 }
 
+/** `statusCode` or `status`, numeric or a numeric string. Unparseable values count as absent. */
+function readStructuredStatus(value: unknown): number | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const status = record.statusCode ?? record.status
+  const parsed = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
+  return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined
+}
+
+/**
+ * A status-less RetryError copies the terminal phrase. Return that attempt's HTTP 5xx;
+ * earlier attempts do not supply a status.
+ */
+export function getErrorHttpStatus(error: SerializedError): number | undefined {
+  const outer = readStructuredStatus(error)
+  if (outer !== undefined) return outer
+  if (!isSerializedAiSdkRetryError(error)) return undefined
+  const terminalStatus = readStructuredStatus(error.lastError)
+  return terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600 ? terminalStatus : undefined
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
   const classify = (category: ErrorCategory): ErrorClassification => ({
@@ -102,8 +123,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
     return classify(errorBag.providerErrorCategory)
   }
-  const status = errorBag.statusCode ?? errorBag.status
-  const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
+  const numStatus = getErrorHttpStatus(error)
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
   let dataText = ''
