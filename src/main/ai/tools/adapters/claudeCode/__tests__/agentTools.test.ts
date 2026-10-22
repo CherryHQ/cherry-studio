@@ -114,6 +114,39 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     }
   )
 
+  it('recomputes partial denials after catalog growth and saved-rule changes under Full Access', async () => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    mocks.findMcpServer.mockReturnValue({ id, name: 'User MCP' })
+    const agent = makeAgent([`mcp__${id}__read_*`], [id])
+    agent.configuration = { permission_mode: 'bypassPermissions' }
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent, { boundedMcpToolNames: true })
+    const names = ['read_file', 'read_' + 'long_name_'.repeat(12), 'write_file']
+    mocks.listMcpTools.mockReturnValue(names.map((name) => ({ name })))
+    await snapshot.update(agent)
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, names)
+    const aliases = names.map((name) => `mcp__${plan.serverKey}__${plan.toolName(name)}`)
+    expect(snapshot.getPermissionMode()).toBe('bypassPermissions')
+    expect(aliases.map(snapshot.isDisabled)).toEqual([true, true, false])
+    await snapshot.update({ ...agent, disabledTools: [] })
+    expect(aliases.map(snapshot.isDisabled)).toEqual([false, false, false])
+    await snapshot.update(agent)
+    expect(aliases.map(snapshot.isDisabled)).toEqual([true, true, false])
+  })
+
+  it.each([false, true])('keeps canonical ownership in live policy (reverse %s)', async (reverse) => {
+    const b = { id: '12345678-1234-4234-8234-123456789abc', name: 'User MCP' }
+    const a = { id: 'server-a', name: b.id }
+    mocks.findMcpServer.mockImplementation((key: string) => (key === a.id ? a : b))
+    mocks.listMcpTools.mockReturnValue([{ name: 'run' }])
+    const mounts = [a.id, b.id]
+    if (reverse) mounts.reverse()
+    const agent = makeAgent([`mcp__${b.id}__run`], mounts)
+    agent.configuration = { permission_mode: 'bypassPermissions' }
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent, { boundedMcpToolNames: true })
+    expect(snapshot.isDisabled(`mcp__${b.id}__run`)).toBe(true)
+    expect(snapshot.isDisabled(`mcp__${a.id}__run`)).toBe(false)
+  })
+
   it('reflects a disabledTools change after update() without a connection rebuild', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([]))
     expect(snapshot.isDisabled('Bash')).toBe(false)

@@ -98,27 +98,47 @@ export function resolveDisallowedTools(
     return [
       {
         server,
+        mcpId,
         plan: planClaudeMcpToolNames({ serverId: server.id, sdkServerKey: mcpId }, []),
-        tools: application.get('McpCatalogService').listTools(server.id),
-        keys: new Set([mcpId, server.id, server.name])
+        tools: application.get('McpCatalogService').listTools(server.id)
       }
     ]
   })
 
-  return [...blocked].map((rule) => {
-    if (!rule.startsWith('mcp__') || registeredToolNames.has(rule)) return rule
-    for (const { server, plan, tools, keys } of serverPlans) {
-      if (rule === buildClaudeMcpWildcard(server.name)) return `mcp__${plan.serverKey}__*`
-      const tool = tools.find((tool) => rule === buildClaudeMcpToolName(server.name, tool.name))
-      if (tool) return `mcp__${plan.serverKey}__${plan.toolName(tool.name)}`
-      for (const key of keys) {
-        const prefix = `mcp__${key}`
-        if (rule === prefix || rule === `${prefix}__*`) return `mcp__${plan.serverKey}__*`
-        if (!rule.startsWith(`${prefix}__`)) continue
-        const original = rule.slice(prefix.length + 2)
-        return `mcp__${plan.serverKey}__${plan.toolName(original)}`
-      }
-    }
-    return rule
+  const translated = [...blocked].flatMap((rule) => {
+    if (rule === 'mcp__*' || !rule.startsWith('mcp__') || registeredToolNames.has(rule)) return [rule]
+    const delimiter = rule.indexOf('__', 'mcp__'.length)
+    const segment = rule.slice('mcp__'.length, delimiter === -1 ? undefined : delimiter)
+    const tail = delimiter === -1 ? undefined : rule.slice(delimiter + 2)
+    // Canonical ownership must be settled across all mounts before considering display aliases.
+    const owner =
+      serverPlans.find(({ server }) => server.id === segment) ??
+      serverPlans.find(({ mcpId }) => mcpId === segment) ??
+      serverPlans.find(({ server }) => server.name === segment) ??
+      serverPlans.find(
+        ({ server, tools }) =>
+          tools.some((tool) => rule === buildClaudeMcpToolName(server.name, tool.name)) ||
+          buildClaudeMcpWildcard(server.name) === `mcp__${segment}__*`
+      )
+    if (!owner || tail === '') return [rule]
+    const { server, plan, tools } = owner
+    const allocated = (name: string) => `mcp__${plan.serverKey}__${plan.toolName(name)}`
+    const compatibilityTool = tools.find((tool) => rule === buildClaudeMcpToolName(server.name, tool.name))
+    if (compatibilityTool && !tools.some((tool) => tool.name === tail)) return [allocated(compatibilityTool.name)]
+    if (tail === undefined || tail === '*') return [`mcp__${plan.serverKey}__*`]
+    if (!tail.includes('*')) return [allocated(tail)]
+    const pattern = new RegExp(
+      `^${rule
+        .split('*')
+        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('.*')}$`
+    )
+    return tools
+      .filter(
+        (tool) =>
+          pattern.test(`mcp__${segment}__${tool.name}`) || pattern.test(buildClaudeMcpToolName(server.name, tool.name))
+      )
+      .map((tool) => allocated(tool.name))
   })
+  return [...new Set(translated)]
 }
