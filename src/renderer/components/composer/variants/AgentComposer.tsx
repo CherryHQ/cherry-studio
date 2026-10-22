@@ -1567,6 +1567,18 @@ const AgentComposerInner = ({
   useEffect(() => {
     draftEditRevisionRef.current += 1
   }, [files])
+  // The effect above runs only after React commits, which is too late when an
+  // enqueue resolves in the same window: an attachment update dispatched while
+  // the enqueue is pending would not have bumped the revision yet, so the
+  // settlement cleanup would erase the new attachment. Bump at the update
+  // boundary too (cherry-pr-review).
+  const setFilesWithRevision = useCallback<typeof setFiles>(
+    (next) => {
+      draftEditRevisionRef.current += 1
+      setFiles(next)
+    },
+    [setFiles]
+  )
   const clearCurrentDraft = useCallback(() => {
     releaseFollowupEditRef.current()
     setText('')
@@ -1980,7 +1992,7 @@ const AgentComposerInner = ({
             </>
           }
           supportedExts={supportedExts}
-          setFiles={setFiles}
+          setFiles={setFilesWithRevision}
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}

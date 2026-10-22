@@ -5457,17 +5457,21 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
   describe('queued edit switching', () => {
-    // Our API-backed restore creates a fresh row (new orderKey/timestamps)
-    // under the original id, so assert identity + content, not row equality.
+    // Our API-backed restore creates a fresh row under a FRESH id: the original
+    // id names a closed receipt and cannot represent the restored row. Assert
+    // content + ordering here; capture each restored row's new id from the dock
+    // for any subsequent Edit/Steer/reorder action.
     const expectQueue = (dock: () => any, expected: any[], message: string) => {
       const items = dock()?.items ?? []
-      expect(
-        items.map((entry: any) => entry.id),
-        message
-      ).toEqual(expected.map((entry: any) => entry.id))
+      expect(items, message).toHaveLength(expected.length)
       expected.forEach((entry, index) => {
         expect(items[index], message).toMatchObject({ draft: entry.draft, payload: entry.payload })
       })
+    }
+    const liveItem = (dock: () => any, draftText: string, message: string) => {
+      const entry = (dock()?.items ?? []).find((item: any) => item.draft?.text === draftText)
+      expect(entry, message).toBeTruthy()
+      return entry
     }
     async function setup(texts = ['A', 'B']) {
       mocks.topicPending = true
@@ -5524,14 +5528,15 @@ describe('ChatComposer', () => {
       act(() => mocks.speedControlProps?.onFastModeChange(false))
       await edit(b.id)
       expect(dock()?.items, 'the outgoing item must be returned after live controls change').toHaveLength(1)
-      expect(dock().items[0].id, 'rebuilding controls must preserve the original queued identity').toBe(fastA.id)
+      expect(dock().items[0].id, 'the restored row gets a fresh id; the old id is a closed receipt').not.toBe(fastA.id)
+      expect(dock().items[0].draft, 'rebuilding controls must return the outgoing draft').toEqual(fastA.draft)
       expect(
         dock().items[0].payload,
         'capturing must rebuild instead of spreading obsolete optional fields'
       ).not.toHaveProperty('fastMode')
     })
 
-    it('returns unchanged A under its original identity and supports switching back', async () => {
+    it('returns unchanged A under a fresh identity and supports switching back', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5541,8 +5546,10 @@ describe('ChatComposer', () => {
       await edit(b.id)
       expectQueue(dock, [a], 'switching to B must preserve the entire queued A')
       expect(mocks.surfaceProps?.text, 'B must own the editor after the switch').toBe('B')
-      await edit(a.id)
-      expectQueue(dock, [b], 'switching back must preserve B under its original id')
+      const restoredA = liveItem(dock, 'A', 'restored A must be present in the queue')
+      expect(restoredA.id, 'restored A gets a fresh id; its original id is a closed receipt').not.toBe(a.id)
+      await edit(restoredA.id)
+      expectQueue(dock, [b], 'switching back must preserve B under its own fresh id')
       expect(mocks.surfaceProps?.text, 'A must reopen').toBe('A')
     })
 
@@ -5558,13 +5565,14 @@ describe('ChatComposer', () => {
       await edit(a.id)
       act(() => mocks.surfaceProps?.onTextChange('A-prime'))
       await edit(b.id)
-      expect(dock()?.items?.[0], 'A edits must survive under the existing id').toMatchObject({
-        id: a.id,
+      expect(dock()?.items?.[0], 'A edits must survive under a fresh id').toMatchObject({
         draft: { text: 'A-prime', tokens: [] },
         payload: { text: 'A-prime', userMessageParts: [{ type: 'text', text: 'A-prime' }] }
       })
+      const restoredAId = dock().items[0].id
+      expect(restoredAId, 'the original id is a closed receipt and cannot be restored').not.toBe(a.id)
       await act(async () => {
-        await dock().onSteer(a.id)
+        await dock().onSteer(restoredAId)
       })
       view.rerender(component())
       expect(JSON.stringify(send.mock.calls), 'the actual queued dispatch must carry the edited content').toContain(
@@ -5623,12 +5631,13 @@ describe('ChatComposer', () => {
       })
       await edit(b.id)
       expectQueue(dock, [a, c], 'removing X must restore A before C')
+      const restoredA = liveItem(dock, 'A', 'restored A must be present in the queue')
       await act(async () => {
-        dock().onReorder([c, a])
+        dock().onReorder([c, restoredA])
       })
       await waitFor(() => {
         view.rerender(component())
-        expect((dock()?.items ?? []).map((entry: any) => entry.id)).toEqual([c.id, a.id])
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).toEqual([c.id, restoredA.id])
       })
       expectQueue(dock, [c, a], 'returned items must remain reorderable')
     })
@@ -5777,8 +5786,10 @@ describe('ChatComposer', () => {
         expect(dock().items[0].payload.chatTarget, 'returned A must retain even a captured undefined target').toEqual(
           target
         )
+        const restoredAId = dock().items[0].id
+        expect(restoredAId, 'restored A gets a fresh id; its original id is a closed receipt').not.toBe(a.id)
         await act(async () => {
-          await dock().onSteer(a.id)
+          await dock().onSteer(restoredAId)
         })
         expect(send.mock.calls[0], 'actual dispatch must use the captured target').toEqual([
           'A',
