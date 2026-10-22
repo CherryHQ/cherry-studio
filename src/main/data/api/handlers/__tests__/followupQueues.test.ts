@@ -140,8 +140,18 @@ describe('followupQueueHandlers', () => {
         body: { scopeKey: SCOPE, claimToken: 'token-1' }
       })
 
-      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, 'token-1')
+      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, 'token-1', undefined)
       expect(result).toEqual({ claimed: true, id: ITEM_ID, alreadySent: false })
+    })
+
+    it('should pass completionAt through to claimHead', async () => {
+      claimHeadMock.mockReturnValueOnce({ claimed: false, reason: 'already-claimed' })
+
+      await followupQueueHandlers['/followup-queues/claim:head'].POST({
+        body: { scopeKey: SCOPE, claimToken: 'token-2', completionAt: 100 }
+      })
+
+      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, 'token-2', 100)
     })
 
     it('should reject POST without a claim token', async () => {
