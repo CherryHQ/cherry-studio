@@ -1,0 +1,120 @@
+diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
+index a413006c758079d3b589d9425b33a947c4adbc47..786ead451b10b7eb0176436a674e5b50ae7ba2d2 100644
+--- a/dist/api/google-generative-ai.js
++++ b/dist/api/google-generative-ai.js
+@@ -33,14 +33,11 @@ export const stream = (model, context, options) => {
+             timestamp: Date.now(),
+         };
+         try {
+-            if (options?.fetch && options.fetch !== globalThis.fetch) {
+-                throw new Error("Custom fetch is not supported by the Google Generative AI adapter");
+-            }
+             const apiKey = options?.apiKey;
+             if (!apiKey) {
+                 throw new Error(`No API key for provider: ${model.provider}`);
+             }
+-            const client = createClient(model, apiKey, options?.headers);
++            const client = createClient(model, apiKey, options?.headers, options?.fetch);
+             let params = buildParams(model, normalizedContext, options);
+             const nextParams = await options?.onPayload?.(params, model);
+             if (nextParams !== undefined) {
+@@ -267,8 +264,11 @@ export const streamSimple = (model, context, options) => {
+         },
+     });
+ };
+-function createClient(model, apiKey, optionsHeaders) {
++function createClient(model, apiKey, optionsHeaders, fetch) {
+     const httpOptions = {};
++    if (fetch) {
++        httpOptions.fetch = fetch;
++    }
+     if (model.baseUrl) {
+         httpOptions.baseUrl = model.baseUrl;
+         httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
+diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
+index 704476da084be53d6aa194a5f774fa3ad47f5e9a..3f755ff8867a38268331f469fa834f97438caa86 100644
+--- a/dist/api/openai-codex-responses.d.ts
++++ b/dist/api/openai-codex-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAICodexResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     textVerbosity?: "low" | "medium" | "high";
+diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
+index 41267bd50904069aa0879cc8634ea94bc1045236..f29497be20dcb2ffce3662393738e5a82f18cf1a 100644
+--- a/dist/api/openai-responses.d.ts
++++ b/dist/api/openai-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAIResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "detailed" | "concise" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
+diff --git a/dist/models.js b/dist/models.js
+index 2bcfe1628e703589fa38143fedd968736a1b95d6..e409e5c52a7e6ba97b590f895bbf3f2f6ec9165c 100644
+--- a/dist/models.js
++++ b/dist/models.js
+@@ -676,7 +676,7 @@ export function calculateCost(model, usage) {
+     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+     return usage.cost;
+ }
+-const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export function getSupportedThinkingLevels(model) {
+     if (!model.reasoning)
+         return ["off"];
+@@ -684,7 +684,7 @@ export function getSupportedThinkingLevels(model) {
+         const mapped = model.thinkingLevelMap?.[level];
+         if (mapped === null)
+             return false;
+-        if (level === "xhigh" || level === "max")
++        if (level === "xhigh" || level === "max" || level === "ultra")
+             return mapped !== undefined;
+         return true;
+     });
+diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
+index fe1150260260a90bc61311dde4ca6dd34f5465a7..d3d7b055f6b0eaa425466966e173039772983365 100644
+--- a/dist/providers/model-schema.d.ts
++++ b/dist/providers/model-schema.d.ts
+@@ -1,11 +1,11 @@
+ import { type Static, Type } from "typebox";
+-export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
+-export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
++export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export declare const MODEL_INPUT_MODALITIES: readonly ["text", "image"];
+ export declare const CACHE_RETENTIONS: readonly ["none", "short", "long"];
+ export declare const MODEL_PROMPT_CACHE_RETENTIONS: readonly ["short", "long"];
+-export declare const ThinkingLevelSchema: Type.TEnum<["minimal", "low", "medium", "high", "xhigh", "max"]>;
+-export declare const ModelThinkingLevelSchema: Type.TEnum<["off", "minimal", "low", "medium", "high", "xhigh", "max"]>;
++export declare const ThinkingLevelSchema: Type.TEnum<["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]>;
++export declare const ModelThinkingLevelSchema: Type.TEnum<["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]>;
+ export declare const ModelInputModalitySchema: Type.TEnum<["text", "image"]>;
+ export declare const CacheRetentionSchema: Type.TEnum<["none", "short", "long"]>;
+ export declare const ThinkingLevelMapSchema: Type.TObject<{
+@@ -15,6 +15,7 @@ export declare const ThinkingLevelMapSchema: Type.TObject<{
+     medium: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+     minimal: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+     off: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
++    ultra: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+     xhigh: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+ }>;
+ export declare const ModelPromptCacheSchema: Type.TObject<{
+diff --git a/dist/providers/model-schema.js b/dist/providers/model-schema.js
+index c16391db30af7a73f911c2b47e8af96d37e01fe8..874ff3d474b9747d59cc2a5a17e6afea501bba8b 100644
+--- a/dist/providers/model-schema.js
++++ b/dist/providers/model-schema.js
+@@ -1,5 +1,5 @@
+ import { Type } from "typebox";
+-export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"];
++export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export const MODEL_THINKING_LEVELS = ["off", ...THINKING_LEVELS];
+ export const MODEL_INPUT_MODALITIES = ["text", "image"];
+ export const CACHE_RETENTIONS = ["none", "short", "long"];
