@@ -40,7 +40,7 @@ Run the unmodified desktop agent-session host and agent UI over a browser runtim
    - code execution asks in `default` and `acceptEdits`;
    - `auto` asks only for a file tool outside those directories, and `bypassPermissions` never asks.
 
-   The policy's guard against Cherry's SQLite files is replaced: the database is an OPFS file outside `/web`, so no tool path reaches it.
+   The policy's guard against Cherry's SQLite files is replaced: the database is an OPFS file outside `/web`, so no file tool reaches it. Python can: it runs in the page's Pyodide Worker, which has the app's origin and can open the account's OPFS directory, database included. It is gated by the approval above, as `bash` is on the desktop, where it can also reach Cherry's database. JavaScript cannot: QuickJS gives a script no browser API.
 5. **A pre-installed Web Cherry Assistant.** A Web seeder creates one Pi agent named Cherry Assistant, with a system workspace and a first session. The desktop Cherry Assistant and Cherry Support seeders are skipped.
 6. **UI.** The Web sidebar adds Agents. Build-time replacements of two `src/shared` modules make the runtime capability table offer only Pi, hide heartbeat, skills, knowledge bases and MCP for it, and list the browser tools in the agent editor.
 7. **Tests.** The mock provider learns to answer with tool calls, and `e2e/agent.spec.ts` drives the Agents page in Chromium, WebKit and Firefox.
@@ -72,5 +72,6 @@ Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat 
 - **No compaction or steering.** A long session can outgrow the model's context window, and a message sent mid-turn waits for the next turn.
 - **Agents stop with the tab.** As the design document states, closing the page ends a running turn.
 - **Pi-typed rows.** If Web data later reaches the desktop, the desktop runs these agents with the real Pi, which also has `bash`.
+- **Python reaches the account's data.** Python code can read and change the account's database and files, and send them over the network, once its call is allowed; in `auto` and `bypassPermissions` it runs without asking, as `bash` does on the desktop. Isolating Pyodide from the app's origin (for example a sandboxed iframe) must land before the agent can use a user-chosen local folder or the page holds login tokens (M3).
 - **Pyodide comes from a CDN.** The page loads it from jsDelivr, which must keep sending CORS headers for the cross-origin-isolated page; private deployments may need to host it.
 - **Workspace files are not backed up yet.** Clearing site data loses them until backup (M4) lands.

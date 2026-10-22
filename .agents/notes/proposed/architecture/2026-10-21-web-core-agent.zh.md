@@ -40,7 +40,7 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
    - 运行代码在 `default` 和 `acceptEdits` 模式下要询问;
    - `auto` 模式只在文件工具访问这些目录以外的路径时询问,`bypassPermissions` 模式从不询问。
 
-   规则里防止访问 Cherry SQLite 文件的检查被替换掉:数据库是 `/web` 以外的一个 OPFS 文件,任何工具路径都碰不到它。
+   规则里防止访问 Cherry SQLite 文件的检查被替换掉:数据库是 `/web` 以外的一个 OPFS 文件,文件工具碰不到它。Python 碰得到:它在页面的 Pyodide Worker 里运行,和应用同源,可以打开账号的 OPFS 目录,包括数据库。它受上面的审批约束,和桌面端的 `bash` 一样;桌面端的 `bash` 也能访问 Cherry 的数据库。JavaScript 碰不到:QuickJS 不给脚本任何浏览器 API。
 5. **预置一个 Web 版 Cherry 小助手。** 一个 Web 专用的 seeder 创建一个名为 Cherry 小助手的 Pi 类型 Agent,带一个系统工作区和第一个会话。桌面端的 Cherry 小助手和 Cherry Support seeder 不运行。
 6. **界面。** Web 版侧边栏加上 Agent。构建时替换两个 `src/shared` 模块,让运行时能力表只提供 Pi,为它隐藏心跳、技能、知识库和 MCP,并在 Agent 编辑器里列出浏览器里的工具。
 7. **测试。** 模拟服务商学会用工具调用来回复;`e2e/agent.spec.ts` 在 Chromium、WebKit 和 Firefox 中驱动 Agent 页面。
@@ -72,5 +72,6 @@ Web 版的首个版本包含 Agent 会话(issue #21728;设计文档第 2 节、�
 - **没有上下文压缩和中途插话。** 很长的会话可能超出模型的上下文窗口;一轮进行中发来的消息要等到下一轮。
 - **关掉标签页 Agent 就停。** 和设计文档说的一样,关闭页面会结束正在运行的这一轮。
 - **数据里是 Pi 类型。** 如果以后 Web 数据同步到桌面端,桌面端会用真正的 Pi 运行这些 Agent,而它还有 `bash`。
+- **Python 能访问账号数据。** 调用被允许后,Python 代码可以读取和修改账号的数据库和文件,也可以把它们发到网络上;在 `auto` 和 `bypassPermissions` 模式下它不用询问就运行,和桌面端的 `bash` 一样。在 Agent 能使用用户选择的本机文件夹、或页面里存有登录凭证(M3)之前,必须先把 Pyodide 和应用的源隔离开(例如放进沙箱 iframe)。
 - **Pyodide 从 CDN 加载。** 页面从 jsDelivr 加载它;跨域隔离的页面要求 jsDelivr 一直返回 CORS 头,私有部署可能需要自己托管。
 - **工作区文件还没有备份。** 在备份(M4)完成之前,清除网站数据会丢失这些文件。
