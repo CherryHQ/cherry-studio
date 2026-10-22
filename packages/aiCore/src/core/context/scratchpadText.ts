@@ -226,6 +226,21 @@ function findCodeFenceClose(text: string, searchFrom: number, fenceChar: string,
   return -1
 }
 
+/**
+ * A delimiter preceded by an odd-length backslash run is escaped literal
+ * text, not an opener (an even run is an escaped backslash followed by a
+ * real delimiter).
+ */
+function isBackslashEscaped(text: string, index: number): boolean {
+  let backslashes = 0
+  let i = index - 1
+  while (i >= 0 && text[i] === '\\') {
+    backslashes++
+    i--
+  }
+  return backslashes % 2 === 1
+}
+
 function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
   const spans: string[] = []
   let out = ''
@@ -240,6 +255,15 @@ function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
       }
       out += text.slice(pos, next)
       pos = next
+      continue
+    }
+
+    // An escaped backtick is literal text: treating it as an opener would
+    // pair it with a later backtick and mask real content (including
+    // scratchpad closers) between them (cherry-pr-review).
+    if (isBackslashEscaped(text, pos)) {
+      out += text[pos]
+      pos++
       continue
     }
 
@@ -269,8 +293,12 @@ function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
     }
 
     if (closedAt === -1) {
-      out += text[pos]
-      pos++
+      // No closer matches this run: emit it whole and advance past it.
+      // Advancing one character would reinterpret the run's suffix as a
+      // shorter opener and pair it with a later backtick, masking (and then
+      // stripping) the content in between (cherry-pr-review).
+      out += text.slice(pos, contentStart)
+      pos = contentStart
       continue
     }
 

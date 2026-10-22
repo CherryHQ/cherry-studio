@@ -55,6 +55,22 @@ describe('scratchpadText', () => {
     ).toBe('actual summary')
   })
 
+  it('advances past an unmatched backtick run instead of reinterpreting its suffix', () => {
+    // The unmatched `` must not yield a one-character advance whose leftover
+    // backtick pairs with the next opener and masks the tags between them.
+    const literal = 'Use `` then `<thinking>literal</thinking>` now.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(literal)).toBe(literal)
+    expect(stripModelScratchpadBlocks(literal)).toBe(literal)
+  })
+
+  it('respects backslash escaping when locating opening delimiters', () => {
+    const input = '<analysis>Use \\` to escape a delimiter.</analysis><summary>Keep `foo`</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep `foo`')
+    // An escaped backslash does not escape the delimiter that follows it.
+    const realOpener = '<analysis>hidden</analysis>Use \\\\`<thinking>literal</thinking>` intact'
+    expect(stripModelScratchpadBlocks(realOpener)).toBe('Use \\\\`<thinking>literal</thinking>` intact')
+  })
+
   it('keeps inline-code literal tags protected across a mismatched backtick run', () => {
     const literal = 'Use `two ticks `` and <thinking>literal</thinking>` now.'
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(literal)).toBe(literal)
