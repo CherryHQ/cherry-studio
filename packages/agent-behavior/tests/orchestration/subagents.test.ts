@@ -127,11 +127,11 @@ describe('subagent tools', () => {
     expect(await childInputs(w, CHILD)).toBe(2)
   })
 
-  // Catches S-j's wiring (AC10): a finished foreground child that is not forked into a new background child, a report
-  // job that cannot find that child by the continuation's key, or a later message on the old id that misses it.
-  it('message_subagent forks a finished foreground child and forwards its old id to the fork', async () => {
+  // Catches a continuation replacing the foreground child's identity, losing history, or reporting under reset run numbers.
+  it('message_subagent keeps a finished foreground child and reports each continuation once', async () => {
     const w = world({
-      scripts: (_t, lineage) => (lineage.kind === 'subagent' ? [reply('done once'), reply('done again')] : [])
+      scripts: (_t, lineage) =>
+        lineage.kind === 'subagent' ? [reply('done once'), reply('done again'), reply('done a third time')] : []
     })
     const t = await w.fake.createThread()
     w.fake.script(t, [
@@ -145,21 +145,23 @@ describe('subagent tools', () => {
     await w.fake.sendUser(t, 'go')
     await w.fake.settle()
     const facts = await w.read(t)
-    const fork = runRecords(facts).find(({ sessionId }) => sessionId !== CHILD)?.sessionId
-    expect(fork).toBeDefined()
+    expect([...facts.children.keys()]).toEqual([CHILD])
     expect(toolResults(facts).filter(({ tool }) => tool === 'message_subagent')).toMatchObject([
-      { isError: false, details: { sessionId: fork, continued: true } },
-      { isError: false, details: { sessionId: fork, continued: true } }
+      { isError: false, details: { sessionId: CHILD, continued: true } },
+      { isError: false, details: { sessionId: CHILD, continued: true } }
     ])
     expect(
       markers(facts, 'subagent-notification').flatMap(({ marker }) =>
         marker.runs.map(({ sessionId, run }) => [sessionId, run])
       )
     ).toEqual([
-      [fork, 1],
-      [fork, 2]
+      [CHILD, 2],
+      [CHILD, 3]
     ])
-    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(1)
+    expect(facts.children.get(CHILD)?.runUsage).toHaveLength(3)
+    expect(
+      (await w.read(CHILD)).history.filter((entry) => entry.kind === 'assistant').map((entry) => entry.text)
+    ).toEqual(['done once', 'done again', 'done a third time'])
   })
 
   // Catches a steer that reaches a run already ended starting a run the parent never records (G-C5): the message must
@@ -705,8 +707,10 @@ describe('stopSubagent entry', () => {
     const hold = holds()
     const w = world({
       extra: (p) => p.tools.register(hold.tool),
-      scripts: (thread, lineage) =>
-        lineage.kind === 'subagent' ? [callTool('hold', { id: thread }), reply(`${thread} done`)] : []
+      scripts: (_thread, lineage) =>
+        lineage.kind === 'subagent'
+          ? [callTool('hold', { id: 'first' }), callTool('hold', { id: 'second' }), reply('done')]
+          : []
     })
     const t = await w.fake.createThread()
     w.fake.script(t, [
@@ -716,17 +720,22 @@ describe('stopSubagent entry', () => {
       reply('read it')
     ])
     await w.fake.sendUser(t, 'go')
-    await hold.started(CHILD)
+    await hold.started('first')
     const first = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
     await w.fake.settle()
     await w.fake.sendUser(t, 'continue it')
-    await hold.started('thread-3')
+    await hold.started('second')
     const again = await w.enter(t, (entries, ports) => entries.stopSubagent(ports, CHILD, 'stop-1'))
-    hold.release('thread-3')
+    hold.release('second')
     await w.fake.settle()
     const facts = await w.read(t)
     expect([first, again]).toEqual(['stopped-turn', 'stopped-turn'])
-    expect(runRecords(facts).at(-1)).toMatchObject({ sessionId: 'thread-3', status: 'finished', outcome: 'completed' })
+    expect(runRecords(facts).at(-1)).toMatchObject({
+      sessionId: CHILD,
+      run: 2,
+      status: 'finished',
+      outcome: 'completed'
+    })
     expect(records(facts, 'turn-stop')).toHaveLength(1)
   })
 })

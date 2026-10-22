@@ -62,16 +62,9 @@ export const runningBackground = (facts: Facts): ChildLedger[] =>
 export const awaitingApproval = (approvals: readonly ApprovalOutcome[], child: ThreadId): boolean =>
   approvals.some(({ call, state }) => call.thread === child && state === 'pending')
 
-/**
- * The child `id` names, following a forward: a continuation forked a finished foreground child into a new background
- * child, which shares its `parentToolCallId` (design §8.3 S-j); the newest such child answers for the old id.
- */
+/** A tool call records provenance, never an alias for another child. */
 export function resolveChild(ledgers: readonly ChildLedger[], id: string): ChildLedger | undefined {
-  const named = ledgers.find(({ child }) => child === id)
-  if (!named) return undefined
-  return ledgers
-    .filter(({ latest }) => latest.parentToolCallId === named.latest.parentToolCallId)
-    .reduce((newest, ledger) => (ledger.created > newest.created ? ledger : newest), named)
+  return ledgers.find(({ child }) => child === id)
 }
 
 /** One finished background run the parent has not heard of, as its end record shows it. */

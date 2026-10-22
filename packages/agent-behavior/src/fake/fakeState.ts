@@ -33,7 +33,7 @@ import type {
 
 export type Lineage = ConversationFacts['lineage']
 export type Seed = (thread: ThreadId, lineage: Lineage) => readonly ScriptedReply[]
-/** The parent run whose tool call spawned a foreground child; stopping that run stops the child. */
+/** The parent run whose tool call owns the child's first run; the ownership ends with that child run. */
 export type Owner = { readonly thread: ThreadId; readonly run: number }
 /** How a run ended: what the conversation reports as `live.runEnd` and what `awaitAnswer` answers. */
 export type RunEnding = { readonly live: NonNullable<LiveFacts['runEnd']>['outcome']; readonly answer: RunEndFacts }
@@ -50,7 +50,7 @@ export type ActiveRun = { readonly run: number; readonly goalRound: boolean; req
 export type ThreadState = {
   readonly id: ThreadId
   readonly lineage: Lineage
-  readonly owner?: Owner
+  owner?: Owner
   readonly entries: StoredEntry[]
   readonly submissions: Map<string, Submission>
   readonly inbox: string[]
@@ -327,7 +327,7 @@ function prepare(state: FakeState, thread: ThreadId, op: TxOp, context: CommitCo
         const owner = spec.boundary === 'foreground' ? context.owner : undefined
         const child = addThread(state, lineage, context.seed, owner)
         for (const { entry } of copied) append(child, { ...entry, id: nextItem(state) })
-        // A fork subagent's fork point holds calls that run on in the parent; an S-j fork's open calls ended (H3).
+        // Parent calls keep running there; calls copied from another child need the interrupted result (H3).
         const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
         for (const call of placeholders)
           append(child, resultEntry(nextItem(state), call, { text: FORK_PLACEHOLDER_RESULT, isError: false }))
