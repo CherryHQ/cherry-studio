@@ -1440,7 +1440,6 @@ export default function ComposerSurfaceRuntime({
         <FileComposerToken
           token={fileToken}
           selected={selected}
-          imageIconPreview
           onFilePreviewActivate={previewInputFile ? activateFilePreview : undefined}
           onRemove={() => removeToken(fileToken.id)}
           removeLabel={t('common.delete')}
