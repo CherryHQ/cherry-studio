@@ -142,7 +142,7 @@
   "agent.edit_resend.error.invalid_target": "No se puede editar y reenviar este mensaje.",
   "agent.edit_resend.label": "Editar y reenviar",
   "agent.edit_resend.save": "Guardar y reenviar",
-  "agent.edit_resend.warning": "Reemplaza este mensaje y todos los mensajes posteriores. Los cambios en los archivos no se desharán.",
+  "agent.edit_resend.warning": "Crea una nueva rama y conserva los mensajes originales. Los cambios en los archivos no se desharán.",
   "agent.heartbeat.action_failed": "No se pudo guardar o iniciar el heartbeat. Revisa los registros e inténtalo de nuevo.",
   "agent.heartbeat.conflict": "Las tareas se modificaron fuera del editor. Copia tus cambios antes de recargar.",
   "agent.heartbeat.description": "El agente revisa estas tareas en cada heartbeat. Cada ejecución con contenido utiliza el modelo seleccionado.",

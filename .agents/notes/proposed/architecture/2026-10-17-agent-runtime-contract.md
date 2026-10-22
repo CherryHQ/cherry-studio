@@ -265,7 +265,7 @@ flowchart LR
 
 ##### Reuse the product message tree
 
-The existing [message tree](../../../../docs/references/chat/message-tree.md) uses `topic`, `message.parentId`, and `topic.activeNodeId` for message ancestry, edits/resends, and branch selection. Ordinary chat also builds model history from the selected path. Reuse that product structure rather than introduce a second tree of contexts. `agent_session_message` is currently a separate flat model; convergence is a design and migration task, not behavior already implemented by this proposal.
+The existing [message tree](../../../../docs/references/chat/message-tree.md) uses `topic`, `message.parentId`, and `topic.activeNodeId` for message ancestry, edits/resends, and branch selection. Ordinary chat also builds model history from the selected path. Reuse that product structure rather than introduce a second tree of contexts. `agent_session_message` now retains its own physical table while sharing those tree semantics: one hidden root, `parentId`, and `agent_session.activeNodeId`. This does not switch desktop execution to the common Runtime.
 
 | Relationship | Owner and representation |
 | --- | --- |
@@ -284,9 +284,9 @@ The following inventory is source inspection, not completed integration:
 | Concern | Current ordinary chat | Current Agent path | Proposed boundary |
 | --- | --- | --- | --- |
 | Container and navigation | `topic` owns assistant selection, name, ordering, activity, trash, and `activeNodeId`. | `agent_session` mixes conversation metadata with agent/workspace binding, schedule reuse, and `conversation`/`background` classification. | Keep existing IDs and navigation owners during runtime cutover. Separate explicit conversation membership under [#20635](https://github.com/CherryHQ/cherry-studio/issues/20635); runtime access must not imply sidebar membership. |
-| Message structure | `message.parentId`, one virtual root, sibling groups, and selected-path reads. | `agent_session_message` is ordered by `(createdAt, id)` and has no parent or selected node. | Reuse the message-tree contract for Agent archives. Do not use native contexts as substitute message nodes. |
-| Editing and fork | Product tree operations select or create alternative paths. | [Edit](../../../../src/main/data/services/AgentSessionMessageService.ts) deletes the old tail after a native fork; [fork](../../../../src/main/ai/agentSession/fork/AgentSessionForkOperations.ts) publishes another product session and copied prefix. | The confirmed target behavior retains the old branch and selects the edited branch. Ship it with the corresponding UI/action change. Explicit “fork into a new conversation” remains distinct. |
-| Native location | Ordinary chat assembles model history from the selected path. | Resume tokens and private `runtimeAnchor`/`nativeSessionId` live on message rows. | Persist verified native bindings; preserve historical checkpoints. The selected display path cannot reconstruct a harness. |
+| Message structure | `message.parentId`, one virtual root, sibling groups, and selected-path reads. | `agent_session_message.parentId` and a hidden root define ancestry; `agent_session.activeNodeId` selects a path. A Seeder links old flat rows in `(createdAt, id)` order. | Reuse the message-tree contract for Agent archives. Do not use native contexts as substitute message nodes. |
+| Editing and fork | Product tree operations select or create alternative paths. | [Edit](../../../../src/main/data/services/AgentSessionMessageService.ts) creates and selects a sibling input after native fork publication, retaining the old tail; [fork](../../../../src/main/ai/agentSession/fork/AgentSessionForkOperations.ts) publishes another product session and copied prefix. | The confirmed target behavior retains the old branch and selects the edited branch. Ship it with the corresponding UI/action change. Explicit “fork into a new conversation” remains distinct. |
+| Native location | Ordinary chat assembles model history from the selected path. | Message rows retain native provenance; `agent_session_context` binds root/branch anchors to native identity, published head, and fork checkpoint mappings. | Persist verified native bindings; preserve historical checkpoints. The selected display path cannot reconstruct a harness. |
 | Trusted product state | Shared message content, snapshots, usage, and attachments. | Additional Main-authored `delivery*` state and native checkpoint evidence. | Preserve Main-only writes and cross-session delivery semantics; shared message editing must not accept these fields. |
 | Dependent records | Chat attachment references and topic navigation/search. | [Agent attachment references](../../../../src/main/data/db/schemas/fileRelations.ts), usage `messageKind`, session pins, task/channel bindings, and saved routes. | A table merge must migrate every consumer. Identical-looking content columns do not establish interchangeable ownership. |
 
@@ -296,7 +296,7 @@ Physical consolidation into `topic`/`message` is a separate migration decision. 
 
 ##### Confirmed edit and branch behavior
 
-The user confirmed that editing and resending retains the old branch and selects the new one. This is the target product behavior, not the current destructive-tail implementation.
+The user confirmed that editing and resending retains the old branch and selects the new one. The existing desktop driver path now implements this behavior; common Runtime projection integration remains a later step.
 
 ```text
 root
@@ -307,7 +307,7 @@ root
 
 The edited input gets a new message ID and logical input ID, with the same predecessor as the original input. The common prefix remains shared in the product tree; existing messages, input facts and native bindings are not rewritten. Native fork starts at the verified boundary before the edited input, not after the old answer. The new branch gets its own binding. Explicitly forking into another product conversation still copies the prefix with new product IDs and a native checkpoint mapping.
 
-Editing the first input has an empty prefix. Explicitly create a new native context with the action's validated configuration instead of requiring a nonexistent pre-input checkpoint. This is a new branch operation, not fallback reconstruction of a missing context. For a nonempty prefix, a missing checkpoint still blocks execution; display text cannot substitute for it.
+Editing the first input has an empty prefix. Record an intended native identity and create the new Pi context lazily on dispatch with the action's validated configuration, without requiring a nonexistent pre-input checkpoint. This is a new branch operation, not fallback reconstruction of a missing context. For a nonempty prefix, a missing checkpoint still blocks execution; display text cannot substitute for it.
 
 Publish the new branch and selection only after the native result is verified and the source version still matches. Before publication, failure leaves the old selection/history intact. After publication, a rejected or uncertain submission remains visible on the new branch with its actual state; do not delete that branch, restore the old tail, or resend automatically. Preserve the current guard against editing a source with unsettled work until a separate action defines how to interrupt or fork it safely. Opening or selecting the retained branch never resubmits its input.
 
@@ -507,7 +507,13 @@ The P1 foundation now includes the additive backend/context migration, a private
 
 Strict opening uses small pinned dependency patches: `SessionManager.openExisting` validates a current-format header without initialization, and `SqliteStorage.openExisting` reads an already initialized schema without migrations. Node SQLite uses [`mode=rw`](https://www.sqlite.org/uri.html) so missing files cannot be created. Unsupported native format versions remain unavailable pending explicit migration. The Main observer retains failed fact writes for `flush()` and must remain owned until its caller stops it; these helpers do not register a second lifecycle service or switch desktop execution. The initial input path accepts retained text-only content and rejects other parts rather than storing a transformed-payload copy.
 
-The note remains proposed: product message trees, desktop owner/projection wiring, native backup/deletion integration and forced-process crash acceptance remain P2–P4 work. Graceful native close/reopen and injected DB failures do not satisfy the application crash gate.
+The Agent tree step now adds an append-only schema migration and a registered `AgentSessionMessageTreeSeeder`. It preserves message IDs, timestamps, attachments, usage and delivery metadata, then selects the migrated leaf without inventing submission facts. Pending completion deliveries capture the sending branch. Existing context rows carry `anchorMessageId`, `headMessageId` and opaque `checkpointMapping`; shared prefix rows keep their original native provenance.
+
+The current desktop driver path uses the shared sibling navigator. Selecting a sibling chooses its latest descendant without opening a harness; a later send resolves that branch's native target. A send captures its parent before asynchronous validation, rejects an advanced parent, and never follows a later UI selection. Runtime output, queued turns and completion/error deliveries keep their captured branch. Renderer acknowledgement refreshes Main's selected path rather than inserting off-branch reservations into its cache.
+
+[Tree fixtures](../../../../src/main/data/services/__tests__/agentSessionMessageTree.test.ts) verify replay-safe migration, selected-path pagination, branch isolation and delayed delivery. The [native publication fixture](../../../../src/main/ai/agentSession/fork/__tests__/branchPublication.sdkContract.test.ts) uses real Pi session files and SQLite to verify repeated edits and independent bindings without rewriting the common prefix. These fixtures do not establish provider execution or application crash recovery. A tracked development Electron instance additionally exercised later-input edit, sibling navigation, continuing both native histories, and first-input edit through the real UI/Main/Pi path using a local scripted HTTP model. Native requests contained only the selected branch's inputs. This is development integration evidence, not live-provider, packaged-build, Durable, or forced-process recovery acceptance.
+
+The note remains proposed: common Runtime desktop owner/projection wiring, native backup/deletion integration and forced-process crash acceptance remain P2–P4 work. Graceful native close/reopen and injected DB failures do not satisfy the application crash gate.
 
 #### Delivery stages and verification gates
 

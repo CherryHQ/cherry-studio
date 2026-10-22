@@ -142,7 +142,7 @@
   "agent.edit_resend.error.invalid_target": "此消息无法编辑重发。",
   "agent.edit_resend.label": "编辑重发",
   "agent.edit_resend.save": "保存并重发",
-  "agent.edit_resend.warning": "将替换本条消息及其后所有消息，已修改的文件不会恢复。",
+  "agent.edit_resend.warning": "创建新分支并保留原消息，已修改的文件不会恢复。",
   "agent.heartbeat.action_failed": "无法保存或启动心跳，请查看日志后重试。",
   "agent.heartbeat.conflict": "任务已在其他地方修改，请复制当前编辑内容后重新加载。",
   "agent.heartbeat.description": "智能体会在每次心跳时检查这些任务。有任务内容的执行会调用所选模型。",

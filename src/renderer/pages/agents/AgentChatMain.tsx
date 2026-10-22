@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
 
+import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -30,6 +31,8 @@ interface AgentChatMainProps {
   selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage: (messageId: string) => Promise<void>
   startEditing: (messageId: string) => Promise<void>
   editBusy: boolean
@@ -53,6 +56,8 @@ export default function AgentChatMain({
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval
@@ -78,6 +83,8 @@ export default function AgentChatMain({
           selectAllPagination={selectAllPagination}
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
+          getMessageSiblings={getMessageSiblings}
+          setActiveBranch={setActiveBranch}
           deleteMessage={agentId ? deleteMessage : undefined}
           startEditing={agentId ? startEditing : undefined}
           editBusy={editBusy}
