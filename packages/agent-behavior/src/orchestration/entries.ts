@@ -6,11 +6,12 @@ import {
   decideUserStop,
   type SubagentStop
 } from '../core/driver/lifecycle'
-import type { GoalNotice } from '../core/facts'
+import { callKeyOf, type GoalNotice } from '../core/facts'
 import { decideGoalCommand } from '../core/goal/goalCommand'
 import type { BoundPorts } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { gatherInputs, step } from './step'
+import { messageSubagent, type SubagentMessageReceipt } from './tools/subagents'
 
 /**
  * What the host calls (design §3.3), each with the ports of one host call on the conversation (the adapter's
@@ -29,6 +30,14 @@ export type Entries = {
    * request answers what the first one answered and stops nothing it did not.
    */
   stopSubagent(ports: BoundPorts, child: ThreadId, requestKey: string): Promise<SubagentStop>
+  /** Send to this exact child through the same admission and reporting rules as `message_subagent`. */
+  messageSubagent(
+    ports: BoundPorts,
+    child: ThreadId,
+    text: string,
+    requestKey: string,
+    signal: AbortSignal
+  ): Promise<SubagentMessageReceipt>
 }
 
 export function entries(host: HostPorts): Entries {
@@ -57,6 +66,19 @@ export function entries(host: HostPorts): Entries {
         decideStopSubagent(facts, inputs, child, requestKey)
       )
       return executed.result
+    },
+    async messageSubagent(ports, child, text, requestKey, signal) {
+      const { lineage } = await ports.ledger.read(child)
+      if (lineage.kind !== 'subagent') return { status: 'refused', reason: 'The conversation is not a subagent.' }
+      return messageSubagent(
+        { ports, host },
+        {
+          key: callKeyOf(`host-message:${JSON.stringify([lineage.parent, requestKey])}`),
+          thread: lineage.parent,
+          args: { id: child, message: text },
+          signal
+        }
+      )
     }
   }
 }

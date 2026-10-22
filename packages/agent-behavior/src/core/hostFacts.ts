@@ -25,6 +25,8 @@ export type ApprovalHostFacts = {
   readonly globalInstall?: string
   /** The host's destructive-command detector flagged the call. */
   readonly destructive: boolean
+  /** Cross-session delegation must originate in an interactive turn, even under full access. */
+  readonly delegation?: 'interactive' | 'unattended'
 }
 export type ApprovalAnswer =
   | { readonly kind: 'granted'; readonly args?: JsonValue }

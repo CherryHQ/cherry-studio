@@ -51,6 +51,22 @@ describe('approval decisions (D34)', () => {
     expect(decide('x', { nonBypassable: true }, 'bypassPermissions')).toBe('ask')
   })
 
+  // Catches unattended delegation escaping Full Access, or interactive delegation bypassing an active plan.
+  it('keeps delegation interactive and subject to the plan gate', () => {
+    for (const mode of ['default', 'acceptEdits', 'auto', 'bypassPermissions', 'plan'] as const) {
+      expect(decide('delegate', { delegation: 'unattended' }, mode)).toBe('block')
+      expect(
+        decideApproval(gateCall('delegate'), host({ delegation: 'interactive' }), mode, 'stream', {
+          active: true,
+          at: 1
+        }).kind
+      ).toBe('block')
+    }
+    expect(decide('delegate', { delegation: 'interactive' }, 'auto')).toBe('allow')
+    expect(decide('delegate', { delegation: 'interactive' }, 'bypassPermissions')).toBe('allow')
+    expect(decide('delegate', { delegation: 'interactive' }, 'default')).toBe('ask')
+  })
+
   // Catches a mode that auto-approves a path outside the allowed roots, or gates reads inside them.
   it('asks per permission mode and path containment', () => {
     expect(decide('read', { category: 'read' })).toBe('allow')

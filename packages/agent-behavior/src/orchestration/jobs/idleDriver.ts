@@ -1,6 +1,7 @@
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import { admitRound, decideAtIdle } from '../../core/driver/idle'
+import { decidePermissionModeChanged } from '../../core/driver/lifecycle'
 import type { RoundDetails } from '../../core/facts'
 import type { Key } from '../../core/keys'
 import type { JobHandler } from '../../ports/harness'
@@ -29,7 +30,12 @@ export function idleDriver(host: HostPorts): JobHandler {
       const inputs = await gatherInputs(context, thread)
       const decided = await step(context, thread, (facts) => decideAtIdle(facts, inputs))
       const decision = decided.result
-      if (decision.kind === 'done') return
+      if (decision.kind === 'done') {
+        // A permission change can reuse this still-live job before its exit record advances the generation.
+        if (decision.reason === 'plan-mode' && host.settings.permissionMode(thread) !== inputs.settings.permissionMode)
+          await step(context, thread, decidePermissionModeChanged)
+        return
+      }
       const start = decided.effects.find((effect) => effect.type === 'start-turn')
       if (start?.type !== 'start-turn' || decided.started === 'busy') continue
       if (decision.kind === 'start-round') await admit(context, thread, decision)
