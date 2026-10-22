@@ -203,6 +203,13 @@
       "when": 1792144261086,
       "tag": "0028_early_red_ghost",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1792629539070,
+      "tag": "0029_modern_oracle",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -138,29 +138,57 @@ describe('followupQueueHandlers', () => {
   })
 
   describe('/followup-queues/:id/fail', () => {
-    it('should delegate POST to markFailed', async () => {
-      await followupQueueHandlers['/followup-queues/:id/fail'].POST({ params: { id: ITEM_ID } })
-      expect(markFailedMock).toHaveBeenCalledWith(ITEM_ID)
+    it('should delegate POST to markFailed with the parsed claim token', async () => {
+      await followupQueueHandlers['/followup-queues/:id/fail'].POST({
+        params: { id: ITEM_ID },
+        body: { claimToken: 'token-1' }
+      })
+      expect(markFailedMock).toHaveBeenCalledWith(ITEM_ID, 'token-1')
+    })
+
+    it('should reject POST without a claim token', async () => {
+      await expect(
+        followupQueueHandlers['/followup-queues/:id/fail'].POST({ params: { id: ITEM_ID } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+      expect(markFailedMock).not.toHaveBeenCalled()
     })
   })
 
   describe('/followup-queues/:id/sent', () => {
-    it('should delegate POST to markSent', async () => {
-      await followupQueueHandlers['/followup-queues/:id/sent'].POST({ params: { id: ITEM_ID } })
-      expect(markSentMock).toHaveBeenCalledWith(ITEM_ID)
+    it('should delegate POST to markSent with the parsed claim token', async () => {
+      await followupQueueHandlers['/followup-queues/:id/sent'].POST({
+        params: { id: ITEM_ID },
+        body: { claimToken: 'token-1' }
+      })
+      expect(markSentMock).toHaveBeenCalledWith(ITEM_ID, 'token-1')
+    })
+
+    it('should reject POST without a claim token', async () => {
+      await expect(
+        followupQueueHandlers['/followup-queues/:id/sent'].POST({ params: { id: ITEM_ID } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+      expect(markSentMock).not.toHaveBeenCalled()
     })
   })
 
   describe('/followup-queues/:id/heartbeat', () => {
-    it('should delegate POST to heartbeat and return liveness', async () => {
+    it('should delegate POST to heartbeat with the parsed claim token and return liveness', async () => {
       heartbeatMock.mockReturnValueOnce({ live: true })
 
       const result = await followupQueueHandlers['/followup-queues/:id/heartbeat'].POST({
-        params: { id: ITEM_ID }
+        params: { id: ITEM_ID },
+        body: { claimToken: 'token-1' }
       })
 
-      expect(heartbeatMock).toHaveBeenCalledWith(ITEM_ID)
+      expect(heartbeatMock).toHaveBeenCalledWith(ITEM_ID, 'token-1')
       expect(result).toEqual({ live: true })
+    })
+
+    it('should reject POST without a claim token', async () => {
+      await expect(
+        followupQueueHandlers['/followup-queues/:id/heartbeat'].POST({ params: { id: ITEM_ID } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+      expect(heartbeatMock).not.toHaveBeenCalled()
     })
   })
 

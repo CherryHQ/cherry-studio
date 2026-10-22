@@ -1544,6 +1544,47 @@ describe('AssistantDataService', () => {
       ])
     })
 
+    it('should purge only the deleted assistant\'s own scope on a retained topic', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'delete' },
+        { id: 'ast-2', name: 'keep' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: 'shared', assistantId: 'ast-1', orderKey: 'a0' }
+      ])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'topic-1:ast-1',
+          draft: { text: 'theirs', tokens: [] },
+          payload: { text: 'theirs', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '22222222-2222-7222-8222-222222222222',
+          scopeKey: 'topic-1:ast-2',
+          draft: { text: 'kept', tokens: [] },
+          payload: { text: 'kept', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      // Topic retained (no deleteTopics): the deleted assistant's own scope
+      // purges, but another assistant's queue on the same topic must survive.
+      assistantDataService.delete('ast-1')
+      assistantDataService.delete('ast-1', { permanent: true })
+
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id)).toEqual([
+        '22222222-2222-7222-8222-222222222222'
+      ])
+    })
+
     it('should roll back both parent and child trash when the cascade fails midway', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'rollback' })
       await dbh.db.insert(topicTable).values({
@@ -2009,6 +2050,45 @@ describe('AssistantDataService', () => {
       ])
       expect((await dbh.db.select().from(followupQueueStateTable)).map((row) => row.scopeKey)).toEqual([
         'topic-kept:ast-active'
+      ])
+    })
+
+    it('should purge only the expired assistant\'s own scope on a retained topic', async () => {
+      await seedAssistantRow([
+        { id: 'ast-expired', name: 'expired', deletedAt: 100 },
+        { id: 'ast-active', name: 'active' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-gone', name: 'shared', assistantId: 'ast-expired', orderKey: 'a0' }
+      ])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'topic-gone:ast-expired',
+          draft: { text: 'orphaned', tokens: [] },
+          payload: { text: 'orphaned', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: '22222222-2222-7222-8222-222222222222',
+          scopeKey: 'topic-gone:ast-active',
+          draft: { text: 'kept', tokens: [] },
+          payload: { text: 'kept', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, Date.now(), 500)
+
+      expect(purgedIds).toEqual(['ast-expired'])
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id)).toEqual([
+        '22222222-2222-7222-8222-222222222222'
       ])
     })
 
