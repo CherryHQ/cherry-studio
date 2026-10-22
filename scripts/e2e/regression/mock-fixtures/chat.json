@@ -43,6 +43,10 @@
       "response": { "content": "PDF_TRANSLATION_MARKER_314159" }
     },
     {
+      "match": { "userMessage": "first line of the draft" },
+      "response": { "content": "DRAFT_REPLY_PASS" }
+    },
+    {
       "match": { "userMessage": "Hello" },
       "response": { "content": "Hi there! How can I help?" },
       "opts": { "chunkSize": 8, "latency": 0 }
