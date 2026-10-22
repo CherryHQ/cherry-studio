@@ -63,6 +63,8 @@ type ProbeRow = [pid: number, parent: number | 'shell', created: string]
 
 describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from live parents', () => {
   let dir: string
+  /** Probe runners still anchoring when the test ended; they write evidence on a cadence. */
+  let liveProbes: Array<ReturnType<typeof spawn>> = []
 
   /**
    * Runs the exported runner as its own process against a simulated Windows process table.
@@ -103,6 +105,7 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
       },
       stdio: ['ignore', 'ignore', 'ignore']
     })
+    liveProbes.push(child)
 
     let shellPid = 0
     await vi.waitFor(
@@ -157,9 +160,14 @@ describe.skipIf(process.platform === 'win32')('the runner seeds ancestry from li
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), 'cherry-bg-ancestry-'))
+    liveProbes = []
   })
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
+    // A probe that is still anchoring writes evidence while the directory is removed, and the
+    // removal then fails ENOTEMPTY: stop it first, then let a late write settle.
+    for (const child of liveProbes) child.kill('SIGKILL')
+    liveProbes = []
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }).catch(() => undefined)
   })
 
   it('keeps a worker whose parenting intermediate exited while the shell still ran', async () => {
