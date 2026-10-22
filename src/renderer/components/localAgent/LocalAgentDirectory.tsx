@@ -932,11 +932,6 @@ function LocalAgentDetails({
               </div>
             </AgentServiceCard>
             {!editing && feedback}
-            {(preset || agent) && !LOCAL_AGENT_MODEL_CONFIG[initial.presetId ?? ''] && (
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {t('local_agents.global_model_unavailable')}
-              </p>
-            )}
             {(preset || agent) && (
               <LocalAgentModelList
                 models={modelSelection.models}
