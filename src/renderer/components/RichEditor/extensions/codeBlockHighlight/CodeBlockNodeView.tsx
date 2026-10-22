@@ -1,49 +1,28 @@
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
 import { Code, Copy, Eye } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Combobox, Tooltip } from '@cherrystudio/ui'
+import { CODE_LANGUAGES } from '@cherrystudio/ui/code-highlight'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from '@renderer/components/CodeBlockView/constants'
-import { DEFAULT_LANGUAGES, getHighlighter, getShiki } from '@renderer/utils/shiki'
+
+const languageOptions = [
+  ...new Set([...Object.keys(CODE_LANGUAGES), ...Object.values(CODE_LANGUAGES).flat(), ...SPECIAL_VIEWS])
+].sort()
+
+const options = languageOptions.map((value) => ({ value, label: value }))
 
 const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const { node, updateAttributes, editor } = props
   const { t } = useTranslation()
-  const [languageOptions, setLanguageOptions] = useState<string[]>(DEFAULT_LANGUAGES)
 
   // Detect language from node attrs or fallback
   const language = (node.attrs.language as string) || 'text'
   const isSpecialView = SPECIAL_VIEWS.includes(language)
   const isEditable = editor.isEditable
   const [showPreview, setShowPreview] = useState(true)
-
-  // Build language options with 'text' always available
-  useEffect(() => {
-    const loadLanguageOptions = async () => {
-      try {
-        const shiki = await getShiki()
-        const highlighter = await getHighlighter()
-
-        // Get bundled languages from shiki
-        const bundledLanguages = Object.keys(shiki.bundledLanguages)
-
-        // Combine with loaded languages
-        const loadedLanguages = highlighter.getLoadedLanguages()
-
-        const allLanguages = Array.from(new Set(['text', ...bundledLanguages, ...loadedLanguages]))
-
-        setLanguageOptions(allLanguages)
-      } catch {
-        setLanguageOptions(DEFAULT_LANGUAGES)
-      }
-    }
-
-    void loadLanguageOptions()
-  }, [])
-
-  const options = useMemo(() => languageOptions.map((value) => ({ value, label: value })), [languageOptions])
 
   // Handle language change
   const handleLanguageChange = useCallback(

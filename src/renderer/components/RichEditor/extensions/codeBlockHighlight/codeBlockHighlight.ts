@@ -3,13 +3,13 @@ import CodeBlock, { type CodeBlockOptions } from '@tiptap/extension-code-block'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 
 import { CodeBlockNodeReactRenderer } from './CodeBlockNodeView'
-import { ShikiPlugin } from './shikijsPlugin'
+import { HighlightPlugin } from './highlightPlugin'
 
-export interface CodeBlockShikiOptions extends CodeBlockOptions {
+export interface CodeBlockHighlightOptions extends CodeBlockOptions {
   defaultLanguage: string
   theme: string
 }
-export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
+export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
   addOptions() {
     return {
       ...this.parent?.(),
@@ -21,7 +21,7 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
       HTMLAttributes: {
         class: 'codeBlockShiki'
       }
-    } as CodeBlockShikiOptions
+    } as CodeBlockHighlightOptions
   },
 
   addInputRules() {
@@ -92,7 +92,7 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
   },
 
   addProseMirrorPlugins() {
-    const shikiPlugin = ShikiPlugin({
+    const highlightPlugin = HighlightPlugin({
       name: this.name,
       defaultLanguage: this.options.defaultLanguage,
       theme: this.options.theme
@@ -125,7 +125,7 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
       }
     })
 
-    return [...(this.parent?.() || []), shikiPlugin, codeBlockEventPlugin]
+    return [...(this.parent?.() || []), highlightPlugin, codeBlockEventPlugin]
   },
 
   addAttributes() {
@@ -141,4 +141,4 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
   }
 })
 
-export default CodeBlockShiki
+export default CodeBlockHighlight
