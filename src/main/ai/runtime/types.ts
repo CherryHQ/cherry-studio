@@ -264,7 +264,7 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
   onSessionIdle?(sessionId: string): void
   /**
    * Reclaim on-disk session state that no surviving session row claims, keyed by
-   * the resume tokens the driver itself hands out. The keep-set covers trashed
+   * resume tokens and workspace ownership at the project-directory level. The keep-set covers trashed
    * sessions too — their rows and tokens remain until purge so Restore stays
    * lossless, and only a purge drops them. Called by the trash purge's agent
    * orphan sweep after every DB transaction has committed, so it is authoritative. Must be idempotent, must no-op when its root
@@ -272,7 +272,7 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * alone — an in-flight session may not have persisted its token yet.
    */
   reclaimOrphanSessions?(
-    keptResumeTokens: ReadonlySet<string>,
+    keep: OrphanSessionKeepSet,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }>
   /**
@@ -280,6 +280,12 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * own transcript for a resume token, unredacted. Undefined when no readable transcript exists.
    */
   readTranscriptEvidence?(resumeToken: string, maxEntries: number): Promise<Record<string, unknown>[] | undefined>
+}
+
+export interface OrphanSessionKeepSet {
+  readonly resumeTokens: ReadonlySet<string>
+  /** Workspace paths of all surviving sessions (active and trashed), as stored in `agent_workspace.path`. */
+  readonly liveWorkspacePaths: ReadonlySet<string>
 }
 
 export interface OrphanSessionReclaimOptions {

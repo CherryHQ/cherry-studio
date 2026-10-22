@@ -8,13 +8,25 @@
  *            `{id}/` subagent-transcript directory from the projects dir
  */
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
+import { claudeProjectDirectoryName } from '@main/ai/utils/claudeProject'
 
 import { PiRuntimeDriver } from '../pi/PiRuntimeDriver'
 import { registerRuntimeDrivers } from '../registerDrivers'
@@ -36,6 +48,13 @@ function seedFile(relativePath: string, mtimeSeconds = STALE_SECONDS): string {
   return target
 }
 
+function makeStale(target: string): void {
+  if (statSync(target).isDirectory()) {
+    for (const child of readdirSync(target)) makeStale(path.join(target, child))
+  }
+  utimesSync(target, STALE_SECONDS, STALE_SECONDS)
+}
+
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'cs-runtime-reclaim-'))
   ;(application.getPath as Mock).mockImplementation((key: string) => path.join(root, key))
@@ -55,7 +74,10 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
     const claimedOld = seedFile(`${sessions}/2026-08-18T00-00-00-000Z_live.jsonl`)
     const claimedNew = seedFile(`${sessions}/2026-08-19T00-00-00-000Z_live.jsonl`)
 
-    const { removed } = await driver.reclaimOrphanSessions(new Set(['live']), OPTIONS)
+    const { removed } = await driver.reclaimOrphanSessions(
+      { resumeTokens: new Set(['live']), liveWorkspacePaths: new Set() },
+      OPTIONS
+    )
 
     expect(removed).toEqual([orphan])
     expect(existsSync(claimedOld)).toBe(true)
@@ -67,7 +89,10 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
     // truncated the token and made a live session look orphaned.
     const claimed = seedFile(`${sessions}/2026-08-19T00-00-00-000Z_tok_with_underscore.jsonl`)
 
-    const { removed } = await driver.reclaimOrphanSessions(new Set(['tok_with_underscore']), OPTIONS)
+    const { removed } = await driver.reclaimOrphanSessions(
+      { resumeTokens: new Set(['tok_with_underscore']), liveWorkspacePaths: new Set() },
+      OPTIONS
+    )
 
     expect(removed).toEqual([])
     expect(existsSync(claimed)).toBe(true)
@@ -77,7 +102,10 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
     const notPi = seedFile(`${sessions}/index.json`)
     const noToken = seedFile(`${sessions}/nounderscore.jsonl`)
 
-    const { removed } = await driver.reclaimOrphanSessions(new Set(), OPTIONS)
+    const { removed } = await driver.reclaimOrphanSessions(
+      { resumeTokens: new Set(), liveWorkspacePaths: new Set() },
+      OPTIONS
+    )
 
     expect(removed).toEqual([])
     expect(existsSync(notPi)).toBe(true)
@@ -87,14 +115,19 @@ describe('PiRuntimeDriver.reclaimOrphanSessions', () => {
   it('defers a session still being written', async () => {
     const warm = seedFile(`${sessions}/2026-08-19T00-00-00-000Z_warm.jsonl`, (NOW - 60_000) / 1000)
 
-    const { removed } = await driver.reclaimOrphanSessions(new Set(), OPTIONS)
+    const { removed } = await driver.reclaimOrphanSessions(
+      { resumeTokens: new Set(), liveWorkspacePaths: new Set() },
+      OPTIONS
+    )
 
     expect(removed).toEqual([])
     expect(existsSync(warm)).toBe(true)
   })
 
   it('no-ops when the runtime was never used', async () => {
-    await expect(driver.reclaimOrphanSessions(new Set(), OPTIONS)).resolves.toEqual({ removed: [] })
+    await expect(
+      driver.reclaimOrphanSessions({ resumeTokens: new Set(), liveWorkspacePaths: new Set() }, OPTIONS)
+    ).resolves.toEqual({ removed: [] })
   })
 })
 
@@ -112,13 +145,17 @@ describe('claude-code reclaimOrphanSessions', () => {
   afterEach(() => runtimeDriverRegistry.clearForTest())
 
   it('removes an unclaimed transcript with its subagent directory, keeping claimed ones', async () => {
-    const orphan = seedFile(`${projects}/-tmp-work/gone-id.jsonl`)
-    const orphanSubagents = seedFile(`${projects}/-tmp-work/gone-id/agent-1.jsonl`)
-    const claimed = seedFile(`${projects}/-tmp-work/live-id.jsonl`)
+    const orphan = seedFile(`${projects}/-tmp-work/11111111-1111-1111-1111-111111111111.jsonl`)
+    const orphanSubagents = seedFile(`${projects}/-tmp-work/11111111-1111-1111-1111-111111111111/agent-1.jsonl`)
+    const claimed = seedFile(`${projects}/-tmp-work/22222222-2222-2222-2222-222222222222.jsonl`)
 
-    const { removed } = await claudeDriver().reclaimOrphanSessions!(new Set(['live-id']), OPTIONS)
+    makeStale(path.join(root, projects))
+    const { removed } = await claudeDriver().reclaimOrphanSessions!(
+      { resumeTokens: new Set(['22222222-2222-2222-2222-222222222222']), liveWorkspacePaths: new Set() },
+      OPTIONS
+    )
 
-    expect(removed).toEqual([orphan, path.join(root, projects, '-tmp-work', 'gone-id')])
+    expect(removed).toEqual([orphan, path.join(root, projects, '-tmp-work', '11111111-1111-1111-1111-111111111111')])
     expect(existsSync(orphanSubagents)).toBe(false)
     expect(existsSync(claimed)).toBe(true)
   })
@@ -127,15 +164,129 @@ describe('claude-code reclaimOrphanSessions', () => {
     // The Claude-login provider writes into the user's real ~/.claude by design
     // (settingsBuilder deletes CLAUDE_CONFIG_DIR for it), so that corpus is shared
     // with the user's terminal sessions and must stay untouched.
-    const userHome = seedFile('sys.home/.claude/projects/-tmp-work/personal-id.jsonl')
-    seedFile(`${projects}/-tmp-work/gone-id.jsonl`)
+    const userHome = seedFile('sys.home/.claude/projects/-tmp-work/33333333-3333-3333-3333-333333333333.jsonl')
+    const inside = seedFile(`${projects}/-tmp-work/11111111-1111-1111-1111-111111111111.jsonl`)
+    makeStale(path.join(root, projects))
 
-    await claudeDriver().reclaimOrphanSessions!(new Set(), OPTIONS)
+    await claudeDriver().reclaimOrphanSessions!({ resumeTokens: new Set(), liveWorkspacePaths: new Set() }, OPTIONS)
 
     expect(existsSync(userHome)).toBe(true)
+    expect(existsSync(inside)).toBe(false)
+  })
+
+  it('protects the entire owned project without a token and reclaims an unowned control', async () => {
+    const workspace = path.join(root, 'workspace')
+    const ownedProject = claudeProjectDirectoryName(workspace)
+    const token = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    const owned = seedFile(`${projects}/${ownedProject}/${token}.jsonl`)
+    const ownedSubagent = seedFile(`${projects}/${ownedProject}/${token}/subagents/agent-1.jsonl`)
+    const orphan = seedFile(`${projects}/unowned/${token}.jsonl`)
+    const orphanSubagent = seedFile(`${projects}/unowned/${token}/subagents/agent-1.jsonl`)
+    makeStale(path.join(root, projects))
+
+    const { removed } = await claudeDriver().reclaimOrphanSessions!(
+      {
+        resumeTokens: new Set(),
+        liveWorkspacePaths: new Set([workspace])
+      },
+      OPTIONS
+    )
+
+    expect(removed).toEqual([orphan, path.dirname(path.dirname(orphanSubagent))])
+    expect(existsSync(owned)).toBe(true)
+    expect(existsSync(ownedSubagent)).toBe(true)
+    expect(existsSync(orphanSubagent)).toBe(false)
+  })
+
+  it('retains ordinary project data while reclaiming UUID pairs and directory-only artifacts', async () => {
+    const token = 'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA'
+    const directoryOnlyToken = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    const retained = ['memory/facts.md', 'session-env/state.json', 'memory.jsonl'].map((name) =>
+      seedFile(`${projects}/unowned/${name}`)
+    )
+    const transcript = seedFile(`${projects}/unowned/${token}.jsonl`)
+    const subagent = seedFile(`${projects}/unowned/${token}/subagents/agent-1.jsonl`)
+    const directoryOnly = seedFile(`${projects}/unowned/${directoryOnlyToken}/subagents/agent-2.jsonl`)
+    makeStale(path.join(root, projects))
+
+    const { removed } = await claudeDriver().reclaimOrphanSessions!(
+      {
+        resumeTokens: new Set(),
+        liveWorkspacePaths: new Set()
+      },
+      OPTIONS
+    )
+
+    expect(new Set(removed)).toEqual(
+      new Set([transcript, path.dirname(path.dirname(subagent)), path.dirname(path.dirname(directoryOnly))])
+    )
+    for (const target of retained) expect(existsSync(target)).toBe(true)
+    for (const target of [transcript, subagent, directoryOnly]) expect(existsSync(target)).toBe(false)
+  })
+
+  it.each([false, true])('protects the canonical project under a symlinked parent (archived: %s)', async (archived) => {
+    const realParent = path.join(root, 'real')
+    const alias = path.join(root, 'alias')
+    mkdirSync(realParent)
+    symlinkSync(realParent, alias, 'dir')
+    const workspace = path.join(alias, 'workspace')
+    if (!archived) mkdirSync(workspace)
+    const resolved = path.join(realpathSync(realParent), 'workspace')
+    expect(path.resolve(workspace)).not.toBe(resolved)
+    const project = claudeProjectDirectoryName(resolved)
+    const transcript = seedFile(`${projects}/${project}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl`)
+    makeStale(path.join(root, projects))
+
+    const { removed } = await claudeDriver().reclaimOrphanSessions!(
+      {
+        resumeTokens: new Set(),
+        liveWorkspacePaths: new Set([workspace])
+      },
+      OPTIONS
+    )
+
+    expect(removed).toEqual([])
+    expect(existsSync(transcript)).toBe(true)
+  })
+
+  it.skipIf(process.platform !== 'darwin')('protects the SDK NFC project spelling on macOS', async () => {
+    const workspace = path.join(root, 'cafe\u0301')
+    mkdirSync(workspace)
+    const resolved = realpathSync(workspace)
+    const nfc = resolved.normalize('NFC')
+    expect(nfc).not.toBe(resolved)
+    const project = claudeProjectDirectoryName(nfc)
+    const transcript = seedFile(`${projects}/${project}/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl`)
+    makeStale(path.join(root, projects))
+
+    const { removed } = await claudeDriver().reclaimOrphanSessions!(
+      {
+        resumeTokens: new Set(),
+        liveWorkspacePaths: new Set([workspace])
+      },
+      OPTIONS
+    )
+
+    expect(removed).toEqual([])
+    expect(existsSync(transcript)).toBe(true)
+  })
+
+  it('retains a fresh Claude artifact', async () => {
+    const transcript = seedFile(`${projects}/unowned/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl`, (NOW - 60_000) / 1000)
+    const result = await claudeDriver().reclaimOrphanSessions!(
+      {
+        resumeTokens: new Set(),
+        liveWorkspacePaths: new Set()
+      },
+      OPTIONS
+    )
+    expect(result.removed).toEqual([])
+    expect(existsSync(transcript)).toBe(true)
   })
 
   it('no-ops when the runtime was never used', async () => {
-    await expect(claudeDriver().reclaimOrphanSessions!(new Set(), OPTIONS)).resolves.toEqual({ removed: [] })
+    await expect(
+      claudeDriver().reclaimOrphanSessions!({ resumeTokens: new Set(), liveWorkspacePaths: new Set() }, OPTIONS)
+    ).resolves.toEqual({ removed: [] })
   })
 })

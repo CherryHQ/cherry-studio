@@ -1,7 +1,9 @@
 import path from 'node:path'
 
 import { application } from '@application'
+import { resolveRealOrNearestExistingPath } from '@main/ai/agents/agentDataDirectory'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
+import { claudeProjectDirectoryName } from '@main/ai/utils/claudeProject'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -13,8 +15,11 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentSessionRuntimeDriver,
+  OrphanSessionKeepSet,
   OrphanSessionReclaimOptions
 } from './types'
+
+const UUID_SESSION_ARTIFACT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
@@ -61,25 +66,35 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
    * Runs without loading the implementation: this is pure filesystem work.
    */
   async reclaimOrphanSessions(
-    keptResumeTokens: ReadonlySet<string>,
+    keep: OrphanSessionKeepSet,
     options: OrphanSessionReclaimOptions
   ): Promise<{ removed: string[] }> {
     const projectsRoot = application.getPath('feature.agents.claude.projects')
     const removed: string[] = []
+    const ownedProjects = new Set<string>()
+    // The runtime passes the stored spelling; the SDK hashes the realpath/NFC spelling.
+    for (const workspacePath of keep.liveWorkspacePaths) {
+      const resolved = path.normalize(await resolveRealOrNearestExistingPath(workspacePath))
+      for (const spelling of [
+        path.resolve(workspacePath),
+        resolved,
+        process.platform === 'darwin' ? resolved.normalize('NFC') : resolved
+      ]) {
+        ownedProjects.add(claudeProjectDirectoryName(spelling))
+      }
+    }
 
     for (const projectEntry of await listEntries(projectsRoot)) {
-      if (!projectEntry.isDirectory()) continue
+      if (!projectEntry.isDirectory() || ownedProjects.has(projectEntry.name)) continue
       const projectDir = path.resolve(projectsRoot, projectEntry.name)
       for (const entry of await listEntries(projectDir)) {
-        // A project dir holds only `{id}.jsonl` and `{id}/`, so either names the session.
-        // The dir has to stand on its own: its jsonl sibling may already be gone, and
-        // keying solely off the file would strand the transcripts forever.
+        // A UUID directory remains reclaimable after its transcript sibling is gone.
         const token = entry.isDirectory()
           ? entry.name
           : entry.name.endsWith('.jsonl')
             ? entry.name.slice(0, -'.jsonl'.length)
             : null
-        if (!token || keptResumeTokens.has(token)) continue
+        if (!token || !UUID_SESSION_ARTIFACT.test(token) || keep.resumeTokens.has(token)) continue
         for (const target of [path.resolve(projectDir, `${token}.jsonl`), path.resolve(projectDir, token)]) {
           if (await reclaimStale(target, options)) removed.push(target)
         }
