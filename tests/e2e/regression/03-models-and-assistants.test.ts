@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test'
+
 import { AssistantSchema } from '@shared/data/types/assistant'
 import { MessageSchema } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -307,4 +309,184 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       { assistantId, providerId, namingEnabled }
     )
   }
+})
+
+test(...caseDefinition('SET-05'), async ({ app, mainWindow: page }) => {
+  await openSettingsSection(page, 'About')
+
+  // The About page must name the product and show a real version number.
+  await expect(page.getByText(/Cherry Studio/i).first()).toBeVisible()
+  const version = page.getByText(/\bv?\d+\.\d+\.\d+\b/).first()
+  await expect(version).toBeVisible()
+  const before = (await version.textContent())?.trim()
+
+  // The value comes from the running build, so it must survive a restart unchanged.
+  const restarted = await app.restart('authenticated')
+  await openSettingsSection(restarted, 'About')
+  await expect(restarted.getByText(/\bv?\d+\.\d+\.\d+\b/).first()).toHaveText(before ?? '')
+})
+
+// The sidebar groups conversations by assistant by default; "Time" is the flat list a reader expects.
+async function showConversationList(page: Page): Promise<void> {
+  const displayMode = page.getByRole('button', { name: 'Display mode', exact: true })
+  if (await displayMode.isVisible().catch(() => false)) {
+    await displayMode.click()
+    const byTime = page.getByText('Time', { exact: true }).first()
+    if (await byTime.isVisible().catch(() => false)) await byTime.click()
+    else await page.keyboard.press('Escape')
+  }
+}
+
+async function startTrackedChat(
+  app: Parameters<typeof ensureCustomChatProvider>[0],
+  page: Parameters<typeof ensureCustomChatProvider>[1]
+): Promise<void> {
+  await ensureCustomChatProvider(app, page)
+  await closeSettings(page)
+  await selectChatModel(page, app.config.customProvider.chatModel)
+  await showConversationList(page)
+}
+
+// Each case starts from an empty conversation; a reused one carries earlier answers into the reply.
+async function startFreshChat(
+  app: Parameters<typeof ensureCustomChatProvider>[0],
+  page: Parameters<typeof ensureCustomChatProvider>[1]
+): Promise<void> {
+  await startTrackedChat(app, page)
+  const create = page.locator('[data-ui~="chat.topic-list.action.create"]:visible').first()
+  await create.click()
+  await expect(page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()).toBeVisible()
+}
+
+test(...caseDefinition('TOPIC-01'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await startFreshChat(app, page)
+
+  const rows = () => page.locator('[data-testid="topic-list-row"]:visible')
+  const firstMarker = 'TOPIC_ONE_PASS_31415'
+  const secondMarker = 'TOPIC_TWO_PASS_27182'
+
+  await sendChatMarker(page, `Reply with exactly ${firstMarker} and nothing else.`, firstMarker, false)
+  await expect.poll(() => rows().count()).toBeGreaterThan(0)
+  const afterFirst = await rows().count()
+
+  await page.locator('[data-ui~="chat.topic-list.action.create"]:visible').first().click()
+  await expect.poll(() => rows().count()).toBeGreaterThan(afterFirst)
+  await sendChatMarker(page, `Reply with exactly ${secondMarker} and nothing else.`, secondMarker, false)
+
+  page = await app.restart('authenticated')
+  await dismissOnboarding(page)
+  await selectSidebarApp(page, 'Chat')
+  await showConversationList(page)
+  await expect.poll(() => rows().count()).toBeGreaterThanOrEqual(afterFirst + 1)
+
+  // Each conversation must still own its own answer, not just "there are two rows".
+  const markers = new Set<string>()
+  for (const row of await rows().all()) {
+    await row.click()
+    const view = await page.locator('[data-ui="chat.view"]:visible').first().innerText()
+    if (view.includes(firstMarker)) markers.add(firstMarker)
+    if (view.includes(secondMarker)) markers.add(secondMarker)
+  }
+  expect([...markers].sort()).toEqual([firstMarker, secondMarker].sort())
+})
+
+test(...caseDefinition('TOPIC-02'), async ({ app, mainWindow }) => {
+  let page = mainWindow
+  await startFreshChat(app, page)
+
+  const marker = 'TOPIC_RENAME_PASS_16180'
+  await sendChatMarker(page, `Reply with exactly ${marker} and nothing else.`, marker, false)
+
+  const name = app.resourceName('Renamed conversation')
+  const row = page.locator('[data-testid="topic-list-row"]:visible').first()
+  await row.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Edit conversation name', exact: true }).click()
+  const input = page.getByRole('dialog').getByRole('textbox').first()
+  await input.fill(name)
+  await page.keyboard.press('Enter')
+  await expect(row).toContainText(name)
+
+  page = await app.restart('authenticated')
+  await dismissOnboarding(page)
+  await selectSidebarApp(page, 'Chat')
+  await expect(page.getByText(name, { exact: true }).first()).toBeVisible()
+
+  // The rename must not cost the conversation its messages.
+  await page.getByText(name, { exact: true }).first().click()
+  await expect(page.getByText(marker, { exact: true }).last()).toBeVisible()
+})
+
+test(...caseDefinition('CHAT-01'), async ({ app, mainWindow }) => {
+  const page = mainWindow
+  await startTrackedChat(app, page)
+
+  const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+  await composer.fill('')
+  await composer.click()
+  await composer.pressSequentially('first line of the draft')
+  await page.keyboard.press('Shift+Enter')
+  await composer.pressSequentially('second line of the draft')
+
+  const draft = await composer.innerText()
+  expect(draft.split('\n').filter(Boolean)).toEqual(['first line of the draft', 'second line of the draft'])
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  const sent = page
+    .locator('[data-ui~="chat.message"][data-message-id]:visible')
+    .filter({ hasText: 'first line of the draft' })
+    .last()
+  await expect(sent).toContainText('second line of the draft')
+  await expect(composer).toHaveText('')
+})
+
+test(...caseDefinition('CHAT-02'), async ({ app, mainWindow }) => {
+  const page = mainWindow
+  await startFreshChat(app, page)
+
+  const marker = 'MESSAGE_ACTION_PASS_27182'
+  const messageId = await sendChatMarker(page, `Reply with exactly ${marker} and nothing else.`, marker, false)
+
+  const reply = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
+  await reply.hover()
+  const actions = reply.locator('[data-ui~="part:message-actions"]')
+  await expect(actions).toBeVisible()
+
+  await expect(actions.getByRole('button', { name: 'Copy', exact: true })).toBeEnabled()
+  await expect(actions.getByRole('button', { name: 'Regenerate', exact: true })).toBeEnabled()
+
+  await reply.locator('[data-ui~="part:message-actions"]').getByRole('button', { name: 'Delete', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  if (await dialog.isVisible().catch(() => false)) {
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
+  }
+  await expect(page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)).toHaveCount(0)
+})
+
+test(...caseDefinition('SET-01'), async ({ mainWindow: page }) => {
+  await openSettingsSection(page, 'General')
+  const navigation = page.locator('[data-ui="settings.navigation"]')
+  await expect(navigation).toBeVisible()
+
+  // Sections are anchors on one page, so navigation means the section's rows scroll into view.
+  const sections: Array<[string, string]> = [
+    ['General', 'setting-general-launch-onboot'],
+    ['Data', 'setting-data-data-backup-restore'],
+    ['Notifications', 'setting-notifications-assistant-notification']
+  ]
+  for (const [section, anchor] of sections) {
+    await navigation.locator('[data-slot="menu-item"]').filter({ hasText: section }).first().click()
+    await expect(page.locator(`#${anchor}`)).toBeInViewport()
+  }
+
+  await page.getByRole('button', { name: 'Search settings', exact: true }).click()
+  const search = page.getByRole('combobox', { name: 'Search settings', exact: true })
+  await search.fill('backup')
+  await expect(
+    page
+      .getByRole('option')
+      .filter({ hasText: /backup/i })
+      .first()
+  ).toBeVisible()
 })

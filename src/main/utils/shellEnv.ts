@@ -9,7 +9,7 @@ import {
   getBinarySearchDirs,
   getBinaryShimsDir,
   mergeBinaryExecutionEnv,
-  normalizePathSegmentForComparison
+  canonicalPathSegment
 } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
 
@@ -85,9 +85,9 @@ export function resolveCherryPathTailDirs(hasUserMise: boolean): string[] {
 /** Drop one directory from every PATH key in `env`, matching Windows paths case-insensitively. */
 export function removePathEntry(env: Record<string, string | undefined>, dir: string): void {
   if (!dir) return
-  const target = normalizePathSegmentForComparison(dir)
+  const target = canonicalPathSegment(dir)
   const delimiter = isWin ? ';' : ':'
-  const normalize = normalizePathSegmentForComparison
+  const normalize = canonicalPathSegment
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   for (const key of pathKeys) {
     const value = env[key]

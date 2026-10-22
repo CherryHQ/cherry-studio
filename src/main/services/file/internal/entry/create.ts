@@ -26,7 +26,7 @@ import {
   remove as fsRemove,
   stat as fsStat
 } from '@main/utils/file'
-import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { canonicalizeFilePath } from '@shared/utils/file'
@@ -36,27 +36,15 @@ import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/create')
 
-/**
- * Mirror of `fs.ts:bestEffortUnlinkTmp` for createInternal's two cleanup
- * sites: ENOENT is the desired post-state and stays silent, every other
- * errno surfaces a `warn` so oncall can find a stranded blob after the
- * abort. The original error is rethrown by the caller; this helper only
- * exists for observability.
- *
- * Replaces the previous `.catch(() => undefined)` pattern, which silenced
- * EACCES / EBUSY / EIO equally with ENOENT — exactly the class of failure
- * `fs.errno-warn.test.ts` was built to guard against.
- */
-async function bestEffortCleanup(physical: AbsoluteFilePath, context: string): Promise<void> {
+async function bestEffortCleanup(id: FileEntryId, physical: AbsoluteFilePath, context: string): Promise<void> {
   try {
     await fsRemove(physical)
   } catch (cleanupErr) {
-    const code = (cleanupErr as NodeJS.ErrnoException).code
+    const code = (cleanupErr as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
     if (code !== 'ENOENT') {
       logger.warn(`${context}: cleanup unlink failed; physical blob may remain on disk`, {
-        physical,
-        code,
-        err: cleanupErr
+        id,
+        code
       })
     }
   }
@@ -168,7 +156,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
     await prepared.commit()
   } catch (err) {
     await prepared.abort()
-    await bestEffortCleanup(physical, 'createInternal:metadata-failed')
+    await bestEffortCleanup(id, physical, 'createInternal:metadata-failed')
     throw err
   }
   try {
@@ -182,8 +170,11 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       contentHash: prepared.contentHash
     })
   } catch (err) {
-    logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })
-    await bestEffortCleanup(physical, 'createInternal:db-insert-failed')
+    logger.warn('createInternal: DB insert failed; unlinking physical file', {
+      id,
+      code: (err as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+    })
+    await bestEffortCleanup(id, physical, 'createInternal:db-insert-failed')
     throw err
   }
 }

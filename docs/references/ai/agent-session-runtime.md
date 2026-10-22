@@ -101,13 +101,12 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 
 1. instruction precedence when an Agent System Prompt exists;
 2. bootstrap, identity, and memory context from `PromptBuilder` (`SOUL.md`, `USER.md`, `memory/FACT.md`);
-3. runtime-supplied root workspace instructions when the SDK exposes them to the materializer;
-4. variable-resolved Agent System Prompt text and its authority wrapper;
-5. context required when `system.md` replaces a native base;
-6. linked-channel security policy;
-7. citation markers for the lookup tools the runtime actually exposes;
-8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
-9. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
+3. variable-resolved Agent System Prompt text and its authority wrapper;
+4. context required when `system.md` replaces a native base;
+5. linked-channel security policy;
+6. citation markers for the lookup tools the runtime actually exposes;
+7. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
+8. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
 Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
 
@@ -117,10 +116,12 @@ Runtime adapters own only native mechanics:
 |---|---|
 | `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
 | Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
-| Workspace instruction authority | Claude uses `AgentsMdLoader`; Pi permits native context files. Physical placement differs while semantic precedence stays common. |
+| Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`; sealed sessions disable both through `settingSources: []`. Pi permits native context files. Semantic precedence stays common. |
 | Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
+
+Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
 
 Do not add Cherry policy directly to one driver. Extend the common materializer, pass any runtime-derived capability fact into it, and add integration assertions for every registered runtime. This module is main-process orchestration, not a cross-process contract, so it does not belong in `@shared`.
 
@@ -258,18 +259,24 @@ durable request reaches `accepted`; it never waits for scheduling or target exec
 
 `session_create` reuses the same completion-request path. Omitting `target_agent_id` creates a
 same-Agent Session; providing it creates a Session owned by the selected Agent. The sender remains
-the trusted calling Agent/Session, and the current workspace policy is retained. The model is not a
-tool argument because Sessions use their owning Agent's model.
+the trusted calling Agent/Session. A same-Agent Session continues the sender's workspace; a
+cross-Agent Session continues the target Agent's most recent workspace, falling back to the
+sender's workspace when that Agent has no Session. The model is not a tool argument because
+Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
-`session_send` and `session_create` always require a live per-call user approval because both start
-another Agent Session turn. A headless delivery, channel turn, scheduled turn, or other execution
-without an approval responder is denied before either tool runs. Runtime-generated completion
+`session_send` and `session_create` follow the calling Session's permission mode: interactive calls
+are auto-approved in `auto` and `bypassPermissions`, including the first send; other modes require
+per-call approval. Existing Agents in either automatic mode adopt this behavior without migration.
+Claude SDK approval requests, including explicit `permissions.ask` rules, still require a user
+decision in automatic modes; ordinary delegation is approved by `PreToolUse` before that callback.
+A headless delivery, channel turn, scheduled turn, or execution without an approval responder is
+denied in every mode before either tool runs. Runtime-generated completion
 results do not call a model tool and route only to the immutable sender Session stored on the
 accepted request.
 
-This deliberately limits the first version to one user-approved delegation hop. A Session started
+This deliberately limits delegation to one hop from an interactive Session. A Session started
 by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
 request and let the runtime return the result. The limit prevents unattended A -> B -> A loops and a
 prompt-injected Agent from using a more privileged Agent as a confused deputy without introducing a
@@ -279,7 +286,7 @@ ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the h
 
 List, search, send, create, and delivery-query visibility share one authorization boundary. Channel,
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
-but still require a live approval for delegation. Knowing a Session or message id never grants
+and delegate under the calling Session's permission mode and interaction boundary. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
@@ -713,6 +720,10 @@ resources (extensions, project skills/prompts/themes), it must add a Cherry-owne
 trust prompt and persisted decision first, then selectively pass that decision
 into pi resource loading rather than widening the `no*` flags wholesale.
 
+Before constructing the prompt or SDK session, Pi startup prepares the captured
+session workspace: it creates an app-owned system directory or validates that a
+user directory exists, preventing missing system directories from aborting startup.
+
 Connection startup uses an optimistic materialization snapshot. Cherry warms
 the MCP catalog, captures every reconcilable database/catalog fact, constructs
 the runtime from that captured provider, model, enabled-key set, skill paths,
@@ -878,9 +889,7 @@ credential invalidation, and provider-owned usage capture.
 
 ## Internal Agent continuation normalization
 
-When a Cherry-internal Agent Session request enters the API gateway in Anthropic
-Messages format and its converted UIMessage list ends with a text-only assistant
-attachment, the gateway appends an ephemeral user continuation after conversion.
+When a Cherry-internal Agent Session request enters the API gateway in Anthropic Messages format and its converted UIMessage list ends with an assistant attachment whose parts are all `text` or `reasoning`, the gateway appends an ephemeral user continuation after conversion, including for reasoning-only attachments. Eligibility depends on part types, not text length; empty text or reasoning and an empty parts array do not prevent continuation. Attachments containing tool parts or any other part type do not receive this continuation. This normalization expresses sampling intent and does not validate provider-specific content requirements, including the handling of empty or redacted-only assistant content.
 The Agent request itself proves that Claude Code's standard loop intends another
 sample, so this normalization is independent of the target provider, endpoint,
 and model. The original assistant attachment is preserved and the caller's params
@@ -1004,7 +1013,7 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
 - deleting a target Session first creates failure results for pending completion requests;
 - deleting an accepted request cannot leave an in-memory entry because delivery has no runtime FIFO;
 - a missing `delivery_turn_ref` target fails recovery without replaying model/tool work;
-- interactive `session_send` and `session_create` request approval, while headless calls are denied
+- interactive `session_send` and `session_create` follow the permission mode, while headless calls are denied in every mode
   and runtime-generated completion delivery remains allowed;
 - concurrent dispatch attempts for one durable message atomically persist one placeholder plus one
   CAS owner before producing one send;

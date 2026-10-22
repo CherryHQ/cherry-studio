@@ -15,11 +15,13 @@ const logger = loggerService.withContext('HelpMenu')
 export function HelpMenu({
   layout,
   onFeedbackClick,
-  onOverlayOpenChange
+  onOverlayOpenChange,
+  placement = 'right'
 }: {
   layout: SidebarVisibleLayout
   onFeedbackClick: () => void
   onOverlayOpenChange?: (open: boolean) => void
+  placement?: 'right' | 'bottom'
 }) {
   const { t, i18n } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
@@ -29,6 +31,7 @@ export function HelpMenu({
   const menuOpenRef = useRef(false)
   const onOverlayOpenChangeRef = useRef(onOverlayOpenChange)
   const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null)
+  const isHeader = placement === 'bottom'
 
   useEffect(() => {
     onOverlayOpenChangeRef.current = onOverlayOpenChange
@@ -75,15 +78,19 @@ export function HelpMenu({
         variant="ghost"
         size="icon"
         aria-label={t('help.title')}
-        className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground dark:text-muted-foreground">
-        <CircleQuestionMark size={18} strokeWidth={1.6} />
+        className={
+          isHeader
+            ? 'flex size-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground'
+            : 'sidebar-action size-9 rounded-full transition-colors duration-150'
+        }>
+        <CircleQuestionMark className={isHeader ? 'size-4' : 'size-4.5'} strokeWidth={isHeader ? 1.8 : 1.6} />
       </Button>
     ) : (
       <Button
         type="button"
         variant="ghost"
         aria-label={t('help.title')}
-        className="flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
+        className="sidebar-action flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
         <CircleQuestionMark size={16} strokeWidth={1.6} />
         <span className="min-w-0 truncate">{t('help.title')}</span>
       </Button>
@@ -94,15 +101,15 @@ export function HelpMenu({
       <Popover open={menuOpen} onOpenChange={handleMenuOpenChange}>
         <Tooltip
           content={t('help.title')}
-          placement="right"
-          delay={800}
+          placement={placement}
+          delay={isHeader ? 800 : 400}
           fullWidthTrigger={layout !== 'icon'}
           isDisabled={layout !== 'icon'}>
           <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         </Tooltip>
         <PopoverContent
           align="end"
-          side="right"
+          side={placement}
           sideOffset={8}
           className="w-52 rounded-xl p-1.5"
           onCloseAutoFocus={(event) => {

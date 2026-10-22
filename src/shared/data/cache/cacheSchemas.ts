@@ -142,6 +142,14 @@ export type UseCacheSchema = {
   'ui.window.chat.right_pane_open_override': boolean | null
   'ui.window.agent.right_pane_open_override': boolean | null
 
+  // Detached Chat/Agent windows keep list-group expansion within their renderer process. These
+  // values are seeded from the matching persisted preference but never sync back to the main window.
+  'ui.window.chat.topic.expansion.time': string[]
+  'ui.window.chat.topic.expansion.assistant': string[] | null
+  'ui.window.agent.session.expansion.time': string[]
+  'ui.window.agent.session.expansion.agent': string[] | null
+  'ui.window.agent.session.expansion.workdir': string[] | null
+
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
 
@@ -149,15 +157,8 @@ export type UseCacheSchema = {
   'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
-  'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
-  'mini_app.current_id': string
-  /** Whether the mini app view is split into two panes. */
-  'mini_app.split_open': boolean
-  /** Mini app shown in the split pane. Empty while the pane awaits a pick. */
-  'mini_app.split_id': string
-  'mini_app.show': boolean
-  'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
+  'mini_app.split': { appId: string | null } | null
 
   // Topic management
   'topic.renaming': string[]
@@ -242,17 +243,17 @@ export const DefaultUseCache: UseCacheSchema = {
   'ui.window.chat.resource_pane.width': 275,
   'ui.window.chat.right_pane_open_override': null,
   'ui.window.agent.right_pane_open_override': null,
+  'ui.window.chat.topic.expansion.time': [],
+  'ui.window.chat.topic.expansion.assistant': null,
+  'ui.window.agent.session.expansion.time': [],
+  'ui.window.agent.session.expansion.agent': null,
+  'ui.window.agent.session.expansion.workdir': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
   // MiniApp management
-  'mini_app.opened_keep_alive': [],
-  'mini_app.current_id': '',
-  'mini_app.split_open': false,
-  'mini_app.split_id': '',
-  'mini_app.show': false,
-  'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
+  'mini_app.split': null,
 
   // Topic management
   'topic.renaming': [],
@@ -312,6 +313,7 @@ export type SharedCacheSchema = {
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
@@ -382,6 +384,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,

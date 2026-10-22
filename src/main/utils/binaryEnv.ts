@@ -25,31 +25,39 @@ import { isWin } from '@main/core/platform'
  * here and `shellEnv.appendCherryToolDirsToPath` run it back-to-back on the
  * same PATH during shell capture, so they must agree byte-for-byte.
  */
-/** PATH segment identity for dedup/exclusion — trailing separators do not distinguish entries. */
-export function normalizePathSegmentForComparison(value: string): string {
-  let normalized = path.normalize(value.trim())
-  if (isWin) {
-    normalized = normalized.replace(/[\\/]+$/, '')
-    return normalized.toLowerCase()
-  }
-  while (normalized.length > 1 && normalized.endsWith('/')) {
-    normalized = normalized.slice(0, -1)
-  }
-  return normalized
-}
-
 export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
   for (const segment of segments) {
     const trimmed = segment.trim()
     if (!trimmed) continue
-    const canonical = normalizePathSegmentForComparison(trimmed)
+    const canonical = canonicalPathSegment(trimmed)
     if (seen.has(canonical)) continue
     seen.add(canonical)
     unique.push(trimmed)
   }
   return unique
+}
+
+/**
+ * Canonical form used only for duplicate detection. `path.normalize` preserves a
+ * trailing separator, so `C:\Tools\` and `C:\Tools` compare unequal although
+ * they name one directory; dropping it collapses such spellings. A bare root
+ * keeps its separator — on Windows `C:` is drive-relative while `C:\` is the
+ * drive root, and on POSIX an empty result would mean `/`.
+ */
+export function canonicalPathSegment(segment: string): string {
+  const normalized = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
+  // Strip only the platform's own trailing separator. On POSIX a backslash is an
+  // ordinary filename character, so `/usr/bin\` must stay distinct from `/usr/bin`
+  // rather than being collapsed into it by the trailing-separator rule. The Windows
+  // branch also strips `/`: win32 path.normalize already converts it, and platform-stubbed
+  // tests run POSIX normalize where a stray trailing `/` survives.
+  const trailingSep = isWin ? /[\\/]+$/ : /\/+$/
+  const stripped = normalized.replace(trailingSep, '')
+  if (stripped.length === 0) return normalized
+  if (isWin && /^[a-z]:$/i.test(stripped)) return normalized
+  return stripped
 }
 
 /** Root dir for all Cherry-managed binary state (mise data, shims, isolated home). */
@@ -161,7 +169,7 @@ function mergePathEntries(
     ? Object.keys(env).filter((key) => key.toLowerCase() === 'path')
     : Object.keys(env).filter((key) => key === 'PATH')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  const normalize = normalizePathSegmentForComparison
+  const normalize = canonicalPathSegment
   const excluded = new Set(excludedEntries.map(normalize))
   // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
   // winning. Explicit exclusions are removed from the caller PATH as well as from

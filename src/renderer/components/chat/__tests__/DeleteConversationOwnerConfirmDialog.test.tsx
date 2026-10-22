@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -23,6 +25,9 @@ import {
   DeleteConversationOwnerConfirmDialog,
   deleteConversationOwnerPopup
 } from '../DeleteConversationOwnerConfirmDialog'
+
+const preferenceKey = 'assistant.archive.related_topics'
+const defaultPreferenceImplementation = mockUsePreference.getMockImplementation()!
 
 interface HarnessProps {
   targetId?: string
@@ -49,6 +54,9 @@ function ControlledHarness({ targetId = 'agent-1' }: HarnessProps) {
 }
 
 beforeEach(async () => {
+  mockUsePreference.mockImplementation(defaultPreferenceImplementation)
+  MockUsePreferenceUtils.resetMocks()
+  MockUsePreferenceUtils.setPreferenceValue(preferenceKey, false)
   await i18n.changeLanguage('en-US')
 })
 
@@ -179,6 +187,147 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
         name: 'Also archive related sessions'
       })
     ).not.toBeChecked()
+  })
+
+  it('remembers assistant choices in both directions and saves changes even when canceled', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn()
+    const props = {
+      type: 'assistant' as const,
+      open: true,
+      pending: false,
+      onOpenChange: vi.fn(),
+      onConfirm
+    }
+    const first = render(<DeleteConversationOwnerConfirmDialog key="assistant-1" {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+
+    await user.click(screen.getByRole('checkbox'))
+    first.rerender(<DeleteConversationOwnerConfirmDialog key="assistant-1" {...props} />)
+    expect(screen.getByRole('checkbox')).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(true)
+    first.unmount()
+
+    const second = render(<DeleteConversationOwnerConfirmDialog key="assistant-2" {...props} />)
+    expect(screen.getByRole('checkbox')).toBeChecked()
+    await user.click(screen.getByRole('checkbox'))
+    second.rerender(<DeleteConversationOwnerConfirmDialog key="assistant-2" {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(onConfirm).toHaveBeenNthCalledWith(2, false)
+    second.unmount()
+
+    onConfirm.mockClear()
+    const third = render(<DeleteConversationOwnerConfirmDialog key="assistant-3" {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    await user.click(screen.getByRole('checkbox'))
+    third.rerender(<DeleteConversationOwnerConfirmDialog key="assistant-3" {...props} />)
+    expect(mockPreferenceState.get(preferenceKey)).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onConfirm).not.toHaveBeenCalled()
+    third.unmount()
+
+    const fourth = render(<DeleteConversationOwnerConfirmDialog key="assistant-4" {...props} />)
+    expect(screen.getByRole('checkbox')).toBeChecked()
+    await user.click(screen.getByRole('checkbox'))
+    fourth.rerender(<DeleteConversationOwnerConfirmDialog key="assistant-4" {...props} />)
+    expect(mockPreferenceState.get(preferenceKey)).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onConfirm).not.toHaveBeenCalled()
+    fourth.unmount()
+
+    render(<DeleteConversationOwnerConfirmDialog key="assistant-5" {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+  })
+
+  it('follows changed hook values in an already-open assistant dialog', async () => {
+    const user = userEvent.setup()
+    const setter = vi.fn().mockResolvedValue(undefined)
+    const props = {
+      type: 'assistant' as const,
+      open: true,
+      pending: false,
+      onOpenChange: vi.fn(),
+      onConfirm: vi.fn()
+    }
+    MockUsePreferenceUtils.mockPreferenceReturn(preferenceKey, false, setter)
+    const { rerender } = render(<DeleteConversationOwnerConfirmDialog {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+
+    MockUsePreferenceUtils.mockPreferenceReturn(preferenceKey, true, setter)
+    rerender(<DeleteConversationOwnerConfirmDialog {...props} />)
+    expect(screen.getByRole('checkbox')).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(props.onConfirm).toHaveBeenCalledExactlyOnceWith(true)
+
+    MockUsePreferenceUtils.mockPreferenceReturn(preferenceKey, false, setter)
+    rerender(<DeleteConversationOwnerConfirmDialog {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(props.onConfirm).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('keeps agent choices transient while the remembered assistant choice is true', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue(preferenceKey, true)
+    const onConfirm = vi.fn()
+    const props = {
+      type: 'agent' as const,
+      open: true,
+      pending: false,
+      onOpenChange: vi.fn(),
+      onConfirm
+    }
+    const dialog = render(<DeleteConversationOwnerConfirmDialog {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(true)
+    dialog.rerender(<DeleteConversationOwnerConfirmDialog {...props} open={false} />)
+    dialog.rerender(<DeleteConversationOwnerConfirmDialog {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    await user.click(screen.getByRole('checkbox'))
+    dialog.unmount()
+
+    const remounted = render(<DeleteConversationOwnerConfirmDialog {...props} />)
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(mockPreferenceState.get(preferenceKey)).toBe(true)
+    remounted.unmount()
+    render(<DeleteConversationOwnerConfirmDialog {...props} type="assistant" />)
+    expect(screen.getByRole('checkbox')).toBeChecked()
+  })
+
+  it('consumes a rejected preference write and keeps the assistant dialog usable', async () => {
+    const user = userEvent.setup()
+    const error = new Error('write failed')
+    MockUsePreferenceUtils.mockPreferenceError(preferenceKey, error)
+    const onConfirm = vi.fn()
+    const onOpenChange = vi.fn()
+    render(
+      <DeleteConversationOwnerConfirmDialog
+        type="assistant"
+        open
+        pending={false}
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+      />
+    )
+
+    await user.click(screen.getByRole('checkbox'))
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith({
+        title: i18n.t('common.error'),
+        description: formatErrorMessage(error)
+      })
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox')).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeEnabled()
+    expect(onConfirm).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onConfirm).not.toHaveBeenCalled()
   })
 
   it('blocks every dismissal path while deletion is pending', async () => {

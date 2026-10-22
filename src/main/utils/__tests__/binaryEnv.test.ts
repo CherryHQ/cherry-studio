@@ -3,6 +3,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  dedupePathSegments,
   getBinaryIsolatedHomeEnv,
   getBinarySearchDirs,
   getBinaryShimsDir,
@@ -48,6 +49,14 @@ describe('mergeBinaryExecutionEnv', () => {
     const { PATH } = mergeBinaryExecutionEnv({ PATH: '/usr/bin' }, ['/opt/mise/bin'])
 
     expect(PATH.split(':')).toEqual([shims, '/opt/mise/bin', '/usr/bin'])
+  })
+
+  it('collapses a trailing-separator spelling of the same directory', () => {
+    // posix normalize keeps a trailing slash, so `/usr/bin/` and `/usr/bin`
+    // canonicalize differently although they name one directory.
+    const { PATH } = mergeBinaryExecutionEnv({ PATH: '/usr/bin:/usr/bin/' })
+
+    expect(PATH.split(':')).toEqual([shims, '/usr/bin'])
   })
 })
 
@@ -131,5 +140,15 @@ describe('mergePathEntries on POSIX', () => {
 
     expect(merged.PATH?.split(path.delimiter)).toEqual(['/usr/bin', '/tail'])
     expect(merged.path).toBe('/stray/evil')
+  })
+})
+
+describe('dedupePathSegments', () => {
+  it('keeps a POSIX path ending in a literal backslash distinct from its slash-stripped sibling', () => {
+    // A backslash is an ordinary filename character on POSIX, so `/usr/bin\`
+    // names a real, distinct directory and must not be collapsed into `/usr/bin`
+    // by the trailing-separator rule (only `/` is a POSIX separator).
+    const result = dedupePathSegments(['/usr/bin', '/usr/bin\\', '/usr/bin/'])
+    expect(result).toEqual(['/usr/bin', '/usr/bin\\'])
   })
 })
