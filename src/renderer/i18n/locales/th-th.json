@@ -4933,6 +4933,7 @@
   "settings.models.check.enable_concurrent": "พร้อมกัน",
   "settings.models.check.failed": "ล้มเหลว",
   "settings.models.check.failed_to_start": "เริ่มตรวจสอบโมเดลไม่สำเร็จ",
+  "settings.models.check.filter_failed": "ล้มเหลว",
   "settings.models.check.generation_output_audio": "เสียง",
   "settings.models.check.generation_output_image": "รูปภาพ",
   "settings.models.check.generation_output_video": "วิดีโอ",
