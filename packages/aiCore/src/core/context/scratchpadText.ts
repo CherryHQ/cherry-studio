@@ -241,8 +241,44 @@ function isBackslashEscaped(text: string, index: number): boolean {
   return backslashes % 2 === 1
 }
 
+/**
+ * Scratchpad block ranges of the text, in first-match order. Inline-code
+ * matching must recognize a scratchpad block's boundary before crossing it:
+ * a backtick opener INSIDE a block whose only candidate closer sits past the
+ * block's end would mask the real boundary and leak internal analysis into
+ * replacement context (cherry-pr-review). A complete literal scratchpad
+ * element inside a code span outside any block stays maskable: it crosses no
+ * enclosing block's boundary. Escaped tags are Markdown-literal, not blocks.
+ */
+function findScratchpadBlockRanges(text: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = []
+  let searchFrom = 0
+  while (searchFrom < text.length) {
+    const openIndex = text.indexOf('<', searchFrom)
+    if (openIndex === -1) break
+    if (isBackslashEscaped(text, openIndex)) {
+      searchFrom = openIndex + 1
+      continue
+    }
+    const parsed = parseOpeningTagAt(text, openIndex)
+    if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
+      searchFrom = openIndex + 1
+      continue
+    }
+    const end = findScratchpadBlockEnd(text, openIndex, parsed.tagName, parsed.opener.length)
+    if (end === -1) {
+      searchFrom = openIndex + 1
+      continue
+    }
+    ranges.push({ start: openIndex, end })
+    searchFrom = end
+  }
+  return ranges
+}
+
 function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
   const spans: string[] = []
+  const scratchpadRanges = findScratchpadBlockRanges(text)
   let out = ''
   let pos = 0
 
@@ -292,11 +328,17 @@ function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
       }
     }
 
-    if (closedAt === -1) {
-      // No closer matches this run: emit it whole and advance past it.
-      // Advancing one character would reinterpret the run's suffix as a
-      // shorter opener and pair it with a later backtick, masking (and then
-      // stripping) the content in between (cherry-pr-review).
+    // An opener inside a scratchpad block may only pair within its block: a
+    // candidate closer past the block's end would mask the real boundary
+    // (cherry-pr-review).
+    const enclosing = scratchpadRanges.find((range) => pos > range.start && pos < range.end)
+
+    if (closedAt === -1 || (enclosing !== undefined && closedAt >= enclosing.end)) {
+      // No closer matches this run (or only past its scratchpad block's end):
+      // emit it whole and advance past it. Advancing one character would
+      // reinterpret the run's suffix as a shorter opener and pair it with a
+      // later backtick, masking (and then stripping) the content in between
+      // (cherry-pr-review).
       out += text.slice(pos, contentStart)
       pos = contentStart
       continue
@@ -517,6 +559,13 @@ export function stripKnownModelScratchpadBlocks(raw: string): string {
     while (searchFrom < out.length) {
       const openIndex = out.indexOf('<', searchFrom)
       if (openIndex === -1) break
+      // A backslash-escaped tag is Markdown-literal content, not a scratchpad
+      // wrapper: recognizing it strips ordinary literal text from assistant
+      // prose and compaction summaries (cherry-pr-review).
+      if (isBackslashEscaped(out, openIndex)) {
+        searchFrom = openIndex + 1
+        continue
+      }
       const parsed = parseOpeningTagAt(out, openIndex)
       if (!parsed || parsed.isSelfClosing || !isModelScratchpadTagName(parsed.tagName)) {
         searchFrom = openIndex + 1

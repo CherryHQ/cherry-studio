@@ -77,6 +77,16 @@ describe('scratchpadText', () => {
     expect(stripModelScratchpadBlocks(literal)).toBe(literal)
   })
 
+  it('respects Markdown-escaped scratchpad tags as literal content', () => {
+    const literal = 'Use \\<thinking>literal\\</thinking> now.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(literal)).toBe(literal)
+    expect(stripModelScratchpadBlocks(literal)).toBe(literal)
+  })
+
+  it('does not let an unmatched scratchpad backtick pair across the block boundary', () => {
+    const input = '<analysis>I should use `foo.</analysis><summary>Run `ls`</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Run `ls`')
+  })
   it('tracks inline code across a line break before fence recognition', () => {
     const input = '<analysis>The docs use `a\n</thinking>~~~` as a closing marker.</analysis><summary>Keep</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Keep')
