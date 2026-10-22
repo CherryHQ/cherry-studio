@@ -2,11 +2,17 @@
 description: Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing
 sources:
   - src/main/ai/agents/AgentLifecycleService.ts
+  - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager.ts
   - src/main/data/services/AgentService.ts
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/services/AgentTaskService.ts
   - src/main/ai/agents/AgentJobsService.ts
   - src/main/ai/agents/agentOrphanSweep.ts
+  - src/main/ai/agents/agentWorkspaceStorage.ts
+  - src/main/ai/agents/AgentWorkspaceStorageService.ts
+  - src/main/data/services/AgentWorkspaceService.ts
+  - src/main/utils/file/pathIdentity.ts
   - src/main/services/LegacyBackupManager.ts
 ---
 
@@ -28,6 +34,7 @@ Lifecycle IPC / Trash purge / BackupManager
             ├─ AgentSessionDeliveryService: queue drain and wakeups
             ├─ AiStreamManager: dispatch admission and abort/drain
             ├─ AgentSessionRuntimeService: runtime close barriers
+            ├─ AgentWorkspaceStorageService: storage conversion and recovery
             └─ ChannelManager: reconcile current connection intent
 ```
 
@@ -66,7 +73,8 @@ existing sticky-binding detachment policy.
 
 ## Admission and concurrency
 
-Archive rejects unsettled generation, including terminal persistence. Agent-only
+Archive rejects unsettled generation, including terminal persistence and runtime
+background work. Idle connections and warm preloads can be closed and drained. Agent-only
 archive checks its associated Sessions too; retaining Sessions is not permission
 to interrupt their generation.
 
@@ -141,10 +149,70 @@ deletion shares the Agent deletion transaction, and subscription removal follows
 the existing FK cascade. File reclamation happens after DB commit and can retry.
 
 `agentOrphanSweep` belongs to the AI domain. Archived rows still claim their
-Agent directories, system workspaces, and native resume artifacts. Runtime-owned
+Agent directories, system workspace archives, and native resume artifacts. Runtime-owned
 live tokens also protect native artifacts. The sweep preserves its freshness
 gate and pending-backup-restore exclusion. User-selected workspace directories
 are never recursively deleted by this workflow.
+
+After a Session is archived and its runtime closes, its system workspace is
+compressed to a sibling `<sessionId>.tar.gz`. User workspace rows and directories
+are retained unchanged. Compression uses an `.archiving` directory and a temporary
+archive; the original contents are removed only after the archive is validated
+and published. Failures retain the files for a later lifecycle sweep to retry.
+Linked or special files prevent compression rather than being silently omitted.
+Archive shutdown drains pending Claude idle-prewarm preparation and subprocess disposal
+before filesystem work starts, including idle or replaced entries already detached
+from the warm-query map. Failed disposal remains tracked and blocks conversion until retried.
+
+Workspace registration and storage reclamation share `AgentWorkspaceStorageService`
+in the AI domain. Registration enters through `ai.agent.workspace.register` IPC;
+DataApi retains workspace queries, metadata updates, and ordering. The domain service
+owns the process-local reservations, resolves filesystem identities, and combines
+persisted claims with those reservations before its synchronous database write;
+AgentWorkspaceService only reads and writes database records and publishes workspace
+membership changes after registration commits. Existing DataApi queries refresh
+across windows without performing file work. Registered overlapping workspaces protect
+the whole system tree, including user directories nested below it; logical Session
+archival still succeeds. Archive, restore, purge, and orphan sweep hold the reservation
+through their filesystem work, so new overlapping registrations fail with a
+retryable conflict until it completes. Checks resolve existing path aliases, probe
+the managed containing directory's case and Unicode behavior, and include temporary
+archive and restore paths. Missing components and stale claims beneath a file remain
+protected. Distinct names on case-sensitive filesystems remain independent. Protected directories remain intact
+even after the owning system Session is permanently removed. Session and Agent restore reject storage conflicts before activating database rows; a skipped reservation is never treated as a successful restore.
+
+`AgentWorkspaceStorageService` owns every storage transition; `agentWorkspaceStorage`
+provides validated filesystem primitives. Session `deletedAt` determines visibility,
+while the sibling `.storage.json` durably records the operation ID, Session ID,
+direction, phase, directory identity, and archive digest. Each intent is fsynced and
+atomically published before its destructive step. Recovery verifies the recorded
+copy rather than treating mere path existence as success.
+
+| Operation | Durable phases | Authoritative copy |
+|---|---|---|
+| Archive | staging → packing → publishing | Original or `.archiving` until a verified archive is published |
+| Restore | preparing → prepared → published → committed | Archive or pending directory until publication; backup retained until DB activation commits |
+| Purge | deleting | Deletion intent retained until all artifacts are removed |
+
+Restore extracts into a unique child of `.restoring` and publishes the prepared
+directory before restoring the Session's database state. Agent restore prepares
+all Sessions archived together with that Agent before its single database
+transaction. A conflicting destination or invalid source leaves the Session trashed.
+DB failure preserves the published restore and its backup for an explicit retry.
+
+Lifecycle sweep resumes the recorded direction. An archived Session with a restore
+record stays archived: sweep may finish safe filesystem preparation but never
+activates the row or recompresses its source. An active Session allows restore
+cleanup to finish. A new explicit archive can settle a published restore and then
+archive the current live files. Backup deletion follows a committed restore record;
+interruption even after backup removal can finish cleanup on the next sweep.
+
+All operation artifacts remain claimed while their workspace row exists. Purge and
+retention cleanup write deletion intent after DB deletion and confirm producer
+shutdown before removal. Orphan sweep reclaims each workspace's artifacts as one
+group, preserves the group if any member is fresh or claimed by a user workspace,
+and removes the operation record last. Runtime JSONL remains owned by the existing
+driver orphan sweep and resume-token claims.
 
 ## Backup and shutdown
 

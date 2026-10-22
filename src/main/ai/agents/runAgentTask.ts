@@ -34,11 +34,10 @@ import {
   readTaskSessionReuse,
   type TaskSessionReuse
 } from '@data/services/AgentTaskService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
+import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
@@ -46,7 +45,6 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -55,7 +53,7 @@ export type AgentTaskInput = {
   agentId: string
   prompt: string
   timeoutMinutes: number
-  workspace: AgentSessionWorkspaceSource
+  workspace?: AgentSessionWorkspaceSource
   /** Reuse-config epoch captured when this job was enqueued. */
   reuseRevision: number
 }
@@ -102,9 +100,7 @@ function loadReusableSession(taskScheduleId: string, agentId: string) {
 
 /**
  * Resolve the session this fire runs in. A reused session keeps its own
- * workspace, so the task's `workspace` field only applies when creating one —
- * system for regular tasks (the picker defaults there), the validated user
- * workspace for heartbeats.
+ * workspace, so the task's workspace source only applies when creating one.
  *
  * Admission is checked atomically under `startAgentSessionRun`'s topic lock, after this
  * read-side resolution step, so an interactive turn cannot slip through between check and start.
@@ -141,32 +137,8 @@ function resolveTaskSession(params: {
   return session
 }
 
-/**
- * LIVE-template guard for tick-time pauses: the schedule may since have been
- * repaired onto a new workspace row or repurposed into an ordinary task —
- * pausing then would disable a healthy schedule.
- */
-function liveScheduleTargetsWorkspace(
-  scheduleSnapshot: ReturnType<typeof jobScheduleService.getById>,
-  agentId: string,
-  workspaceId: string
-): boolean {
-  const liveTemplate = scheduleSnapshot?.jobInputTemplate as {
-    agentId?: unknown
-    prompt?: unknown
-    workspace?: { type?: unknown; workspaceId?: unknown } | null
-  } | null
-  return (
-    scheduleSnapshot?.type === 'agent.task' &&
-    liveTemplate?.agentId === agentId &&
-    liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL &&
-    liveTemplate?.workspace?.type === AGENT_WORKSPACE_TYPE.USER &&
-    liveTemplate?.workspace?.workspaceId === workspaceId
-  )
-}
-
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
-  const { agentId, prompt, timeoutMinutes, workspace } = ctx.input
+  const { agentId, prompt, timeoutMinutes } = ctx.input
 
   // schedule-fired jobs carry `scheduleId` on the row; manual ad-hoc enqueues
   // (no schedule) degrade gracefully: skip channel notification.
@@ -184,6 +156,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   // Identity is the reserved prompt, not the schedule name — see HEARTBEAT_PROMPT_SENTINEL.
   const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL
+  const workspace: AgentSessionWorkspaceSource = isHeartbeat
+    ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    : (ctx.input.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM })
 
   let effectivePrompt = prompt
 
@@ -200,88 +175,30 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
       return { result: 'Skipped (capability)' }
     }
-    switch (workspace.type) {
-      case AGENT_WORKSPACE_TYPE.SYSTEM: {
-        // Workspace deletion and migration can leave SYSTEM templates.
-        // Repair only if the live schedule still targets that source.
-        const liveTemplate = scheduleSnapshot?.jobInputTemplate as {
-          agentId?: unknown
-          prompt?: unknown
-          workspace?: { type?: unknown } | null
-        } | null
-        const stillSystemHeartbeat =
-          scheduleSnapshot?.type === 'agent.task' &&
-          liveTemplate?.agentId === agentId &&
-          liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL &&
-          liveTemplate?.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
-        if (scheduleId && stillSystemHeartbeat) {
-          pauseHeartbeatSchedule(
-            agentId,
-            scheduleId,
-            'Failed to pause heartbeat schedule pointing at a system workspace'
-          )
-          void application
-            .get('AgentJobsService')
-            .syncHeartbeat(agentId)
-            .catch((error) => {
-              logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
-            })
-        }
-        logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
-        return { result: 'Skipped (no file)' }
-      }
-      case AGENT_WORKSPACE_TYPE.USER:
-        break
-      default: {
-        const exhaustive: never = workspace
-        throw new Error(`Unsupported heartbeat workspace source: ${String(exhaustive)}`)
-      }
-    }
-    let workspaceRow: Awaited<ReturnType<typeof agentWorkspaceService.getById>>
-    try {
-      workspaceRow = agentWorkspaceService.getById(workspace.workspaceId)
-    } catch (error) {
-      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        // Stop tick-and-skip cycles after the user deletes the heartbeat workspace;
-        // the next heartbeat sync re-provisions the workspace and re-arms the row.
-        if (scheduleId && liveScheduleTargetsWorkspace(scheduleSnapshot, agentId, workspace.workspaceId)) {
-          pauseHeartbeatSchedule(agentId, scheduleId, 'Failed to pause heartbeat schedule after workspace deletion')
-          // Deleting the workspace is not an opt-out: converge now instead of
-          // leaving the heartbeat paused until an unrelated sync trigger.
-          void application
-            .get('AgentJobsService')
-            .syncHeartbeat(agentId)
-            .catch((error) => {
-              logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
-            })
-        }
-        logger.debug('Heartbeat skipped (workspace deleted)', {
-          agentId,
-          scheduleId,
-          workspaceId: workspace.workspaceId
-        })
-        return { result: 'Skipped (workspace deleted)' }
-      }
-      throw error
-    }
-    if (workspaceRow.type !== AGENT_WORKSPACE_TYPE.USER) {
-      throw new Error(`Heartbeat workspace must be user-owned: ${workspace.workspaceId}`)
-    }
-    const workspacePath = workspaceRow.path
+    const agentsDataRoot = application.getPath('feature.agents.data')
+    const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
     // Revalidate at execution because directories may be replaced after provisioning.
     try {
-      await assertAgentStorageDirectory(application.getPath('feature.agents.data'), workspacePath)
+      await assertAgentStorageDirectory(agentsDataRoot, agentDataPath)
     } catch (error) {
-      logger.warn('Heartbeat workspace failed the storage check; skipping tick', {
+      logger.warn('Heartbeat agent data directory failed the storage check; skipping tick', {
         agentId,
         scheduleId,
-        workspacePath,
+        agentDataPath,
         error
       })
-      // Same tick-and-skip pathology as the deleted-workspace pause: converge
-      // now instead of waiting for an unrelated sync trigger.
-      if (scheduleId && liveScheduleTargetsWorkspace(scheduleSnapshot, agentId, workspace.workspaceId)) {
-        pauseHeartbeatSchedule(agentId, scheduleId, 'Failed to pause heartbeat schedule on an untrusted workspace path')
+      const liveTemplate = scheduleSnapshot?.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+      if (
+        scheduleId &&
+        scheduleSnapshot?.type === 'agent.task' &&
+        liveTemplate?.agentId === agentId &&
+        liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL
+      ) {
+        pauseHeartbeatSchedule(
+          agentId,
+          scheduleId,
+          'Failed to pause heartbeat schedule on an untrusted agent data path'
+        )
         void application
           .get('AgentJobsService')
           .syncHeartbeat(agentId)
@@ -289,9 +206,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
             logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
           })
       }
-      return { result: 'Skipped (untrusted workspace path)' }
+      return { result: 'Skipped (untrusted agent data path)' }
     }
-    const content = await readHeartbeat(workspacePath)
+    const content = await readHeartbeat(agentDataPath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
       return { result: 'Skipped (no file)' }

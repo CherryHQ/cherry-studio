@@ -115,6 +115,10 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\nThe prompt exceeds the model's context window. Suggest clearing chat history, removing large attachments, or switching to a model with a larger context window. DO NOT suggest checking the API key.\n`
   }
 
+  if (status === 413 || msg.includes('payload too large') || msg.includes('request entity too large')) {
+    return `## Context\nThe request payload is too large for an intermediate proxy or provider. Suggest starting a new topic, removing large attachments, or summarize conversation history before retrying. DO NOT suggest changing the API key or billing.\n`
+  }
+
   // Network / proxy. Mirrors the Chromium `net::ERR_*` transport tokens the shared
   // classifier recognizes, so classified failures keep the transport context hint
   // instead of falling back to the generic AI diagnosis context.

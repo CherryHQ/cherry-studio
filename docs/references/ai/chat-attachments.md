@@ -4,6 +4,8 @@ sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/fileProcessor.ts
   - src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts
+  - src/shared/utils/file/fileExtensions.ts
+  - src/renderer/utils/file.ts
 ---
 
 # Chat Attachments
@@ -34,20 +36,21 @@ Decided per file part in `prepareChatMessages`
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
 | text / code | — | decoded text, inline (capped) |
-| extensionless | — | decoded text when content is text; otherwise unsupported note |
+| no extension, or an unrecognized extension | — | decoded text when the bytes are text; otherwise unsupported note |
 | audio | model and resolved endpoint are audio-capable | native audio part (inline) |
 | audio | otherwise | short note ("can't process audio") |
 | video | model and resolved endpoint are video-capable | native video part (inline) |
 | video | otherwise | short note ("can't process video") |
-| other (binary: zip/exe/…) | — | short note ("unsupported file type") |
+| unknown extension with binary content (zip/exe/…) | — | short note ("unsupported file type") |
 
 - **Native** → the file part is left in place and materialized as a `data:` URL
   by `materializeNativeFilePart` (`src/main/ai/messages/fileProcessor.ts`), which
   also normalizes the `mediaType` to the on-disk MIME. The provider gets the real
   file as a user-message part. (The function is named for the boundary: provider
   File-API upload for large files would slot in behind the same signature.)
-- Binary / unsupported types are **not** auto-decoded — they'd inline as mojibake
-  — so they get a short note instead.
+- Unknown extensions undergo a conservative content sniff (binary detection +
+  encoding confidence). Binary bytes or ambiguous legacy encodings get a short
+  unsupported note instead of being decoded into mojibake.
 - A non-vision image only degrades to OCR text when OCR actually finds text.
   Otherwise (empty OCR result, unconfigured or failed OCR) attachment routing
   raises a localized error before opening the provider request. A gateway-backed
@@ -64,6 +67,24 @@ Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway 
 external file parts (no `fileEntryId`) are still eagerly materialized, but
 image/audio/video parts are omitted when native support is false. Other
 gateway/external file types keep their existing behavior.
+
+## Supported extensions (upload allowlist)
+
+What the composer lets the user pick is `imageExts`, `documentExts`, and
+`textExts` (`src/shared/utils/file/fileExtensions.ts`) — images and documents
+always, plus every linguist-recognized code extension and the `customTextExts`
+additions (dotfiles, config, log, and domain formats such as `.conf`,
+`.config`, `.yaml`, `.toml`, `.ini`) — with `audioExts`/`videoExts` added only
+when the active model(s) support that modality. That union covers C# (`.cs`),
+stylesheets (`.css`), shell scripts (`.sh`, `.bash`), and common configuration
+files. Unknown extensions are not rejected outright — `isSupportedFile`
+(`src/renderer/utils/file.ts`) falls back to a content sniff that accepts text
+content. Unknown extensions with binary content are rejected with an aggregate
+"N files are not supported" toast in the composer. On the request path, files
+with no extension or an unrecognized extension (`FILE_TYPE.OTHER`) reach the
+conservative decoder too. Binary bytes or legacy encodings too ambiguous to
+decode safely produce a short unsupported-type note (see the routing matrix
+above).
 
 ## The cap (the only context guard)
 
@@ -119,8 +140,10 @@ content version (30 min), so the eager every-turn pass over history doesn't
 re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 `FileManager.read` (PDF via `pdf-parse`, office via
 `officeparser`/`word-extractor`, known text extensions via
-`decodeTextWithAutoEncoding`, and extensionless text via
-`decodeTextBufferIfText`) and dispatches on the `FileEntry` canonical `ext`.
+`decodeTextWithAutoEncoding`, and files with no extension or an unrecognized
+extension (`FILE_TYPE.OTHER`) via `decodeTextBufferIfText`) and dispatches on
+the `FileEntry` canonical `ext`. The conservative decoder returns `null` when
+the bytes are binary or their legacy encoding is too ambiguous to decode safely.
 
 ## Capability resolution
 

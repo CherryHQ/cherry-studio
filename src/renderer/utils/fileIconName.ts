@@ -104,7 +104,8 @@ const extensionMap: Record<string, string> = {
   yml: 'yaml',
   toml: 'toml',
   xml: 'xml',
-  csv: 'csv',
+  csv: 'table',
+  tsv: 'table',
   ini: 'settings',
   cfg: 'settings',
   conf: 'settings',
@@ -119,6 +120,19 @@ const extensionMap: Record<string, string> = {
   tex: 'tex',
   latex: 'tex',
 
+  // Office documents (material-icon-theme names the suites `word` / `powerpoint`; the spreadsheet
+  // glyph is `table` — there is no `excel` icon in the collection)
+  doc: 'word',
+  docx: 'word',
+  odt: 'word',
+  rtf: 'word',
+  xls: 'table',
+  xlsx: 'table',
+  ods: 'table',
+  ppt: 'powerpoint',
+  pptx: 'powerpoint',
+  odp: 'powerpoint',
+
   // Systems languages
   c: 'c',
   h: 'c',
@@ -132,7 +146,7 @@ const extensionMap: Record<string, string> = {
   zig: 'zig',
   asm: 'assembly',
   s: 'assembly',
-  wasm: 'wasm',
+  wasm: 'webassembly',
 
   // JVM
   java: 'java',
@@ -167,16 +181,16 @@ const extensionMap: Record<string, string> = {
   m: 'objective-c',
   mm: 'objective-cpp',
   cs: 'csharp',
-  vb: 'visualbasic',
+  vb: 'visualstudio',
 
   // Shell
-  sh: 'shell',
-  bash: 'shell',
-  zsh: 'shell',
-  fish: 'shell',
+  sh: 'console',
+  bash: 'console',
+  zsh: 'console',
+  fish: 'console',
   ps1: 'powershell',
-  bat: 'windows',
-  cmd: 'windows',
+  bat: 'console',
+  cmd: 'console',
 
   // Database
   sql: 'database',
@@ -238,7 +252,10 @@ const DEFAULT_ICON = 'document'
 export function getFileIconName(filePath: string): string {
   if (!filePath) return DEFAULT_ICON
 
-  const filename = filePath.split('/').pop() ?? ''
+  // Split on both separators: Windows paths (`C:\dir\file.ts`) reach this helper
+  // through tool-provided absolute paths, and a POSIX-only split left the whole
+  // path as the "file name", so every icon lookup fell back to `document`.
+  const filename = filePath.split(/[\\/]/).pop() ?? ''
   const lowerFilename = filename.toLowerCase()
 
   // Check exact filename match first

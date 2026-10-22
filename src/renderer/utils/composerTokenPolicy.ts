@@ -25,8 +25,10 @@ export const COMPOSER_TOKEN_CAPABILITIES = {
   reference: { input: true, message: true, messageText: true, clipboard: true, clipboardPromptText: true },
   quote: { input: true, message: true, messageText: false, clipboard: true, clipboardPromptText: true },
   webviewAnnotation: { input: true, message: true, messageText: true, clipboard: true, clipboardPromptText: true },
-  promptVariable: { input: true, message: false, messageText: false, clipboard: true, clipboardPromptText: true }
-} as const satisfies Record<ComposerMessageTokenKind | 'promptVariable', ComposerTokenCapabilities>
+  promptVariable: { input: true, message: false, messageText: false, clipboard: true, clipboardPromptText: true },
+  // Editor-only anchors address a part of one message and cannot travel to another composer.
+  messagePart: { input: true, message: false, messageText: false, clipboard: false, clipboardPromptText: false }
+} as const satisfies Record<ComposerMessageTokenKind | 'promptVariable' | 'messagePart', ComposerTokenCapabilities>
 
 export type ComposerTokenKind = keyof typeof COMPOSER_TOKEN_CAPABILITIES
 type ComposerTokenCapability = keyof ComposerTokenCapabilities

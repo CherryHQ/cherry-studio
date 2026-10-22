@@ -12,13 +12,13 @@ agent does not control the test run.
 
 ## CI contract
 
-Use `.github/workflows/cherry-regression-test.yml` as the entry point. It:
+Use `.github/workflows/e2e-regression-test.yml` as the entry point. It:
 
 1. Resolves a trusted branch or release tag.
 2. Initializes an isolated directory under the GitHub runner temporary folder.
 3. Installs the application and the code tools under test.
 4. Launches one owned Electron process with CDP enabled.
-5. Runs the ten files in `tests/e2e/cherry-regression/` from simple to complex.
+5. Runs the ten files in `tests/e2e/regression/` from simple to complex.
 6. Continues after a failed phase so later results are still collected.
 7. Produces English platform and aggregate reports, then enforces the verdict.
 8. Stops only the Electron process recorded in the isolated run directory.
@@ -54,8 +54,8 @@ unrelated action.
 
 ## Test organization
 
-Read [scenario organization](../../../tests/e2e/cherry-regression/README.md) and the
-[controller contract](../../../scripts/cherry-regression-test/README.md) before making changes.
+Read [scenario organization](../../../tests/e2e/regression/README.md) and the
+[controller contract](../../../scripts/e2e/regression/README.md) before making changes.
 
 Register each case from the manifest:
 
@@ -82,7 +82,7 @@ depend on a model's judgment.
 With an initialized run directory and its owned Electron process running:
 
 ```bash
-pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase \
+pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
   --run-dir /absolute/run-directory --phase 02-basic-features
 ```
 
@@ -103,7 +103,7 @@ Do not call the regression cleanup command for an Electron instance owned by
 Run the focused script suite and enumerate Playwright cases:
 
 ```bash
-pnpm exec vitest run --project scripts scripts/cherry-regression-test
+pnpm exec vitest run --project scripts scripts/e2e/regression
 CHERRY_TEST_RUN_DIR=/tmp/cherry-regression-list \
   pnpm test:e2e:regression --list
 pnpm typecheck:e2e

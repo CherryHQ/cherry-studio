@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -17,6 +18,8 @@ import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
  * `allowed-tools` is a permission allowlist whose entries are frequently interchangeable
  * alternatives, and PATH lookup cannot see commands the Bash tool reaches through Git Bash.
  */
+
+const logger = loggerService.withContext('ClaudeCodeSkillDependencies')
 
 export const SKILL_TOOL_NAME = 'Skill'
 
@@ -171,8 +174,19 @@ async function findUnresolvedExecutables(allowedTools: readonly string[]): Promi
         .filter((name): name is string => typeof name === 'string' && !SHELL_BUILTINS.has(name))
     )
   )
+  // A lookup that fails (timeout, spawn error) stays advisory: rejecting here would fail the Skill call.
   const resolved = await Promise.all(
-    declared.map(async (name) => ((await findExecutableInEnv(name)) ? undefined : name))
+    declared.map(async (name) => {
+      try {
+        return (await findExecutableInEnv(name)) ? undefined : name
+      } catch (err) {
+        logger.warn('Executable lookup failed, treating as unresolved', {
+          name,
+          error: err instanceof Error ? err.message : String(err)
+        })
+        return name
+      }
+    })
   )
   return resolved.filter((name): name is string => name !== undefined)
 }

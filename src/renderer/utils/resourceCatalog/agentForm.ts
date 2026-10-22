@@ -1,6 +1,12 @@
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
 import { normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
-import { clampHeartbeatIntervalMinutes, isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
+import {
+  clampHeartbeatIntervalMinutes,
+  isHeartbeatEnabled,
+  normalizeHeartbeatTimeoutMinutes
+} from '@shared/ai/agentHeartbeat'
+import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -39,6 +45,11 @@ export interface AgentFormState {
   envVarsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
+  heartbeatTimeoutMinutes: number
+  /** Tri-state driver for `configuration.language`: inherit (undefined), off (null), custom (string). */
+  languageMode: AgentLanguageMode
+  /** Draft label; only meaningful when `languageMode` is custom. */
+  languageCustom: string
 }
 
 function asString(value: unknown): string {
@@ -97,13 +108,26 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
     skillIds: [...skillIds],
-    disabledTools: [...(agent?.disabledTools ?? [])],
+    disabledTools: (agent?.disabledTools ?? []).map((name) =>
+      agent?.type === 'pi' ? normalizePiDisabledToolId(name) : name
+    ),
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
     heartbeatEnabled: isHeartbeatEnabled(cfg),
-    heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval)
+    heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
+    heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
+    ...initialLanguageFields(cfg.language)
   }
+}
+
+function initialLanguageFields(language: unknown): Pick<AgentFormState, 'languageMode' | 'languageCustom'> {
+  if (language === null) return { languageMode: 'off', languageCustom: '' }
+  if (typeof language === 'string') {
+    const normalized = normalizeAgentLanguageInput(language)
+    return { languageMode: 'custom', languageCustom: normalized ?? language }
+  }
+  return { languageMode: 'inherit', languageCustom: '' }
 }
 
 export function applyAgentFormPatch(current: AgentFormState, patch: Partial<AgentFormState>): AgentFormState {
@@ -202,6 +226,15 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     cfgPatch.heartbeat_interval = next.heartbeatInterval
     cfgDirty = true
   }
+  if (baseline.heartbeatTimeoutMinutes !== next.heartbeatTimeoutMinutes) {
+    cfgPatch.heartbeat_timeout_minutes = normalizeHeartbeatTimeoutMinutes(next.heartbeatTimeoutMinutes)
+    cfgDirty = true
+  }
+  const languagePatch = diffLanguageUpdate(baseline, next)
+  if (languagePatch.dirty) {
+    cfgPatch.language = languagePatch.value
+    cfgDirty = true
+  }
 
   if (cfgDirty) {
     dto.configuration = cfgPatch
@@ -211,6 +244,24 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   if (!dirty) return null
 
   return { dto }
+}
+
+function diffLanguageUpdate(
+  baseline: AgentFormState,
+  next: AgentFormState
+): { dirty: false } | { dirty: true; value: string | null | undefined } {
+  if (next.languageMode === 'inherit') {
+    return baseline.languageMode === 'inherit' ? { dirty: false } : { dirty: true, value: undefined }
+  }
+  if (next.languageMode === 'off') {
+    return baseline.languageMode === 'off' ? { dirty: false } : { dirty: true, value: null }
+  }
+  const normalized = normalizeAgentLanguageInput(next.languageCustom)
+  if (normalized === null) return { dirty: false }
+  if (baseline.languageMode === 'custom' && normalizeAgentLanguageInput(baseline.languageCustom) === normalized) {
+    return { dirty: false }
+  }
+  return { dirty: true, value: normalized }
 }
 
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {

@@ -2,6 +2,7 @@ import { EventEmitter } from 'events'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { setImmediate as nextImmediate } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
 import { createMockApplication } from '@test-mocks/main/application'
@@ -14,6 +15,7 @@ const {
   platformState,
   prefValues,
   prefChangeListeners,
+  trayServiceMock,
   applicationMock,
   windowManagerMock,
   loggerMock,
@@ -87,6 +89,7 @@ const {
     setSpellCheckerLanguages: vi.fn()
   }
   const prefChangeListeners: Array<() => void> = []
+  const trayServiceMock = { state: 'created', isActivated: false }
   const applicationMock = {
     isQuitting: false,
     quit: vi.fn(),
@@ -101,6 +104,9 @@ const {
           }
         }
       }
+      if (name === 'TrayService') {
+        return trayServiceMock
+      }
       if (name === 'WindowManager') {
         return windowManagerMock
       }
@@ -112,6 +118,7 @@ const {
     platformState,
     prefValues,
     prefChangeListeners,
+    trayServiceMock,
     applicationMock,
     windowManagerMock,
     loggerMock,
@@ -134,6 +141,7 @@ vi.mock('@main/core/platform', () => ({
   get isLinux() {
     return platformState.isLinux
   },
+  isLinuxWayland: false,
   get isDev() {
     return platformState.isDev
   }
@@ -150,7 +158,14 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('electron', () => ({
-  app: { dock: { hide: vi.fn(), show: vi.fn() }, on: vi.fn(), removeListener: vi.fn() },
+  app: {
+    dock: { hide: vi.fn(), show: vi.fn() },
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    getLocale: vi.fn(() => 'en-US'),
+    runningUnderARM64Translation: false
+  },
+  dialog: { showMessageBox: vi.fn() },
   BrowserWindow: { fromWebContents: vi.fn() },
   nativeImage: { createFromPath: vi.fn(() => ({})) },
   nativeTheme: { shouldUseDarkColors: false },
@@ -159,6 +174,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('@electron-toolkit/utils', () => ({ optimizer: { watchWindowShortcuts: vi.fn() } }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: vi.fn(() => 'global') }))
 
 vi.mock('@main/utils/windowUtil', () => ({
   getWindowsBackgroundMaterial: vi.fn(() => undefined),
@@ -182,10 +198,11 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
-import { app, session } from 'electron'
+import { app, dialog, session } from 'electron'
 import { shell } from 'electron'
 
 import { WindowType } from '@main/core/window/types'
+import { getAppEdition } from '@main/utils/appEdition'
 import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -294,6 +311,8 @@ describe('MainWindowService', () => {
     prefValues['app.tray.on_close'] = false
     prefValues['app.spell_check.enabled'] = false
     prefValues['app.spell_check.languages'] = []
+    trayServiceMock.state = 'created'
+    trayServiceMock.isActivated = false
     prefChangeListeners.length = 0
     defaultSessionMock.setSpellCheckerEnabled.mockReset()
     defaultSessionMock.setSpellCheckerLanguages.mockReset()
@@ -333,6 +352,73 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  describe('Apple Silicon architecture warning', () => {
+    beforeEach(() => {
+      platformState.isMac = true
+      Object.assign(app, { runningUnderARM64Translation: true })
+      prefValues['app.language'] = 'en-US'
+      vi.mocked(getAppEdition).mockReturnValue('global')
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 1, checkboxChecked: false })
+    })
+
+    afterEach(() => {
+      Object.assign(app, { runningUnderARM64Translation: false })
+      delete prefValues['app.language']
+    })
+
+    it.each([
+      ['cn', 'en-US', 'https://cherryai.com.cn/download'],
+      ['cn', 'zh-CN', 'https://cherryai.com.cn/download'],
+      ['global', 'zh-CN', 'https://cherryai.com/download'],
+      ['global', 'en-US', 'https://cherryai.com/download']
+    ] as const)('opens the %s download page with %s UI only after confirmation', async (edition, language, url) => {
+      vi.mocked(getAppEdition).mockReturnValue(edition)
+      prefValues['app.language'] = language
+      vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
+      ;(svc as any).setupWindowEvents(win)
+
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      win.emit('show')
+
+      await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledWith(url))
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        win,
+        expect.objectContaining({ type: 'warning', cancelId: 1, detail: expect.stringContaining('Apple') })
+      )
+    })
+
+    it('defers a hidden launch until first show and does not repeat after reopening or rebuilding', async () => {
+      ;(svc as any).suppressInitialLaunchShow = true
+      ;(svc as any).setupWindowEvents(win)
+      win.emit('ready-to-show')
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+
+      win.emit('show')
+      win.emit('show')
+      const rebuilt = createMockWindow()
+      ;(svc as any).setupWindowEvents(rebuilt)
+      rebuilt.emit('show')
+      await Promise.resolve()
+
+      expect(dialog.showMessageBox).toHaveBeenCalledTimes(1)
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [true, false],
+      [false, true]
+    ])('does not warn when isMac=%s and translated=%s', async (isMac, translated) => {
+      platformState.isMac = isMac
+      Object.assign(app, { runningUnderARM64Translation: translated })
+      ;(svc as any).setupWindowEvents(win)
+      win.emit('show')
+      await Promise.resolve()
+
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
   })
 
   it('keeps tab delivery ready during child loading and in-page navigation, but queues during a main-document reload', async () => {
@@ -837,36 +923,56 @@ describe('MainWindowService', () => {
       expect(applicationMock.quit).not.toHaveBeenCalled()
     })
 
-    it('calls application.quit() on Win when tray is disabled', () => {
-      platformState.isWin = true
-      prefValues['app.tray.enabled'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
+    describe.each([
+      ['isWin', false],
+      ['isWin', true],
+      ['isLinux', false],
+      ['isLinux', true]
+    ] as const)('direct exit on %s with tray enabled=%s', (platform, trayEnabled) => {
+      beforeEach(() => {
+        platformState[platform] = true
+        prefValues['app.tray.enabled'] = trayEnabled
+        prefValues['app.tray.on_close'] = false
+        attachCloseListener(svc, win)
+      })
 
-      win.emit('close', event)
+      it('preserves the window on repeated closes while quit is blocked', async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const event = new Event('close', { cancelable: true })
+          win.emit('close', event)
+          expect(event.defaultPrevented).toBe(true)
+          await nextImmediate()
+        }
 
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(event.preventDefault).not.toHaveBeenCalled()
-      expect(win.hide).not.toHaveBeenCalled()
-    })
+        expect(applicationMock.quit).toHaveBeenCalledTimes(2)
+        expect(win.hide).not.toHaveBeenCalled()
+        expect(win.minimize).not.toHaveBeenCalled()
+      })
 
-    it('calls application.quit() on Linux when tray is enabled but on_close is false', () => {
-      platformState.isLinux = true
-      prefValues['app.tray.enabled'] = true
-      prefValues['app.tray.on_close'] = false
-      attachCloseListener(svc, win)
-      const event = makeCloseEvent()
+      it('finishes cancelling the original close before allowing an accepted quit to close the window', async () => {
+        const quitClose = new Event('close', { cancelable: true })
+        applicationMock.quit.mockImplementation(() => {
+          applicationMock.isQuitting = true
+          win.emit('close', quitClose)
+        })
+        const originalClose = new Event('close', { cancelable: true })
 
-      win.emit('close', event)
+        win.emit('close', originalClose)
 
-      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
-      expect(win.hide).not.toHaveBeenCalled()
+        expect(originalClose.defaultPrevented).toBe(true)
+        expect(applicationMock.quit).not.toHaveBeenCalled()
+        await nextImmediate()
+        expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+        expect(quitClose.defaultPrevented).toBe(false)
+      })
     })
 
     it('preventDefaults and minimizes on Win when tray + on_close are both enabled', () => {
       platformState.isWin = true
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
       attachCloseListener(svc, win)
       const event = makeCloseEvent()
 
@@ -879,6 +985,78 @@ describe('MainWindowService', () => {
       expect(win.setOpacity).toHaveBeenCalledWith(0)
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
       expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['Windows', 'ready'],
+      ['Windows', 'stopped'],
+      ['Windows', 'created'],
+      ['Windows', 'initializing'],
+      ['Windows', 'destroyed'],
+      ['Linux', 'ready'],
+      ['Linux', 'stopped'],
+      ['Linux', 'created'],
+      ['Linux', 'initializing'],
+      ['Linux', 'destroyed']
+    ])('quits on %s with an inactive tray in state %s', async (platform, state) => {
+      platformState.isWin = platform === 'Windows'
+      platformState.isLinux = platform === 'Linux'
+      prefValues['app.tray.enabled'] = true
+      prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = state
+      trayServiceMock.isActivated = false
+      attachCloseListener(svc, win)
+      const event = makeCloseEvent()
+
+      win.emit('close', event)
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
+      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
+      expect(win.hide).not.toHaveBeenCalled()
+    })
+
+    it('rechecks tray activation on each close', async () => {
+      platformState.isWin = true
+      prefValues['app.tray.enabled'] = true
+      prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
+      attachCloseListener(svc, win)
+      const firstEvent = makeCloseEvent()
+
+      win.emit('close', firstEvent)
+
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      expect(firstEvent.preventDefault).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).toHaveBeenCalledWith(0)
+      expect(win.setSkipTaskbar).toHaveBeenCalledWith(true)
+      expect(win.minimize).toHaveBeenCalledTimes(1)
+      expect(win.hide).not.toHaveBeenCalled()
+
+      ;(svc as any).mainWindow = win
+      svc.showMainWindow()
+      win.setOpacity.mockClear()
+      win.setSkipTaskbar.mockClear()
+      win.minimize.mockClear()
+      trayServiceMock.state = 'stopped'
+      trayServiceMock.isActivated = false
+      const secondEvent = makeCloseEvent()
+
+      win.emit('close', secondEvent)
+
+      expect(secondEvent.preventDefault).toHaveBeenCalledTimes(1)
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      await nextImmediate()
+      expect(applicationMock.quit).toHaveBeenCalledTimes(1)
+      expect(win.setOpacity).not.toHaveBeenCalled()
+      expect(win.setSkipTaskbar).not.toHaveBeenCalled()
+      expect(win.minimize).not.toHaveBeenCalled()
       expect(win.hide).not.toHaveBeenCalled()
     })
 
@@ -932,15 +1110,23 @@ describe('MainWindowService', () => {
       expect(win.hide).toHaveBeenCalledTimes(1)
     })
 
-    it('does not touch Dock override on Win/Linux tray close (Dock is macOS-only)', () => {
-      platformState.isWin = true
+    it.each(['Windows', 'Linux'])('does not touch Dock override on %s tray close (Dock is macOS-only)', (platform) => {
+      platformState.isWin = platform === 'Windows'
+      platformState.isLinux = platform === 'Linux'
       prefValues['app.tray.enabled'] = true
       prefValues['app.tray.on_close'] = true
+      trayServiceMock.state = 'ready'
+      trayServiceMock.isActivated = true
       attachCloseListener(svc, win)
       const event = makeCloseEvent()
 
       win.emit('close', event)
 
+      expect(applicationMock.quit).not.toHaveBeenCalled()
+      expect(event.preventDefault).toHaveBeenCalledTimes(1)
+      if (platform === 'Linux') {
+        expect(win.hide).toHaveBeenCalledTimes(1)
+      }
       expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
   })
@@ -1082,6 +1268,18 @@ describe('MainWindowService', () => {
   })
 
   describe('showMainWindow init data', () => {
+    it('restores a hidden macOS window without transforming the app process type', () => {
+      platformState.isMac = true
+      win.isVisible.mockReturnValue(false)
+      ;(svc as any).mainWindow = win
+
+      svc.showMainWindow()
+
+      expect(win.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
+      expect(win.show).toHaveBeenCalledOnce()
+      expect(win.focus).toHaveBeenCalledOnce()
+    })
+
     it('pushes init data to an existing main window', () => {
       const initData = { kind: 'navigation' as const, to: '/settings/about' as const, requestId: 1 }
       ;(svc as any).mainWindow = win
@@ -1207,6 +1405,41 @@ describe('MainWindowService', () => {
       }
 
       expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    })
+
+    // Regression guard for the "A JavaScript error occurred in the main process" dialog:
+    // render-process-gone can arrive after the window is already destroyed.
+    it('neither reloads nor forceExits when the window is already destroyed', () => {
+      attachCrashMonitor(svc, win)
+      const listener = getCrashListener(win)
+      // Only the window is gone: the webContents arm is covered on its own below,
+      // so each half of the guard is exercised by itself.
+      win.isDestroyed.mockReturnValue(true)
+      win.webContents.reload.mockImplementation(() => {
+        throw new TypeError('Object has been destroyed')
+      })
+
+      expect(() => listener(null, { reason: 'crashed' })).not.toThrow()
+
+      expect(win.webContents.reload).not.toHaveBeenCalled()
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
+      // The crash is still reported — only the recovery attempt is skipped.
+      expect(loggerMock.error).toHaveBeenCalledWith('Renderer process crashed with: {"reason":"crashed"}')
+    })
+
+    it('neither reloads nor forceExits when only the webContents is destroyed', () => {
+      attachCrashMonitor(svc, win)
+      const listener = getCrashListener(win)
+      // Window object still alive (teardown in flight) but its renderer side is gone.
+      win.webContents.isDestroyed.mockReturnValue(true)
+      win.webContents.reload.mockImplementation(() => {
+        throw new TypeError('Object has been destroyed')
+      })
+
+      expect(() => listener(null, { reason: 'crashed' })).not.toThrow()
+
+      expect(win.webContents.reload).not.toHaveBeenCalled()
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
     })
   })
 

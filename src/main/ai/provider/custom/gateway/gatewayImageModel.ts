@@ -22,14 +22,15 @@ import { convertToBase64 } from '@ai-sdk/provider-utils'
 const GATEWAY_GOOGLE_IMAGE_PROVIDER = 'gateway.google.image' as const
 
 /**
- * Gemini chat-image model under the gateway. Strips the optional `google/`
- * routing prefix, then matches gemini ids that carry an `image` segment.
- * Mirrors `isGoogleImageModel` in aihubmixImageModel.ts, narrowed to gemini
- * only — `imagen-*` is a real image model the gateway exposes natively.
+ * Gemini image models and Nano Banana aliases use the language API.
+ * Imagen remains on Gateway's native image route.
  */
 export function isGatewayGeminiImageModel(modelId: string): boolean {
   const normalized = modelId.replace(/^google\//i, '').toLowerCase()
-  return normalized.startsWith('gemini-') && normalized.includes('image')
+  return (
+    (normalized.startsWith('gemini-') && normalized.includes('image')) ||
+    /^(?:gemini-)?nano-banana(?:-|$)/.test(normalized)
+  )
 }
 
 /**

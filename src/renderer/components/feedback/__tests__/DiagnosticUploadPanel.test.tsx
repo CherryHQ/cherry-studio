@@ -27,19 +27,24 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.acknowledgement':
       'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
+    'settings.about.diagnostics.report.copy_url': 'Copy status link',
     'settings.about.diagnostics.report.description_label': 'Problem description',
     'settings.about.diagnostics.report.description_required': 'A problem description is required',
     'settings.about.diagnostics.report.description_too_long': 'The problem description is too long',
     'settings.about.diagnostics.report.failure_reasons.service_unavailable':
       'The diagnostic report service is temporarily unavailable. Try again later or use manual feedback.',
     'settings.about.diagnostics.report.feedback_id': 'Feedback ID',
+    'settings.about.diagnostics.report.processing_status': 'Processing status',
     'settings.about.diagnostics.report.open_location': 'Open location',
     'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
     'settings.about.diagnostics.report.retry': 'Retry',
     'settings.about.diagnostics.report.save_locally': 'Save locally',
     'settings.about.diagnostics.report.saving': 'Saving diagnostic report…',
+    'settings.about.diagnostics.report.status_url': 'Status link',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
+    'settings.about.diagnostics.status.pending': 'Pending',
+    'settings.about.feedback.history.open': 'Open status page',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
     'settings.about.diagnostics.range_title': 'Time range',
     'settings.about.diagnostics.ranges.24h': 'Last 24 hours',
@@ -87,6 +92,9 @@ const fallbackPath = AbsoluteFilePathSchema.parse('/tmp/cherry-studio-diagnostic
 
 const uploadedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'uploaded' }> = {
   reportId,
+  reportUrl: `https://api.cherry-ai.com/diagnostics/${reportId}`,
+  processingStatus: 'pending',
+  historySaved: true,
   status: 'uploaded'
 }
 
@@ -262,7 +270,7 @@ describe('DiagnosticUploadPanel', () => {
     )
   })
 
-  it('exposes no dismiss action while submitting and shows only the API feedback ID on success', async () => {
+  it('exposes no dismiss action while submitting and shows the report status details on success', async () => {
     let resolveUpload: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
       if (route === 'diagnostics.bundle.upload') {
@@ -289,6 +297,10 @@ describe('DiagnosticUploadPanel', () => {
     expect(await screen.findByText('Diagnostic report submitted')).toBeInTheDocument()
     expect(screen.getByText('Feedback ID')).toBeInTheDocument()
     expect(screen.getByText(reportId)).toBeInTheDocument()
+    expect(screen.getByText('Status link')).toBeInTheDocument()
+    expect(screen.getByText(uploadedResult.reportUrl)).toBeInTheDocument()
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open status page' })).toBeInTheDocument()
     expect(screen.queryByText(bundleId)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Copy feedback ID' }))
     expect(clipboardWrite).toHaveBeenCalledWith(reportId)
@@ -312,7 +324,7 @@ describe('DiagnosticUploadPanel', () => {
         'The diagnostic report service is temporarily unavailable. Try again later or use manual feedback.'
       )
     ).toBeInTheDocument()
-    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
 
     expect(screen.queryByRole('region', { name: 'Saved locally' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
@@ -321,7 +333,7 @@ describe('DiagnosticUploadPanel', () => {
     expect(manualFeedback.compareDocumentPosition(retry)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(manualFeedback)
-    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', DIAGNOSTIC_FEEDBACK_FORM_URL)
     await user.click(retry)
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.retry_upload', { bundleId })
     expect(await screen.findByText(reportId)).toBeInTheDocument()

@@ -8,7 +8,7 @@
  * the package stays provider-agnostic.
  */
 
-import { type ReactElement, useCallback, useMemo } from 'react'
+import { type ReactElement, useCallback, useMemo, useRef } from 'react'
 import remarkDefinitionList, { defListHastHandlers } from 'remark-definition-list'
 import remarkAlert from 'remark-github-blockquote-alert'
 import { remarkMark } from 'remark-mark-highlight'
@@ -32,6 +32,7 @@ import {
   rehypePrepareFileLinks,
   rehypeRestoreFileLinks
 } from './plugins/rehype-preserve-file-links'
+import { createRelativeImagePreservation } from './plugins/rehype-preserve-relative-images'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
 import {
   createMarkdownSanitizeSchema,
@@ -88,6 +89,28 @@ function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
   }
 }
 
+function isSamePluggableList(a?: readonly Pluggable[], b?: readonly Pluggable[]): boolean {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  return a.every((plugin, index) => plugin === b[index])
+}
+
+function isSameComponents(a?: Partial<Components>, b?: Partial<Components>): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  return keys.every((key) => a[key as keyof Components] === b[key as keyof Components])
+}
+
+// A new-but-equal identity must not rebuild the plugin lists: Streamdown
+// memoizes blocks on those references, so churn re-parses every block tick.
+function useStableReference<T>(value: T | undefined, isEqual: (a: T | undefined, b: T | undefined) => boolean) {
+  const ref = useRef(value)
+  if (!isEqual(ref.current, value)) ref.current = value
+  return ref.current
+}
+
 export interface MarkdownCoreProps {
   id: string
   children: string
@@ -111,6 +134,7 @@ export interface MarkdownCoreProps {
   footnoteLabel?: string
   /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
   preserveFileLinkHrefs?: boolean
+  preserveRelativeImageSrcs?: boolean
 }
 
 export function MarkdownCore({
@@ -127,9 +151,13 @@ export function MarkdownCore({
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes',
-  preserveFileLinkHrefs = false
+  preserveFileLinkHrefs = false,
+  preserveRelativeImageSrcs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
+  const stableComponents = useStableReference(components, isSameComponents)
+  const stableExtraRehypePlugins = useStableReference(extraRehypePlugins, isSamePluggableList)
+  const stableExtraRemarkPlugins = useStableReference(extraRemarkPlugins, isSamePluggableList)
 
   const remarkPlugins = useMemo(() => {
     const list: Pluggable[] = [
@@ -138,12 +166,13 @@ export function MarkdownCore({
       remarkMark as Pluggable,
       remarkAlert as Pluggable
     ]
-    if (extraRemarkPlugins?.length) list.push(...extraRemarkPlugins)
+    if (stableExtraRemarkPlugins?.length) list.push(...stableExtraRemarkPlugins)
     return list
-  }, [extraRemarkPlugins])
+  }, [stableExtraRemarkPlugins])
 
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
+    const relativeImages = createRelativeImagePreservation()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
     const effectiveSchema = preserveFileLinkHrefs
       ? {
@@ -164,15 +193,17 @@ export function MarkdownCore({
       rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
       [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
+      ...(preserveRelativeImageSrcs ? ([relativeImages.prepare] as Pluggable[]) : []),
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
+      ...(preserveRelativeImageSrcs ? ([relativeImages.restore] as Pluggable[]) : []),
       ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
-    if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
+    if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [hasSvgElement, id, extraRehypePlugins, preserveFileLinkHrefs])
+  }, [hasSvgElement, id, stableExtraRehypePlugins, preserveFileLinkHrefs, preserveRelativeImageSrcs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
@@ -200,7 +231,7 @@ export function MarkdownCore({
           plugins={plugins}
           rehypePlugins={rehypePlugins}
           remarkPlugins={remarkPlugins}
-          components={components}
+          components={stableComponents}
           disallowedElements={disallowedElements}
           urlTransform={urlTransform}
           parseIncompleteMarkdown={parseIncompleteMarkdown}

@@ -13,10 +13,23 @@ export const MIN_HEARTBEAT_INTERVAL_MINUTES = 1
 /** Upper form bound (24h). */
 export const MAX_HEARTBEAT_INTERVAL_MINUTES = 1440
 
-/** The heartbeat is on unless explicitly disabled — the single default every reader shares. */
-export const DEFAULT_HEARTBEAT_ENABLED = true
+/** Default turn timeout for heartbeat schedules, in minutes. */
+export const DEFAULT_HEARTBEAT_TIMEOUT_MINUTES = 2
 
-/** Resolve the stored toggle with the shared default (unset means on). */
+/** Bound turn deadlines to one day, below the platform timer limit. */
+export const MAX_HEARTBEAT_TIMEOUT_MINUTES = 1440
+
+/** Keep the renderer and scheduler consistent when stored configuration is absent or invalid. */
+export function normalizeHeartbeatTimeoutMinutes(raw: number | undefined): number {
+  return typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0
+    ? Math.min(raw, MAX_HEARTBEAT_TIMEOUT_MINUTES)
+    : DEFAULT_HEARTBEAT_TIMEOUT_MINUTES
+}
+
+/** Heartbeat requires an explicit opt-in — the single default every reader shares. */
+export const DEFAULT_HEARTBEAT_ENABLED = false
+
+/** Resolve the stored toggle with the shared default (unset means off). */
 export function isHeartbeatEnabled(configuration: { heartbeat_enabled?: boolean }): boolean {
   return configuration.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED
 }

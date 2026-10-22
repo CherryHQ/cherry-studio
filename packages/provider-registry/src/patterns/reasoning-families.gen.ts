@@ -47,6 +47,24 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^nova-2' },
   // anthropic
   {
+    pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-haiku-5[.-]5(?:$|[\\[ @:-])',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+    toggle: true,
+    wireDialect: 'effort'
+  },
+  {
+    pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-sonnet-5[.-]5(?:$|[\\[ @:-])',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+    toggle: true,
+    wireDialect: 'adaptive-between-tools'
+  },
+  {
+    pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+    toggle: false,
+    wireDialect: 'adaptive-always'
+  },
+  {
     pattern: '^(?:anthropic\\.)?claude-fable',
     effort: ['low', 'medium', 'high', 'max'],
     toggle: false,
@@ -143,16 +161,20 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
   { pattern: 'deepseek-v3\\.2-speciale' },
   // google
+  { pattern: '^gemini-4(?:[.-]|$)', wireDialect: 'effort', template: true },
+  { pattern: '^gemini-4-argon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
   { pattern: '^gemini-2', wireDialect: 'budget', template: true },
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
   { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
   { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
+  { pattern: '^(?:gemini-nano-banana|nano-banana-pro)', wireDialect: 'effort', template: true },
   { pattern: '^gemma-?4', toggle: true },
+  { pattern: '^gemini-nano-banana', effort: ['minimal', 'medium', 'high'] },
   {
     pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
     effort: ['minimal', 'low', 'medium', 'high']
   },
-  { pattern: '^gemini-3-pro', effort: ['low', 'high'] },
+  { pattern: '^(?:gemini-3-pro|nano-banana-pro)', effort: ['low', 'high'] },
   { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
   { pattern: '^gemini-robotics', toggle: true },
   { pattern: '^gemini-[\\d.]+.*flash', toggle: true, template: true },
@@ -185,8 +207,10 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // meituan
   { pattern: '^longcat-2[.-]0$', toggle: true },
   // meta
+  { pattern: '^muse-spark-open(?:-|$)', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^muse-spark' },
   // minimax
+  { pattern: '^minimax-m3[.-]1-flash$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
@@ -204,6 +228,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '(?:llama-3-1-)?nemotron-(?:\\d+(?:-\\d+)*-)?(?:nano|super|ultra|lightning)' },
   { pattern: '^muse-glimmer' },
   // openai
+  { pattern: '^gpt-6[.-]1-sol(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
   { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },
@@ -244,11 +269,15 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^laguna-s' },
   // xai
   { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
+  { pattern: '^grok-4[.-][67](?!.*non-reasoning)', effort: ['low', 'medium', 'high', 'xhigh'] },
   { pattern: '^grok-3-mini', effort: ['low', 'high'] },
   { pattern: '\\bgrok-(?:3-mini|4|4-fast)(?:-[\\w-]+)?\\b' },
   { pattern: 'grok-build' },
   // xiaomi
-  { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
+  {
+    pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2[.-]6-(?:flash|pro|pro-ultraspeed)(?!-)|mimo-v2-(?:flash|pro|omni)',
+    toggle: true
+  },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
   { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },

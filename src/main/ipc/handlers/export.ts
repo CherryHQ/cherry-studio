@@ -9,7 +9,7 @@ const obsidianVaultService = new ObsidianVaultService()
 
 export const exportHandlers: IpcHandlersFor<typeof exportRequestSchemas> = {
   'export.word.from_markdown': async ({ markdown, fileName }, ctx) => {
-    await exportService.exportToWord(markdown, fileName, ctx.senderId)
+    return exportService.exportToWord(markdown, fileName, ctx.senderId)
   },
   'export.obsidian.get_vaults': async () => obsidianVaultService.getVaults(),
   'export.obsidian.get_files': async ({ vaultName }) => obsidianVaultService.getFilesByVaultName(vaultName)

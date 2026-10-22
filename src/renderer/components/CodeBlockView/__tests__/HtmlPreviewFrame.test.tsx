@@ -1,13 +1,15 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyHtmlPreviewScrollbarGutter,
   HTML_PREVIEW_IFRAME_SANDBOX,
   HTML_PREVIEW_RESTRICTED_CSP,
   HTML_PREVIEW_RESTRICTED_SANDBOX,
   HtmlPreviewFrame,
   injectHtmlPreviewBase,
-  injectHtmlPreviewCsp
+  injectHtmlPreviewCsp,
+  injectHtmlPreviewScrollbarGutter
 } from '../HtmlPreviewFrame'
 
 describe('HtmlPreviewFrame', () => {
@@ -68,6 +70,7 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe?.getAttribute('sandbox')).not.toContain('allow-forms')
     // Strict CSP blocks any residual network connection so a preview cannot phone home.
     expect(iframe?.getAttribute('srcdoc')).toContain("default-src 'none'")
+    expect(iframe?.getAttribute('srcdoc')).not.toContain('data-cherry-html-preview-scrollbar')
   })
 
   it('injects a Content-Security-Policy meta into the head for untrusted previews', () => {
@@ -114,6 +117,97 @@ describe('HtmlPreviewFrame', () => {
 
     expect(result.match(/<base\b/gi)).toHaveLength(1)
     expect(result).toContain('<base href="https://example.com/posts/">')
+  })
+
+  it('reserves scrollbar width only when the preview surface opts in', () => {
+    render(
+      <HtmlPreviewFrame
+        html="<main>Preview</main>"
+        title="common.html_preview"
+        sandbox="allow-same-origin"
+        stableScrollbarGutter
+      />
+    )
+    const iframe = screen.getByTitle<HTMLIFrameElement>('common.html_preview')
+
+    expect(iframe.getAttribute('srcdoc')).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    fireEvent.load(iframe)
+    const scrollRoot = iframe.contentDocument?.scrollingElement ?? iframe.contentDocument?.documentElement
+    expect((scrollRoot as HTMLElement | null)?.style.overflowY).toBe('auto')
+    expect((scrollRoot as HTMLElement | null)?.style.scrollbarGutter).toBe('stable')
+  })
+
+  it('recognizes only the owned style marker and remains idempotent', () => {
+    const authorHtml = '<p data-cherry-html-preview-scrollbar>Author content</p>'
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+
+    expect(injected).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(injectHtmlPreviewScrollbarGutter(injected)).toBe(injected)
+  })
+
+  it('does not let an author style with the marker suppress the owned gutter rule', () => {
+    const authorHtml = '<style data-cherry-html-preview-scrollbar>.preview{color:red}</style><p>Preview</p>'
+
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+
+    expect(injected).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
+    expect(injected).toContain('.preview{color:red}')
+  })
+
+  it.each([
+    [
+      'a comment',
+      '<!-- <style data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style> -->'
+    ],
+    [
+      'inert text',
+      '<textarea><style data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style></textarea>'
+    ]
+  ])('does not let the owned style serialized as %s suppress injection', (_label, authorHtml) => {
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+    const parsed = new DOMParser().parseFromString(injected, 'text/html')
+
+    expect(parsed.head.querySelectorAll('style[data-cherry-html-preview-scrollbar]')).toHaveLength(1)
+  })
+
+  it('does not let an owned style inside a template suppress the live gutter', () => {
+    const authorHtml =
+      '<template><style data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style></template><main>Preview</main>'
+
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+    const parsed = new DOMParser().parseFromString(injected, 'text/html')
+
+    expect(parsed.head.querySelectorAll('style[data-cherry-html-preview-scrollbar]')).toHaveLength(1)
+    expect(
+      parsed.querySelector('template')?.content.querySelector('style[data-cherry-html-preview-scrollbar]')
+    ).not.toBeNull()
+  })
+
+  it.each([
+    [
+      'noscript',
+      '<noscript><style data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style></noscript><main>Preview</main>'
+    ],
+    [
+      'a disabled stylesheet',
+      '<style disabled data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style><main>Preview</main>'
+    ]
+  ])('does not let an inactive owned style in %s suppress the live gutter', (_label, authorHtml) => {
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+    const parsed = new DOMParser().parseFromString(injected, 'text/html')
+
+    expect(parsed.head.querySelectorAll('style[data-cherry-html-preview-scrollbar]:not([disabled])')).toHaveLength(1)
+  })
+
+  it('applies the gutter to the actual scrolling element for doctype-less documents', () => {
+    const frameDocument = document.implementation.createHTMLDocument()
+    Object.defineProperty(frameDocument, 'scrollingElement', { configurable: true, value: frameDocument.body })
+
+    applyHtmlPreviewScrollbarGutter(frameDocument)
+
+    expect(frameDocument.body.style.overflowY).toBe('auto')
+    expect(frameDocument.body.style.scrollbarGutter).toBe('stable')
+    expect(frameDocument.documentElement.style.scrollbarGutter).toBe('')
   })
 
   it('renders empty preview text when provided', () => {

@@ -21,6 +21,7 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
@@ -32,11 +33,13 @@ files:
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
   - "!**/{.editorconfig,.jekyll-metadata}"
   - "!src"
+  - "!native"
   - "!config"
   - "!patches"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
+  - "!**/node_modules/@cherrystudio/computer-use-{darwin,win32,linux}-*/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -64,6 +67,9 @@ files:
   - "!node_modules/@tavily/core/node_modules/js-tiktoken"
   - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
+  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
+  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
   # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
   # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
   - "!node_modules/selection-hook/build/**"
@@ -76,6 +82,9 @@ files:
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
+  - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
+  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform packaging
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -84,8 +93,6 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-  # DSH runs under bundled Bun: bundle its JS and unpack native/runtime files.
-  - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"
   - "node_modules/detect-libc/**"
@@ -93,10 +100,7 @@ asarUnpack:
   - "node_modules/node-pty/**"
   - "node_modules/koffi/**"
   - "node_modules/@koromix/koffi-*/**"
-  - "node_modules/@deepseek-ai/dsh-sandbox-windows-acl/**"
-  - "node_modules/@deepseek-ai/dsh-win32-process/**"
-  - "node_modules/@deepseek-ai/node-addon-landlock-run*/**"
-  - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
+  - "node_modules/yaml/**"
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
@@ -104,6 +108,8 @@ asarUnpack:
   - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
+  - from: "src/main/ai/voice/localAdapters/NOTICE.txt"
+    to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
@@ -112,13 +118,16 @@ win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   extraResources:
+    # before-pack adds system-speech only for x64; extraResources .exe files use signtoolOptions below.
     - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
       to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
   signtoolOptions:
-    sign: scripts/win-sign.js
+    sign: scripts/packaging/win-sign.js
+  signExts:
+    - .node
   verifyUpdateCodeSignature: false
 nsis:
   # Preserve the existing global installer identity so either edition replaces the same Windows installation.
@@ -131,26 +140,33 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
-  differentialPackage: false
+  differentialPackage: true
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
   # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
   unpackDirName: true
 mac:
+  extraFiles:
+    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+      to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
+  sign: scripts/packaging/mac-sign.js
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
+    NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   target:
     - target: dmg
     - target: zip
 dmg:
   writeUpdateInfo: false
+toolsets:
+  appimage: "1.0.3"
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   executableName: CherryStudio
@@ -173,101 +189,88 @@ rpm:
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
+  useMultipleRangeRequest: false
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-beforePack: scripts/before-pack.js
-afterPack: scripts/after-pack.js
-afterSign: scripts/notarize.js
-artifactBuildCompleted: scripts/artifact-build-completed.js
+beforePack: scripts/packaging/before-pack.js
+afterPack: scripts/packaging/after-pack.js
+afterSign: scripts/packaging/notarize.js
+artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.0 - System Doctor, Browser Control, and Office Transform
+    Cherry Studio 2.1.7 - Voice, Cloud, and Model Updates
 
     ✨ New Features
-    - [Doctor] Add System Doctor with AI diagnosis, system checks, guided fixes, diagnostic export, and feedback. Checks cover installation, permissions, storage, providers, MCP, managed tools, and recent errors. Diagnose individual chats or Agent sessions separately from full system reports; opening feedback or export does not start a health check.
-    - [Browser] Agents and chat assistants can use the built-in browser, with an animated pointer showing Agent actions. Agents can find page elements, recover them after page updates, inspect console and network activity, and use website WebMCP tools. Also supports browsing history search, browser data import, and separate history or cache clearing.
-    - [Office] Add the office-transform skill: agents can extract worksheet ranges, document paragraphs, PDF pages, and slide shapes into new files.
-    - [Selection] Turn on “Select region” to pick a worksheet range, Word paragraph, PDF page, or slide and quote it as a precise structural reference.
-    - [Web Search] Add Serply as a web search provider.
-    - [Models] Add DeepSeek V4.1 Flash model with reasoning effort control and web search support.
-    - [Agent] Agents can opt out of Claude Code commit attribution in Settings → General.
-    - [Sidebar] Pin Apps, Mini Apps, Agents, Assistants, Knowledge Bases, Topics, Agent Sessions, Files, and Code CLI tools as shortcuts.
-    - [Chat] Add conversation link context menus for opening in built-in or external browser.
-    - [History] Add Ctrl+A/Cmd+A select-all, Shift-click range selection, and partial-selection indicator.
-    - [Mobile] Device Connections now visible to all users with a localized mobile app download card.
-    - [Trash] Deleting topics, agents, assistants, or files now moves them to Settings → Data → Recycle Bin for restore or permanent deletion.
-    - [Markdown] LaTeX code blocks now show formula previews by default.
-    - [Markdown] Bare local file and folder paths in assistant responses are now clickable.
-    - [Logs] Add log retention setting (7/14/30/90 days) with automatic cleanup.
+    - [Voice] Add Kokoro Chinese-English TTS with 103 voices for Windows x64, Linux and macOS, and Qwen3-TTS for Apple Silicon. Download models from Settings > Local Models before first use.
+    - [Voice] Show live audio spectra in speech playback and dictation controls. Restore the microphone after empty dictation.
+    - [Voice] Add local FunASR speech transcription on Windows, Linux and macOS.
+    - [Cherry Cloud] Add subscription plan and quota usage visibility to the Global edition, with limited-time-free and exhausted-quota descriptions for managed models.
+    - [Cherry Cloud] Add a compact anchored sidebar account menu. Avatar and nickname open Personal Information settings; Appearance and Login stay in the menu.
+    - [Cherry Cloud] Preserve login during temporary connection or refresh failures.
+    - [Automation] Orchestrate Browser and Computer Use through persistent JavaScript with clearer execution feedback.
+    - [Knowledge Base] Drag knowledge bases between groups and reorder groups; cycle item columns through ascending, descending and default ordering.
+    - [Image] Add GPT-Image-2 aspect ratio presets for 16:9, 9:16, 16:10, and 4K output.
+    - [Models] Add Gemini 4 Argon support with thinking levels and automatic long-output continuation.
+    - [Models] Add Muse Spark Open model recognition with multimodal capabilities and reasoning controls.
+    - [Search] Add DuckDuckGo as a free keyword web search provider. No API key required.
+    - [Tools] Tool results now preview image links and display clickable web links.
+    - [Errors] Show actionable error notifications with readable diagnoses, expandable details, and recovery actions for conversations, provider checks, and MCP failures.
+    - [Chat] Queued follow-up messages start collapsed. Click the header to expand or collapse.
+    - [Chat] Hover over conversations to see full name, activity time, and workspace details.
+    - [Notes] Search code-block languages by name.
 
     🐛 Bug Fixes
-    - [Code Block] Fixed edits being saved to wrong code block or lost; toolbar stays visible on scroll.
-    - [Composer] Fixed paste silently doing nothing when file could not be read.
-    - [Composer] Preserve input focus when sending messages.
-    - [Conversation List] Show more now expands all remaining conversations.
-    - [History] Keep history open after deleting conversations.
-    - [Markdown] Prevent raw message flashes during lazy loading.
-    - [Markdown] Fix display math rendering across blank lines.
-    - [Windows] Fixed repeated “fsync(dir) failed” warnings in log.
-    - [Models] Enable web search for tool-capable LMStudio/Ollama models.
-    - [Models] List LM Studio models from /api/v0/models.
-    - [Provider] Cap DeepSeek V4 output at 384000 tokens; correct GLM-5.3 and MiMo V2.5 limits.
-    - [DSH] Launch DSH with bundled Bun; preserve OpenCode session headers.
-    - [DSH] Fail fast on incompatible upgraded DSH home.
-    - [Error] Classify Chromium net::ERR_* transport failures; preserve structured provider failure messages.
-    - [Image] Restore HDR reference image compatibility; fix image rotation flip.
-    - [Migration] Keep malformed MCP server record from aborting v2 migration.
-    - [Shortcuts] Warn when shortcut collides with main-process shortcut.
-    - [Chat] Restore bottom-follow after sending; preserve sidebar state when switching tabs.
-    - [Chat] Show multi-model scrollbar on hover; prevent scroll rebound.
-    - [Knowledge] Show file reader scrollbars.
-    - [Smooth Stream] Flush buffered text on completion.
-    - [Claude Code] Treat dangling symlinks as workspace escapes; preserve Linux desktop session bus.
-    - [Copilot] Route GPT-6 Astra through Responses API.
+    - [Attachments] Fix unrecognized-extension text files (e.g., .lrmx) not being read as text.
+    - [OCR] Identify which OCR path failed when sending images to non-vision models, with guidance for each failure type.
+    - [Window] Fix main window closing on Windows/Linux hiding the window when the tray icon is unavailable, leaving no way to restore or quit.
+    - [Messages] Preserve disclosure state and follow streamed reasoning in message display.
+    - [Composer] Automatically follow prompt text direction; keep leading-dot file names; accept any file type on the agent surface.
+    - [Files] Add file context menu actions; align file links and icons with inline text.
+    - [MCP] Connect to remote MCP servers that reject the version probe with 5xx errors; confirm health before reconnects.
+    - [Models] Accept null Gemini model list pagination tokens; improve Gemini model discovery and metadata refresh.
+    - [Tray] Use a stable Windows tray GUID for portable installs.
+    - [Voice] Fixed read-aloud skipping text in code blocks and inline code.
+    - [Agents] Allow users to turn off onboarding by declining setup.
+    - [Translation] Keep idle dictation and copy buttons beside the input text without adding an extra toolbar row.
+    - [Computer Use] Fixed missing automation tool output for Claude agents and added structured accessibility-tree pagination to prevent oversized observations from being omitted.
+    - [Settings] Restore settings scrollbars and consistent layouts, clarify Computer Use permission actions, and fix clipped content, MCP tab order and unnecessary Usage heatmap overflow.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.0 - 系统诊断、浏览器控制与 Office 转换
+    Cherry Studio 2.1.7 - 语音、云服务与模型更新
 
     ✨ 新功能
-    - [诊断] 新增系统诊断，支持 AI 诊断、系统检查、引导修复、导出诊断信息和问题反馈，涵盖安装、权限、存储、服务商、MCP、托管工具及最近错误。可单独诊断对话或智能体会话，与全系统报告分离；打开反馈或导出不会自动启动健康检查。
-    - [浏览器] 智能体和对话助手均可使用内置浏览器，并以动画指针展示智能体操作。智能体支持查找页面元素、在页面更新后恢复元素、检查控制台和网络活动，以及调用网站的 WebMCP 工具；同时支持搜索浏览历史、导入浏览器数据和单独清理历史或缓存。
-    - [Office] 新增 office-transform 技能：智能体可将工作表范围、文档段落、PDF 页面和幻灯片形状提取为新文件。
-    - [选择] 开启”选择区域”可选取工作表范围、Word 段落、PDF 页面或幻灯片，作为精确的结构化引用。
-    - [网络搜索] 新增 Serply 网络搜索服务商。
-    - [模型] 新增 DeepSeek V4.1 Flash 模型，支持推理力度控制和网络搜索。
-    - [智能体] 智能体可在设置 → 通用中关闭 Claude Code 提交署名。
-    - [侧边栏] 可将应用、小程序、智能体、助手、知识库、话题、智能体会话、文件和代码 CLI 工具固定为快捷方式。
-    - [对话] 新增对话链接右键菜单，可在内置或外部浏览器中打开。
-    - [历史] 支持 Ctrl+A/Cmd+A 全选、Shift 点击范围选择、部分选择指示器。
-    - [移动端] 设备连接对所有用户可见，新增本地化的移动端下载卡片。
-    - [回收站] 删除话题、智能体、助手或文件现在移入设置 → 数据 → 回收站，支持恢复或永久删除。
-    - [Markdown] LaTeX 代码块默认显示公式预览。
-    - [Markdown] 助手回复中的本地文件和文件夹路径现在可点击。
-    - [日志] 新增日志保留时间设置（7/14/30/90 天），支持自动清理。
+    - [语音] 添加 Kokoro 中英文语音合成，支持 103 种音色，适用于 Windows x64、Linux 和 macOS；Apple Silicon 用户可使用 Qwen3-TTS。首次使用前需从设置 > 本地模型下载模型。
+    - [语音] 语音播放和听写控件中显示实时音频频谱。空听写后恢复麦克风。
+    - [语音] 在 Windows、Linux 和 macOS 上添加本地 FunASR 语音转写。
+    - [Cherry Cloud] 为全球版添加订阅计划和配额用量显示，并为托管模型显示限时免费和配额耗尽提示。
+    - [Cherry Cloud] 添加紧凑的侧边栏账户菜单。头像和昵称打开个人信息设置；外观和登录保留在菜单中。
+    - [Cherry Cloud] 在临时连接或刷新失败期间保持登录状态。
+    - [自动化] 通过持久化 JavaScript 编排浏览器和计算机操作，执行反馈更清晰。
+    - [知识库] 在分组间拖拽知识库并重新排序分组；循环切换项目的升序、降序和默认排序。
+    - [图像] 添加 GPT-Image-2 的 16:9、9:16、16:10 和 4K 宽高比预设。
+    - [模型] 添加 Gemini 4 Argon 支持，包含思考级别和自动长输出续写。
+    - [模型] 添加 Muse Spark Open 模型识别，支持多模态能力和推理控制。
+    - [搜索] 添加 DuckDuckGo 作为免费的网页搜索提供商。无需 API 密钥。
+    - [工具] 工具结果现在可以预览图像链接并显示可点击的网页链接。
+    - [错误] 显示可操作的错误通知，包含可读的诊断、可展开的详情，以及对话、提供商检查和 MCP 失败的恢复操作。
+    - [对话] 排队的后续消息现在默认折叠。点击标题栏展开或折叠。
+    - [对话] 悬停对话可查看完整名称、活动时间和工作区详情。
+    - [笔记] 按名称搜索代码块语言。
 
     🐛 问题修复
-    - [代码块] 修复编辑保存到错误代码块或丢失的问题；滚动时工具栏保持可见。
-    - [输入框] 修复粘贴文件读取失败时静默无反应的问题。
-    - [输入框] 发送消息时保持输入焦点。
-    - [对话列表] 点击”显示更多”现在展开所有剩余对话。
-    - [历史] 删除对话后保持历史窗口打开。
-    - [Markdown] 防止懒加载时的原始消息闪烁。
-    - [Markdown] 修复跨空行的显示公式渲染。
-    - [Windows] 修复日志中重复出现的”fsync(dir) failed”警告。
-    - [模型] 为支持工具的 LMStudio/Ollama 模型启用网络搜索。
-    - [模型] 从 /api/v0/models 列出 LM Studio 模型。
-    - [服务商] 将 DeepSeek V4 输出限制为 384000 tokens；修正 GLM-5.3 和 MiMo V2.5 限制。
-    - [DSH] 使用内置 Bun 启动 DSH；保留 OpenCode 会话头。
-    - [DSH] 对不兼容的升级版 DSH 主目录快速失败。
-    - [错误] 分类 Chromium net::ERR_* 传输失败；保留结构化服务商失败消息。
-    - [图片] 恢复 HDR 参考图片兼容性；修复图片旋转翻转。
-    - [迁移] 防止格式错误的 MCP 服务器记录中断 v2 迁移。
-    - [快捷键] 当快捷键与主进程快捷键冲突时发出警告。
-    - [对话] 发送后恢复底部跟随；切换标签时保持侧边栏状态。
-    - [对话] 悬停时显示多模型滚动条；防止滚动回弹。
-    - [知识库] 显示文件阅读器滚动条。
-    - [流畅流] 完成时刷新缓冲文本。
-    - [Claude Code] 将悬空符号链接视为工作区转义；保留 Linux 桌面会话总线。
-    - [Copilot] 通过 Responses API 路由 GPT-6 Astra。
+    - [附件] 修复无法识别扩展名的文本文件（如 .lrmx）无法作为文本读取的问题。
+    - [OCR] 向非视觉模型发送图像时，识别哪个 OCR 路径失败，并为每种失败类型提供指引。
+    - [窗口] 修复 Windows/Linux 上关闭主窗口时，当托盘图标不可用时会隐藏窗口且无法恢复或退出的问题。
+    - [消息] 保持消息显示的展开状态并跟踪流式推理。
+    - [输入框] 自动跟随提示文本方向；保留以点开头的文件名；在代理界面接受任意文件类型。
+    - [文件] 添加文件上下文菜单操作；对齐文件链接和图标与内联文本。
+    - [MCP] 连接拒绝版本探测并返回 5xx 错误的远程 MCP 服务器；重连前确认健康状态。
+    - [模型] 接受空的 Gemini 模型列表分页标记；改进 Gemini 模型发现和元数据刷新。
+    - [托盘] 为便携版安装使用稳定的 Windows 托盘 GUID。
+    - [语音] 修复朗读跳过代码块及行内代码中文字的问题。
+    - [智能体] 支持回复“不需要”或“跳过”关闭初始化引导。
+    - [翻译] 修复听写和复制按钮额外占据一行的问题，空闲时保持在输入文字右侧。
+    - [电脑操作] 修复 Claude 智能体自动化工具输出丢失的问题，并通过结构化辅助功能树分页避免大型观察结果被整份省略。
+    - [设置] 修复设置页滚动条和布局，优化电脑操作权限说明，并修复内容截断、MCP 标签顺序及用量热力图的多余横向溢出。
     <!--LANG:END-->

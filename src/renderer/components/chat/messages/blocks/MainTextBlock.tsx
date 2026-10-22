@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
-import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
+import type { ChatInputTokenKind, ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
@@ -25,7 +25,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
-import { useMessageRenderConfig } from '../MessageListProvider'
+import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 import { useScrollAnchor } from './useScrollAnchor'
 
@@ -43,6 +43,7 @@ interface Props {
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
   hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
   userContentExpanded?: boolean
   onPlayoutSettledChange?: (partId: string, settled: boolean) => void
@@ -56,6 +57,10 @@ const composerTokenIcon: Partial<
 }
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
+type ReadOnlyFilePreviewActivate = (
+  preview: ReadOnlyComposerFileTokenPreview,
+  token: ChatTokenView
+) => void | Promise<void>
 
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
@@ -87,20 +92,31 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
 
 function ComposerMessageTokenChip({
   token,
+  onReadOnlyFilePreviewActivate,
   readOnlyFilePreviews,
   hidden
 }: {
   token: ComposerMessageToken
+  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   hidden?: boolean
 }) {
+  const actions = useOptionalMessageListActions()
   if (hidden) return null
 
   if (isComposerTokenBackedMessageToken(token)) {
     const fileTokenSourceId = token.kind === 'file' ? readComposerFileTokenIdSuffix(token.id) : undefined
     const readOnlyFilePreview = fileTokenSourceId ? readOnlyFilePreviews?.get(fileTokenSourceId) : undefined
 
-    return <ComposerToken token={token} readOnly readOnlyFilePreview={readOnlyFilePreview} />
+    return (
+      <ComposerToken
+        token={token}
+        readOnly
+        readOnlyFilePreview={readOnlyFilePreview}
+        onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
+        onOpenLink={actions?.openExternalUrl}
+      />
+    )
   }
 
   return <LegacyComposerMessageTokenChip token={token} />
@@ -110,6 +126,7 @@ function renderComposerMessageContent(
   content: string,
   composer: ComposerMessageSnapshot,
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>,
+  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate,
   hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
 ) {
   const tokens = getDisplayComposerTokens(composer)
@@ -131,6 +148,7 @@ function renderComposerMessageContent(
       <ComposerMessageTokenChip
         key={`${token.id}:${token.index}`}
         token={token}
+        onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
         readOnlyFilePreviews={readOnlyFilePreviews}
         hidden={hiddenComposerTokens?.has(token)}
       />
@@ -310,7 +328,7 @@ function CollapsibleUserMessageContent({
           aria-expanded={isExpanded}
           aria-controls={contentId}
           data-user-message-content-toggle
-          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
+          className="text-muted-foreground mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] focus-visible:bg-accent/50 focus-visible:outline-none"
           onClick={() => withScrollAnchor(onToggle, { enterReadingMode: !isExpanded })}>
           <span className="shrink-0 leading-5 font-normal">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
@@ -318,7 +336,7 @@ function CollapsibleUserMessageContent({
           <ChevronDown
             aria-hidden="true"
             size={16}
-            className={`shrink-0 text-foreground-tertiary opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+            className={`text-foreground-tertiary shrink-0 opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
           />
         </button>
       )}
@@ -339,6 +357,7 @@ const MainTextBlock: React.FC<Props> = ({
   mentions = [],
   composer,
   readOnlyFilePreviews,
+  onReadOnlyFilePreviewActivate,
   hiddenComposerTokens,
   userContentExpanded,
   onPlayoutSettledChange,
@@ -363,12 +382,6 @@ const MainTextBlock: React.FC<Props> = ({
     },
     [isUserContentExpanded, onUserContentExpandedChange, userContentExpanded]
   )
-
-  useEffect(() => {
-    if (!isUserContentCollapsible) {
-      setUserContentExpanded(false)
-    }
-  }, [isUserContentCollapsible, setUserContentExpanded])
 
   const userDisplayContent = isUserContentCollapsible && !isUserContentExpanded ? userMessagePreview.content : content
 
@@ -448,6 +461,7 @@ const MainTextBlock: React.FC<Props> = ({
           return (
             <ComposerMessageTokenChip
               token={token}
+              onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
               readOnlyFilePreviews={readOnlyFilePreviews}
               hidden={hiddenComposerTokens?.has(token)}
             />
@@ -457,7 +471,7 @@ const MainTextBlock: React.FC<Props> = ({
         return <span {...props}>{children}</span>
       }
     }),
-    [composerMarkdownContent?.tokens, hiddenComposerTokens, id, readOnlyFilePreviews]
+    [composerMarkdownContent?.tokens, hiddenComposerTokens, id, onReadOnlyFilePreviewActivate, readOnlyFilePreviews]
   )
 
   return (
@@ -487,7 +501,13 @@ const MainTextBlock: React.FC<Props> = ({
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
-                ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews, hiddenComposerTokens)
+                ? renderComposerMessageContent(
+                    userDisplayContent,
+                    composer,
+                    readOnlyFilePreviews,
+                    onReadOnlyFilePreviewActivate,
+                    hiddenComposerTokens
+                  )
                 : userDisplayContent}
             </p>
           ) : (

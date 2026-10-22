@@ -1,14 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * Pins the probe's verdict table for `FileProcessingService.checkOpenMineruConnectivity`.
- *
- * The asymmetry is the whole design: 404 is the only status that means "not the
- * service we want", and everything else — including 503, which is how MinerU
- * reports a full request queue — has to stay reachable. Getting this backwards
- * greys out a working deployment, and the knowledge-base dropdown that consumes
- * it offers no way to retry.
- */
 import type * as LifecycleModule from '@main/core/lifecycle'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 
@@ -47,40 +38,47 @@ const configWithHost = (apiHost: string | undefined): FileProcessorMerged => ({
 const probe = () => new FileProcessingService().checkOpenMineruConnectivity()
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   getFileProcessorConfigByIdMock.mockReturnValue(configWithHost('http://127.0.0.1:8000'))
 })
 
 describe('checkOpenMineruConnectivity', () => {
-  it('probes /health on the configured host with a bounded signal', async () => {
-    fetchMock.mockResolvedValue({ status: 200 })
-
+  it('accepts a V1 deployment with the configured key', async () => {
+    getFileProcessorConfigByIdMock.mockReturnValue({ ...configWithHost('http://127.0.0.1:8000'), apiKeys: ['secret'] })
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        status: 'ok',
+        version: '4.0.6',
+        features: { sources: ['file_id'], output_formats: ['markdown'] }
+      })
+    )
     await expect(probe()).resolves.toBe(true)
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('http://127.0.0.1:8000/health')
-    expect(init.method).toBe('GET')
-    // Without this an unroutable host hangs the dropdown until the OS gives up.
-    expect(init.signal).toBeInstanceOf(AbortSignal)
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer secret')
   })
 
-  it.each([
-    // 404 is the only negative: something answered, but it has no /health, so the
-    // port belongs to some other service.
-    [404, false],
-    [200, true],
-    // MinerU returns 503 once max_concurrent_requests is saturated — a busy server
-    // is a running server.
-    [503, true],
-    // A reverse proxy in front of MinerU answers before routing.
-    [401, true],
-    [403, true],
-    [500, true]
-  ])('maps HTTP %i to reachable=%s', async (status, expected) => {
-    fetchMock.mockResolvedValue({ status })
+  it('keeps a legacy deployment selectable after V1 is absent', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
+    fetchMock.mockResolvedValueOnce(Response.json({ status: 'healthy', version: '3.4.5' }))
+    await expect(probe()).resolves.toBe(true)
+  })
 
-    await expect(probe()).resolves.toBe(expected)
+  it.each([401, 403, 500, 503])(
+    'keeps HTTP %i selectable so authentication or service errors can be reported',
+    async (status) => {
+      fetchMock.mockResolvedValueOnce(new Response(null, { status }))
+      await expect(probe()).resolves.toBe(true)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('rejects a host that exposes neither protocol', async () => {
+    fetchMock.mockImplementation(async () => new Response(null, { status: 404 }))
+    await expect(probe()).resolves.toBe(false)
+  })
+
+  it('rejects an unrelated HTML service on the configured port', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('<html>home</html>'))
+    await expect(probe()).resolves.toBe(false)
   })
 
   it('reports unreachable when nothing is listening', async () => {
@@ -98,10 +96,16 @@ describe('checkOpenMineruConnectivity', () => {
 
   it('does not double the slash when the host has a trailing one', async () => {
     getFileProcessorConfigByIdMock.mockReturnValue(configWithHost('http://127.0.0.1:8000/'))
-    fetchMock.mockResolvedValue({ status: 200 })
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        status: 'ok',
+        version: '4.0.6',
+        features: { sources: ['file_id'], output_formats: ['markdown'] }
+      })
+    )
 
     await probe()
 
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8000/health')
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8000/v1/health')
   })
 })

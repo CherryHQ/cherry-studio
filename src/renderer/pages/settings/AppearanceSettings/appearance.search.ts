@@ -127,6 +127,12 @@ export const entries: SettingsSearchEntry[] = [
     aliases: ['thinking', '思维链']
   },
   {
+    anchorId: 'user-message-default-expanded',
+    titleKey: 'settings.messages.user_content.default_expanded.label',
+    descriptionKey: 'settings.messages.user_content.default_expanded.hint',
+    groupKey: messagesGroup
+  },
+  {
     anchorId: 'show-message-outline',
     titleKey: 'settings.messages.show_message_outline',
     groupKey: messagesGroup
@@ -135,7 +141,7 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'message-style',
     titleKey: 'message.message.style.label',
     groupKey: messagesGroup,
-    aliases: ['气泡', '气泡样式', '对话样式']
+    aliases: ['bubble', 'bubble mode', 'message style', 'conversation bubbles', '气泡', '气泡样式', '对话样式']
   },
   {
     anchorId: 'multi-model-style',
