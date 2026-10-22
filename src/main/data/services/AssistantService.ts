@@ -642,7 +642,11 @@ export class AssistantDataService {
           // also purge every other assistant's scope on a retained topic.
           // Deleted topics purge through the topic path instead.
           for (const topicId of projectedTopicIds)
-            followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id))
+            followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id), {
+              // Retained topics still accept enqueues; keep closed receipts
+              // so a late same-id retry settles instead of resurrecting.
+              keepClosedReceipts: true
+            })
         }
         return {
           deleted: this.permanentlyDeleteTx(tx, id),
@@ -749,7 +753,11 @@ export class AssistantDataService {
     // every other assistant's scope on a retained topic.
     for (const id of ids) {
       for (const topicId of topicService.listIdsByAssistantTx(tx, id)) {
-        followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id))
+        // Retained topics still accept enqueues; keep closed receipts so a
+        // late same-id retry settles instead of resurrecting.
+        followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id), {
+          keepClosedReceipts: true
+        })
       }
     }
     tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()

@@ -7,6 +7,7 @@ import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
+import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import {
   FOLLOWUP_QUEUE_HEARTBEAT_MS,
   FOLLOWUP_QUEUE_LIMIT,
@@ -111,7 +112,8 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
  * one follow-up, even when the turn was already marked read or another window
  * won the send.
  */
-const consumedKeyFor = (scopeKey: string) => `followup-queue.consumed.${scopeKey}`
+// Scope keys may contain ':' (topic scopes), which template keys forbid — encode it.
+const consumedKeyFor = (scopeKey: string): SharedCacheKey => `followup-queue.consumed.${encodeURIComponent(scopeKey)}`
 const loadConsumed = (scopeKey: string): number | null => cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
 
 interface UseFollowupQueueParams {
@@ -432,7 +434,7 @@ export function useFollowupQueue({
     [claimItem, removeTrigger, markFailedTrigger, noteItemRemoved, t]
   )
 
-  const takeForEdit = useCallback(
+  const takeForEditInner = useCallback(
     async (
       id: string,
       captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
@@ -496,10 +498,14 @@ export function useFollowupQueue({
           return undefined
         }
         let restored = false
+        // Fresh insertion identity, stable across the retries: the original
+        // row closed when it was taken, so re-enqueueing under its id returns
+        // the receipt without storing the edited content (cherry-pr-review).
+        const restoreId = crypto.randomUUID()
         for (let attempt = 0; attempt < 3 && !restored; attempt++) {
           try {
             await enqueueTrigger({
-              body: { id: taken.item.id, scopeKey: scope, draft: outgoing.draft, payload: outgoing.payload }
+              body: { id: restoreId, scopeKey: scope, draft: outgoing.draft, payload: outgoing.payload }
             })
             restored = true
           } catch (error) {
@@ -511,17 +517,18 @@ export function useFollowupQueue({
         if (!restored) {
           await releaseClaim()
           toast.error(t('message.error.operation_unavailable'))
-          scheduleReenqueueRetryRef.current(taken.item.id, scope, outgoing.draft, outgoing.payload)
+          scheduleReenqueueRetryRef.current(restoreId, scope, outgoing.draft, outgoing.payload)
           return undefined
         }
         // Move the restored row back to the slot it was taken from; the slot
         // follows removals of earlier rows via noteItemRemoved. Anchors are
         // computed against the queue without the incoming row, which the take
-        // deletes before the move executes.
+        // deletes before the move executes. The move targets the fresh
+        // restoration identity (the original row is a closed receipt).
         const remaining = itemsRef.current.filter((entry) => entry.id !== id)
         const restoreSlot = Math.min(taken.slot, remaining.length)
         const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: remaining[restoreSlot - 1].id }
-        pendingRestoreMove = { id: taken.item.id, anchor }
+        pendingRestoreMove = { id: restoreId, anchor }
         if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       // A committed DELETE can still time out: retry once and treat NOT_FOUND
@@ -597,6 +604,19 @@ export function useFollowupQueue({
       return item
     },
     [claimItem, takeDeleteTrigger, enqueueTrigger, reorderTrigger, markFailedTrigger, t]
+  )
+
+  // Serialize the complete edit handoff: overlapping takes can both observe
+  // no outgoing edit, close their separate rows, and return drafts that
+  // successively replace the composer, losing the first one (cherry-pr-review).
+  const takeChainRef = useRef<Promise<unknown>>(Promise.resolve())
+  const takeForEdit = useCallback<FollowupQueueController['takeForEdit']>(
+    (id, captureOutgoing) => {
+      const run = takeChainRef.current.then(() => takeForEditInner(id, captureOutgoing))
+      takeChainRef.current = run.catch(() => undefined)
+      return run
+    },
+    [takeForEditInner]
   )
 
   const releaseEdit = useCallback(() => {
@@ -954,6 +974,7 @@ export function useFollowupQueue({
     if (drainBusyScopesRef.current.has(scope) || activeIdsRef.current.has(head.id)) return
     drainBusyScopesRef.current.add(scope)
     activeIdsRef.current.add(head.id)
+    let settled = false
     try {
       let won: ClaimHeadFollowupQueueResult | undefined
       // Retry-stable: a committed claim whose response timed out is re-acquired by the retry, not lost to it.
@@ -1000,9 +1021,26 @@ export function useFollowupQueue({
         onCommitted: ackCompletion
       })
       if (!sent) onDrainFailedRef.current?.()
+      settled = true
     } finally {
       drainBusyScopesRef.current.delete(scope)
       activeIdsRef.current.delete(head.id)
+      // Releasing the busy guard does not re-fire the drain effect: a
+      // completion that arrived while this scope was busy exited at the
+      // guard. After a settlement, re-drive the drain when an unconsumed
+      // completion is still pending (same gates as the claim retry).
+      if (settled) {
+        const pendingHead = itemsRef.current[0]
+        if (
+          statusRef.current === 'done' &&
+          lastCompletedAtRef.current != null &&
+          loadConsumed(scopeKeyRef.current) !== lastCompletedAtRef.current &&
+          !drainBlockedRef.current &&
+          pendingHead
+        ) {
+          void drainHeadRef.current(pendingHead)
+        }
+      }
     }
   }
 

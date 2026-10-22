@@ -1607,6 +1607,7 @@ const AgentComposerInner = ({
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
+
     removeId: removeFollowup,
     reorder: reorderFollowups,
     takeForEdit: takeFollowupForEdit,

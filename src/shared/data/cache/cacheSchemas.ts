@@ -325,6 +325,8 @@ export type SharedCacheSchema = {
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
+  // Follow-up queue: last completion marker drained per scope (cross-window)
+  'followup-queue.consumed.${scopeKey}': number
   // Job system: state snapshot + progress, broadcast main → all windows. TTL 60s
   // (JobManager sets ttl when calling setShared, so cache miss after a job
   // terminates is acceptable — useJob falls back to dataApi.get).
@@ -393,6 +395,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'local_model.statuses': {},
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
+  'followup-queue.consumed.${scopeKey}': 0,
   'ocr.provider.last_used_key.${providerId}': '',
   // Template defaults are placeholders never consumed at runtime — concrete
   // keys are populated by JobManager when actual jobs exist.
