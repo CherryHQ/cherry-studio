@@ -81,7 +81,12 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
-import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
+import {
+  clearChatDraftCacheIfMatches,
+  type ChatComposerDraftCache,
+  readChatDraftCache,
+  writeChatDraftCache
+} from './chat/chatDraftCache'
 import {
   createEditableMessageDraft,
   getEditableKnowledgeBases,
@@ -516,8 +521,14 @@ const ChatComposerInner = ({
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded, toolsRegistry } =
-    useComposerToolDispatch()
+  const {
+    setFiles,
+    subscribeFilesDispatch,
+    setMentionedModels,
+    setSelectedKnowledgeBases,
+    setIsExpanded,
+    toolsRegistry
+  } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const loadedContext = useAssistant(externalContextControls ? null : assistantId, {
@@ -1558,6 +1569,17 @@ const ChatComposerInner = ({
   useEffect(() => {
     draftEditRevisionRef.current += 1
   }, [files])
+  // The effect above runs after React commits — too late when an enqueue
+  // resolves in the same window. Tool dispatches (the attachment picker,
+  // runtime tools) bypass the revision wrapper below, so track attachment
+  // mutations synchronously at the dispatch boundary itself (cherry-pr-review).
+  useEffect(
+    () =>
+      subscribeFilesDispatch(() => {
+        draftEditRevisionRef.current += 1
+      }),
+    [subscribeFilesDispatch]
+  )
   // The effect above runs only after React commits, which is too late when an
   // enqueue resolves in the same window: an attachment update dispatched while
   // the enqueue is pending would not have bumped the revision yet, so the
@@ -1839,7 +1861,10 @@ const ChatComposerInner = ({
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
         const enqueueScope = selectedKnowledgeBasesScopeKey
+        const enqueueDraftTopic = draftCacheScopeKey
         const enqueueRevision = draftEditRevisionRef.current
+        const enqueueFiles = filesRef.current
+        const enqueueKnowledgeBaseIds = knowledgeBaseIdsRef.current
         // Hold the submission guard across the enqueue too: the direct-send guard below is
         // acquired only under this branch, so a second Send activation while this enqueue is
         // in flight would mint a second UUID and queue a duplicate. The editor stays editable
@@ -1847,8 +1872,21 @@ const ChatComposerInner = ({
         directSendInFlightRef.current = true
         try {
           const queued = await enqueueFollowup(draft, payload)
-          if (queued && queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
-            clearCurrentDraft()
+          if (queued) {
+            // An unmount between submit and settlement persists the submitted
+            // draft to the topic cache; clearing only this component's state
+            // leaves the queued message to reappear in the input on reopen.
+            // Clear the cache entry too — but only while it still matches what
+            // was enqueued, so newer edits survive (cherry-pr-review).
+            clearChatDraftCacheIfMatches(enqueueDraftTopic, {
+              text: draft.text,
+              tokens: draft.tokens,
+              files: enqueueFiles,
+              knowledgeBaseIds: enqueueKnowledgeBaseIds
+            })
+            if (queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
+              clearCurrentDraft()
+            }
           }
         } finally {
           directSendInFlightRef.current = false
@@ -1874,6 +1912,7 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       canSteer,
       clearCurrentDraft,
+      draftCacheScopeKey,
       commitEditedMessage,
       editingMessageForCurrentTopic,
       enqueueFollowup,

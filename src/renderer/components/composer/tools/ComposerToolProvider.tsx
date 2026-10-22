@@ -56,6 +56,12 @@ export interface ComposerToolLaunchersApi {
 export interface ComposerToolDispatch {
   /** State setters */
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
+  /**
+   * Subscribe to files dispatches synchronously at the dispatch boundary.
+   * React state commits are too late for callers guarding an awaited enqueue
+   * against attachment changes: the dispatch itself is the mutation point.
+   */
+  subscribeFilesDispatch: (listener: () => void) => () => void
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
@@ -201,7 +207,17 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     []
   )
 
+  const filesDispatchListenersRef = useRef(new Set<() => void>())
+  const subscribeFilesDispatch = useCallback((listener: () => void) => {
+    filesDispatchListenersRef.current.add(listener)
+    return () => {
+      filesDispatchListenersRef.current.delete(listener)
+    }
+  }, [])
   const setFiles = useCallback<React.Dispatch<React.SetStateAction<ComposerAttachment[]>>>((nextFiles) => {
+    // Notify synchronously, before the state commit: an awaited enqueue settling
+    // in the same window must see the attachment mutation (cherry-pr-review).
+    filesDispatchListenersRef.current.forEach((listener) => listener())
     setComposerFiles((previousFiles) =>
       ensureComposerFileTokenSourceIds(typeof nextFiles === 'function' ? nextFiles(previousFiles) : nextFiles)
     )
@@ -263,6 +279,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     () => ({
       // State setters (React guarantees stable references)
       setFiles,
+      subscribeFilesDispatch,
       setMentionedModels,
       setSelectedKnowledgeBases,
       setIsExpanded,
@@ -274,7 +291,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
       toolsRegistry: toolsRegistryApi,
       triggers: stableTriggersApi
     }),
-    [setFiles, stableActions, toolsRegistryApi, stableTriggersApi]
+    [setFiles, subscribeFilesDispatch, stableActions, toolsRegistryApi, stableTriggersApi]
   )
 
   return (

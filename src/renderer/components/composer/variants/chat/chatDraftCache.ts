@@ -55,6 +55,25 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
   return cacheService.subscribe(getChatDraftCacheKey(topicId), listener)
 }
 
+/**
+ * Clear the cached draft only when it still matches the draft that was just
+ * enqueued: an unmount between submit and settlement persists the submitted
+ * text, and without this reconcile the queued message reappears in the input
+ * on reopen (cherry-pr-review). Newer edits rewrite the cache entry, so a
+ * mismatch is preserved untouched.
+ */
+export function clearChatDraftCacheIfMatches(
+  topicId: string,
+  submitted: Pick<ChatComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
+): void {
+  const cached = readChatDraftCache(topicId)
+  if (cached.text !== submitted.text) return
+  if (JSON.stringify(cached.tokens) !== JSON.stringify(submitted.tokens)) return
+  if (JSON.stringify(cached.files) !== JSON.stringify(submitted.files)) return
+  if (JSON.stringify(cached.knowledgeBaseIds) !== JSON.stringify(submitted.knowledgeBaseIds)) return
+  writeChatDraftCache(topicId, EMPTY_DRAFT_CACHE)
+}
+
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
   cacheService.set(
     getChatDraftCacheKey(topicId),
