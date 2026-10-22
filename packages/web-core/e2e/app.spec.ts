@@ -42,6 +42,15 @@ test('runs the desktop main window with only the Web edition features', async ({
   expect(pageErrors).toEqual([])
 })
 
+test('tells a second tab that the app is already open instead of loading forever', async ({ page, context }) => {
+  await gotoApp(page)
+
+  const second = await context.newPage()
+  await second.goto(page.url())
+  await expect(second.getByText('Cherry Studio is already open in another tab.')).toBeVisible()
+  await expect(second.getByRole('button', { name: 'Reload' })).toBeVisible()
+})
+
 test('chats through the desktop composer and keeps the conversation across a reload', async ({ page }) => {
   const run = Date.now().toString(36)
   const message = `hello from the web page ${run}`
