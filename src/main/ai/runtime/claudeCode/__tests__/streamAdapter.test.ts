@@ -2680,6 +2680,60 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(text).toBe(`Use \`${literal}\` in replies.`)
     })
 
+    it('defers stripping literal scratchpad tags inside an unresolved inline-code span', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<thinking>internal</thinking>Use `<thinking>literal</thinking>' }
+        })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '`.' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Use `<thinking>literal</thinking>`.')
+    })
+
+    it('emits the same inline-code literal for combined delivery and snapshot reconciliation', () => {
+      const { adapter, parts } = createAdapter()
+      const combined = '<thinking>internal</thinking>Use `<thinking>literal</thinking>`.'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: combined } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: combined }]
+        }
+      } as any)
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Use `<thinking>literal</thinking>`.')
+    })
+
     it('preserves closing tags mentioned mid-sentence when they arrive before the block ends', () => {
       const { adapter, parts } = createAdapter()
 

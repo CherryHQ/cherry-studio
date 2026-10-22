@@ -40,6 +40,7 @@ import {
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripTrailingToolProtocolClosingFragments,
   textHasUnclosedCodeFence,
+  textHasUnclosedInlineCode,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '@cherrystudio/ai-core'
@@ -1111,7 +1112,7 @@ export class ClaudeCodeStreamAdapter {
     }
 
     if (textStartsWithModelScratchpadTag(probe)) {
-      if (!atBlockEnd && textHasUnclosedCodeFence(probe)) {
+      if (!atBlockEnd && (textHasUnclosedCodeFence(probe) || textHasUnclosedInlineCode(probe))) {
         return { action: 'pending' }
       }
       const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)

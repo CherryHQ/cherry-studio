@@ -55,6 +55,17 @@ describe('scratchpadText', () => {
     ).toBe('actual summary')
   })
 
+  it('keeps inline-code literal tags protected across a mismatched backtick run', () => {
+    const literal = 'Use `two ticks `` and <thinking>literal</thinking>` now.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(literal)).toBe(literal)
+    expect(stripModelScratchpadBlocks(literal)).toBe(literal)
+  })
+
+  it('tracks inline code across a line break before fence recognition', () => {
+    const input = '<analysis>The docs use `a\n</thinking>~~~` as a closing marker.</analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+  })
+
   it('preserves fenced scratchpad literals when a wrapper precedes the fence in the same block', () => {
     const mixed = '<thinking>internal</thinking>```xml\n<thinking>literal example</thinking>\n```'
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(mixed)

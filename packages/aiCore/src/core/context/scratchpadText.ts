@@ -127,9 +127,18 @@ function fenceLinePrefixStart(text: string, fenceMarkerIndex: number): number {
   return fenceMarkerIndex
 }
 
-function isInsideInlineCodeOnLine(text: string, markerStart: number): boolean {
-  const lineStart = text.lastIndexOf('\n', markerStart - 1) + 1
-  const lineSlice = text.slice(lineStart, markerStart)
+function isInsideInlineCodeBefore(text: string, markerStart: number): boolean {
+  // Inline code spans survive line breaks but cannot cross a blank line, so
+  // scan the containing block: tracking across line breaks keeps an opening
+  // backtick visible to later fence markers, and stopping at the block edge
+  // keeps a stray backtick in an earlier paragraph from masking them.
+  let blockStart = 0
+  const blankLine = /\n[ \t]*\n/g
+  let blank: RegExpExecArray | null
+  while ((blank = blankLine.exec(text)) !== null && blank.index + blank[0].length <= markerStart) {
+    blockStart = blank.index + blank[0].length
+  }
+  const lineSlice = text.slice(blockStart, markerStart)
   let i = 0
   while (i < lineSlice.length) {
     if (lineSlice[i] !== '`') {
@@ -149,7 +158,6 @@ function isInsideInlineCodeOnLine(text: string, markerStart: number): boolean {
         continue
       }
       let closeRun = 0
-      const closeStart = j
       while (j < lineSlice.length && lineSlice[j] === '`') {
         closeRun++
         j++
@@ -159,7 +167,6 @@ function isInsideInlineCodeOnLine(text: string, markerStart: number): boolean {
         i = j
         break
       }
-      j = closeStart + 1
     }
     if (!closed) {
       return true
@@ -251,7 +258,6 @@ function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
         continue
       }
       let closeRun = 0
-      const closeStart = j
       while (j < text.length && text[j] === '`') {
         closeRun++
         j++
@@ -260,7 +266,6 @@ function maskInlineCodeSpans(text: string): { text: string; spans: string[] } {
         closedAt = j
         break
       }
-      j = closeStart + 1
     }
 
     if (closedAt === -1) {
@@ -288,7 +293,7 @@ function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolea
   if (isValidFenceLinePrefix(prefix)) {
     return true
   }
-  if (isInsideInlineCodeOnLine(text, markerStart)) {
+  if (isInsideInlineCodeBefore(text, markerStart)) {
     return false
   }
   return /<\/(?:analysis|assessment|thinking)\s*>$/i.test(prefix)
@@ -376,7 +381,6 @@ export function textHasUnclosedInlineCode(text: string): boolean {
         continue
       }
       let closeRun = 0
-      const closeStart = j
       while (j < text.length && text[j] === '`') {
         closeRun++
         j++
@@ -385,7 +389,6 @@ export function textHasUnclosedInlineCode(text: string): boolean {
         closedAt = j
         break
       }
-      j = closeStart + 1
     }
 
     if (closedAt === -1) return true
