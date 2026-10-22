@@ -124,6 +124,7 @@ export function finishRun(adapter: Adapter, conv: Conversation, ending: RunEndin
   const run = conv.active
   if (!run) return
   conv.active = undefined
+  conv.owner = undefined
   if (ending) {
     conv.ends.set(run.run, ending)
     conv.lastEnd = ending.live
