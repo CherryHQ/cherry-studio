@@ -5718,6 +5718,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Preferisci la ricerca web e il recupero di URL nativi del modello, passando automaticamente ai servizi sopra indicati quando non disponibili.",
   "settings.tool.websearch.model_tools_preferred.label": "Preferisci gli strumenti web nativi del modello",
   "settings.tool.websearch.provider_description.bocha": "API di ricerca IA cinese con ricerca web in tempo reale e risultati strutturati.",
+  "settings.tool.websearch.provider_description.contextfetch": "API di ricerca web per agenti IA, tramite l'endpoint di ricerca compatibile con Exa.",
   "settings.tool.websearch.provider_description.crawl4ai": "Crawler browser Crawl4AI ospitato autonomamente per il contenuto delle pagine in Markdown.",
   "settings.tool.websearch.provider_description.deepseek": "API ufficiali Search e Fetch di DeepSeek, che restituiscono risultati web ordinati per rilevanza e contenuti delle pagine in Markdown.",
   "settings.tool.websearch.provider_description.duckduckgo": "Ricerca gratuita integrata per parole chiave tramite l'endpoint HTML di DuckDuckGo. Nessuna chiave API richiesta.",

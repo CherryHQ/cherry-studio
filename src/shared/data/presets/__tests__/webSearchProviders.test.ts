@@ -204,3 +204,15 @@ it('accepts saved Yuanbao credentials and exposes only keyword search', () => {
     }
   ])
 })
+
+it('offers ContextFetch for keyword search only, defaulting to its public API host', () => {
+  const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((item) => item.id === 'contextfetch')
+  expect(preset?.capabilities).toEqual([
+    {
+      feature: 'searchKeywords',
+      requiresApiHost: true,
+      requiresApiKey: true,
+      apiHost: 'https://api.contextfetch.dev'
+    }
+  ])
+})

@@ -29,6 +29,11 @@ type WebSearchProviderDisplayMeta = {
 }
 
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
+  contextfetch: {
+    descriptionKey: 'settings.tool.websearch.provider_description.contextfetch',
+    officialWebsite: 'https://contextfetch.dev',
+    apiKeyWebsite: 'https://contextfetch.dev'
+  },
   crawl4ai: {
     descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
     officialWebsite: 'https://crawl4ai.com'

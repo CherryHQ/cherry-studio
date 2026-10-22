@@ -5718,6 +5718,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "เลือกใช้เครื่องมือค้นหาเว็บและดึง URL ของโมเดลก่อน พร้อมสำรองไปยังบริการด้านบนโดยอัตโนมัติเมื่อไม่พร้อมใช้งาน",
   "settings.tool.websearch.model_tools_preferred.label": "เลือกใช้เครื่องมือเว็บของโมเดล",
   "settings.tool.websearch.provider_description.bocha": "AI search API จีนที่มีผลลัพธ์เว็บและโครงสร้างเวลาจริง",
+  "settings.tool.websearch.provider_description.contextfetch": "API ค้นหาเว็บสำหรับเอเจนต์ AI โดยใช้ปลายทางการค้นหาที่เข้ากันได้กับ Exa",
   "settings.tool.websearch.provider_description.crawl4ai": "ใช้ Crawl4AI Cloud พร้อมคีย์ API หรือป้อนที่อยู่ Crawl4AI ที่โฮสต์เอง โดยจะระบุโทเค็นหรือไม่ก็ได้",
   "settings.tool.websearch.provider_description.deepseek": "API ค้นหาและดึงข้อมูลอย่างเป็นทางการของ DeepSeek ให้ผลการค้นหาเว็บที่จัดอันดับและเนื้อหาหน้าเว็บเป็น Markdown",
   "settings.tool.websearch.provider_description.duckduckgo": "การค้นหาแบบคีย์เวิร์ดในตัวฟรี ใช้ DuckDuckGo HTML endpoint ไม่ต้องใช้ API key",

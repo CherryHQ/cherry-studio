@@ -44,6 +44,7 @@ vi.mock('@main/services/RegionService', () => ({
 
 import { ApiKeyRotationState } from '../../utils/provider'
 import { BochaProvider } from '../api/BochaProvider'
+import { ContextFetchProvider } from '../api/ContextFetchProvider'
 import { Crawl4AIProvider } from '../api/Crawl4AIProvider'
 import { DeepSeekProvider } from '../api/DeepSeekProvider'
 import { DuckduckgoProvider } from '../api/DuckduckgoProvider'
@@ -503,6 +504,41 @@ describe('main web search API providers', () => {
       advanced_settings: { max_results: 4 },
       objective: 'hello',
       search_queries: ['hello']
+    })
+  })
+
+  it('sends ContextFetch searches to its Exa-compatible endpoint with the x-api-key header', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('exa-response.json')))
+
+    const provider = createProviderDriver(
+      ContextFetchProvider,
+      createProvider({
+        id: 'contextfetch',
+        name: 'ContextFetch',
+        apiKeys: ['contextfetch-key'],
+        apiHost: 'https://api.contextfetch.dev'
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: { contents: { text: true }, numResults: 4, query: 'hello' },
+      headers: {
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-api-key': 'contextfetch-key',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.contextfetch.dev/search'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['hello'],
+      providerId: 'contextfetch',
+      query: 'hello',
+      results: [{ content: 'Exa Content', sourceInput: 'hello', title: 'Exa Title', url: 'https://exa.example/result' }]
     })
   })
 

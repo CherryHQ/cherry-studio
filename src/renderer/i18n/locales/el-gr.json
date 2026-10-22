@@ -5718,6 +5718,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Προτιμά την εγγενή αναζήτηση ιστού και ανάκτηση URL του μοντέλου και μεταβαίνει αυτόματα στις παραπάνω υπηρεσίες όταν δεν είναι διαθέσιμες.",
   "settings.tool.websearch.model_tools_preferred.label": "Προτίμηση εγγενών εργαλείων ιστού του μοντέλου",
   "settings.tool.websearch.provider_description.bocha": "Κινέζικο API αναζήτησης τεχνητής νοημοσύνης με πραγματικές δυνατότητες στον ιστό και δομημένα αποτελέσματα.",
+  "settings.tool.websearch.provider_description.contextfetch": "API αναζήτησης ιστού για πράκτορες AI, μέσω του συμβατού με Exa endpoint αναζήτησης.",
   "settings.tool.websearch.provider_description.crawl4ai": "Χρησιμοποιήστε το Crawl4AI Cloud με ένα κλειδί API ή εισαγάγετε τη διεύθυνση μιας αυτοφιλοξενούμενης εγκατάστασης Crawl4AI με προαιρετικό διακριτικό πρόσβασης.",
   "settings.tool.websearch.provider_description.deepseek": "Επίσημα API αναζήτησης και ανάκτησης της DeepSeek, με καταταγμένα αποτελέσματα και περιεχόμενο σελίδων σε Markdown.",
   "settings.tool.websearch.provider_description.duckduckgo": "Δωρεάν αναζήτηση λέξεων-κλειδιών μέσω του HTML τερματικού του DuckDuckGo. Δεν απαιτείται κλειδί API.",
