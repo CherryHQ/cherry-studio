@@ -8,6 +8,7 @@ import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledge
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
+import { externalKnowledgeConnectionService } from '@data/services/ExternalKnowledgeConnectionService'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
 import { jobService } from '@data/services/JobService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
@@ -45,6 +46,8 @@ vi.mock('@application', async () => {
     }
   })
 })
+
+const { createSyncExternalSourceJobHandler } = await import('../../tasks/syncExternalSourceJobHandler')
 
 const { ExternalKnowledgeSourceLifecycle } = await import('../ExternalKnowledgeSourceLifecycle')
 
@@ -423,6 +426,84 @@ describe('ExternalKnowledgeSourceLifecycle', () => {
     expect(syncTimerMock).toHaveBeenCalledWith(SCHEDULE_ID)
     expect(requestSyncForTriggerMock).not.toHaveBeenCalled()
   })
+
+  it.each(['before', 'after'] as const)(
+    'releases terminal sync ownership when reauthorization finishes %s settlement',
+    async (order) => {
+      seedSource({ activeJobId: JOB_ID })
+      dbh.db
+        .update(externalKnowledgeSourceTable)
+        .set({
+          lastOutcome: 'completed',
+          lastFinishedAt: 100,
+          lastSuccessfulSyncAt: 100,
+          lastIndexedCount: 7
+        })
+        .run()
+      externalKnowledgeConnectionService.markReauthorizationRequired(CONNECTION_ID)
+      lifecycle.pauseForReauthorization(CONNECTION_ID)
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+        state: 'paused',
+        revision: 4,
+        activeJobId: JOB_ID
+      })
+      const reconnect = () => {
+        const commit = lifecycle.commitReauthorization(CONNECTION_ID, {
+          expectedCredentialReference: 'credential-reference-only',
+          candidateCredentialReference: 'replacement-credential-reference',
+          appId: 'cli_replacement',
+          appCredentialSource: 'personal-agent',
+          applicationName: null,
+          identity: {
+            accountUserId: 'user-1',
+            accountOpenId: 'open-2',
+            accountUnionId: null,
+            tenantKey: 'tenant-1',
+            displayName: 'Ada',
+            avatarUrl: null,
+            grantedScopes: ['wiki:node:read']
+          }
+        })
+        commit.afterCommit()
+      }
+      if (order === 'before') reconnect()
+      const notifications: unknown[] = []
+      vi.spyOn(dataChange, 'notifyDataApiDataChange').mockImplementation((effects) => {
+        if (effects.some((effect) => effect.endpoint === '/external-knowledge-sources/:id')) {
+          expect(dbh.sqlite.inTransaction).toBe(false)
+          notifications.push(dbh.db.select().from(externalKnowledgeSourceTable).get())
+        }
+      })
+      const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
+
+      await handler.onSettled?.({
+        jobId: JOB_ID,
+        type: 'knowledge.sync-external-source',
+        scheduleId: null,
+        parentId: null,
+        input: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'manual' },
+        status: 'failed',
+        error: null,
+        attempt: 0,
+        metadata: {}
+      })
+
+      expect(notifications).toEqual([expect.objectContaining({ activeJobId: null })])
+      if (order === 'after') reconnect()
+      expect(dbh.db.select().from(externalKnowledgeConnectionTable).get()?.authorizationStatus).toBe('connected')
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+        state: 'active',
+        revision: 5,
+        scheduleId: null,
+        activeJobId: null,
+        lastOutcome: 'completed',
+        lastFinishedAt: 100,
+        lastSuccessfulSyncAt: 100,
+        lastIndexedCount: 7
+      })
+      expect(requestSyncForTriggerMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('rolls back the connection when dependent source restoration cannot commit', () => {
     seedSource({ state: 'paused', scheduleId: SCHEDULE_ID })

@@ -71,7 +71,8 @@ current `indexKnowledgeItem` composition remains the publication owner for ordin
 indexing. External synchronization instead stages provider Markdown at a distinct versioned
 path/item id, passes that descriptor to preparation, and swaps document ownership under the
 same per-base mutation lock. Slow scan/read/embed work stays outside the lock; the Source
-revision and active Job id fence every publication and final summary write.
+revision and active Job id fence every publication and final summary write. After a revision
+change, a terminal Job may still clear its own active reference without writing its stale summary.
 
 Creating a Source re-resolves the user-entered URL in main, then rechecks the base, connection,
 authorization state, resolved tenant, and provider-scope uniqueness in the same write transaction

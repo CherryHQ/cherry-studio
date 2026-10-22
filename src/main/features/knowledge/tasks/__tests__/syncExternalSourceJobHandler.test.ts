@@ -385,19 +385,26 @@ describe('sync-external-source job handler', () => {
     }
   )
 
-  it('does not notify when a stale revision or active job loses the settle fence', async () => {
-    dbh.db
-      .update(externalKnowledgeSourceTable)
-      .set({ revision: 4 })
-      .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
-      .run()
-    const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
+  it.each([JOB_ID, '0198f3f2-7d12-7abc-8def-123456789abd'])(
+    'releases only its own terminal binding after a revision change: %s',
+    async (activeJobId) => {
+      dbh.db
+        .update(externalKnowledgeSourceTable)
+        .set({ revision: 4, activeJobId })
+        .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+        .run()
+      const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })
 
-    await handler.onSettled?.(settledEvent())
+      await handler.onSettled?.(settledEvent())
 
-    expect(notifyDataChangeMock).not.toHaveBeenCalled()
-    expect(source()).toMatchObject({ revision: 4, activeJobId: JOB_ID, lastFinishedAt: null })
-  })
+      expect(source()).toMatchObject({
+        revision: 4,
+        activeJobId: activeJobId === JOB_ID ? null : activeJobId,
+        lastFinishedAt: null
+      })
+      if (activeJobId !== JOB_ID) expect(notifyDataChangeMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('projects a structured handler timeout ahead of stale cancellation metadata', async () => {
     const handler = createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 999 })

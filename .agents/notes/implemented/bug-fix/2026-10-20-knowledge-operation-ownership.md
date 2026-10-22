@@ -20,6 +20,8 @@ Schedule mutations use the same base mutex and deletion admission fence as teard
 
 External staging row validation runs inside the insert transaction, so invalid input cannot leave an unreadable cleanup row. Untitled Feishu nodes use their remote object token as a stable display name. Preview requires a completed external item. Renderer authorization attempts carry a monotonically increasing identity; cleanup and cancellation invalidate it, including across Activity hide/show. A late session is cancelled before browser launch, and completion is checked again after browser launch returns.
 
+Terminal synchronization cleanup is separate from result publication. Authorization failure pauses the Source and advances its revision, so the old Job cannot publish its summary. Settlement still clears that Job's own active reference under the current Source revision, in the same transaction, and notifies after commit. A replacement Job remains protected by its different id. Requiring the original revision for this cleanup leaves manual-only Sources blocked after successful reauthorization.
+
 ## Alternatives considered
 
 Checking item status cannot distinguish completed → processing → completed. Holding the base mutation lock during network acquisition blocks unrelated mutations. Adding persistent generations requires a schema change for work that never resumes across restart.
@@ -42,3 +44,5 @@ Newer overlapping work wins while unrelated roots can still proceed. Ordinary de
 - Regression — `KnowledgeItemService.test.ts`: blank staging titles roll back without leaving a cleanup row.
 - Regression — `externalPreview.integration.test.ts`: real SQLite transitions from completed to deleting, processing, and failed revoke preview paths.
 - Regression — `ExternalSourcesSection.test.tsx`: late reconnect responses after unmount or Activity hide/show cancel their sessions, and delayed browser launch cannot complete an abandoned authorization.
+
+- Regression — `ExternalKnowledgeSourceLifecycle.test.ts` and `syncExternalSourceJobHandler.test.ts`: credential failure followed by settlement and reauthorization in either order clears only the terminal Job binding, preserves newer-revision results and replacement Jobs, and notifies after commit.

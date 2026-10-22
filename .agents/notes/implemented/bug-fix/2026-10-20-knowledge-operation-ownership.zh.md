@@ -20,6 +20,8 @@ Status: implemented
 
 外部暂存行在插入事务内完成校验，因此无效输入不会留下无法读取的清理行。无标题的飞书节点使用远端对象令牌作为稳定显示名称。预览要求外部条目处于已完成状态。渲染器授权尝试使用单调递增的标识；清理和取消会使其失效，包括 Activity 隐藏再显示的情形。晚到的会话会在打开浏览器前取消，浏览器打开返回后还会再次检查是否允许完成授权。
 
+同步终态清理与结果发布分别处理。授权失效会暂停 Source 并推进其版本，因此旧 Job 不能发布摘要。结算仍可在同一事务中按当前 Source 版本清除该 Job 自己的活跃关联，并在提交后通知。替换 Job 由不同的 id 继续保护。如果清理也要求原版本，成功重新授权后仅手动同步的来源仍会被阻塞。
+
 ## 考虑过的替代方案
 
 检查条目状态无法区分 completed → processing → completed。在网络获取期间持有知识库变更锁会阻塞无关变更。持久化代次需要为不会跨重启恢复的工作修改数据库结构。
@@ -42,3 +44,5 @@ Status: implemented
 - Regression — `KnowledgeItemService.test.ts`：空白暂存标题会回滚，不留下清理行。
 - Regression — `externalPreview.integration.test.ts`：真实 SQLite 从 completed 转为 deleting、processing 或 failed 后，不再返回预览路径。
 - Regression — `ExternalSourcesSection.test.tsx`：卸载或 Activity 隐藏再显示后的延迟重连响应会取消会话；延迟返回的浏览器打开操作不能完成已放弃的授权。
+
+- Regression — `ExternalKnowledgeSourceLifecycle.test.ts` 和 `syncExternalSourceJobHandler.test.ts`：凭证失效后，无论结算与重新授权的先后顺序如何，都只清除终态 Job 的关联，保留新版本结果和替换 Job，并在提交后通知。
