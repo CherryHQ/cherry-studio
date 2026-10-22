@@ -14,6 +14,9 @@ import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSuppor
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
+import { detectLocalAgents, openLocalAgentTerminal } from '@main/ai/runtime/localAgent/launch'
+import { checkLocalAgent, listLocalAgentModels } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
+import { selectLocalAgentModel } from '@main/ai/runtime/localAgent/selectModel'
 import { AiStreamAdmissionError, type MainDispatchRequest, WebContentsListener } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
@@ -168,6 +171,31 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.local_agents.set_config_option': ({ sessionId, configId, value }) =>
+    application.get('AgentSessionRuntimeService').setLocalConfigOption(sessionId, configId, value),
+  'ai.local_agents.set_mode': ({ sessionId, configId, value }) =>
+    application.get('AgentSessionRuntimeService').setLocalMode(sessionId, configId, value),
+  'ai.local_agents.set_thought_level': ({ sessionId, configId, value }) =>
+    application.get('AgentSessionRuntimeService').setLocalThoughtLevel(sessionId, configId, value),
+  'ai.local_agents.session_info': async ({ sessionId }) =>
+    application.get('AgentSessionRuntimeService').getLocalSessionInfo(sessionId),
+  'ai.local_agents.detect': detectLocalAgents,
+  'ai.local_agents.web_start': (config) => application.get('LocalAgentWebUiService').start(config),
+  'ai.local_agents.web_stop': ({ presetId }) => application.get('LocalAgentWebUiService').stop(presetId),
+  'ai.codebuddy_web.status': () => application.get('CodeBuddyWebUiService').getStatus(),
+  'ai.codebuddy_web.start': (config) => application.get('CodeBuddyWebUiService').start(config),
+  'ai.codebuddy_web.stop': () => application.get('CodeBuddyWebUiService').stop(),
+  'ai.local_agents.open_terminal': openLocalAgentTerminal,
+  'ai.local_agents.check': checkLocalAgent,
+  'ai.local_agents.models': listLocalAgentModels,
+  'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
+    selectLocalAgentModel(agentId, nativeModel, selection),
+  'ai.local_agents.uninstall': ({ presetId, expectedPath }) =>
+    application.get('LocalAgentInstallService').uninstall(presetId, expectedPath),
+  'ai.local_agents.version': ({ presetId, latest }) =>
+    application.get('LocalAgentInstallService').getVersion(presetId, latest),
+  'ai.local_agents.install': ({ presetId, targetVersion }) =>
+    application.get('LocalAgentInstallService').install(presetId, targetVersion),
   'ai.agent.create': createAgent,
   'ai.agent.restore': async ({ agentId }) => {
     try {

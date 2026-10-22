@@ -1,0 +1,911 @@
+import { appendFileSync, writeFileSync } from 'node:fs'
+import { createInterface } from 'node:readline'
+
+const protocol = process.argv[2]
+const scenario = process.argv[3]
+if (process.env.FIXTURE_LOG) writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
+const emit = (message) => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`)
+const reply = (id, result) => emit({ id, result })
+const update = (value) => emit({ method: 'session/update', params: { sessionId: 'native-session', update: value } })
+const callbacks = new Map()
+let callbackId = 0
+const requestClient = (method, params) =>
+  new Promise((resolve) => {
+    const id = `callback-${++callbackId}`
+    callbacks.set(id, resolve)
+    emit({ id, method, params })
+  })
+const text = (value) =>
+  protocol === 'acp'
+    ? update({
+        sessionUpdate: 'agent_message_chunk',
+        ...(scenario === 'cursor-plan' ? { messageId: 'cursor-message' } : {}),
+        content: { type: 'text', text: value }
+      })
+    : emit({
+        method: 'item/agentMessage/delta',
+        params: { threadId: 'native-session', itemId: 'answer', delta: value }
+      })
+let turn = 0
+let cwd
+let terminalId
+let modeValue = 'ask'
+const modeOptions = [
+  { value: 'ask', name: 'Ask', description: 'Ask before changes' },
+  { value: 'plan', name: 'Plan', description: 'Plan before executing' }
+]
+const mode = () => ({
+  id: 'agent-mode',
+  name: 'Mode',
+  category: 'mode',
+  type: 'select',
+  currentValue: modeValue,
+  options: modeOptions
+})
+let thoughtValue = 'balanced'
+let thoughtPending = false
+const thought = () => ({
+  id: 'reasoning-budget',
+  name: 'Reasoning',
+  category: 'thought_level',
+  type: 'select',
+  currentValue: thoughtValue,
+  options: [
+    {
+      group: 'levels',
+      name: 'Levels',
+      options: [
+        { value: 'balanced', name: 'Balanced' },
+        { value: 'deep', name: 'Deep' }
+      ]
+    }
+  ]
+})
+let verbosity = 'brief'
+let notifications = false
+const extraConfig = () => [
+  {
+    id: 'verbosity',
+    name: 'Answer detail',
+    description: 'Response length',
+    category: '_verbosity',
+    type: 'select',
+    currentValue: verbosity,
+    options: [
+      {
+        group: 'detail',
+        name: 'Detail levels',
+        options: [
+          { value: 'brief', name: 'Brief' },
+          { value: 'verbose', name: 'Detailed', description: 'Include explanation' }
+        ]
+      }
+    ]
+  },
+  { id: 'notifications', name: 'Notifications', type: 'boolean', currentValue: notifications }
+]
+const secondaryValues = {}
+const multipleConfig = () => {
+  const model = {
+    id: 'model',
+    name: 'Model',
+    category: 'model',
+    type: 'select',
+    currentValue: 'fixture-model',
+    options: [
+      { value: 'fixture-model', name: 'Fixture model' },
+      { value: 'other-model', name: 'Other model' }
+    ]
+  }
+  return [
+    mode(),
+    thought(),
+    model,
+    { ...mode(), id: 'secondary-mode', currentValue: secondaryValues['secondary-mode'] ?? 'ask' },
+    { ...thought(), id: 'secondary-thought', currentValue: secondaryValues['secondary-thought'] ?? 'balanced' },
+    { ...model, id: 'secondary-model', currentValue: secondaryValues['secondary-model'] ?? 'fixture-model' },
+    ...extraConfig()
+  ]
+}
+const semanticConfig = () => [
+  extraConfig()[0],
+  thought(),
+  multipleConfig()[2],
+  {
+    id: 'context-size',
+    name: 'Context size',
+    category: 'model_config',
+    type: 'select',
+    currentValue: 'small',
+    options: [
+      { value: 'small', name: 'Small' },
+      { value: 'large', name: 'Large' }
+    ]
+  },
+  mode(),
+  { id: 'future-option', name: 'Future', type: 'future', currentValue: 'default' },
+  extraConfig()[1]
+]
+let promptId
+const finish = () => {
+  if (protocol === 'acp')
+    reply(promptId, {
+      stopReason: scenario.startsWith('stop:') ? scenario.slice(5) : scenario === 'cancel' ? 'cancelled' : 'end_turn',
+      ...(scenario === 'usage'
+        ? {
+            usage:
+              turn === 1
+                ? {
+                    inputTokens: 100,
+                    outputTokens: 20,
+                    totalTokens: 175,
+                    thoughtTokens: 5,
+                    cachedReadTokens: 40,
+                    cachedWriteTokens: 10
+                  }
+                : { inputTokens: 3, outputTokens: 2, totalTokens: 5 }
+          }
+        : {})
+    })
+  else
+    emit({
+      method: 'turn/completed',
+      params: { threadId: 'native-session', turn: { id: 'turn', status: 'completed', error: null } }
+    })
+}
+
+createInterface({ input: process.stdin }).on('line', (line) => {
+  const message = JSON.parse(line)
+  if (process.env.FIXTURE_LOG) appendFileSync(process.env.FIXTURE_LOG, `${line}\n`)
+  const { id, method } = message
+  if (callbacks.has(id)) {
+    callbacks.get(id)(message)
+    callbacks.delete(id)
+    return
+  }
+  if (method === 'initialize') {
+    if (scenario.startsWith('compaction') && !message.params.clientCapabilities?.session?.compaction)
+      return emit({ id, error: { code: -32602, message: 'Compaction capability required' } })
+    if (scenario === 'config-extra' && !message.params.clientCapabilities?.session?.configOptions?.boolean)
+      return emit({ id, error: { code: -32602, message: 'Boolean capability required' } })
+    if (scenario === 'notices' && !message.params.clientCapabilities?.session?.notices)
+      return emit({ id, error: { code: -32602, message: 'Notice capability required' } })
+    reply(
+      id,
+      protocol === 'acp'
+        ? {
+            protocolVersion: 1,
+            agentInfo: { name: 'fixture', version: '1.0' },
+            agentCapabilities: {
+              loadSession: scenario !== 'no-resume' && scenario !== 'resume-only',
+              ...(scenario.startsWith('resume') || scenario.startsWith('close')
+                ? {
+                    sessionCapabilities: {
+                      ...(scenario.startsWith('resume') ? { resume: scenario === 'resume-null' ? null : {} } : {}),
+                      ...(scenario.startsWith('close') ? { close: scenario === 'close-null' ? null : {} } : {})
+                    }
+                  }
+                : {}),
+              promptCapabilities: {
+                image: scenario !== 'no-images',
+                ...(scenario === 'audio' ? { audio: true } : {}),
+                ...(scenario === 'embedded-files' ? { embeddedContext: true } : {})
+              }
+            }
+          }
+        : { userAgent: 'fixture' }
+    )
+  } else if (method === 'session/new' || method === 'session/load' || method === 'session/resume') {
+    if (method === 'session/resume' && scenario === 'resume-error') {
+      return emit({ id, error: { code: -32603, message: 'Native session was not found' } })
+    }
+    cwd = message.params.cwd
+    if (method === 'session/load') {
+      if (scenario.startsWith('compaction'))
+        update({ sessionUpdate: 'compaction_update', compactionId: 'historical', status: 'in_progress' })
+      text('REPLAY MUST NOT APPEAR')
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'REPLAY THOUGHT' } })
+      update({ sessionUpdate: 'plan', entries: [{ content: 'REPLAY PLAN', priority: 'low', status: 'pending' }] })
+    }
+    if (scenario === 'notices') {
+      update({ sessionUpdate: 'notice', severity: 'warning', title: 'Quota low', description: 'Check account' })
+      update({ sessionUpdate: 'notice', severity: 'error', title: 'Connection degraded' })
+      update({ sessionUpdate: 'notice', severity: 'custom', title: 'Agent information' })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'notice', severity: 'error', title: 'Wrong session' }
+        }
+      })
+    }
+    if (scenario === 'session-title') {
+      update({ sessionUpdate: 'session_info_update', title: 'Native initial title' })
+      emit({
+        method: 'session/update',
+        params: { sessionId: 'unrelated', update: { sessionUpdate: 'session_info_update', title: 'Wrong title' } }
+      })
+    }
+    if (scenario === 'session-cost') {
+      update({
+        sessionUpdate: 'usage_update',
+        used: 20,
+        size: 100,
+        cost: { amount: 0.4, currency: 'EUR', _meta: { extra: true } }
+      })
+    }
+    if (scenario === 'context-usage') {
+      update({ sessionUpdate: 'usage_update', used: 20, size: 100 })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'usage_update', used: 99, size: 100 }
+        }
+      })
+    }
+    if (scenario === 'initial-updates' || scenario.startsWith('resume')) {
+      update({
+        sessionUpdate: 'available_commands_update',
+        availableCommands: [{ name: 'review', description: 'Review code' }]
+      })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: {
+            sessionUpdate: 'available_commands_update',
+            availableCommands: [{ name: 'wrong', description: 'Wrong session' }]
+          }
+        }
+      })
+      update({
+        sessionUpdate: 'config_option_update',
+        configOptions: [
+          ...(scenario.startsWith('resume') ? [mode(), thought()] : []),
+          {
+            id: 'model',
+            category: 'model',
+            name: 'Model',
+            type: 'select',
+            currentValue: 'updated-model',
+            options: [{ value: 'updated-model', name: 'Updated model' }]
+          }
+        ]
+      })
+    }
+    reply(id, {
+      ...(scenario === 'legacy-models' || scenario === 'both-models'
+        ? {
+            models: {
+              currentModelId: 'legacy-default',
+              availableModels: [{ modelId: 'legacy-model', name: 'Legacy model' }]
+            }
+          }
+        : {}),
+      ...(scenario.startsWith('mode-legacy') || scenario === 'mode-both'
+        ? {
+            modes: {
+              currentModeId: 'ask',
+              availableModes: modeOptions.map(({ value, ...option }) => ({ id: value, ...option }))
+            }
+          }
+        : {}),
+      ...(scenario.startsWith('thought-legacy')
+        ? {
+            modes: {
+              currentModeId: thoughtValue,
+              availableModes: thought().options[0].options.map(({ value, name }) => ({
+                id: value,
+                name: scenario === 'thought-legacy-distinct' ? `Permission: ${name}` : name
+              }))
+            }
+          }
+        : {}),
+      sessionId: 'native-session',
+      configOptions:
+        scenario === 'config-semantics'
+          ? semanticConfig()
+          : scenario === 'config-multiple'
+            ? multipleConfig()
+            : scenario === 'mode-legacy' || scenario === 'mode-legacy-upgrade'
+              ? undefined
+              : scenario === 'mode-legacy-null'
+                ? null
+                : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
+                  ? []
+                  : [
+                      ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') || scenario.startsWith('resume')
+                        ? [mode()]
+                        : []),
+                      ...(scenario.startsWith('thought') || scenario.startsWith('resume') ? [thought()] : []),
+                      ...(scenario.startsWith('config') ? extraConfig() : []),
+                      {
+                        id: 'model',
+                        category: 'model',
+                        name: 'Model',
+                        type: 'select',
+                        currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
+                        options: [{ value: 'fixture-model', name: 'Fixture model' }]
+                      }
+                    ]
+    })
+  } else if (method === 'session/close') {
+    if (scenario === 'close-hang') return
+    if (scenario === 'close-error') return emit({ id, error: { code: -32603, message: 'Close failed' } })
+    reply(id, {})
+  } else if (method === 'session/set_mode') {
+    modeValue = message.params.modeId
+    if (scenario === 'mode-legacy-upgrade')
+      update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
+    update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
+    reply(id, {})
+  } else if (method === 'session/set_config_option') {
+    if (scenario === 'config-semantics') return reply(id, { configOptions: [extraConfig()[1], mode()] })
+    if (scenario === 'config-multiple') {
+      secondaryValues[message.params.configId] = message.params.value
+      return reply(id, { configOptions: multipleConfig() })
+    }
+    if (scenario.startsWith('config')) {
+      if (scenario === 'config-error') return emit({ id, error: { code: -32602, message: 'Configuration rejected' } })
+      if (message.params.configId === 'verbosity') verbosity = message.params.value
+      if (message.params.configId === 'notifications') {
+        if (message.params.type !== 'boolean')
+          return emit({ id, error: { code: -32602, message: 'Boolean discriminator required' } })
+        notifications = message.params.value
+      }
+      return reply(id, { configOptions: extraConfig() })
+    }
+
+    if (message.params.configId === 'agent-mode') {
+      if (scenario === 'mode-error') return emit({ id, error: { code: -32602, message: 'Mode unavailable' } })
+      modeValue = message.params.value
+      return reply(id, { configOptions: scenario === 'mode-removed' ? [] : [mode()] })
+    }
+    if (message.params.configId === 'reasoning-budget') {
+      if (scenario === 'thought-error') return emit({ id, error: { code: -32602, message: 'Reasoning unavailable' } })
+      if (scenario === 'thought-delayed') {
+        thoughtPending = true
+        return setTimeout(() => {
+          thoughtValue = message.params.value
+          thoughtPending = false
+          reply(id, { configOptions: [thought()] })
+        }, 40)
+      }
+      thoughtValue = message.params.value
+      return reply(id, { configOptions: scenario === 'thought-removed' ? [] : [thought()] })
+    }
+    reply(id, {
+      configOptions: [
+        {
+          id: 'model',
+          category: 'model',
+          name: 'Model',
+          type: 'select',
+          currentValue: message.params.value,
+          options: [{ value: 'fixture-model', name: 'Fixture model' }]
+        }
+      ]
+    })
+  } else if (method === 'model/list') {
+    reply(id, { data: [{ id: 'fixture-model', displayName: 'Fixture model' }], nextCursor: null })
+  } else if (method === 'thread/start' || method === 'thread/resume') {
+    cwd = message.params.cwd
+    reply(id, { thread: { id: 'native-session' }, model: 'fixture-model' })
+  } else if (method === 'session/prompt' || method === 'turn/start') {
+    if (thoughtPending)
+      return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })
+    promptId = id
+    turn++
+    if (scenario.startsWith('request-cancel:')) {
+      void (async () => {
+        const kind = scenario.split(':')[1]
+        const sessionId = 'native-session'
+        let response
+        if (kind === 'wait') {
+          const created = await requestClient('terminal/create', {
+            sessionId,
+            command: process.execPath,
+            args: ['-e', 'setTimeout(() => {}, 60000)']
+          })
+          const terminalId = created.result.terminalId
+          const waiting = requestClient('terminal/wait_for_exit', { sessionId, terminalId })
+          setTimeout(() => emit({ method: '$/cancel_request', params: { requestId: 'callback-2' } }), 50)
+          response = await waiting
+          await requestClient('terminal/kill', { sessionId, terminalId })
+          await requestClient('terminal/release', { sessionId, terminalId })
+        } else {
+          const requests = {
+            'cursor-question': [
+              'cursor/ask_question',
+              {
+                toolCallId: 'cancelled-tool',
+                questions: [{ id: 'q', prompt: 'Continue?', options: [{ id: 'yes', label: 'Yes' }] }]
+              }
+            ],
+            'cursor-plan': ['cursor/create_plan', { toolCallId: 'cancelled-tool', plan: '' }],
+            permission: [
+              'session/request_permission',
+              {
+                sessionId,
+                toolCall: { toolCallId: 'cancelled-tool', title: 'Cancelled operation' },
+                options: [
+                  { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+                  { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+                ]
+              }
+            ],
+            form: [
+              'elicitation/create',
+              {
+                sessionId,
+                mode: 'form',
+                message: 'Enter a value',
+                requestedSchema: { type: 'object', properties: { value: { type: 'string' } } }
+              }
+            ],
+            write: ['fs/write_text_file', { sessionId, path: `${cwd}/cancelled.txt`, content: 'must not be written' }],
+            terminal: [
+              'terminal/create',
+              {
+                sessionId,
+                command: process.execPath,
+                args: [
+                  '-e',
+                  `require('node:fs').writeFileSync(${JSON.stringify(`${cwd}/cancelled.txt`)}, 'must not run')`
+                ]
+              }
+            ]
+          }
+          const pending = requestClient(...requests[kind])
+          setTimeout(() => emit({ method: '$/cancel_request', params: { requestId: 'callback-1' } }), 50)
+          response = await pending
+        }
+        text(JSON.stringify(response.error ?? response.result))
+        finish()
+      })()
+      return
+    }
+    if (scenario.startsWith('terminal-') || scenario === 'callback-boundaries') {
+      void (async () => {
+        const script =
+          scenario === 'terminal-split'
+            ? 'const a=Buffer.from("你好🌸"),b=Buffer.from("界");process.stdout.write(a.subarray(0,2));process.stderr.write(b.subarray(0,1));setTimeout(()=>{process.stdout.end(a.subarray(2));setTimeout(()=>process.stderr.end(b.subarray(1)),30)},30)'
+            : scenario === 'terminal-signal'
+              ? 'process.kill(process.pid,"SIGTERM")'
+              : scenario.startsWith('terminal-limit:')
+                ? 'process.stdout.write("prefix你好🌸!")'
+                : 'process.stdout.write("prefix你好🌸")'
+        const created = await requestClient('terminal/create', {
+          sessionId: 'native-session',
+          command: process.execPath,
+          args: ['-e', script],
+          outputByteLimit: scenario.startsWith('terminal-limit:') ? Number(scenario.split(':')[1]) : 1024
+        })
+        const terminalId = created.result.terminalId
+        if (scenario === 'callback-boundaries') {
+          const foreign = { sessionId: 'foreign-session' }
+          const results = await Promise.all([
+            requestClient('fs/read_text_file', { ...foreign, path: `${cwd}/marker.txt` }),
+            requestClient('fs/write_text_file', { ...foreign, path: `${cwd}/foreign.txt`, content: 'wrong session' }),
+            requestClient('terminal/create', {
+              ...foreign,
+              command: process.execPath,
+              args: ['-e', 'process.exit(0)']
+            }),
+            ...['output', 'wait_for_exit', 'kill', 'release'].map((method) =>
+              requestClient(`terminal/${method}`, { ...foreign, terminalId })
+            )
+          ])
+          text(JSON.stringify(results.map((response) => response.error ?? response.result)))
+        }
+        await requestClient('terminal/wait_for_exit', { sessionId: 'native-session', terminalId })
+        if (scenario === 'terminal-idle') finish()
+        const output = await requestClient('terminal/output', { sessionId: 'native-session', terminalId })
+        if (scenario !== 'callback-boundaries') text(JSON.stringify(output.result))
+        await requestClient('terminal/release', { sessionId: 'native-session', terminalId })
+        if (scenario === 'terminal-idle')
+          await requestClient('terminal/output', { sessionId: 'native-session', terminalId })
+        if (scenario !== 'terminal-idle') finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (protocol === 'codex') {
+      reply(id, { turn: { id: 'turn', status: 'inProgress' } })
+      emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
+    }
+    if (scenario.startsWith('compaction')) {
+      const compact = (compactionId, status, extra = {}) =>
+        update({ sessionUpdate: 'compaction_update', compactionId, status, ...extra })
+      compact('first', 'in_progress')
+      compact('first', 'in_progress')
+      if (scenario === 'compaction-overlap') {
+        compact('second', 'in_progress')
+        compact('first', 'completed')
+        compact('first', 'in_progress')
+        emit({
+          method: 'session/update',
+          params: {
+            sessionId: 'unrelated',
+            update: { sessionUpdate: 'compaction_update', compactionId: 'second', status: 'completed' }
+          }
+        })
+        text('Still compacting')
+        return
+      }
+      if (scenario === 'compaction-crash') return setTimeout(() => process.exit(1), 25)
+      if (scenario === 'compaction-cancel') return
+      if (scenario === 'compaction-failed') compact('first', 'failed', { error: 'Summary failed' })
+      if (scenario === 'compaction-completed') compact('first', 'completed')
+    }
+    if (scenario === 'session-cost') {
+      for (const cost of [
+        { amount: 0.4, currency: 'EUR' },
+        { amount: 0.25, currency: 'EUR' },
+        { amount: 0, currency: 'CNY' },
+        { amount: -1, currency: 'USD' },
+        { amount: 10, currency: 'invalid' },
+        null,
+        undefined
+      ])
+        update({ sessionUpdate: 'usage_update', used: 0, size: 0, cost })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'usage_update', used: 10, size: 100, cost: { amount: 999, currency: 'USD' } }
+        }
+      })
+    }
+    if (scenario === 'context-usage') {
+      update({
+        sessionUpdate: 'usage_update',
+        used: turn === 1 ? 40 : 10,
+        size: 100,
+        cost: { amount: 1, currency: 'USD' }
+      })
+      update({ sessionUpdate: 'usage_update', used: 10, size: 0 })
+      update({ sessionUpdate: 'usage_update', used: -1, size: 100 })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'usage_update', used: 99, size: 100 }
+        }
+      })
+    }
+    if (scenario === 'config-extra') update({ sessionUpdate: 'config_option_update', configOptions: [] })
+    if (scenario === 'session-title') {
+      update({ sessionUpdate: 'session_info_update', title: 'Native updated title' })
+      update({ sessionUpdate: 'session_info_update', title: null })
+      update({ sessionUpdate: 'session_info_update', updatedAt: '2026-09-30T00:00:00Z' })
+    }
+    if (scenario === 'message-ids') {
+      const content = (sessionUpdate, messageId, value) => update({ sessionUpdate, messageId, content: value })
+      const chunk = (messageId, text) => content('agent_message_chunk', messageId, { type: 'text', text })
+      content('agent_thought_chunk', 'thought', { type: 'text', text: 'Think' })
+      content('agent_thought_chunk', 'thought', { type: 'text', text: ' carefully' })
+      chunk('native:id/中文 1', 'First')
+      update({ sessionUpdate: 'usage_update', used: 10, size: 100 })
+      chunk('native:id/中文 1', ' message')
+      chunk('second', 'Second message')
+      chunk('third', '')
+      chunk('third', 'Third message')
+      update({ sessionUpdate: 'tool_call', toolCallId: 'read', title: 'Read', status: 'completed' })
+      chunk('third', 'After tool')
+      content('agent_message_chunk', 'third', { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' })
+      content('agent_thought_chunk', 'thought-image', { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' })
+      chunk(undefined, 'Legacy')
+      chunk(null, ' response')
+      chunk('third', 'Tagged again')
+      chunk(undefined, 'Final without ID')
+      content('agent_message_chunk', undefined, { type: 'resource_link', uri: 'file:///example.txt', name: 'Result' })
+      finish()
+      return
+    }
+    text(`turn ${turn}: `)
+    if (scenario === 'rich-cancel' || scenario === 'close-active') {
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Still thinking' } })
+      return
+    }
+    if (scenario === 'rich-content') {
+      const contents = [
+        { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' },
+        { type: 'audio', mimeType: 'audio/wav', data: 'YXVkaW8=' },
+        { type: 'resource_link', uri: 'https://example.com/report', name: 'report', description: 'Result report' },
+        { type: 'resource', resource: { uri: 'file:///example.txt', mimeType: 'text/plain', text: 'Embedded result' } },
+        { type: 'resource', resource: { uri: 'file:///example.bin', blob: 'YmluYXJ5' } }
+      ]
+      for (const content of contents) update({ sessionUpdate: 'agent_message_chunk', content })
+      update({ sessionUpdate: 'agent_thought_chunk', content: contents[0] })
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'output',
+        title: 'Read outputs',
+        status: 'in_progress',
+        content: contents.map((content) => ({ type: 'content', content }))
+      })
+      update({ sessionUpdate: 'tool_call_update', toolCallId: 'output', status: 'failed', rawOutput: 'Read failed' })
+      text('Done')
+      finish()
+      return
+    }
+    if (scenario === 'rich-output') {
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Inspect first' } })
+      update({ sessionUpdate: 'plan', entries: [{ content: 'Inspect', priority: 'high', status: 'in_progress' }] })
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'edit',
+        title: 'Edit example',
+        name: 'edit_file',
+        kind: 'edit',
+        status: 'pending',
+        rawInput: { path: '/example' }
+      })
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'edit',
+        status: 'in_progress',
+        name: null,
+        locations: [
+          { path: '/example', line: 2 },
+          { path: '/example', line: null }
+        ],
+        content: [{ type: 'diff', path: '/example', oldText: 'old', newText: 'new' }]
+      })
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'edit',
+        name: 'apply_edit',
+        status: 'completed',
+        rawInput: null
+      })
+      update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Then answer' } })
+      update({ sessionUpdate: 'plan', entries: [{ content: 'Inspect', priority: 'high', status: 'completed' }] })
+      text('Done')
+      finish()
+      return
+    }
+    if (scenario === 'crash') process.exit(7)
+    if (scenario === 'cancel') return
+    if (scenario === 'cursor-question' || scenario === 'cursor-plan') {
+      emit({
+        id: 'cursor-extension',
+        method: scenario === 'cursor-question' ? 'cursor/ask_question' : 'cursor/create_plan',
+        params:
+          scenario === 'cursor-question'
+            ? {
+                toolCallId: 'question-tool',
+                title: 'Select features',
+                questions: [
+                  {
+                    id: 'features',
+                    prompt: 'Choose features',
+                    allowMultiple: true,
+                    options: [
+                      { id: 'one', label: 'Same, label' },
+                      { id: 'two', label: 'Same, label' }
+                    ]
+                  }
+                ]
+              }
+            : { toolCallId: 'plan-tool', name: 'Review plan', plan: '## Plan\nWrite only approved files.', todos: [] }
+      })
+      return
+    }
+    if (scenario.startsWith('elicitation')) {
+      emit({
+        id: 'elicitation',
+        method: 'elicitation/create',
+        params: {
+          mode: scenario === 'elicitation-url' ? 'url' : 'form',
+          sessionId: scenario === 'elicitation-foreign' ? 'another-session' : 'native-session',
+          message: 'Configure the task',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer', minimum: 1, maximum: 5 },
+              enabled: { type: 'boolean', default: false }
+            },
+            required: ['count', 'enabled']
+          }
+        }
+      })
+      return
+    }
+    if (scenario === 'missing-tool-result') {
+      update({ sessionUpdate: 'tool_call', toolCallId: 'incomplete', title: 'Read file', status: 'in_progress' })
+      finish()
+      return
+    }
+    if (scenario === 'approved-write-later-turn' && turn > 1) {
+      emit({
+        id: 'approved-write',
+        method: 'fs/write_text_file',
+        params: {
+          sessionId: 'native-session',
+          path: `${cwd}/approved.txt`,
+          content: 'approved content'
+        }
+      })
+      return
+    }
+    if (scenario.startsWith('approved-write')) {
+      const content = [{ type: 'diff', path: `${cwd}/approved.txt`, newText: 'approved content' }]
+      update({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'write',
+        title: 'Write file',
+        kind: 'edit',
+        status: 'pending',
+        content
+      })
+      emit({
+        id: 'write-permission',
+        method: 'session/request_permission',
+        params: {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'write', kind: 'edit', content },
+          options: [
+            { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        }
+      })
+      return
+    }
+    if (scenario === 'callbacks') {
+      emit({
+        id: 'write-file',
+        method: 'fs/write_text_file',
+        params: { sessionId: 'native-session', path: `${cwd}/callback.txt`, content: 'line1\nline2\nline3' }
+      })
+      return
+    }
+    if (scenario.startsWith('codex-approval-context-')) {
+      const type = scenario.endsWith('file') ? 'fileChange' : 'commandExecution'
+      if (turn === 1)
+        emit({
+          method: 'item/started',
+          params: {
+            threadId: 'native-session',
+            turnId: 'turn',
+            item: {
+              id: 'tool',
+              type,
+              ...(type === 'fileChange'
+                ? { changes: [{ path: `${cwd}/example.txt`, kind: { type: 'add' }, diff: 'review this content' }] }
+                : { command: 'echo fixture', cwd })
+            }
+          }
+        })
+      emit({
+        id: 'approval',
+        method: `item/${type}/requestApproval`,
+        params: { threadId: 'native-session', turnId: 'turn', itemId: 'tool', reason: 'Review action' }
+      })
+    } else if (scenario === 'permission' || scenario === 'standalone-permission') {
+      if (protocol === 'acp') {
+        if (scenario !== 'standalone-permission')
+          update({
+            sessionUpdate: 'tool_call',
+            toolCallId: 'tool',
+            title: 'Write file',
+            status: 'pending',
+            rawInput: { path: '/example' }
+          })
+        emit({
+          id: 'approval',
+          method: 'session/request_permission',
+          params: {
+            sessionId: 'native-session',
+            toolCall: { toolCallId: 'tool', title: 'Write file' },
+            options: [
+              { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
+              { optionId: 'always', name: 'Allow for session', kind: 'allow_always' },
+              { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+            ]
+          }
+        })
+      } else
+        emit({
+          id: 'approval',
+          method: 'item/commandExecution/requestApproval',
+          params: { threadId: 'native-session', turnId: 'turn', itemId: 'tool', command: 'echo fixture' }
+        })
+    } else {
+      text('hello')
+      finish()
+    }
+  } else if (id === 'write-permission') {
+    if (scenario === 'approved-write-later-turn') {
+      finish()
+      return
+    }
+    if (message.result?.outcome?.optionId !== 'allow') {
+      text(JSON.stringify(message.result))
+      finish()
+      return
+    }
+    emit({
+      id: 'approved-write',
+      method: 'fs/write_text_file',
+      params: {
+        sessionId: 'native-session',
+        path: `${cwd}/approved.txt`,
+        content: scenario === 'approved-write-changed' ? 'different content' : 'approved content'
+      }
+    })
+  } else if (id === 'approved-write') {
+    if (scenario === 'approved-write-repeated') {
+      emit({
+        id: 'write-again',
+        method: 'fs/write_text_file',
+        params: {
+          sessionId: 'native-session',
+          path: `${cwd}/approved.txt`,
+          content: 'approved content'
+        }
+      })
+    } else {
+      text(JSON.stringify(message.result ?? message.error))
+      finish()
+    }
+  } else if (id === 'write-again' || id === 'elicitation') {
+    text(JSON.stringify(message.result ?? message.error))
+    finish()
+  } else if (id === 'cursor-extension') {
+    text(JSON.stringify(message.result ?? message.error))
+    finish()
+  } else if (id === 'write-file') {
+    emit({
+      id: 'read-file',
+      method: 'fs/read_text_file',
+      params: { sessionId: 'native-session', path: `${cwd}/callback.txt`, line: 2, limit: 1 }
+    })
+  } else if (id === 'read-file') {
+    text(message.result.content)
+    emit({
+      id: 'terminal-create',
+      method: 'terminal/create',
+      params: {
+        sessionId: 'native-session',
+        command: process.execPath,
+        args: ['-e', 'process.stdout.write("terminal-result")'],
+        outputByteLimit: 1024
+      }
+    })
+  } else if (id === 'terminal-create') {
+    terminalId = message.result.terminalId
+    update({
+      sessionUpdate: 'tool_call',
+      toolCallId: 'terminal-tool',
+      title: 'Run terminal',
+      kind: 'execute',
+      status: 'in_progress',
+      content: [{ type: 'terminal', terminalId }]
+    })
+    emit({ id: 'terminal-wait', method: 'terminal/wait_for_exit', params: { sessionId: 'native-session', terminalId } })
+  } else if (id === 'terminal-wait') {
+    emit({ id: 'terminal-output', method: 'terminal/output', params: { sessionId: 'native-session', terminalId } })
+  } else if (id === 'terminal-output') {
+    text(message.result.output)
+    emit({ id: 'terminal-release', method: 'terminal/release', params: { sessionId: 'native-session', terminalId } })
+  } else if (id === 'terminal-release') {
+    update({ sessionUpdate: 'tool_call_update', toolCallId: 'terminal-tool', status: 'completed' })
+    finish()
+  } else if (id === 'approval') {
+    text(JSON.stringify(message.result))
+    if (protocol === 'acp' && scenario !== 'standalone-permission')
+      update({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool',
+        status: 'completed',
+        rawOutput: 'permission handled'
+      })
+    finish()
+  } else if (method === 'session/cancel' || method === 'turn/interrupt') {
+    if (id) reply(id, {})
+    finish()
+  } else if (id) reply(id, {})
+})

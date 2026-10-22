@@ -1,3 +1,4 @@
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -6,7 +7,7 @@ import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp
 import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { CodeBuddyWebUiStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -158,6 +159,7 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  'agent.session.local_options': Record<string, Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>>
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
   // Unsubmitted AskUserQuestion answers. Renderer memory only; cleared on submit/dismiss.
@@ -248,6 +250,7 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.session.local_options': {},
   'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],
@@ -302,6 +305,7 @@ export type SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
   'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
+  'agent.session.cost.${sessionId}': CacheValueTypes.CacheAgentSessionCost
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
@@ -313,6 +317,8 @@ export type SharedCacheSchema = {
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   'feature.deepseek_harness.status': ManagedToolStatusState
+  'feature.local_agent.web_ui.status': Record<string, ManagedToolStatusState>
+  'feature.codebuddy.web_ui.status': CodeBuddyWebUiStatus
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
@@ -373,6 +379,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': null,
   'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
+  'agent.session.cost.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],
@@ -384,6 +391,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.deepseek_harness.status': { status: 'stopped' },
+  'feature.local_agent.web_ui.status': {},
+  'feature.codebuddy.web_ui.status': { status: 'stopped', owned: false },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
   'feature.remote_access.discovery_status': 'inactive',
@@ -411,6 +420,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
+  'local_agent.model_catalogs': Record<string, CacheValueTypes.LocalAgentModelCacheEntry>
   'ui.browser.import_prompt_hidden': boolean
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
@@ -480,6 +490,7 @@ export type RendererPersistCacheSchema = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
+  'local_agent.model_catalogs': {},
   'ui.browser.import_prompt_hidden': false,
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],

@@ -864,6 +864,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     <FilePreview
       filePath={getArtifactPaneSelectionPath(overlaySelection)}
       refreshKey={contentRefreshToken}
+      sourceLocation={overlaySelection.sourceLocation}
       type={overlaySelection.previewType ?? 'artifact'}
       onSelectionReference={onInsertSelectionReference && pickerActive ? setSelectionReference : undefined}
     />

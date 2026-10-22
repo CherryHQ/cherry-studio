@@ -85,6 +85,15 @@ export function useWindowRuntime(): void {
     }
   })
 
+  useIpcOn('ai.local_agents.notice', ({ sessionId, notice }) => {
+    toast[notice.severity]({
+      key: JSON.stringify(['local-agent-notice', sessionId, notice.severity, notice.title, notice.description]),
+      title: notice.title,
+      description: notice.description,
+      timeout: 6000
+    })
+  })
+
   // ESC exits fullscreen (all platforms), gated by the shortcut preference.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

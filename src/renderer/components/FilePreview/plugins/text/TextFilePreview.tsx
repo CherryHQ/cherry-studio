@@ -82,9 +82,10 @@ function TextPreviewError() {
 interface TextPreviewContentProps {
   filePath: string
   loadState: TextFileLoadState
+  sourceLocation?: FilePreviewPluginProps['sourceLocation']
 }
 
-function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): ReactNode {
+function TextPreviewContent({ filePath, loadState, sourceLocation }: TextPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
@@ -96,6 +97,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
           background — the code surface then runs to the container bottom under the composer. */}
       <CodeViewer
         value={loadState.content}
+        sourceLocation={sourceLocation}
         language={getLanguageByFilePath(filePath)}
         className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
       />
@@ -103,7 +105,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   )
 }
 
-export default function TextFilePreview({ filePath, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function TextFilePreview({ filePath, metadata, refreshKey, sourceLocation }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
 
   useEffect(() => {
@@ -140,7 +142,7 @@ export default function TextFilePreview({ filePath, metadata, refreshKey }: File
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content composerInset={loadState.status !== 'ready'}>
-        <TextPreviewContent filePath={filePath} loadState={loadState} />
+        <TextPreviewContent filePath={filePath} loadState={loadState} sourceLocation={sourceLocation} />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

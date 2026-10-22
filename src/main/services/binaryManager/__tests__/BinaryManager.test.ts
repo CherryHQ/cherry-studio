@@ -875,6 +875,26 @@ describe('BinaryManager', () => {
       })
     })
 
+    it('uses a system CLI over a legacy managed copy while preserving cleanup metadata', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.existsSync.mockReturnValue(true)
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => ({
+        stdout:
+          args[0] === 'ls'
+            ? JSON.stringify({ codex: [{ version: '1.0.0', active: true }] })
+            : '/mock/mise/installs/codex/1.0.0/bin/codex\n',
+        stderr: ''
+      }))
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+        name === 'codex' ? '/usr/local/bin/codex' : null
+      )
+      const { codex } = await service.getToolSnapshots(['codex'])
+      expect(codex.availability).toEqual({ source: 'system', path: '/usr/local/bin/codex' })
+      expect(codex.application).toEqual({ status: 'applied', version: '1.0.0' })
+    })
+
     it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -2585,101 +2605,9 @@ describe('BinaryManager', () => {
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
     })
 
-    it('pins an exact healthy Node and puts its npm ahead of ambient PATH for DeepSeek Harness', async () => {
-      const service = makeService()
-      let installed = false
-      ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
-        if (args[0] === 'ls' && args.length === 2) {
-          return {
-            stdout: JSON.stringify(
-              installed ? { 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] } : {}
-            ),
-            stderr: ''
-          }
-        }
-        if (args[0] === 'ls') {
-          return {
-            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.0-rc.6', active: true }] }),
-            stderr: ''
-          }
-        }
-        if (args.includes('npm:@deepseek-ai/dsh@latest')) installed = true
-        if (args[0] === 'which' && args[1] === 'node') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
-        }
-        if (args[0] === 'which' && args[1] === 'npm') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
-        }
-        if (args[0] === 'which') return { stdout: '/mock/mise/shims/dsh\n', stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await service.installByName({ name: 'dsh' })
-
-      const useCalls = mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === 'use')
-      expect(useCalls.map((call: any[]) => call[1])).toEqual([
-        ['use', '-g', '--pin', 'node@22.23.2'],
-        ['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest']
-      ])
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
-        'latest',
-        '--minimum-release-age',
-        '0s',
-        'node@22'
-      ])
-      expect(useCalls[0]?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
-      expect(useCalls[1]?.[2].env).toMatchObject({
-        PATH: '/mock/mise/installs/node/22.23.2/bin:/mock/mise/shims:/usr/bin',
-        MISE_PRERELEASES: '1',
-        MISE_NPM_SHELL_OUT: '1',
-        MISE_NPM_PACKAGE_MANAGER: 'npm'
-      })
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).not.toContainEqual([
-        'install',
-        '--force',
-        'node@22.23.2'
-      ])
-    })
-
-    it('repairs an applied DeepSeek Harness whose required scope package is missing', async () => {
-      const service = makeService()
-      let reinstalled = false
-      ;(service as any).isolatedEnv = { env: { PATH: '/mock/mise/shims:/usr/bin' }, usesDefaultChinaPipIndex: false }
-      mockCreateRequire.mockImplementation(() => ({
-        resolve: (request: string) => {
-          if (request === '@deepseek-ai/dsh-agent-loop') return '/mock/dsh-agent-loop/lib/index.js'
-          if (request === '@deepseek-ai/dsh-scope' && !reinstalled) {
-            throw Object.assign(new Error(`Cannot find package ${request}`), { code: 'MODULE_NOT_FOUND' })
-          }
-          if (request === '@deepseek-ai/dsh-scope') return '/mock/dsh-scope/lib/index.js'
-          throw new Error(`Unexpected package resolution: ${request}`)
-        }
-      }))
-      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
-        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
-        if (args[0] === 'ls') {
-          return {
-            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }] }),
-            stderr: ''
-          }
-        }
-        if (args.includes('npm:@deepseek-ai/dsh@latest')) reinstalled = true
-        if (args[0] === 'which' && args[1] === 'node') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/node\n', stderr: '' }
-        }
-        if (args[0] === 'which' && args[1] === 'npm') {
-          return { stdout: '/mock/mise/installs/node/22.23.2/bin/npm\n', stderr: '' }
-        }
-        if (args[0] === 'which') return { stdout: '/mock/dsh/lib/bin.js\n', stderr: '' }
-        return { stdout: '', stderr: '' }
-      })
-
-      await expect(service.installByName({ name: 'dsh' })).resolves.toBeUndefined()
-
-      expect(reinstalled).toBe(true)
-      expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
+    it('refuses managed installation of Code Mate CLIs', async () => {
+      await expect(makeService().installByName({ name: 'dsh' })).rejects.toThrow('system installer')
+      expect(miseArgs()).toEqual([])
     })
   })
 

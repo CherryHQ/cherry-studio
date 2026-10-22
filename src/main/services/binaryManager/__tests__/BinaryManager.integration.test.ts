@@ -121,28 +121,28 @@ if (command === 'use') {
   it('installs, snapshots, and removes through the production process runner', async () => {
     const service = createService()
 
-    await expect(service.installByName({ name: 'opencode' })).resolves.toBeUndefined()
+    await expect(service.installByName({ name: 'fd' })).resolves.toBeUndefined()
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([])
-    await expect(service.getToolSnapshots(['opencode'])).resolves.toEqual({
-      opencode: {
-        name: 'opencode',
+    await expect(service.getToolSnapshots(['fd'])).resolves.toEqual({
+      fd: {
+        name: 'fd',
         availability: {
           source: 'mise',
-          path: path.join(tempDir, 'shims', 'opencode'),
+          path: path.join(tempDir, 'shims', 'fd'),
           version: '1.2.3'
         },
         application: { status: 'applied', version: '1.2.3' }
       }
     })
 
-    await expect(service.installByName({ name: 'opencode', targetVersion: '2.0.0' })).resolves.toBeUndefined()
+    await expect(service.installByName({ name: 'fd', targetVersion: '2.0.0' })).resolves.toBeUndefined()
     expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'fake-installed-tools.json'), 'utf8'))).toEqual({
-      opencode: [{ version: '2.0.0', active: true }]
+      fd: [{ version: '2.0.0', active: true }]
     })
 
-    await expect(service.removeTool({ name: 'opencode' })).resolves.toEqual({ status: 'removed' })
+    await expect(service.removeTool({ name: 'fd' })).resolves.toEqual({ status: 'removed' })
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('feature.binary.tools')).toEqual([])
-    expect(fs.existsSync(path.join(tempDir, 'shims', 'opencode'))).toBe(false)
+    expect(fs.existsSync(path.join(tempDir, 'shims', 'fd'))).toBe(false)
 
     const shimsDir = path.join(tempDir, 'shims')
     fs.mkdirSync(shimsDir, { recursive: true })

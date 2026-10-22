@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next'
 
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 
 // Category names are free-form English strings produced by the Claude Code CLI
 // (SDKControlGetContextUsageResponse); unknown names fall back to the raw value.
@@ -28,6 +30,7 @@ interface AgentContextUsageSummaryProps {
   /** Denominator from `useAgentSessionContextUsage` — the model window, not the compaction budget. */
   maxTokens?: number | null
   className?: string
+  cost?: AgentSessionCostSnapshot['cost']
   isCompacting?: boolean
   /** Optional user-facing model name. Defaults to the raw runtime model id for diagnostic views. */
   modelName?: string
@@ -40,6 +43,7 @@ export function AgentContextUsageSummary({
   percentage,
   maxTokens,
   className,
+  cost,
   isCompacting = false,
   modelName,
   showCategories = true
@@ -58,32 +62,52 @@ export function AgentContextUsageSummary({
     ? (usage?.categories.filter((category) => category.tokens > 0 && !HIDDEN_CATEGORY_NAMES.has(category.name)) ?? [])
     : []
 
+  const costFormatter = cost
+    ? new Intl.NumberFormat(i18n.resolvedLanguage, {
+        style: 'currency',
+        currency: cost.currency,
+        currencyDisplay: 'code',
+        maximumFractionDigits: 4
+      })
+    : null
+
   return (
-    <ContextUsageSummary
-      title={t('agent.right_pane.info.context_usage')}
-      emptyLabel={t('common.none')}
-      data={data}
-      className={className}
-      isBusy={isCompacting}>
-      {visibleCategories.length > 0 ? (
-        <div className="space-y-1 border-border-subtle border-t pt-2">
-          {visibleCategories.map((category) => {
-            // Share of used context (totalTokens), so proportions stay meaningful
-            // even when the window (maxTokens) is huge and barely filled.
-            const share = usage && usage.totalTokens > 0 ? Math.round((category.tokens / usage.totalTokens) * 100) : 0
-            return (
-              <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
-                <span className="min-w-0 truncate">
-                  {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
-                </span>
-                <span className="shrink-0 text-muted-foreground">
-                  {category.tokens.toLocaleString(i18n.resolvedLanguage)} ({share}%)
-                </span>
-              </div>
-            )
-          })}
+    <div className={cn('space-y-2', className)}>
+      <ContextUsageSummary
+        title={t('agent.right_pane.info.context_usage')}
+        emptyLabel={t('common.none')}
+        data={data}
+        isBusy={isCompacting}>
+        {visibleCategories.length > 0 ? (
+          <div className="space-y-1 border-border-subtle border-t pt-2">
+            {visibleCategories.map((category) => {
+              // Share of used context (totalTokens), so proportions stay meaningful
+              // even when the window (maxTokens) is huge and barely filled.
+              const share = usage && usage.totalTokens > 0 ? Math.round((category.tokens / usage.totalTokens) * 100) : 0
+              return (
+                <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
+                  <span className="min-w-0 truncate">
+                    {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {category.tokens.toLocaleString(i18n.resolvedLanguage)} ({share}%)
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+      </ContextUsageSummary>
+      {cost && costFormatter ? (
+        <div className="flex items-center justify-between gap-3 border-border-subtle border-t pt-2 text-xs text-muted-foreground">
+          <span>{t('agent.right_pane.info.session_cost')}</span>
+          <span className="shrink-0 tabular-nums">
+            {cost.amount > 0 && cost.amount < 0.0001
+              ? `<${costFormatter.format(0.0001)}`
+              : costFormatter.format(cost.amount)}
+          </span>
         </div>
       ) : null}
-    </ContextUsageSummary>
+    </div>
   )
 }

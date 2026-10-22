@@ -6,7 +6,6 @@ import { CodeCli } from '@shared/types/codeCli'
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
 import { DeepSeekHarnessConfigFields } from './tools/DeepSeekHarnessConfigFields'
-import { GeminiConfigFields } from './tools/GeminiConfigFields'
 import { KimiConfigFields } from './tools/KimiConfigFields'
 import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
 import { QwenConfigFields } from './tools/QwenConfigFields'
@@ -44,8 +43,6 @@ export function renderToolFields({
       return <CodexConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.OPEN_CODE:
       return <OpenCodeConfigFields config={config} onChange={onChange} section={section} />
-    case CodeCli.GEMINI_CLI:
-      return <GeminiConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.QWEN_CODE:
       return <QwenConfigFields config={config} onChange={onChange} section={section} />
     case CodeCli.KIMI_CODE:

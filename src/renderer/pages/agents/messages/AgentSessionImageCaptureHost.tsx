@@ -3,6 +3,7 @@ import { memo, useCallback, useMemo, useRef } from 'react'
 import { loggerService } from '@logger'
 import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'
 import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageImageCaptureHost'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { getAgentSessionExportTitle, getAgentSessionMessagesForExport } from '@renderer/services/agentSessionExport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Topic } from '@renderer/types/topic'
@@ -66,6 +67,10 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
     assistantProfile: captureTarget.activeAgent
       ? {
           name: captureTarget.activeAgent.name,
+          id: captureTarget.activeAgent.id,
+          avatarIcon: captureTarget.activeAgent.configuration?.localRuntime ? (
+            <LocalAgentIcon presetId={captureTarget.activeAgent.configuration.localRuntime.presetId} size={30} />
+          ) : undefined,
           avatar: getAgentAvatarFromConfiguration(captureTarget.activeAgent.configuration)
         }
       : undefined,

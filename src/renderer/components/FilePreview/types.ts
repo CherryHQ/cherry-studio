@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 
@@ -12,6 +13,7 @@ export interface FilePreviewPluginProps {
   fileName: string
   metadata: FilePreviewFileMetadata
   refreshKey: number
+  sourceLocation?: FileSourceLocation
   type?: FilePreviewType
   /**
    * Reports the user's current selection as a structural document anchor

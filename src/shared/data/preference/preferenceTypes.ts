@@ -332,7 +332,8 @@ export interface WebSearchProvider {
 
 import { CodeCli } from '@shared/types/codeCli'
 
-export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
+// Retain retired CLI configuration keys when reading and updating stored preferences.
+export const CODE_CLI_IDS = [...Object.values(CodeCli), 'gemini-cli'] as unknown as readonly [
   'claude-code',
   'openai-codex',
   'opencode',

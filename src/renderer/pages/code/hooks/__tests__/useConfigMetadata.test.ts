@@ -2,6 +2,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CodeCliConfig from '@renderer/services/codeCliConfig'
 import {
   CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -21,7 +22,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
 vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: (p: Provider) => p.name
 }))
-vi.mock('@renderer/pages/code/cliConfig', () => ({
+vi.mock('@renderer/services/codeCliConfig', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeCliConfig>()),
   hasClaudeDetailedModels: (config: Record<string, unknown>) =>
     Boolean((config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL),
   getClaudeContextModelId: (

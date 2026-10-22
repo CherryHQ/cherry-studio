@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'es-toolkit/compat'
-import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ThemedToken } from 'shiki/core'
 
 import { usePreference } from '@data/hooks/usePreference'
@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -24,6 +25,7 @@ interface SavedSelection {
 interface CodeViewerProps {
   /** Code string value. */
   value: string
+  sourceLocation?: FileSourceLocation
   /**
    * Code language string.
    * - Case-insensitive.
@@ -86,6 +88,7 @@ interface CodeViewerProps {
  */
 const CodeViewer = ({
   value,
+  sourceLocation,
   language,
   height,
   maxHeight,
@@ -122,7 +125,13 @@ const CodeViewer = ({
   const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
   const highlight = options?.highlight ?? true
 
-  const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
+  const preserveSourceLines = Boolean(sourceLocation)
+  const rawLines = useMemo(
+    () => (typeof value === 'string' ? (preserveSourceLines ? value : value.trimEnd()).split('\n') : []),
+    [value, preserveSourceLines]
+  )
+  const [highlightedLine, setHighlightedLine] = useState<number | null>(null)
+  const revealedLocationRef = useRef<FileSourceLocation | undefined>(undefined)
 
   useEffect(() => {
     if (!autoScrollToBottom || expanded) {
@@ -470,6 +479,35 @@ const CodeViewer = ({
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
 
+  useLayoutEffect(() => {
+    if (!sourceLocation || sourceLocation === revealedLocationRef.current) return
+    const index = sourceLocation.line - 1
+    if (!Number.isInteger(index) || index < 0 || index >= rawLines.length) return
+    if (expanded) {
+      const row = scrollerRef.current?.querySelector<HTMLElement>(`[data-index="${index}"]`)
+      if (!row) return
+      const frame = requestAnimationFrame(() => {
+        row.scrollIntoView({ block: 'center' })
+        revealedLocationRef.current = sourceLocation
+      })
+      return () => cancelAnimationFrame(frame)
+    }
+    virtualizer.scrollToIndex(index, { align: 'center' })
+    revealedLocationRef.current = sourceLocation
+    return undefined
+  }, [sourceLocation, expanded, rawLines.length, virtualItems, virtualizer])
+
+  useEffect(() => {
+    const index = sourceLocation ? sourceLocation.line - 1 : -1
+    if (!Number.isInteger(index) || index < 0 || index >= rawLines.length) {
+      setHighlightedLine(null)
+      return
+    }
+    setHighlightedLine(index)
+    const timer = setTimeout(() => setHighlightedLine(null), 2000)
+    return () => clearTimeout(timer)
+  }, [sourceLocation, rawLines.length])
+
   // 使用代码高亮 Hook
   const { tokenLines, highlightLines, resetHighlight } = useCodeHighlight({
     rawLines,
@@ -619,7 +657,12 @@ const CodeViewer = ({
               transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
             }}>
             {virtualItems.map((virtualItem) => (
-              <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
+              <div
+                key={virtualItem.key}
+                data-index={virtualItem.index}
+                aria-current={highlightedLine === virtualItem.index ? 'location' : undefined}
+                className={highlightedLine === virtualItem.index ? 'bg-accent' : undefined}
+                ref={virtualizer.measureElement}>
                 <VirtualizedRow
                   rawLine={rawLines[virtualItem.index]}
                   tokenLine={highlight ? tokenLines[virtualItem.index] : undefined}
@@ -720,7 +763,7 @@ const VirtualizedRow = memo(
 
     return (
       <div
-        className="line flex w-full items-start leading-[var(--line-height)]"
+        className="line flex min-h-(--line-height) w-full items-start leading-[var(--line-height)]"
         style={{
           contain: wrapped ? 'content' : 'none',
           willChange: !wrapped && !expanded ? 'transform' : 'auto'

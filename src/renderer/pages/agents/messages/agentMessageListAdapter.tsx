@@ -22,6 +22,7 @@ import {
   type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
+  type MessageUserProfile,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
@@ -99,10 +100,7 @@ interface AgentMessageListParams {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile
   assistantId?: string
   isLoading: boolean
   hasOlder?: boolean

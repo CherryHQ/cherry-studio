@@ -113,6 +113,39 @@ describe('core sidebar shortcut providers', () => {
     expect(CORE_SIDEBAR_SHORTCUT_PROVIDERS.some((candidate) => candidate.id === providerId)).toBe(false)
   })
 
+  it('opens an ACP preset manager without requiring installation or a saved Agent', async () => {
+    const target = createSidebarShortcutTarget('core.local-agent', 'cortex-code')
+    const shortcutProvider = provider('core.local-agent')
+    const resources = await shortcutProvider.resolveMany([target])
+    expect([...resources.values()].map((resource) => resource.label)).toEqual(['Cortex Code'])
+    await shortcutProvider.activate(target, gateway)
+    expect(openWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/app/code?id=cortex-code',
+        title: 'Cortex Code'
+      })
+    )
+    expect(mocks.dataGet).not.toHaveBeenCalled()
+    expect(shortcutProvider.isActive?.(target, { url: '/app/code?id=cortex-code' })).toBe(true)
+  })
+
+  it('resolves custom local Agents and does not navigate to deleted entries', async () => {
+    const target = createSidebarShortcutTarget('core.local-agent', 'custom-id')
+    mocks.dataGet.mockResolvedValue({ items: [{ id: 'custom-id', type: 'local', name: 'Custom ACP' }] })
+    const shortcutProvider = provider('core.local-agent')
+    await shortcutProvider.activate(target, gateway)
+    expect(openWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/app/code?id=custom-id',
+        title: 'Custom ACP'
+      })
+    )
+    openWorkspace.mockClear()
+    mocks.dataGet.mockResolvedValue({ items: [] })
+    await shortcutProvider.activate(target, gateway)
+    expect(openWorkspace).not.toHaveBeenCalled()
+  })
+
   it('accepts known Code Mate CLIs and rejects unknown resource ids', () => {
     const shortcutProvider = provider('core.code-cli')
 

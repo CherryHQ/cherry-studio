@@ -237,6 +237,13 @@
       "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
     },
     {
+      "targetKey": "feature.code_cli.agent_order",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Agent directory order shared by Code Mate and settings; installation and enabled groups take precedence"
+    },
+    {
       "targetKey": "feature.code_cli.configs",
       "type": "PreferenceTypes.CodeCliConfigs",
       "defaultValue": "VALUE: {}",

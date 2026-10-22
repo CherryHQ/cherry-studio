@@ -26,6 +26,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -113,7 +114,7 @@ function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error',
 
 /** A single model's request inside a `send()` call. */
 export interface SendModelSpec {
-  modelId: UniqueModelId
+  modelId: ExecutionId
   request: ManagedAiStreamRequest
   runtimeTimingSeed?: MessageRuntimeTiming
   seedFromEmpty?: boolean
@@ -149,7 +150,7 @@ export interface SendResult {
 
 export interface StartRuntimeTurnInput {
   topicId: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   request: ManagedAiStreamRequest
   runtimeTimingSeed?: MessageRuntimeTiming
   listeners: StreamListener[]
@@ -162,7 +163,7 @@ export interface StartRuntimeTurnInput {
 // poking `activeStreams`.
 
 export interface ExecutionSnapshot {
-  readonly modelId: UniqueModelId
+  readonly modelId: ExecutionId
   readonly attemptId: number
   readonly anchorMessageId?: string
   readonly seedFromEmpty?: boolean
@@ -721,7 +722,7 @@ export class AiStreamManager extends BaseService {
    * Multi-model is detected from `models.length > 1`.
    */
   send(input: SendInput): SendResult {
-    const inputModelIds = new Set<UniqueModelId>()
+    const inputModelIds = new Set<ExecutionId>()
     for (const { modelId } of input.models) {
       if (inputModelIds.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
@@ -835,7 +836,7 @@ export class AiStreamManager extends BaseService {
     if (existing) this.evictStream(input.topicId)
 
     const isMultiModel = input.models.length > 1
-    const executions = new Map<UniqueModelId, StreamExecution>()
+    const executions = new Map<ExecutionId, StreamExecution>()
 
     for (const { modelId, request, runtimeTimingSeed, seedFromEmpty, rootSpan, abortController } of input.models) {
       const exec = this.createAndLaunchExecution(
@@ -1027,7 +1028,7 @@ export class AiStreamManager extends BaseService {
    */
   async awaitExecutionRetry(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     anchorMessageId: string,
     parentAnchorId: string,
     compatibleSiblingsGroupId?: number
@@ -1283,7 +1284,7 @@ export class AiStreamManager extends BaseService {
   // tests invoke them directly to simulate chunk/done/error.
 
   /** Multi-model: chunks carry `sourceModelId` for renderer demux. */
-  onChunk(topicId: string, modelId: UniqueModelId, chunk: UIMessageChunk, expectedExecution?: StreamExecution): void {
+  onChunk(topicId: string, modelId: ExecutionId, chunk: UIMessageChunk, expectedExecution?: StreamExecution): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) return
 
@@ -1398,7 +1399,7 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Called when one execution finishes. Topic-level done only when ALL executions finished. */
-  async onExecutionDone(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
+  async onExecutionDone(topicId: string, modelId: ExecutionId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
@@ -1457,7 +1458,7 @@ export class AiStreamManager extends BaseService {
     }
   }
 
-  async onExecutionPaused(topicId: string, modelId: UniqueModelId, expectedExecution?: StreamExecution): Promise<void> {
+  async onExecutionPaused(topicId: string, modelId: ExecutionId, expectedExecution?: StreamExecution): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
 
@@ -1505,7 +1506,7 @@ export class AiStreamManager extends BaseService {
   /** Called when one execution errors. */
   async onExecutionError(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     error: SerializedError,
     expectedExecution?: StreamExecution
   ): Promise<void> {
@@ -1586,7 +1587,7 @@ export class AiStreamManager extends BaseService {
    * to `error` separately and the original terminal event is suppressed. Persistence listeners
    * are skipped because they just failed and would loop. No-op once the stream has drained.
    */
-  broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+  broadcastTopicError(topicId: string, modelId: ExecutionId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
@@ -1621,7 +1622,7 @@ export class AiStreamManager extends BaseService {
    * continuation turn never opened), write the terminal status, and run the terminal lifecycle so the
    * status cache settles and the stream is evicted. Mirrors the chat path's `failChatContinuation`.
    */
-  terminateHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+  terminateHeldTopicStream(topicId: string, modelId: ExecutionId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
@@ -1839,7 +1840,7 @@ export class AiStreamManager extends BaseService {
       // backwards-compat convenience pointing at the first iteration; both
       // are undefined-safe when the stream errored before any execution
       // accumulated content.
-      const finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>> = {}
+      const finalMessages: Partial<Record<ExecutionId, CherryUIMessage>> = {}
       let firstFinalMessage: CherryUIMessage | undefined
       for (const exec of stream.executions.values()) {
         if (!exec.finalMessage) continue
@@ -1915,7 +1916,7 @@ export class AiStreamManager extends BaseService {
    */
   private createAndLaunchExecution(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     request: ManagedAiStreamRequest,
     siblingsGroupId?: number,
     runtimeTimingSeed?: MessageRuntimeTiming,
@@ -1965,7 +1966,7 @@ export class AiStreamManager extends BaseService {
 
   private async runExecutionLoop(
     topicId: string,
-    modelId: UniqueModelId,
+    modelId: ExecutionId,
     request: ManagedAiStreamRequest,
     exec: StreamExecution
   ): Promise<void> {

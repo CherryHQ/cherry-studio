@@ -102,6 +102,19 @@ The hook does not set `forceNew`. Equivalent normalized paths produce the same U
 
 Embedded and tab previews are host composition choices, not `FilePreview` display variants. If users can switch between them, keep that choice in the calling page: set the current `filePath` for embedded mode or call `openFilePreviewTab(filePath)` for tab mode. Do not move this mode state into `FilePreview`.
 
+## Source Locations
+
+Pass `sourceLocation={{ line: 42 }}` to reveal a one-based source line. Text, Markdown and HTML targets use
+read-only source preview for this request. Other formats retain their normal preview. Missing, invalid or
+out-of-range lines open the file without a highlight. Source navigation preserves trailing blank lines.
+
+A new location object requests another reveal, including the same line in the same file. The viewer scrolls
+the target into view and highlights it for two seconds; changing the location cancels the previous highlight.
+Position changes do not reload the embedded file. The host retains file identity separately from location.
+
+`useOpenFilePreviewTab(filePath, fileName?, sourceLocation?)` stores the location in tab metadata, keeping the
+path-only URL so different lines reuse the same tab. A normal open clears any earlier location.
+
 ## Plugin Structure
 
 The public package has a static registry for its document and image formats. `ElectronFilePreview` supplies
@@ -149,6 +162,7 @@ interface FilePreviewPluginProps {
   fileName: string
   metadata: FilePreviewFileMetadata
   refreshKey: number
+  sourceLocation?: FileSourceLocation
   type?: 'artifact' | 'file'
   onSelectionReference?: (reference: SelectionReference | null) => void
 }
@@ -191,7 +205,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 ## Composition Rules
 
 Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, optional `type`, and
-optional `onSelectionReference`. Follow these boundaries when adding formats or capabilities:
+optional `sourceLocation`, and optional `onSelectionReference`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.

@@ -28,10 +28,13 @@ import {
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
+import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
@@ -82,8 +85,12 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const { info } = useLocalAgentSessionInfo(
+    props.localSessionId ?? '',
+    props.agent?.type === 'local' && !!props.localSessionId
+  )
 
-  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return <AgentConversationControls {...props} localInfo={info} side="bottom" iconOnly={iconOnly} />
 }
 
 interface AgentChatProps {
@@ -294,12 +301,14 @@ const AgentChat = ({
       if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
       setSessionAgentChanging(true)
       try {
+        const nextAgent = await dataApiService.get(`/agents/${nextAgentId}`)
         await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
+        if (nextAgent.type === 'local' && isEmptyConversation) await onSessionWorkspaceChange?.(null)
       } finally {
         setSessionAgentChanging(false)
       }
     },
-    [sessionAgentChanging, sessionSnapshot, updateSession]
+    [isEmptyConversation, onSessionWorkspaceChange, sessionAgentChanging, sessionSnapshot, updateSession]
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
@@ -448,6 +457,8 @@ const AgentChat = ({
           activeAgent ? (
             <AgentTopBarControls
               agent={activeAgent}
+              localSessionId={sessionSnapshot.id}
+              localModelDisabled={runtime.isPending}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
@@ -679,6 +690,11 @@ const AgentChatSessionCenter = ({
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
+            avatarIcon={
+              activeAgent?.configuration?.localRuntime ? (
+                <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={48} />
+              ) : undefined
+            }
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
             title={homeWelcomeText ?? ''}
           />

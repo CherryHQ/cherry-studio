@@ -1,17 +1,17 @@
-import { ExternalLink } from 'lucide-react'
-import { type FC, useEffect, useState } from 'react'
+import { ArrowUpCircle, Download, ExternalLink, Loader2, Play, Settings2, Square, Trash2 } from 'lucide-react'
+import { type ComponentProps, type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, SearchInput } from '@cherrystudio/ui'
+import { Badge, Button, InputGroup, InputGroupAddon, Scrollbar, Tooltip } from '@cherrystudio/ui'
 import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
+import { AgentServiceCard } from '@renderer/components/localAgent/AgentServiceCard'
+import { LocalAgentModelList } from '@renderer/components/localAgent/LocalAgentModelList'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import type { CodeCli } from '@shared/types/codeCli'
 
 import type { CodeToolMeta, VersionStatus } from '../types'
-import { ConfigList } from './ConfigList'
-import { VersionStatusCard } from './VersionStatusCard'
 
 interface CodeCliContentPanelProps {
   selectedCliTool: CodeCli
@@ -27,41 +27,15 @@ interface CodeCliContentPanelProps {
   }
   installingTools: Set<string>
   upgradingTools: Set<string>
-  /** Failure message of the last install attempt for the selected tool (from the main-process install-state map). */
   installError?: string
-  providerState: {
-    providerless: boolean
-    showSelectionHint: boolean
-  }
-  supportedProviders: Provider[]
-  providerConfigs: Record<string, CliProviderConfig>
-  currentProviderId: string | null
-  currentProviderModelName?: string
-  providerActionsDisabled?: boolean
-  resolveProviderMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
+  modelList: ComponentProps<typeof LocalAgentModelList>
+  onConfigureCurrent?: () => void
   onInstall: () => void
   onUpgrade: () => void
   onRemove?: () => void
   onLaunch: () => void
   onStop: () => void
   onOpenDashboard: () => void
-  onConfigure: (provider: Provider) => void
-  onToggleCurrent: (provider: Provider) => void
-  onReorder: (nextProviders: Provider[]) => void | Promise<void>
-}
-
-function getAddProviderHintKey(cliTool: CodeCli): string {
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE:
-      return 'code.add_provider_hint_anthropic_messages'
-    case CodeCli.OPENAI_CODEX:
-      return 'code.add_provider_hint_openai_responses'
-    case CodeCli.GEMINI_CLI:
-    case CodeCli.ANTIGRAVITY_CLI:
-      return 'code.add_provider_hint_gemini'
-    default:
-      return 'code.add_provider_hint'
-  }
 }
 
 export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
@@ -72,133 +46,153 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   installingTools,
   upgradingTools,
   installError,
-  providerState,
-  supportedProviders,
-  providerConfigs,
-  currentProviderId,
-  currentProviderModelName,
-  providerActionsDisabled,
-  resolveProviderMeta,
+  modelList,
+  onConfigureCurrent,
   onInstall,
   onUpgrade,
   onRemove,
   onLaunch,
   onStop,
-  onOpenDashboard,
-  onConfigure,
-  onToggleCurrent,
-  onReorder
+  onOpenDashboard
 }) => {
   const { t } = useTranslation()
-  const [providerSearch, setProviderSearch] = useState('')
   const [showInstallError, setShowInstallError] = useState(false)
-
-  // Reset on tool switch: the dialog's controlled `open` goes false when
-  // `installError` clears for the new tool, but Radix does not fire onOpenChange
-  // on a controlled close, so `showInstallError` would stay true and re-surface
-  // the dialog unprompted when switching back to a failed tool.
   useEffect(() => setShowInstallError(false), [selectedCliTool])
+  const busy =
+    installingTools.has(selectedCliTool) ||
+    upgradingTools.has(selectedCliTool) ||
+    versionStatus.operation?.status === 'removing'
+  const program =
+    versionStatus.resolvedPath ?? versionStatus.systemPath ?? CODE_CLI_TOOL_PRESET_MAP[selectedCliTool].executable
+  const iconClass = 'lucide-custom size-3.5 text-muted-foreground'
+  const retryInstall =
+    (versionStatus.operation?.status === 'failed' && versionStatus.operation.action === 'install') ||
+    versionStatus.applicationStatus === 'broken' ||
+    versionStatus.applicationStatus === 'unknown'
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="mx-auto max-w-2xl space-y-5">
-        {selectedCliTool === CodeCli.GEMINI_CLI && (
-          <Alert type="warning" showIcon description={t('code.gemini_cli_discontinued')} className="shadow-none" />
-        )}
-
-        {versionCard.visible && (
-          <VersionStatusCard
-            toolId={selectedCliTool}
-            toolName={activeMeta.label}
-            status={versionStatus}
-            onInstall={onInstall}
-            onUpgrade={onUpgrade}
-            onRemove={onRemove}
-            onLaunch={onLaunch}
-            onStop={onStop}
-            onOpenDashboard={onOpenDashboard}
-            canLaunch={versionCard.canLaunch}
-            launching={versionCard.launching}
-            running={versionCard.running}
-            stopping={versionCard.stopping}
-            isInstalling={installingTools.has(selectedCliTool)}
-            isUpgrading={upgradingTools.has(selectedCliTool)}
-            upgradeDisabled={versionCard.upgradeDisabled}
-            installError={installError}
-            onShowError={() => setShowInstallError(true)}
-            launchDisabledHint={
-              providerState.showSelectionHint
-                ? t('code.select_provider_before_launch', { toolName: activeMeta.label })
-                : undefined
+    <>
+      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-6 pt-3 pb-6">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+          <AgentServiceCard
+            title={activeMeta.label}
+            icon={<LocalAgentIcon cliId={selectedCliTool} size={36} />}
+            version={versionStatus.current}
+            controls={
+              <>
+                <Tooltip content={t('common.advanced_settings')} asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0 rounded-lg"
+                    aria-label={t('common.advanced_settings')}
+                    disabled={busy || modelList.disabled || !onConfigureCurrent}
+                    onClick={onConfigureCurrent}>
+                    <Settings2 className={iconClass} />
+                  </Button>
+                </Tooltip>
+              </>
             }
-          />
-        )}
-
-        <BinaryInstallErrorDialog
-          error={
-            showInstallError && installError
-              ? { name: activeMeta.label, message: installError, action: 'install' }
-              : null
-          }
-          onOpenChange={(open) => !open && setShowInstallError(false)}
-        />
-
-        {providerState.providerless ? (
-          <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
-            {t('code.providerless_hint')}
-          </div>
-        ) : (
-          <>
-            <div className="space-y-3">
-              {supportedProviders.length > 0 && (
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="font-medium text-foreground text-sm">{t('code.model_providers')}</h2>
-                  <div className="w-52 shrink-0">
-                    <SearchInput
+            actions={
+              <>
+                {(!versionStatus.installed || retryInstall) && (
+                  <Button variant="outline" size="sm" className="h-8" onClick={onInstall} disabled={busy}>
+                    {busy ? <Loader2 className={`${iconClass} animate-spin`} /> : <Download className={iconClass} />}
+                    {t(retryInstall ? 'common.retry' : 'code.install')}
+                  </Button>
+                )}
+                {versionStatus.installed && (
+                  <>
+                    {versionStatus.canUpgrade && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={onUpgrade}
+                        disabled={busy || versionCard.upgradeDisabled}>
+                        <ArrowUpCircle className={iconClass} />
+                        {t('code.upgrade')}
+                      </Button>
+                    )}
+                    {onRemove && (
+                      <Tooltip content={t('local_agents.uninstall')} asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label={t('local_agents.uninstall')}
+                          onClick={onRemove}
+                          disabled={busy || versionCard.launching || versionCard.stopping}>
+                          <Trash2 className={iconClass} />
+                        </Button>
+                      </Tooltip>
+                    )}
+                    <Button
+                      variant="outline"
                       size="sm"
-                      value={providerSearch}
-                      placeholder={t('code.search_provider_placeholder')}
-                      onChange={(event) => setProviderSearch(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Escape') {
-                          event.stopPropagation()
-                          setProviderSearch('')
-                        }
-                      }}
-                      onClear={() => setProviderSearch('')}
-                      clearLabel={t('common.clear')}
-                    />
-                  </div>
-                </div>
-              )}
-              <ConfigList
-                selectedCliTool={selectedCliTool}
-                toolName={activeMeta.label}
-                providers={supportedProviders}
-                providerConfigs={providerConfigs}
-                currentProviderId={currentProviderId}
-                currentProviderModelName={currentProviderModelName}
-                providerActionsDisabled={providerActionsDisabled}
-                resolveMeta={resolveProviderMeta}
-                onConfigure={onConfigure}
-                onToggleCurrent={onToggleCurrent}
-                onReorder={onReorder}
-                searchTerm={providerSearch}
-              />
+                      className="h-8"
+                      onClick={versionCard.running ? onStop : onLaunch}
+                      disabled={
+                        busy ||
+                        versionCard.launching ||
+                        versionCard.stopping ||
+                        (!versionCard.running && !versionCard.canLaunch) ||
+                        (modelList.disabled && !versionCard.running)
+                      }>
+                      {versionCard.launching || versionCard.stopping ? (
+                        <Loader2 className={`${iconClass} animate-spin`} />
+                      ) : versionCard.running ? (
+                        <Square className={iconClass} />
+                      ) : (
+                        <Play className={iconClass} />
+                      )}
+                      {t(versionCard.running ? 'code.stop' : 'code.launch.label')}
+                    </Button>
+                    {versionCard.running && (
+                      <Button variant="outline" size="sm" className="h-8" onClick={onOpenDashboard}>
+                        <ExternalLink className={iconClass} />
+                        {t('code.open_web_ui')}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </>
+            }>
+            <div className="flex flex-wrap items-center gap-2">
+              <InputGroup className="h-8 min-w-40 flex-1 rounded-lg border-border-subtle bg-muted/30 shadow-none">
+                <span className="min-w-0 flex-1 truncate px-3 text-left font-mono text-xs" dir="rtl" title={program}>
+                  <bdi dir="ltr">{program}</bdi>
+                </span>
+                <InputGroupAddon align="inline-end" className="gap-2 pr-2">
+                  <Badge variant="secondary" className="rounded-full text-[10px]">
+                    {t(versionStatus.installed ? 'local_agents.detected' : 'local_agents.not_installed')}
+                  </Badge>
+                </InputGroupAddon>
+              </InputGroup>
             </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => openSettingsTab('/settings/provider')}
-              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-muted-foreground hover:border-border hover:text-foreground">
-              {t(getAddProviderHintKey(selectedCliTool))}
-              <ExternalLink size={10} />
-            </Button>
-          </>
-        )}
-      </div>
-    </div>
+            {installError && (
+              <Button variant="link" className="h-auto p-0 text-destructive" onClick={() => setShowInstallError(true)}>
+                {t('common.error')}
+              </Button>
+            )}
+          </AgentServiceCard>
+          <LocalAgentModelList {...modelList} />
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-dashed"
+            onClick={() => openSettingsTab('/settings/provider')}>
+            {t('code.add_provider_hint')}
+            <ExternalLink className={iconClass} />
+          </Button>
+        </div>
+      </Scrollbar>
+      <BinaryInstallErrorDialog
+        error={
+          showInstallError && installError ? { name: activeMeta.label, message: installError, action: 'install' } : null
+        }
+        onOpenChange={(open) => !open && setShowInstallError(false)}
+      />
+    </>
   )
 }

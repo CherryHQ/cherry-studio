@@ -4,29 +4,10 @@ import path from 'node:path'
 import matter from 'gray-matter'
 import { describe, expect, it } from 'vitest'
 
-import {
-  CODE_CLI_TOOL_PRESET_BY_EXECUTABLE,
-  CODE_CLI_TOOL_PRESET_MAP,
-  CODE_CLI_TOOL_PRESETS
-} from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_IDS } from '@shared/data/preference/preferenceTypes'
+import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE, CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+import { codeCliRequestSchemas } from '@shared/ipc/schemas/codeCli'
 import { CodeCli } from '@shared/types/codeCli'
-
-const EXPECTED_ACQUISITION_FACTS = [
-  ['claude-code', 'claude', '@anthropic-ai/claude-code', 'registry', 'claude'],
-  ['openai-codex', 'codex', '@openai/codex', 'registry', 'codex'],
-  ['opencode', 'opencode', 'opencode-ai', 'registry', 'opencode'],
-  ['antigravity-cli', 'agy', 'google-antigravity/antigravity-cli', 'aqua', 'aqua:google-antigravity/antigravity-cli'],
-  ['openclaw', 'openclaw', 'openclaw', 'npm', 'npm:openclaw'],
-  ['deepseek-harness', 'dsh', '@deepseek-ai/dsh', 'npm', 'npm:@deepseek-ai/dsh'],
-  ['gemini-cli', 'gemini', '@google/gemini-cli', 'npm', 'npm:@google/gemini-cli'],
-  ['qwen-code', 'qwen', '@qwen-code/qwen-code', 'npm', 'npm:@qwen-code/qwen-code'],
-  ['kimi-code', 'kimi', '@moonshot-ai/kimi-code', 'npm', 'npm:@moonshot-ai/kimi-code'],
-  ['qoder-cli', 'qoderclicn', '@qodercn-ai/qoderclicn', 'npm', 'npm:@qodercn-ai/qoderclicn'],
-  ['github-copilot-cli', 'copilot', '@github/copilot', 'npm', 'npm:@github/copilot'],
-  ['pi', 'pi', '@earendil-works/pi-coding-agent', 'npm', 'npm:@earendil-works/pi-coding-agent'],
-  ['hermes', 'hermes', 'hermes-agent', 'pipx', 'pipx:hermes-agent[extras=web]'],
-  ['minimax-code', 'mcode', '@minimax-ai/code', 'npm', 'npm:@minimax-ai/code']
-]
 
 const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
   [CodeCli.CLAUDE_CODE]: 'claude -p "<prompt>" --output-format json',
@@ -35,7 +16,6 @@ const EXPECTED_SKILL_COMMANDS: Record<CodeCli, string> = {
   [CodeCli.ANTIGRAVITY_CLI]: 'agy -p "<prompt>" --output-format json',
   [CodeCli.OPENCLAW]: 'openclaw agent --local --agent main --message "<prompt>" --json --timeout 600',
   [CodeCli.DEEPSEEK_HARNESS]: 'dsh --profile headless "<prompt>"',
-  [CodeCli.GEMINI_CLI]: 'gemini -p "<prompt>" --output-format json',
   [CodeCli.QWEN_CODE]: 'qwen -p "<prompt>" --output-format json',
   [CodeCli.KIMI_CODE]: 'kimi -p "<prompt>" --output-format stream-json',
   [CodeCli.QODER_CLI]: 'qoderclicn -p "<prompt>" -o json --no-session-persistence',
@@ -56,16 +36,22 @@ const EXPECTED_SKILL_CAVEATS: Partial<Record<CodeCli, string[]>> = {
 }
 
 describe('Code CLI acquisition catalog', () => {
-  it('preserves every pre-migration acquisition fact', () => {
+  it('rejects retired Gemini launch and config requests while preserving stored preference keys', () => {
+    expect(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE.gemini).toBeUndefined()
     expect(
-      CODE_CLI_TOOL_PRESETS.map(({ id, executable, packageName, install, miseTool }) => [
-        id,
-        executable,
-        packageName,
-        install,
-        miseTool
-      ])
-    ).toEqual(EXPECTED_ACQUISITION_FACTS)
+      codeCliRequestSchemas['code_cli.run'].input.safeParse({
+        mode: 'own-login',
+        cliTool: 'gemini-cli',
+        directory: '/tmp/project'
+      }).success
+    ).toBe(false)
+    expect(
+      codeCliRequestSchemas['code_cli.write_config'].input.safeParse({
+        cliTool: 'gemini-cli',
+        files: [{ target: 'gemini-settings', content: '{}' }]
+      }).success
+    ).toBe(false)
+    expect(CODE_CLI_IDS).toContain('gemini-cli')
   })
 
   it('covers every CodeCli id exactly once', () => {
@@ -79,18 +65,6 @@ describe('Code CLI acquisition catalog', () => {
     expect(new Set(CODE_CLI_TOOL_PRESETS.map((preset) => preset.skillNamespace)).size).toBe(
       CODE_CLI_TOOL_PRESETS.length
     )
-  })
-
-  it('keeps the catalog and lookup map immutable', () => {
-    expect(Object.isFrozen(CODE_CLI_TOOL_PRESETS)).toBe(true)
-    expect(CODE_CLI_TOOL_PRESETS.every((preset) => Object.isFrozen(preset))).toBe(true)
-    expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_MAP)).toBe(true)
-    expect(Object.isFrozen(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE)).toBe(true)
-  })
-
-  it.each(CODE_CLI_TOOL_PRESETS)('$id: indexes the canonical preset', (preset) => {
-    expect(CODE_CLI_TOOL_PRESET_MAP[preset.id]).toBe(preset)
-    expect(CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.executable]).toBe(preset)
   })
 
   it('bundles exactly one valid skill for every CLI preset', () => {

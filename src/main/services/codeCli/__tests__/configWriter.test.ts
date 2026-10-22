@@ -1,10 +1,13 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import { CodeCli } from '@shared/types/codeCli'
+
+vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: vi.fn(async () => ({})) }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -67,6 +70,7 @@ describe('writeCliConfigFiles', () => {
   const hermesHome = () => path.join(home, 'custom-hermes')
 
   beforeEach(async () => {
+    vi.mocked(getRawShellEnv).mockResolvedValue({})
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
     vi.mocked(application.getPath).mockImplementation((key: string) => {
       if (key === 'sys.home') return home
@@ -79,6 +83,110 @@ describe('writeCliConfigFiles', () => {
     vi.mocked(atomicWriteFile).mockClear()
     vi.mocked(remove).mockClear()
     await rm(home, { recursive: true, force: true })
+  })
+
+  it('edits existing Copilot config.json until native settings.json is present', async () => {
+    const directory = path.join(home, '.copilot')
+    await mkdir(directory, { recursive: true })
+    const legacy = path.join(directory, 'config.json')
+    await writeFile(legacy, '{"theme":"dark"}')
+    await writeCliConfigFiles(CodeCli.GITHUB_COPILOT_CLI, [
+      { target: 'copilot-settings', content: '{"theme":"light"}' }
+    ])
+    expect(await readFile(legacy, 'utf8')).toBe('{"theme":"light"}')
+    const settings = path.join(directory, 'settings.json')
+    await writeFile(settings, '{}')
+    const [file] = await readCliConfigFiles(['copilot-settings'])
+    expect(file.path).toBe(settings)
+  })
+
+  it('edits Kilo JSON in the configured directory without creating a competing JSONC file', async () => {
+    const configHome = path.join(home, 'custom-config')
+    vi.mocked(getRawShellEnv).mockResolvedValue({ XDG_CONFIG_HOME: configHome })
+    const filename = path.join(configHome, 'kilo', 'kilo.json')
+    await mkdir(path.dirname(filename), { recursive: true })
+    await writeFile(filename, '{"theme":"dark"}')
+    const content = '{"theme":"light"}'
+    await writeCliConfigFiles('kilo', [{ target: 'kilo-config', content }])
+    expect(await readFile(filename, 'utf8')).toBe(content)
+    await expect(stat(`${filename}c`)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('honors agent home overrides for raw configuration files', async () => {
+    const configHome = path.join(home, 'custom-kiro')
+    vi.mocked(getRawShellEnv).mockResolvedValue({ KIRO_HOME: configHome })
+    await writeCliConfigFiles('kiro', [{ target: 'kiro-settings', content: '{"telemetry.enabled":false}' }])
+    expect(await readFile(path.join(configHome, 'settings', 'cli.json'), 'utf8')).toBe('{"telemetry.enabled":false}')
+    await expect(writeCliConfigFiles('kiro', [{ target: 'cursor-config', content: '{}' }])).rejects.toThrow(
+      'not a config file'
+    )
+  })
+
+  it('resolves Trae user configuration for the current platform', async () => {
+    const [file] = await readCliConfigFiles(['trae-config'])
+    const root =
+      process.platform === 'darwin'
+        ? path.join(home, 'Library', 'Application Support')
+        : process.platform === 'win32'
+          ? path.join(home, 'AppData', 'Roaming')
+          : path.join(home, '.config')
+    expect(file.path).toBe(path.join(root, 'trae_cli', 'trae_cli.yaml'))
+    expect(file.content).toBeNull()
+  })
+
+  it('creates and reads CodeBuddy settings in its native user directory', async () => {
+    const content = '{"language":"简体中文","permissions":{"deny":["Read(.env)"]}}'
+    await writeCliConfigFiles('codebuddy-code', [{ target: 'codebuddy-settings', content }])
+    const filename = path.join(home, '.codebuddy', 'settings.json')
+    expect(await readFile(filename, 'utf8')).toBe(content)
+    expect(await readCliConfigFiles(['codebuddy-settings'])).toEqual([
+      { target: 'codebuddy-settings', path: filename, content }
+    ])
+  })
+
+  it('writes the same CODEX_HOME that a system-terminal launch reads', async () => {
+    const customHome = path.join(home, 'custom-codex')
+    vi.mocked(getRawShellEnv).mockResolvedValue({ CODEX_HOME: customHome })
+    await writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'model = "selected"' }])
+    expect(await readFile(path.join(customHome, 'config.toml'), 'utf8')).toBe('model = "selected"')
+    await expect(readFile(codexConfig())).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('restores the native configuration when the model record cannot be committed', async () => {
+    await mkdir(path.dirname(claudeSettings()), { recursive: true })
+    const original = '{"model":"previous","env":{"ANTHROPIC_AUTH_TOKEN":"keep"}}'
+    await writeFile(claudeSettings(), original)
+    await expect(
+      writeCliConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'claude-settings', content: '{"model":"next"}' }], () => {
+        throw new Error('Database write failed')
+      })
+    ).rejects.toThrow('Database write failed')
+    expect(await readFile(claudeSettings(), 'utf8')).toBe(original)
+  })
+
+  it.skipIf(isWin)('preserves a config symlink and rolls back its target after a failed commit', async () => {
+    await mkdir(path.dirname(codexConfig()), { recursive: true })
+    const target = path.join(home, 'dotfiles.toml')
+    await writeFile(target, 'personality = "pragmatic"')
+    await symlink(target, codexConfig())
+    await writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'model = "first"' }])
+    expect(await readlink(codexConfig())).toBe(target)
+    expect(await readFile(target, 'utf8')).toBe('model = "first"')
+    await expect(
+      writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'model = "second"' }], () => {
+        throw new Error('commit failed')
+      })
+    ).rejects.toThrow('commit failed')
+    expect(await readlink(codexConfig())).toBe(target)
+    expect(await readFile(target, 'utf8')).toBe('model = "first"')
+  })
+
+  it.skipIf(isWin)('writes through a dangling relative config symlink without replacing it', async () => {
+    await mkdir(path.dirname(codexConfig()), { recursive: true })
+    await symlink('../dotfiles.toml', codexConfig())
+    await writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'model = "first"' }])
+    expect(await readlink(codexConfig())).toBe('../dotfiles.toml')
+    expect(await readFile(path.join(home, 'dotfiles.toml'), 'utf8')).toBe('model = "first"')
   })
 
   it('writes each file 0600 under the resolved home path, creating parent dirs', async () => {
@@ -224,6 +332,7 @@ describe('readCliConfigFiles', () => {
   const hermesHome = () => path.join(home, 'custom-hermes')
 
   beforeEach(async () => {
+    vi.mocked(getRawShellEnv).mockResolvedValue({})
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
     vi.mocked(application.getPath).mockImplementation((key: string) => {
       if (key === 'sys.home') return home

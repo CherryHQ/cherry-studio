@@ -20,6 +20,8 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
+        'local_agents.allow_always': '始终允许',
+        'local_agents.allow_once': '允许一次',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
@@ -85,10 +87,63 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
-  it('marks the root panel as a composer viewport inset target', () => {
-    const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+  it('returns the original scoped native permission option', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'native-session-grant', kind: 'allow_always', name: 'Allow during this session' },
+        { optionId: 'native-deny', kind: 'reject_once', name: 'Reject this operation' }
+      ]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Allow during this session' }))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'native-session-grant' }
+      })
+    )
+  })
 
-    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+  it.each(['Always Allow', 'Always allow'])('translates %s without widening custom grants', async (name) => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow_always', kind: 'allow_always', name },
+        { optionId: 'custom', kind: 'allow_always', name: 'Allow only /tmp/project' },
+        { optionId: 'reject', kind: 'reject_once', name: 'Reject' }
+      ]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByRole('button', { name: 'Allow only /tmp/project' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '始终允许' }))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'allow_always' }
+      })
+    )
+  })
+
+  it('translates a one-time ACP grant and returns its original option ID', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [{ optionId: 'once', kind: 'allow_once', name: 'Allow once' }]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('button', { name: '允许一次' }))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: { localPermissionOption: 'once' }
+    })
   })
 
   it('submits an approval decision', async () => {

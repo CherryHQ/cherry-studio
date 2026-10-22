@@ -19,11 +19,6 @@ export function useBinaryActions() {
   const [installingTools, setInstallingTools] = useState<Set<string>>(() => new Set())
   const [upgradingTools, setUpgradingTools] = useState<Set<string>>(() => new Set())
 
-  // install and upgrade share one body — both run the same name-only
-  // `binary.install_tool` request; main resolves the Code CLI's fixed recipe
-  // itself. They differ only in the busy Set, the success toast, and the log
-  // label. Failures are not toasted here: the main process tracks them in the
-  // install-state map and the version card renders a persistent failure row.
   const runInstallTool = useCallback(
     async (
       toolId: CodeCli,
@@ -40,6 +35,7 @@ export function useBinaryActions() {
         toast.success(t(messages.successKey))
       } catch (error) {
         logger.error(messages.logLabel, error as Error)
+        toast.error(t('local_agents.install_error.failed'))
       } finally {
         setBusy((prev) => {
           const next = new Set(prev)

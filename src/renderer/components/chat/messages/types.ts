@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
+import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
@@ -165,6 +166,8 @@ export interface MessageErrorDiagnosisInput {
 }
 
 export interface MessageUserProfile {
+  id?: string
+  avatarIcon?: ReactNode
   name?: string
   avatar?: string
 }
@@ -381,7 +384,7 @@ export interface MessageListActions {
   exportToObsidian?: (message: MessageExportView) => void | Promise<void>
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
-  openArtifactFile?: (path: string) => void | Promise<void>
+  openArtifactFile?: (path: string, sourceLocation?: FileSourceLocation) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
   previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>

@@ -10,6 +10,41 @@ describe('DataApiDevtools', () => {
     dataApiDevtoolsTesting.reset()
   })
 
+  it.each(['direct', 'wrapped'] as const)(
+    'never captures secrets from %s local runtime configurations',
+    async (shape) => {
+      const { DataApiDevtools } = await import('../dataApiDevtools')
+      DataApiDevtools.exposeControlSurface()
+      window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
+      const config = {
+        protocol: 'acp',
+        env: { CUSTOM: 'private-value' },
+        args: ['private-argument'],
+        credentials: 'private-credential'
+      }
+      const payload = shape === 'direct' ? config : { configuration: { localRuntime: config } }
+      DataApiDevtools.recordStart({
+        requestId: 'local',
+        method: 'PATCH',
+        path: '/agents/local',
+        body: payload,
+        retryAttempt: 0
+      })
+      DataApiDevtools.recordSuccess({
+        requestId: 'local',
+        method: 'PATCH',
+        path: '/agents/local',
+        response: { id: 'local', status: 200, data: payload }
+      })
+      const captured = JSON.stringify(window.__CHERRY_DATA_API_DEVTOOLS__?.getEvent('local'))
+      expect(captured).not.toContain('private-value')
+      expect(captured).not.toContain('private-argument')
+      expect(captured).not.toContain('private-credential')
+      expect(captured).toContain('acp')
+      expect(config.env.CUSTOM).toBe('private-value')
+    }
+  )
+
   it('truncates deep, wide, and long payload previews', async () => {
     const { DataApiDevtools, dataApiDevtoolsTesting } = await import('../dataApiDevtools')
     DataApiDevtools.exposeControlSurface()

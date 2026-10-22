@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type { CliConfigFileDraft } from '@renderer/services/codeCliConfig/types'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -68,7 +68,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/pages/code/cliConfig', () => ({
+vi.mock('@renderer/services/codeCliConfig', () => ({
   sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {},
   readOwnLoginCliConfigDraft: (...args: unknown[]) => readOwnLoginCliConfigDraftMock(...args),
   validateCliConfigDraftForWrite: vi.fn()

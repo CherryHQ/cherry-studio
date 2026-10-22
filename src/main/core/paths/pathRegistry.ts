@@ -326,6 +326,24 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.uv.user_config_file': path.join(
+      isWin ? app.getPath('appData') : path.join(sysHome, '.config'),
+      'uv',
+      'uv.toml'
+    ),
+    'external.uv.system_config_file': path.join(
+      isWin ? process.env.PROGRAMDATA || 'C:\\ProgramData' : '/etc',
+      'uv',
+      'uv.toml'
+    ),
+    'external.acp.agents': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'Programs', 'ACP', 'agents')
+      : path.join(sysHome, '.local', 'share', 'acp', 'agents'),
+    'external.acp.bin': path.join(sysHome, '.local', 'bin'),
+    'external.codebuddy.web_ui_ports.file': path.join(sysHome, '.codebuddy', 'web-ui-port.json'),
+    'external.antigravity.cli.file': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
+      : path.join(sysHome, '.local', 'bin', 'agy'),
     'external.claude.config': path.join(sysHome, '.claude'),
     'external.browser.chrome': isMac
       ? path.join(sysHome, 'Library/Application Support/Google/Chrome')

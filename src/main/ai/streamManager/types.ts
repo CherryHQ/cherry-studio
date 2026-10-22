@@ -3,9 +3,9 @@ import type { UIMessageChunk } from 'ai'
 
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
@@ -49,7 +49,7 @@ interface TerminalOutcome {
 export interface StreamDoneResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'success'
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   attemptId?: number
   topicAttemptWatermark?: number
   anchorMessageId?: string
@@ -62,7 +62,7 @@ export interface StreamDoneResult extends TerminalOutcome {
 export interface StreamPausedResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'paused'
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   attemptId?: number
   topicAttemptWatermark?: number
   anchorMessageId?: string
@@ -77,7 +77,7 @@ export interface StreamErrorResult extends TerminalOutcome {
   /** Whatever accumulated before the error — same shape as the success case. */
   finalMessage?: CherryUIMessage
   status: 'error'
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   attemptId?: number
   topicAttemptWatermark?: number
   anchorMessageId?: string
@@ -95,7 +95,7 @@ export interface StreamListener {
   /** Orders terminal persistence before notifications and cleanup work after them. */
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  onChunk(chunk: UIMessageChunk, sourceModelId?: ExecutionId, anchorMessageId?: string, attemptId?: number): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>
@@ -114,7 +114,7 @@ export interface StreamExecution {
   /** Agent input identity survives a queued turn receiving a new execution attempt. */
   userMessageId?: string
   /** Format: "providerId::modelId". */
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */
   attemptId: number
   /** Placeholder id for fresh/regenerate, anchor id for tool-approval continue. Undefined for temporary topics. */
@@ -176,8 +176,8 @@ export interface ActiveStream {
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string
-  /** Key = `UniqueModelId`. */
-  executions: Map<UniqueModelId, StreamExecution>
+  /** Key = `ExecutionId`. */
+  executions: Map<ExecutionId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */
   listeners: Map<string, StreamListener>
   status: TopicStreamStatus

@@ -2,14 +2,37 @@ import type { ComponentType, FC, SVGProps } from 'react'
 
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import {
+  ClineCli,
+  KiloCli,
+  GooseCli,
+  CodebuddyCodeCli,
+  AuggieCli,
+  JunieCli,
+  FactoryDroidCli,
+  DevinCli,
+  MistralVibeCli,
+  AmpCli,
+  DeepagentsCli,
+  GlmAcpAgentCli,
+  GrokBuildCli,
+  CortexCodeCli,
+  FastAgentCli,
+  StakpakCli,
+  VtcodeCli,
+  PoolsideCli,
   AntigravityCli,
   ClaudeCode,
-  GeminiCli,
+  CursorCli,
   GithubCopilotCli,
   KimiCli as KimiCode,
+  KiroCli,
+  TraeCli,
   OpenaiCodex,
   OpenCode,
   PiCli,
+  OmpCli,
+  SnowCli,
+  ZcodeCli,
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
@@ -22,7 +45,6 @@ export const CLI_TOOLS = [
   { value: CodeCli.CLAUDE_CODE, label: 'code.cli_tools.claude_code', icon: ClaudeCode },
   { value: CodeCli.OPENAI_CODEX, label: 'code.cli_tools.openai_codex', icon: OpenaiCodex },
   { value: CodeCli.ANTIGRAVITY_CLI, label: 'code.cli_tools.antigravity_cli', icon: AntigravityCli },
-  { value: CodeCli.GEMINI_CLI, label: 'code.cli_tools.gemini_cli', icon: GeminiCli },
   { value: CodeCli.OPEN_CODE, label: 'code.cli_tools.opencode', icon: OpenCode },
   { value: CodeCli.QWEN_CODE, label: 'code.cli_tools.qwen_code', icon: QwenCode },
   { value: CodeCli.KIMI_CODE, label: 'code.cli_tools.kimi_code', icon: KimiCode },
@@ -37,7 +59,35 @@ export const CLI_TOOLS = [
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
 
-const CLI_ICONS: Record<string, SvgIcon> = Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon]))
+const CLI_ICONS: Record<string, SvgIcon> = {
+  ...Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon])),
+  cline: ClineCli,
+  kilo: KiloCli,
+  goose: GooseCli,
+  'codebuddy-code': CodebuddyCodeCli,
+  auggie: AuggieCli,
+  junie: JunieCli,
+  'factory-droid': FactoryDroidCli,
+  devin: DevinCli,
+  'antigravity-acp': AntigravityCli,
+  'mistral-vibe': MistralVibeCli,
+  'amp-acp': AmpCli,
+  'pi-acp': PiCli,
+  omp: OmpCli,
+  snow: SnowCli,
+  zcode: ZcodeCli,
+  deepagents: DeepagentsCli,
+  'glm-acp-agent': GlmAcpAgentCli,
+  'grok-build': GrokBuildCli,
+  'cortex-code': CortexCodeCli,
+  'fast-agent': FastAgentCli,
+  stakpak: StakpakCli,
+  vtcode: VtcodeCli,
+  poolside: PoolsideCli,
+  cursor: CursorCli,
+  kiro: KiroCli,
+  trae: TraeCli
+}
 
 // Crop transparent source-canvas padding so the artwork shares a consistent optical size.
 const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {

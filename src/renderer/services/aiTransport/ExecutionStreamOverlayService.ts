@@ -43,9 +43,9 @@ import { isToolUIPart, readUIMessageStream } from 'ai'
  * plus a fresh reader per turn, is the structural anti-pollution guarantee.
  */
 import { loggerService } from '@logger'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 
 import { TopicStreamSubscription } from './TopicStreamSubscription'
 
@@ -71,7 +71,7 @@ type UpdateListener = (executionId: string, event: Pick<ExecutionFinishEvent, 'a
 type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
 
 interface ReaderHandle {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   attemptId: number
   anchorMessageId?: string
   cancel: () => void
@@ -152,7 +152,7 @@ const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
   liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[]
 })
 
-function executionKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
+function executionKey(executionId: ExecutionId, anchorMessageId?: string, attemptId?: number): string {
   return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
 }
 
@@ -290,7 +290,7 @@ export class ExecutionStreamOverlayService {
     const union = new Map<
       string,
       {
-        executionId: UniqueModelId
+        executionId: ExecutionId
         attemptId: number
         anchorMessageId?: string
         seedFromEmpty?: boolean
@@ -547,7 +547,7 @@ export class ExecutionStreamOverlayService {
   #startReader(
     entry: Entry,
     key: string,
-    executionId: UniqueModelId,
+    executionId: ExecutionId,
     attemptId: number,
     anchorMessageId: string | undefined,
     seedFromEmpty: boolean | undefined,

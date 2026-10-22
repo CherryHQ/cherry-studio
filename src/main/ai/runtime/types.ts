@@ -7,14 +7,17 @@ import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
+import type { LocalAgentNotice, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { MessageSnapshot } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -61,7 +64,7 @@ export interface AgentRuntimeTraceContext {
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Canonical reasoning selection frozen for this connection's turn. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier frozen for this connection's turn. */
@@ -125,9 +128,9 @@ export type AgentRuntimeEvent =
           outputTokens: number
           totalTokens: number
           reasoningTokens?: number
-          noCacheTokens: number
-          cacheReadTokens: number
-          cacheWriteTokens: number
+          noCacheTokens?: number
+          cacheReadTokens?: number
+          cacheWriteTokens?: number
         }
         metrics?: {
           timeFirstTokenMs?: number
@@ -137,7 +140,7 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
+  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; cancelled?: boolean }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
@@ -153,10 +156,14 @@ export type AgentRuntimeEvent =
    *  session status — the host surfaces it in the message stream and clears it when content resumes,
    *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
   | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
+  | { type: 'session-cost'; snapshot: AgentSessionCostSnapshot }
   | { type: 'context-usage'; usage: AgentSessionContextUsage }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
+  | { type: 'session-title'; title: string }
+  | { type: 'notice'; notice: LocalAgentNotice }
+  | { type: 'local-session-info'; info: LocalAgentSessionInfo }
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
@@ -191,6 +198,10 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  readonly localSessionInfo?: LocalAgentSessionInfo
+  setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>
+  setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
+  setThoughtLevel?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
@@ -218,7 +229,7 @@ export interface AgentRuntimeConnection {
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
   reconcile(input: {
-    modelId: UniqueModelId
+    modelId: ExecutionId
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]

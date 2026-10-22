@@ -11,6 +11,7 @@ import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceC
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
@@ -22,6 +23,7 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
 import { AgentLabel } from './AgentLabel'
+import { LocalAgentModelControl } from './LocalAgentModelControl'
 
 const ResourceEditDialogHost = React.lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
@@ -35,6 +37,9 @@ export type AgentConversationWorkspace = Pick<AgentWorkspaceEntity, 'type'> &
 export interface AgentConversationControlsProps {
   agent?: AgentEntity
   model?: Model
+  localInfo?: LocalAgentSessionInfo | null
+  localSessionId?: string
+  localModelDisabled?: boolean
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
   workspaceChanging?: boolean
@@ -202,6 +207,7 @@ function ModelControl({
 }
 
 function WorkspaceControl({
+  agent,
   workspace,
   workspaceId,
   workspaceChanging,
@@ -212,6 +218,7 @@ function WorkspaceControl({
   onWorkspaceChange
 }: Pick<
   AgentConversationControlsProps,
+  | 'agent'
   | 'workspace'
   | 'workspaceId'
   | 'workspaceChanging'
@@ -228,10 +235,10 @@ function WorkspaceControl({
   const isSystemWorkspace = workspace?.type === 'system'
   const selectorValue = isSystemWorkspace ? null : workspaceId
   const workspaceLabel = isSystemWorkspace
-    ? t('agent.session.workspace_selector.no_project')
+    ? t(agent?.type === 'local' ? 'local_agents.managed_workspace' : 'agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
   const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
-  if (!onWorkspaceChange && workspace?.type === 'user' && workspace.path) {
+  if (!onWorkspaceChange && workspace?.path && (workspace.type === 'user' || agent?.type === 'local')) {
     const openButtonContent = (
       <>
         {hasWarning ? (
@@ -354,7 +361,19 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
   return (
     <>
       <AgentControl {...props} />
-      <ModelControl {...props} />
+      {props.agent?.type === 'local' ? (
+        <LocalAgentModelControl
+          key={props.agent.id}
+          agent={props.agent}
+          info={props.localInfo}
+          sessionId={props.localSessionId}
+          disabled={props.localModelDisabled === true}
+          side={props.side}
+          iconOnly={props.iconOnly}
+        />
+      ) : (
+        <ModelControl {...props} />
+      )}
       <WorkspaceControl {...props} />
     </>
   )

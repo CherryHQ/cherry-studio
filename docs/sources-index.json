@@ -78,6 +78,10 @@
       "sources": ["src/renderer/services/aiTransport/IpcChatTransport.ts","src/renderer/services/aiTransport/StreamDispatchService.ts","src/renderer/services/aiTransport/TopicStreamSubscription.ts"]
     },
     {
+      "path": "docs/references/ai/local-agent-runtime.md",
+      "sources": ["src/main/ai/agentSession/AgentSessionRuntimeService.ts","src/main/ai/runtime/localAgent","src/main/features/apiGateway/proxyStream.ts","src/renderer/components/localAgent/LocalAgentDirectory.tsx","src/renderer/pages/code/CodeCliPage.tsx","src/shared/ai/agentSessionCost.ts","src/shared/ai/executionIdentity.ts","src/shared/ai/localAgent.ts"]
+    },
+    {
       "path": "docs/references/ai/local-models.md",
       "sources": ["src/main/ai/localModel","src/renderer/hooks/useLocalModel.ts","src/shared/data/cache/cacheSchemas.ts","src/shared/data/presets/localModel.ts","src/shared/ipc/schemas/localModel.ts"]
     },
