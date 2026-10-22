@@ -221,6 +221,7 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
     providerCode === 20002 ||
     providerCode === 20005 ||
     providerCode === 99991668 ||
+    providerCode === 99991677 ||
     response.status === 401
   ) {
     return new FeishuProviderError('reauthorization-required', true)

@@ -178,14 +178,18 @@ describe('authorization recovery ownership', () => {
     }
   })
 
-  it('invalidates active authorization when Wiki returns an invalid user token over HTTP 400', async () => {
+  it.each([
+    [400, 99991668],
+    [200, 99991677],
+    [400, 99991677]
+  ])('invalidates active authorization after HTTP %s / token error %s', async (status, code) => {
     const api = provider()
     api.getWikiNode.mockImplementation(getWikiNode)
     const runtime = await start(api)
     const original = await connected(runtime)
     vi.mocked(net.fetch)
       .mockReset()
-      .mockResolvedValueOnce(Response.json({ code: 99991668, msg: 'Invalid user_access_token' }, { status: 400 }))
+      .mockResolvedValueOnce(Response.json({ code, msg: 'Invalid or expired user_access_token' }, { status }))
 
     try {
       await expect(runtime.previewFeishuScope(original.id, 'https://acme.feishu.cn/wiki/root')).rejects.toMatchObject({
