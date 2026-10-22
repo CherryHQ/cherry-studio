@@ -2417,6 +2417,7 @@
   "message.tools.error": "Si è verificato un errore",
   "message.tools.groupHeader": "{{count}} chiamate agli strumenti",
   "message.tools.invoking": "Avvio dell'elaborazione",
+  "message.tools.killed": "Terminato",
   "message.tools.labels.bash": "Esegui attività",
   "message.tools.labels.edit": "Modifica",
   "message.tools.labels.exitPlanMode": "Esci dalla pianificazione",
