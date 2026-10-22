@@ -16,6 +16,7 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import {
   dedupePathSegments,
+  getBinaryExecutionEnv,
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
   isPathWithin,
@@ -283,6 +284,50 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     }
   ])
 ])
+type ToolExecutionPhase =
+  | 'shim_check'
+  | 'isolated_env'
+  | 'mise_which'
+  | 'target_check'
+  | 'bundled_check'
+  | 'system_env'
+  | 'system_lookup'
+
+type ToolExecutionResolution =
+  | {
+      status: 'available'
+      source: 'mise' | 'bundled' | 'system'
+      path: string
+      resolvedPath: string
+      env: NodeJS.ProcessEnv
+    }
+  | { status: 'unavailable' }
+  | {
+      status: 'failed'
+      phase: ToolExecutionPhase
+      reason: 'timeout' | 'aborted' | 'query_failed'
+      elapsedMs: number
+      stepElapsedMs: number
+      stepBudgetMs: number
+      message: string
+    }
+
+const TOOL_EXECUTION_PHASE_LIMIT_MS: Record<ToolExecutionPhase, number> = {
+  shim_check: 1_000,
+  isolated_env: 6_000,
+  mise_which: 8_000,
+  target_check: 1_000,
+  bundled_check: 1_000,
+  system_env: 8_000,
+  system_lookup: 1_000
+}
+
+class ToolExecutionStepError extends Error {
+  constructor(readonly failure: Extract<ToolExecutionResolution, { status: 'failed' }>) {
+    super(failure.message)
+  }
+}
+
 // Re-exported for main-process callers and tests.
 export { validateBinaryToolDefinition }
 
@@ -467,6 +512,162 @@ export class BinaryManager extends BaseService {
       }
     }
     return parsed as Record<string, MiseInstallEntry[]>
+  }
+
+  /** Resolve one executable for main-process execution without querying management state. */
+  public async resolveToolExecution(
+    name: string,
+    options: { signal: AbortSignal; deadline: number }
+  ): Promise<ToolExecutionResolution> {
+    const startedAt = performance.now()
+    let queryFailure: Extract<ToolExecutionResolution, { status: 'failed' }> | undefined
+
+    const step = async <T>(
+      phase: ToolExecutionPhase,
+      work: (signal: AbortSignal, budgetMs: number) => Promise<T>
+    ): Promise<T> => {
+      const now = performance.now()
+      const remainingMs = options.deadline - now
+      const stepBudgetMs = Math.max(0, Math.min(TOOL_EXECUTION_PHASE_LIMIT_MS[phase], remainingMs))
+      const stepDeadline = Math.min(options.deadline, now + stepBudgetMs)
+      const failure = (reason: 'timeout' | 'aborted' | 'query_failed') => {
+        const endedAt = performance.now()
+        return new ToolExecutionStepError({
+          status: 'failed',
+          phase,
+          reason,
+          elapsedMs: endedAt - startedAt,
+          stepElapsedMs: endedAt - now,
+          stepBudgetMs,
+          message: `Tool execution resolution ${reason}`
+        })
+      }
+      if (options.signal.aborted) throw failure('aborted')
+      if (remainingMs <= 0) throw failure('timeout')
+      const controller = new AbortController()
+      const signal = AbortSignal.any([options.signal, controller.signal])
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let onAbort: () => void = () => {}
+      const interrupted = new Promise<never>((_, reject) => {
+        onAbort = () => reject(failure(options.signal.aborted ? 'aborted' : 'timeout'))
+        signal.addEventListener('abort', onAbort, { once: true })
+        timer = setTimeout(() => controller.abort(), stepBudgetMs)
+      })
+      try {
+        const result = await Promise.race([
+          Promise.resolve().then(() => {
+            signal.throwIfAborted()
+            return work(signal, stepBudgetMs)
+          }),
+          interrupted
+        ])
+        if (options.signal.aborted) throw failure('aborted')
+        if (performance.now() >= stepDeadline) throw failure('timeout')
+        return result
+      } catch (error) {
+        if (error instanceof ToolExecutionStepError) throw error
+        if (options.signal.aborted) throw failure('aborted')
+        if (signal.aborted || performance.now() >= stepDeadline) throw failure('timeout')
+        throw failure('query_failed')
+      } finally {
+        clearTimeout(timer)
+        signal.removeEventListener('abort', onAbort)
+        controller.abort()
+      }
+    }
+    const executable = async (candidate: string): Promise<boolean> => {
+      try {
+        await fsp.access(candidate, isWin ? fs.constants.F_OK : fs.constants.X_OK)
+        return true
+      } catch (error) {
+        if (['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+          return false
+        }
+        throw error
+      }
+    }
+    const attempt = async <T>(work: () => Promise<T>): Promise<T | undefined> => {
+      try {
+        return await work()
+      } catch (error) {
+        if (!(error instanceof ToolExecutionStepError) || error.failure.reason !== 'query_failed') throw error
+        queryFailure ??= error.failure
+        return undefined
+      }
+    }
+    const managed = (
+      source: 'mise' | 'bundled',
+      candidate: string,
+      resolvedPath = candidate
+    ): ToolExecutionResolution => ({
+      status: 'available',
+      source,
+      path: candidate,
+      resolvedPath,
+      env: { ...process.env, ...getBinaryExecutionEnv() }
+    })
+
+    try {
+      const shim = await attempt(() =>
+        step('shim_check', () => executable(path.join(getBinaryShimsDir(), getBinaryName(name))))
+      )
+      if (shim && this.miseBin) {
+        const target = await attempt(async () => {
+          const snapshot = await step('isolated_env', (signal) => this.getIsolatedEnv(signal))
+          const { stdout } = await step('mise_which', (signal, timeoutMs) =>
+            this.runMise(['which', name], { signal, timeoutMs: Math.ceil(timeoutMs), snapshot })
+          )
+          return step('target_check', async (signal) => {
+            const resolvedPath = stdout
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .find(Boolean)
+            if (!resolvedPath || !(isWin ? path.win32 : path.posix).isAbsolute(resolvedPath)) {
+              throw new Error('Invalid mise executable path')
+            }
+            let canonicalPath: string
+            try {
+              canonicalPath = await fsp.realpath(resolvedPath)
+            } catch (error) {
+              if (['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? ''))
+                return null
+              throw error
+            }
+            signal.throwIfAborted()
+            return (await executable(canonicalPath)) ? { canonicalPath, resolvedPath } : null
+          })
+        })
+        if (target) return managed('mise', target.canonicalPath, target.resolvedPath)
+      }
+      const bundled = await attempt(() =>
+        step('bundled_check', async () => {
+          if (!BUNDLED_TOOLS.some((tool) => !tool.internal && tool.binaries.includes(name))) return null
+          const candidate = application.getPath('cherry.bin', getBinaryName(name))
+          return (await executable(candidate)) ? candidate : null
+        })
+      )
+      if (bundled) return managed('bundled', bundled)
+      const env = await attempt(() => step('system_env', (signal) => getRawShellEnv(signal)))
+      if (env) {
+        const system = await attempt(() =>
+          step('system_lookup', async (signal) => {
+            const candidate = isWin
+              ? findExecutable(name, { extensions: ['.exe', '.cmd', '.bat'], env })
+              : await findCommandInShellEnv(name, env, signal)
+            signal.throwIfAborted()
+            const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
+            if (!candidate || cherryDirs.some((dir) => isPathWithin(dir, candidate))) return null
+            return candidate
+          })
+        )
+        if (system)
+          return { status: 'available', source: 'system', path: system, resolvedPath: system, env: { ...env } }
+      }
+      return queryFailure ?? { status: 'unavailable' }
+    } catch (error) {
+      if (error instanceof ToolExecutionStepError) return error.failure
+      throw error
+    }
   }
 
   /**
