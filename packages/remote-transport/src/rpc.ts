@@ -54,6 +54,24 @@ export class RemoteRpcServer<Context> {
     return responses.length ? responses : null
   }
 
+  /**
+   * Answers an input that admission control above the server refused to dispatch.
+   * Notifications get no reply; batches answer per entry, mirroring `receive`.
+   */
+  refuse(input: unknown, failure: RemoteFailure): JSONRPCResponse | JSONRPCResponse[] | null {
+    const refuseOne = (value: unknown): JSONRPCResponse | null => {
+      if (jsonRpcNotificationSchema.safeParse(value).success) return null
+      const parsed = jsonRpcRequestSchema.safeParse(value)
+      if (!parsed.success) return createJSONRPCErrorResponse(null, -32600, 'Invalid request')
+      return createJSONRPCErrorResponse(parsed.data.id, 1000, failure.message, failure)
+    }
+    if (!Array.isArray(input)) return refuseOne(input)
+    if (!input.length || input.length > remoteLimits.batchEntries)
+      return createJSONRPCErrorResponse(null, -32600, 'Invalid batch')
+    const responses = input.map(refuseOne).filter((value) => value !== null)
+    return responses.length ? responses : null
+  }
+
   private async receiveOne(input: unknown, context: Context): Promise<JSONRPCResponse | null> {
     if (jsonRpcNotificationSchema.safeParse(input).success) return null
     const parsed = jsonRpcRequestSchema.safeParse(input)

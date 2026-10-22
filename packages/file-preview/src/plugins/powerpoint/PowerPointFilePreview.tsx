@@ -1,7 +1,7 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
-import { AlertCircle, LoaderCircle } from 'lucide-react'
-import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { AlertCircle, FileWarning, LoaderCircle } from 'lucide-react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -20,6 +20,7 @@ const PPTX_PREVIEW_ZOOM_STEP = 10
 const PPTX_PREVIEW_MIN_ZOOM = 50
 const PPTX_PREVIEW_MAX_ZOOM = 200
 const PPTX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
+const PPTX_ZIP_LIMIT_ERROR_PREFIX = 'PPTX zip limit exceeded:'
 const EXTERNAL_TARGET_MODE = 'external'
 const EXTERNAL_MEDIA_RELATIONSHIP_TYPES = new Set(['image', 'audio', 'video', 'media'])
 
@@ -42,6 +43,26 @@ function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new DOMException('Preview aborted', 'AbortError')
   }
+}
+
+function isPptxZipLimitError(error: Error): boolean {
+  return error.message.startsWith(PPTX_ZIP_LIMIT_ERROR_PREFIX)
+}
+
+function PowerPointZipLimitFallback() {
+  const { t } = useTranslation()
+  const { onRequestOpen } = usePreviewHost()
+
+  return (
+    <EmptyState
+      icon={FileWarning}
+      title={t('file_preview.powerpoint.zip_limit.title')}
+      description={t('file_preview.powerpoint.zip_limit.description')}
+      actionLabel={onRequestOpen ? t('file_preview.too_large.action') : undefined}
+      onAction={onRequestOpen ? () => onRequestOpen('too_large') : undefined}
+      className="h-full"
+    />
+  )
 }
 
 function getRelationshipTypeName(type: string): string {
@@ -89,10 +110,26 @@ export default function PowerPointFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PowerPointFilePreview')
-  const { options, failDocument } = usePreviewHost()
+  const { options, failDocument, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
+  const restoredViewerRef = useRef<PptxViewer | null>(null)
+  const readingPositionRef = useRef<{ zoom: number; page: number; top: number; left: number } | null>(null)
+  const captureReadingPosition = useCallback(() => {
+    const viewer = viewerRef.current
+    const container = containerRef.current
+    if (!viewer || restoredViewerRef.current !== viewer || !container || container.clientHeight === 0) return
+    const slide = container.querySelector<HTMLElement>(`[data-slide-index="${viewer.currentSlideIndex}"]`)
+    if (!slide) return
+    readingPositionRef.current = {
+      zoom: viewer.zoomPercent,
+      page: viewer.currentSlideIndex + 1,
+      top: container.scrollTop - slide.offsetTop,
+      left: container.scrollLeft - slide.offsetLeft
+    }
+  }, [])
+  useLayoutEffect(() => captureReadingPosition, [captureReadingPosition])
   // The parsed deck a pick reads its excerpt from — the viewer exposes no text API of its own.
   const presentationRef = useRef<PresentationData | null>(null)
   const controlsBusyRef = useRef(false)
@@ -176,23 +213,24 @@ export default function PowerPointFilePreview({
     const controller = new AbortController()
     let cancelled = false
     let viewer: PptxViewer | null = null
+    const isCurrent = () => !cancelled && isCurrentDocument?.() !== false
 
     setError(null)
     setLoading(true)
     setCurrentPage(0)
     setPageCount(0)
-    setZoom(PPTX_PREVIEW_DEFAULT_ZOOM)
     setPreviewControlsBusy(false)
     container.innerHTML = ''
 
     void (async () => {
       try {
         const pptxData = await readPreviewDocument(previewDocument, PPTX_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
-        if (cancelled) return
+        if (!isCurrent()) return
 
         throwIfAborted(controller.signal)
         const pptxFiles = await parseZipLazyMedia(toArrayBuffer(pptxData), RECOMMENDED_ZIP_LIMITS)
         throwIfAborted(controller.signal)
+        if (!isCurrent()) return
         const presentation = buildPresentation(pptxFiles, { lazySlides: true })
         if (presentation.slides.length === 0) {
           throw new PreviewError('load_error', 'PPTX contains no slides to preview')
@@ -203,26 +241,26 @@ export default function PowerPointFilePreview({
 
         viewer = new PptxViewer(container, {
           fitMode: 'contain',
-          zoomPercent: PPTX_PREVIEW_DEFAULT_ZOOM,
+          zoomPercent: readingPositionRef.current?.zoom ?? PPTX_PREVIEW_DEFAULT_ZOOM,
           scrollContainer: container,
           zipLimits: RECOMMENDED_ZIP_LIMITS,
           lazyMedia: true,
           lazySlides: true,
           pdfjs: false,
           onSlideChange: (index) => {
-            if (!cancelled) setCurrentPage(index + 1)
+            if (isCurrent()) setCurrentPage(index + 1)
           },
           onRenderStart: () => {
-            if (!cancelled) setPreviewControlsBusy(true)
+            if (isCurrent()) setPreviewControlsBusy(true)
           },
           onRenderComplete: () => {
-            if (cancelled) return
+            if (!isCurrent()) return
             const activeViewer = viewerRef.current
             if (activeViewer) setZoom(activeViewer.zoomPercent)
             setPreviewControlsBusy(false)
           },
           onSlideError: (index, slideError) => {
-            if (cancelled) return
+            if (!isCurrent()) return
             const normalized = slideError instanceof Error ? slideError : new Error(String(slideError))
             logger.error(`Failed to render PPTX preview slide ${index + 1}: ${sourceId}`, normalized)
           },
@@ -244,28 +282,45 @@ export default function PowerPointFilePreview({
           overscanViewport: 2
         })
         throwIfAborted(controller.signal)
-        if (cancelled) return
+        if (!isCurrent()) return
 
         const nextPageCount = viewer.slideCount
+        const position = readingPositionRef.current
+        if (position && nextPageCount > 0) {
+          await viewer.goToSlide(clamp(position.page, 1, nextPageCount) - 1, { block: 'start' })
+          if (!isCurrent()) return
+          const slide = container.querySelector<HTMLElement>(`[data-slide-index="${viewer.currentSlideIndex}"]`)
+          if (slide) {
+            container.scrollTop =
+              slide.offsetTop + clamp(position.top, 1 - container.clientHeight, Math.max(0, slide.offsetHeight - 1))
+            container.scrollLeft =
+              slide.offsetLeft + clamp(position.left, 1 - container.clientWidth, Math.max(0, slide.offsetWidth - 1))
+          }
+        }
+        restoredViewerRef.current = viewer
         setPageCount(nextPageCount)
         setCurrentPage(nextPageCount > 0 ? viewer.currentSlideIndex + 1 : 0)
         focusContainer()
       } catch (loadError) {
-        if (cancelled) return
+        if (!isCurrent()) return
         if (viewerRef.current === viewer) {
           viewerRef.current = null
         }
         viewer?.destroy()
         container.innerHTML = ''
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
-        failDocument?.(normalized)
-        setError(normalized)
+        const reported = isPptxZipLimitError(normalized)
+          ? new PreviewError('too_large', normalized.message, { cause: normalized })
+          : normalized
+        failDocument?.(reported)
+        setError(reported)
       } finally {
-        if (!cancelled) setLoading(false)
+        if (isCurrent()) setLoading(false)
       }
     })()
 
     return () => {
+      captureReadingPosition()
       cancelled = true
       controller.abort()
       controlsBusyRef.current = false
@@ -273,10 +328,20 @@ export default function PowerPointFilePreview({
       if (viewerRef.current === viewer) {
         viewerRef.current = null
       }
+      if (restoredViewerRef.current === viewer) restoredViewerRef.current = null
       viewer?.destroy()
       container.innerHTML = ''
     }
-  }, [sourceId, focusContainer, previewDocument, logger, failDocument, setPreviewControlsBusy])
+  }, [
+    captureReadingPosition,
+    sourceId,
+    focusContainer,
+    previewDocument,
+    logger,
+    failDocument,
+    setPreviewControlsBusy,
+    isCurrentDocument
+  ])
 
   // The marker goes on only after createPreviewSelection confirms the host receives something: a slide
   // with no text must not look picked while the host gets null.
@@ -331,7 +396,7 @@ export default function PowerPointFilePreview({
   // on refresh too.
   useEffect(() => {
     setPickedSlide(null)
-  }, [sourceId])
+  }, [sourceId, previewDocument])
 
   const hasPages = !error && pageCount > 0
 
@@ -370,21 +435,23 @@ export default function PowerPointFilePreview({
             data-picker={onSelection ? 'true' : undefined}
             role="region"
             aria-label={fileName}
-            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-2 [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_[data-slide-index]]:cursor-pointer [&_[data-slide-index][data-pptx-picked=true]]:outline [&_[data-slide-index][data-pptx-picked=true]]:outline-2 [&_[data-slide-index][data-pptx-picked=true]]:outline-primary"
+            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_[data-slide-index][data-pptx-picked=true]]:outline [&_[data-slide-index][data-pptx-picked=true]]:outline-2 [&_[data-slide-index][data-pptx-picked=true]]:outline-primary [&[data-picker=true]_[data-slide-index]]:cursor-pointer [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-2 [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-primary/40"
             tabIndex={0}
             onClick={handlePick}
           />
           {loading ? (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+              className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>
           ) : null}
           {error ? (
             <div role="alert" className="absolute inset-0 bg-background">
-              {error instanceof PreviewError && error.code === 'too_large' ? (
+              {error instanceof PreviewError && error.code === 'too_large' && isPptxZipLimitError(error) ? (
+                <PowerPointZipLimitFallback />
+              ) : error instanceof PreviewError && error.code === 'too_large' ? (
                 <FilePreviewTooLarge sizeBytes={previewDocument.size} limitBytes={PPTX_PREVIEW_MAX_SOURCE_BYTES} />
               ) : (
                 <EmptyState

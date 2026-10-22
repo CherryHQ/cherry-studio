@@ -1,7 +1,9 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
@@ -50,8 +52,8 @@ vi.mock('@application', () => ({
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
-              isInternalAgentRequest: mockIsInternalAgentRequest,
-              getAgentSessionId: vi.fn(() => undefined)
+              isInternalRequest: (headers: Headers) => mockIsInternalAgentRequest(headers),
+              getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id') ?? undefined
             }
           : undefined
     )
@@ -97,6 +99,8 @@ vi.mock('../adapters', () => ({
   }
 }))
 
+import type { OutputFormat } from '../adapters'
+import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
 
@@ -224,7 +228,7 @@ async function processAndCaptureStreamMessages(
     params,
     inputFormat,
     outputFormat: 'anthropic',
-    requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
   })
   await vi.waitFor(() => expect(mockToUIMessages).toHaveBeenCalled())
   await vi.waitFor(() => expect(captured.listener).toBeDefined())
@@ -339,7 +343,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
         signal: controller.signal,
-        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+        requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key' })
       })
     ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/tool_use ids must be unique/i) })
     expect(mockToUIMessages).not.toHaveBeenCalled()
@@ -575,7 +579,7 @@ describe('processMessage (streaming)', () => {
     }
     mockIsInternalAgentRequest.mockReturnValue(true)
     mockResolveAgentSessionUsage.mockReturnValue(usageContext)
-    const requestHeaders = new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+    const requestHeaders = new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     const response = processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
@@ -592,13 +596,31 @@ describe('processMessage (streaming)', () => {
     await response
   })
 
+  it.each([true, false])(
+    'serves only the admitted model, without Cherry retries or fallbacks (stream=%s)',
+    async (stream) => {
+      const response = processMessage({
+        params: { model: 'openai:gpt-4', stream, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+      expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ maxRetries: 0 }))
+
+      if (stream) commit(captured.listener!)
+      await captured.listener!.onDone({} as any)
+      await response
+    }
+  )
+
   it('marks internal Agent usage when no active turn correlation is available', async () => {
     mockIsInternalAgentRequest.mockReturnValue(true)
     const response = processMessage({
       params: { model: 'openai:gpt-4', stream: true, messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
@@ -743,7 +765,7 @@ describe('processMessage (streaming)', () => {
       params: { model: 'openai:gpt-4', messages: [] },
       inputFormat: 'openai',
       outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      requestHeaders: new Headers({ 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session-1' })
     })
 
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
@@ -857,4 +879,98 @@ describe('processMessage (error & pause)', () => {
     expect(res.headers.get('Content-Type')).toBe('application/json')
     expect(mockAbort).toHaveBeenCalled()
   })
+})
+
+// These payloads are the serialized boundary projections also driven by real upstreams in errors.http.test.ts.
+describe('processMessage (statusless interruption delivery)', () => {
+  const payloads = [
+    {
+      id: 'typed-timeout',
+      error: serializeError(new DOMException('Private upstream detail', 'TimeoutError')),
+      message: 'Upstream request timed out'
+    },
+    {
+      id: 'typed-abort',
+      error: serializeError(new DOMException('Private upstream detail', 'AbortError')),
+      message: 'Upstream stream aborted'
+    },
+    {
+      id: 'sdk-text-only',
+      error: serializeError({ message: 'Upstream idle timeout exceeded' }),
+      message: 'Upstream request timed out'
+    },
+    {
+      id: 'ResponseAborted',
+      error: serializeError(Object.assign(new Error('Private upstream detail'), { name: 'ResponseAborted' })),
+      message: 'Upstream stream aborted'
+    }
+  ]
+  const formats: { format: OutputFormat; path: string }[] = [
+    { format: 'anthropic', path: '/v1/messages' },
+    { format: 'openai', path: '/v1/chat/completions' },
+    { format: 'openai-responses', path: '/v1/responses' },
+    { format: 'gemini', path: '/v1beta/models/fixture:generateContent' }
+  ]
+  for (const { format, path } of formats) {
+    for (const payload of payloads) {
+      for (const mode of ['before-commit', 'after-commit', 'non-streaming']) {
+        it(`${format} / ${mode} / ${payload.id}`, async () => {
+          const response = processMessage({
+            params: { model: 'openai:gpt-4', stream: mode !== 'non-streaming', messages: [] },
+            inputFormat: 'openai',
+            outputFormat: format
+          })
+          // Attach rejection handling before invoking the terminal listener.
+          const settled = response.then(
+            (value) => ({ value }),
+            (error: unknown) => ({ error })
+          )
+          await vi.waitFor(() => expect(captured.listener).toBeDefined())
+          const listener = captured.listener!
+          listener.onChunk({ type: 'start', messageId: 'fixture' })
+          if (mode === 'after-commit') commit(listener)
+          await listener.onError({ status: 'error', error: payload.error })
+          const result = await settled
+          if (mode === 'after-commit') {
+            if (!('value' in result)) throw new Error('Committed response rejected')
+            expect(result.value.status).toBe(200)
+            const body = await readAll(result.value.body)
+            expect(body).toContain('hello')
+            expect(body.split(payload.message)).toHaveLength(2)
+            expect(body).not.toContain('Private upstream detail')
+            expect(body).not.toContain('[DONE]')
+            expect(body).not.toContain('Internal server error')
+            expect(body.endsWith('\n\n')).toBe(true)
+            const frames = body.trim().split('\n\n')
+            const terminal = JSON.parse(frames.at(-1)!.split('data: ')[1])
+            if (format === 'gemini')
+              expect(terminal).toEqual({ error: { code: 504, message: payload.message, status: 'DEADLINE_EXCEEDED' } })
+            else if (format === 'anthropic')
+              expect(terminal).toEqual({ type: 'error', error: { type: 'api_error', message: payload.message } })
+            else if (format === 'openai-responses')
+              expect(terminal).toEqual({ type: 'error', code: 'internal_error', message: payload.message })
+            else
+              expect(terminal).toEqual({
+                error: { message: payload.message, type: 'server_error', code: 'internal_error' }
+              })
+          } else {
+            if (!('error' in result)) throw new Error('Pending failure returned a successful response')
+            expect(result.error).toBe(payload.error)
+            const mapped = gatewayErrorHandler({
+              request: new Request(`http://fixture${path}`),
+              code: 'UNKNOWN',
+              error: result.error,
+              status
+            } as Parameters<typeof gatewayErrorHandler>[0])
+            expect(mapped.code).toBe(504)
+            expect(mapped.response).toMatchObject(
+              format === 'gemini'
+                ? { error: { code: 504, message: payload.message } }
+                : { error: { message: payload.message } }
+            )
+          }
+        })
+      }
+    }
+  }
 })

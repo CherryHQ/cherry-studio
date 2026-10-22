@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
@@ -90,7 +93,53 @@ describe('toFileUrl', () => {
   it('preserves Windows drive letters unencoded', () => {
     expect(toFileUrl('C:\\foo\\bar baz.pdf' as AbsoluteFilePath)).toBe('file:///C:/foo/bar%20baz.pdf')
     expect(toFileUrl('D:\\folder\\file.txt' as AbsoluteFilePath)).toBe('file:///D:/folder/file.txt')
+    expect(toFileUrl('C:/folder/file.txt' as AbsoluteFilePath)).toBe('file:///C:/folder/file.txt')
   })
+
+  // A `\` in a POSIX filename is not a directory separator. Folding it first
+  // makes the URL name `/workspace/clip/part.mp4` instead of `clip\part.mp4`.
+  it('percent-encodes a backslash that belongs to a POSIX filename', () => {
+    expect(toFileUrl('/workspace/clip\\part.mp4' as AbsoluteFilePath)).toBe('file:///workspace/clip%5Cpart.mp4')
+  })
+
+  it.skipIf(process.platform === 'win32')('reads the POSIX file named with a backslash, not the nested sibling', () => {
+    const root = mkdtempSync(join(tmpdir(), 'to-file-url-backslash-both-'))
+    const literal = join(root, 'clip\\part.mp4')
+    const sibling = join(root, 'clip', 'part.mp4')
+    try {
+      mkdirSync(join(root, 'clip'), { recursive: true })
+      writeFileSync(literal, 'literal-bytes')
+      writeFileSync(sibling, 'sibling-bytes')
+
+      const selected = fileURLToPath(toFileUrl(literal as AbsoluteFilePath))
+
+      expect(selected).toBe(literal)
+      expect(readFileSync(selected, 'utf8')).toBe('literal-bytes')
+      expect(readFileSync(sibling, 'utf8')).toBe('sibling-bytes')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'names the existing POSIX backslash file when the nested sibling is absent',
+    () => {
+      const root = mkdtempSync(join(tmpdir(), 'to-file-url-backslash-absent-'))
+      const literal = join(root, 'clip\\part.mp4')
+      const sibling = join(root, 'clip', 'part.mp4')
+      try {
+        writeFileSync(literal, 'literal-only')
+
+        const selected = fileURLToPath(toFileUrl(literal as AbsoluteFilePath))
+
+        expect(selected).toBe(literal)
+        expect(selected).not.toBe(sibling)
+        expect(readFileSync(selected, 'utf8')).toBe('literal-only')
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('normalizes backslashes to forward slashes', () => {
     expect(toFileUrl('C:\\a\\b\\c.txt' as AbsoluteFilePath)).toBe('file:///C:/a/b/c.txt')
