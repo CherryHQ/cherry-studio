@@ -61,6 +61,31 @@ describe('useCodeHighlight', () => {
     expect(result.current.tokenLines).toHaveLength(1)
   })
 
+  it('re-highlights a shorter request when the document was replaced', async () => {
+    mocks.highlightStreamingCode.mockImplementation(async (content: string) => ({
+      lines: content.split('\n').map((line) => [sampleToken(line)]),
+      recall: -1
+    }))
+
+    const { result, rerender } = renderHook(
+      ({ lines }: { lines: string[] }) => useCodeHighlight({ rawLines: lines, language: 'plaintext', callerId: 'c1' }),
+      { initialProps: { lines: ['old 0', 'old 1', 'old 2', 'old 3'] } }
+    )
+
+    await act(async () => {
+      await result.current.highlightLines()
+    })
+    expect(result.current.tokenLines).toHaveLength(4)
+
+    // Same line count, new content, then a bounded caller asks for fewer rows than are cached.
+    rerender({ lines: ['new 0', 'new 1', 'new 2', 'new 3'] })
+    await act(async () => {
+      await result.current.highlightLines(2)
+    })
+
+    expect(result.current.tokenLines.map((line) => line[0].content)).toEqual(['new 0', 'new 1'])
+  })
+
   it('drops a stale async highlight result that returns after resetHighlight()', async () => {
     const deferred = createDeferred<{ lines: ThemedToken[][]; recall: number }>()
     mocks.highlightStreamingCode.mockReturnValue(deferred.promise)

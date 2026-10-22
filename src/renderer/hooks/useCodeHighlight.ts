@@ -24,6 +24,8 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
   const processingRef = useRef(false)
   const latestRequestedContentRef = useRef<string | null>(null)
   const tokenLinesCountRef = useRef(0)
+  /** The content the current tokens were produced from, so a shorter request cannot reuse them. */
+  const highlightedContentRef = useRef('')
   // 每次 resetHighlight() 递增，用于丢弃 reset 之前起飞、reset 之后才返回的旧异步高亮结果
   const generationRef = useRef(0)
   const shikiThemeRef = useRef(activeShikiTheme)
@@ -36,10 +38,11 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
     async (count?: number) => {
       const targetCount = count === undefined ? rawLines.length : Math.min(count, rawLines.length)
 
-      // 数量相等也可能内容不同，交给 ShikiStreamService 处理
-      if (targetCount < tokenLinesCountRef.current) return
-
       const currentContent = rawLines.slice(0, targetCount).join('\n').trimEnd()
+
+      // 数量相等也可能内容不同，交给 ShikiStreamService 处理；数量更少时只有内容没变才能复用，
+      // 否则一次有界请求会在文档被替换后继续显示旧 token
+      if (targetCount < tokenLinesCountRef.current && currentContent === highlightedContentRef.current) return
 
       // 记录最新要处理的内容，为了保证最终状态正确
       latestRequestedContentRef.current = currentContent
@@ -64,6 +67,7 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
 
           // 如有结果，更新 tokenLines
           if (result.lines.length > 0 || result.recall !== 0) {
+            highlightedContentRef.current = contentToProcess
             setTokenLines((prev) => {
               return result.recall === -1
                 ? result.lines
@@ -80,6 +84,7 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
 
   const resetHighlight = useCallback(() => {
     generationRef.current += 1
+    highlightedContentRef.current = ''
     cleanupTokenizers(callerId)
     setTokenLines([])
   }, [callerId, cleanupTokenizers])
