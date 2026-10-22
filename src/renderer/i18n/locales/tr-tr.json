@@ -1489,6 +1489,7 @@
   "error.truncated": "Veriler kesildi, özgün boyut",
   "error.truncatedBadge": "Kesildi",
   "error.unknown": "Bilinmeyen hata",
+  "error.unsupported_bmp_image": "Bu sohbette BMP resim ekleri desteklenmiyor. Her BMP resmini PNG, JPEG, WebP veya GIF olarak kaydedin, ardından resmi içeren mesajı düzenleyerek BMP ekini kaldırın veya değiştirin ve mesajı yeniden gönderin. Dönüştürülmüş resimlerle yeni bir sohbet de başlatabilirsiniz.",
   "error.usage": "Kullanım",
   "error.user_message_not_found": "Yeniden gönderilecek özgün kullanıcı mesajı bulunamıyor",
   "error.value": "Değer",

@@ -1187,7 +1187,13 @@ async function materializeUserContent(
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
-      nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
+      nativeSupport: {
+        image: supportsImages,
+        pdf: false,
+        audio: false,
+        video: false,
+        imageFormatPolicy: 'passthrough'
+      },
       isToolCapable: supportsAttachmentReads,
       // An unlisted-extension image (AVIF/HEIC — accepted wildcard on the agent surface) must
       // stay a file part so the local-path fallback below still holds its file reference.

@@ -1489,6 +1489,7 @@
   "error.truncated": "Date trunchiate, dimensiunea originală",
   "error.truncatedBadge": "Trunchiat",
   "error.unknown": "Eroare necunoscută",
+  "error.unsupported_bmp_image": "Imaginile BMP atașate nu sunt acceptate în această conversație. Salvați fiecare imagine BMP ca PNG, JPEG, WebP sau GIF, apoi editați mesajul care o conține pentru a elimina sau înlocui atașamentul BMP și trimiteți-l din nou. De asemenea, puteți începe o conversație nouă cu imaginile convertite.",
   "error.usage": "Utilizare",
   "error.user_message_not_found": "Nu se poate găsi mesajul original al utilizatorului pentru a retrimite",
   "error.value": "Valoare",

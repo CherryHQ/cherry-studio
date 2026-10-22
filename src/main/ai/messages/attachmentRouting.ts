@@ -24,6 +24,8 @@
  * model).
  */
 
+import { URL } from 'node:url'
+
 import { isAbortError } from '@ai-sdk/provider-utils'
 import type { UIMessage } from 'ai'
 
@@ -36,6 +38,7 @@ import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { allocateInlineCaps, type AttachmentBudget } from './attachmentBudget'
@@ -83,6 +86,47 @@ class NonVisionImageOcrError extends Error {
         this.detailI18nValues = { reason: detail.reason.slice(0, MAX_OCR_FAILURE_REASON_LENGTH) }
       }
     }
+  }
+}
+
+const UNSUPPORTED_BMP_IMAGE_ERROR_MESSAGE =
+  "BMP image attachments aren't supported in this chat. Save each BMP image as PNG, JPEG, WebP, or GIF, then edit the message containing it to remove or replace the BMP attachment and send again. You can also start a new chat with the converted images."
+
+class UnsupportedImageFormatError extends Error {
+  readonly i18nKey = 'unsupported_bmp_image'
+
+  constructor() {
+    super(UNSUPPORTED_BMP_IMAGE_ERROR_MESSAGE)
+    this.name = 'UnsupportedImageFormatError'
+  }
+}
+
+function assertChatImageFormat(part: FileUIPart, ctx: PrepareChatContext, ext?: string): void {
+  if (!ctx.nativeSupport.image || ctx.nativeSupport.imageFormatPolicy !== 'reject-bmp') return
+  ctx.signal?.throwIfAborted()
+
+  const isBmpMime = (value?: string): boolean => {
+    const mime = value?.split(';', 1)[0].trim().toLowerCase()
+    return mime === 'image/bmp' || mime === 'image/x-ms-bmp'
+  }
+  const isData = part.url.slice(0, 5).toLowerCase() === 'data:'
+  const data = isData ? parseDataUrl(`data:${part.url.slice(5)}`) : null
+  let pathname: string | undefined
+  if (!isData) {
+    try {
+      pathname = new URL(part.url).pathname
+    } catch {
+      // Unparseable URLs do not declare an image format.
+    }
+  }
+  if (
+    ext?.replace(/^\./, '').toLowerCase() === 'bmp' ||
+    isBmpMime(part.mediaType) ||
+    isBmpMime(data?.mediaType) ||
+    part.filename?.toLowerCase().endsWith('.bmp') ||
+    pathname?.toLowerCase().endsWith('.bmp')
+  ) {
+    throw new UnsupportedImageFormatError()
   }
 }
 
@@ -221,6 +265,7 @@ async function prepareChatMessage<T extends UIMessage>(
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
     if (!inlined) return false
+    assertChatImageFormat(inlined, ctx)
     kept.push(inlined)
     return true
   }
@@ -236,6 +281,7 @@ async function prepareChatMessage<T extends UIMessage>(
       // Legacy / gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
+      assertChatImageFormat(part, ctx)
       const inlined = await materializeNativeFilePart(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
@@ -248,6 +294,7 @@ async function prepareChatMessage<T extends UIMessage>(
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
           })
         } else {
+          assertChatImageFormat(inlined, ctx)
           kept.push(inlined)
         }
       }
@@ -272,7 +319,9 @@ async function prepareChatMessage<T extends UIMessage>(
     const handle = ref?.handle ?? part.filename ?? 'file'
     const displayName = ref?.displayName ?? handle
     try {
+      assertChatImageFormat(part, ctx)
       const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
+      assertChatImageFormat(part, ctx, bareExt)
       const fileType = getFileTypeByExt(bareExt)
 
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
@@ -314,7 +363,7 @@ async function prepareChatMessage<T extends UIMessage>(
       defer(kept, pending, handle, body)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
-      if (error instanceof NonVisionImageOcrError) throw error
+      if (error instanceof NonVisionImageOcrError || error instanceof UnsupportedImageFormatError) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
       kept.push(noteOf(handle))
     }
