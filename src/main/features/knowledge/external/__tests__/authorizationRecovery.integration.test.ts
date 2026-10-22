@@ -13,6 +13,7 @@ import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
 import {
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
+  getDocxMarkdown,
   getWikiNode,
   listWikiChildNodes,
   type FeishuUserTokenSet
@@ -136,6 +137,39 @@ describe('authorization recovery ownership', () => {
       expect(net.fetch).toHaveBeenCalledTimes(2)
       expect(connections.getById(original.id)).toEqual(original)
       await expect(runtime.acquireAccessToken(original.id)).resolves.toBe('access')
+    } finally {
+      vi.mocked(net.fetch).mockReset()
+    }
+  })
+
+  it.each([400, 429])('waits for the Feishu rate-limit reset before retrying HTTP %s', async (status) => {
+    let now = 1_000
+    const runtime = new ExternalKnowledgeRuntime({
+      credentials,
+      provider: provider(),
+      now: () => now,
+      sleep: async (milliseconds) => {
+        now += milliseconds
+      }
+    })
+    runtimes.push(runtime)
+    await runtime.start()
+    const original = await connected(runtime)
+    const availableAt = now + 52_000
+    vi.mocked(net.fetch)
+      .mockReset()
+      .mockImplementation(async () =>
+        now < availableAt
+          ? Response.json({ code: 99991400 }, { status, headers: { 'x-ogw-ratelimit-reset': '52' } })
+          : Response.json({ code: 0, data: { content: '# Recovered document' } })
+      )
+    try {
+      await expect(
+        runtime.runAuthorizedRequest(original.id, (accessToken, signal) =>
+          getDocxMarkdown({ ...app, accessToken }, 'document', signal)
+        )
+      ).resolves.toBe('# Recovered document')
+      expect(connections.getById(original.id)?.authorizationStatus).toBe('connected')
     } finally {
       vi.mocked(net.fetch).mockReset()
     }
