@@ -26,8 +26,10 @@ import type {
 } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { followupQueueService } from './FollowupQueueService'
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
@@ -633,6 +635,19 @@ export class AssistantDataService {
           ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, permanent: true })
           : undefined
         const projectedTopicIds = topicService.listIdsByAssistantTx(tx, id)
+        if (!shouldDeleteTopics) {
+          // Surviving topics keep their rows with the assistant FK nulled, but
+          // their queued follow-ups can never drain — purge those scopes here.
+          // Scoped to the deleted assistant exactly: a whole-topic prefix would
+          // also purge every other assistant's scope on a retained topic.
+          // Deleted topics purge through the topic path instead.
+          for (const topicId of projectedTopicIds)
+            followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id), {
+              // Retained topics still accept enqueues; keep closed receipts
+              // so a late same-id retry settles instead of resurrecting.
+              keepClosedReceipts: true
+            })
+        }
         return {
           deleted: this.permanentlyDeleteTx(tx, id),
           deletedTopicIds,
@@ -661,6 +676,9 @@ export class AssistantDataService {
     topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
     this.notifyReadModelChange([id], 'membership')
     pinService.notifyPurged()
+    if (deletedTopicIds && deletedTopicIds.length > 0) followupQueueService.notifyPurged()
+    if (options.permanent === true && !shouldDeleteTopics && (projectedTopicIds?.length ?? 0) > 0)
+      followupQueueService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Moved assistant to Recycle Bin', {
       id,
@@ -729,6 +747,19 @@ export class AssistantDataService {
     pinService.purgeForEntitiesTx(tx, 'assistant', ids)
     // Rows moved to the Recycle Bin before this release were soft-deleted without a binding purge.
     promptService.purgeForTargetsTx(tx, 'assistant', ids)
+    // Surviving topics keep their rows, but their queued follow-ups can never
+    // drain — purge those scopes, mirroring the permanent-delete path. Scoped
+    // to the purged assistant exactly: a whole-topic prefix would also purge
+    // every other assistant's scope on a retained topic.
+    for (const id of ids) {
+      for (const topicId of topicService.listIdsByAssistantTx(tx, id)) {
+        // Retained topics still accept enqueues; keep closed receipts so a
+        // late same-id retry settles instead of resurrecting.
+        followupQueueService.purgeForScopePrefixTx(tx, buildTopicFollowupScopeKey(topicId, id), {
+          keepClosedReceipts: true
+        })
+      }
+    }
     tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()
     return ids
   }
