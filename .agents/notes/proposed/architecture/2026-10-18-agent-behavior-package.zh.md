@@ -29,7 +29,7 @@ inside agent-behavior: orchestration -> core, orchestration -> ports; core impor
 - 依赖只有一个方向。本包不导入任何适配器、Pi 或宿主代码，适配器之间也互不依赖（[harness 边界](2026-10-17-agent-harness-boundaries.md) AC1）。
 - 每个适配器在自己的包里同时实现公共的 `AgentRuntime` 访问和我们的 harness 端口。它翻译原生事实、执行决策给出的操作，从不重写规则。
 - 与 `@cherrystudio/agent-runtime` 的关系是单向的。我们只导入类型：不透明 ID、`JsonValue` 和 `ContentPart`。`MessageItem` 和 `ToolCallItem` 是带 completeness、不带用量的观察协议，所以历史模型由我们定义。我们导出 `delegationStatus()`、`subagentViews()` 和 `turnOrigin()`；适配器投影子会话运行的 `Delegation` 状态、宿主展示的后台子会话和一个 turn 的来源时调用它们，而不是从原生状态自行推导。子会话的一次运行对应一个 `DelegationId`。
-- 模型侧的子智能体操作不走 `ThreadHandle.submit`，它对托管的子会话仍然拒绝。如果[子智能体控制](2026-10-18-agent-runtime-subagent-control.md)提议的 `spawn` 和 `cancel` 控制落地，由适配器接到我们的入口上，语义仍由本包定义。
+- 模型侧的子智能体操作使用本包的工具。托管子会话的公共 `input.submit` 接到 `entries.messageSubagent`，与工具共用输入接纳、同一子会话续接和结果投递规则，不直接启动原生子会话回合。宿主输入关联仍是适配器元数据，包括由结果作业投递该输入的情况。如果[子智能体控制](2026-10-18-agent-runtime-subagent-control.md)提议的 `spawn` 和 `cancel` 控制落地，由适配器接到我们的入口上，语义仍由本包定义。
 
 ### 事实、决策与记录
 
@@ -155,7 +155,11 @@ AC1–AC5 是评审的五条守则，AC6 概括边界守卫，AC7–AC11 是测�
 | PR-3a 至 PR-3e | 用户停止记录与抑制期内的静默投递；goal 计账与 plan 模式下的等待；把宿主的审批义务移进核心；plan 模式，排在基于 `main` 的权限模式 PR 之后；offload 与摘要器的重放。 | 对应的夹具和契约用例 |
 | PR-4 `feat(agent-behavior): isolate subagents in worktrees` | 为非 fork 的子智能体提供可选的 worktree 隔离，并加入 `Workspaces` 端口。 | 新增的契约用例 |
 
-这个栈叠在 `feature/agent-runtime-background-subagent` 之上；如果那个栈先合进 `main`，就改为基于 `main`。Durable 适配器的工作叠在 PR-1 上，与 PR-2 同时进行；两个适配器都通过契约用例之后才开始宿主接入，此后新增的每条契约用例同样约束 Durable 适配器，它只能按受 harness 限制能力表的行跳过。
+这个栈叠在 `feature/agent-runtime-background-subagent` 之上；如果那个栈先合进 `main`，就改为基于 `main`。Durable 适配器的工作叠在 PR-1 上，与 PR-2 同时进行；Pi 宿主接入跟随其适配器契约验证推进，Durable 宿主接入跟随其自身适配器验证推进，此后新增的每条契约用例同样约束 Durable 适配器，它只能按受 harness 限制能力表的行跳过。
+
+`PiSessionOptions.behavior` 为一个根会话及其子会话安装已有的 `HostPorts` 和公共规则。桌面连接现已通过 `piBehaviorHost.ts` 接入：审批和问答卡片使用现有 registry，模型选择使用模型目录，摘要和验收通过 Cherry 网关调用 Pi 原生模型，大输出使用应用管理的文件。审批结果仍存放在已有消息 part 中。`piApprovalFacts.ts` 提供环境事实；公共 gate 决定策略，包括已有的跨会话委派仅限交互式用户回合这一边界。
+
+原生调用 ID 由适配器拥有：Pi facet 将 `CallRef` 解析为审批卡片和子 agent 输出锚点所需的 ID。活跃子会话各自订阅输出，通过现有 background-flow 传输渲染。`PiRuntimeConnection` 仍桥接产品持久化、分支绑定、UI chunk 和旧会话服务；退役它需要继续迁移这些消费者。重开根会话恢复历史和子会话关系，不会重建活跃子会话图。省略 `behavior` 时包内暂时保留旧扩展路径，但桌面旧审批扩展和 pi-vcc bundle 已移除。这些变更不代表 Durable behavior 验收完成。
 
 ## Risks
 
