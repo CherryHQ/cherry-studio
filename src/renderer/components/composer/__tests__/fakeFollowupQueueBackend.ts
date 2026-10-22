@@ -33,6 +33,8 @@ export function installFakeFollowupQueueBackend() {
   let counter = 0
   // Server-side claim tokens (not part of the entity); mirrors production's retry-stable claims.
   const claimTokens = new Map<string, string | undefined>()
+  // Mirrors production's completion-scoped claim:head arbitration.
+  const consumedCompletions = new Map<string, number>()
 
   // Production treats a `sending` row as live (owned) until the reclaim
   // lease expires; only stale ones are claimable or reorderable-around.
@@ -187,16 +189,21 @@ export function installFakeFollowupQueueBackend() {
     if (method === 'POST' && path === '/followup-queues/claim:head') {
       return {
         ...shell,
-        trigger: vi.fn(async ({ body }: { body: { scopeKey: string; claimToken?: string } }) => {
+        trigger: vi.fn(async ({ body }: { body: { scopeKey: string; claimToken?: string; completionAt?: number } }) => {
           // Oldest row only, like production: a live head parks the round
           // instead of handing out the next row.
           const [head] = scopedByOrder(body.scopeKey)
           const ownRetry =
             !!body.claimToken && head?.status === 'sending' && claimTokens.get(head.id) === body.claimToken
+          // Mirror production: one delivery per completion; the winner's own
+          // retry re-acquires, other claims for a consumed completion are obsolete.
+          if (!ownRetry && body.completionAt != null && consumedCompletions.get(body.scopeKey) === body.completionAt)
+            return { claimed: false }
           if (!head || !(ownRetry || isClaimable(head))) return { claimed: false }
           head.status = 'sending'
           claimTokens.set(head.id, body.claimToken)
           head.updatedAt = new Date().toISOString()
+          if (body.completionAt != null) consumedCompletions.set(body.scopeKey, body.completionAt)
           return { claimed: true, id: head.id, alreadySent: head.sentAt != null }
         })
       }

@@ -205,7 +205,9 @@ describe('useFollowupQueue', () => {
     })
 
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, claimToken: expect.any(String), completionAt: 100 }
+    })
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(failTrigger).not.toHaveBeenCalled()
@@ -274,7 +276,9 @@ describe('useFollowupQueue', () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, claimToken: expect.any(String), completionAt: 100 }
+    })
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
@@ -499,7 +503,9 @@ describe('useFollowupQueue', () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, claimToken: expect.any(String), completionAt: 100 }
+    })
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
@@ -1014,6 +1020,83 @@ describe('useFollowupQueue', () => {
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
   })
 
+  it('cancels the background restore retry of a refused switch when the edit session ends', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      postTrigger.mockRejectedValue(new Error('queue full'))
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let taken: unknown = 'unset'
+      await act(async () => {
+        taken = await result.current.takeForEdit('b', captureOutgoing)
+      })
+      // Refused: 'a' stays in the editor and the restore retries in the background.
+      expect(taken).toBeUndefined()
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+
+      act(() => {
+        result.current.releaseEdit()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60 * 1000)
+      })
+      // The retry never re-creates the edited item after send/clear.
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('removes a background restore that landed while the item was still edited when the session ends', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      postTrigger
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      let taken: unknown = 'unset'
+      await act(async () => {
+        taken = await result.current.takeForEdit('b', captureOutgoing)
+      })
+      expect(taken).toBeUndefined()
+
+      // Space opens while 'a' is still in the editor: the retry lands.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+
+      // Ending the session (sent/cleared/replaced) removes the landed copy:
+      // the queue must not keep a deliverable duplicate of what was in the editor.
+      await act(async () => {
+        result.current.releaseEdit()
+      })
+      await act(async () => {})
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('moves the restore slot up when an earlier row leaves the queue', async () => {
     wireQuery([row('x', 'head'), row('a', 'first'), row('b', 'second')])
     const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
@@ -1095,7 +1178,9 @@ describe('useFollowupQueue', () => {
     await act(async () => {
       rerender({ scopeKey: SCOPE, completion: { status: 'done', lastCompletedAt: 100 } })
     })
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, claimToken: expect.any(String), completionAt: 100 }
+    })
     await act(async () => {
       rerender({ scopeKey: 's2', completion: { status: 'done', lastCompletedAt: 100 } })
     })
@@ -1126,7 +1211,9 @@ describe('useFollowupQueue', () => {
     await act(async () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, claimToken: expect.any(String), completionAt: 100 }
+    })
     await act(async () => {
       unmount()
     })
@@ -1176,13 +1263,12 @@ describe('useFollowupQueue', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
   })
 
-  it('reclaims and dequeues a late send success without resending it', async () => {
+  it('holds the claim until a timed-out send resolves, then dequeues a late success without resending', async () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head'), row('t', 'tail')])
       const { claimHeadTrigger, claimTrigger, deleteTrigger, failTrigger, markSentTrigger } = wireMutations()
       claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
-      claimTrigger.mockResolvedValue({ claimed: true, alreadySent: false })
       let resolveSend!: (value: boolean) => void
       const onDrain = vi.fn(
         () =>
@@ -1202,19 +1288,60 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
       })
-      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+      // Not settled failed: the outcome is unknown, so the row stays claimed
+      // and no completion can redrain it into a duplicate delivery.
+      expect(failTrigger).not.toHaveBeenCalled()
 
       await act(async () => {
         resolveSend(true)
       })
       await act(async () => {})
 
-      // Repaired, not resent: the row is marked sent and dequeued on the
-      // reclaim, while the payload itself went out exactly once.
+      // Repaired, not resent: the held claim marks sent and dequeues on the
+      // late resolution, while the payload itself went out exactly once.
       expect(onDrain).toHaveBeenCalledTimes(1)
-      expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+      expect(claimTrigger).not.toHaveBeenCalled()
       expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
       expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('releases a timed-out send back to failed only after the send definitively fails', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger, deleteTrigger, failTrigger, markSentTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+      let resolveSend!: (value: boolean) => void
+      const onDrain = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveSend = resolve
+          })
+      )
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
+      })
+
+      await act(async () => {
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
+      })
+      expect(failTrigger).not.toHaveBeenCalled()
+
+      await act(async () => {
+        resolveSend(false)
+      })
+      await act(async () => {})
+
+      // Definitive failure: the claim is released and the row is claimable again.
+      expect(markSentTrigger).not.toHaveBeenCalled()
+      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+      expect(deleteTrigger).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }
@@ -1262,11 +1389,11 @@ describe('useFollowupQueue', () => {
     }
   })
 
-  it('abandons a hung auto-drain send instead of wedging FIFO', async () => {
+  it('holds a hung auto-drain send until the send resolves, then dequeues without resending', async () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head'), row('t', 'tail')])
-      const { claimHeadTrigger, deleteTrigger, failTrigger, heartbeatTrigger } = wireMutations()
+      const { claimHeadTrigger, deleteTrigger, failTrigger, heartbeatTrigger, markSentTrigger } = wireMutations()
       claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
       let resolveSend!: (value: boolean) => void
       const onDrain = vi.fn(
@@ -1289,16 +1416,23 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(30 * 60 * 1000)
       })
-      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+      // The claim is HELD while the outcome is unknown: no failed settle, so no
+      // completion can redrain the row into a duplicate delivery. The heartbeat
+      // keeps the claim live the whole time.
+      expect(failTrigger).not.toHaveBeenCalled()
       expect(deleteTrigger).not.toHaveBeenCalled()
       expect(onDrainFailed).toHaveBeenCalledOnce()
+      const beatsBeforeResolve = heartbeatTrigger.mock.calls.length
+      expect(beatsBeforeResolve).toBeGreaterThan(0)
 
-      // The orphaned send settling late is repaired, not resent: here the reclaim
-      // fails, so nothing is dequeued and no duplicate goes out.
+      // The send settling late is repaired through the held claim, not resent:
+      // marked sent and dequeued, with exactly one payload delivery.
       await act(async () => {
         resolveSend(true)
       })
-      expect(deleteTrigger).not.toHaveBeenCalled()
+      await act(async () => {})
+      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
       expect(onDrain).toHaveBeenCalledOnce()
 
       const beats = heartbeatTrigger.mock.calls.length
@@ -1311,11 +1445,11 @@ describe('useFollowupQueue', () => {
     }
   })
 
-  it('abandons a hung steer send and releases the claim', async () => {
+  it('holds a hung steer send until the send resolves, then dequeues without resending', async () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head')])
-      const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+      const { claimTrigger, deleteTrigger, failTrigger, markSentTrigger } = wireMutations()
       claimTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
       let resolveSend!: (value: boolean) => void
       const send = vi.fn(
@@ -1337,13 +1471,18 @@ describe('useFollowupQueue', () => {
       await act(async () => {
         expect(await steered).toBe(false)
       })
-      expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+      // Held, not released: the send's outcome is still unknown, and releasing
+      // the claim here is what let a redrain duplicate the delivery.
+      expect(failTrigger).not.toHaveBeenCalled()
       expect(deleteTrigger).not.toHaveBeenCalled()
 
       await act(async () => {
         resolveSend(true)
       })
-      expect(deleteTrigger).not.toHaveBeenCalled()
+      await act(async () => {})
+      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(claimTrigger).toHaveBeenCalledTimes(1)
     } finally {
       vi.useRealTimers()
     }
@@ -1908,7 +2047,9 @@ describe('useFollowupQueue', () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, claimToken: expect.any(String), completionAt: 100 }
+    })
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
@@ -1985,7 +2126,9 @@ describe('useFollowupQueue', () => {
       rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
     })
 
-    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE, claimToken: expect.any(String) } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, claimToken: expect.any(String), completionAt: 100 }
+    })
     expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
     expect(onDrain).toHaveBeenCalledWith(second.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'y' } })

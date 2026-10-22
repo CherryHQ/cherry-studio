@@ -339,6 +339,14 @@ export function useFollowupQueue({
   // Drafts orphaned when a scope switch lands mid-take and the replacement
   // enqueue keeps failing: retried until the write lands, like resolve retries.
   const pendingReenqueueRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // The restore retry scheduled when an edit switch is refused (queue full /
+  // persistence down) belongs to the LIVE edit session: the outgoing item is
+  // still in the editor. Ending that session (send/clear/replace) must cancel
+  // the retry — and remove a copy that already landed — or the item is
+  // re-created in the queue and delivered again (cherry-pr-review). One slot:
+  // a newer refused switch cancels and replaces the older record.
+  type TrackedEditRestore = { restoreId: string; cancelled: boolean; restored: boolean }
+  const editRestoreRef = useRef<TrackedEditRestore | null>(null)
   // Single-flight pause writes per scope: rapid Pause/Resume coalesces to the
   // latest request instead of letting concurrent PUTs resolve out of order.
   // Scoped slots, so a pending Resume in one conversation is never overwritten
@@ -550,7 +558,14 @@ export function useFollowupQueue({
         if (!restored) {
           await releaseClaim()
           toast.error(t('message.error.operation_unavailable'))
-          scheduleReenqueueRetryRef.current(restoreBody)
+          // Editor-owned retry: the outgoing item stays in the editor, so this
+          // restore belongs to the live session — ending the session cancels
+          // it (and removes a landed copy) instead of letting the item
+          // reappear in the queue after it was sent or cleared.
+          cancelTrackedEditRestoreRef.current()
+          const tracked = { restoreId: restoreBody.id, cancelled: false, restored: false }
+          editRestoreRef.current = tracked
+          scheduleReenqueueRetryRef.current(restoreBody, tracked)
           return undefined
         }
         // Move the restored row back to the slot it was taken from; the slot
@@ -582,6 +597,7 @@ export function useFollowupQueue({
               // The outgoing item is back in the queue and the take failed:
               // the edit session is over, its content stays as ordinary draft.
               takenEditRef.current = null
+              cancelTrackedEditRestoreRef.current()
             }
             await releaseClaim()
             return undefined
@@ -592,7 +608,10 @@ export function useFollowupQueue({
         // The content was already sent before a crash: the delete above is the
         // correct dequeue, but restoring its draft would invite a resend. The
         // outgoing item (if any) is back in the queue, so the session is over.
-        if (taken) takenEditRef.current = null
+        if (taken) {
+          takenEditRef.current = null
+          cancelTrackedEditRestoreRef.current()
+        }
         return undefined
       }
       if (scopeKeyRef.current !== scope || !mountedRef.current) {
@@ -656,6 +675,7 @@ export function useFollowupQueue({
 
   const releaseEdit = useCallback(() => {
     takenEditRef.current = null
+    cancelTrackedEditRestoreRef.current()
   }, [])
 
   const reorder = useCallback(
@@ -778,22 +798,53 @@ export function useFollowupQueue({
   // Background restore for a take orphaned by a mid-delete scope switch whose
   // replacement enqueue keeps failing. Uncapped like resolve retries — each
   // tick is one statement — and refetches on success so mirrors converge.
-  const scheduleReenqueueRetryRef = useRef<(body: RestoreQueueBody) => void>(() => {})
-  scheduleReenqueueRetryRef.current = (body: RestoreQueueBody) => {
+  // Cancel the session's tracked restore retry (if any): the timer, a copy
+  // the retry already landed while the item sat in the editor, and the record
+  // itself. In-flight writes reconcile through the record's cancelled flag.
+  const cancelTrackedEditRestoreRef = useRef<() => void>(() => {})
+  cancelTrackedEditRestoreRef.current = () => {
+    const tracked = editRestoreRef.current
+    editRestoreRef.current = null
+    if (!tracked) return
+    tracked.cancelled = true
+    const timer = pendingReenqueueRef.current.get(tracked.restoreId)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      pendingReenqueueRef.current.delete(tracked.restoreId)
+    }
+    if (tracked.restored) {
+      // The retry already re-queued the item during the session: the session's
+      // end (sent/cleared/replaced) must not leave a deliverable copy behind.
+      void removeTrigger({ params: { id: tracked.restoreId } }).catch(() => {})
+    }
+  }
+
+  const scheduleReenqueueRetryRef = useRef<(body: RestoreQueueBody, tracked?: TrackedEditRestore) => void>(() => {})
+  scheduleReenqueueRetryRef.current = (body: RestoreQueueBody, tracked?: TrackedEditRestore) => {
     if (pendingReenqueueRef.current.has(body.id)) return
     const tick = () => {
       pendingReenqueueRef.current.delete(body.id)
+      if (tracked?.cancelled) return
       void (async () => {
         try {
           // Rebuild per tick: a failed inline persist gets another chance, and
           // an already-durable payload passes through unchanged.
           await enqueueTrigger({ body: await buildRestoreBody(body.id, body.scopeKey, body.draft, body.payload) })
+          if (tracked) {
+            if (tracked.cancelled) {
+              // The edit session ended while the write was in flight: reconcile
+              // — the landed copy must not outlive the session it belonged to.
+              void removeTrigger({ params: { id: body.id } }).catch(() => {})
+              return
+            }
+            tracked.restored = true
+          }
           if (mountedRef.current) void refetch()
         } catch (error) {
           // The conversation was permanently deleted: the service refuses to
           // recreate its rows, so there is nothing left to restore into.
           if (isAlreadyResolved(error)) return
-          scheduleReenqueueRetryRef.current(body)
+          scheduleReenqueueRetryRef.current(body, tracked)
         }
       })()
     }
@@ -831,27 +882,6 @@ export function useFollowupQueue({
     [removeTrigger, markFailedTrigger, noteItemRemoved]
   )
 
-  // A send abandoned by the timeout can still report success late. The row was
-  // settled as failed and stays queued, so reclaim and dequeue it without resending.
-  const repairLateSend = useCallback(
-    async (id: string) => {
-      const result = await claimItem(id)
-      if (!result?.claim?.claimed) return
-      const { claimToken } = result
-      startHeartbeat(id, claimToken)
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          await markSentTrigger({ params: { id }, body: { claimToken } })
-          break
-        } catch {
-          // Transient failure — retry before settling.
-        }
-      }
-      await settleItem(id, true, claimToken)
-    },
-    [claimItem, startHeartbeat, markSentTrigger, settleItem]
-  )
-
   // Shared delivery for a won claim (steer + auto-drain): scope check, skip when
   // already sent, heartbeat-guarded send, sent-marker, settle. Resolves sent/not.
   const deliverWonClaim = useCallback(
@@ -887,22 +917,42 @@ export function useFollowupQueue({
       onCommitted?.()
       startHeartbeat(id, claimToken)
       let sent = false
+      let unresolvedSend: Promise<boolean> | null = null
       try {
         const pending = send(payload)
         const outcome = await awaitSendWithTimeout(pending)
         sent = outcome.sent
-        if (outcome.timedOut) {
-          // FIFO moves on now, but the orphaned send may still succeed late —
-          // repair it then so the row cannot be redrained and resent.
-          void pending.then(
-            (late) => {
-              if (late) void repairLateSend(id)
-            },
-            () => {}
-          )
-        }
+        if (outcome.timedOut) unresolvedSend = pending
       } catch {
         sent = false
+      }
+      if (unresolvedSend) {
+        // The outcome is unknown: the send may still succeed. Keep the claim
+        // and its heartbeat until the operation resolves definitively —
+        // settling failed here makes the row claimable while the original send
+        // is live, and a redrain that wins the race against the late repair
+        // delivers the message twice (cherry-pr-review). A late success marks
+        // and dequeues without resending; a definitive failure releases the
+        // row back to failed for the next completion.
+        void unresolvedSend.then(
+          async (late) => {
+            if (late) {
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  await markSentTrigger({ params: { id }, body: { claimToken } })
+                  break
+                } catch {
+                  // Transient failure — the settlement still dequeues below.
+                }
+              }
+            }
+            await settleItem(id, late, claimToken)
+          },
+          () => {
+            void settleItem(id, false, claimToken)
+          }
+        )
+        return false
       }
       if (sent) {
         // Record the send before resolving so a crash replays as a skip, never
@@ -922,7 +972,7 @@ export function useFollowupQueue({
       }
       return sent
     },
-    [settleItem, startHeartbeat, markSentTrigger, t, repairLateSend]
+    [settleItem, startHeartbeat, markSentTrigger, t]
   )
 
   // Manual steer through the same claim arbitration as auto-drain: only the
@@ -1011,7 +1061,9 @@ export function useFollowupQueue({
       const claimToken = crypto.randomUUID()
       for (let attempt = 0; attempt < 2 && !won; attempt++) {
         try {
-          won = await claimHeadTrigger({ body: { scopeKey: scope, claimToken } })
+          won = await claimHeadTrigger({
+            body: { scopeKey: scope, claimToken, completionAt: completionAt ?? undefined }
+          })
         } catch {
           // Transient IPC/DB failure — retry once.
         }

@@ -72,7 +72,7 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
   '/followup-queues/claim:head': {
     POST: async ({ body }) => {
       const parsed = ClaimFollowupQueueHeadSchema.parse(body)
-      return followupQueueService.claimHead(parsed.scopeKey, parsed.claimToken)
+      return followupQueueService.claimHead(parsed.scopeKey, parsed.claimToken, parsed.completionAt)
     }
   },
 
