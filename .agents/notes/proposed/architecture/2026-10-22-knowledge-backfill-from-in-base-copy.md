@@ -27,11 +27,11 @@ The backfill stops going through reindex and reuses the regular per-item indexin
   - reconciles the leaves' containers, so directories become `processing` through the existing container rollup.
 
   Either the model and the statuses commit together or neither does. From then on, no backfill target reads as `completed` until its own indexing completes.
-- **One indexing job per leaf.** After the lock is released, the backfill calls `scheduleItem` for each activated leaf, the same way `addItems` schedules a new item. If scheduling a leaf throws, that leaf is marked `failed` with the reason, using the same compensation as `addItems`. A delete cancels only the jobs of the items it removes.
+- **One indexing job per leaf.** After the lock is released, the backfill calls `scheduleItem` for each activated leaf, the same way `addItems` schedules a new item. If scheduling a leaf throws, that leaf is marked `failed` with the reason and the remaining leaves are still scheduled. A delete cancels only the jobs of the items it removes.
 - **In-base sources only.** `knowledge.index-documents` reads the `raw/` file or its pinned processed artifact, and the captured URL or note snapshot. It fetches nothing and copies nothing.
   - `scheduleItem` runs without `forceFileReprocess`, so a file that already has a processed artifact is not reprocessed.
   - `rebuildMaterial` replaces each item's BM25-only material in one transaction, so nothing needs deleting first.
-- **Admission.** The base must be allowed to run runtime operations, the model must be the base's first, and every target subtree must be `completed` or `failed`. The source-existence check is dropped, so a moved or deleted original no longer blocks the backfill.
+- **Admission.** The base must be allowed to run runtime operations and every target subtree must be `completed` or `failed`; `KnowledgeBaseService.update` still rejects switching an already-configured model. The source-existence check is dropped, so a moved or deleted original no longer blocks the backfill.
 - **Recovery stays as it is.** `knowledge.index-documents` keeps `recovery: 'abandon'`. After a quit, unfinished leaves are still in an in-flight status, so the boot sweep fails them with `indexing_interrupted`. Leaves that finished stay `completed`.
 - **User-triggered reindex is unchanged.** It still re-acquires from the original. Separating "rebuild from the in-base copy" from "refresh from source" for reindex is left to #22092.
 
