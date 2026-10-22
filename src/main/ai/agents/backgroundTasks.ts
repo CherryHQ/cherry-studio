@@ -789,7 +789,7 @@ const probeTaskMarker = (execFileSync, marker, self) => {
     String(execFileSync('ps', args, { encoding: 'utf8', timeout: 5000, maxBuffer: 16 * 1024 * 1024, env }))
   let table
   try {
-    table = run(['eww', '-axo', 'pid=,command='], { ...scan, CHERRY_BG_TASK_PROBE: nonce })
+    table = run(['eww', '-Ao', 'pid=,command='], { ...scan, CHERRY_BG_TASK_PROBE: nonce })
   } catch (error) {
     return { status: 'unknown' }
   }
@@ -984,7 +984,7 @@ function readMarkerProcesses(taskId: string): MarkerRead {
     String(execFileSync('ps', args, { encoding: 'utf8', timeout: 5_000, maxBuffer: 16 * 1024 * 1024, env }))
   let table: string
   try {
-    table = run(['eww', '-axo', 'pid=,command='], { ...scan, [BACKGROUND_TASK_PROBE_ENV]: nonce })
+    table = run(['eww', '-Ao', 'pid=,command='], { ...scan, [BACKGROUND_TASK_PROBE_ENV]: nonce })
   } catch {
     return { status: 'unknown' }
   }
