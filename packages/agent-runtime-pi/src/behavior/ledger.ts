@@ -145,7 +145,7 @@ function prepare(adapter: Adapter, thread: ThreadId, op: TxOp, owner: Owner | un
         // forkFrom/create touch the disk and can throw, which must reject the whole commit.
         create: () => (manager = childManager(parent.manager, child, fork)),
         write: (applied) => {
-          // A fork subagent's fork point holds calls that run on in this conversation; an S-j fork's ended (H3).
+          // Parent calls keep running there; calls copied from another child need the interrupted result (H3).
           const copied = manager.getBranch()
           const placeholders = spec.fork?.from === thread ? unansweredCalls(copied, copied.length - 1) : []
           for (const call of placeholders) manager.appendMessage(resultFor(call, FORK_PLACEHOLDER_RESULT, false))

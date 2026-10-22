@@ -25,7 +25,7 @@ import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { AgentRuntimeSession } from '../session'
 
-/** The parent run whose tool call spawned a foreground child; stopping that run stops the child. */
+/** The parent run whose tool call owns the child's first run; the ownership ends with that child run. */
 export type Owner = { readonly thread: ThreadId; readonly run: number }
 /** What a call's ports are bound to: the run of a tool call that owns its foreground children, and its abort signal. */
 export type CallScope = { readonly owner?: Owner; readonly signal?: AbortSignal }
@@ -66,7 +66,7 @@ export type Conversation = {
   readonly thread: ThreadId
   readonly manager: SessionManager
   readonly lineage: ConversationFacts['lineage']
-  readonly owner?: Owner
+  owner?: Owner
   readonly reopened: boolean
   native?: AgentRuntimeSession
   readonly submissions: Map<string, Submission>
