@@ -5656,7 +5656,10 @@ describe('AgentComposer', () => {
     // under the original id, so assert identity + content, not row equality.
     const expectQueue = (dock: () => any, expected: any[], message: string) => {
       const items = dock()?.items ?? []
-      expect(items.map((entry: any) => entry.id), message).toEqual(expected.map((entry: any) => entry.id))
+      expect(
+        items.map((entry: any) => entry.id),
+        message
+      ).toEqual(expected.map((entry: any) => entry.id))
       expected.forEach((entry, index) => {
         expect(items[index], message).toMatchObject({ draft: entry.draft, payload: entry.payload })
       })

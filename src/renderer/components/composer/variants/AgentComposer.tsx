@@ -1957,7 +1957,6 @@ const AgentComposerInner = ({
                     const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
                     if (!incoming) return
                     restoreFollowupDraft(incoming)
-
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
