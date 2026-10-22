@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
@@ -52,8 +53,22 @@ describe('knowledge ordering migrate-forward', () => {
     dbh.sqlite.exec(
       'DROP INDEX knowledge_base_group_id_order_key_idx; ALTER TABLE knowledge_base DROP COLUMN order_key'
     )
+    // Later migrations stay applied; only this one is rolled back and replayed.
+    const laterRows = dbh.sqlite
+      .prepare('SELECT hash, created_at FROM __drizzle_migrations WHERE created_at > ?')
+      .all(migration.when) as Array<{ hash: string; created_at: number }>
     dbh.sqlite.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(migration.when)
-    applyMigrations(dbh.db, migrationsFolder)
+    const upToMigration = mkdtempSync(join(tmpdir(), 'knowledge-order-migrations-'))
+    try {
+      cpSync(migrationsFolder, upToMigration, { recursive: true })
+      const truncated = { ...journal, entries: journal.entries.filter((entry) => entry.when <= migration.when) }
+      writeFileSync(resolve(upToMigration, 'meta/_journal.json'), JSON.stringify(truncated))
+      applyMigrations(dbh.db, upToMigration)
+    } finally {
+      rmSync(upToMigration, { recursive: true, force: true })
+    }
+    const restoreLater = dbh.sqlite.prepare('INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)')
+    for (const row of laterRows) restoreLater.run(row.hash, row.created_at)
     new SeedRunner(dbh.db).runAll([new KnowledgeBaseOrderSeeder()])
     const service = new KnowledgeBaseService()
     const rows = service.listCursor({ limit: 100, sortBy: 'orderKey', sortOrder: 'asc' }).items
