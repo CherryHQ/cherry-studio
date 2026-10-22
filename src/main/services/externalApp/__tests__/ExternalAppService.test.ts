@@ -1,4 +1,5 @@
 import type * as NodeFs from 'node:fs'
+import path from 'node:path'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,6 +48,7 @@ vi.mock('../defaultApplication', () => ({
 
 describe('ExternalAppService', () => {
   beforeEach(() => {
+    vi.stubEnv('LOCALAPPDATA', undefined)
     MockMainCacheServiceUtils.resetMocks()
     vi.clearAllMocks()
     Object.assign(mocks.platform, { isMac: true, isWin: false, isLinux: false })
@@ -120,7 +122,7 @@ describe('ExternalAppService', () => {
         { id: 'known:vscode', name: 'Visual Studio Code', kind: 'application' }
       ]
     })
-    expect(mocks.resolveDefaultApplication).toHaveBeenCalledWith('/tmp/report.pdf')
+    expect(mocks.resolveDefaultApplication).toHaveBeenCalledWith(path.resolve('/tmp/report.pdf'))
   })
 
   it('keeps the system recommendation while listing every supported application', async () => {
@@ -457,7 +459,8 @@ describe('ExternalAppService', () => {
     const service = new ExternalAppService()
 
     await service.openTarget('/tmp/README.md', 'known:vscode', 'file')
-    expect(mocks.openExternal).toHaveBeenCalledWith('vscode://file//tmp/README.md?windowId=_blank')
+    const drive = process.platform === 'win32' ? `${path.parse(process.cwd()).root[0]}%3A` : ''
+    expect(mocks.openExternal).toHaveBeenCalledWith(`vscode://file/${drive}/tmp/README.md?windowId=_blank`)
     await expect(service.openTarget('/tmp/report.pdf', 'known:wt', 'file')).rejects.toThrow('is not available')
   })
 
@@ -480,8 +483,9 @@ describe('ExternalAppService', () => {
 
     await new ExternalAppService().openTarget('/tmp/My Workspace/开发', 'known:vscode', 'directory')
 
+    const drive = process.platform === 'win32' ? `${path.parse(process.cwd()).root[0]}%3A` : ''
     expect(mocks.openExternal).toHaveBeenCalledWith(
-      'vscode://file//tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank'
+      `vscode://file/${drive}/tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank`
     )
   })
 

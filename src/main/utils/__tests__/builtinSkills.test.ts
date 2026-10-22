@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +34,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 
 // Matches the stub in tests/main.setup.ts → mockApplicationFactory().getPath
-const resourceSkillsPath = '/mock/feature.agents.skills.builtin'
+const resourceSkillsPath = path.resolve('/mock/feature.agents.skills.builtin')
 beforeEach(() => {
   vi.clearAllMocks()
   mockSyncBuiltinSkill.mockResolvedValue(false)
@@ -59,7 +60,7 @@ describe('installBuiltinSkills', () => {
 
     await installBuiltinSkills()
 
-    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith('my-skill', `${resourceSkillsPath}/my-skill`, '2.0.0')
+    expect(mockSyncBuiltinSkill).toHaveBeenCalledWith('my-skill', path.join(resourceSkillsPath, 'my-skill'), '2.0.0')
   })
 
   it('should skip entries with path traversal in name', async () => {

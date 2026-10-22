@@ -1637,7 +1637,7 @@ describe('MainWindowService', () => {
       vi.stubEnv('ELECTRON_RENDERER_URL', undefined)
 
       expect(
-        navigateTo(`file://${APP_ROOT}/out/renderer/windows/main/index.html`).preventDefault
+        navigateTo(pathToFileURL(`${APP_ROOT}/out/renderer/windows/main/index.html`).href).preventDefault
       ).not.toHaveBeenCalled()
     })
 

@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -26,8 +28,8 @@ describe('getBuiltinAutoInstallEnv', () => {
     installSource: 'builtin' as const
   }
   const cherryOwnedPaths = {
-    MCP_REGISTRY_PATH: '/mock/feature.mcp.registry_file',
-    MCP_SETTINGS_PATH: '/mock/feature.mcp.auto_install_settings_file'
+    MCP_REGISTRY_PATH: path.resolve('/mock/feature.mcp.registry_file'),
+    MCP_SETTINGS_PATH: path.resolve('/mock/feature.mcp.auto_install_settings_file')
   }
 
   it('keeps the cache and config writes inside the Cherry tree whether or not an npm mirror is set', () => {

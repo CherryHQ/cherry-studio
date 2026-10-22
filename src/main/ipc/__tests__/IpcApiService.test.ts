@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,11 +37,11 @@ function registeredHandler() {
 
 const trustedEvent = {
   sender: { getType: () => 'window' },
-  senderFrame: { url: 'file:///app/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/app/index.html').href, parent: null }
 }
 const webviewEvent = {
   sender: { getType: () => 'webview' },
-  senderFrame: { url: 'file:///app/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/app/index.html').href, parent: null }
 }
 
 beforeEach(() => {
