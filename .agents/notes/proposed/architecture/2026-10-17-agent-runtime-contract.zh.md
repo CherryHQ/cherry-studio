@@ -8,9 +8,7 @@ Status: proposed
 
 Cherry 需要跨 harness 打开原生上下文、提交输入、独立于某次提交观察工作，并释放资源。要求所有 harness 采用 Cherry 的会话引擎，会重复实现原生调度和恢复；庞大的能力矩阵则会迫使每个消费者自行解释差异。
 
-本文接替栈中的 Runtime 所有权与行为设计，记录已实现的 v0 访问边界及其理由，以及接入时仍需履行的宿主责任。[公共类型](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime/src/contracts.ts)、[Pi 适配器](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/runtime.ts)和 [Pi Durable 适配器](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/src/runtime.ts)维护精确签名。包代码已存在；桌面接入及下述完整验收尚未完成。[Harness 边界](2026-10-17-agent-harness-boundaries.md)维护更上层的职责划分。
-
-本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
+本文接替栈中的 Runtime 所有权与行为设计，记录已实现的 v0 访问边界及其理由，以及接入时仍需履行的宿主责任。[公共类型](../../../../packages/agent-runtime/src/contracts.ts)、[Pi 适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)和 [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/src/runtime.ts)维护精确签名。包代码已存在；桌面接入及下述完整验收尚未完成。[Harness 边界](2026-10-17-agent-harness-boundaries.md)维护更上层的职责划分。
 
 ## Proposal
 
@@ -100,7 +98,7 @@ ID 使用不同的 branded 字符串类型。消费者可以序列化它们，�
 
 快照只替换该来源的当前视图，不删除宿主归档、其他 Thread 或 child 视图。当前适配器提供 `current-view`；协议也允许 `live-only` 和 `retained-view`，均不承诺包含所有历史分支。观察先发送 snapshot，再使用 `item.upsert`、`item.remove`、`input.changed`、`activity.changed`、`delegation.upsert`、`diagnostic`、`gap` 和 `closed`。Upsert 携带累计值，不是任意 token chunk；移除 Item 不等于删除原生上下文。v0 没有为 execution 或 interaction 事件预留未定义的变体。
 
-[ThreadFeed](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime/src/observation.ts) 复制视图与事件，在每个 sink 内串行交付，并隔离观察者。Sink 可能在 `observe` Promise 返回前执行，必须预先捕获 Thread 和订阅上下文。注册确认不等于消费者已保存首帧。等待 sink Promise 仅对该观察者施加背压，不阻塞同步原生派发或其他 sink。
+[ThreadFeed](../../../../packages/agent-runtime/src/observation.ts) 复制视图与事件，在每个 sink 内串行交付，并隔离观察者。Sink 可能在 `observe` Promise 返回前执行，必须预先捕获 Thread 和订阅上下文。注册确认不等于消费者已保存首帧。等待 sink Promise 仅对该观察者施加背压，不阻塞同步原生派发或其他 sink。
 
 待交付队列有界。当前 feed 在待处理帧超过 100 时合并为明确的 `gap` 与替换快照，并保持首帧必须是快照的要求。这恢复的是当前视图，不是全部丢失的历史事件。映射丢失和断线也通过 gap 表达；来源无法恢复时关闭观察。快照接入不能静默遗漏注册边界的变化。
 

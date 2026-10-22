@@ -10,8 +10,6 @@ Status: proposed
 
 本文保留 Runtime 栈中五类样本的研究与验证记录，区分固定源码调研、历史已执行探针、当前测试覆盖与应用验收。[Harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)和[运行时契约](../architecture/2026-10-17-agent-runtime-contract.md)维护设计，本文维护证据与验收缺口。[子智能体控制提案](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护超出已实现 v0 契约的变更。本次迁移不把这些工作标为已实现，也不产生新的测试通过记录。
 
-本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
-
 ## Proposal
 
 ### 源码基线与证据层级
@@ -37,7 +35,7 @@ ACP 是接入协议，不是执行引擎。该样本研究协议可表达的 har
 | 最初的 Pi Durable 调研 | 当时 Cherry 尚未引入 Durable，关联源码仓库也未安装依赖，上游测试引用属于静态证据。目前适配器和离线测试已经存在，但不能倒推最初调研执行过上游测试套件。 |
 | OAR 对照 | 本地基线 `141921ea5a818bd8b0a1c0c1e17a2593898dbefe`。其产品选择可作对照，不是原生保证。 |
 
-当前依赖归属见[根 manifest](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/package.json)、[Pi manifest](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/package.json)、[Durable manifest](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/package.json)和[工作区补丁配置](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/pnpm-workspace.yaml)。Pi AI 的 ultra 与 Google fetch 补丁已针对 1.3.0。版本核对只能确认适配目标，不能证明提供商或桌面验收通过。
+当前依赖归属见[根 manifest](../../../../package.json)、[Pi manifest](../../../../packages/agent-runtime-pi/package.json)、[Durable manifest](../../../../packages/agent-runtime-pi-durable/package.json)和[工作区补丁配置](../../../../pnpm-workspace.yaml)。Pi AI 的 ultra 与 Google fetch 补丁已针对 1.3.0。版本核对只能确认适配目标，不能证明提供商或桌面验收通过。
 
 ### 先比较身份，不先统一类型名
 
@@ -66,7 +64,7 @@ ACP 是接入协议，不是执行引擎。该样本研究协议可表达的 har
 
 官方子智能体示例通过 `--mode json -p --no-session` 启动子进程，并把进度送到父工具的 `onUpdate`。这一组合本身不提供稳定 child session、重启后继续对话或独立子流订阅的核心契约。[官方子智能体示例](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/examples/extensions/subagent/index.ts)
 
-Cherry 适配器使用自研的进程内[子智能体扩展](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/subagent.ts)，复用 Pi 原生会话。扩展已有消息和停止控制，而公共 child 访问仍以 `managed-child` 拒绝 `submit`。当前选择和公共控制桥接提案由[子智能体控制记录](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护。官方示例和适配缺口都不能证明 Pi 不支持子会话对话。
+Cherry 适配器使用自研的进程内[子智能体扩展](../../../../packages/agent-runtime-pi/src/subagent.ts)，复用 Pi 原生会话。扩展已有消息和停止控制，而公共 child 访问仍以 `managed-child` 拒绝 `submit`。当前选择和公共控制桥接提案由[子智能体控制记录](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护。官方示例和适配缺口都不能证明 Pi 不支持子会话对话。
 
 #### 关系示例
 
@@ -95,7 +93,7 @@ InputId 需要实际接纳证据。Pi 缺乏通用持久化 ExecutionId，适配
 | `agent_settled` 通知期间提交的 prompt 被延后处理，调用可能先于延后动作返回 | settled 不是永久 idle，也不是该 prompt 的回执。应等待对应 preflight 证据或报告不确定。 |
 | 原生 `dispose()` 同步触发取消与解绑，不等待全部执行收尾 | 返回不代表完成停机；拥有的资源需要独立的关闭协调。 |
 
-依据：[AgentSession](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts) 中的 `prompt`、`_startRun`、`_tryExecuteExtensionCommand`、`_queueUserInput`、`_emitAgentSettled`、`abort` 与 `dispose`。这些是原生行为；Cherry 的[会话所有者](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/session.ts)还协调用户停止与扩展清理。[运行时适配器](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/runtime.ts)通过该所有者中断受管理子会话，不能绕过所有权，把子会话原生 `abort()` 当成完整控制契约。
+依据：[AgentSession](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts) 中的 `prompt`、`_startRun`、`_tryExecuteExtensionCommand`、`_queueUserInput`、`_emitAgentSettled`、`abort` 与 `dispose`。这些是原生行为；Cherry 的[会话所有者](../../../../packages/agent-runtime-pi/src/session.ts)还协调用户停止与扩展清理。[运行时适配器](../../../../packages/agent-runtime-pi/src/runtime.ts)通过该所有者中断受管理子会话，不能绕过所有权，把子会话原生 `abort()` 当成完整控制契约。
 
 `SessionManager.open(path)` 会为缺失路径创建新上下文，也可能初始化空文件。公共 `open(existingRef)` 不能直接映射到它。应核对加载后的原生身份与预期一致，不匹配时拒绝打开。单独使用 `existsSync` 仍存在检查和加载之间的竞态。严格只读打开还涉及空文件初始化；若需要这项保证，应推动原生 strict-open，而非复制会话解析器。[SessionManager](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/session-manager.ts)
 
@@ -230,7 +228,7 @@ Subagent RFD 通过父 session 的 `subagent_update` 宣告 child session；chil
 | 输入调度跨越所有者 | 宿主队列决定何时 send；redirect 回执与事件决定后续回合；harness 也在安排输入 | 接收、投递、排队、进入上下文分别确认；每项调度决策只有一个所有者。 |
 | 子输出依赖父消息 | Background flow 用 rootToolCallId 查父消息锚点，再选择当前流或后台累积器；没有锚点时忽略输出 | 子内容按自身来源组织；父工具与父消息只保留关联关系。 |
 
-依据：[桌面连接与事件](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/types.ts)、[Pi 创建与恢复](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/PiRuntimeConnection.ts)、[宿主回合与后台输出](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/agentSession/AgentSessionRuntimeService.ts)。这些是静态结构结论，不表示每个潜在竞态均已复现。[桌面 Pi README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md)明确现有连接尚未使用新包。
+依据：[桌面连接与事件](../../../../src/main/ai/runtime/types.ts)、[Pi 创建与恢复](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts)、[宿主回合与后台输出](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts)。这些是静态结构结论，不表示每个潜在竞态均已复现。[桌面 Pi README](../../../../src/main/ai/runtime/pi/README.md)明确现有连接尚未使用新包。
 
 Opaque resume token、宿主输入队列和展示历史都可以存在。问题不是它们存在，而是证据、所有权不清晰，以及它们可能与原生状态竞争。产品会话之间的消息投递也不建立子智能体所有权；[子智能体控制记录](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护这一区别。
 
@@ -257,14 +255,14 @@ OAR 基线 `141921ea5a818bd8b0a1c0c1e17a2593898dbefe` 的 `packages/oar/src/runt
 
 | 当前回归源码 | 测试覆盖的行为 |
 | --- | --- |
-| [公共观察](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime/tests/observation.test.ts) | 慢消费者隔离；有界溢出后 gap 与快照；首帧快照；停止不等待已进入的消费者；异常及对象修改隔离；替换顺序；异步派发与重入顺序。 |
-| [Pi 适配器](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/runtime.test.ts) | 多访问者共享内容身份；流式输出与 release 隔离；原生忙时拒绝；命令 preflight 与 follow-up 入队；错误原生身份拒绝；原生文件正常关闭和重开。 |
-| [Pi 原生会话](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/tests/nativeSession.test.ts) | 原生提供商执行，以及调用方保有借入 model runtime 的所有权，不依赖 Cherry AI SDK 桥接。 |
-| [Pi Durable 适配器](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/tests/runtime.test.ts) | 当前视图与输入完成；忙时拒绝、去重、按会话撤回；后续状态读取失败不丢失接纳回执；owned child 独立观察；SQLite 正常关闭重开；被动观察查询后显式 resume。 |
-| `src/main/ai/runtime/pi/gateway*.test.ts` 中的 Cherry 桥接测试 | 模型桥、原生历史、工具、压缩、goal、前后台子智能体、续接与结果交付。[子智能体停止测试](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/aiSdkSubagentStop.test.ts)也覆盖通过所有者控制器中断 child thread。仅原生测试保留在 `packages/agent-runtime-pi/tests/`。 |
-| [校验范围选择](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/scripts/__tests__/validationPlan.test.ts)、[校验工作流](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/scripts/__tests__/validationWorkflow.test.ts) | 新包纳入影响范围选择；公共包变化包含两个适配器的消费者检查。 |
+| [公共观察](../../../../packages/agent-runtime/tests/observation.test.ts) | 慢消费者隔离；有界溢出后 gap 与快照；首帧快照；停止不等待已进入的消费者；异常及对象修改隔离；替换顺序；异步派发与重入顺序。 |
+| [Pi 适配器](../../../../packages/agent-runtime-pi/tests/runtime.test.ts) | 多访问者共享内容身份；流式输出与 release 隔离；原生忙时拒绝；命令 preflight 与 follow-up 入队；错误原生身份拒绝；原生文件正常关闭和重开。 |
+| [Pi 原生会话](../../../../packages/agent-runtime-pi/tests/nativeSession.test.ts) | 原生提供商执行，以及调用方保有借入 model runtime 的所有权，不依赖 Cherry AI SDK 桥接。 |
+| [Pi Durable 适配器](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts) | 当前视图与输入完成；忙时拒绝、去重、按会话撤回；后续状态读取失败不丢失接纳回执；owned child 独立观察；SQLite 正常关闭重开；被动观察查询后显式 resume。 |
+| `src/main/ai/runtime/pi/gateway*.test.ts` 中的 Cherry 桥接测试 | 模型桥、原生历史、工具、压缩、goal、前后台子智能体、续接与结果交付。[子智能体停止测试](../../../../src/main/ai/runtime/pi/gatewaySubagentStop.test.ts)也覆盖通过所有者控制器中断 child thread。仅原生测试保留在 `packages/agent-runtime-pi/tests/`。 |
+| [校验范围选择](../../../../scripts/__tests__/validationPlan.test.ts)、[校验工作流](../../../../scripts/__tests__/validationWorkflow.test.ts) | 新包纳入影响范围选择；公共包变化包含两个适配器的消费者检查。 |
 
-[Pi 桥接 README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md)说明测试使用真实 AI SDK 流式处理和本地 HTTP 提供商。这不等于真实外部提供商验收、完整上游 SDK 测试套件或 Electron 验收。测试文件和历史通过记录不能替代这些边界。
+[Pi 桥接 README](../../../../src/main/ai/runtime/pi/README.md)说明测试使用真实 AI SDK 流式处理和本地 HTTP 提供商。这不等于真实外部提供商验收、完整上游 SDK 测试套件或 Electron 验收。测试文件和历史通过记录不能替代这些边界。
 
 #### 剩余缺口
 

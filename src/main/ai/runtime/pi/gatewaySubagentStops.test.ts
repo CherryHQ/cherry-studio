@@ -10,12 +10,12 @@ import {
   outputText,
   recordingSubagentPort,
   routedModel,
+  stopTurnTool,
   subagentCall,
   toolCallPart,
   toolResultOf,
   toolResults
 } from './gatewaySubagentSupport'
-import type { TestModel } from './gatewaySupport'
 import { createTestSession, finish, lastAssistant, MODEL, gatewayModel, textParts } from './gatewaySupport'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
@@ -91,29 +91,15 @@ describe('subagent stops', () => {
 
     const [a, b] = toolResults(calls.at(-1)!)
     expect(a.output.type).toBe('text')
-    expect(outputText(b.output)).toBe('REPORT-B')
+    expect(outputText(b.output)).toMatch(/^REPORT-B\n\n\(id: /)
   })
 
   it('stops the subagent and shuts it down when the parent turn aborts', async () => {
     const parent: { session?: AgentSession } = {}
     let shutdowns = 0
-    const waitTool = defineTool({
-      name: 'wait',
-      label: 'Wait',
-      description: 'Wait until stopped',
-      parameters: Type.Object({}),
-      async execute(_id, _params, signal) {
-        void parent.session!.abort()
-        await new Promise<void>((resolve) => {
-          if (signal?.aborted) resolve()
-          else signal?.addEventListener('abort', () => resolve(), { once: true })
-        })
-        return { content: [{ type: 'text', text: 'stopped' }], details: undefined }
-      }
-    })
     const { model, calls } = delegate((lastRole) =>
       lastRole === 'user'
-        ? [toolCallPart('wait_1', 'wait'), finish('tool-calls')]
+        ? [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
         : [...textParts('r', 'LATE'), finish('stop')]
     )
     const host = recordingSubagentPort(() => ({
@@ -125,7 +111,7 @@ describe('subagent stops', () => {
     }))
     const runtime = await createTestSession({
       port: gatewayModel(model).upstream,
-      tools: [waitTool],
+      tools: [stopTurnTool(parent)],
       subagents: host.port
     })
     parent.session = runtime.session
@@ -148,6 +134,31 @@ describe('subagent stops', () => {
           pi.on('before_agent_start', async () => {
             void parent.session!.abort()
             await new Promise((resolve) => setTimeout(resolve, 0))
+          })
+        }
+      ]
+    }))
+    const runtime = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    parent.session = runtime.session
+
+    await runtime.session.prompt('Delegate the check')
+
+    expect(calls.filter((call) => call.userText.includes('TASK-A'))).toHaveLength(0)
+    expect(toolResultOf(runtime.session, 'call_a').details).toMatchObject({ outcome: 'aborted' })
+  })
+
+  // Breaks when an abort made before Pi starts preparing the subagent's run (while its `input` handlers
+  // run, which Pi ignores) is dropped: the subagent would still send its requests.
+  it('does not let a subagent run when the turn aborts while its input handlers run', async () => {
+    const parent: { session?: AgentSession } = {}
+    const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
+    const host = recordingSubagentPort(() => ({
+      extensionFactories: [
+        (pi) => {
+          pi.on('input', async () => {
+            void parent.session!.abort()
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            return { action: 'continue' }
           })
         }
       ]
@@ -314,7 +325,7 @@ describe('subagent stops', () => {
         ...MODEL,
         promptCache: { short: 11 },
         cost: { input: 10_000, output: 0, cacheRead: 0, cacheWrite: 0 }
-      } as TestModel,
+      },
       tools: [buildTool, noteTool],
       subagents: recordingSubagentPort().port
     })

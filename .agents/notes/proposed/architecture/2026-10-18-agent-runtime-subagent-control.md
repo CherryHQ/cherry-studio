@@ -10,9 +10,7 @@ Cherry needs to observe subagents, manage delegated work, and continue a convers
 
 The [current runtime contract](2026-10-17-agent-runtime-contract.md) requires `Delegation.child` and `ThreadHandle.submit`. Those requirements cannot directly express an observable delegation without a public child conversation, or a child that can be observed but cannot receive input through that access. This note records the Pi integration choice and proposed extensions to that contract; it does not change the implemented v0 API or claim desktop integration.
 
-[AgentSessionDeliveryService](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/agentSession/AgentSessionDeliveryService.ts) delivers messages between Cherry product sessions. Creating a session and delivering a first message does not establish subagent ownership, cancellation propagation, or resource cleanup. It is not the subagent controller.
-
-Implementation facts in this note refer to the cumulative runtime stack inspected at `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766`. Behavior supplied by later layers remains a target at this layer; the note does not claim those features are already present here. Source links use that fixed snapshot, and notes not yet introduced link to their owning PR.
+[AgentSessionDeliveryService](../../../../src/main/ai/agentSession/AgentSessionDeliveryService.ts) delivers messages between Cherry product sessions. Creating a session and delivering a first message does not establish subagent ownership, cancellation propagation, or resource cleanup. It is not the subagent controller.
 
 ## Proposal
 
@@ -20,7 +18,7 @@ Implementation facts in this note refer to the cumulative runtime stack inspecte
 
 Retain the existing subagent implementation in `packages/agent-runtime-pi`. The current choice is to avoid taking on community-plugin TUI integration and terminal interaction assumptions while Cherry provides its own UI. This is an integration decision, not a claim that every community plugin requires a TUI or cannot run headlessly. Community implementations remain useful references; changing this choice would require evaluating a concrete reusable execution interface separately from its presentation layer.
 
-The [Pi subagent extension](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/subagent.ts) owns child creation, continuation, run tracking, and result delivery. It continues to use native Pi sessions, tools, execution loops, and storage. Cherry owns presentation, permissions, and product configuration; the extension and common runtime package must not depend on terminal widgets or Cherry renderer code. The [background subagent note](https://github.com/CherryHQ/cherry-studio/pull/21693) owns Pi-specific behavior.
+The [Pi subagent extension](../../../../packages/agent-runtime-pi/src/subagent.ts) owns child creation, continuation, run tracking, and result delivery. It continues to use native Pi sessions, tools, execution loops, and storage. Cherry owns presentation, permissions, and product configuration; the extension and common runtime package must not depend on terminal widgets or Cherry renderer code. The [background subagent note](../feature/2026-10-14-agent-runtime-background-subagent.md) owns Pi-specific behavior.
 
 ### Separate a delegation from its conversation
 
@@ -55,9 +53,9 @@ Observing child output and reporting an assignment's result to the parent are se
 
 | Implementation | Verified source behavior | Remaining boundary |
 | --- | --- | --- |
-| Pi adapter | Our extension provides `message_subagent`, while [the common access](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/runtime.ts) rejects managed-child submission. | Bridge input through the extension's controller; do not bypass it by prompting its child session directly. |
-| Pi Durable adapter | [Child access](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/src/runtime.ts) already exposes native conversation input, observation, and interruption. | Preserve native task ownership, background cancellation boundaries, and Harness-wide scheduler activation by submit/interrupt. |
-| Adapter coverage | The [Pi Durable child test](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi-durable/tests/runtime.test.ts) covers discovery and independent observation. | It does not establish a complete continued-child-conversation flow, unified spawn/cancel, or desktop acceptance. |
+| Pi adapter | Our extension provides `message_subagent`, while [the common access](../../../../packages/agent-runtime-pi/src/runtime.ts) rejects managed-child submission. | Bridge input through the extension's controller; do not bypass it by prompting its child session directly. |
+| Pi Durable adapter | [Child access](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) already exposes native conversation input, observation, and interruption. | Preserve native task ownership, background cancellation boundaries, and Harness-wide scheduler activation by submit/interrupt. |
+| Adapter coverage | The [Pi Durable child test](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts) covers discovery and independent observation. | It does not establish a complete continued-child-conversation flow, unified spawn/cancel, or desktop acceptance. |
 
 Pi Durable's owned child is a native conversation. Its tool-call-bound `api.conversation()` handle expires with the invocation; host access uses `harness.conversation(id)`. The foreground and background subagent examples in Pi Durable 1.3.0 demonstrate different ownership boundaries; continued input alone does not arrange result reporting to the parent. These native differences remain relevant even when the public operation names match.
 
