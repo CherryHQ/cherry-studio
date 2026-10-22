@@ -3155,7 +3155,7 @@
   "provider.copilot": "GitHub Copilot",
   "provider.dashscope": "Alibaba Cloud",
   "provider.deepseek": "DeepSeek",
-  "provider.demonroute": "[to be translated]:DemonRoute",
+  "provider.demonroute": "DemonRoute",
   "provider.dmxapi": "DMXAPI",
   "provider.doc2x": "Doc2X",
   "provider.doubao": "Volcengine",
