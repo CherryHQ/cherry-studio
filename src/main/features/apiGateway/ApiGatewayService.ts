@@ -333,7 +333,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
     const ipv6 = this.apiGateway.getHosts().includes('::')
     const addressOptions = getRemoteAddressOptions(networkInterfaces(), metadata, ipv6)
 
-    const advertisedEndpoint = configured == null ? null : advertisedEndpointSchema.parse(configured)
+    const advertisedEndpoint =
+      configured == null
+        ? null
+        : advertisedEndpointSchema.parse({
+            host: configured.host,
+            port: configured.port,
+            security: configured.security
+          })
     const port = this.apiGateway.getPort()
     return {
       advertisedEndpoint,

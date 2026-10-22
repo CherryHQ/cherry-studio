@@ -456,4 +456,7 @@ export type CustomToolDefinition = {
   requestedVersion?: string
 }
 
-export type AdvertisedRemoteEndpoint = DirectEndpoint
+export type AdvertisedRemoteEndpoint = DirectEndpoint & {
+  /** Original validated input for display; transport endpoints omit this field. */
+  inputUrl?: string
+}
