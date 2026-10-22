@@ -13,6 +13,7 @@ import {
   ClaimFollowupQueueHeadSchema,
   CreateFollowupQueueSchema,
   FollowupQueueScopeQuerySchema,
+  FollowupQueueSettlementBodySchema,
   SetFollowupQueueStateSchema,
   type FollowupQueueSchemas
 } from '@shared/data/api/schemas/followupQueues'
@@ -46,22 +47,25 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
   },
 
   '/followup-queues/:id/fail': {
-    POST: async ({ params }) => {
-      followupQueueService.markFailed(params.id)
+    POST: async ({ params, body }) => {
+      const parsed = FollowupQueueSettlementBodySchema.parse(body)
+      followupQueueService.markFailed(params.id, parsed.claimToken)
       return undefined
     }
   },
 
   '/followup-queues/:id/sent': {
-    POST: async ({ params }) => {
-      followupQueueService.markSent(params.id)
+    POST: async ({ params, body }) => {
+      const parsed = FollowupQueueSettlementBodySchema.parse(body)
+      followupQueueService.markSent(params.id, parsed.claimToken)
       return undefined
     }
   },
 
   '/followup-queues/:id/heartbeat': {
-    POST: async ({ params }) => {
-      return followupQueueService.heartbeat(params.id)
+    POST: async ({ params, body }) => {
+      const parsed = FollowupQueueSettlementBodySchema.parse(body)
+      return followupQueueService.heartbeat(params.id, parsed.claimToken)
     }
   },
 
