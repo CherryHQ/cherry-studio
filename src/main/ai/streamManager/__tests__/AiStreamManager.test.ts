@@ -3,7 +3,7 @@ import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -2036,27 +2036,68 @@ describe('AiStreamManager', () => {
 
       expect(response).toEqual({
         status: 'attached',
+        replayThrough: { [attemptId!]: 4 },
         bufferedChunks: [
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            sequence: 1,
             chunk: { type: 'text-start', id: 'p1' }
           },
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            sequence: 3,
             chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
           },
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            sequence: 4,
             chunk: { type: 'text-end', id: 'p1' }
           }
         ]
       })
+    })
+
+    it('cuts replay between coalesced deltas without dropping output for an existing consumer', () => {
+      const sent: StreamChunkPayload[] = []
+      const sender = {
+        id: 1,
+        isDestroyed: () => false,
+        send: (_channel: string, event: string, payload: StreamChunkPayload) => {
+          if (event === 'ai.stream.chunk') sent.push(payload)
+        }
+      }
+      const wc = sender as unknown as Electron.WebContents
+      const {
+        executions: [{ attemptId }]
+      } = startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new WebContentsListener(wc, 'a')]
+      })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' })
+      const first = mgr.attach(wc, { topicId: 'a' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hello' })
+      const second = mgr.attach(wc, { topicId: 'a' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: '!' })
+      vi.advanceTimersByTime(16)
+
+      expect(first).toMatchObject({ status: 'attached', replayThrough: { [attemptId]: 3 } })
+      expect(second).toMatchObject({ status: 'attached', replayThrough: { [attemptId]: 4 } })
+      expect(sent.map(({ sequence, chunk }) => ({ sequence, chunk }))).toEqual([
+        { sequence: 1, chunk: { type: 'text-start', id: 'p1' } },
+        { sequence: 3, chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
+        { sequence: 4, chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
+        { sequence: 5, chunk: { type: 'text-delta', id: 'p1', delta: '!' } }
+      ])
     })
 
     it('ring buffer merges a same-part delta flood on ingest instead of evicting its opener', () => {
