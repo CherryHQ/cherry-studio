@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -289,7 +289,7 @@ describe('ChannelDetail', () => {
     channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
     channelMocks.updateChannel.mockImplementationOnce(async (_id, patch) => ({
       ...channelMocks.channels[0],
-      ...patch
+      config: { ...config, ...patch.configPatch }
     }))
     const { rerender } = render(<ChannelDetail channelDef={feishuChannelDef} />)
     await user.click(await screen.findByRole('button', { name: 'common.edit' }))
@@ -299,7 +299,7 @@ describe('ChannelDetail', () => {
     await user.click(mentionSwitch)
     await waitFor(() => {
       expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
-        config: { ...config, mention_only: false }
+        configPatch: { mention_only: false }
       })
     })
 
@@ -311,9 +311,53 @@ describe('ChannelDetail', () => {
     await user.click(reloadedSwitch)
     await waitFor(() => {
       expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
-        config: { ...config, mention_only: true }
+        configPatch: { mention_only: true }
       })
     })
+  })
+
+  it('does not overwrite a credential edit that is still saving when the mention switch is toggled', async () => {
+    const user = userEvent.setup()
+    const config = { app_id: 'app-id', app_secret: 'old-secret', allowed_chat_ids: [] }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
+    let finishSave!: (value: unknown) => void
+    const pendingSave = new Promise((resolve) => {
+      finishSave = resolve
+    })
+    channelMocks.updateChannel
+      .mockImplementationOnce(() => pendingSave)
+      .mockResolvedValueOnce({
+        ...channelMocks.channels[0],
+        config: { ...config, app_secret: 'new-secret', mention_only: false }
+      })
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    try {
+      const secretInput = screen.getByPlaceholderText('agent.channels.feishu.appSecretPlaceholder')
+      await user.clear(secretInput)
+      await user.type(secretInput, 'new-secret')
+      await user.tab()
+      expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
+        config: { ...config, app_secret: 'new-secret' }
+      })
+
+      await user.click(screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' }))
+
+      expect(channelMocks.updateChannel.mock.calls.at(-1)).toEqual([
+        'channel-1',
+        { configPatch: { mention_only: false } }
+      ])
+      const payload = channelMocks.updateChannel.mock.calls.at(-1)![1]
+      expect(payload).not.toHaveProperty('config')
+      expect(payload).not.toHaveProperty('app_secret')
+      expect(payload.configPatch).not.toHaveProperty('app_secret')
+    } finally {
+      await act(async () => {
+        finishSave({ ...channelMocks.channels[0], config: { ...config, app_secret: 'new-secret' } })
+        await pendingSave
+      })
+    }
   })
 
   it('sends null permissionMode when clearing an existing override to inherit', async () => {

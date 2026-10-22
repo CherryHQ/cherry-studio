@@ -22,7 +22,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
 
-import type { ChannelData } from './channelTypes'
+import type { ChannelData, ChannelUpdates } from './channelTypes'
 import { DingTalkForm } from './DingTalkForm'
 import { WeComForm } from './WeComForm'
 
@@ -51,7 +51,7 @@ type ChatIdsConfig = {
 
 type ChannelFormProps = {
   channel: ChannelData
-  onConfigChange: (updates: Partial<ChannelData>) => void
+  onConfigChange: (updates: ChannelUpdates) => void
 }
 
 type ChannelFieldsFormProps = ChannelFormProps & {
@@ -321,7 +321,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
               <Switch
                 aria-label={t('agent.channels.feishu.mentionOnlyLabel')}
                 checked={mentionOnly}
-                onCheckedChange={(checked) => onConfigChange({ config: { ...cfg, mention_only: checked } })}
+                onCheckedChange={(checked) => onConfigChange({ configPatch: { mention_only: checked } })}
               />
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm">{t('agent.channels.feishu.mentionOnlyLabel')}</span>
