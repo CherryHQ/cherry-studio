@@ -256,6 +256,142 @@ describe('FollowupQueueService', () => {
     })
   })
 
+  describe('held recovery copies', () => {
+    it('should stamp an editor-owned recovery copy with the held sentinel on insert', async () => {
+      const item = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('held'),
+        payload: payload('held'),
+        held: true
+      })
+
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, item.id))
+      expect(row.claimToken).toBe('held:edit-restore')
+      expect(row.status).toBe('pending')
+      // Still listed: the session shows its recovery copy in the queue.
+      expect(followupQueueService.listByScope(SCOPE_A).map((entry) => entry.id)).toEqual([item.id])
+    })
+
+    it('should skip a live held head instead of stalling the queue behind it', () => {
+      const held = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('held'),
+        payload: payload('held'),
+        held: true
+      })
+      const next = enqueueIn(SCOPE_A, 'next')
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: next.id,
+        alreadySent: false
+      })
+      // The held copy is untouched: still pending for its owning edit session.
+      expect(followupQueueService.listByScope(SCOPE_A).find((entry) => entry.id === held.id)).toMatchObject({
+        status: 'pending'
+      })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2')).toEqual({ claimed: false })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/followup-queues', kind: 'projection', entityIds: [next.id] }
+      ])
+    })
+
+    it('should report no claimable head when only held copies remain', () => {
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('held'), payload: payload('held'), held: true })
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({ claimed: false })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should refuse a direct claim (manual steer) of a live held copy', () => {
+      const held = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('held'),
+        payload: payload('held'),
+        held: true
+      })
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claim(held.id, 'token-1')).toEqual({ claimed: false, alreadySent: false })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should let an aged-out held copy rejoin delivery (crash orphan self-heals)', async () => {
+      const heldId = '22222222-2222-7222-8222-222222222222'
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: heldId,
+          scopeKey: SCOPE_A,
+          draft: draft('orphan'),
+          payload: payload('orphan'),
+          status: 'pending',
+          claimToken: 'held:edit-restore',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: Date.now() - 31 * 60 * 1000
+        }
+      ])
+
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: heldId,
+        alreadySent: false
+      })
+    })
+
+    it('should re-stamp an already-landed copy when a held retry arrives', async () => {
+      const id = '44444444-4444-7444-8444-444444444444'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+
+      const again = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        id,
+        held: true
+      })
+
+      expect(again.id).toBe(id)
+      expect(followupQueueService.listByScope(SCOPE_A)).toHaveLength(1)
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).toBe('held:edit-restore')
+      // And the landed copy is now ineligible for delivery.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({ claimed: false })
+    })
+
+    it('should leave a live delivery claim alone when a held retry arrives', async () => {
+      const id = '55555555-5555-7555-8555-555555555555'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+      expect(followupQueueService.claim(id, 'token-delivery')).toEqual({ claimed: true, alreadySent: false })
+
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id, held: true })
+
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).toBe('token-delivery')
+      expect(row.status).toBe('sending')
+    })
+
+    it('should not stamp a closed receipt when a held retry arrives after removal', async () => {
+      const id = '66666666-6666-7666-8666-666666666666'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
+      followupQueueService.remove(id)
+
+      const again = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('a'),
+        payload: payload('a'),
+        id,
+        held: true
+      })
+
+      expect(again.status).toBe('closed')
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).not.toBe('held:edit-restore')
+    })
+  })
+
   describe('completion fencing', () => {
     it('should reject a delayed claim carrying an older consumed completion', () => {
       // Two completions settle in order; a delayed transport retry still

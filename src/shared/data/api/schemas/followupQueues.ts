@@ -43,7 +43,13 @@ export const CreateFollowupQueueSchema = z.strictObject({
   /** Managed file entries created by the renderer for blob attachments in the
    * payload. The service registers durable refs so the idle sweep keeps the
    * bytes alive until the draft is dequeued. */
-  fileEntryIds: z.array(z.uuid()).max(64).optional()
+  fileEntryIds: z.array(z.uuid()).max(64).optional(),
+  /** Insert the row as editor-owned recovery content: it stays ineligible for
+   * delivery (claim and claim:head skip it) until the edit session that owns
+   * it ends — the session removes a superseded copy itself. A copy orphaned
+   * by a crash self-heals once it ages past the stale-claim cutoff
+   * (cherry-pr-review). */
+  held: z.boolean().optional()
 })
 export type CreateFollowupQueueDto = z.infer<typeof CreateFollowupQueueSchema>
 

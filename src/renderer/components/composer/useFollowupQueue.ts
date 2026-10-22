@@ -68,6 +68,9 @@ type RestoreQueueBody = {
   draft: ComposerSerializedDraft
   payload: ComposerQueuedMessagePayload
   fileEntryIds?: string[]
+  /** Editor-owned recovery copy: ineligible for delivery until the owning
+   * edit session ends (cherry-pr-review). */
+  held?: boolean
 }
 
 // Restoration enqueues (edit handoff, scope/unmount recovery, background
@@ -829,7 +832,13 @@ export function useFollowupQueue({
         try {
           // Rebuild per tick: a failed inline persist gets another chance, and
           // an already-durable payload passes through unchanged.
-          await enqueueTrigger({ body: await buildRestoreBody(body.id, body.scopeKey, body.draft, body.payload) })
+          const rebuilt = await buildRestoreBody(body.id, body.scopeKey, body.draft, body.payload)
+          // A tracked session still owns the item in the editor: the landed
+          // copy must stay ineligible for delivery until ownership transfers,
+          // or a completion drains the edited content mid-session and a later
+          // submission duplicates it (cherry-pr-review). The session removes
+          // a superseded copy itself; a crash orphan self-heals server-side.
+          await enqueueTrigger({ body: tracked ? { ...rebuilt, held: true } : rebuilt })
           if (tracked) {
             if (tracked.cancelled) {
               // The edit session ended while the write was in flight: reconcile

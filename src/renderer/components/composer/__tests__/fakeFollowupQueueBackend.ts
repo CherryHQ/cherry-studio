@@ -21,7 +21,10 @@ import {
  * the oldest row only (a live `sending` head parks the round instead of
  * handing out the next row), stale `sending` rows are reclaimable, reorders
  * are refused while a live send holds a claim, and reorders rewrite `orderKey`
- * so `claim:head` keeps selecting the display head.
+ * so `claim:head` keeps selecting the display head. Editor-owned recovery
+ * copies enqueued with `held: true` stay ineligible for delivery (skipped by
+ * `claim:head`, refused by `:id/claim`) until they age out, mirroring the
+ * production `held:edit-restore` claim sentinel.
  *
  * Install in `beforeEach` — state is fresh per test.
  */
@@ -33,6 +36,10 @@ export function installFakeFollowupQueueBackend() {
   let counter = 0
   // Server-side claim tokens (not part of the entity); mirrors production's retry-stable claims.
   const claimTokens = new Map<string, string | undefined>()
+  // Mirrors production's `held:edit-restore` claim sentinel: editor-owned
+  // recovery copies ineligible for delivery while their session is fresh.
+  const HELD_TOKEN = 'held:edit-restore'
+  const heldRows = new Set<string>()
   // Mirrors production's completion-scoped claim:head arbitration: a bounded
   // set of reservations tagged with the granting claim's token.
   const consumedCompletions = new Map<string, Array<{ completionAt: number; claimToken?: string }>>()
@@ -59,6 +66,10 @@ export function installFakeFollowupQueueBackend() {
     row.status === 'sending' && Date.parse(row.updatedAt) >= Date.now() - STALE_SENDING_CLAIM_MS
   const isClaimable = (row: FollowupQueueRow): boolean =>
     row.status === 'pending' || row.status === 'failed' || (row.status === 'sending' && !isLiveSending(row))
+  // A held copy is live while its stamp is fresh; an aged-out orphan rejoins
+  // delivery, mirroring the SQL `updatedAt < cutoff` escape hatch.
+  const isLiveHeld = (row: FollowupQueueRow): boolean =>
+    heldRows.has(row.id) && Date.parse(row.updatedAt) >= Date.now() - STALE_SENDING_CLAIM_MS
   const scopedByOrder = (scopeKey: string): FollowupQueueRow[] =>
     state.rows.filter((candidate) => candidate.scopeKey === scopeKey).sort((a, b) => (a.orderKey < b.orderKey ? -1 : 1))
 
@@ -105,13 +116,27 @@ export function installFakeFollowupQueueBackend() {
               scopeKey: string
               draft: FollowupQueueRow['draft']
               payload: FollowupQueueRow['payload']
+              held?: boolean
             }
           }) => {
             // Mirror production idempotency: a retried POST carries the same
-            // client-generated id and returns the existing row.
+            // client-generated id and returns the existing row. A held retry
+            // re-stamps its landed copy (refreshing liveness), unless a
+            // delivery claim is already in flight for it.
             if (body.id) {
               const duplicate = state.rows.find((row) => row.id === body.id)
-              if (duplicate) return duplicate
+              if (duplicate) {
+                if (body.held && !heldRows.has(duplicate.id)) {
+                  const liveDeliveryClaim =
+                    duplicate.status === 'sending' && isLiveSending(duplicate) && claimTokens.get(duplicate.id) != null
+                  if (!liveDeliveryClaim) {
+                    heldRows.add(duplicate.id)
+                    claimTokens.set(duplicate.id, HELD_TOKEN)
+                    duplicate.updatedAt = new Date().toISOString()
+                  }
+                }
+                return duplicate
+              }
             }
             // Mirror production: the write path rejects past the per-scope limit.
             const scopedCount = state.rows.filter((row) => row.scopeKey === body.scopeKey).length
@@ -131,6 +156,10 @@ export function installFakeFollowupQueueBackend() {
               updatedAt: new Date().toISOString()
             }
             state.rows.push(row)
+            if (body.held) {
+              heldRows.add(row.id)
+              claimTokens.set(row.id, HELD_TOKEN)
+            }
             return row
           }
         )
@@ -143,6 +172,7 @@ export function installFakeFollowupQueueBackend() {
           const index = state.rows.findIndex((row) => row.id === params.id)
           if (index === -1) throw new DataApiError(ErrorCode.NOT_FOUND, `fake queue: missing id ${params.id}`, 404)
           state.rows.splice(index, 1)
+          heldRows.delete(params.id)
           return undefined
         })
       }
@@ -200,8 +230,10 @@ export function installFakeFollowupQueueBackend() {
             const row = state.rows.find((candidate) => candidate.id === params.id)
             const ownRetry =
               !!body?.claimToken && row?.status === 'sending' && claimTokens.get(row.id) === body.claimToken
-            if (row && (ownRetry || isClaimable(row))) {
+            // Mirror production: live held recovery copies refuse even manual steers.
+            if (row && !isLiveHeld(row) && (ownRetry || isClaimable(row))) {
               row.status = 'sending'
+              heldRows.delete(row.id)
               claimTokens.set(row.id, body?.claimToken)
               row.updatedAt = new Date().toISOString()
               // Mirror production: manual delivery joins the completion accounting.
@@ -218,8 +250,9 @@ export function installFakeFollowupQueueBackend() {
         ...shell,
         trigger: vi.fn(async ({ body }: { body: { scopeKey: string; claimToken?: string; completionAt?: number } }) => {
           // Oldest row only, like production: a live head parks the round
-          // instead of handing out the next row.
-          const [head] = scopedByOrder(body.scopeKey)
+          // instead of handing out the next row. Live held recovery copies
+          // are skipped (not parked behind), mirroring the SQL-level filter.
+          const [head] = scopedByOrder(body.scopeKey).filter((row) => !isLiveHeld(row))
           const ownRetry =
             !!body.claimToken && head?.status === 'sending' && claimTokens.get(head.id) === body.claimToken
           // Mirror production: one delivery per completion; the winner's own
@@ -228,6 +261,7 @@ export function installFakeFollowupQueueBackend() {
             return { claimed: false }
           if (!head || !(ownRetry || isClaimable(head))) return { claimed: false }
           head.status = 'sending'
+          heldRows.delete(head.id)
           claimTokens.set(head.id, body.claimToken)
           head.updatedAt = new Date().toISOString()
           if (body.completionAt != null) recordConsumed(body.scopeKey, body.completionAt, body.claimToken)
