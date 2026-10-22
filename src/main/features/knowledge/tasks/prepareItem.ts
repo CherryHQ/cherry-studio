@@ -55,7 +55,8 @@ export async function createExpandedDirectoryChildren(
  * lock, so the read-then-dedupe-then-write is free of concurrent expansions.
  */
 function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): Set<string> {
-  const items = knowledgeItemService.getItemsByBaseId(baseId)
+  // A deleting directory's pending cleanup still removes its whole prefix, so it stays reserved.
+  const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
   const names = new Set<string>()
   for (const relativePath of collectKnowledgeReservedRelativePaths(items, { excludeItemId })) {
     const topSegment = relativePath.split('/')[0]

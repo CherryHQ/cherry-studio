@@ -1483,6 +1483,23 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
+  it('refuses a processed-markdown name still owned by an item whose delete cleanup is pending', async () => {
+    const service = new KnowledgeService()
+    const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
+    // Its copy never landed, so no file on disk guards source.md, yet its cleanup will still unlink it.
+    const deletingFile = createFileItem('file-deleting', 'kb-1', '/old/source.md', 'deleting')
+    knowledgeItemGetItemsByBaseIdMock.mockImplementation((_baseId: string, options?: { includeDeleting?: boolean }) =>
+      options?.includeDeleting ? [processingFile, deletingFile] : [processingFile]
+    )
+
+    await expect(ingestionOf(service).scheduleItem('kb-1', 'file-1')).rejects.toThrow(
+      'Knowledge file already exists: source.md'
+    )
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
   it('auto-renames against a file imported in an earlier addItems call, not just within one call', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))

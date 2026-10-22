@@ -133,6 +133,28 @@ describe('prepareItem', () => {
     expect(reserved.has('file-sibling.md')).toBe(true)
   })
 
+  it('keeps a deleting directory’s prefix reserved, since its cleanup still removes that folder', () => {
+    const deletingDir: KnowledgeItemOf<'directory'> = {
+      id: 'dir-deleting',
+      baseId,
+      groupId: null,
+      type: 'directory',
+      data: { source: '/old/docs', relativePath: 'docs' as PosixRelativeFilePath },
+      status: 'deleting',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    }
+    knowledgeItemGetItemsByBaseIdMock.mockImplementation((_baseId: string, options?: { includeDeleting?: boolean }) =>
+      options?.includeDeleting ? [deletingDir] : []
+    )
+
+    pinDirectoryPathPrefix(baseId, createDirectoryItem('dir-new'))
+
+    const reserved = chooseDirectoryPathPrefixMock.mock.calls[0][1] as Set<string>
+    expect(reserved.has('docs')).toBe(true)
+  })
+
   it('creates rows for an expanded tree and returns only file leaves', async () => {
     const root = createDirectoryItem('dir-root')
     const childDir = createDirectoryItem('dir-child', root.id)

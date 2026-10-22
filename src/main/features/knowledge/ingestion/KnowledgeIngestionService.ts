@@ -705,7 +705,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     itemId: string,
     relativePath: string
   ): void {
-    const items = knowledgeItemService.getItemsByBaseId(baseId)
+    // A deleting row's pending cleanup still unlinks its paths, so the processed output must not claim them.
+    const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
     const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
     if (reserved.has(relativePath)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
