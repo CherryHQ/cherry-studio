@@ -39,6 +39,22 @@ function requireManagedSender(senderId: WindowId | null): TreeOwner {
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
+  'file.observe.create': async ({ rootPath, options }, { senderId }) =>
+    application.get('FileObservationManager').create(requireManagedSender(senderId).windowId, rootPath, options),
+  'file.observe.activate': async (lease, { senderId }) =>
+    application.get('FileObservationManager').activateObservation(requireManagedSender(senderId).windowId, lease),
+  'file.observe.dispose': async ({ observationId }, { senderId }) =>
+    application.get('FileObservationManager').dispose(requireManagedSender(senderId).windowId, observationId),
+  'file.edit.open': async ({ handle }, { senderId }) =>
+    application.get('FileEditService').open(requireManagedSender(senderId).windowId, handle),
+  'file.edit.read': async ({ editId }, { senderId }) =>
+    application.get('FileEditService').read(requireManagedSender(senderId).windowId, editId),
+  'file.edit.write': async (input, { senderId }) =>
+    application.get('FileEditService').write(requireManagedSender(senderId).windowId, input),
+  'file.edit.settle_write': async ({ editId, sequence }, { senderId }) =>
+    application.get('FileEditService').settleWrite(requireManagedSender(senderId).windowId, editId, sequence),
+  'file.edit.close': async ({ editId }, { senderId }) =>
+    application.get('FileEditService').close(requireManagedSender(senderId).windowId, editId),
   'file.read': async ({ handle, options }) => {
     const fileManager = application.get('FileManager')
     if (options.mode === 'range') {

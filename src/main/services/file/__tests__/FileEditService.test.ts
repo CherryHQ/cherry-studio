@@ -1,0 +1,283 @@
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { BaseService } from '@main/core/lifecycle'
+import { hashContent } from '@main/utils/file'
+import type { FileHandle } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/ipc/schemas/fileEdit'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { FileEditService } from '../FileEditService'
+import { FileManager } from '../FileManager'
+import { runPathMutationExclusive } from '../pathMutationLock'
+
+const bytes = (text: string) => new TextEncoder().encode(text)
+
+describe('FileEditService persistence contract', () => {
+  setupTestDatabase()
+  let root: string
+  let service: FileEditService
+  let files: FileManager
+  let handles: string[]
+  const owner = 'editing-window'
+
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), 'file-edit-'))
+    await mkdir(path.join(root, 'managed'))
+    vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      const base = key === 'feature.files.data' ? path.join(root, 'managed') : root
+      return filename ? path.join(base, filename) : base
+    })
+    BaseService.resetInstances()
+    files = new FileManager()
+    MockApplicationUtils.setService('FileManager', files)
+    service = new FileEditService()
+    await service._doInit()
+    handles = []
+  })
+
+  afterEach(async () => {
+    await Promise.all(handles.map((id) => service.close(owner, id)))
+    MockApplicationUtils.resetServices()
+    vi.restoreAllMocks()
+    await rm(root, { recursive: true, force: true })
+  })
+
+  async function open(handle?: FileHandle) {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'note.md'))
+    if (!handle) await writeFile(target, 'base')
+    const resource = await service.open(owner, handle ?? { kind: 'path', path: target })
+    handles.push(resource.editId)
+    return { resource, snapshot: await service.read(owner, resource.editId) }
+  }
+
+  it('rejects an unfinished acquisition when the file service stops', async () => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'first.md'))
+    await writeFile(target, 'base')
+    const opening = service.open(owner, { kind: 'path', path: target })
+    const rejected = expect(opening).rejects.toMatchObject({ code: fileErrorCodes.EDIT_LEASE_CLOSED })
+    await service._doStop()
+    await rejected
+    await expect(service.open(owner, { kind: 'path', path: target })).rejects.toMatchObject({
+      code: fileErrorCodes.EDIT_LEASE_CLOSED
+    })
+    expect(await readFile(target, 'utf8')).toBe('base')
+  })
+
+  it.each(['path', 'entry'] as const)(
+    'binds %s bytes to hashes and rejects equal-size preserved-timestamp changes',
+    async (kind) => {
+      const target = AbsoluteFilePathSchema.parse(path.join(root, 'note.md'))
+      await writeFile(target, 'base')
+      await utimes(target, 1700000000.123, 1700000000.123)
+      const entry =
+        kind === 'entry'
+          ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+          : undefined
+      const { resource, snapshot } = await open(
+        entry ? { kind: 'entry', entryId: entry.id } : { kind: 'path', path: target }
+      )
+      expect(snapshot.baseline.contentHash).toBe(hashContent(snapshot.data))
+      expect(new TextDecoder().decode(snapshot.data)).toBe('base')
+      await writeFile(target, 'disk')
+      await utimes(target, 1700000000.123, 1700000000.123)
+      const outcome = await service.write(owner, {
+        editId: resource.editId,
+        sequence: 1,
+        expected: snapshot.baseline,
+        data: bytes('mine')
+      })
+      expect(outcome).toEqual({ kind: 'not-committed', sequence: 1, code: fileErrorCodes.STALE_VERSION })
+      expect(await readFile(target, 'utf8')).toBe('disk')
+    }
+  )
+
+  it('serializes competing entry and path writes to the same address', async () => {
+    const { resource, snapshot } = await open()
+    const entry = await files.ensureExternalEntry({ externalPath: resource.path, cleanupPolicy: 'manual' })
+    const second = await open({ kind: 'entry', entryId: entry.id })
+    expect(second.resource.resourceKey).toBe(resource.resourceKey)
+    const outcomes = await Promise.all([
+      service.write(owner, { editId: resource.editId, sequence: 1, expected: snapshot.baseline, data: bytes('path') }),
+      service.write(owner, {
+        editId: second.resource.editId,
+        sequence: 1,
+        expected: second.snapshot.baseline,
+        data: bytes('entry')
+      })
+    ])
+    expect(outcomes.filter((outcome) => outcome.kind === 'committed')).toHaveLength(1)
+    expect(outcomes.filter((outcome) => outcome.kind === 'not-committed')).toEqual([
+      { kind: 'not-committed', sequence: 1, code: fileErrorCodes.STALE_VERSION }
+    ])
+    expect(await readFile(resource.path, 'utf8')).toBe(outcomes[0].kind === 'committed' ? 'path' : 'entry')
+  })
+
+  it('keeps an accepted entry write on its source while rename waits', async () => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'source.md'))
+    await writeFile(target, 'base')
+    const entry = await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+    const { resource, snapshot } = await open({ kind: 'entry', entryId: entry.id })
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const lock = runPathMutationExclusive(async () => {
+      entered.resolve()
+      await release.promise
+    })
+    await entered.promise
+    try {
+      const writing = service.write(owner, {
+        editId: resource.editId,
+        sequence: 1,
+        expected: snapshot.baseline,
+        data: bytes('saved')
+      })
+      await Promise.resolve()
+      const renaming = files.rename(entry.id, 'renamed')
+      release.resolve()
+      const [outcome] = await Promise.all([writing, renaming, lock])
+      expect(outcome).toMatchObject({ kind: 'committed' })
+      expect(await readFile(files.getPhysicalPath(entry.id), 'utf8')).toBe('saved')
+      await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      release.resolve()
+      await lock
+    }
+  })
+
+  it('rejects an entry that was rebound after its lease opened', async () => {
+    const target = AbsoluteFilePathSchema.parse(path.join(root, 'source.md'))
+    await writeFile(target, 'base')
+    const entry = await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+    const { resource, snapshot } = await open({ kind: 'entry', entryId: entry.id })
+    await files.rename(entry.id, 'renamed')
+    expect(
+      await service.write(owner, {
+        editId: resource.editId,
+        sequence: 1,
+        expected: snapshot.baseline,
+        data: bytes('wrong')
+      })
+    ).toMatchObject({ kind: 'not-committed', code: fileErrorCodes.EDIT_TARGET_CHANGED })
+    await expect(service.read(owner, resource.editId)).rejects.toMatchObject({
+      code: fileErrorCodes.EDIT_TARGET_CHANGED
+    })
+    expect(await readFile(files.getPhysicalPath(entry.id), 'utf8')).toBe('base')
+    await expect(readFile(target)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('returns a lost receipt without replaying bytes over a subsequent external edit', async () => {
+    const { resource, snapshot } = await open()
+    const input = { editId: resource.editId, sequence: 1, expected: snapshot.baseline, data: bytes('saved') }
+    const receipt = await service.write(owner, input)
+    expect(receipt).toMatchObject({ kind: 'committed', baseline: { contentHash: hashContent(input.data) } })
+    await writeFile(resource.path, 'external')
+    expect(await service.settleWrite(owner, resource.editId, 1)).toEqual(receipt)
+    expect(await service.write(owner, input)).toEqual(receipt)
+    expect(await readFile(resource.path, 'utf8')).toBe('external')
+  })
+
+  it('fences a write overtaken by settlement and permits only the next sequence', async () => {
+    const { resource, snapshot } = await open()
+    const input = { editId: resource.editId, sequence: 1, expected: snapshot.baseline, data: bytes('late') }
+    expect(await service.settleWrite(owner, resource.editId, 1)).toEqual({ kind: 'not-started', sequence: 1 })
+    expect(await service.write(owner, input)).toEqual({ kind: 'not-started', sequence: 1 })
+    expect(await readFile(resource.path, 'utf8')).toBe('base')
+    expect(await service.write(owner, { ...input, sequence: 2 })).toMatchObject({ kind: 'committed', sequence: 2 })
+    expect(await readFile(resource.path, 'utf8')).toBe('late')
+    expect(() => service.write(owner, input)).toThrow('sequence')
+  })
+
+  it('rejects changed duplicate payloads and writes from another window', async () => {
+    const { resource, snapshot } = await open()
+    const input = { editId: resource.editId, sequence: 1, expected: snapshot.baseline, data: bytes('saved') }
+    expect(() => service.write('other-window', input)).toThrow('unavailable')
+    await service.write(owner, input)
+    expect(() => service.write(owner, { ...input, data: bytes('other') })).toThrow('sequence')
+    expect(await readFile(resource.path, 'utf8')).toBe('saved')
+  })
+
+  it('settles an accepted write before releasing its lease', async () => {
+    const { resource, snapshot } = await open()
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const lock = runPathMutationExclusive(async () => {
+      entered.resolve()
+      await release.promise
+    })
+    await entered.promise
+    try {
+      const write = service.write(owner, {
+        editId: resource.editId,
+        sequence: 1,
+        expected: snapshot.baseline,
+        data: bytes('saved')
+      })
+      const closing = service.close(owner, resource.editId)
+      await expect(service.read(owner, resource.editId)).rejects.toMatchObject({
+        code: fileErrorCodes.EDIT_LEASE_CLOSED
+      })
+      expect(await readFile(resource.path, 'utf8')).toBe('base')
+      release.resolve()
+      await Promise.all([lock, closing, write])
+      expect(await readFile(resource.path, 'utf8')).toBe('saved')
+      expect(() => service.settleWrite(owner, resource.editId, 1)).toThrow('unavailable')
+    } finally {
+      release.resolve()
+      await lock
+    }
+  })
+
+  it('reports committed metadata failure without classifying it as a failed byte write', async () => {
+    const entry = await files.createInternalEntry({
+      source: 'bytes',
+      data: bytes('base'),
+      name: 'note',
+      ext: 'md',
+      cleanupPolicy: 'manual'
+    })
+    const { resource, snapshot } = await open({ kind: 'entry', entryId: entry.id })
+    vi.spyOn(fileEntryService, 'completeInternalContentCommit').mockImplementationOnce(() => {
+      throw new Error('metadata unavailable')
+    })
+    const outcome = await service.write(owner, {
+      editId: resource.editId,
+      sequence: 1,
+      expected: snapshot.baseline,
+      data: bytes('saved')
+    })
+    expect(outcome).toMatchObject({
+      kind: 'committed',
+      metadataRecoveryPending: true,
+      baseline: { contentHash: hashContent('saved') }
+    })
+    expect(await readFile(resource.path, 'utf8')).toBe('saved')
+    expect(await service.settleWrite(owner, resource.editId, 1)).toEqual(outcome)
+    expect(fileEntryService.getById(entry.id)).toMatchObject({ contentHash: null })
+  })
+
+  it('does not create a missing file or return an editable empty oversized snapshot', async () => {
+    const { resource, snapshot } = await open()
+    await rm(resource.path)
+    await expect(service.read(owner, resource.editId)).rejects.toMatchObject({ code: fileErrorCodes.EDIT_MISSING })
+    expect(
+      await service.write(owner, {
+        editId: resource.editId,
+        sequence: 1,
+        expected: snapshot.baseline,
+        data: bytes('mine')
+      })
+    ).toMatchObject({ kind: 'not-committed', code: fileErrorCodes.EDIT_MISSING })
+    await expect(readFile(resource.path)).rejects.toMatchObject({ code: 'ENOENT' })
+    await writeFile(resource.path, Buffer.alloc(FILE_EDIT_MAX_SIZE_BYTES + 1))
+    await expect(service.read(owner, resource.editId)).rejects.toMatchObject({ code: fileErrorCodes.EDIT_UNSUPPORTED })
+  })
+})

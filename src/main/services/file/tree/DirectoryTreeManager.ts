@@ -182,7 +182,7 @@ function canonicalizeOptions(options: DirectoryTreeOptions | undefined): string 
 
 @Injectable('DirectoryTreeManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
+@DependsOn(['WindowManager', 'FileObservationManager'])
 export class DirectoryTreeManager extends BaseService {
   /** treeId → consumer. One row per `file.tree.create` call still alive. */
   private readonly consumers = new Map<string, Consumer>()
@@ -436,7 +436,9 @@ export class DirectoryTreeManager extends BaseService {
 
     const promise = (async () => {
       try {
-        const builder = await createDirectoryTree(rootPath, options)
+        const builder = await createDirectoryTree(rootPath, options, (root, watcherOptions, policyKey) =>
+          application.get('FileObservationManager').acquireWatcher(root, watcherOptions, policyKey)
+        )
         // If the registry was torn down while we were awaiting the build,
         // dispose the freshly-created builder so its watcher / FDs don't
         // outlive `onStop` and surface as an orphan.

@@ -39,6 +39,8 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
+export { FileEditService } from './FileEditService'
+export { FileObservationManager } from './FileObservationManager'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
 

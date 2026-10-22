@@ -57,7 +57,7 @@ export interface UseRichEditorOptions {
 
 export interface UseRichEditorReturn {
   /** TipTap editor instance */
-  editor: Editor
+  editor: Editor | null
   /** Current markdown content */
   markdown: string
   /** Whether editor is disabled */
@@ -486,7 +486,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
-      editor.setEditable(editable)
+      editor.setEditable(editable, false)
       if (editable && autoFocus) {
         try {
           setTimeout(() => {
@@ -705,18 +705,14 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const setMarkdown = useCallback(
     (content: string) => {
       try {
+        // Loading a snapshot must not feed back into the consumer's autosave.
+        editor.commands.setContent(content, { contentType: 'markdown', emitUpdate: false })
         setMarkdownState(content)
-        onChange?.(content)
-
-        // Parse markdown straight into the ProseMirror doc via the native AST.
-        editor.commands.setContent(content, { contentType: 'markdown' })
-
-        onHtmlChange?.(editor.getHTML())
       } catch (error) {
         logger.error('Error setting markdown content:', error as Error)
       }
     },
-    [editor, onChange, onHtmlChange]
+    [editor]
   )
 
   const clear = useCallback(() => {

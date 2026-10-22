@@ -22,6 +22,8 @@ import { type CreateTreeIpcResult, DirectoryTreeOptionsSchema, type TreeMutation
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
+import { fileEditRequestSchemas } from './fileEdit'
+import { fileObservationRequestSchemas, type FileObservationEvent } from './fileObservation'
 
 /** Maximum entry ids accepted by one file batch IPC call. */
 export const FILE_IPC_MAX_BATCH_IDS = 500
@@ -130,6 +132,8 @@ const treeIdSchema = z.string().min(1)
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
+  ...fileEditRequestSchemas,
+  ...fileObservationRequestSchemas,
   'file.read': defineRoute({ input: binaryReadInputSchema, output: binaryReadResultSchema }),
   'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: FileVersionSchema }),
   'file.batch_get_metadata': defineRoute({
@@ -207,5 +211,6 @@ export const fileRequestSchemas = {
  * that asked for it. Consumers filter by `treeId` (the channel is shared).
  */
 export type FileEventSchemas = {
+  'file.observe.event': FileObservationEvent
   'file.tree.mutation': TreeMutationPushPayload
 }

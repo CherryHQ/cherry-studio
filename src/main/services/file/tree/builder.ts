@@ -38,7 +38,12 @@ import {
   type TreeNodeStats
 } from '@shared/utils/file'
 
-import { createDirectoryWatcher, type DirectoryWatcher, type WatcherEvent } from '../watcher'
+import {
+  createDirectoryWatcher,
+  type CreateDirectoryWatcherOptions,
+  type DirectoryWatcher,
+  type WatcherEvent
+} from '../watcher'
 import { type GitignorePredicate, loadGitignorePredicate } from './gitignore'
 import { listDirectory as searchListDirectory } from './search'
 
@@ -153,6 +158,12 @@ export interface DirectoryTreeBuilder extends Disposable {
   disposeAsync(): Promise<void>
 }
 
+type WatcherFactory = (
+  root: AbsoluteFilePath,
+  options: CreateDirectoryWatcherOptions,
+  policyKey: string
+) => DirectoryWatcher
+
 class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   public root: TreeDirRoot
   private readonly map = new Map<string, TreeNode>()
@@ -182,7 +193,11 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private readonly recentlyRenamed = new Map<string, number>()
   private static readonly RENAME_DEDUP_MS = 1000
 
-  constructor(rootPath: string, options: ResolvedTreeOptions) {
+  constructor(
+    rootPath: string,
+    options: ResolvedTreeOptions,
+    private readonly createWatcher: WatcherFactory
+  ) {
     this.rootPath = normalizePath(rootPath)
     this.watcherRootPath = this.rootPath
     this.options = options
@@ -331,16 +346,27 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
         ? undefined
         : Math.max(0, this.options.maxDepth + rootDepthOffset)
 
-    const watcher = createDirectoryWatcher(this.watcherRootPath as AbsoluteFilePath, {
-      recursive: true,
-      maxDepth: watcherMaxDepth,
-      stabilityThresholdMs: 200,
-      // A missing root can appear with children before chokidar attaches to
-      // the new directory. Emit that first scan so the builder cannot miss
-      // files created in the same burst as the root.
-      emitInitial: this.rootMissingAtInit,
-      ignore: watcherIgnore
-    })
+    const watcher = this.createWatcher(
+      this.watcherRootPath as AbsoluteFilePath,
+      {
+        recursive: true,
+        maxDepth: watcherMaxDepth,
+        stabilityThresholdMs: 200,
+        // A missing root can appear with children before chokidar attaches to
+        // the new directory. Emit that first scan so the builder cannot miss
+        // files created in the same burst as the root.
+        emitInitial: this.rootMissingAtInit,
+        ignore: watcherIgnore
+      },
+      this.options.includeHidden && !this.options.respectGitignore && !this.rootMissingAtInit
+        ? 'unfiltered'
+        : JSON.stringify([
+            this.rootPath,
+            this.options.includeHidden,
+            this.options.respectGitignore,
+            this.rootMissingAtInit
+          ])
+    )
     this.watcher = watcher
     let ready = false
     const watcherReadyPromise = new Promise<void>((resolve, reject) => {
@@ -666,10 +692,11 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
  */
 export async function createDirectoryTree(
   rootPath: string,
-  options?: DirectoryTreeOptions
+  options?: DirectoryTreeOptions,
+  createWatcher: WatcherFactory = createDirectoryWatcher
 ): Promise<DirectoryTreeBuilder> {
   const resolved = resolveOptions(options)
-  const builder = new DirectoryTreeBuilderImpl(rootPath, resolved)
+  const builder = new DirectoryTreeBuilderImpl(rootPath, resolved, createWatcher)
   try {
     await builder.init()
     return builder

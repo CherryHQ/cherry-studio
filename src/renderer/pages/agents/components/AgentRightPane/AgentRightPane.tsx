@@ -787,10 +787,15 @@ function AgentRightPaneStateProvider({
     [sessionId, workspaceKey]
   )
 
-  const handleDiscardAndContinue = useCallback(() => {
+  const handleDiscardAndContinue = useCallback(async () => {
     const transition = pendingFileTransitionRef.current
+    try {
+      await discardFileDraft()
+    } catch {
+      return
+    }
+    if (pendingFileTransitionRef.current !== transition) return
     pendingFileTransitionRef.current = null
-    discardFileDraft()
     transition?.()
     setShowDirtyLeaveConfirmation(false)
   }, [discardFileDraft])

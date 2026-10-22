@@ -3,6 +3,8 @@ import type { ComponentProps, ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { FileEditSessionContext } from '@renderer/hooks/useFileEditSession'
+import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -45,7 +47,15 @@ vi.mock('@tanstack/react-router', () => ({
     return mocks.blocker
   }
 }))
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/ipc', async () => {
+  const { createEditTransport } = await import('../../../../../../tests/helpers/file/editTransport')
+  return {
+    ipcApi: {
+      request: createEditTransport((route, input) => mocks.ipcRequest(route, input)),
+      on: vi.fn(() => () => {})
+    }
+  }
+})
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 vi.mock('react-i18next', () => ({
@@ -159,10 +169,13 @@ function createRoot() {
 }
 
 function renderBrowser(access: 'read_only' | 'read_write' = 'read_only') {
+  const manager = new FileEditSessionManager()
   return render(
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
-      <SkillFileBrowser rootPath={'/managed/writer' as never} skillId="skill-1" access={access} />
-    </SWRConfig>
+    <FileEditSessionContext value={manager}>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <SkillFileBrowser rootPath={'/managed/writer' as never} skillId="skill-1" access={access} />
+      </SWRConfig>
+    </FileEditSessionContext>
   )
 }
 
@@ -178,11 +191,11 @@ describe('SkillFileBrowser', () => {
     mocks.blockerOptions = undefined
     mocks.onTreeMutation = undefined
     mocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'file.read') {
+      if (route === 'file.edit.read') {
         const content = new TextEncoder().encode('# Writer')
         return { content, mime: 'text/markdown', version: { mtime: 1, size: content.byteLength } }
       }
-      if (route === 'file.write_if_unchanged') return { mtime: 2, size: 16 }
+      if (route === 'file.edit.write') return { mtime: 2, size: 16 }
       return undefined
     })
   })
@@ -225,8 +238,8 @@ describe('SkillFileBrowser', () => {
       })
 
       expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'file.write_if_unchanged',
-        expect.objectContaining({ handle: { kind: 'path', path: '/managed/writer/SKILL.md' } })
+        'file.edit.write',
+        expect.objectContaining({ editId: expect.any(String), data: expect.any(Uint8Array) })
       )
       expect(mocks.ipcRequest).toHaveBeenCalledWith('skill.reconcile', { skillId: 'skill-1' })
       expect(mocks.ipcRequest).not.toHaveBeenCalledWith('skill.reconcile', {})
@@ -256,11 +269,11 @@ describe('SkillFileBrowser', () => {
     vi.useFakeTimers()
     try {
       mocks.ipcRequest.mockImplementation(async (route: string) => {
-        if (route === 'file.read') {
+        if (route === 'file.edit.read') {
           const content = new TextEncoder().encode('# Writer')
           return { content, mime: 'text/markdown', version: { mtime: 1, size: content.byteLength } }
         }
-        if (route === 'file.write_if_unchanged') return { mtime: 2, size: 16 }
+        if (route === 'file.edit.write') return { mtime: 2, size: 16 }
         if (route === 'skill.reconcile') throw new Error('mirror unavailable')
         return undefined
       })
@@ -291,7 +304,7 @@ describe('SkillFileBrowser', () => {
     let readCount = 0
     let writeCount = 0
     mocks.ipcRequest.mockImplementation(async (route: string, input: { data?: Uint8Array }) => {
-      if (route === 'file.read') {
+      if (route === 'file.edit.read') {
         const content = new TextEncoder().encode(readCount++ === 0 ? '# Writer' : '# External')
         return {
           content,
@@ -299,7 +312,7 @@ describe('SkillFileBrowser', () => {
           version: { mtime: readCount === 1 ? 1 : 2, size: content.byteLength }
         }
       }
-      if (route === 'file.write_if_unchanged') {
+      if (route === 'file.edit.write') {
         writeCount += 1
         if (writeCount === 1) throw new IpcError(fileErrorCodes.STALE_VERSION, 'stale')
         expect(new TextDecoder().decode(input.data)).toBe('# Current draft')
@@ -335,6 +348,6 @@ describe('SkillFileBrowser', () => {
 
     await waitFor(() => expect(screen.getByTestId('file-preview')).toBeInTheDocument())
     expect(screen.queryByRole('radio', { name: 'settings.skills.editor.edit' })).not.toBeInTheDocument()
-    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.read', expect.anything())
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.edit.read', expect.anything())
   })
 })

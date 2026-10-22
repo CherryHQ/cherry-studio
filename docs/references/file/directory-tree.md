@@ -19,7 +19,7 @@ artifact file tree.
 
 ## 1. Positioning
 
-`DirectoryTreeBuilder` owns one in-memory tree, its absolute-path index, initial scan, and watcher.
+`DirectoryTreeBuilder` owns one in-memory tree, its absolute-path index, initial scan, and watcher lease.
 `DirectoryTreeManager` owns builder sharing and renderer consumers. `useDirectoryTree` owns a
 private `DirectoryTreeSession` for the renderer mirror and snapshot-to-stream handshake, and
 subscribes React to its external snapshot. The session is not an app-level service or public API.
@@ -28,14 +28,15 @@ The primitive is separate from FileManager because its identity and lifecycle di
 
 - a node is identified by its current path, not a persistent entry ID;
 - the complete tree is rebuilt from disk;
-- a watcher exists only while a consumer needs the tree;
+- a builder releases its watcher lease when tree consumers leave; independent edit consumers can retain shared coverage;
 - filesystem changes update the tree but do not register managed entries.
 
 ### 1.1 Relationship to DirectoryWatcher
 
-The builder is the only production caller of `createDirectoryWatcher()` today. The watcher lives
-at `src/main/services/file/watcher.ts` and returns synchronously; the builder then subscribes with
-`onEvent()` and awaits the `ready` event before exposing the initial snapshot.
+`DirectoryTreeManager` obtains watcher leases from `FileObservationManager`, which shares equivalent
+roots, options and filter policies with other consumers. The builder subscribes with `onEvent()` and
+awaits `ready` before exposing its initial snapshot. Standalone builders use the synchronous factory
+in `src/main/services/file/watcher.ts`. Editing observes files independently; see [File Editing Sessions](./file-editing.md).
 
 Chokidar reports a filesystem rename as `unlink` plus `add`. The generic watcher does not provide
 rename detection. Identity-preserving `renamed` mutations only come from the explicit

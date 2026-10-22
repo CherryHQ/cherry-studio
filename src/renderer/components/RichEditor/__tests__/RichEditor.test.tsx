@@ -1,4 +1,5 @@
 import { act, render, waitFor } from '@testing-library/react'
+import { Activity } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { RichEditorRef } from '../types'
@@ -10,6 +11,26 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 import RichEditor from '../RichEditor'
 
 describe('RichEditor accessibility', () => {
+  it('restores an editable document after the containing tab hides and resumes', async () => {
+    const view = (mode: 'visible' | 'hidden') => (
+      <Activity mode={mode}>
+        <RichEditor initialContent="retained document" autoFocus={false} />
+      </Activity>
+    )
+    const { container, rerender } = render(view('visible'))
+    await waitFor(() =>
+      expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent('retained document')
+    )
+    rerender(view('hidden'))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    rerender(view('visible'))
+    await waitFor(() =>
+      expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent('retained document')
+    )
+  })
+
   // Asserted on the attribute rather than through `getByRole('textbox', { name })`: ProseMirror
   // leaves the contenteditable without an explicit `role`, and giving every editor in the app one
   // changes how assistive tech navigates rich content — a separate decision from naming this one.
@@ -39,4 +60,24 @@ describe('RichEditor accessibility', () => {
     })
     expect(editorRef.current?.getSelection()).toEqual({ from: 12, to: 12, text: '' })
   })
+})
+
+it('loads Markdown without reporting a user edit, then still reports real editing', async () => {
+  const editorRef: { current: RichEditorRef | null } = { current: null }
+  const onMarkdownChange = vi.fn()
+  const { container } = render(
+    <RichEditor ref={editorRef} initialContent="ALPHA" autoFocus={false} onMarkdownChange={onMarkdownChange} />
+  )
+  await waitFor(() => expect(editorRef.current?.getMarkdown()).toBe('ALPHA'))
+
+  act(() => editorRef.current?.setMarkdown('__BRAVO__'))
+  expect(container.querySelector('[contenteditable="true"]')).toHaveTextContent('BRAVO')
+  expect(onMarkdownChange).not.toHaveBeenCalled()
+
+  act(() => container.querySelector<HTMLElement>('[contenteditable="true"]')?.focus())
+  act(() => {
+    editorRef.current?.insertText('changed')
+  })
+  await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled())
+  expect(onMarkdownChange.mock.lastCall?.[0]).toContain('changed')
 })

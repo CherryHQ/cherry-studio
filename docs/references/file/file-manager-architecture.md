@@ -203,9 +203,9 @@ IpcApi query and their normal refetch lifecycle.
 prepares the replacement, then re-stats the target before committing. A mismatch throws
 `StaleVersionError` (mapped to a file-domain IpcError by the adapter).
 
-When the observed mtime has whole-second precision and size is unchanged, a caller can also supply
-the expected content hash. The implementation hashes the current target in that ambiguous case
-before deciding whether the write is stale.
+A caller can also supply the expected content hash. When supplied, it is checked regardless of
+timestamp precision or size equality. The [editing protocol](./file-editing.md) requires this hash
+and coordinates entry writes, rename/delete/cleanup, and path mutations through the path mutex.
 
 ### 4.4 LRU Version Cache
 
@@ -278,9 +278,9 @@ initial scan emits entries.
 Built-in OS-junk names are always ignored. On `EMFILE`, and on Windows `EPERM`, the wrapper retries
 with polling. Other errors are logged and emitted. `close()` is idempotent.
 
-The factory mirrors file `add`/`unlink` observations into `DanglingCache`. The only production
-constructor today is `DirectoryTreeBuilder`; there is no global watcher covering every external
-entry.
+The factory mirrors file `add`/`unlink` observations into `DanglingCache`. `FileObservationManager` owns pooled production watchers for directory-tree and editing
+consumers. Builders retain a standalone factory default for isolated use. There is no global watcher
+covering every external entry.
 
 ## 9. Provider Upload Boundary
 
