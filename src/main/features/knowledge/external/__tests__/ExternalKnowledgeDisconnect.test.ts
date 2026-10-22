@@ -9,6 +9,8 @@ import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { JobManager } from '@main/core/job/JobManager'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 
@@ -34,6 +36,7 @@ vi.mock('@application', async () => {
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 
+const { createSyncExternalSourceJobHandler } = await import('../../tasks/syncExternalSourceJobHandler')
 const { ExternalKnowledgeDisconnect } = await import('../ExternalKnowledgeDisconnect')
 const { ExternalKnowledgeSourceLifecycle } = await import('../ExternalKnowledgeSourceLifecycle')
 
@@ -46,6 +49,7 @@ const ITEM_ID = '0198f3f2-7d14-7abc-8def-123456789abc'
 const ACTIVE_JOB_ID = '0198f3f2-7d15-7abc-8def-123456789abc'
 const SCHEDULE_ID = '22222222-2222-4222-8222-222222222222'
 const DELETION_JOB_ID = '0198f3f2-7d16-7abc-8def-123456789abc'
+const REPLACEMENT_JOB_ID = '0198f3f2-7d17-7abc-8def-123456789abc'
 
 describe('ExternalKnowledgeDisconnect', () => {
   const dbh = setupTestDatabase()
@@ -175,15 +179,18 @@ describe('ExternalKnowledgeDisconnect', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    BaseService.resetInstances()
     seedSource()
     unregisterScheduleMock.mockImplementation(async (scheduleId: string) => {
       const result = dbh.db.delete(jobScheduleTable).where(eq(jobScheduleTable.id, scheduleId)).run()
       return result.changes > 0
     })
-    cancelMock.mockImplementation(async (jobId: string) => {
-      dbh.db.update(jobTable).set({ status: 'cancelled', finishedAt: 200 }).where(eq(jobTable.id, jobId)).run()
-      return { outcome: 'cancelled' }
-    })
+    const jobManager = new JobManager()
+    jobManager.registerHandler(
+      'knowledge.sync-external-source',
+      createSyncExternalSourceJobHandler({ syncSource: vi.fn() }, { now: () => 200 })
+    )
+    cancelMock.mockImplementation(jobManager.cancel.bind(jobManager))
     getJobMock.mockImplementation(async (jobId: string) =>
       dbh.db.select().from(jobTable).where(eq(jobTable.id, jobId)).limit(1).get()
     )
@@ -260,6 +267,10 @@ describe('ExternalKnowledgeDisconnect', () => {
 
     await service.disconnect({ sourceId: SOURCE_ID, mode: 'keep-local' })
 
+    expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, ACTIVE_JOB_ID)).get()).toMatchObject({
+      status: 'cancelled'
+    })
+
     expect(unregisterScheduleMock).toHaveBeenCalledWith(SCHEDULE_ID)
     expect(cancelMock).toHaveBeenCalledWith(ACTIVE_JOB_ID, 'external-knowledge-source-disconnect')
     expect(unregisterScheduleMock.mock.invocationCallOrder[0]).toBeLessThan(cancelMock.mock.invocationCallOrder[0])
@@ -277,6 +288,10 @@ describe('ExternalKnowledgeDisconnect', () => {
     const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
     await service.disconnect({ sourceId: SOURCE_ID, mode: 'remove-local' })
+
+    expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, ACTIVE_JOB_ID)).get()).toMatchObject({
+      status: 'cancelled'
+    })
 
     expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
       id: ITEM_ID,
@@ -324,27 +339,61 @@ describe('ExternalKnowledgeDisconnect', () => {
     expect(enqueueTxMock).not.toHaveBeenCalled()
   })
 
-  it('rechecks the paused revision after cancellation before destructive cleanup', async () => {
-    cancelMock.mockImplementationOnce(async () => {
-      dbh.db
-        .update(externalKnowledgeSourceTable)
-        .set({ revision: 5 })
-        .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
-        .run()
-      return { outcome: 'cancelled' }
-    })
-    const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
+  describe.each(['keep-local', 'remove-local'] as const)('%s concurrent changes', (mode) => {
+    it.each(['revision', 'state', 'replacement-job'] as const)(
+      'rejects a changed %s after settlement',
+      async (change) => {
+        const cancel = cancelMock.getMockImplementation()!
+        cancelMock.mockImplementationOnce(async (jobId: string, reason: string) => {
+          const result = await cancel(jobId, reason)
+          expect(dbh.db.select().from(externalKnowledgeSourceTable).get()?.activeJobId).toBeNull()
+          if (change === 'replacement-job') {
+            dbh.db
+              .insert(jobTable)
+              .values({
+                id: REPLACEMENT_JOB_ID,
+                type: 'knowledge.sync-external-source',
+                status: 'pending',
+                queue: `base.${BASE_ID}`,
+                scheduledAt: 200,
+                input: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 4, trigger: 'manual' }
+              })
+              .run()
+          }
+          dbh.db
+            .update(externalKnowledgeSourceTable)
+            .set(
+              change === 'revision'
+                ? { revision: 5 }
+                : change === 'state'
+                  ? { state: 'active' }
+                  : { activeJobId: REPLACEMENT_JOB_ID }
+            )
+            .where(eq(externalKnowledgeSourceTable.id, SOURCE_ID))
+            .run()
+          return result
+        })
+        const service = new ExternalKnowledgeDisconnect(new KeyedMutex())
 
-    await expect(service.disconnect({ sourceId: SOURCE_ID, mode: 'remove-local' })).rejects.toMatchObject({
-      code: ErrorCode.CONCURRENT_MODIFICATION
-    })
+        await expect(service.disconnect({ sourceId: SOURCE_ID, mode })).rejects.toMatchObject({
+          code: ErrorCode.CONCURRENT_MODIFICATION
+        })
 
-    expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toHaveLength(1)
-    expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
-    expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, DELETION_JOB_ID)).get()).toBeUndefined()
-    expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
-      status: 'completed'
-    })
+        expect(dbh.db.select().from(externalKnowledgeSourceTable).all()).toMatchObject([
+          { activeJobId: change === 'replacement-job' ? REPLACEMENT_JOB_ID : null }
+        ])
+        expect(dbh.db.select().from(externalKnowledgeDocumentTable).all()).toHaveLength(2)
+        expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, DELETION_JOB_ID)).get()).toBeUndefined()
+        if (change === 'replacement-job') {
+          expect(dbh.db.select().from(jobTable).where(eq(jobTable.id, REPLACEMENT_JOB_ID)).get()).toMatchObject({
+            status: 'pending'
+          })
+        }
+        expect(dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, ITEM_ID)).get()).toMatchObject({
+          status: 'completed'
+        })
+      }
+    )
   })
 
   it('never awaits active job cancellation while holding the base mutex', async () => {

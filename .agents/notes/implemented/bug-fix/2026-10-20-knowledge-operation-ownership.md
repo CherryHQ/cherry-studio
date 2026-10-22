@@ -20,6 +20,8 @@ Schedule mutations use the same base mutex and deletion admission fence as teard
 
 Terminal synchronization cleanup is separate from result publication. Authorization failure pauses the Source and advances its revision, so the old Job cannot publish its summary. Settlement still clears that Job's own active reference under the current Source revision, in the same transaction, and notifies after commit. A replacement Job remains protected by its different id. Requiring the original revision for this cleanup leaves manual-only Sources blocked after successful reauthorization.
 
+Disconnect reads the active binding again in its final deletion transaction after cancellation has settled. The original binding and a cleared binding both permit deletion; a replacement Job does not. Source revision, paused state, and schedule fences still apply. Requiring the pre-cancellation binding rejects successful settlement and leaves a paused Source connected.
+
 ## Alternatives considered
 
 Checking item status cannot distinguish completed → processing → completed. Holding the base mutation lock during network acquisition blocks unrelated mutations. Adding persistent generations requires a schema change for work that never resumes across restart.
@@ -40,3 +42,5 @@ Newer overlapping work wins while unrelated roots can still proceed. Ordinary de
 - Regression — `ExternalKnowledgeDisconnect.test.ts`: reauthorization commits while cancellation is deferred without changing the disconnect revision; final source/document deletion succeeds.
 
 - Regression — `ExternalKnowledgeSourceLifecycle.test.ts` and `syncExternalSourceJobHandler.test.ts`: credential failure followed by settlement and reauthorization in either order clears only the terminal Job binding, preserves newer-revision results and replacement Jobs, and notifies after commit.
+
+- Regression — `ExternalKnowledgeDisconnect.test.ts`: production JobManager cancellation and sync-handler settlement complete both disconnect modes; revision/state changes and replacement Jobs preserve ownership and roll back local cleanup.
