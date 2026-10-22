@@ -35,7 +35,9 @@
       "opts": { "chunkSize": 8, "latency": 0 }
     },
     {
-      "match": { "userMessage": "Call the everything MCP server get-sum tool with a=31415 and b=27182, then report its result." },
+      "match": {
+        "userMessage": "Call the everything MCP server get-sum tool with a=31415 and b=27182, then report its result."
+      },
       "response": { "content": "The get-sum tool returned 58597." }
     },
     {
