@@ -113,7 +113,6 @@ function followupQueueRowToFileRef(row: FollowupQueueFileRefRow): FileRef {
   return FileRefSchema.parse({ ...row, sourceType: followupQueueSourceType })
 }
 
-
 class FileRefServiceImpl implements FileRefService {
   private getDbService() {
     return application.get('DbService')
