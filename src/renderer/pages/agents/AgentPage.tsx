@@ -29,7 +29,7 @@ import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTab, useCurrentTabId, useTabs } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -41,7 +41,6 @@ import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
@@ -68,6 +67,12 @@ import {
   SKILL_INTENT_GUARD_TTL_MS,
   type SkillComposerLaunch
 } from './skillComposerLaunch'
+import {
+  createTaskComposerLaunch,
+  getTaskIntentGuardCacheKey,
+  TASK_INTENT_GUARD_TTL_MS,
+  type TaskComposerLaunch
+} from './taskComposerLaunch'
 import type { CreateAgentSessionDefaults } from './types'
 import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
@@ -108,8 +113,14 @@ const AgentPage = () => {
   const { t } = useTranslation()
   const isFeedbackIntent = routeSearch.intent === 'feedback'
   const isSkillIntent = routeSearch.intent === 'skill'
-  const isPreparedIntent = isFeedbackIntent || isSkillIntent
+  const isTaskIntent = routeSearch.intent === 'task'
+  const isPreparedIntent = isFeedbackIntent || isSkillIntent || isTaskIntent
   const currentTabId = useCurrentTabId()
+  const currentTab = useCurrentTab()
+  const agentPinPending = currentTab?.metadata?.agentPinPending === true
+  const currentTabRef = useRef(currentTab)
+  currentTabRef.current = currentTab
+  const { updateTab } = useTabs()
   const routeSessionId = routeSearch.sessionId
   const forkReturnSessionId = routeSearch.forkReturnSessionId
   const routeAgentId = routeSearch.agentId
@@ -205,6 +216,14 @@ const AgentPage = () => {
     routeFeedbackComposerLaunch
   )
   const [skillComposerLaunch, setSkillComposerLaunch] = useState<SkillComposerLaunch | null>(null)
+  const routeTaskComposerLaunch = useMemo<TaskComposerLaunch | null>(
+    () =>
+      isTaskIntent && routeSessionId
+        ? createTaskComposerLaunch(routeSessionId, t('settings.scheduledTasks.chatDraft'))
+        : null,
+    [isTaskIntent, routeSessionId, t]
+  )
+  const [taskComposerLaunch, setTaskComposerLaunch] = useState<TaskComposerLaunch | null>(routeTaskComposerLaunch)
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
@@ -301,7 +320,6 @@ const AgentPage = () => {
     sessionSource: activeSessionSource,
     agentHint: visibleAgentFromList
   })
-  const visibleAgent = conversationBootstrap.resources.agent
   const fileNavigationRequestRef = useRef<AgentFileNavigationRequest | null>(null)
   const handleFileNavigationRequestChange = useCallback((request: AgentFileNavigationRequest | null) => {
     fileNavigationRequestRef.current = request
@@ -370,16 +388,11 @@ const AgentPage = () => {
     return unsubscribe
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
   }, [currentTabId])
-  // Label this tab with its agent emoji + session name so multiple agent tabs
-  // are distinguishable (every tab labels itself — not gated on active).
-  // While the bound session is still loading, keep the tab's stored title/icon instead of stamping
-  // a generic one.
   const targetSessionId = activeSessionId ?? undefined
   const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
     activeConversationId: targetSessionId,
     visibleConversationId: visibleSession?.id
   })
-  const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
 
   const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
 
@@ -515,9 +528,19 @@ const AgentPage = () => {
 
   useEffect(() => {
     const generation = ++routeAgentActivationGenerationRef.current
-    if (!routeAgentId || routeSessionId || activeSessionId || isAgentsLoading || !routeAgentExists) return
+    const enteredByPin = agentPinPending
+    const activationResolved = Boolean(routeAgentId) && !routeSessionId
 
-    closeSurface()
+    if (enteredByPin || activationResolved) {
+      closeSurface()
+    }
+    if (enteredByPin && currentTabRef.current) {
+      const metadata = { ...currentTabRef.current.metadata }
+      delete metadata.agentPinPending
+      updateTab(currentTabRef.current.id, { metadata })
+    }
+    if (!routeAgentId || routeSessionId) return
+    if (activeSessionId || isAgentsLoading || !routeAgentExists) return
     const pendingRequest = routeAgentSessionRequestRef.current
     const sessionPromise =
       pendingRequest?.agentId === routeAgentId
@@ -549,13 +572,16 @@ const AgentPage = () => {
   }, [
     activeSessionId,
     activateSession,
+    agentPinPending,
     closeSurface,
+    currentTabId,
     isAgentsLoading,
     resolveEmptySession,
     routeAgentExists,
     routeAgentId,
     routeSessionId,
-    t
+    t,
+    updateTab
   ])
 
   const showMissingAgentSelection = useCallback(() => {
@@ -808,24 +834,60 @@ const AgentPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest Skill orchestration without resubscribing.
   }, [currentTabId, isSkillIntent, routeSessionId, routeSkillId])
 
+  const runTaskIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
+    closeSurface()
+    clearLocate()
+    setMissingAgentSelection(false)
+    try {
+      if (routeSessionId) {
+        await invalidateCache(['/agents', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
+          logger.warn('Failed to refresh Agent cache for prepared task session', err as Error, {
+            sessionId: routeSessionId
+          })
+        })
+      }
+      setTaskComposerLaunch(routeTaskComposerLaunch)
+      await navigate({
+        to: '/app/agents',
+        search: routeSessionId ? { sessionId: routeSessionId } : {},
+        replace: true
+      })
+    } finally {
+      cacheService.deleteCasual(intentGuardCacheKey)
+    }
+  })
+
+  useEffect(() => {
+    if (!isTaskIntent || !currentTabId) return
+    const intentGuardCacheKey = getTaskIntentGuardCacheKey(currentTabId)
+    if (cacheService.hasCasual(intentGuardCacheKey)) return
+    cacheService.setCasual(intentGuardCacheKey, true, TASK_INTENT_GUARD_TTL_MS)
+    void runTaskIntent(intentGuardCacheKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest task orchestration without resubscribing.
+  }, [currentTabId, isTaskIntent, routeSessionId])
+
   const visibleSessionId = visibleSession?.id
   const feedbackLaunch = feedbackComposerLaunch ?? routeFeedbackComposerLaunch
   const visibleFeedbackComposerLaunch = feedbackLaunch?.sessionId === visibleSessionId ? feedbackLaunch : null
   const visibleSkillComposerLaunch = skillComposerLaunch?.sessionId === visibleSessionId ? skillComposerLaunch : null
+  const taskLaunch = taskComposerLaunch ?? routeTaskComposerLaunch
+  const visibleTaskComposerLaunch = taskLaunch?.sessionId === visibleSessionId ? taskLaunch : null
   const composerLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(() => {
-    const launch = visibleSkillComposerLaunch ?? visibleFeedbackComposerLaunch
+    const launch = visibleSkillComposerLaunch ?? visibleFeedbackComposerLaunch ?? visibleTaskComposerLaunch
     if (!launch) return undefined
     return {
       initialDraft: launch.initialDraft,
       onSent: () => {
         if (visibleSkillComposerLaunch) {
           setSkillComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
-        } else {
+        } else if (visibleFeedbackComposerLaunch) {
           setFeedbackComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
+        } else {
+          setTaskComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
         }
       }
     }
-  }, [visibleFeedbackComposerLaunch, visibleSkillComposerLaunch])
+  }, [visibleFeedbackComposerLaunch, visibleSkillComposerLaunch, visibleTaskComposerLaunch])
 
   const setActiveSessionAndClearTransient = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
@@ -1059,9 +1121,6 @@ const AgentPage = () => {
   return (
     <>
       <AgentTabRuntime
-        title={visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents')}
-        emoji={visibleAgent?.configuration?.avatar}
-        preserveVisuals={preserveTabVisuals}
         activeSessionId={activeSession?.id}
         activeSessionSource={activeSessionSource}
         onToggleSidebar={toggleShellPane}

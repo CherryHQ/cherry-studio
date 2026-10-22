@@ -8,6 +8,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChannelsModule from '@main/ai/channels'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 // Mock TaskService before importing CherryAutonomyTools
 const mockCreateTask = vi.fn()
@@ -30,6 +31,7 @@ const mockDeleteChannel = vi.fn()
 const mockReconnectChannel = vi.fn()
 const mockReconnectChannelWithQr = vi.fn()
 const mockGetSession = vi.fn()
+const mockGetLatestActive = vi.fn()
 const mockReadConversation = vi.fn()
 const mockFindPersistedToolOutput = vi.fn()
 const mockListSessions = vi.fn()
@@ -66,6 +68,7 @@ vi.mock('@main/ai/messages/persistedToolOutput', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
+    getLatestActive: mockGetLatestActive,
     listAddressableByCursor: mockListSessions,
     searchWithMetadataEvidence: mockSearchSessions
   }
@@ -149,7 +152,8 @@ const clients: Client[] = []
 async function createServer(
   agentId = 'agent_test',
   workspacePath = WORKSPACE_PATH,
-  notifyChannelIds: string | string[] | null = 'ch1'
+  notifyChannelIds: string | string[] | null = 'ch1',
+  workspaceSource: AgentSessionWorkspaceSource = WORKSPACE_SOURCE
 ): Promise<Client> {
   const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
     (id) => (id ? [{ id, type: 'telegram' as const }] : [])
@@ -159,7 +163,7 @@ async function createServer(
     registerAutonomyTools(server, {
       agentId,
       sessionId: 'session_test',
-      workspaceSource: WORKSPACE_SOURCE,
+      workspaceSource,
       workspacePath,
       trustedNotifyChannels,
       allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string'
@@ -188,6 +192,7 @@ describe('cherry-tools autonomy tools', () => {
     vi.clearAllMocks()
     mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
+    mockGetLatestActive.mockReturnValue(null)
     mockGetAgent.mockReturnValue({ id: 'agent_test', name: 'Agent A', model: 'provider::model' })
     mockListAgents.mockReturnValue({ agents: [], total: 0 })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
@@ -211,7 +216,7 @@ describe('cherry-tools autonomy tools', () => {
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
     })
-    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('Files are first-class deliverables')
+    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('workspace file')
     expect(tools.find((tool) => tool.name === 'notify')?.description).toContain(
       'Configured recipients: telegram (ch1).'
     )
@@ -717,6 +722,72 @@ describe('cherry-tools autonomy tools', () => {
         workspace: WORKSPACE_SOURCE,
         content: 'Delegate this'
       })
+    })
+
+    it('continues the target Agent own most recent workspace for a cross-Agent Session', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockGetLatestActive.mockReturnValue({
+        workspaceId: 'workspace-target',
+        workspace: { type: 'user' }
+      })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(createServer(), { message: 'Delegate this', target_agent_id: 'agent-target' }, 'session_create')
+
+      expect(mockGetLatestActive).toHaveBeenCalledWith({ agentId: 'agent-target' })
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        targetAgentId: 'agent-target',
+        sessionName: '',
+        workspace: { type: 'user', workspaceId: 'workspace-target' },
+        content: 'Delegate this'
+      })
+    })
+
+    it('falls back to the sender workspace when the target Agent has no Session', async () => {
+      const senderWorkspace = { type: 'user' as const, workspaceId: 'workspace-sender' }
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', senderWorkspace),
+        { message: 'Delegate this', target_agent_id: 'agent-target' },
+        'session_create'
+      )
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: senderWorkspace })
+      )
+    })
+
+    it('starts a fresh system workspace when the target Agent last Session had no project', async () => {
+      const senderWorkspace = { type: 'user' as const, workspaceId: 'workspace-sender' }
+      mockGetAgent.mockReturnValue({ id: 'agent-target', name: 'Target', model: 'provider::model' })
+      mockGetLatestActive.mockReturnValue({
+        workspaceId: 'workspace-target-system',
+        workspace: { type: 'system' }
+      })
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-target', agentId: 'agent-target' },
+        message: { id: 'message-target', delivery: { status: 'accepted' } }
+      })
+
+      await callTool(
+        createServer('agent_test', WORKSPACE_PATH, 'ch1', senderWorkspace),
+        { message: 'Delegate this', target_agent_id: 'agent-target' },
+        'session_create'
+      )
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: { type: 'system' } })
+      )
     })
 
     it('rejects a missing explicit target Agent with a target-owned error', async () => {

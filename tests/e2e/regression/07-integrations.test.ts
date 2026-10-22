@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { caseDefinition } from '../../../scripts/e2e/regression/cases'
 import { chooseNativeFile } from '../../../scripts/e2e/regression/systemAutomation'
 import type { Message } from '../../../src/shared/data/types/message'
-import { startNewAgentTask } from './agents'
+import { startBuiltinAssistantTask } from './agents'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { sendChatMarker } from './chat'
 import { expect, test } from './fixture'
@@ -148,7 +148,7 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   if (await startGateway.isVisible()) await startGateway.click()
   await expect(stopGateway).toBeVisible({ timeout: 30_000 })
   await closeSettings(page)
-  await startNewAgentTask(page, 'Cherry Assistant')
+  await startBuiltinAssistantTask(page)
   const agentView = page.locator('[data-ui~="agent.view"]:visible')
   await agentView
     .getByRole('button', { name: 'Select Model', exact: true })

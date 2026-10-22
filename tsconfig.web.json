@@ -39,7 +39,25 @@
       "@shared/*": ["./src/shared/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"],
       "@cherrystudio/file-preview/core": ["./packages/file-preview/src/core.ts"],
-      "@cherrystudio/file-preview/react": ["./packages/file-preview/src/react.ts"]
+      "@cherrystudio/file-preview/react": ["./packages/file-preview/src/react.ts"],
+      "@cherrystudio/web-search": ["./packages/web-search/src/index.ts"],
+      "@cherrystudio/web-search/catalog": ["./packages/web-search/src/catalog.ts"],
+      "@cherrystudio/web-search/providers/zhipu": ["./packages/web-search/src/providers/zhipu.ts"],
+      "@cherrystudio/web-search/providers/tavily": ["./packages/web-search/src/providers/tavily.ts"],
+      "@cherrystudio/web-search/providers/searxng": ["./packages/web-search/src/providers/searxng.ts"],
+      "@cherrystudio/web-search/providers/exa": ["./packages/web-search/src/providers/exa.ts"],
+      "@cherrystudio/web-search/providers/exa-mcp": ["./packages/web-search/src/providers/exaMcp.ts"],
+      "@cherrystudio/web-search/providers/bocha": ["./packages/web-search/src/providers/bocha.ts"],
+      "@cherrystudio/web-search/providers/querit": ["./packages/web-search/src/providers/querit.ts"],
+      "@cherrystudio/web-search/providers/jina": ["./packages/web-search/src/providers/jina.ts"],
+      "@cherrystudio/web-search/providers/firecrawl": ["./packages/web-search/src/providers/firecrawl.ts"],
+      "@cherrystudio/web-search/providers/crawl4ai": ["./packages/web-search/src/providers/crawl4ai.ts"],
+      "@cherrystudio/web-search/providers/parallel": ["./packages/web-search/src/providers/parallel.ts"],
+      "@cherrystudio/web-search/providers/serply": ["./packages/web-search/src/providers/serply.ts"],
+      "@cherrystudio/web-search/providers/deepseek": ["./packages/web-search/src/providers/deepseek.ts"],
+      "@cherrystudio/web-search/tools/config": ["./packages/web-search/src/tools/config.ts"],
+      "@cherrystudio/web-search/tools/url-filter": ["./packages/web-search/src/tools/urlFilter.ts"],
+      "@cherrystudio/web-search/tools/content": ["./packages/web-search/src/tools/content.ts"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.web.tsbuildinfo"
   },
@@ -55,6 +73,7 @@
     "packages/provider-registry/**/*",
     "src/shared/**/*",
     "packages/ui/**/*",
-    "packages/file-preview/src/**/*"
+    "packages/file-preview/src/**/*",
+    "packages/web-search/src/**/*"
   ]
 }
