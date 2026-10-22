@@ -121,14 +121,16 @@ export function installFakeFollowupQueueBackend() {
           }) => {
             // Mirror production idempotency: a retried POST carries the same
             // client-generated id and returns the existing row. A held retry
-            // re-stamps its landed copy (refreshing liveness), unless a
-            // delivery claim is already in flight for it.
+            // re-stamps its landed copy AND refreshes an already-held copy's
+            // liveness stamp (so a live edit session outlives the stale
+            // window), unless a delivery claim is already in flight for it.
             if (body.id) {
               const duplicate = state.rows.find((row) => row.id === body.id)
               if (duplicate) {
-                if (body.held && !heldRows.has(duplicate.id)) {
+                if (body.held) {
+                  const token = claimTokens.get(duplicate.id)
                   const liveDeliveryClaim =
-                    duplicate.status === 'sending' && isLiveSending(duplicate) && claimTokens.get(duplicate.id) != null
+                    duplicate.status === 'sending' && isLiveSending(duplicate) && token != null && token !== HELD_TOKEN
                   if (!liveDeliveryClaim) {
                     heldRows.add(duplicate.id)
                     claimTokens.set(duplicate.id, HELD_TOKEN)

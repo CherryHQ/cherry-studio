@@ -361,6 +361,22 @@ describe('FollowupQueueService', () => {
       expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({ claimed: false })
     })
 
+    it('should refresh an already-held copy stamp when another held retry arrives', async () => {
+      const id = '77777777-7777-4777-8777-777777777777'
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id, held: true })
+      // Age the stamp: a live edit session can outlast the stale-claim window.
+      const agedStamp = Date.now() - 20 * 60 * 1000
+      await dbh.db.update(followupQueueTable).set({ updatedAt: agedStamp }).where(eq(followupQueueTable.id, id))
+
+      followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id, held: true })
+
+      const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, id))
+      expect(row.claimToken).toBe('held:edit-restore')
+      expect(row.updatedAt).toBeGreaterThan(agedStamp)
+      // Still ineligible for delivery while the session keeps refreshing it.
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({ claimed: false })
+    })
+
     it('should leave a live delivery claim alone when a held retry arrives', async () => {
       const id = '55555555-5555-7555-8555-555555555555'
       followupQueueService.enqueue({ scopeKey: SCOPE_A, draft: draft('a'), payload: payload('a'), id })
