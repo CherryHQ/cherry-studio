@@ -47,7 +47,6 @@ vi.mock('../agent/AgentLaunchIndexContext', async () => {
   const agentToolTypes = await import('@renderer/components/chat/messages/tools/shared/agentToolTypes')
   const { buildResumeToolHeader } = await import('../agent/agentResumeHeader')
   const { getPartLaunchToolCallId } = await import('../toolParentMetadata')
-  const { useTranslation } = await import('react-i18next')
   const index = () => agentToolTypes.buildAgentLaunchIndex(mockPartsMap() as Record<string, CherryMessagePart[]> | null)
   return {
     useAgentLaunchIndex: () => index(),
@@ -55,7 +54,6 @@ vi.mock('../agent/AgentLaunchIndexContext', async () => {
     // The host seam, assembled from the same pieces the provider uses, so a resume receipt still
     // heads its group through the real chain in these tests.
     useAgentResumePresentation: () => {
-      const { t } = useTranslation()
       return {
         renderResumeHeader: (toolResponse: Record<string, unknown>, canNavigate: boolean) => {
           const state = agentToolTypes.resolveResumeReceiptState(
@@ -64,7 +62,7 @@ vi.mock('../agent/AgentLaunchIndexContext', async () => {
             index(),
             canNavigate
           )
-          return state.kind === 'none' ? undefined : buildResumeToolHeader(state, toolResponse as never, t)?.header
+          return state.kind === 'none' ? undefined : buildResumeToolHeader(state, toolResponse as never)?.header
         }
       }
     }
@@ -184,7 +182,6 @@ describe('AgentToolRenderer', () => {
     'message.tools.activity.executingCommand': 'Running task',
     'message.tools.activity.file': 'file',
     'message.tools.activity.handle': 'Handle',
-    'message.tools.activity.continueHandle': 'Continue handling',
     'message.tools.activity.handling': 'Handling',
     'message.tools.activity.installing': 'Installing',
     'message.tools.activity.projectDependencies': 'project requirements',
@@ -1289,7 +1286,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.queryByText('Continue handling')).toBeNull()
+      expect(screen.queryByText('Continue the review')).toBeNull()
       expect(screen.getAllByTestId('tooltip-content').some((element) => element.textContent === errorText)).toBe(true)
       // No flow-button branch: the row is not an entry, so nothing can open its empty flow.
       expect(screen.queryByRole('button')).toBeNull()
@@ -1345,10 +1342,9 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // The entry identifies itself by the resumed agent's own description, not "SendMessage",
-      // and leads with the launch card's verb in the same row shape the launch uses.
+      // in the same row shape the launch uses.
       const row = screen.getByRole('button', { name: /Inspect renderer/ })
       expect(screen.queryByText('SendMessage')).toBeNull()
-      expect(within(row).queryByText('Continue handling')).toBeNull()
       expect(within(row).getByText('Inspect renderer')).toBeInTheDocument()
 
       fireEvent.click(row)
@@ -1693,8 +1689,8 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('message.tools.status.running')).toBeVisible()
     })
 
-    // The continue-handling label must not gate on resolution (B-label enhacement), but the click
-    // must: an unresolved resume would otherwise open the receipt's own empty flow.
+    // An unresolved receipt never promotes its summary into a label, and the click must not open
+    // its own empty flow either.
     it('shows no continuation affordance for an unresolvable receipt in a navigable host', () => {
       const openAgentToolFlow = vi.fn()
       mockMessageListActions.mockReturnValue({ openAgentToolFlow })
@@ -1710,7 +1706,7 @@ describe('AgentToolRenderer', () => {
 
       // A host that can navigate offers no continuation affordance it cannot honour, and the
       // entry never falls back to targeting the receipt's own call id.
-      expect(screen.queryByText('Continue handling')).toBeNull()
+      expect(screen.queryByText('Continue the review')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1770,9 +1766,9 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // The resume label still shows, but nothing navigates to a paged-out launch.
+      // The receipt stays a plain row — nothing navigates to a paged-out launch.
       // A host that can navigate offers no continuation affordance it cannot honour.
-      expect(screen.queryByText('Continue handling')).toBeNull()
+      expect(screen.queryByText('Continue the review')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1802,7 +1798,7 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // A host that can navigate offers no continuation affordance it cannot honour.
-      expect(screen.queryByText('Continue handling')).toBeNull()
+      expect(screen.queryByText('Continue')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1832,7 +1828,7 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // A host that can navigate offers no continuation affordance it cannot honour.
-      expect(screen.queryByText('Continue handling')).toBeNull()
+      expect(screen.queryByText('Continue the review')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 
@@ -1862,7 +1858,7 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // A host that can navigate offers no continuation affordance it cannot honour.
-      expect(screen.queryByText('Continue handling')).toBeNull()
+      expect(screen.queryByText('Continue the review')).toBeNull()
       expect(openAgentToolFlow).not.toHaveBeenCalled()
     })
 

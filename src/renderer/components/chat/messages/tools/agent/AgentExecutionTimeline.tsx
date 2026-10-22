@@ -1,6 +1,5 @@
 import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
@@ -22,7 +21,6 @@ import { getSubagentTaskStatus, getSubagentTaskStatusFromIndex } from './subagen
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
-  const { t } = useTranslation()
 
   const partsMap = usePartsMap()
   const launchIndex = useAgentLaunchIndex()
@@ -109,7 +107,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
 
   const isLoading = effectiveStatus === 'streaming' || effectiveStatus === 'invoking'
   const resumeHeader =
-    resumeState && resumeState.kind !== 'none' ? buildResumeToolHeader(resumeState, toolResponse, t) : undefined
+    resumeState && resumeState.kind !== 'none' ? buildResumeToolHeader(resumeState, toolResponse) : undefined
   const resumeTarget = resumeState?.kind === 'navigable' ? resumeState : undefined
   // A receipt that owns its flow is an entry too, but it opens on its own call id: no target is
   // passed, so the card defaults to the call it renders. Its proven local root counts even when

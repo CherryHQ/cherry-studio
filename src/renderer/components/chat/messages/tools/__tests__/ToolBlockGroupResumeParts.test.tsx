@@ -63,13 +63,13 @@ function resumeReceipt(): NormalToolResponse {
 describe('resume presentation inside a completed tool group', () => {
   beforeEach(() => {
     mockUseTranslation.mockReturnValue({
-      t: (key: string) => (key === 'message.tools.activity.continueHandle' ? 'Continue handling' : key)
+      t: (key: string) => key
     })
   })
 
   // ToolGroupPartsBoundary nulls PartsContext once every item completes — the launch-resolution
-  // path must survive on the list-level agent-launch index, or this label disappears.
-  it('renders the continue label for a resumed agent from the full-parts map', () => {
+  // path must survive on the list-level agent-launch index, or this header disappears.
+  it('renders the launch identity for a resumed agent from the full-parts map', () => {
     const parts = launchParts()
     const receipt = resumeReceipt()
 
@@ -81,13 +81,13 @@ describe('resume presentation inside a completed tool group', () => {
       </AgentLaunchIndexProvider>
     )
 
-    expect(screen.getByText('Continue handling')).toBeInTheDocument()
+    expect(screen.queryByText('Continue the review')).toBeNull()
     expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
   })
 
-  // Even without full-parts map resolution, the continue-handling verb still renders (the
-  // receipt's own resumedAgentId is sufficient). Only the identity text is lost.
-  it('shows the bare continue-handling verb without launch identity when map is unavailable', () => {
+  // Without the full-parts map the launch description is unavailable, so the header falls back
+  // to the request summary.
+  it('falls back to the request summary without the launch identity', () => {
     const receipt = resumeReceipt()
 
     render(
@@ -98,7 +98,7 @@ describe('resume presentation inside a completed tool group', () => {
       </AgentLaunchIndexProvider>
     )
 
-    expect(screen.getByText('Continue handling')).toBeInTheDocument()
+    expect(screen.getByText('Continue the review')).toBeInTheDocument()
     expect(screen.queryByText('Inspect renderer')).toBeNull()
   })
 
@@ -118,14 +118,14 @@ describe('resume presentation inside a completed tool group', () => {
       </AgentLaunchIndexProvider>
     )
 
-    expect(screen.getByText('Continue handling')).toBeInTheDocument()
+    expect(screen.getByText('Continue the review')).toBeInTheDocument()
     expect(container.querySelector('.lucide-sparkles')).not.toBeNull()
     expect(container.querySelector('.lucide-wrench')).toBeNull()
   })
 
   // A queued send to a still-running agent carries only pin.id — the group header must treat it
   // as the same continuation entry.
-  it('renders the continue label for a queued-pin receipt', () => {
+  it('renders the launch identity for a queued-pin receipt', () => {
     const parts = launchParts()
     const receipt: NormalToolResponse = {
       ...resumeReceipt(),
@@ -144,7 +144,7 @@ describe('resume presentation inside a completed tool group', () => {
       </AgentLaunchIndexProvider>
     )
 
-    expect(screen.getByText('Continue handling')).toBeInTheDocument()
+    expect(screen.queryByText('Continue the review')).toBeNull()
     expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
   })
 })
