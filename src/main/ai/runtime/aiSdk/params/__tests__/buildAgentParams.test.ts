@@ -1493,6 +1493,57 @@ describe('buildAgentParams web-tool routing', () => {
     expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
     expect(result.tools?.web_search).toBeUndefined()
   })
+
+  // Routing and serialization must agree on the effective effort: mapping
+  // high -> minimal used to keep the GPT-5 native-search route while the
+  // outgoing effort already read Minimal, which that route forbids.
+  it('withholds the server web-search route when the user map lowers the effective effort to a forbidden tier', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const openaiProvider = makeProvider({
+      id: 'openai',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } },
+      serverTools: [
+        {
+          id: SERVER_TOOL.WEB_SEARCH,
+          modelScope: 'model-dependent',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      ]
+    })
+    const gpt5Model = makeModel({
+      id: 'openai::gpt-5',
+      providerId: 'openai',
+      apiModelId: 'gpt-5',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] }],
+        selectableEfforts: ['minimal', 'low', 'medium', 'high']
+      }
+    })
+    preferenceGetMock.mockImplementation((key: string) => {
+      if (key === 'chat.web_search.model_tools_preferred') return true
+      if (key === 'feature.reasoning.effort_mappings')
+        return { providers: { openai: { models: { 'gpt-5': { high: 'minimal' } } } } }
+      return null
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION, reasoningEffort: 'high' },
+      signal: undefined,
+      provider: openaiProvider,
+      model: gpt5Model,
+      assistant
+    })
+
+    expect(result.options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'minimal' })
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
+  })
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {
