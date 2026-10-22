@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Systemaufforderung",
   "agent.right_pane.info.context_categories.system_tools": "Systemtools",
   "agent.right_pane.info.context_usage": "Kontextverwendung",
+  "agent.right_pane.info.session_cost": "Gesamtkosten der Sitzung",
   "agent.right_pane.info.shell_tasks": "Hintergrundbefehle",
   "agent.right_pane.info.subagents": "Unteragenten",
   "agent.right_pane.info.workflows": "Arbeitsabläufe",

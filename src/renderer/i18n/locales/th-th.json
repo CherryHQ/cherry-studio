@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "System Prompt",
   "agent.right_pane.info.context_categories.system_tools": "เครื่องมือของระบบ",
   "agent.right_pane.info.context_usage": "การใช้คอนเท็กซ์",
+  "agent.right_pane.info.session_cost": "ค่าใช้จ่ายรวมของเซสชัน",
   "agent.right_pane.info.shell_tasks": "คำสั่งพื้นหลัง",
   "agent.right_pane.info.subagents": "เอเจนต์ย่อย",
   "agent.right_pane.info.workflows": "เวิร์กโฟลว์",

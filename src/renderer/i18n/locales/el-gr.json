@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Προτροπή συστήματος",
   "agent.right_pane.info.context_categories.system_tools": "Εργαλεία συστήματος",
   "agent.right_pane.info.context_usage": "Χρήση πλαισίου",
+  "agent.right_pane.info.session_cost": "Συνολικό κόστος συνεδρίας",
   "agent.right_pane.info.shell_tasks": "Εντολές παρασκηνίου",
   "agent.right_pane.info.subagents": "Υπο-πράκτορες",
   "agent.right_pane.info.workflows": "Ροές εργασίας",

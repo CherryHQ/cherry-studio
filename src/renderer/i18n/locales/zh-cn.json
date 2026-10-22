@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "系统提示词",
   "agent.right_pane.info.context_categories.system_tools": "系统工具",
   "agent.right_pane.info.context_usage": "上下文用量",
+  "agent.right_pane.info.session_cost": "会话累计费用",
   "agent.right_pane.info.shell_tasks": "后台命令",
   "agent.right_pane.info.subagents": "子智能体",
   "agent.right_pane.info.workflows": "工作流",

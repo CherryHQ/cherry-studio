@@ -226,6 +226,14 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         params: { sessionId: 'unrelated', update: { sessionUpdate: 'session_info_update', title: 'Wrong title' } }
       })
     }
+    if (scenario === 'session-cost') {
+      update({
+        sessionUpdate: 'usage_update',
+        used: 20,
+        size: 100,
+        cost: { amount: 0.4, currency: 'EUR', _meta: { extra: true } }
+      })
+    }
     if (scenario === 'context-usage') {
       update({ sessionUpdate: 'usage_update', used: 20, size: 100 })
       emit({
@@ -528,6 +536,25 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       if (scenario === 'compaction-cancel') return
       if (scenario === 'compaction-failed') compact('first', 'failed', { error: 'Summary failed' })
       if (scenario === 'compaction-completed') compact('first', 'completed')
+    }
+    if (scenario === 'session-cost') {
+      for (const cost of [
+        { amount: 0.4, currency: 'EUR' },
+        { amount: 0.25, currency: 'EUR' },
+        { amount: 0, currency: 'CNY' },
+        { amount: -1, currency: 'USD' },
+        { amount: 10, currency: 'invalid' },
+        null,
+        undefined
+      ])
+        update({ sessionUpdate: 'usage_update', used: 0, size: 0, cost })
+      emit({
+        method: 'session/update',
+        params: {
+          sessionId: 'unrelated',
+          update: { sessionUpdate: 'usage_update', used: 10, size: 100, cost: { amount: 999, currency: 'USD' } }
+        }
+      })
     }
     if (scenario === 'context-usage') {
       update({

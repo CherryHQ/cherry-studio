@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Lời nhắc hệ thống",
   "agent.right_pane.info.context_categories.system_tools": "Công cụ hệ thống",
   "agent.right_pane.info.context_usage": "Sử dụng ngữ cảnh",
+  "agent.right_pane.info.session_cost": "Tổng chi phí phiên",
   "agent.right_pane.info.shell_tasks": "Lệnh nền",
   "agent.right_pane.info.subagents": "Agent phụ",
   "agent.right_pane.info.workflows": "Quy trình làm việc",

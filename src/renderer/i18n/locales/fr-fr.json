@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Invite système",
   "agent.right_pane.info.context_categories.system_tools": "Outils système",
   "agent.right_pane.info.context_usage": "Utilisation du contexte",
+  "agent.right_pane.info.session_cost": "Coût total de la session",
   "agent.right_pane.info.shell_tasks": "Commandes en arrière-plan",
   "agent.right_pane.info.subagents": "Sous-agents",
   "agent.right_pane.info.workflows": "Flux de travail",

@@ -89,6 +89,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionCost } from '@renderer/hooks/agent/useAgentSessionCost'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -1677,6 +1678,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const actions = useAgentRightPaneActions()
   const status = useAgentRightPaneStatus(active)
   const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const cost = useAgentSessionCost(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
@@ -1686,6 +1688,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
       {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={false} />}
 
       <AgentContextUsageSummary
+        cost={cost}
         usage={usage}
         percentage={percentage}
         maxTokens={maxTokens}
@@ -1906,12 +1909,14 @@ function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
   const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const cost = useAgentSessionCost(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
 
   return (
     <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
       <AgentContextUsageSummary
+        cost={cost}
         usage={usage}
         percentage={percentage}
         maxTokens={maxTokens}

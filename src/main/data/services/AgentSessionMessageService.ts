@@ -31,6 +31,7 @@ import {
   toFtsLikePattern,
   toFtsMatchQuery
 } from '@main/utils/trigramFtsQuery'
+import { AgentSessionCostSnapshotSchema, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
   type AgentSessionDeliveryEnvelope,
@@ -154,6 +155,7 @@ type SaveAgentSessionMessageParams = {
   runtimeAnchor?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
+  localSessionCost?: AgentSessionCostSnapshot
   message: CreateAgentSessionMessageDto & {
     delivery?: AgentSessionDeliveryEnvelope
     deliveryStatus?: AgentSessionDeliveryStatus
@@ -414,12 +416,14 @@ export class AgentSessionMessageService {
   /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
   insertForkMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly SessionMessageRow[]): void {
     for (const row of rows) {
+      const data = { ...row.data }
+      delete data.localSessionCost
       tx.insert(sessionMessagesTable)
         .values({
           id: row.id,
           sessionId,
           role: row.role,
-          data: row.data,
+          data,
           status: row.status,
           modelId: row.modelId,
           messageSnapshot: row.messageSnapshot,
@@ -428,7 +432,7 @@ export class AgentSessionMessageService {
           updatedAt: row.updatedAt
         })
         .run()
-      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, data)
     }
   }
 
@@ -809,6 +813,47 @@ export class AgentSessionMessageService {
     return this.rowToEntity(row)
   }
 
+  getSessionCost(sessionId: string): AgentSessionCostSnapshot | null {
+    const db = application.get('DbService').getDb()
+    this.assertActiveSession(db, sessionId)
+    const row = db
+      .select({ snapshot: sql<string>`json_extract(${sessionMessagesTable.data}, '$.localSessionCost')` })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`json_type(${sessionMessagesTable.data}, '$.localSessionCost') = 'object'`
+        )
+      )
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(1)
+      .get()
+    return row ? AgentSessionCostSnapshotSchema.parse(JSON.parse(row.snapshot)) : null
+  }
+
+  saveSessionCost(sessionId: string, snapshot: AgentSessionCostSnapshot): void {
+    const db = application.get('DbService').getDb()
+    const latestMessage = db
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), ne(sessionMessagesTable.role, 'root')))
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(1)
+    const result = db
+      .update(sessionMessagesTable)
+      .set({
+        data: sql`json_set(${sessionMessagesTable.data}, '$.localSessionCost', json(${JSON.stringify(snapshot)}))`
+      })
+      .where(inArray(sessionMessagesTable.id, latestMessage))
+      .run()
+    if (result.changes > 0) {
+      notifyDataApiDataChange([
+        { endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId } },
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      ])
+    }
+  }
+
   updateSessionMessage(
     sessionId: string,
     messageId: string,
@@ -823,6 +868,8 @@ export class AgentSessionMessageService {
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData = publicMessageData({ ...existing.data, ...dto.data })
+      delete mergedData.localSessionCost
+      if (existing.data.localSessionCost) mergedData.localSessionCost = existing.data.localSessionCost
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
@@ -1041,6 +1088,9 @@ export class AgentSessionMessageService {
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
     const data: SessionMessageRow['data'] = publicMessageData(message.data)
+    delete data.localSessionCost
+    const sessionCost = params.localSessionCost ?? existingRow?.data.localSessionCost
+    if (sessionCost) data.localSessionCost = sessionCost
     if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
@@ -1174,6 +1224,14 @@ export class AgentSessionMessageService {
     }
     if (publishDataChange) {
       notifyDataApiDataChange([
+        ...(params.localSessionCost
+          ? [
+              {
+                endpoint: '/agent-sessions/:sessionId/cost' as const,
+                routeParams: { sessionId: params.sessionId }
+              }
+            ]
+          : []),
         ...agentSessionReadModelEffects(result.activityTimestamp !== null ? [params.sessionId] : [], 'projection'),
         {
           endpoint: '/agent-sessions/:sessionId/messages',

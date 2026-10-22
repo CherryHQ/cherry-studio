@@ -305,6 +305,7 @@ export type SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
   'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
+  'agent.session.cost.${sessionId}': CacheValueTypes.CacheAgentSessionCost
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
@@ -378,6 +379,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': null,
   'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
+  'agent.session.cost.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
   'agent.session.background_tasks.${sessionId}': [],

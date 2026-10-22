@@ -102,6 +102,8 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    getSessionCost: vi.fn(() => null),
+    saveSessionCost: vi.fn(),
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
     hasSessionMessage: mocks.hasSessionMessage,

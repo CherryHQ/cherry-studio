@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "システムプロンプト",
   "agent.right_pane.info.context_categories.system_tools": "システムツール",
   "agent.right_pane.info.context_usage": "コンテキストの使用",
+  "agent.right_pane.info.session_cost": "セッションの累計費用",
   "agent.right_pane.info.shell_tasks": "バックグラウンドコマンド",
   "agent.right_pane.info.subagents": "サブエージェント",
   "agent.right_pane.info.workflows": "ワークフロー",

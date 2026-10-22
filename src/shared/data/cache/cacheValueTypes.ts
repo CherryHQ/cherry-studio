@@ -10,6 +10,7 @@ import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
+import type { AgentSessionCostSnapshot } from '../../ai/agentSessionCost'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
@@ -196,6 +197,7 @@ export type CachePaintingGenerationState = {
   progress: number | null
 }
 
+export type CacheAgentSessionCost = AgentSessionCostSnapshot | null
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
 export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null

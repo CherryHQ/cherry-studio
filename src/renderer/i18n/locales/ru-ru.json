@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Системный запрос",
   "agent.right_pane.info.context_categories.system_tools": "Системные инструменты",
   "agent.right_pane.info.context_usage": "Использование контекста",
+  "agent.right_pane.info.session_cost": "Общая стоимость сеанса",
   "agent.right_pane.info.shell_tasks": "Фоновые команды",
   "agent.right_pane.info.subagents": "Субагенты",
   "agent.right_pane.info.workflows": "Рабочие процессы",

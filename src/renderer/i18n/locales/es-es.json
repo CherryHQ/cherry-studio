@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Indicación del sistema",
   "agent.right_pane.info.context_categories.system_tools": "Herramientas del sistema",
   "agent.right_pane.info.context_usage": "Uso de contexto",
+  "agent.right_pane.info.session_cost": "Coste total de la sesión",
   "agent.right_pane.info.shell_tasks": "Comandos en segundo plano",
   "agent.right_pane.info.subagents": "Subagentes",
   "agent.right_pane.info.workflows": "Flujos de trabajo",

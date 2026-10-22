@@ -44,6 +44,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_COST_CACHE_KEY, type AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
 import {
   AGENT_SESSION_CLOSING_CACHE_KEY,
   type AgentSessionEditDraft,
@@ -1935,6 +1936,19 @@ export class AgentSessionRuntimeService extends BaseService {
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
+        if (entry.agentType === 'local') {
+          const cached = application.get('CacheService').getShared(AGENT_SESSION_COST_CACHE_KEY(entry.sessionId))
+          if (cached?.nativeSessionId !== event.token) {
+            const saved = agentSessionMessageService.getSessionCost(entry.sessionId)
+            if (saved || cached)
+              this.persistSessionCost(
+                entry,
+                saved?.nativeSessionId === event.token
+                  ? saved
+                  : { nativeSessionId: event.token, reportedAt: Date.now(), cost: null }
+              )
+          }
+        }
         if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry)
         break
       case 'chunk': {
@@ -1995,6 +2009,9 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'api-retry':
         this.handleApiRetry(entry, event.retry)
+        break
+      case 'session-cost':
+        this.persistSessionCost(entry, event.snapshot)
         break
       case 'context-usage':
         this.persistContextUsage(entry, event.usage)
@@ -2243,6 +2260,16 @@ export class AgentSessionRuntimeService extends BaseService {
       .finally(() => {
         if (entry.contextUsageRefresh === refresh) entry.contextUsageRefresh = undefined
       })
+  }
+
+  private persistSessionCost(entry: AgentSessionRuntimeEntry, snapshot: AgentSessionCostSnapshot): void {
+    if (!this.isCurrentEntry(entry)) return
+    application.get('CacheService').setShared(AGENT_SESSION_COST_CACHE_KEY(entry.sessionId), snapshot)
+    try {
+      agentSessionMessageService.saveSessionCost(entry.sessionId, snapshot)
+    } catch (error) {
+      logger.warn('Failed to persist native session cost', { sessionId: entry.sessionId, error })
+    }
   }
 
   private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
@@ -3450,6 +3477,8 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId: getProviderModelId(modelId),
         runtimeResumeToken: () => entry.lastResumeToken,
+        localSessionCost: () =>
+          application.get('CacheService').getShared(AGENT_SESSION_COST_CACHE_KEY(entry.sessionId)) ?? undefined,
         messageSnapshot: () => {
           const model = this.currentConnection(entry)?.localSessionInfo?.activeModel
           return model && currentTurn.messageSnapshot

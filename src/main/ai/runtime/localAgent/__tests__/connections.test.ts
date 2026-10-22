@@ -583,6 +583,28 @@ describe('local protocol processes', () => {
     }
   )
 
+  it.each([undefined, 'native-session'])(
+    'retains cumulative costs independently of context and invocation usage: %s',
+    async (resume) => {
+      const { connection, events, drained } = create('acp', 'session-cost')
+      await connection.start(cwd, resume)
+      await connection.send(input)
+      await connection.close()
+      await drained
+      const snapshots = events.flatMap((event) => (event.type === 'session-cost' ? [event.snapshot] : []))
+      expect(snapshots.map((snapshot) => snapshot.cost)).toEqual([
+        { amount: 0.4, currency: 'EUR' },
+        { amount: 0.4, currency: 'EUR' },
+        { amount: 0.25, currency: 'EUR' },
+        { amount: 0, currency: 'CNY' }
+      ])
+      expect(
+        snapshots.every((snapshot) => snapshot.nativeSessionId === 'native-session' && snapshot.reportedAt > 0)
+      ).toBe(true)
+      expect(events.filter((event) => event.type === 'usage')).toEqual([])
+    }
+  )
+
   it('records only reported prompt usage, includes cache and reasoning, and resets between turns', async () => {
     const { connection, events, drained } = create('acp', 'usage')
     await connection.start(cwd)

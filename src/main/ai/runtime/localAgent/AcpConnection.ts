@@ -25,6 +25,7 @@ import * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { AgentSessionCostSnapshotSchema } from '@shared/ai/agentSessionCost'
 import {
   ElicitationFormSchema,
   elicitationChoices,
@@ -598,6 +599,14 @@ export class AcpConnection extends LocalConnection {
     if (update.sessionUpdate === 'session_info_update' && update.title?.trim())
       this.events.push({ type: 'session-title', title: update.title })
 
+    if (update.sessionUpdate === 'usage_update' && update.cost && this.nativeId) {
+      const snapshot = AgentSessionCostSnapshotSchema.safeParse({
+        nativeSessionId: this.nativeId,
+        reportedAt: Date.now(),
+        cost: { amount: update.cost.amount, currency: update.cost.currency }
+      })
+      if (snapshot.success) this.events.push({ type: 'session-cost', snapshot: snapshot.data })
+    }
     if (update.sessionUpdate === 'usage_update' && update.used >= 0 && update.size > 0) {
       this.events.push({
         type: 'context-usage',

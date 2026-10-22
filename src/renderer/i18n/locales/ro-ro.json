@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Prompt de sistem",
   "agent.right_pane.info.context_categories.system_tools": "Unelte de sistem",
   "agent.right_pane.info.context_usage": "Utilizarea contextului",
+  "agent.right_pane.info.session_cost": "Costul total al sesiunii",
   "agent.right_pane.info.shell_tasks": "Comenzi în fundal",
   "agent.right_pane.info.subagents": "Subagenți",
   "agent.right_pane.info.workflows": "Fluxuri de lucru",

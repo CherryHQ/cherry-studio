@@ -2,6 +2,7 @@
 description: Local CLI agent configuration, native model ownership, protocol drivers, installation reuse, and compatibility verification
 sources:
   - src/shared/ai/localAgent.ts
+  - src/shared/ai/agentSessionCost.ts
   - src/shared/ai/executionIdentity.ts
   - src/main/ai/runtime/localAgent
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
@@ -227,6 +228,21 @@ Tools merge by native call ID. Standalone permission IDs settle their own cards.
 Unknown tool results use generic cards. Missing token/cost/model data is not
 invented. Images and model controls use connected capabilities; native slash
 commands populate the existing command menu.
+
+ACP `usage_update.cost` is a cumulative native-session snapshot. The usage details
+show its original currency and latest reported amount, including an explicit zero;
+missing costs stay hidden and tiny positive costs are not rounded to zero. Updates
+replace the previous amount rather than adding to it. They do not create
+`ai_usage_record` entries or contribute to per-message billing totals.
+
+Main stores the typed snapshot in existing `agent_session_message.data.localSessionCost`
+JSON, with the native session ID and report time. Shared cache supplies live updates;
+`GET /agent-sessions/:sessionId/cost` reads history without starting the CLI. The
+snapshot survives connection release and app restarts. A new native session records
+an unknown-cost marker, preventing the preceding session's amount from reappearing.
+Forked history does not inherit this snapshot. Before any message exists, the value
+is runtime-only and is attached when the first assistant reply is persisted.
+Renderer message writes cannot overwrite Main-authored snapshots.
 
 ACP image attachments send base64 content only when the agent advertises image
 input; unsupported images fail explicitly instead of becoming path text. Agent-wide

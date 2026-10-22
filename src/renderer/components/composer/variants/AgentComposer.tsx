@@ -56,6 +56,7 @@ import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionCost } from '@renderer/hooks/agent/useAgentSessionCost'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -560,6 +561,7 @@ interface InnerProps {
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
   const { t } = useTranslation()
   const { percentage, usage, maxTokens } = useAgentSessionContextUsage(sessionId, model)
+  const cost = useAgentSessionCost(sessionId)
   const compaction = useAgentSessionCompaction(sessionId)
   const isCompacting = compaction.status === 'compacting'
   if (isCompacting)
@@ -585,6 +587,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       }}
       content={
         <AgentContextUsageSummary
+          cost={cost}
           usage={usage}
           percentage={percentage}
           maxTokens={maxTokens}

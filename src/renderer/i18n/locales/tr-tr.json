@@ -214,6 +214,7 @@
   "agent.right_pane.info.context_categories.system_prompt": "Sistem istemi",
   "agent.right_pane.info.context_categories.system_tools": "Sistem araçları",
   "agent.right_pane.info.context_usage": "Bağlam kullanımı",
+  "agent.right_pane.info.session_cost": "Oturumun toplam maliyeti",
   "agent.right_pane.info.shell_tasks": "Arka plan komutları",
   "agent.right_pane.info.subagents": "Alt ajanlar",
   "agent.right_pane.info.workflows": "İş akışları",
