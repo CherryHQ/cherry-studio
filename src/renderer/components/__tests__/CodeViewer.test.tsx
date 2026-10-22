@@ -418,7 +418,9 @@ describe('CodeViewer', () => {
         selection.addRange(range)
       }
       const pointer = (target: Element | Document, type: string, button = 0, clientX = 10, clientY = 10) => {
-        fireEvent(target, new MouseEvent(type, { bubbles: true, button, clientX, clientY }))
+        const event = new MouseEvent(type, { bubbles: true, button, clientX, clientY })
+        Object.defineProperty(event, 'pointerType', { value: 'mouse' })
+        fireEvent(target, event)
       }
       const copy = () => {
         const data = new Map<string, string>()
@@ -506,6 +508,101 @@ describe('CodeViewer', () => {
       expect(view.copy()).toEqual({ text: expected, prevented: true })
     })
 
+    it('does not truncate a captured selection when highlighting re-renders the surviving row', () => {
+      const code = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`).join('\n')
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, code)
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+
+      mocks.firstRenderedRow = 20
+      mocks.lastRenderedRow = 59
+      view.rerender(<CodeViewer value={code} language="typescript" expanded={false} className="scrolled-away" />)
+      view.select(view.wrapper, 0, view.content(29), 0)
+      fireEvent.scroll(view.scroller)
+
+      expect(view.copy()).toEqual({
+        text: 'const value10 = "abcdefghij"\nconst value11 = "abcdefghij"\nconst value12 = "abcdefghij"\nconst value13 = "abcdefghij"\nconst value14 = "abcdefghij"\nconst value15 = "abcdefghij"\nconst value16 = "abcdefghij"\nconst value17 = "abcdefghij"\nconst value18 = "abcdefghij"\nconst value19 = "abcdefghij"\nconst value20 = "abcdefghij"\nconst value21 = "abcdefghij"\nconst value22 = "abcdefghij"\nconst value23 = "abcdefghij"\nconst value24 = "abcdefghij"\nconst value25 = "abcdefghij"\nconst value26 = "abcdefghij"\nconst value27 = "abcdefghij"\nconst value28 = "abcdefghij"\nco',
+        prevented: true
+      })
+    })
+
+    it('keeps a captured selection when the context menu opens', () => {
+      const lines = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`)
+      const code = lines.join('\n')
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, code)
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+
+      mocks.firstRenderedRow = 20
+      mocks.lastRenderedRow = 59
+      view.rerender(<CodeViewer value={code} language="typescript" expanded={false} className="scrolled-away" />)
+      view.select(view.wrapper, 0, view.text(29), 2)
+      view.pointer(view.scroller, 'pointerdown', 2)
+      view.pointer(document.body, 'pointerup', 2)
+      fireEvent.contextMenu(view.scroller)
+
+      const expected = [...lines.slice(10, 29), 'co'].join('\n')
+      expect(expected).toHaveLength(553)
+      expect(view.copy()).toEqual({ text: expected, prevented: true })
+    })
+
+    it('keeps a captured selection after a keyboard edit followed by a highlight re-render', () => {
+      const lines = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`)
+      const code = lines.join('\n')
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, code)
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+
+      mocks.firstRenderedRow = 20
+      mocks.lastRenderedRow = 59
+      view.rerender(<CodeViewer value={code} language="typescript" expanded={false} className="scrolled-away" />)
+      view.select(view.wrapper, 0, view.text(29), 2)
+      fireEvent.keyDown(view.scroller, { key: 'ArrowLeft', shiftKey: true })
+      fireEvent.scroll(view.scroller)
+      // Model highlighting relocating the surviving endpoint after the keyboard edit was committed.
+      view.select(view.wrapper, 0, view.content(29), 0)
+
+      const expected = [...lines.slice(10, 29), 'co'].join('\n')
+      expect(expected).toHaveLength(553)
+      expect(view.copy()).toEqual({ text: expected, prevented: true })
+    })
+
+    it('keeps the snapshot when a touch pan starts and cancels', () => {
+      const code = Array.from({ length: 60 }, (_, index) => `const value${index} = "abcdefghij"`).join('\n')
+      mocks.firstRenderedRow = 10
+      mocks.lastRenderedRow = 29
+      const view = setup(false, undefined, code)
+      view.pointer(view.scroller, 'pointerdown')
+      view.select(view.text(10), 0, view.text(29), 2)
+      view.pointer(document.body, 'pointerup')
+
+      for (const type of ['pointerdown', 'pointercancel']) {
+        // jsdom lacks PointerEvent; add pointerType to a real MouseEvent.
+        const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: 10, clientY: 10 })
+        Object.defineProperty(event, 'pointerType', { value: 'touch' })
+        fireEvent(view.scroller, event)
+      }
+      mocks.firstRenderedRow = 20
+      mocks.lastRenderedRow = 59
+      view.rerender(<CodeViewer value={code} language="typescript" expanded={false} className="after-touch-pan" />)
+      view.select(view.wrapper, 0, view.text(29), 2)
+      fireEvent.scroll(view.scroller)
+
+      expect(view.copy()).toEqual({
+        text: 'const value10 = "abcdefghij"\nconst value11 = "abcdefghij"\nconst value12 = "abcdefghij"\nconst value13 = "abcdefghij"\nconst value14 = "abcdefghij"\nconst value15 = "abcdefghij"\nconst value16 = "abcdefghij"\nconst value17 = "abcdefghij"\nconst value18 = "abcdefghij"\nconst value19 = "abcdefghij"\nconst value20 = "abcdefghij"\nconst value21 = "abcdefghij"\nconst value22 = "abcdefghij"\nconst value23 = "abcdefghij"\nconst value24 = "abcdefghij"\nconst value25 = "abcdefghij"\nconst value26 = "abcdefghij"\nconst value27 = "abcdefghij"\nconst value28 = "abcdefghij"\nco',
+        prevented: true
+      })
+    })
+
     // Before fix: RED — completion outside the viewer never captured the logical range.
     it('captures the completed selection on pointerup', () => {
       const view = setup()
@@ -529,6 +626,8 @@ describe('CodeViewer', () => {
           view.pointer(view.scroller, 'pointerdown')
           view.select(view.text(3), 6, view.text(3), 12)
           view.pointer(document.body, 'pointerup')
+        } else {
+          fireEvent.keyDown(view.scroller, { key: 'ArrowLeft', shiftKey: true })
         }
         expect(view.copy()).toEqual({ text: 'value3', prevented: true })
       }
@@ -562,15 +661,16 @@ describe('CodeViewer', () => {
       expect(view.copy()).toEqual({ text: wide, prevented: true })
     })
 
-    it('removes the completion listener on pointercancel', () => {
+    it('commits on pointercancel and removes the completion listener', () => {
       const view = setup()
       view.pointer(view.scroller, 'pointerdown')
       view.selectWide()
       view.pointer(document.body, 'pointercancel')
+      view.select(view.text(3), 6, view.text(3), 12)
       view.pointer(document.body, 'pointerup')
       view.removeFirstRows()
       fireEvent.scroll(view.scroller)
-      expect(view.copy()).toEqual({ text: narrow, prevented: true })
+      expect(view.copy()).toEqual({ text: wide, prevented: true })
     })
 
     it('uses the current DOM selection rather than the snapshot to request expansion', () => {

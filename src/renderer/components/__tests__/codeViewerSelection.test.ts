@@ -216,7 +216,8 @@ describe('mergeCodeViewerSelection', () => {
       mergeCodeViewerSelection(
         previous,
         { line: 0, offset: 0, source: 'container' },
-        { line: 29, offset: 2, source: 'line' }
+        { line: 29, offset: 2, source: 'line' },
+        true
       )
     ).toEqual(previous)
   })
@@ -227,7 +228,8 @@ describe('mergeCodeViewerSelection', () => {
       mergeCodeViewerSelection(
         previous,
         { line: 10, offset: 0, source: 'line' },
-        { line: 29, offset: 2, source: 'container' }
+        { line: 29, offset: 2, source: 'container' },
+        true
       )
     ).toEqual(previous)
   })
@@ -243,10 +245,33 @@ describe('mergeCodeViewerSelection', () => {
         mergeCodeViewerSelection(
           previous,
           { line: startLine, offset: startOffset, source: 'line' },
-          { line: endLine, offset: endOffset, source: 'line' }
+          { line: endLine, offset: endOffset, source: 'line' },
+          true
         )
       ).toEqual({ startLine, startOffset, endLine, endOffset })
     }
+  })
+
+  it('keeps a captured line endpoint when no selection input happened', () => {
+    expect(
+      mergeCodeViewerSelection(
+        { startLine: 10, startOffset: 0, endLine: 29, endOffset: 2 },
+        { line: 10, offset: 0, source: 'line' },
+        { line: 29, offset: 0, source: 'line' },
+        false
+      )
+    ).toEqual({ startLine: 10, startOffset: 0, endLine: 29, endOffset: 2 })
+  })
+
+  it('replaces line endpoints when a selection input happened', () => {
+    expect(
+      mergeCodeViewerSelection(
+        { startLine: 10, startOffset: 0, endLine: 29, endOffset: 2 },
+        { line: 10, offset: 0, source: 'line' },
+        { line: 29, offset: 0, source: 'line' },
+        true
+      )
+    ).toEqual({ startLine: 10, startOffset: 0, endLine: 29, endOffset: 0 })
   })
 
   it('accepts container boundaries when nothing was captured', () => {
@@ -254,7 +279,8 @@ describe('mergeCodeViewerSelection', () => {
       mergeCodeViewerSelection(
         null,
         { line: 10, offset: 0, source: 'container' },
-        { line: 29, offset: 2, source: 'container' }
+        { line: 29, offset: 2, source: 'container' },
+        true
       )
     ).toEqual({ startLine: 10, startOffset: 0, endLine: 29, endOffset: 2 })
   })

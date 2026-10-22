@@ -104,6 +104,9 @@ const CodeViewer = ({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
+  const pointerReplaceRef = useRef(false)
+  const keyboardReplaceRef = useRef(false)
+  const lastPointerTypeRef = useRef<string | null>(null)
   const shouldStickToBottomRef = useRef(true)
   const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
   const hasRequestedHighlightRef = useRef(false)
@@ -204,11 +207,13 @@ const CodeViewer = ({
   }, [selectionBelongsToViewer])
 
   const commitSelection = useCallback((): SavedSelection | null => {
+    const allowReplace = pointerReplaceRef.current || keyboardReplaceRef.current
+    keyboardReplaceRef.current = false
     const parsed = saveSelection()
     if (!parsed) return null
     const { start, end } = parsed
     const previous = savedSelectionRef.current
-    const saved = mergeCodeViewerSelection(previous, start, end)
+    const saved = mergeCodeViewerSelection(previous, start, end, allowReplace)
     savedSelectionRef.current = saved
     return saved
   }, [saveSelection])
@@ -514,22 +519,48 @@ const CodeViewer = ({
     const finish = () => {
       cleanup()
       commitSelection()
+      pointerReplaceRef.current = false
     }
-    const cancel = () => cleanup()
+    const cancel = finish
+    const startSelection = () => {
+      savedSelectionRef.current = null
+      pointerReplaceRef.current = true
+    }
+    const contextmenu = () => {
+      if (lastPointerTypeRef.current === 'touch') startSelection()
+    }
+    const keydown = (event: KeyboardEvent) => {
+      if (
+        event.shiftKey ||
+        event.key.startsWith('Arrow') ||
+        event.key === 'Home' ||
+        event.key === 'End' ||
+        ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a')
+      ) {
+        keyboardReplaceRef.current = true
+      }
+    }
     const begin = (event: PointerEvent) => {
+      lastPointerTypeRef.current = event.pointerType
       if (event.button !== 0) return
       // Scrollbar gestures do not start a text selection.
       const rect = scroller.getBoundingClientRect()
       if (event.clientX >= rect.left + scroller.clientWidth || event.clientY >= rect.top + scroller.clientHeight) return
       cleanup()
-      savedSelectionRef.current = null
+      if (event.pointerType !== 'touch') startSelection()
       document.addEventListener('pointerup', finish, { once: true })
       document.addEventListener('pointercancel', cancel, { once: true })
     }
     scroller.addEventListener('pointerdown', begin)
+    scroller.addEventListener('contextmenu', contextmenu)
+    scroller.addEventListener('dblclick', startSelection)
+    scroller.addEventListener('keydown', keydown)
     return () => {
       cleanup()
       scroller.removeEventListener('pointerdown', begin)
+      scroller.removeEventListener('contextmenu', contextmenu)
+      scroller.removeEventListener('dblclick', startSelection)
+      scroller.removeEventListener('keydown', keydown)
     }
   }, [commitSelection])
 

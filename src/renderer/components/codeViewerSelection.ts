@@ -17,13 +17,14 @@ export interface CodeViewerSavedSelection {
 export function mergeCodeViewerSelection(
   previous: CodeViewerSavedSelection | null,
   start: CodeViewerBoundary,
-  end: CodeViewerBoundary
+  end: CodeViewerBoundary,
+  allowReplace: boolean
 ): CodeViewerSavedSelection {
   return {
-    startLine: start.source === 'line' || !previous ? start.line : previous.startLine,
-    startOffset: start.source === 'line' || !previous ? start.offset : previous.startOffset,
-    endLine: end.source === 'line' || !previous ? end.line : previous.endLine,
-    endOffset: end.source === 'line' || !previous ? end.offset : previous.endOffset
+    startLine: !previous || (start.source === 'line' && allowReplace) ? start.line : previous.startLine,
+    startOffset: !previous || (start.source === 'line' && allowReplace) ? start.offset : previous.startOffset,
+    endLine: !previous || (end.source === 'line' && allowReplace) ? end.line : previous.endLine,
+    endOffset: !previous || (end.source === 'line' && allowReplace) ? end.offset : previous.endOffset
   }
 }
 
