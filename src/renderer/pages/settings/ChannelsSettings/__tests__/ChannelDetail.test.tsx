@@ -339,7 +339,7 @@ describe('ChannelDetail', () => {
       await user.type(secretInput, 'new-secret')
       await user.tab()
       expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
-        config: { ...config, app_secret: 'new-secret' }
+        configPatch: { app_secret: 'new-secret' }
       })
 
       await user.click(screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' }))
@@ -355,6 +355,56 @@ describe('ChannelDetail', () => {
     } finally {
       await act(async () => {
         finishSave({ ...channelMocks.channels[0], config: { ...config, app_secret: 'new-secret' } })
+        await pendingSave
+      })
+    }
+  })
+
+  it('keeps the mention toggle when a companion Feishu field is saved while updates are pending', async () => {
+    const user = userEvent.setup()
+    const config = { app_id: 'app-id', app_secret: 'old-secret', mention_only: true, allowed_chat_ids: [] }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
+    let finishSave!: (value: unknown) => void
+    const pendingSave = new Promise((resolve) => {
+      finishSave = resolve
+    })
+    channelMocks.updateChannel.mockImplementationOnce(() => pendingSave)
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    try {
+      await user.click(screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' }))
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { mention_only: false }
+      })
+
+      const secretInput = screen.getByPlaceholderText('agent.channels.feishu.appSecretPlaceholder')
+      await user.clear(secretInput)
+      await user.type(secretInput, 'new-secret')
+      await user.tab()
+      expect(channelMocks.updateChannel.mock.calls.at(-1)).toEqual([
+        'channel-1',
+        { configPatch: { app_secret: 'new-secret' } }
+      ])
+      const payload = channelMocks.updateChannel.mock.calls.at(-1)![1]
+      expect(payload).not.toHaveProperty('config')
+      expect(payload).not.toHaveProperty('mention_only')
+      expect(payload.configPatch).not.toHaveProperty('mention_only')
+
+      await user.click(screen.getByRole('button', { name: 'agent.channels.feishu.domainLark' }))
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { domain: 'lark' }
+      })
+
+      const chatIdsInput = screen.getByPlaceholderText('agent.channels.feishu.chatIdsPlaceholder')
+      await user.type(chatIdsInput, ' chat-1, chat-2 ')
+      await user.tab()
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { allowed_chat_ids: ['chat-1', 'chat-2'] }
+      })
+    } finally {
+      await act(async () => {
+        finishSave({ ...channelMocks.channels[0], config: { ...config, mention_only: false } })
         await pendingSave
       })
     }

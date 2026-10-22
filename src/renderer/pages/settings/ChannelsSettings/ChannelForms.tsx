@@ -58,6 +58,7 @@ type ChannelFieldsFormProps = ChannelFormProps & {
   fields: FieldDef[]
   chatIds: ChatIdsConfig
   extraContent?: ReactNode
+  patchConfig?: boolean
 }
 
 // --------------- Shared form components ---------------
@@ -103,7 +104,8 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
   onConfigChange,
   fields,
   chatIds: chatIdsConfig,
-  extraContent
+  extraContent,
+  patchConfig
 }) => {
   const { t } = useTranslation()
   const cfg = channel.config
@@ -124,10 +126,10 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
     (key: string, value: string) => {
       const trimmed = value.trim()
       if (trimmed !== ((cfg[key] as string) ?? '')) {
-        onConfigChange({ config: { ...cfg, [key]: trimmed } })
+        onConfigChange(patchConfig ? { configPatch: { [key]: trimmed } } : { config: { ...cfg, [key]: trimmed } })
       }
     },
-    [cfg, onConfigChange]
+    [cfg, onConfigChange, patchConfig]
   )
 
   const saveChatIds = useCallback(() => {
@@ -136,9 +138,9 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
       .map((s) => s.trim())
       .filter(Boolean)
     if (JSON.stringify(ids) !== JSON.stringify((cfg[idsKey] as string[]) ?? [])) {
-      onConfigChange({ config: { ...cfg, [idsKey]: ids } })
+      onConfigChange(patchConfig ? { configPatch: { [idsKey]: ids } } : { config: { ...cfg, [idsKey]: ids } })
     }
-  }, [chatIds, cfg, idsKey, onConfigChange])
+  }, [chatIds, cfg, idsKey, onConfigChange, patchConfig])
 
   return (
     <div className="flex flex-col gap-3">
@@ -221,7 +223,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
       <Label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</Label>
       <Select
         value={(cfg.domain as FeishuDomain) ?? 'feishu'}
-        onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value } })}>
+        onValueChange={(value) => onConfigChange({ configPatch: { domain: value } })}>
         <SelectTrigger size="sm" className="w-full">
           <SelectValue />
         </SelectTrigger>
@@ -290,6 +292,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
       <ChannelFieldsForm
         channel={channel}
         onConfigChange={onConfigChange}
+        patchConfig
         fields={[
           {
             key: 'app_id',
