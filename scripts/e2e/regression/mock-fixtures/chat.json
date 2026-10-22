@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "Reply with exactly CUSTOM_PROVIDER_CHAT_PASS and nothing else." },
+      "response": { "content": "CUSTOM_PROVIDER_CHAT_PASS" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "In one sentence, what is two plus two?" },
+      "response": { "content": "Two plus two equals four. ASSISTANT_PROMPT_PASS" }
+    },
+    {
+      "match": { "userMessage": "Hello" },
+      "response": { "content": "Hi there! How can I help?" },
+      "opts": { "chunkSize": 8, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Call the everything MCP server get-sum tool with a=31415 and b=27182, then report its result." },
+      "response": { "content": "The get-sum tool returned 58597." }
+    },
+    {
+      "match": { "userMessage": "markdown table please" },
+      "response": { "content": "# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```js\nconsole.log(1)\n```" }
+    }
+  ]
+}
