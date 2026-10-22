@@ -330,6 +330,15 @@ describe('KnowledgeItemService', () => {
       expect(result.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
     })
 
+    it('includes deleting items when asked', async () => {
+      await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { includeDeleting: true })
+
+      expect(result.map((item) => item.id).sort()).toEqual([DELETING_NOTE_ID, VISIBLE_NOTE_ID].sort())
+    })
+
     it('throws NotFound when listing items for a missing base', () => {
       let err: unknown
       try {

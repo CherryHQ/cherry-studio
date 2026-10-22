@@ -1498,6 +1498,22 @@ describe('KnowledgeService', () => {
     expect(enqueuedSourceCopies()).toEqual([['/Users/me/c/notes.md', 'notes_1.md']])
   })
 
+  it('does not let a new file claim the name of an item whose delete cleanup is still pending', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    // Its copy never landed, so no file on disk guards the name, yet its cleanup will still unlink notes.md.
+    const deletingItem = createFileItem('file-deleting', 'kb-1', '/old/notes.md', 'deleting')
+    knowledgeItemGetItemsByBaseIdMock.mockImplementation((_baseId: string, options?: { includeDeleting?: boolean }) =>
+      options?.includeDeleting ? [deletingItem] : []
+    )
+
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' as AbsoluteFilePath } }
+    ])
+
+    expect(enqueuedSourceCopies()).toEqual([['/Users/me/c/notes.md', 'notes_1.md']])
+  })
+
   it('auto-renames against the processed-markdown sibling reserved for an earlier-imported document', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))

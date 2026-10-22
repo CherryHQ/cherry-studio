@@ -98,7 +98,7 @@ addItems(baseId, inputs)
   -> no-op on empty inputs
   -> resolve detect / replace conflicts when requested
   -> under same-base mutation lock:
-       reserve raw/ names (no bytes are copied here)
+       reserve raw/ names, counting rows still being deleted (no bytes are copied here)
        create each item
        set root status to preparing for containers
        set root status to processing for leaves

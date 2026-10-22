@@ -88,6 +88,7 @@ function decodeSortedKnowledgeItemCursor(
 
 type KnowledgeItemsByBaseOptions = {
   groupId?: string | null
+  includeDeleting?: boolean
 }
 
 type GetSubtreeItemsOptions = {
@@ -235,7 +236,10 @@ export class KnowledgeItemService {
   getItemsByBaseId(baseId: string, options: KnowledgeItemsByBaseOptions = {}): KnowledgeItem[] {
     knowledgeBaseService.getById(baseId)
 
-    const conditions = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+    const conditions = [eq(knowledgeItemTable.baseId, baseId)]
+    if (!options.includeDeleting) {
+      conditions.push(ne(knowledgeItemTable.status, 'deleting'))
+    }
 
     if (options.groupId !== undefined) {
       conditions.push(

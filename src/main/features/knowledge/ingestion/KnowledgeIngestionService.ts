@@ -694,7 +694,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   }
 
   private loadReservedKnowledgeFilePaths(baseId: string, fileProcessorId: string | null | undefined): Set<string> {
-    const items = knowledgeItemService.getItemsByBaseId(baseId)
+    // A deleting row's pending cleanup still unlinks its paths, so a new item must not claim them.
+    const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
     return collectKnowledgeReservedRelativePaths(items, { fileProcessorId })
   }
 
