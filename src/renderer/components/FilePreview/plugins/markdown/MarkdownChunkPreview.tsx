@@ -14,6 +14,8 @@ interface MarkdownChunkPreviewProps {
   chunks: MarkdownChunk[]
   /** Stable identity; every chunk derives its own heading-ID prefix from it. */
   id: string
+  /** Bumped for every completed read: remounting the chunks retries document-derived state. */
+  renderVersion?: number
 }
 
 /**
@@ -21,7 +23,7 @@ interface MarkdownChunkPreviewProps {
  * document never pays a whole-file parse and layout in one frame and the first screenful is ready
  * as soon as those chunks have rendered.
  */
-export function MarkdownChunkPreview({ chunks, id }: MarkdownChunkPreviewProps) {
+export function MarkdownChunkPreview({ chunks, id, renderVersion = 0 }: MarkdownChunkPreviewProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: chunks.length,
@@ -75,7 +77,7 @@ export function MarkdownChunkPreview({ chunks, id }: MarkdownChunkPreviewProps) 
             className="absolute top-0 left-0 w-full"
             style={{ transform: `translateY(${virtualItems[0]?.start ?? 0}px)` }}>
             {virtualItems.map((item) => (
-              <div key={item.key} data-index={item.index} ref={virtualizer.measureElement}>
+              <div key={`${item.key}:${renderVersion}`} data-index={item.index} ref={virtualizer.measureElement}>
                 <div className="mx-auto w-full max-w-4xl px-4 pt-4">
                   <StaticMarkdown id={`${id}:${item.index}`} headingSlugs={chunks[item.index].headingSlugs}>
                     {chunks[item.index].text}

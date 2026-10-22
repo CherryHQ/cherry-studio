@@ -253,6 +253,7 @@ patchedDependencies:
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
+  rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
   streamdown@2.5.0: e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
@@ -385,8 +386,8 @@ importers:
         specifier: 1.16.1
         version: 1.16.1
       selection-hook:
-        specifier: 2.1.1
-        version: 2.1.1
+        specifier: 2.1.2
+        version: 2.1.2
       sharp:
         specifier: 0.35.3
         version: 0.35.3(@types/node@24.10.4)
@@ -576,10 +577,10 @@ importers:
         version: 3.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@44.4.4(supports-color@8.1.1))
+        version: 3.0.2(electron@44.9.3(supports-color@8.1.1))
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@44.4.4(supports-color@8.1.1))
+        version: 3.0.0(electron@44.9.3(supports-color@8.1.1))
       '@electron/asar':
         specifier: 3.4.1
         version: 3.4.1
@@ -1046,8 +1047,8 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0
       electron:
-        specifier: 44.4.4
-        version: 44.4.4(supports-color@8.1.1)
+        specifier: 44.9.3
+        version: 44.9.3(supports-color@8.1.1)
       electron-builder:
         specifier: 26.15.6
         version: 26.15.6(electron-builder-squirrel-windows@26.15.6)(supports-color@8.1.1)
@@ -1823,6 +1824,9 @@ importers:
       rolldown-plugin-dts:
         specifier: 0.27.14
         version: 0.27.14(oxc-resolver@11.21.2)(rolldown@1.2.6)(typescript@5.9.3)
+      rtf.js:
+        specifier: 3.0.9
+        version: 3.0.9(patch_hash=8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -9400,6 +9404,10 @@ packages:
   codemirror@6.0.2:
     resolution: {integrity: sha512-VhydHotNW5w1UGK0Qj96BwSk/Zqbp9WbnyK2W/eVMv4QyF41INRGpjUhFJY7/uDNuudSc33a/PKr4iDqRduvHw==}
 
+  codepage@1.15.0:
+    resolution: {integrity: sha512-3g6NUTPd/YtuuGrhMnOMRjFc+LJw/bnMp3+0r/Wcz3IXUuCosKRJvMphm5+Q+bvTVGcJJuRvVLuYba+WojaFaA==}
+    engines: {node: '>=0.8'}
+
   collapse-white-space@2.1.0:
     resolution: {integrity: sha512-loKTxY1zCOuG4j9f6EPnuyyYkf58RnhhWTvRoZEokgB+WbdXehfjFviyOVYkqzEWz1Q5kRiZdBYS5SwxbQYwzw==}
 
@@ -10256,8 +10264,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.4.4:
-    resolution: {integrity: sha512-UNi4cRJf9VEDHp8nRIQ+xsPz4AKnluMmxB5D3r7z/2XoG08IrtwGFEhqCub19RCFjM+dKTkMeI93ZqXdvw+JSQ==}
+  electron@44.9.3:
+    resolution: {integrity: sha512-Cv9/yMnZxNWsMlIe8T4v//NKHdUvbeyoTJoXE3BIcRxus2meeFaO9h/P3zB5d4cBXum51IgAYrT2QjpIDWKpJA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -14110,6 +14118,9 @@ packages:
   rrweb-cssom@0.8.0:
     resolution: {integrity: sha512-guoltQEx+9aMf2gDZ0s62EcV8lsXR+0w8915TC3ITdn2YueuNjdAYh/levpU9nFaoChh9RUS5ZdQMrKfVEN9tw==}
 
+  rtf.js@3.0.9:
+    resolution: {integrity: sha512-I1GpDat4i548WzmeZXv27f/743984fvEeeBS8BC01/Sop17pMlUl3M7DYcdcB3PUvOZTrFIMxGZx8qw7cSMAKQ==}
+
   run-applescript@7.1.0:
     resolution: {integrity: sha512-DPe5pVFaAsinSaV6QjQ6gdiedWDcRCbUuiQfQa2wmWV7+xC9bGulGI8+TdRmoFkAPaBXk8CrAbnlY2ISniJ47Q==}
     engines: {node: '>=18'}
@@ -14172,8 +14183,8 @@ packages:
   selderee@0.11.0:
     resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
 
-  selection-hook@2.1.1:
-    resolution: {integrity: sha512-8ZqU2ModYR7Ji2s/T4GUgxBeZw2oeOJZeYMyMT6kxZUPkJUD193kGLIF1mxqlV6pYSmo0CBGi9mW8468PsMuYA==}
+  selection-hook@2.1.2:
+    resolution: {integrity: sha512-eNPQzL+OFf4WUXApxpXiplTUicL5MAtxm3yXi6dIRY8VUZ+2vuXHnlFBSQ/LXAe8hXewMM91SWK+YjU06ZbZVg==}
     engines: {node: '>=18.0.0'}
 
   semver-compare@1.0.0:
@@ -17450,13 +17461,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@44.4.4(supports-color@8.1.1))':
+  '@electron-toolkit/preload@3.0.2(electron@44.9.3(supports-color@8.1.1))':
     dependencies:
-      electron: 44.4.4(supports-color@8.1.1)
+      electron: 44.9.3(supports-color@8.1.1)
 
-  '@electron-toolkit/utils@3.0.0(electron@44.4.4(supports-color@8.1.1))':
+  '@electron-toolkit/utils@3.0.0(electron@44.9.3(supports-color@8.1.1))':
     dependencies:
-      electron: 44.4.4(supports-color@8.1.1)
+      electron: 44.9.3(supports-color@8.1.1)
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -23882,6 +23893,8 @@ snapshots:
       '@codemirror/state': 6.5.4
       '@codemirror/view': 6.39.16
 
+  codepage@1.15.0: {}
+
   collapse-white-space@2.1.0: {}
 
   color-convert@2.0.1:
@@ -24746,7 +24759,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@44.4.4(supports-color@8.1.1):
+  electron@44.9.3(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.3
       '@electron/get': 5.0.0(supports-color@8.1.1)
@@ -29486,6 +29499,10 @@ snapshots:
 
   rrweb-cssom@0.8.0: {}
 
+  rtf.js@3.0.9(patch_hash=8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24):
+    dependencies:
+      codepage: 1.15.0
+
   run-applescript@7.1.0: {}
 
   run-async@4.0.6: {}
@@ -29537,7 +29554,7 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  selection-hook@2.1.1:
+  selection-hook@2.1.2:
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4

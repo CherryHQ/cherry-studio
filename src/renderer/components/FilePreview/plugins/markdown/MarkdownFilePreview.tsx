@@ -1,7 +1,7 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useId, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
@@ -30,14 +30,14 @@ const EMPTY_CHUNKS: MarkdownChunk[] = []
 type MarkdownFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
-  | { status: 'ready'; content: string }
+  | { status: 'ready'; content: string; renderVersion: number }
   | { status: 'too_large' }
 
 function MarkdownPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -174,7 +174,13 @@ function MarkdownPreviewContent({
 
   if (loadState.content.trim().length === 0) return <MarkdownPreviewEmpty />
 
-  const markdown = <MarkdownChunkPreview chunks={chunks} id={markdownId} />
+  const markdown = (
+    <MarkdownChunkPreview
+      chunks={chunks}
+      id={markdownId}
+      renderVersion={loadState.status === 'ready' ? loadState.renderVersion : 0}
+    />
+  )
 
   return (
     <MarkdownHostProvider resolveImageSrc={resolveImageSrc} openFilePath={navigation ? openFilePath : undefined}>
@@ -183,7 +189,13 @@ function MarkdownPreviewContent({
   )
 }
 
-export default function MarkdownFilePreview({ filePath, metadata, refreshKey, type = 'file' }: FilePreviewPluginProps) {
+export default function MarkdownFilePreview({
+  filePath,
+  metadata,
+  metadataRequest,
+  refreshKey,
+  type = 'file'
+}: FilePreviewPluginProps) {
   const markdownId = useId()
   const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
@@ -201,17 +213,25 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
   // Windowing keeps large documents responsive, so only input it cannot window falls back: very
   // long lines, or a single block large enough that it would still reach the renderer whole.
   const plainFallback = split !== null && (split.longLines || hasOversizedMarkdownChunk(chunks))
+  const sourceMetadata = metadataRequest ?? metadata.size
   const effectiveMode = plainFallback ? 'source' : type === 'artifact' ? 'preview' : mode
   const viewerOwnsScroll =
     loadState.status === 'ready' && (effectiveMode === 'source' || (readyContent ?? '').trim().length > 0)
 
-  useEffect(() => {
+  // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
+  // Read metadata after ancestor layout setup, including Activity reconnections.
+  useLayoutEffect(() => {
     let cancelled = false
-    setLoadState({ status: 'loading' })
+    setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {
-        if (metadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
+        const loadedMetadata =
+          typeof sourceMetadata === 'function'
+            ? await Promise.resolve().then(sourceMetadata)
+            : { kind: 'file', size: sourceMetadata }
+        if (cancelled || loadedMetadata?.kind !== 'file') return
+        if (loadedMetadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }
@@ -220,10 +240,13 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
         if (cancelled) return
         // Stripping happens at read time so every later decision — fallback, mode, scroll owner —
         // sees exactly what the rendered view is allowed to show.
-        setLoadState({
+        const content = type === 'artifact' ? text.replace(YAML_FRONTMATTER_PATTERN, '') : text
+        // A completed read resets document-derived renderer state, including failed images.
+        setLoadState((current) => ({
           status: 'ready',
-          content: type === 'artifact' ? text.replace(YAML_FRONTMATTER_PATTERN, '') : text
-        })
+          content,
+          renderVersion: current.status === 'ready' ? current.renderVersion + 1 : 0
+        }))
       } catch (error) {
         if (cancelled) return
         const normalized = error instanceof Error ? error : new Error(String(error))
@@ -235,7 +258,7 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
     return () => {
       cancelled = true
     }
-  }, [filePath, metadata.size, refreshKey, type])
+  }, [filePath, sourceMetadata, refreshKey, type])
 
   return (
     <FilePreviewLayout.Frame>

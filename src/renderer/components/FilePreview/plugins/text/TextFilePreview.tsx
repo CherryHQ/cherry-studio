@@ -1,7 +1,7 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
@@ -28,7 +28,7 @@ function TextPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -108,25 +108,33 @@ function TextPreviewContent({ filePath, highlight, loadState }: TextPreviewConte
   )
 }
 
-export default function TextFilePreview({ filePath, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function TextFilePreview({ filePath, metadata, metadataRequest, refreshKey }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
   const readyContent = loadState.status === 'ready' ? loadState.content : null
   // Shiki tokenizes in a worker, incrementally up to the last visible row, so document size costs
   // nothing up front — only lines too long to window can still block the layout engine.
   const highlight = useMemo(() => readyContent !== null && !hasPathologicalLongLines(readyContent), [readyContent])
+  const sourceMetadata = metadataRequest ?? metadata.size
 
-  useEffect(() => {
+  // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
+  // Read metadata after ancestor layout setup, including Activity reconnections.
+  useLayoutEffect(() => {
     let cancelled = false
-    setLoadState({ status: 'loading' })
+    setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {
-        if (metadata.size === 0) {
+        const loadedMetadata =
+          typeof sourceMetadata === 'function'
+            ? await Promise.resolve().then(sourceMetadata)
+            : { kind: 'file', size: sourceMetadata }
+        if (cancelled || loadedMetadata?.kind !== 'file') return
+        if (loadedMetadata.size === 0) {
           setLoadState({ status: 'empty' })
           return
         }
 
-        if (metadata.size > TEXT_PREVIEW_MAX_SIZE_BYTES) {
+        if (loadedMetadata.size > TEXT_PREVIEW_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }
@@ -144,7 +152,7 @@ export default function TextFilePreview({ filePath, metadata, refreshKey }: File
     return () => {
       cancelled = true
     }
-  }, [filePath, metadata.size, refreshKey])
+  }, [filePath, sourceMetadata, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>
