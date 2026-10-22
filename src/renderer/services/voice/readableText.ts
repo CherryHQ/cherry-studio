@@ -28,6 +28,8 @@ export const SPEECH_RATE = Object.freeze({
 export const SPEECH_CHUNK_TARGET_SECONDS = 35
 export const MIN_SPEECH_CHUNK_CHARS = 120
 export const MAX_SPEECH_CHUNK_CHARS = READABLE_TEXT_CHUNK_LIMIT
+/** The playback request carries every remaining chunk in one IPC array (cap 1000). */
+export const MAX_SPEECH_CHUNKS = 900
 
 export type ReadableTextMode = 'document' | 'selection'
 export type ReadableTextTrigger = 'manual' | 'auto_read'
@@ -348,11 +350,18 @@ export function planReadableText(
     if (!options.confirmed) return { status: 'confirmation_required', normalizedLength, chunks: [] }
   }
 
-  return {
-    status: 'ready',
-    normalizedLength,
-    chunks: chunkReadableText(normalized, computeSpeechChunkLimit(normalized))
+  let limit = computeSpeechChunkLimit(normalized)
+  let chunks = chunkReadableText(normalized, limit)
+  // The first request carries every later chunk in one IPC array, which the
+  // speech schema caps at 1000 entries. Grow the chunk size rather than
+  // producing a plan the transport will reject.
+  while (chunks.length > MAX_SPEECH_CHUNKS && limit < SPEECH_ADAPTER_TEXT_LIMIT) {
+    const next = Math.min(SPEECH_ADAPTER_TEXT_LIMIT, Math.ceil((limit * chunks.length) / MAX_SPEECH_CHUNKS) + 1)
+    if (next <= limit) break
+    limit = next
+    chunks = chunkReadableText(normalized, limit)
   }
+  return { status: 'ready', normalizedLength, chunks }
 }
 
 /** Retain the last Markdown block; only plain prose can commit at sentence boundaries. */
