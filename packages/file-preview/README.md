@@ -224,8 +224,13 @@ other links remain plain text. External image imports are not loaded.
 Rendering is a flowing document preview, not a page-faithful Word layout. RTF does not
 provide structural selection references. Parsing runs synchronously within the lazy
 format module, subject to the 10 MiB source limit. The bundled rtf.js patch rejects
-truncated documents and decodes raw legacy bytes, including double-byte trail bytes
-that overlap RTF syntax.
+truncated documents, consumes binary image payloads, and restores the default font
+on character resets. Literal bytes, hexadecimal escapes and escaped symbols share
+one code-page decoder; Unicode controls remain decoded text. Raw double-byte trail
+bytes are consumed before interpreting RTF syntax. Incomplete or unmapped byte
+sequences fail the preview instead of inserting `undefined` into document content.
+Regression cases cover Windows-1252, GBK, Big5 and Shift-JIS, including mixed byte
+representations, font changes, group boundaries and Unicode fallback skipping.
 
 ## Building
 

@@ -80,6 +80,83 @@ describe('RTF preview', () => {
     }
   })
 
+  describe.each([
+    { codepage: 936, charset: 134, lead: 0x81, trail: 0x41, expected: '丄' },
+    { codepage: 950, charset: 136, lead: 0xa7, trail: 0x41, expected: '你' },
+    { codepage: 932, charset: 128, lead: 0x8a, trail: 0x45, expected: '界' }
+  ])('code page $codepage byte representations', ({ codepage, charset, lead, trail, expected }) => {
+    const escapedLead = String.raw`\'${lead.toString(16)}`
+    const representations = [
+      { name: 'raw pair', encoded: String.fromCharCode(lead, trail) },
+      { name: 'hex pair', encoded: escapedLead + String.raw`\'${trail.toString(16)}` },
+      { name: 'hex lead and literal trail', encoded: escapedLead + String.fromCharCode(trail) }
+    ]
+
+    it.each(representations)('decodes $name using the document code page', async ({ encoded }) => {
+      const rtf = String.raw`{\rtf1\ansi\ansicpg${codepage} Start ${encoded} End}`
+      const bytes = Uint8Array.from(rtf, (character) => character.charCodeAt(0))
+      render(<Preview source={source('', 'encoding.rtf', { size: bytes.length, readRange: async () => bytes })} />)
+
+      expect(await screen.findByRole('document')).toHaveTextContent(`Start ${expected} End`)
+    })
+
+    it.each(representations)('decodes $name across font switches, resets and groups', async ({ encoded }) => {
+      const rtf = String.raw`{\rtf1\ansi\ansicpg1252\deff7{\fonttbl{\f7\fnil\fcharset${charset} CJK;}{\f1\fnil\fcharset0 Arial;}}\f7 ${encoded} {\f1 Caf\'e9 \plain ${encoded}} ${encoded}}`
+      const bytes = Uint8Array.from(rtf, (character) => character.charCodeAt(0))
+      render(<Preview source={source('', 'fonts.rtf', { size: bytes.length, readRange: async () => bytes })} />)
+
+      expect(await screen.findByRole('document')).toHaveTextContent(`${expected} Café ${expected} ${expected}`)
+    })
+  })
+
+  it.each([
+    { codepage: 936, encoded: String.raw`\'81\\ \'81\{ \'81\}`, expected: '乗 亄 亇' },
+    { codepage: 950, encoded: String.raw`\'a4\\ \'a4\{`, expected: '么 廾' },
+    { codepage: 932, encoded: String.raw`\'95\\`, expected: '表' },
+    { codepage: 1252, encoded: String.raw`\\ \{ \} Caf\'e9`, expected: '\\ { } Café' }
+  ])('decodes escaped literal symbols under code page $codepage', async ({ codepage, encoded, expected }) => {
+    render(<Preview source={source(String.raw`{\rtf1\ansi\ansicpg${codepage} ${encoded}}`)} />)
+
+    expect(await screen.findByRole('document')).toHaveTextContent(expected)
+  })
+
+  it('keeps Unicode and its skipped fallback bytes separate from legacy byte runs', async () => {
+    render(<Preview source={source(String.raw`{\rtf1\ansi\ansicpg950 \'a7A \uc2\u20320\'a7A \uc1\u30028? \'a7A}`)} />)
+
+    expect(await screen.findByRole('document')).toHaveTextContent('你 你 界 你')
+  })
+
+  it('skips escaped literal Unicode fallbacks without leaking them into the text', async () => {
+    render(<Preview source={source(String.raw`{\rtf1\ansi\ansicpg950 \uc1\u20320\{ \'a7A}`)} />)
+
+    expect(await screen.findByRole('document')).toHaveTextContent('你 你')
+  })
+
+  it.each(['loch', 'hich', 'dbch'])('uses the code page for byte decoding with the %s font hint', async (hint) => {
+    render(<Preview source={source(String.raw`{\rtf1\ansi\ansicpg950 ` + `\\${hint} ` + String.raw`\'a7A}`)} />)
+
+    expect(await screen.findByRole('document')).toHaveTextContent('你')
+  })
+
+  it('keeps single-byte characters and following ASCII separate', async () => {
+    const bytes = Uint8Array.from(String.raw`{\rtf1\ansi\ansicpg1252 Caf` + '\xe9A}', (character) =>
+      character.charCodeAt(0)
+    )
+    render(<Preview source={source('', 'single-byte.rtf', { size: bytes.length, readRange: async () => bytes })} />)
+
+    expect(await screen.findByRole('document')).toHaveTextContent('CaféA')
+  })
+
+  it.each([String.raw`\'a7`, String.raw`\'a7\u65?`, String.raw`\'a7\b A`, String.raw`\'a7{A}`])(
+    'rejects an incomplete byte sequence instead of printing undefined: %s',
+    async (encoded) => {
+      render(<Preview source={source(String.raw`{\rtf1\ansi\ansicpg950 ${encoded}}`)} />)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Preview failed')
+      expect(screen.queryByRole('document')).not.toBeInTheDocument()
+    }
+  )
+
   it('renders embedded PNG images and keeps markup-like text inert', async () => {
     const png =
       '89504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c020000000b4944415478da6364f80f00010501012718e3660000000049454e44ae426082'
