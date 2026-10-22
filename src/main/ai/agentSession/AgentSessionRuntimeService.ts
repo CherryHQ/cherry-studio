@@ -338,6 +338,12 @@ type AgentSessionRuntimeEntry = {
    * not revive a drained headless child's unattributed-call denial.
    */
   liveNativeChildren?: Set<string>
+  /**
+   * The receive-only turn that claimed the topic's stashed channel recipients. Native background
+   * work published while it is current was launched by that wake, so its delivery renews the chat's
+   * obligation — the fire that stashed them has already retired its sentinel.
+   */
+  claimedWakeTurnId?: string
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -2415,29 +2421,29 @@ export class AgentSessionRuntimeService extends BaseService {
     const drained = this.drainedTaskIdsFor(entry)
     const turn = this.currentTurn(entry)
     const spawnedHeadless = turn === undefined || turn.headless === true
-    // A completion drained into a streaming generation is consumed by that reply, so it never opens
-    // a wake of its own; owing it would hand its authority to a later, unrelated wake.
-    const consumer = this.liveTurn(entry)
-    const consumed = consumer !== undefined && hasAgentSessionRuntimeOpenStream(entry.runtimeState, consumer)
     const authorities = this.backgroundTaskAuthorities.get(entry.sessionId) ?? new Map<string, boolean>()
     const completed = this.completedBackgroundTasks.get(entry.sessionId) ?? new Map<string, boolean>()
-    const consumedIds = new Set<string>()
     for (const id of live) if (!authorities.has(id)) authorities.set(id, spawnedHeadless)
     for (const id of previous) {
       if (live.has(id)) continue
       drained.add(id)
       const authority = authorities.get(id)
       authorities.delete(id)
-      if (consumed) consumedIds.add(id)
-      else if (authority !== undefined) completed.set(id, authority)
-    }
-    // A consumed completion was delivered into the desktop reply, so the chat that was owed it is
-    // paid: retiring the id keeps a later private wake from claiming that chat's recipients.
-    if (consumedIds.size > 0) {
-      application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, consumedIds)
+      // Leaving membership is not consumption: the driver can drain a task while a turn streams and
+      // still deliver its notification as a generation of its own after that turn ends. Its
+      // authority stays owed until the notification actually lands (see `publishBackgroundTaskEvent`).
+      if (authority !== undefined) completed.set(id, authority)
     }
     this.backgroundTaskAuthorities.set(entry.sessionId, authorities)
     this.completedBackgroundTasks.set(entry.sessionId, completed)
+    // Work published while the claiming wake is current was launched by that wake; it owes the chat
+    // the recipients the wake claimed for the request it is still answering.
+    if (entry.claimedWakeTurnId !== undefined && entry.claimedWakeTurnId === turn?.turnId) {
+      const added = [...live].filter((id) => !previous.has(id))
+      if (added.length > 0) {
+        application.get('AiStreamManager').renewClaimedWakeRecipients(entry.topicId, new Set(added))
+      }
+    }
     this.outboundBackgroundTaskIds.set(entry.sessionId, live)
   }
 
@@ -2872,6 +2878,15 @@ export class AgentSessionRuntimeService extends BaseService {
     if (data.status === 'stopped' || data.status === 'killed') {
       // A cancelled task produces no wake, so it must not lend its authority to a later one.
       this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
+      this.backgroundTaskAuthorities.get(entry.sessionId)?.delete(data.taskId)
+      application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
+    } else if (data.event === 'notification' && hasAgentSessionRuntimeOpenStream(entry.runtimeState)) {
+      // The notification landed inside a live generation, so that reply consumed the completion:
+      // no wake of its own will report it, and the chat it owed is paid. This — not the earlier
+      // membership drain — is the positive evidence; the SDK may deliver the notification only
+      // after the generation the task drained under has ended.
+      this.completedBackgroundTasks.get(entry.sessionId)?.delete(data.taskId)
+      this.backgroundTaskAuthorities.get(entry.sessionId)?.delete(data.taskId)
       application.get('AiStreamManager').retireStashedWakeTaskIds(entry.topicId, new Set([data.taskId]))
     }
     // A live turn stream carries the lifecycle edge as an in-reply part; with no stream open (the
@@ -3469,6 +3484,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
     const wakeClaim = this.wakeClaim(entry)
+    entry.claimedWakeTurnId = wakeClaim.claim ? turnId : undefined
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
       modelId,

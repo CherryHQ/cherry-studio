@@ -962,6 +962,138 @@ describe('AiStreamManager', () => {
     expect(sent).toEqual(['Subagent summary: 42', 'Server output'])
   })
 
+  // The claimed wake can itself launch native background work for the same request. The fire's
+  // sentinel is already gone and the claimed listeners drop with the wake's stream, so unless the
+  // claim is renewed for that successor its final answer never reaches the requesting chat.
+  it('renews the claimed wake’s recipients for native work the wake itself launches', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('wc:win-1'), channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a']))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+
+    // task-a settled: its wake claims the chat's recipients and delivers its own reply.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    // While that wake runs it launches native task-b for the same request.
+    mgr.renewClaimedWakeRecipients(topicId, new Set(['task-b']))
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Acknowledged; successor running'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Acknowledged; successor running'])
+
+    // task-b settles later; its wake must still own the chat or the final answer has no route.
+    expect(mgr.stashedWakeRecipientsDischarged(topicId, new Set())).toBe(true)
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('Final answer: 42'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual(['Acknowledged; successor running', 'Final answer: 42'])
+  })
+
+  // Renewal belongs to the claimed wake alone. Once an ordinary turn replaces it, the claim window
+  // is closed: another turn's native work must not be posted to the requesting chat.
+  it('does not renew claimed recipients for work launched after the claim’s turn ended', async () => {
+    const topicId = 'agent-session:s1'
+    const sent: string[] = []
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      isStreamListenerAlive: () => true,
+      sendMessage: async (_chatId: string, text: string) => {
+        sent.push(text)
+      },
+      onTextUpdate: async () => undefined,
+      onStreamComplete: async () => false,
+      onStreamError: async () => false
+    } as unknown as ChannelAdapter
+    const channelListener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [channelListener]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(1))
+    mgr.stashWakeChannelListeners(topicId, [channelListener], new Set(['task-a']))
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+    expect(mgr.inspect(topicId)?.listenerIds).toContain(channelListener.id)
+
+    // An ordinary desktop turn replaces the wake before any successor work is published.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')]
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(3))
+    mgr.renewClaimedWakeRecipients(topicId, new Set(['desktop-task']))
+
+    // The desktop task's later wake must not reach the chat.
+    mgr.startRuntimeTurn({
+      topicId,
+      modelId: 'provider-a::model-a',
+      request: req(topicId),
+      listeners: [new FakeListener('agent-runtime:s1')],
+      carryChannelListeners: true,
+      listedBackgroundTaskIds: new Set()
+    })
+    await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(4))
+    expect(mgr.inspect(topicId)?.listenerIds).not.toContain(channelListener.id)
+    mgr.onChunk(topicId, 'provider-a::model-a', chunk('private desktop result'))
+    await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+    expect(sent).toEqual([])
+  })
+
   // A cancelled obligation must be retired on its own, not silently treated as dischargeable. An
   // external request stashes two tasks; the subagent is STOPPED (no receive-only wake, no admireble
   // result) while the server keeps the topic from whole-drain cleanup, so 'task-a' is simply ABSENT

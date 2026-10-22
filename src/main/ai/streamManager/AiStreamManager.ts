@@ -393,6 +393,12 @@ export class AiStreamManager extends BaseService {
     { listeners: StreamListener[]; owesTaskIds: ReadonlySet<string> }
   >()
   /**
+   * Recipients the claiming wake is currently delivering to. Native background work published while
+   * that wake is current is owed them too: the stashing fire is gone and the wake's listeners drop
+   * with its stream, so the spawn must renew the obligation for its own settlement wake.
+   */
+  private readonly claimedWakeRecipients = new Map<string, StreamListener[]>()
+  /**
    * Per topic, the stashed obligations explicitly cancelled rather than completed. A cancelled task
    * leaves the live set exactly like a completed one, so discharge must not credit its absence to
    * whichever unrelated work wakes next.
@@ -1045,6 +1051,18 @@ export class AiStreamManager extends BaseService {
     return false
   }
 
+  /**
+   * Renew the claiming wake's recipients for native background work that wake itself launched. The
+   * stashed fire retired its sentinel and the wake's listeners drop with its stream, so without this
+   * obligation the successor's final answer has no route to the requesting chat. Only task ids the
+   * claiming wake published reach here: a successor turn closes the claim window first.
+   */
+  renewClaimedWakeRecipients(topicId: string, taskIds: ReadonlySet<string>): void {
+    const listeners = this.claimedWakeRecipients.get(topicId)
+    if (!listeners || listeners.length === 0 || taskIds.size === 0) return
+    this.stashWakeChannelListeners(topicId, listeners, taskIds)
+  }
+
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
     const carriedListeners = existing
@@ -1062,12 +1080,16 @@ export class AiStreamManager extends BaseService {
     // Retained recipients were stashed by the fire that owes their delivery; a successor turn that
     // drops them must not re-stash whatever it found, or a served chat rides into an unrelated wake.
     let owedChannelListeners: StreamListener[] = []
+    // Any replacement ends the previous wake's claim window: only work published while the claiming
+    // wake is current may renew its recipients, never unrelated desktop work that follows it.
+    this.claimedWakeRecipients.delete(input.topicId)
     if (input.carryChannelListeners) {
       const pending = this.pendingChannelListeners.get(input.topicId)
       // A wake that cannot discharge the stash's debt carries no recipients: its completion belongs
       // to work that owes this chat nothing, and handing it the stash would post it there anyway.
       if (pending && this.stashedWakeRecipientsDischarged(input.topicId, input.listedBackgroundTaskIds ?? new Set())) {
         owedChannelListeners = pending.listeners
+        this.claimedWakeRecipients.set(input.topicId, pending.listeners)
         // Consume only the obligations this wake settles: a co-spawned task's later wake still owes
         // its own delivery, so its debt — and the recipients it needs — stay stashed for it.
         const remaining = new Set<string>()
@@ -1304,6 +1326,12 @@ export class AiStreamManager extends BaseService {
       if (remaining.length === 0) this.pendingChannelListeners.delete(topicId)
       else this.pendingChannelListeners.set(topicId, { ...pending, listeners: remaining })
     }
+    const claimed = this.claimedWakeRecipients.get(topicId)
+    if (claimed) {
+      const remaining = claimed.filter((listener) => listener.id !== listenerId)
+      if (remaining.length === 0) this.claimedWakeRecipients.delete(topicId)
+      else this.claimedWakeRecipients.set(topicId, remaining)
+    }
     const stream = this.activeStreams.get(topicId)
     stream?.listeners.delete(listenerId)
   }
@@ -1315,6 +1343,7 @@ export class AiStreamManager extends BaseService {
   clearPendingChannelListeners(topicId: string): void {
     this.pendingChannelListeners.delete(topicId)
     this.retiredStashedTaskIds.delete(topicId)
+    this.claimedWakeRecipients.delete(topicId)
   }
 
   /**
