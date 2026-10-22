@@ -602,7 +602,11 @@ export class FileEditSessionManager {
           documentEpoch: session.snapshot.documentEpoch + 1
         })
     } catch (error) {
-      if (generation === session.readGeneration) this.publish(session, { saveError: asError(error) })
+      if (generation === session.readGeneration)
+        logger.warn('File edit observation read failed', {
+          resourceKey: session.resource.resourceKey,
+          error: asError(error)
+        })
     }
   }
 

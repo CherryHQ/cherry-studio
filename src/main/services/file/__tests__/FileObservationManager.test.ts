@@ -8,6 +8,7 @@ import type { WatcherEvent } from '../watcher'
 
 const { watchers } = vi.hoisted(() => ({
   watchers: [] as {
+    root: string
     listeners: Set<(event: WatcherEvent) => void>
     closed: boolean
     finishClose: (() => void) | undefined
@@ -15,9 +16,10 @@ const { watchers } = vi.hoisted(() => ({
   }[]
 }))
 vi.mock('../watcher', () => ({
-  createDirectoryWatcher: () => {
+  createDirectoryWatcher: (root: string) => {
     const listeners = new Set<(event: WatcherEvent) => void>()
     const record = {
+      root,
       listeners,
       closed: false,
       finishClose: undefined as (() => void) | undefined,
@@ -65,6 +67,21 @@ describe('FileObservationManager ownership and activation', () => {
     await stopping
     vi.restoreAllMocks()
   })
+
+  it.each([String.raw`\\server\share\notes`, '//server/share/notes'])(
+    'observes the original network address %s',
+    async (input) => {
+      const networkRoot = AbsoluteFilePathSchema.parse(input)
+      const creating = manager.create('owner', networkRoot)
+      expect(watchers[0].root).toBe(networkRoot)
+      watchers[0].emit({ kind: 'ready' })
+      const lease = await creating
+      expect(manager.activateObservation('owner', lease)).toBe(true)
+      const changed = AbsoluteFilePathSchema.parse(`${input}/note.md`)
+      watchers[0].emit({ kind: 'change', path: changed })
+      expect(received).toEqual([{ ...lease, sequence: 1, kind: 'invalidate', paths: [changed], subtree: false }])
+    }
+  )
 
   it('shares equivalent watchers while independently retaining subscriptions', async () => {
     const a = manager.acquireWatcher(root, {}, 'same-policy')

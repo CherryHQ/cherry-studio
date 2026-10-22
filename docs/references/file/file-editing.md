@@ -28,6 +28,8 @@ English | [中文](file-editing.zh.md)
 
 A path and an entry resolving to the same permitted canonical address share a renderer session. Each locator remains separately leased in Main. An accepted edit retains its originating locator, so sharing a draft cannot turn an entry-target check into a path write. Only one attachment is writable; other attachments observe read-only snapshots. Symlink and hard-link alias unification is not promised.
 
+UNC and leading-double-slash addresses retain their original spelling in edit leases and observation roots. They do not pass through persistent-entry-key canonicalization, and alternate network spellings are not unified.
+
 ## Persistence contract
 
 | Route | Contract |
@@ -59,6 +61,8 @@ Entry writes, entry rename/delete/cleanup, and path mutations coordinate in entr
 `file.observe.create` waits for watcher readiness and buffers events until `file.observe.activate`. IDs, generations, owner windows, sequence numbers, and bounded queues protect the handshake. `file.observe.dispose` releases one subscription; the final lease closes the native watcher. Equivalent roots/options/filter policies can share coverage with a tree builder.
 
 The renderer observes parent directories independently of visible trees. Events invalidate knowledge; they never carry a replacement draft. The session rereads and checks its read generation, revision, pending writes, and seals before adopting a result. Notifications deferred during a save or sealed transition are revalidated when the session becomes available. Dirty content stays in memory and conflicting bytes pause saves. Gaps, overflow, and watcher errors trigger resubscription with bounded backoff and revalidation. Modification times alone never dismiss an editing event as a self-save echo.
+
+An observation read failure is logged and leaves freshness unknown. It neither sets nor clears a save error and does not pause autosave. Successful revalidation resumes normal reconciliation; genuine write failures still require retry or explicit discard.
 
 ## Closing and recovery
 

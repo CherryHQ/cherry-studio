@@ -17,6 +17,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { FileEditService } from '../FileEditService'
 import { FileManager } from '../FileManager'
 import { runPathMutationExclusive } from '../pathMutationLock'
+import * as managedStorageGuard from '../utils/managedStorageGuard'
 
 const bytes = (text: string) => new TextEncoder().encode(text)
 
@@ -57,6 +58,17 @@ describe('FileEditService persistence contract', () => {
     handles.push(resource.editId)
     return { resource, snapshot: await service.read(owner, resource.editId) }
   }
+
+  it.each([
+    [String.raw`\\server\share\notes\note.md`, String.raw`\\server\share\notes`],
+    ['//server/share/notes/note.md', '//server/share/notes']
+  ])('preserves the filesystem address and observation parent for %s', async (input, parent) => {
+    vi.spyOn(managedStorageGuard, 'assertOutsideManagedStorageMutation').mockResolvedValue(undefined)
+    const target = AbsoluteFilePathSchema.parse(input)
+    const resource = await service.open(owner, { kind: 'path', path: target })
+    handles.push(resource.editId)
+    expect(resource).toMatchObject({ path: target, resourceKey: target, observationRoot: parent })
+  })
 
   it('rejects an unfinished acquisition when the file service stops', async () => {
     const target = AbsoluteFilePathSchema.parse(path.join(root, 'first.md'))

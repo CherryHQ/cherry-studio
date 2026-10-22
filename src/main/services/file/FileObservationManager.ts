@@ -11,9 +11,9 @@ import type {
   FileObservationOptions
 } from '@shared/ipc/schemas/fileObservation'
 import type { WindowId } from '@shared/ipc/types'
-import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
+import { normalizeAccessPath } from './utils/normalizeAccessPath'
 import {
   createDirectoryWatcher,
   type CreateDirectoryWatcherOptions,
@@ -148,8 +148,8 @@ export class FileObservationManager extends BaseService {
     if ([...this.observers.values()].filter((observer) => observer.owner === owner).length >= 128) {
       throw new IpcError(fileErrorCodes.EDIT_LIMIT, 'Too many file observation subscriptions')
     }
-    const canonicalRoot = AbsoluteFilePathSchema.parse(canonicalizeFilePath(root))
-    const watcher = this.acquireWatcher(canonicalRoot, { ...options, emitInitial: false }, 'unfiltered')
+    const normalizedRoot = normalizeAccessPath(root)
+    const watcher = this.acquireWatcher(normalizedRoot, { ...options, emitInitial: false }, 'unfiltered')
     const ready = Promise.withResolvers<void>()
     const timeout = setTimeout(() => ready.reject(new Error('File observation startup timed out')), 15_000)
     timeout.unref()

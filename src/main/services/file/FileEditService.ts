@@ -16,7 +16,6 @@ import {
 } from '@shared/ipc/schemas/fileEdit'
 import type { WindowId } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { EditWriteLedger } from './edit/EditWriteLedger'
 import { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
@@ -24,6 +23,7 @@ import { runPathMutationExclusive } from './pathMutationLock'
 import { writeIfUnchangedByPath } from './utils/content'
 import { readEditSnapshot } from './utils/editSnapshot'
 import { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
+import { normalizeAccessPath } from './utils/normalizeAccessPath'
 
 const logger = loggerService.withContext('FileEditService')
 const MAX_LEASES_PER_WINDOW = 64
@@ -80,7 +80,9 @@ export class FileEditService extends BaseService {
         editId: randomUUID(),
         resourceKey: path,
         path,
-        observationRoot: AbsoluteFilePathSchema.parse(nodePath.dirname(path))
+        observationRoot: AbsoluteFilePathSchema.parse(
+          path.startsWith('\\\\') ? nodePath.win32.dirname(path) : nodePath.dirname(path)
+        )
       }
       this.leases.set(resource.editId, {
         owner,
@@ -204,7 +206,7 @@ export class FileEditService extends BaseService {
 
   private resolve(handle: FileHandle): AbsoluteFilePath {
     const path = handle.kind === 'entry' ? application.get('FileManager').getPhysicalPath(handle.entryId) : handle.path
-    return AbsoluteFilePathSchema.parse(canonicalizeFilePath(path))
+    return normalizeAccessPath(path)
   }
 
   private closed(): IpcError {

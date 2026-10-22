@@ -167,6 +167,48 @@ describe('file editing lifetime', () => {
     expect(writes).toEqual([])
   })
 
+  it.each(['autosave', 'release'] as const)('continues %s after an observation read recovers', async (action) => {
+    const lease = await manager.acquire(handle)
+    const original = vi.mocked(ipcApi.request).getMockImplementation()!
+    vi.mocked(ipcApi.request).mockImplementationOnce(async () => {
+      throw new Error('temporary read failure')
+    })
+    await lease.invalidate()
+    expect(lease.getSnapshot().freshness).toBe('unknown')
+    vi.mocked(ipcApi.request).mockImplementation(original)
+    await lease.invalidate()
+    expect(lease.getSnapshot().saveError).toBeUndefined()
+    lease.acceptEdit('recovered edit')
+    if (action === 'release') lease.release()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(new TextDecoder().decode(disk.data)).toBe('recovered edit')
+    if (action === 'autosave') lease.release()
+    await vi.waitFor(() => expect(manager.listRetained()).toEqual([]))
+  })
+
+  it('keeps a genuine write error through failed and successful observation reads', async () => {
+    const lease = await manager.acquire(handle)
+    lease.acceptEdit('unsaved')
+    failWrite = true
+    await expect(lease.flush()).rejects.toThrow('File save failed')
+    const writeError = lease.getSnapshot().saveError
+    const original = vi.mocked(ipcApi.request).getMockImplementation()!
+    vi.mocked(ipcApi.request).mockImplementationOnce(async () => {
+      throw new Error('temporary read failure')
+    })
+    await lease.invalidate()
+    vi.mocked(ipcApi.request).mockImplementation(original)
+    await lease.invalidate()
+    expect(lease.getSnapshot().saveError).toBe(writeError)
+    failWrite = false
+    lease.acceptEdit('still needs retry')
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(new TextDecoder().decode(disk.data)).toBe('a')
+    await lease.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('still needs retry')
+    lease.release()
+  })
+
   it('reconciles an invalidation received after commit but before the save receipt returns', async () => {
     const lease = await manager.acquire(handle)
     const original = vi.mocked(ipcApi.request).getMockImplementation()!
