@@ -17,6 +17,6 @@ INSERT INTO `__new_followup_queue`("id", "scope_key", "draft", "payload", "statu
 DROP TABLE `followup_queue`;--> statement-breakpoint
 ALTER TABLE `__new_followup_queue` RENAME TO `followup_queue`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
-CREATE INDEX `followup_queue_scope_key_idx` ON `followup_queue` (`scope_key`);--> statement-breakpoint
-CREATE INDEX `followup_queue_status_idx` ON `followup_queue` (`status`);--> statement-breakpoint
-CREATE INDEX `followup_queue_scope_key_order_key_idx` ON `followup_queue` (`scope_key`,`order_key`);
+CREATE INDEX IF NOT EXISTS `followup_queue_scope_key_idx` ON `followup_queue` (`scope_key`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `followup_queue_status_idx` ON `followup_queue` (`status`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `followup_queue_scope_key_order_key_idx` ON `followup_queue` (`scope_key`,`order_key`);
