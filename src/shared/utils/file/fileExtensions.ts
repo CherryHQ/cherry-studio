@@ -33,6 +33,10 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * skeletons (e.g. the CMU Graphics Lab archive) are plain-text `.asf` files,
  * while real Advanced Systems Format video shares the extension. Leaving it
  * unclassified lets the content sniff keep the skeletons as text.
+ *
+ * `.caf` is deliberately absent for the same reason: MIRA's Common Assembly
+ * Format stores genomic assemblies as plain-text `.caf` files, while Core Audio
+ * Format shares the extension. Leaving it unclassified keeps both readable.
  */
 export const imageExts = [
   '.apng',
@@ -81,7 +85,6 @@ export const audioExts = [
   '.aiff',
   '.amr',
   '.au',
-  '.caf',
   '.flac',
   '.m4a',
   '.m4b',

@@ -102,7 +102,7 @@ describe('media catalogs are grounded in mime-db', () => {
   })
 
   it('covers the common formats users actually produce', () => {
-    expect(audioExts).toEqual(expect.arrayContaining(['.m4a', '.opus', '.wma', '.aiff', '.caf', '.midi']))
+    expect(audioExts).toEqual(expect.arrayContaining(['.m4a', '.opus', '.wma', '.aiff', '.midi']))
     expect(imageExts).toEqual(expect.arrayContaining(['.heic', '.heif', '.avif', '.ico', '.tiff', '.psd', '.dng']))
     expect(videoExts).toEqual(expect.arrayContaining(['.webm', '.m4v', '.mov', '.3gp']))
   })
@@ -120,6 +120,13 @@ describe('media catalogs are grounded in mime-db', () => {
     // audio classification through the unambiguous `.midi`.
     expect(audioExts).not.toContain('.mid')
     expect(audioExts).toContain('.midi')
+  })
+
+  it('keeps the MIRA .caf alias out of the audio catalog so assembly text files stay text', () => {
+    // MIRA's Common Assembly Format stores genomic assemblies as plain-text
+    // `.caf` files; the audio catalog would claim them before the content sniff
+    // (same contract as `.mid`, `.dts` and `.asf`).
+    expect(audioExts).not.toContain('.caf')
   })
 
   it('keeps the Acclaim .asf alias out of the video catalog so motion-capture text files stay text', () => {
