@@ -405,6 +405,128 @@ describe('agent right pane flow rounds', () => {
     expect(projection.messages.map((item) => item.id)).toEqual(['call_launch:agent-flow-prompt'])
   })
 
+  // A send that delivers before its round's first marked block must not re-file content the
+  // original run emitted while the send was still pending.
+  it('keeps live pre-delivery output in the originating round of a delivered send', () => {
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        {
+          success: true,
+          message: 'Message queued for delivery at its next tool round.',
+          pin: { id: 'af5051807ed7aaa30', name: 'reviewer', ref: 'abc' }
+        }
+      ),
+      // Emitted by the original run before the delivery result landed, so it carries no marker.
+      textPart('More original-run output', 'call_launch'),
+      // The child is still running: the flow is live, so no positional fallback may fire.
+      toolPart('child_tool', 'Read', 'call_launch', 'input-streaming')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    const texts = (id: string) =>
+      projection.partsByMessageId[id].map((part) => (part as { text?: string }).text).filter(Boolean)
+
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings', 'More original-run output'])
+    // The delivered continuation still opens its request while its content is on the way.
+    expect(projection.messages.map((item) => item.id)).toContain('call_launch:agent-flow-resume-1')
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // Once the flow has settled, an untagged receipt's walk position is the only evidence left.
+  it('advances an untagged receipt positionally once the flow settles', () => {
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      textPart('First round findings', 'call_launch'),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        {
+          success: true,
+          message: 'Message queued for delivery at its next tool round.',
+          pin: { id: 'af5051807ed7aaa30', name: 'reviewer', ref: 'abc' }
+        }
+      ),
+      textPart('More original-run output', 'call_launch'),
+      toolPart('child_tool', 'Read', 'call_launch', 'output-available')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    const texts = (id: string) =>
+      projection.partsByMessageId[id].map((part) => (part as { text?: string }).text).filter(Boolean)
+
+    expect(texts('call_launch:agent-flow-assistant')).toEqual(['First round findings'])
+    expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['More original-run output'])
+  })
+
+  // The request proves the round exists before its content does: a delivered continuation shows
+  // its prompt even when no child content has been projected yet.
+  it('shows a delivered continuation request before its content arrives', () => {
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      toolPart('child_tool', 'Read', 'call_launch', 'input-streaming'),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect((projection.partsByMessageId['call_launch:agent-flow-resume-1'][0] as { text?: string }).text).toBe(
+      'Please reread the four files'
+    )
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toEqual([])
+  })
+
+  // Settled history keeps the request but drops the round that never filled.
+  it('shows the request but drops the empty round once settled', () => {
+    const launchOutput =
+      'Async agent launched successfully.\nagentId: af5051807ed7aaa30 (internal metadata - do not mention to user.)'
+    const parts = [
+      toolPart('call_launch', 'Agent', undefined, 'output-available', { prompt: 'Launch the review' }, launchOutput),
+      toolPart('child_tool', 'Read', 'call_launch', 'output-available'),
+      toolPart(
+        'call_send',
+        'SendMessage',
+        undefined,
+        'output-available',
+        { to: 'af5051807ed7aaa30', message: 'Please reread the four files' },
+        { success: true, resumedAgentId: 'af5051807ed7aaa30' }
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+
+    expect((projection.partsByMessageId['call_launch:agent-flow-resume-1'][0] as { text?: string }).text).toBe(
+      'Please reread the four files'
+    )
+    expect(projection.partsByMessageId['call_launch:agent-flow-assistant-1']).toBeUndefined()
+  })
+
   // Prose that merely contains an `agentId:` token is not a launch receipt — it must not create
   // a fake continuation boundary inside an unrelated flow timeline.
   it('does not split rounds when text only mentions an agent id token', () => {

@@ -626,8 +626,8 @@ export function buildAgentToolFlowProjection(
       }
     }
 
-    // A receipt whose round's content is marker-tagged needs no positional advance — that would
-    // re-file unmarked pre-delivery content under it; untagged receipts keep the fallback.
+    // A receipt whose round is marker-tagged — or whose flow is still live — takes no positional
+    // advance; only a settled untagged receipt falls back to its walk position.
     const taggedReceiptCallIds = new Set<string>()
     for (const { parts } of messageEntries) {
       for (const part of parts) {
@@ -638,6 +638,9 @@ export function buildAgentToolFlowProjection(
 
     // The launch round always exists: an active flow shows its empty round as pending.
     const roundParts = new Map<number, CherryMessagePart[]>([[0, []]])
+    // The request proves a continuation round exists before its content does; the settled-empty
+    // policy below still drops a round that never fills.
+    for (const rank of rankReceiptCallId.keys()) roundParts.set(rank, [])
     const partsOfRound = (rank: number): CherryMessagePart[] => {
       const existing = roundParts.get(rank)
       if (existing) return existing
@@ -716,7 +719,7 @@ export function buildAgentToolFlowProjection(
 
         if (
           markerOwnsThisFlow ||
-          (isResumeReceipt && toolCallId !== undefined && !taggedReceiptCallIds.has(toolCallId))
+          (isResumeReceipt && toolCallId !== undefined && !taggedReceiptCallIds.has(toolCallId) && !isFlowActive)
         ) {
           const rank = receiptRank.get(marker ?? toolCallId ?? '')
           if (rank !== undefined) currentRank = rank
