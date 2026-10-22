@@ -5492,24 +5492,24 @@ describe('ChatComposer', () => {
       return { dock, originals, edit, view, component, send }
     }
 
-    // TODO(#21863 port): stabilise this composer-level port of main's edit-switching
-    // test — the behaviour is covered at hook level in useFollowupQueue.test.ts
-    // ('moves the restore slot up...' etc., 70/70 green); the failure here is
-    // harness timing: our API-backed remove/reorder chains are fire-and-forget
-    // and do not settle within the act() flush before the assertions run.
-    it.skip('rebuilds live controls without reviving removed Fast mode', async () => {
+    it('rebuilds live controls without reviving removed Fast mode', async () => {
       mocks.model = { ...model, supportsFastMode: true }
       mocks.mentionedModels = [mocks.model]
       mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
       const {
         dock,
         originals: [a, b],
-        edit
+        edit,
+        view,
+        component
       } = await setup()
       await act(async () => {
         dock().onRemove(a.id)
       })
-      view.rerender(component())
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(a.id)
+      })
       act(() => mocks.speedControlProps?.onFastModeChange(true))
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'fast A', tokens: [] })
@@ -5602,12 +5602,7 @@ describe('ChatComposer', () => {
       expect(mocks.replaceDraft.mock.calls.length, 'refusal must not restore B').toBe(restores)
     })
 
-    // TODO(#21863 port): stabilise this composer-level port of main's edit-switching
-    // test — the behaviour is covered at hook level in useFollowupQueue.test.ts
-    // ('moves the restore slot up...' etc., 70/70 green); the failure here is
-    // harness timing: our API-backed remove/reorder chains are fire-and-forget
-    // and do not settle within the act() flush before the assertions run.
-    it.skip('adjusts the insertion slot after removing an earlier row', async () => {
+    it('adjusts the insertion slot after removing an earlier row', async () => {
       const {
         dock,
         originals: [x, a, b, c],
@@ -5619,13 +5614,19 @@ describe('ChatComposer', () => {
       await act(async () => {
         dock().onRemove(x.id)
       })
-      view.rerender(component())
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(x.id)
+      })
       await edit(b.id)
       expectQueue(dock, [a, c], 'removing X must restore A before C')
       await act(async () => {
         dock().onReorder([c, a])
       })
-      view.rerender(component())
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).toEqual([c.id, a.id])
+      })
       expectQueue(dock, [c, a], 'returned items must remain reorderable')
     })
 

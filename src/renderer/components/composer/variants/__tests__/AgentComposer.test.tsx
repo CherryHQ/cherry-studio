@@ -5692,23 +5692,23 @@ describe('AgentComposer', () => {
       return { dock, originals, edit, view, component, send }
     }
 
-    // TODO(#21863 port): stabilise this composer-level port of main's edit-switching
-    // test — the behaviour is covered at hook level in useFollowupQueue.test.ts
-    // ('moves the restore slot up...' etc., 70/70 green); the failure here is
-    // harness timing: our API-backed remove/reorder chains are fire-and-forget
-    // and do not settle within the act() flush before the assertions run.
-    it.skip('rebuilds live controls without reviving removed Fast mode', async () => {
+    it('rebuilds live controls without reviving removed Fast mode', async () => {
       mocks.modelResult = { ...model, supportsFastMode: true }
       mocks.updateAgent.mockReturnValue(new Promise(() => undefined))
       const {
         dock,
         originals: [a, b],
-        edit
+        edit,
+        view,
+        component
       } = await setup()
       await act(async () => {
         dock().onRemove(a.id)
       })
-      view.rerender(component())
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(a.id)
+      })
       act(() => mocks.speedControlProps?.onFastModeChange(true))
       await act(async () => {
         await mocks.surfaceProps?.onSendDraft({ text: 'fast A', tokens: [] })
@@ -5801,12 +5801,7 @@ describe('AgentComposer', () => {
       expect(mocks.replaceDraft.mock.calls.length, 'refusal must not restore B').toBe(restores)
     })
 
-    // TODO(#21863 port): stabilise this composer-level port of main's edit-switching
-    // test — the behaviour is covered at hook level in useFollowupQueue.test.ts
-    // ('moves the restore slot up...' etc., 70/70 green); the failure here is
-    // harness timing: our API-backed remove/reorder chains are fire-and-forget
-    // and do not settle within the act() flush before the assertions run.
-    it.skip('adjusts the insertion slot after removing an earlier row', async () => {
+    it('adjusts the insertion slot after removing an earlier row', async () => {
       const {
         dock,
         originals: [x, a, b, c],
@@ -5818,13 +5813,19 @@ describe('AgentComposer', () => {
       await act(async () => {
         dock().onRemove(x.id)
       })
-      view.rerender(component())
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).not.toContain(x.id)
+      })
       await edit(b.id)
       expectQueue(dock, [a, c], 'removing X must restore A before C')
       await act(async () => {
         dock().onReorder([c, a])
       })
-      view.rerender(component())
+      await waitFor(() => {
+        view.rerender(component())
+        expect((dock()?.items ?? []).map((entry: any) => entry.id)).toEqual([c.id, a.id])
+      })
       expectQueue(dock, [c, a], 'returned items must remain reorderable')
     })
 
@@ -5894,12 +5895,7 @@ describe('AgentComposer', () => {
       expect(mocks.surfaceProps?.text, 'A must open after admission release').toBe('A')
     })
 
-    // TODO(#21863 port): stabilise this composer-level port of main's edit-switching
-    // test — the behaviour is covered at hook level in useFollowupQueue.test.ts
-    // ('moves the restore slot up...' etc., 70/70 green); the failure here is
-    // harness timing: our API-backed remove/reorder chains are fire-and-forget
-    // and do not settle within the act() flush before the assertions run.
-    it.skip('drains returned A-prime once without consuming the B editor', async () => {
+    it('drains returned A-prime once without consuming the B editor', async () => {
       const {
         dock,
         originals: [a, b],
@@ -5917,7 +5913,10 @@ describe('AgentComposer', () => {
       })
       expect(send.mock.calls, 'one completion must dispatch only returned A-prime').toHaveLength(1)
       expect(send.mock.calls[0][0], 'drain must send the rebuilt live document').toEqual({ text: 'A-prime' })
-      expect(dock(), 'accepted A-prime must leave the queue').toBeFalsy()
+      await waitFor(() => {
+        view.rerender(component(false))
+        expect(dock(), 'accepted A-prime must leave the queue').toBeFalsy()
+      })
       expect(mocks.surfaceProps?.text, 'draining A must preserve B in the editor').toBe('B')
     })
   })

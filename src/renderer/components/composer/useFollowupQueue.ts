@@ -480,6 +480,10 @@ export function useFollowupQueue({
       // the outgoing draft entirely.
       const taken = takenEditRef.current
       let incomingSlot = itemsRef.current.findIndex((entry) => entry.id === id)
+      // The restore reorder must wait until the incoming row is deleted:
+      // reorderBatch refuses to run while any row in the scope is live-sending,
+      // and the take below holds the incoming row's claim until then.
+      let pendingRestoreMove: { id: string; anchor: { position: 'first' } | { after: string } } | null = null
       if (taken) {
         let outgoing: Pick<FollowupQueueItem, 'draft' | 'payload'> | null = null
         try {
@@ -513,16 +517,13 @@ export function useFollowupQueue({
           return undefined
         }
         // Move the restored row back to the slot it was taken from; the slot
-        // follows removals of earlier rows via noteItemRemoved.
-        const current = itemsRef.current
-        const restoreSlot = Math.min(taken.slot, current.length)
-        const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: current[restoreSlot - 1].id }
-        try {
-          await reorderTrigger({ body: { moves: [{ id: taken.item.id, anchor }] } })
-        } catch {
-          // The draft is safe at the end of the queue; only its position is off.
-          toast.error(t('message.error.operation_unavailable'))
-        }
+        // follows removals of earlier rows via noteItemRemoved. Anchors are
+        // computed against the queue without the incoming row, which the take
+        // deletes before the move executes.
+        const remaining = itemsRef.current.filter((entry) => entry.id !== id)
+        const restoreSlot = Math.min(taken.slot, remaining.length)
+        const anchor = restoreSlot === 0 ? ({ position: 'first' } as const) : { after: remaining[restoreSlot - 1].id }
+        pendingRestoreMove = { id: taken.item.id, anchor }
         if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
       // A committed DELETE can still time out: retry once and treat NOT_FOUND
@@ -547,10 +548,20 @@ export function useFollowupQueue({
           }
         }
       }
+      const placeRestoredEdit = async () => {
+        if (!pendingRestoreMove) return
+        try {
+          await reorderTrigger({ body: { moves: [pendingRestoreMove] } })
+        } catch {
+          // The draft is safe at the end of the queue; only its position is off.
+          toast.error(t('message.error.operation_unavailable'))
+        }
+      }
       if (claim.alreadySent) {
         // The content was already sent before a crash: the delete above is the
         // correct dequeue, but restoring its draft would invite a resend. The
         // outgoing item (if any) is back in the queue, so the session is over.
+        await placeRestoredEdit()
         if (taken) takenEditRef.current = null
         return undefined
       }
@@ -583,6 +594,7 @@ export function useFollowupQueue({
         takenEditRef.current = null
         return undefined
       }
+      await placeRestoredEdit()
       takenEditRef.current = { item, slot: Math.max(incomingSlot, 0), scopeKey: scope }
       return item
     },
