@@ -270,6 +270,59 @@ describe('previewFeishuKnowledgeScope', () => {
     expect(result.references.map(({ descriptor }) => descriptor.nodeId)).toEqual(['root', 'shortcut-to-root'])
   })
 
+  it.each(['parent', 'selected'])(
+    'stops a shortcut-expanded cycle when selecting %s and keeps siblings',
+    async (selectedId) => {
+      const parent = node({ nodeToken: 'parent', objToken: 'parent-doc', parentNodeToken: null, hasChild: true })
+      const selected = node({
+        nodeToken: 'selected',
+        objToken: 'selected-doc',
+        parentNodeToken: 'parent',
+        hasChild: true
+      })
+      const shortcut = node({
+        nodeToken: 'shortcut',
+        objToken: 'parent-doc',
+        parentNodeToken: 'selected',
+        nodeType: 'shortcut',
+        originNodeToken: 'parent',
+        originSpaceId: 'space-1'
+      })
+      const sibling = node({ nodeToken: 'sibling', objToken: 'sibling-doc', parentNodeToken: 'parent' })
+      const provider = operations()
+      vi.mocked(provider.getNode).mockImplementation(async (token) => {
+        if (token === 'parent') return parent
+        if (token === 'selected') return selected
+        throw new Error(`Unexpected node: ${token}`)
+      })
+      vi.mocked(provider.listChildNodes).mockImplementation(async (_spaceId, parentNodeToken) => {
+        if (parentNodeToken === 'parent') return { nodes: [selected, sibling] }
+        if (parentNodeToken === 'selected') return { nodes: [shortcut] }
+        throw new Error(`Unexpected traversal: ${parentNodeToken}`)
+      })
+
+      const result = await previewFeishuKnowledgeScope(
+        { connection: connection(), url: `https://acme.feishu.cn/wiki/${selectedId}` },
+        provider
+      )
+
+      expect(result.references.map(({ descriptor }) => descriptor.nodeId)).toEqual(
+        selectedId === 'parent' ? ['parent', 'selected', 'sibling', 'shortcut'] : ['selected', 'shortcut', 'sibling']
+      )
+      expect(result.preview.supportedDocxCount).toBe(3)
+
+      const scan = await scanFeishuKnowledgeSource(
+        { spaceId: 'space-1', scope: { kind: 'node', nodeId: selectedId } },
+        provider
+      )
+      expect(scan.canonicalReferences.map(({ descriptor }) => descriptor.remoteObjectId).sort()).toEqual([
+        'parent-doc',
+        'selected-doc',
+        'sibling-doc'
+      ])
+    }
+  )
+
   it('traverses every page and descendant without following a cross-space shortcut', async () => {
     const root = node({ nodeToken: 'root', objToken: 'doc-root', parentNodeToken: null, hasChild: true })
     const unsupportedParent = node({
@@ -376,7 +429,7 @@ describe('previewFeishuKnowledgeScope', () => {
     })
   })
 
-  it('rejects children whose provider identity contradicts the requested parent or selected space', async () => {
+  it.each(['wrong-parent', 'wrong-space', 'duplicate'])('rejects %s child data', async (invalidKind) => {
     const root = node({ nodeToken: 'root', objToken: 'doc-root', parentNodeToken: null, hasChild: true })
 
     await expect(
@@ -385,7 +438,13 @@ describe('previewFeishuKnowledgeScope', () => {
         {
           ...operations(root),
           listChildNodes: vi.fn().mockResolvedValue({
-            nodes: [node({ nodeToken: 'child', parentNodeToken: 'wrong-parent', spaceId: 'other-space' })]
+            nodes: Array.from({ length: invalidKind === 'duplicate' ? 2 : 1 }, () =>
+              node({
+                nodeToken: 'child',
+                parentNodeToken: invalidKind === 'wrong-parent' ? 'wrong-parent' : 'root',
+                spaceId: invalidKind === 'wrong-space' ? 'other-space' : 'space-1'
+              })
+            )
           })
         }
       )
