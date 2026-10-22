@@ -1034,12 +1034,13 @@ function emphasisSpans(source: string): Set<number> {
   const open: Array<{ at: number; marker: string }> = []
   for (const current of runs) {
     const top = open[open.length - 1]
-    if (current.closes && top?.marker === current.run[0]) {
+    // micromark pairs runs of equal length: `**` never closes a `*`, so the markers stay text.
+    if (current.closes && top?.marker === current.run) {
       spans.add(top.at)
       spans.add(current.open)
       open.pop()
     } else if (current.opens) {
-      open.push({ at: current.open, marker: current.run[0] })
+      open.push({ at: current.open, marker: current.run })
     }
   }
   return spans
@@ -1211,8 +1212,36 @@ const MAX_HEADING_LABEL_CHARS = 64 * 1024
  * closing tags are matched apart: pairing them in one regex made every unmatched `<h1` rescan the
  * rest of the block, which is quadratic on a block of them.
  */
-const HTML_HEADING_OPEN = /<h([1-6])(?:[ \t][^>]*)?>/gi
 const HTML_HEADING_CLOSE = /<\/h([1-6])\s*>/gi
+
+/**
+ * Opening heading tags, scanned linearly. Each candidate consumes up to the first `>` after it, so
+ * a block of unterminated `<h1` opens walks the block once instead of rescanning it per candidate.
+ */
+function htmlHeadingOpens(content: string): Array<{ index: number; end: number; level: number }> {
+  const opens: Array<{ index: number; end: number; level: number }> = []
+  let cursor = 0
+  while (cursor < content.length) {
+    const start = content.indexOf('<', cursor)
+    if (start === -1) break
+    const next = content.charAt(start + 3)
+    const isOpen =
+      content.charAt(start + 1).toLowerCase() === 'h' &&
+      content.charAt(start + 2) >= '1' &&
+      content.charAt(start + 2) <= '6' &&
+      (next === '' || next === '>' || next === ' ' || next === '\t')
+    if (!isOpen) {
+      cursor = start + 1
+      continue
+    }
+    const close = content.indexOf('>', start + 3)
+    // Nothing after this candidate can be terminated either, so the scan is over.
+    if (close === -1) break
+    opens.push({ index: start, end: close + 1, level: Number(content.charAt(start + 2)) })
+    cursor = close + 1
+  }
+  return opens
+}
 
 /**
  * The text an HTML heading renders — its content with its own tags stripped and entities read. A
@@ -2040,10 +2069,10 @@ export function splitMarkdownChunks(
     // Each level's closings are consumed in order, so one cursor per level walks them once.
     const cursors = new Map<number, number>()
     let resume = 0
-    for (const open of content.matchAll(HTML_HEADING_OPEN)) {
+    for (const open of htmlHeadingOpens(content)) {
       if (open.index < resume) continue
-      const start = open.index + open[0].length
-      const level = Number(open[1])
+      const start = open.end
+      const level = open.level
       const held = closings.get(level)
       if (!held) continue
       let at = cursors.get(level) ?? 0

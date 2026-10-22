@@ -2691,6 +2691,19 @@ describe('a malformed tag that never closes', () => {
     expect(joined(chunks)).toContain('para two')
   })
 
+  it('reads a block of unterminated heading openers once', () => {
+    // Each `<h1` candidate was matched with `[^>]*>` in one regex, so a block that never closes
+    // rescanned the rest of it per candidate: 256 KB took ~5.7s before the fallback was chosen.
+    const content = `<div>\n${'<h1 '.repeat(64_000)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
   it('tracks a stack of open elements without rescanning it per tag', () => {
     // Every ordinary opening tag asked whether the stack already held `svg` or `math`, so the
     // question was answered against a stack the line was still growing: 64K openers on one line
@@ -2747,6 +2760,19 @@ describe('a heading an inline construct only partly renders', () => {
     expect(headings).toHaveLength(2)
     expect(chunkedHeadingIds(content, 5)).toEqual(headingIds(content))
     expect(headingIds(content)).toEqual(['doc--foobar', 'doc--foobar-1'])
+  })
+})
+
+describe('unequal emphasis runs in a heading', () => {
+  it('keeps the renderer’s ids when the runs cannot pair', () => {
+    // micromark pairs runs of equal length, so `**` and `*` here stay literal text: the renderer
+    // numbers `foo-bar-baz` and `foobarbaz`, while the scanner paired them and made the second a
+    // duplicate suffix. The link then had no target even with its chunk mounted.
+    const content = `# foo**bar*baz\n\n${'filler\n\n'.repeat(3072)}# foobarbaz\n\n[jump](#foobarbaz)\n`
+
+    const chunks = chunksOf(content)
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
   })
 })
 
