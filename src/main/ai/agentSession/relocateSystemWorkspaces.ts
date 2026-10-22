@@ -143,7 +143,10 @@ async function recover(root: string, directory: string, journal: Journal): Promi
 async function relocate(root: string, workspace: { id: string; path: string }, newPath: string) {
   const oldConfig = path.join(workspaceLayout(workspace.path).agents, '.claude')
   const newConfig = application.getPath('feature.agents.claude.root')
-  const history = agentSessionMessageService.readWorkspaceRelocationHistory(workspace.id)
+  const history = agentSessionMessageService.readWorkspaceRelocationHistory(workspace.id).map((row) => ({
+    ...row,
+    checkpoint: row.checkpoint ? (JSON.parse(row.checkpoint) as Record<string, unknown>) : undefined
+  }))
   if (history.some((row) => row.messageId)) await assertAgentStorageDirectory(root, newPath)
   else await assertAgentStoragePath(root, newPath)
   const directory = path.join(root, '.relocation', workspace.id)
@@ -217,19 +220,25 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     }
     if (await exists(oldProject)) {
       await digest(root, oldProject)
-      for (const file of await readdir(oldProject, { recursive: true })) {
-        if (!file.endsWith('.jsonl')) continue
-        await readEntries(path.join(oldProject, file))
-      }
       if (oldProject !== newProject) await stage(oldProject, newProject)
     }
     const retiredSessions = new Set(
       listRetiredAgentSessionMigrations(application.get('DbService').getDb()).map((migration) => migration.sessionId)
     )
+    const claudeConfigDirs = new Map<string, string>()
+    for (const { sessionId, checkpoint } of history) {
+      if (
+        checkpoint?.runtime === 'claude-code' &&
+        typeof checkpoint.runtimeSessionId === 'string' &&
+        typeof checkpoint.configDir === 'string'
+      ) {
+        claudeConfigDirs.set(`${sessionId}:${checkpoint.runtimeSessionId}`, checkpoint.configDir)
+      }
+    }
     for (const row of history) {
       // Pi recovery rebuilds these histories from SQLite after workspace relocation.
       if (retiredSessions.has(row.sessionId)) continue
-      const checkpoint = row.checkpoint ? (JSON.parse(row.checkpoint) as Record<string, unknown>) : undefined
+      const checkpoint = row.checkpoint
       const runtime = checkpoint?.runtime ?? row.runtime
       // nativeSessionId only initializes a new history; it need not have materialized on disk.
       const id = checkpoint?.runtimeSessionId ?? row.resumeToken
@@ -241,7 +250,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         const entries = await readEntries(file)
         if (entries[0]?.type !== 'session' || entries[0]?.id !== id) throw new Error('Pi history corrupt')
       }
-      if (runtime === 'claude-code' && (!checkpoint?.configDir || checkpoint.configDir === oldConfig)) {
+      const configDir = checkpoint?.configDir ?? claudeConfigDirs.get(`${row.sessionId}:${id}`)
+      if (runtime === 'claude-code' && (!configDir || configDir === oldConfig)) {
         const file = path.join(oldProject, id + '.jsonl')
         await assertAgentStoragePath(root, file)
         if (!(await exists(file))) throw new Error('Claude history missing')

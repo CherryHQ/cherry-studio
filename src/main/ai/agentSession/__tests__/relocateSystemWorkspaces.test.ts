@@ -17,6 +17,7 @@ import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRu
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
 import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessionHistory'
 
+import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from '../relocateSystemWorkspaces'
 
 // Keep filesystem publication and database recovery real; isolate only the native SDK worker.
@@ -86,7 +87,7 @@ describe('system workspace relocation', () => {
       .insert(agentSessionTable)
       .values({ id: sessionId, agentId, workspaceId: id, name: 'Session', orderKey: 'a0' })
       .run()
-    return { id, sessionId, oldPath, newPath }
+    return { id, sessionId, agentId, oldPath, newPath }
   }
 
   function workspacePath(id: string) {
@@ -106,6 +107,101 @@ describe('system workspace relocation', () => {
     await writeFile(file, JSON.stringify(entry) + '\n')
     return file
   }
+
+  function persistClaudeTurn(
+    sessionId: string,
+    nativeId: string,
+    status: 'success' | 'paused' | 'error',
+    configDir: string
+  ) {
+    const id = randomUUID()
+    new AgentSessionMessageBackend({
+      sessionId,
+      assistantMessageId: id,
+      runtimeResumeToken: nativeId,
+      forkAnchor: () => ({
+        checkpoint: { runtime: 'claude-code', runtimeSessionId: nativeId, messageUuid: randomUUID(), configDir }
+      })
+    }).persistAssistant({ status, finalMessage: { id, role: 'assistant', parts: [{ type: 'text', text: status }] } })
+  }
+
+  it.each(['paused', 'error'] as const)('retains external Claude history ownership after a %s turn', async (status) => {
+    const workspace = await createWorkspace('claude-code')
+    const nativeId = randomUUID()
+    const configDir = path.join(temporaryRoot, 'external-claude')
+    const file = path.join(configDir, 'projects', `old-${workspace.id}`, `${nativeId}.jsonl`)
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, JSON.stringify({ type: 'assistant', sessionId: nativeId, uuid: randomUUID() }) + '\n')
+    persistClaudeTurn(workspace.sessionId, nativeId, 'success', configDir)
+    persistClaudeTurn(workspace.sessionId, nativeId, status, configDir)
+    const messages = dbh.db.select().from(agentSessionMessageTable).all()
+    const contents = await readFile(file, 'utf8')
+
+    expect(await relocateSystemWorkspaces()).toEqual(new Set())
+    expect(workspacePath(workspace.id)).toBe(workspace.newPath)
+    expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(messages)
+    expect(await readFile(file, 'utf8')).toBe(contents)
+  })
+
+  it.each(['managed', 'other-native', 'other-session'] as const)(
+    'still requires missing managed Claude history: %s',
+    async (scenario) => {
+      const workspace = await createWorkspace('claude-code')
+      const nativeId = randomUUID()
+      const configDir =
+        scenario === 'managed'
+          ? path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+          : path.join(temporaryRoot, 'external-claude')
+      persistClaudeTurn(workspace.sessionId, nativeId, 'success', configDir)
+      const sessionId = scenario === 'other-session' ? randomUUID() : workspace.sessionId
+      if (sessionId !== workspace.sessionId) {
+        dbh.db
+          .insert(agentSessionTable)
+          .values({
+            id: sessionId,
+            agentId: workspace.agentId,
+            workspaceId: workspace.id,
+            name: 'Other session',
+            orderKey: 'a1'
+          })
+          .run()
+      }
+      persistClaudeTurn(sessionId, scenario === 'other-native' ? randomUUID() : nativeId, 'paused', configDir)
+
+      expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId, sessionId]))
+      expect(workspacePath(workspace.id)).toBe(workspace.oldPath)
+    }
+  )
+
+  it.each(['orphan', 'subagent', 'required'] as const)(
+    'handles truncated Claude %s history without losing artifacts',
+    async (kind) => {
+      const workspace = await createWorkspace('claude-code')
+      const nativeId = randomUUID()
+      const file = await writeHistory('claude-code', workspace.id, nativeId)
+      const contents = await readFile(file, 'utf8')
+      persistClaudeTurn(
+        workspace.sessionId,
+        nativeId,
+        'paused',
+        path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+      )
+      const relative =
+        kind === 'subagent'
+          ? path.join(nativeId, 'subagents', 'agent-child.jsonl')
+          : `${kind === 'required' ? nativeId : randomUUID()}.jsonl`
+      const artifact = path.join(path.dirname(file), relative)
+      const truncated = '{"type":"assistant","message":'
+      await mkdir(path.dirname(artifact), { recursive: true })
+      await writeFile(artifact, truncated)
+
+      expect(await relocateSystemWorkspaces()).toEqual(new Set(kind === 'required' ? [workspace.sessionId] : []))
+      expect(workspacePath(workspace.id)).toBe(kind === 'required' ? workspace.oldPath : workspace.newPath)
+      const project = path.join(root, '.claude', 'projects', `${kind === 'required' ? 'old' : 'new'}-${workspace.id}`)
+      expect(await readFile(path.join(project, relative), 'utf8')).toBe(truncated)
+      if (kind !== 'required') expect(await readFile(path.join(project, `${nativeId}.jsonl`), 'utf8')).toBe(contents)
+    }
+  )
 
   it.each(['claude-code', 'pi'] as const)(
     'relocates an edited %s conversation using its materialized history',
