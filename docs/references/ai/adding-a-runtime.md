@@ -164,8 +164,9 @@ These are the choices nothing enforces:
 - **Credentials never enter runtime config.** If the runtime persists or
   interpolates its config (env expansion, `$VAR` syntax), write a placeholder
   and inject the real key at runtime through the SDK's auth API. Rotate keys
-  when dispatching native requests, never during validation. Pi's AI SDK port resolves
-  credentials per model invocation; subprocess runtimes may bind them per connection.
+  when dispatching native requests, never during validation. Pi's native provider uses
+  an internal gateway credential; the gateway resolves upstream credentials per model
+  invocation. Subprocess runtimes may bind credentials per connection.
 - **Fail-closed resource discovery, by trust class.** Do not let the runtime
   auto-import user-global resources or workspace **executable/code** resources
   (extensions, skills, prompt files) until Cherry has an explicit trust flow.

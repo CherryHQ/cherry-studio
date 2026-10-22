@@ -157,14 +157,14 @@ Pi 可以重新打开已持久化的上下文，但不恢复被中断的执行�
 
 #### 起点与改动归属
 
-Pi 根会话的桌面路径现为 `AgentChatContextProvider → AgentSessionRuntimeService → PiRuntimeDriver → PiRuntimeConnection → createPiRuntime`。连接通过公共输入和观察边界，接入 Cherry 的生产 AI SDK 模型 port。现有后台输出通过 `rootToolCallId` 找到父 assistant 行；没有该锚点就忽略输出，child parts 最终也写回父消息行。只替换工厂函数会保留这个所有权问题。
+Pi 根会话的桌面路径现为 `AgentChatContextProvider → AgentSessionRuntimeService → PiRuntimeDriver → PiRuntimeConnection → createPiRuntime`。连接使用公共输入和观察边界；原生 Pi provider 经 Cherry 内部网关发送模型请求。现有后台输出通过 `rootToolCallId` 找到父 assistant 行；没有该锚点就忽略输出，child parts 最终也写回父消息行。只替换工厂函数会保留这个所有权问题。
 
 | 位置 | 计划改动 | 继续保留的职责 |
 | --- | --- | --- |
 | [公共契约](../../../../packages/agent-runtime/src/contracts.ts) | 优先使用已有 Thread、可选输入、关系和观察契约。只有原生证据与消费者都需要时才增加字段。 | 不放产品行、投递日志、调度器或 UI lane。 |
 | [Pi Runtime](../../../../packages/agent-runtime-pi/src/runtime.ts)、[投影](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts)和[子智能体所有者](../../../../packages/agent-runtime-pi/src/subagent.ts) | 增加可验证的输入关联，并通过原生所有者恢复 child 访问。 | 原生会话、child 执行、结果交付和强类型 Pi 扩展。 |
 | [Durable Runtime](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) | 激活调度前，依据原生 submission/task 对账持久输入映射和 child 所有权。 | 原生 Harness/storage 所有权与恢复语义。 |
-| [桌面 Pi 接入](../../../../src/main/ai/runtime/pi/README.md) | 复用宿主配置与装配，接好生产 AI SDK 模型 port，逐步替换执行和输出路由。 | Prompt、skills、MCP、审批、shell 环境、模型政策、用量和 tracing。 |
+| [桌面 Pi 接入](../../../../src/main/ai/runtime/pi/README.md) | 复用宿主配置与装配，将原生 Pi provider 绑定到内部网关，逐步替换执行和输出路由。 | Prompt、skills、MCP、审批、shell 环境、模型政策、用量和 tracing。 |
 | [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) 及其持久化模块 | 持有已配置 Runtime 实例、逻辑输入投递和每个 Thread 的投影。`ThreadProjection.ts` 在现有模块中转换实时内容。 | 产品生命周期、授权、持久化屏障，以及与投递、fork 操作的集成。 |
 | [数据 schema](../../../../src/main/data/db/schemas/agentSession.ts) 与[数据服务](../../../../src/main/data/services/README.md) | 用 `DbService` 增加上下文关联和输入投递记录，并追加 migration。 | 产品数据事务；不执行原生任务或解析 transcript。 |
 | [useAgentSessionParts](../../../../src/renderer/hooks/useAgentSessionParts.ts) 与共享 IPC 契约 | 独立于父 assistant 消息寻址某个上下文的投影。 | 展示和订阅；Main 继续负责持久化。 |
@@ -518,15 +518,15 @@ Agent 树阶段现已增加追加式 schema migration 和注册的 `AgentSession
 #### Pi 根会话接入证据
 
 根连接现已持有配置好的 Pi Runtime，并保留其访问句柄。原生历史和实时快照与产品归档各自独立。
-Main 在已有用户行写入提交事实，再与 assistant 行一起提交最终响应关联。唯一的生产 AI SDK port
-负责提供商配置、请求凭据及用量记账；Pi 负责工具与执行循环。Pi facet 将历史、上下文用量、工具查找
+Main 在已有用户行写入提交事实，再与 assistant 行一起提交最终响应关联。原生 Pi provider 调用
+Cherry 内部网关，由网关负责上游提供商选择、凭据及用量记账；Pi 负责原生历史、流式输出、工具与执行循环。Pi facet 将历史、上下文用量、工具查找
 及手动压缩保留在公共 API 之外。停止或出错后仍未放入原生上下文的排队输入记录为 aborted，不自动重发。
 
 真实原生循环/SQLite fixture 覆盖创建、严格重开、流式输出、工具、steer、中断、文件缺失/歧义、附件、
-禁用工具、压缩及响应事务回滚。生产 port fixture 使用本地 HTTP 提供商，执行原生工具，并验证每次模型调用
-只记一条用量。这些 fixture 不证明真实提供商或强制退出进程后的恢复。CherryIN 工具调用回复的 thinking
-replay 现仅向相同原生 provider/API/model 转发已保存的响应身份；无法表达的提供商输出明确失败。
-提交文本保留既有附件文件路径，无需新增重复载荷列。
+禁用工具、压缩及响应事务回滚。网关集成 fixture 使用本地 HTTP 提供商，执行原生工具，并验证每次模型调用
+只记一条用量。这些 fixture 不证明真实提供商或强制退出进程后的恢复。推理重放与提供商元数据遵循
+Pi 原生 provider 实现及 transcript；Cherry 不另行编码重放格式。提交文本保留既有附件文件路径，
+无需新增重复载荷列。
 
 受跟踪的开发版 Electron 实例使用本地脚本化 HTTP 模型，验证了公共 Runtime 路径的新建、正常重启后重开、
 保留旧分支的编辑、浏览时不调用模型，以及两条原生历史独立续写。运行中插入的消息依次记录 queued、placed
@@ -541,12 +541,12 @@ replay 现仅向相同原生 provider/API/model 转发已保存的响应身份�
 | --- | --- | --- |
 | P0 — 原生证据 | Pi 输入关联/上游改进与强类型终态映射；说明多输入共同回答的归属。 | 相同文本、文本变换/已处理/失败命令、排队及未送达输入、中止、截断、迟到确认和 child 续接都保留正确身份与终态。AC2、AC7。 |
 | P1 — 关联与提交事实 | 原生关联、消息上必要的私有提交元数据、稳定 backend 作用域、严格 loader，以及已有数据迁移。 | 读取旧历史而不补造接纳事实、识别原生上下文缺失、对账部分创建/接纳，并拒绝旧身份/key 下的变更草稿。AC1、AC8。 |
-| P2 — Pi root 接入 | Agent 树迁移、保留分支的编辑操作、强类型原生历史访问、生产模型 port、root 投影及生命周期映射。 | 通过桌面 create/open/submit/observe/stop/reopen 及独立分支续写路径，保留权限、配置、用量、命令和投递完成行为。AC3、AC4、AC6、AC9、AC12。 |
+| P2 — Pi root 接入 | Agent 树迁移、保留分支的编辑操作、强类型原生历史访问、原生 provider 与内部网关的绑定、root 投影及生命周期映射。 | 通过桌面 create/open/submit/observe/stop/reopen 及独立分支续写路径，保留权限、配置、用量、命令和投递完成行为。AC3、AC4、AC6、AC9、AC12。 |
 | P3 — Pi child 独立接入 | 所有者恢复、child 投影，以及没有活跃父消息时的 child 输入。 | 父结束/窗口关闭不丢 child 输出；冷启动重开保留所有权；续接仅由所有者报告一次结果。AC5、AC9、AC10。 |
 | P4 — Durable 宿主接入 | 复用宿主投影和消息提交关联，保留原生 submission、task 调度、报告政策与恢复。 | 被动重开不执行模型/工具；强制进程退出后，新进程使用同一 store 对账未完成工作和输入回执。AC8、AC11、AC12。 |
 | 后续 — 公共控制 | 在控制文档下推进可选 spawn/stop 与宿主跨 harness 委派。 | 两种适配器都证明创建/部分接纳、停止范围和继续输入语义后，才共享签名。不是 P0–P4 的门槛。 |
 
-P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替代实现。AI SDK port 必须经 Cherry provider 路径执行单次模型请求，不能重新进入 `AiService.streamText` 的 agent-session 分支，也不能增加第二套工具循环。明确唯一的用量记账方。保留审批与 MCP 行为、冻结/实时配置规则、身份 prompt、shell 装配、tracing、命令/压缩和原生编辑/fork checkpoint。在声称行为一致前，解决模型桥已记录的 thinking replay 元数据缺口，并说明如何表达不支持的内容/附件。
+P2 切换前，把当前 `PiRuntimeConnection` 的各项职责逐一映射到替代实现。每次原生 Pi 模型请求必须经过内部网关和 Cherry provider 执行路径，不能重新进入 `AiService.streamText` 的 agent-session 分支，也不能增加第二套工具循环。网关是唯一的用量记账方；原生用量用于上下文及展示。保留审批与 MCP 行为、冻结/实时配置规则、身份 prompt、shell 装配、tracing、命令/压缩和原生编辑/fork checkpoint。在声称行为一致前，经选定的原生协议验证推理重放，并说明如何表达不支持的内容/附件。
 
 扩展现有 [Pi Runtime 测试](../../../../packages/agent-runtime-pi/tests/runtime.test.ts)、[Durable Runtime 测试](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts)和[观察测试](../../../../packages/agent-runtime/tests/observation.test.ts)，走公共边界验证。宿主验证放在现有 Runtime、归档持久化、投递、消息 backend 与 `useAgentSessionParts` 测试旁；引入投影及私有提交元数据路径时，再增加聚焦测试。SQLite 测试使用 `setupTestDatabase()` 和生产 migration。Durable 崩溃测试使用隔离 worker 进程与持久 store，在有证据的 checkpoint 后直接杀进程，不调用 `shutdown`，再用新进程验证恢复。不假定外部工具副作用恰好执行一次。
 
