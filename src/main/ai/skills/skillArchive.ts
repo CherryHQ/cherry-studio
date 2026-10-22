@@ -195,7 +195,9 @@ export async function resolveSkillDirectory(
   const rootSkill = await findSkillMdPath(repoDir)
   if (rootSkill) return validateRepositorySkillDirectory(repoDir, repoDir, rootSkill)
 
-  throw new Error(`No skill directory found in ${repoDir}`)
+  // Keep the message stable ("No skill directory found" prefix): the renderer maps it
+  // to a localized, actionable message. Do not include repoDir (an internal temp path).
+  throw new Error('No skill directory found: the archive must contain a directory with SKILL.md')
 }
 
 export async function validateRepositorySkillDirectory(
