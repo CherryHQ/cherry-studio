@@ -127,6 +127,7 @@ export async function convertPptx(
                 ? Infinity
                 : total + item.rows.length * 0.45 + 0.15
             if (item.type === 'image') return total + 3.45
+            if (item.type === 'rule') return total + 0.15
             return (
               total + textLayout(item, widths[index] - 0.2).reduce((height, layout) => height + layout.height + 0.15, 0)
             )

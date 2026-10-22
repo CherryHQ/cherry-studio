@@ -152,14 +152,17 @@ export function parseMarkdown(
   const blocks: DocumentBlock[] = []
   let title = ''
   let listDepth = 0
+  let quoteDepth = 0
   const lists: { next?: number; current?: number; first: boolean }[] = []
   const containers: Array<'quote' | 'list'> = []
-  const openItem = () => {
-    if (!listDepth) return {}
+  const blockContext = () => {
+    const quote = quoteDepth ? { quoteDepth } : {}
+    if (!listDepth) return quote
     const list = lists.at(-1)
-    if (!list?.first) return { listDepth }
+    if (!list?.first) return { ...quote, listDepth }
     list.first = false
     return {
+      ...quote,
       bullet: listDepth,
       listDepth,
       ...(list.current !== undefined ? { orderedNumber: list.current } : {})
@@ -172,15 +175,15 @@ export function parseMarkdown(
       let headingPlaced = false
       for (const piece of readInline(tokens[index + 1].children ?? [], interpretSafeHtml)) {
         if (piece.kind === 'image') {
-          blocks.push({ type: 'image', source: piece.source, text: piece.text, ...openItem() })
+          blocks.push({ type: 'image', source: piece.source, text: piece.text, ...blockContext() })
           continue
         }
         if (!piece.text.trim()) continue
         if (!headingPlaced) {
-          blocks.push({ type: 'heading', level, text: piece.text, runs: piece.runs, ...openItem() })
+          blocks.push({ type: 'heading', level, text: piece.text, runs: piece.runs, ...blockContext() })
           if (level <= 2) title = piece.text
           headingPlaced = true
-        } else blocks.push({ type: 'text', text: piece.text, runs: piece.runs, ...openItem() })
+        } else blocks.push({ type: 'text', text: piece.text, runs: piece.runs, ...blockContext() })
       }
       index += 2
     } else if (token.type === 'table_open') {
@@ -196,7 +199,8 @@ export function parseMarkdown(
               type: 'image',
               source: child.attrGet('src') ?? '',
               text: inlineText(child.children ?? [], interpretSafeHtml),
-              ...(listDepth ? { listDepth } : {})
+              ...(listDepth ? { listDepth } : {}),
+              ...(quoteDepth ? { quoteDepth } : {})
             })
           } else addImages(child)
         }
@@ -239,10 +243,10 @@ export function parseMarkdown(
           cells.push(cellRow)
         }
       }
-      blocks.push({ type: 'table', title, rows, cells, ...openItem() })
+      blocks.push({ type: 'table', title, rows, cells, ...blockContext() })
       blocks.push(...tableImages)
     } else if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') {
-      if (lists.at(-1)?.first) blocks.push({ type: 'text', text: '', ...openItem() })
+      if (lists.at(-1)?.first) blocks.push({ type: 'text', text: '', ...blockContext() })
       listDepth++
       containers.push('list')
       lists.push({
@@ -262,22 +266,26 @@ export function parseMarkdown(
       }
     } else if (token.type === 'list_item_close') {
       // A nested list already consumed the pending parent marker. An item with no blocks still needs one.
-      if (lists.at(-1)?.first) blocks.push({ type: 'text', text: '', ...openItem() })
+      if (lists.at(-1)?.first) blocks.push({ type: 'text', text: '', ...blockContext() })
     } else if (token.type === 'blockquote_open') {
       containers.push('quote')
+      quoteDepth++
     } else if (token.type === 'blockquote_close') {
       containers.pop()
+      quoteDepth = Math.max(0, quoteDepth - 1)
     } else if (token.type === 'inline') {
       for (const piece of readInline(token.children ?? [], interpretSafeHtml)) {
         if (piece.kind === 'image') {
-          blocks.push({ type: 'image', source: piece.source, text: piece.text, ...openItem() })
+          blocks.push({ type: 'image', source: piece.source, text: piece.text, ...blockContext() })
           continue
         }
         if (!piece.text.trim()) continue
-        blocks.push({ type: 'text', text: piece.text, runs: piece.runs, ...openItem() })
+        blocks.push({ type: 'text', text: piece.text, runs: piece.runs, ...blockContext() })
       }
+    } else if (token.type === 'hr') {
+      blocks.push({ type: 'rule', ...blockContext() })
     } else if (token.type === 'fence' || token.type === 'code_block') {
-      blocks.push({ type: 'code', text: token.content, ...openItem() })
+      blocks.push({ type: 'code', text: token.content, ...blockContext() })
     }
   }
   return blocks

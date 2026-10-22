@@ -159,13 +159,15 @@ function coalesceRuns(runs: DocumentTextRun[]): DocumentTextRun[] {
   return merged
 }
 
-function blockCss(style: DocumentStyle | undefined): string {
+function blockCss(style: DocumentStyle | undefined, quoteDepth = 0): string {
   return [
     style?.align ? `text-align:${style.align}` : '',
     style?.before !== undefined ? `margin-top:${style.before}pt` : '',
     style?.after !== undefined ? `margin-bottom:${style.after}pt` : '',
     style?.indent ? `margin-left:${style.indent}pt` : '',
-    style?.background ? `background:#${style.background}` : ''
+    style?.background ? `background:#${style.background}` : '',
+    quoteDepth ? `margin-left:${quoteDepth * 24}px` : '',
+    quoteDepth ? 'border-left:3px solid #cccccc;padding-left:12px' : ''
   ]
     .filter(Boolean)
     .join(';')
@@ -175,6 +177,7 @@ interface ItemNode {
   depth: number
   orderedNumber?: number
   style?: DocumentStyle
+  quoteDepth?: number
   parts: Array<{ html: string } | { items: ItemNode[] }>
 }
 
@@ -192,7 +195,7 @@ function itemsHtml(nodes: ItemNode[]): string {
       .map((node) => {
         const value = ordered ? ` value="${node.orderedNumber}"` : ''
         const inner = node.parts.map((part) => ('html' in part ? part.html : itemsHtml(part.items))).join('')
-        return `<li${value} style="${blockCss(node.style)}">${inner}</li>`
+        return `<li${value} style="${blockCss(node.style, node.quoteDepth)}">${inner}</li>`
       })
       .join('')
     html += `<${tag}${start}>${items}</${tag}>`
@@ -230,6 +233,7 @@ export function documentToHtml(
 ): string {
   const blockHtml = (block: DocumentBlock, unwrapText: boolean): string => {
     if (block.type === 'columns') return ''
+    if (block.type === 'rule') return `<hr style="${blockCss(undefined, block.quoteDepth)}">`
     if (block.type === 'image')
       return `<p><img src="${escapeHtml(imageSource(block.source))}" alt="${escapeHtml(block.text)}" style="max-width:100%;height:auto${block.width ? `;width:${block.width}px` : ''}"></p>`
     if (block.type === 'table')
@@ -248,7 +252,7 @@ export function documentToHtml(
     const content = htmlRuns(block.runs ?? [{ text: block.text }])
     if (unwrapText && block.type === 'text') return content
     const tag = block.type === 'heading' ? `h${Math.min(6, block.level)}` : block.type === 'code' ? 'pre' : 'p'
-    return `<${tag} style="${blockCss(block.style)}">${content}</${tag}>`
+    return `<${tag} style="${blockCss(block.style, block.quoteDepth)}">${content}</${tag}>`
   }
   const renderList = (listBlocks: DocumentBlock[]): string => {
     const roots: ItemNode[] = []
@@ -271,6 +275,7 @@ export function documentToHtml(
           depth: block.bullet,
           orderedNumber: block.orderedNumber,
           style: 'style' in block ? block.style : undefined,
+          quoteDepth: block.quoteDepth,
           parts: [{ html: blockHtml(block, true) }]
         })
         continue
@@ -342,6 +347,7 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
       .join('\n')
   const bodyOf = (block: DocumentBlock) => {
     if (block.type === 'columns') return ''
+    if (block.type === 'rule') return '---'
     if (block.type === 'image')
       return `![${block.text.replace(/[[\]]/g, '')}](${markdownDestination(imageSource(block.source))})`
     if (block.type === 'table') {
@@ -370,6 +376,14 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
     return block.type === 'heading' ? `${'#'.repeat(Math.min(6, block.level))} ${content}` : content
   }
   const ancestors: { depth: number; width: number }[] = []
+  const quoteLines = (value: string, depth: number | undefined) => {
+    if (!depth) return value
+    const marker = '> '.repeat(depth)
+    return value
+      .split('\n')
+      .map((line) => `${marker}${line}`)
+      .join('\n')
+  }
   const rendered = flattenDocumentBlocks(blocks).map((block) => {
     const body = bodyOf(block)
     if (isItemStart(block)) {
@@ -378,16 +392,16 @@ export function documentToMarkdown(blocks: DocumentBlock[], imageSource: (source
       const marker = block.orderedNumber !== undefined ? `${block.orderedNumber}.` : '-'
       const width = marker.length + 1
       ancestors.push({ depth: block.bullet, width })
-      return { block, body, markdown: withMarker(body, indent, marker, width) }
+      return { block, body, markdown: quoteLines(withMarker(body, indent, marker, width), block.quoteDepth) }
     }
     const depth = listDepthOf(block)
     if (!depth) {
       ancestors.length = 0
-      return { block, body, markdown: body }
+      return { block, body, markdown: quoteLines(body, block.quoteDepth) }
     }
     while (ancestors.length > 0 && ancestors[ancestors.length - 1].depth > depth) ancestors.pop()
     const indent = ancestors.reduce((total, ancestor) => total + ancestor.width, 0)
-    return { block, body, markdown: indentLines(body, indent) }
+    return { block, body, markdown: quoteLines(indentLines(body, indent), block.quoteDepth) }
   })
   return (
     rendered

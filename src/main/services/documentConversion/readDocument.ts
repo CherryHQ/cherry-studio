@@ -255,7 +255,7 @@ function officeBlocks(
             if (runs.some((run) => run.text !== '')) parts.push(runs)
           }
           for (const child of content) {
-            if (child.type === 'image' || child.type === 'columns') continue
+            if (child.type === 'image' || child.type === 'columns' || child.type === 'rule') continue
             if (child.type === 'table') {
               warnings.add('complex_layout')
               for (const nestedRow of child.cells ?? []) {

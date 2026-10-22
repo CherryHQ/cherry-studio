@@ -11,6 +11,7 @@ export async function convertDocx(
   const docx = await import('docx')
   const { default: sharp } = await import('sharp')
   const numbering: Docx.INumberingOptions['config'][number][] = []
+  const quoteIndent = (block: { quoteDepth?: number }) => (block.quoteDepth ? 720 * Math.min(9, block.quoteDepth) : 0)
   const run = (item: DocumentTextRun): (Docx.TextRun | Docx.ExternalHyperlink)[] => {
     const children = item.text.split('\n').map(
       (text, index) =>
@@ -34,6 +35,7 @@ export async function convertDocx(
   const listMarker = (block: {
     bullet?: number
     orderedNumber?: number
+    quoteDepth?: number
   }): Pick<Docx.IParagraphOptions, 'bullet' | 'numbering'> => {
     const level = block.bullet ? Math.min(8, block.bullet - 1) : 0
     if (block.orderedNumber === undefined) return block.bullet ? { bullet: { level } } : {}
@@ -49,7 +51,10 @@ export async function convertDocx(
           alignment: docx.AlignmentType.LEFT,
           style: {
             paragraph: {
-              indent: { left: 720 * (level + 1), hanging: 360 }
+              indent: {
+                left: 720 * (level + 1) + quoteIndent(block),
+                hanging: 360
+              }
             }
           }
         }
@@ -57,11 +62,22 @@ export async function convertDocx(
     })
     return { numbering: { reference, level } }
   }
+  const paragraphBorders = (block: { quoteDepth?: number }, bottom = false) => ({
+    ...(block.quoteDepth ? { left: { style: docx.BorderStyle.SINGLE, size: 6, color: 'CCCCCC' } } : {}),
+    ...(bottom ? { bottom: { style: docx.BorderStyle.SINGLE, size: 6, color: '808080' } } : {})
+  })
   // 720 twips per depth matches ordered levels and the built-in bullet indents.
-  const listIndent = (block: { bullet?: number; listDepth?: number; style?: { indent?: number } }) => {
+  const listIndent = (block: {
+    bullet?: number
+    orderedNumber?: number
+    listDepth?: number
+    quoteDepth?: number
+    style?: { indent?: number }
+  }) => {
     const listed = !block.bullet && block.listDepth ? 720 * Math.min(9, block.listDepth) : 0
     const styled = block.style?.indent ? Math.round(block.style.indent * 20) : 0
-    const left = listed + styled
+    const quoted = block.bullet && block.orderedNumber !== undefined ? 0 : quoteIndent(block)
+    const left = listed + styled + quoted
     return left ? { left } : undefined
   }
   const render = async (items: DocumentBlock[], availableWidth = 650): Promise<(Docx.Paragraph | Docx.Table)[]> => {
@@ -97,6 +113,17 @@ export async function convertDocx(
             ]
           })
         )
+      } else if (block.type === 'rule') {
+        const indent = listIndent(block)
+        result.push(
+          new docx.Paragraph({
+            ...listMarker(block),
+            ...(indent ? { indent } : {}),
+            border: paragraphBorders(block, true),
+            spacing: { after: 160 },
+            children: []
+          })
+        )
       } else if (block.type === 'image') {
         const data = images.get(block.source)
         if (!data) throw new Error('Document image is unavailable')
@@ -109,6 +136,7 @@ export async function convertDocx(
           new docx.Paragraph({
             ...listMarker(block),
             ...(indent ? { indent } : {}),
+            border: paragraphBorders(block),
             children: [
               new docx.ImageRun({
                 type: 'png',
@@ -128,6 +156,8 @@ export async function convertDocx(
           result.push(
             new docx.Paragraph({
               ...listMarker(block),
+              border: paragraphBorders(block),
+              ...(listIndent(block) ? { indent: listIndent(block) } : {}),
               children: [new docx.TextRun('\u00a0')]
             })
           )
@@ -135,7 +165,14 @@ export async function convertDocx(
         result.push(
           new docx.Table({
             width: { size: 100, type: docx.WidthType.PERCENTAGE },
-            ...(tableDepth ? { indent: { size: 720 * Math.min(9, tableDepth), type: docx.WidthType.DXA } } : {}),
+            ...(tableDepth || block.quoteDepth
+              ? {
+                  indent: {
+                    size: 720 * Math.min(9, tableDepth) + quoteIndent(block),
+                    type: docx.WidthType.DXA
+                  }
+                }
+              : {}),
             columnWidths: block.widths?.map((width) => Math.round(width * 15)),
             rows: block.rows.map(
               (row, rowIndex) =>
@@ -181,6 +218,7 @@ export async function convertDocx(
             alignment: style?.align === 'justify' ? docx.AlignmentType.JUSTIFIED : style?.align,
             spacing: { before: Math.round((style?.before ?? 0) * 20), after: Math.round((style?.after ?? 8) * 20) },
             ...(indent ? { indent } : {}),
+            border: paragraphBorders(block),
             shading: style?.background ? { fill: style.background } : undefined,
             ...listMarker(block),
             children: (

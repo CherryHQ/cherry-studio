@@ -34,6 +34,8 @@ export interface DocumentCell {
 interface DocumentListContext {
   /** 1-based depth of the list item that contains this block. Absent outside a list. */
   listDepth?: number
+  /** 1-based depth of the block's enclosing blockquote. Absent outside a quote. */
+  quoteDepth?: number
   /** Present only on the block that opens a list item. */
   bullet?: number
   orderedNumber?: number
@@ -54,6 +56,7 @@ export type DocumentBlock =
       style?: DocumentStyle
     } & DocumentListContext)
   | ({ type: 'image'; source: string; text: string; width?: number; height?: number } & DocumentListContext)
+  | ({ type: 'rule' } & DocumentListContext)
   | ({
       type: 'table'
       title: string
@@ -61,7 +64,7 @@ export type DocumentBlock =
       cells?: DocumentCell[][]
       widths?: number[]
     } & DocumentListContext)
-  | { type: 'columns'; columns: DocumentBlock[][]; widths: number[]; listDepth?: number }
+  | { type: 'columns'; columns: DocumentBlock[][]; widths: number[]; listDepth?: number; quoteDepth?: number }
 
 export interface DocumentModel {
   blocks: DocumentBlock[]

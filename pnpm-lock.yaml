@@ -252,6 +252,7 @@ patchedDependencies:
   motion-dom@12.42.0: 5c9bfe486d8d0472ab803d31133ec3a7e34aa8cadde01fdd9923e2dbbc170014
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
+  pptxgenjs@4.0.1: 72313bac6f812c8581017c219934567ba5010c2a19929afdb3f614002848a2f6
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
@@ -1282,7 +1283,7 @@ importers:
         version: 8.5.6
       pptxgenjs:
         specifier: 4.0.1
-        version: 4.0.1
+        version: 4.0.1(patch_hash=72313bac6f812c8581017c219934567ba5010c2a19929afdb3f614002848a2f6)
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -28599,7 +28600,7 @@ snapshots:
       commander: 9.5.0
     optional: true
 
-  pptxgenjs@4.0.1:
+  pptxgenjs@4.0.1(patch_hash=72313bac6f812c8581017c219934567ba5010c2a19929afdb3f614002848a2f6):
     dependencies:
       '@types/node': 22.20.4
       https: 1.0.0

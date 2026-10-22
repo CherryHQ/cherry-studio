@@ -173,6 +173,28 @@ afterEach(() => {
 })
 
 describe('Office list membership', () => {
+  it('writes one paragraph-properties element for rich PowerPoint runs', async () => {
+    const blocks: DocumentBlock[] = [
+      {
+        type: 'text',
+        text: 'Bold plain',
+        runs: [
+          { text: 'Bold', bold: true },
+          { text: ' plain', italic: true }
+        ]
+      }
+    ]
+    const zip = await JSZip.loadAsync(await convertPptx(blocks, new Map(), 'Rich text'))
+    const xml = await zip.file('ppt/slides/slide1.xml')!.async('string')
+    const paragraph = [...xml.matchAll(/<a:p>[\s\S]*?<\/a:p>/g)].find((match) => match[0].includes('>Bold<'))?.[0]
+    expect(paragraph).toBeDefined()
+    expect(paragraph?.match(/<a:pPr\b/g)).toHaveLength(1)
+    expect(paragraph).toMatch(/<a:t>Bold<\/a:t>/)
+    expect(paragraph).toMatch(/<a:t> plain<\/a:t>/)
+    expect(paragraph).toMatch(/<a:rPr[^>]*\bb="1"/)
+    expect(paragraph).toMatch(/<a:rPr[^>]*\bi="1"/)
+  })
+
   it('writes DOCX markers, continuation indents, and image-before-text order', async () => {
     const images = await imageMap()
     const word = await JSZip.loadAsync(await convertDocx(blocks, images, 'Lists'))

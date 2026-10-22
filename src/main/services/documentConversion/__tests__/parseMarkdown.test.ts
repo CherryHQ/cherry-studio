@@ -76,6 +76,50 @@ describe('nested container tables', () => {
   })
 })
 
+describe('thematic breaks and blockquotes', () => {
+  it('retains thematic breaks and quote depth in the document model', () => {
+    expect(parseMarkdown('Before\n\n---\n\n> outer\n>\n> > nested')).toMatchObject([
+      { type: 'text', text: 'Before' },
+      { type: 'rule' },
+      { type: 'text', text: 'outer', quoteDepth: 1 },
+      { type: 'text', text: 'nested', quoteDepth: 2 }
+    ])
+    expect(parseMarkdown('> - quoted')).toMatchObject([{ type: 'text', text: 'quoted', bullet: 1, quoteDepth: 1 }])
+  })
+
+  it('renders quote indentation and thematic breaks in DOCX', async () => {
+    const word = await JSZip.loadAsync(
+      await convertDocx(parseMarkdown('> outer\n\n> > nested\n\n---'), new Map(), 'Quotes')
+    )
+    const xml = await word.file('word/document.xml')!.async('string')
+    const paragraphs = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].map((match) => match[0])
+    const outer = paragraphs.find((paragraph) => paragraph.includes('>outer<'))
+    const nested = paragraphs.find((paragraph) => paragraph.includes('>nested<'))
+    const rule = paragraphs.find((paragraph) => paragraph.includes('<w:bottom'))
+    expect(outer).toContain('w:left="720"')
+    expect(outer).toContain('<w:left w:val="single"')
+    expect(nested).toContain('w:left="1440"')
+    expect(rule).toContain('<w:bottom w:val="single"')
+    expect(rule).not.toContain('<w:t>')
+
+    const quotedList = await JSZip.loadAsync(await convertDocx(parseMarkdown('> - item'), new Map(), 'Quoted list'))
+    const quotedListXml = await quotedList.file('word/document.xml')!.async('string')
+    const item = [...quotedListXml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].find((match) =>
+      match[0].includes('>item<')
+    )?.[0]
+    expect(item).toContain('<w:ilvl w:val="0"')
+    expect(item).toContain('w:left="720"')
+    expect(item).toContain('<w:left w:val="single"')
+  })
+
+  it('round-trips quote depth and rules through Markdown serialization', () => {
+    const markdown = documentToMarkdown(parseMarkdown('> outer\n\n---\n\n> > nested'), (source) => source)
+    expect(markdown).toContain('> outer')
+    expect(markdown).toContain('---')
+    expect(markdown).toContain('> > nested')
+  })
+})
+
 describe('leading nested lists', () => {
   const shape = (markdown: string) =>
     parseMarkdown(markdown).map((block) => ({
