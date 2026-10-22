@@ -141,6 +141,11 @@ arguments and environment values. CLI credentials are neither scanned nor copied
 | Codex | App Server thread ID | `model/list`, CLI default otherwise | Native decisions and permission requests |
 | ACP | ACP session ID | Model config option, with legacy `models` / `session/set_model` fallback | Original option IDs and scopes |
 
+Codex command/file approvals retain the matching `item/started` details, including
+commands, working directories and proposed file changes. Approval request fields
+take precedence. Details expire on item completion or the next turn; requests
+without a matching item still use their own parameters.
+
 ACP declares implemented text-file and terminal callbacks. Writes and terminal
 creation require user approval; terminals belong to their connection. Working
 directories are not OS sandboxes. ACP replay during session loading is suppressed
@@ -285,6 +290,34 @@ Focused gateway acceptance on 2026-10-14 passed real file reads and terminal
 Unicode output with Pi ACP 0.0.34, OpenCode 1.19.0 and Kilo 7.8.8 through the
 configured Aliyun Coding Plan Kimi K2.5 model. Its provider-specific output
 ceiling was configured as 98,304; its context window remained 262,144.
+
+### Acceptance refresh: 2026-10-22
+
+The following checks used the real Electron main/preload/renderer path and its
+production database on macOS ARM64. Each test had an isolated workspace; native
+user configuration and credentials were unchanged. Session configuration changes
+were restored. Controlled protocol tests are additional evidence, not substitutes
+for these CLI checks.
+
+| Agent / installed version | Verified behavior | Limits |
+|---|---|---|
+| Pi ACP 0.0.34 | Text, reasoning change/restoration, file read/write, stop/continuation and process release/recreation; recovery retained the native ID, recalled context and added exactly two Cherry messages | No normal file-tool permission request, native message ID, per-turn token usage or cost was emitted; context usage was reported. The adapter's failure-terminal limitation described above remains open. |
+| OpenCode 1.19.3 | Text, mode change/restoration, file read/write, stop/continuation, process release/recovery and history without replay; edit allow/deny, cancel while awaiting approval and continuation | Free-model write completion exceeded probe deadlines after the file and tool result were complete. A standalone official ACP SDK client also took 88.7 seconds, including 39.7 seconds after the last tool update; latency is not attributed solely to Cherry. |
+| Kilo 7.8.8 | Text, mode change/restoration, file read/write, stop/continuation, process release/recovery and history without replay; edit allow/deny, pending-approval cancellation, rejected late approval and continuation | These turns did not exercise standalone media, compaction events or nonzero costs. |
+| Codex 0.162.1 | Text, stop/continuation, process release/recovery, file-change approval with visible path/content, verified write, terminal file read, rejection, pending-approval cancellation and rejected late approval | No dedicated file-read tool was exposed; the read check used `cat` on the test file. |
+| Claude Code 2.1.296 | Text, stop/continuation, native-ID recovery with recalled context and no replay; approved file write with verified contents and a later successful file read | Some consecutive tool turns exited before a result; a later explicit read succeeded. Cause remains unclassified, and approval UI automation was inconclusive, so full tool acceptance remains open. Idle queries already exited their per-turn processes before connection release. |
+
+OpenCode and Kilo permission tests used project-local `edit: "ask"` settings in
+fresh test workspaces. Their default configurations allowed writes without a
+client approval request; an absent request is not evidence of a failed denial.
+Pi did not expose an equivalent normal-file approval path in this run.
+
+OpenCode and Kilo returned native message IDs, context usage and cumulative
+`USD 0` costs. Positive and non-USD costs remain covered by controlled protocol
+tests only. Pi's missing cost remains unknown, not zero. These checks do not
+certify other versions, providers, platforms or unobserved capability types.
+
+### Earlier compatibility inventory
 
 Validation environment: macOS ARM64; installed-agent acceptance refreshed 2026-09-30. Other platforms require real CLI
 acceptance before being marked verified. Presets are discoverable configuration

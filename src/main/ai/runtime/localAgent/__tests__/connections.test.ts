@@ -899,6 +899,41 @@ describe('local protocol processes', () => {
     })
   })
 
+  it.each(['command', 'file'])('keeps Codex %s approval details scoped to the current turn', async (kind) => {
+    const { connection, events } = create('codex', `codex-approval-context-${kind}`)
+    await connection.start(cwd)
+    for (let turn = 0; turn < 2; turn++) {
+      await connection.send(input)
+      const approval = await waitForApproval(events)
+      expect(approval.request.input).toMatchObject({
+        threadId: 'native-session',
+        turnId: 'turn',
+        itemId: 'tool',
+        reason: 'Review action'
+      })
+      if (turn === 0)
+        expect(approval.request.input).toMatchObject(
+          kind === 'command'
+            ? { command: 'echo fixture', cwd }
+            : { changes: [{ path: path.join(cwd, 'example.txt'), kind: { type: 'add' }, diff: 'review this content' }] }
+        )
+      else {
+        expect(approval.request.input).not.toHaveProperty('command')
+        expect(approval.request.input).not.toHaveProperty('changes')
+      }
+      toolApprovalRegistry.dispatch(approval.request.approvalId, {
+        approved: true,
+        updatedInput: { localPermissionOption: 'accept' }
+      })
+      await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
+      events.length = 0
+    }
+    expect((await readWire()).filter((message) => message.id === 'approval')).toEqual([
+      { id: 'approval', result: { decision: 'accept' } },
+      { id: 'approval', result: { decision: 'accept' } }
+    ])
+  })
+
   it.each(['acp', 'codex'] as const)('%s denies outstanding approvals on close', async (protocol) => {
     const { connection, events, drained } = create(protocol, 'permission')
     await connection.start(cwd)

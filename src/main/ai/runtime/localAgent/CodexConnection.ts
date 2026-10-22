@@ -26,6 +26,7 @@ export class CodexConnection extends LocalConnection {
   private nextId = 0
   private threadId?: string
   private turnId?: string
+  private readonly approvalItems = new Map<string, z.infer<typeof ItemSchema>>()
   private readonly pending = new Map<
     number,
     { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
@@ -165,7 +166,7 @@ export class CodexConnection extends LocalConnection {
         const answer = await this.approve(
           String(params.itemId),
           message.method.includes('command') ? 'Codex: Command' : 'Codex: File change',
-          { ...params, localPermissionOptions: options }
+          { ...this.approvalItems.get(String(params.itemId)), ...params, localPermissionOptions: options }
         )
         const requested = answer.updatedInput?.localPermissionOption
         const index = options.findIndex(
@@ -199,6 +200,8 @@ export class CodexConnection extends LocalConnection {
     }
     if (message.method === 'item/started' || message.method === 'item/completed') {
       const item = ItemSchema.parse(params.item)
+      if (message.method === 'item/completed') this.approvalItems.delete(item.id)
+      else if (item.type === 'commandExecution' || item.type === 'fileChange') this.approvalItems.set(item.id, item)
       if (
         item.type === 'commandExecution' ||
         item.type === 'fileChange' ||
@@ -222,6 +225,7 @@ export class CodexConnection extends LocalConnection {
   }
   async send(input: AgentRuntimeUserInput) {
     const content = await localContent(input, this.localSessionInfo.images)
+    this.approvalItems.clear()
     this.begin()
     try {
       await this.request('turn/start', {

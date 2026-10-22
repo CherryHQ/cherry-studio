@@ -390,6 +390,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   } else if (method === 'model/list') {
     reply(id, { data: [{ id: 'fixture-model', displayName: 'Fixture model' }], nextCursor: null })
   } else if (method === 'thread/start' || method === 'thread/resume') {
+    cwd = message.params.cwd
     reply(id, { thread: { id: 'native-session' }, model: 'fixture-model' })
   } else if (method === 'session/prompt' || method === 'turn/start') {
     if (thoughtPending)
@@ -761,7 +762,29 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       })
       return
     }
-    if (scenario === 'permission' || scenario === 'standalone-permission') {
+    if (scenario.startsWith('codex-approval-context-')) {
+      const type = scenario.endsWith('file') ? 'fileChange' : 'commandExecution'
+      if (turn === 1)
+        emit({
+          method: 'item/started',
+          params: {
+            threadId: 'native-session',
+            turnId: 'turn',
+            item: {
+              id: 'tool',
+              type,
+              ...(type === 'fileChange'
+                ? { changes: [{ path: `${cwd}/example.txt`, kind: { type: 'add' }, diff: 'review this content' }] }
+                : { command: 'echo fixture', cwd })
+            }
+          }
+        })
+      emit({
+        id: 'approval',
+        method: `item/${type}/requestApproval`,
+        params: { threadId: 'native-session', turnId: 'turn', itemId: 'tool', reason: 'Review action' }
+      })
+    } else if (scenario === 'permission' || scenario === 'standalone-permission') {
       if (protocol === 'acp') {
         if (scenario !== 'standalone-permission')
           update({
