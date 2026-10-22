@@ -687,6 +687,7 @@
   "chat.input.file_error": "เกิดข้อผิดพลาดในการประมวลผลไฟล์",
   "chat.input.file_not_supported": "โมเดลไม่รองรับไฟล์ประเภทนี้",
   "chat.input.file_not_supported_count": "{{count}} ไฟล์ไม่รองรับ",
+  "chat.input.followup_queue.auto_send_stopped": "หยุดการส่งอัตโนมัติแล้ว ข้อความของคุณยังอยู่ในคิว คุณสามารถแก้ไข ลบ หรือส่งด้วยตนเองได้",
   "chat.input.followup_queue.edit": "แก้ไข",
   "chat.input.followup_queue.pause": "หยุดส่งอัตโนมัติ",
   "chat.input.followup_queue.remove": "ลบ",

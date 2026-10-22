@@ -11,6 +11,7 @@ import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@sha
 const logger = loggerService.withContext('useTopicStreamStatus')
 
 interface TopicStreamStatusView {
+  turnId: string | undefined
   status: TopicStreamStatus | undefined
   activeExecutions: ActiveExecution[]
   /**
@@ -55,7 +56,16 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, lastCompletedAt, isFulfilled, markSeen }
+  return {
+    status,
+    turnId: entry?.turnId,
+    activeExecutions,
+    awaitingApprovalAnchors,
+    isPending,
+    lastCompletedAt,
+    isFulfilled,
+    markSeen
+  }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {

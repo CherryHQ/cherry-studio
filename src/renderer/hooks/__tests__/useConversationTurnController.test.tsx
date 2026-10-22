@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamOpenResponse } from '@shared/ai/transport'
@@ -138,18 +139,121 @@ describe('useConversationTurnController', () => {
     }
   )
 
-  it('returns to draft when stream open fails', async () => {
-    mocks.streamOpen.mockRejectedValueOnce(new Error('stream open failed'))
-    const { result, historyAdapter } = renderController()
+  it('a blocked automatic send must not toast when the caller owns the notice', async () => {
+    mocks.streamOpen.mockResolvedValueOnce({
+      mode: 'blocked',
+      reason: 'agent-session-workspace',
+      message: 'Workspace access is required'
+    })
+    const { result } = renderController()
 
     await act(async () => {
-      await expect(result.current.send('failed message')).rejects.toThrow('stream open failed')
+      expect(await result.current.send('queued message', { notifyFailure: false })).toBe(false)
     })
 
-    expect(result.current.phase).toBe('draft')
-    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
-    expect(historyAdapter.rollback).toHaveBeenCalledOnce()
+    expect(result.current.phase).toBe('ready')
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
+
+  it.each([true, false])(
+    'rolls back a rejected automatic send without invoking onError (callback: %s)',
+    async (hasCallback) => {
+      const failure = new Error('stream open failed')
+      mocks.streamOpen.mockRejectedValueOnce(failure)
+      const pendingRollback = createDeferred<void>()
+      const onError = vi.fn()
+      const originalHistory = ['A', 'answer A']
+      const { result } = renderHook(() => {
+        const [history, setHistory] = useState(originalHistory)
+        const controller = useConversationTurnController<string, { topicId: string }>({
+          scopeKey: 'topic-a',
+          ensureConversation: (input) => {
+            setHistory([...originalHistory, input])
+            return { topicId: 'topic-a' }
+          },
+          buildStreamRequest: () => ({ trigger: 'submit-message', topicId: 'topic-a', userMessageParts: [] }),
+          historyAdapter: {
+            seedReservedMessages: () => {},
+            refresh: () => {},
+            rollback: async () => {
+              await pendingRollback.promise
+              setHistory(originalHistory)
+            }
+          },
+          onError: hasCallback ? onError : undefined
+        })
+        return { ...controller, history }
+      })
+      let settled = false
+      let sending!: Promise<boolean>
+      act(() => {
+        sending = result.current.send('B', { notifyFailure: false }).then((sent) => {
+          settled = true
+          return sent
+        })
+      })
+      await waitFor(() => expect(result.current.phase).toBe('opening'))
+      expect(result.current.history).toEqual(['A', 'answer A', 'B'])
+      expect(settled).toBe(false)
+      await act(async () => {
+        pendingRollback.resolve()
+        expect(await sending).toBe(false)
+      })
+      expect(result.current.history).toEqual(originalHistory)
+      expect(result.current.phase).toBe('draft')
+      expect(onError).not.toHaveBeenCalled()
+      expect(mocks.toastError).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([false, true])(
+    'preserves the original rejection with throwOnError despite notification suppression (rollback fails: %s)',
+    async (rollbackFails) => {
+      const failure = new Error('stream open failed')
+      mocks.streamOpen.mockRejectedValueOnce(failure)
+      const onError = vi.fn()
+      const { result, historyAdapter } = renderController('topic-a', onError)
+      const rollback = createDeferred<void>()
+      vi.mocked(historyAdapter.rollback).mockImplementation(async () => {
+        await rollback.promise
+        if (rollbackFails) throw new Error('rollback failed')
+      })
+      let sending!: Promise<void>
+      act(() => {
+        sending = expect(result.current.send('B', { notifyFailure: false, throwOnError: true })).rejects.toBe(failure)
+      })
+      await waitFor(() => expect(historyAdapter.rollback).toHaveBeenCalledOnce())
+      await act(async () => {
+        rollback.resolve()
+        await sending
+      })
+      expect(result.current.phase).toBe('draft')
+      expect(onError).not.toHaveBeenCalled()
+      expect(mocks.loggerWarn).toHaveBeenCalledTimes(rollbackFails ? 1 : 0)
+    }
+  )
+
+  it.each([undefined, true])(
+    'preserves ordinary rejection feedback and default propagation (notifyFailure: %s)',
+    async (notifyFailure) => {
+      const failure = new Error('stream open failed')
+      const onError = vi.fn()
+      const withCallback = renderController('topic-a', onError)
+      mocks.streamOpen.mockRejectedValueOnce(failure)
+      await act(async () => {
+        expect(await withCallback.result.current.send('B', { notifyFailure })).toBe(false)
+      })
+      expect(onError).toHaveBeenCalledExactlyOnceWith(failure, 'B')
+      expect(withCallback.result.current.phase).toBe('draft')
+      withCallback.unmount()
+      const withoutCallback = renderController()
+      mocks.streamOpen.mockRejectedValueOnce(failure)
+      await act(async () => {
+        await expect(withoutCallback.result.current.send('B', { notifyFailure })).rejects.toBe(failure)
+      })
+      expect(withoutCallback.result.current.phase).toBe('draft')
+    }
+  )
 
   it('does not surface a stream-open failure after switching scopes', async () => {
     const pendingAck = createDeferred<AiStreamOpenResponse>()

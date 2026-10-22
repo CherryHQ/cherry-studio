@@ -687,6 +687,7 @@
   "chat.input.file_error": "檔案處理錯誤",
   "chat.input.file_not_supported": "模型不支援此檔案類型",
   "chat.input.file_not_supported_count": "{{count}} 個檔案不被支援",
+  "chat.input.followup_queue.auto_send_stopped": "自動傳送已停止。訊息仍保留在佇列中，你可以編輯、移除或手動傳送。",
   "chat.input.followup_queue.edit": "編輯",
   "chat.input.followup_queue.pause": "暫停自動傳送",
   "chat.input.followup_queue.remove": "移除",
