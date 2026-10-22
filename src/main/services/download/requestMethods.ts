@@ -1,5 +1,7 @@
 const DEFAULT_LIMIT = 1024
-const DEFAULT_TTL_MS = 60_000
+// A POST export can take minutes before its attachment arrives; keep the
+// method history long enough that a later GET cannot reclassify it as replayable.
+const DEFAULT_TTL_MS = 10 * 60_000
 
 interface Entry {
   methods: string[]

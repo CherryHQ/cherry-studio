@@ -140,10 +140,14 @@ export class DownloadTask {
         throw new Error(message)
       }
       await handle.sync()
+      // Cancellation can land during the sync; do not rename a temp file that
+      // another task may already be allowed to reuse.
+      if (signal.aborted) return this.settleAbort(signal)
     } finally {
       await handle.close()
     }
 
+    if (signal.aborted) return this.settleAbort(signal)
     this.options.store.setState(task.id, 'merging')
     try {
       await fs.rename(task.tempPath, task.filePath)
