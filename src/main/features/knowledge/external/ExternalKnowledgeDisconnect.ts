@@ -95,6 +95,10 @@ export class ExternalKnowledgeDisconnect {
 
     await this.knowledgeLockManager.runExclusive(disconnectFence.baseId, () => {
       application.get('DbService').withWriteTx((tx) => {
+        const current = externalKnowledgeSourceService.getByIdTx(tx, disconnectFence.id)
+        if (!current || (current.activeJobId !== null && current.activeJobId !== disconnectFence.activeJobId)) {
+          throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeSource', disconnectFence.id)
+        }
         if (input.mode === 'remove-local') {
           const ownedItemIds = externalKnowledgeDocumentService.listOwnedKnowledgeItemIdsBySourceIdTx(
             tx,
@@ -109,7 +113,7 @@ export class ExternalKnowledgeDisconnect {
             sourceId: disconnectFence.id,
             expectedRevision: disconnectFence.revision,
             expectedScheduleId: null,
-            expectedActiveJobId: disconnectFence.activeJobId
+            expectedActiveJobId: current.activeJobId
           })
         ) {
           throw DataApiErrorFactory.concurrentModification('ExternalKnowledgeSource', disconnectFence.id)

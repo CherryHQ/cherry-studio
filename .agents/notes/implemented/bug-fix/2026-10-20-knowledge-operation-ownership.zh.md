@@ -22,6 +22,8 @@ Status: implemented
 
 同步终态清理与结果发布分别处理。授权失效会暂停 Source 并推进其版本，因此旧 Job 不能发布摘要。结算仍可在同一事务中按当前 Source 版本清除该 Job 自己的活跃关联，并在提交后通知。替换 Job 由不同的 id 继续保护。如果清理也要求原版本，成功重新授权后仅手动同步的来源仍会被阻塞。
 
+取消结算完成后，断开流程在最终删除事务内重新读取任务绑定。原任务绑定和已清空的绑定都允许删除，但替换任务不允许。来源版本、暂停状态和调度条件仍须匹配。强制要求取消前的绑定会拒绝正常结算，导致来源已暂停却仍未断开。
+
 ## 考虑过的替代方案
 
 检查条目状态无法区分 completed → processing → completed。在网络获取期间持有知识库变更锁会阻塞无关变更。持久化代次需要为不会跨重启恢复的工作修改数据库结构。
@@ -46,3 +48,5 @@ Status: implemented
 - Regression — `ExternalSourcesSection.test.tsx`：卸载或 Activity 隐藏再显示后的延迟重连响应会取消会话；延迟返回的浏览器打开操作不能完成已放弃的授权。
 
 - Regression — `ExternalKnowledgeSourceLifecycle.test.ts` 和 `syncExternalSourceJobHandler.test.ts`：凭证失效后，无论结算与重新授权的先后顺序如何，都只清除终态 Job 的关联，保留新版本结果和替换 Job，并在提交后通知。
+
+- Regression — `ExternalKnowledgeDisconnect.test.ts`：通过真实 JobManager 取消和同步处理器结算完成两种断开模式；版本或状态变化及替换任务均保留所有权并回滚本地清理。

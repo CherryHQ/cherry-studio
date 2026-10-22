@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-20-knowledge-operation-ownership.md
-2026-10-20-knowledge-operation-ownership.md: fb2735a99ade94a2121c0deda82b2489a37a44dc
-2026-10-20-knowledge-operation-ownership.zh.md: d18a1b56f829c3c51eeac966d72acd8902894623
+2026-10-20-knowledge-operation-ownership.md: edf2dfb2bf559101b2fdbdf67813f24ce06be5ff
+2026-10-20-knowledge-operation-ownership.zh.md: 847d6e30f07240633c6de500107b32b1a11e91d3

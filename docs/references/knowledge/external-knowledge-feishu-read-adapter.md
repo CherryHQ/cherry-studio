@@ -204,6 +204,9 @@ vectors, and ownerless external items. Remove-local first marks every owned item
 `deleting` and enqueues the existing durable subtree cleanup before removing the
 ownership rows. Both modes unregister the schedule and settle active work before
 destructive cleanup, preserve the shared Connection, and never mutate Feishu.
+After settlement, deletion accepts either the original Job binding or its cleared
+value. It still requires the captured Source revision, paused state, and absent
+schedule, and rejects any replacement Job binding.
 Keep-local does not retain a reattachment key, so connecting the same scope
 again can create duplicate local content; merge and reattach remain unsupported.
 
