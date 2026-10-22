@@ -81,6 +81,40 @@ async function finishBackgroundRun(w: World, t: ThreadId): Promise<void> {
 const ONE_ROUND = { goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 } }
 
 describe('idle driver', () => {
+  // Catches a permission-change wake being deduplicated while the old driver still prepares its plan-mode exit.
+  it('keeps a permission change that arrives between reading settings and committing the exit', async () => {
+    const reached = latch()
+    const release = latch()
+    let held = false
+    const w = world({
+      settings: { ...ONE_ROUND, permissionMode: 'plan' },
+      wrap: wrapJob('idle-driver', (ports) => ({
+        ...ports,
+        ledger: {
+          ...ports.ledger,
+          transact: async (thread, decide) => {
+            if (!held) {
+              held = true
+              reached.release()
+              await release.promise
+            }
+            return ports.ledger.transact(thread, decide)
+          }
+        }
+      }))
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [reply('goal round')])
+    await w.enter(t, (entries, ports) => entries.goalCommand(ports, t, 'ship it', 'command'))
+    await reached.promise
+    w.host.setSettings({ permissionMode: 'auto' })
+    await w.enter(t, (entries, ports) => entries.permissionModeChanged(ports, t))
+    release.release()
+    await w.fake.settle()
+    expect(markers(await w.read(t), 'goal-round')).toHaveLength(1)
+    expect(w.fake.requestLog(t)).toHaveLength(1)
+  })
+
   // Catches a driver that never admits its rounds, keeps going past the goal's stop, or never exits (D38, H4), and a
   // context filter that hides a round from its own first request until the driver admits it (C1).
   it('starts and admits goal rounds until the goal stops, then exits', async () => {

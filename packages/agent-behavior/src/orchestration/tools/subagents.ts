@@ -10,7 +10,13 @@ import {
   decideStop,
   stoppedResult
 } from '../../core/subagents/subagentDecisions'
-import { continuedText, notDeliveredText, startedText, TURN_STOPPED } from '../../core/subagents/subagentText'
+import {
+  continuedText,
+  notDeliveredText,
+  queuedText,
+  startedText,
+  TURN_STOPPED
+} from '../../core/subagents/subagentText'
 import type { ToolCall, ToolDefinition, ToolOutcome, TransactResult } from '../../ports/harness'
 import type { HostPorts } from '../../ports/host'
 import { runChild, SUBAGENT_TOOL_NAME } from '../childRuns'
@@ -97,30 +103,30 @@ async function spawn(context: Context, call: ToolCall): Promise<ToolOutcome> {
 }
 
 /** D17: a running child reads the message after its step; a finished one continues in the background. */
-async function message(context: Context, call: ToolCall): Promise<ToolOutcome> {
+export type SubagentMessageReceipt =
+  | { readonly status: 'refused'; readonly reason: string }
+  | { readonly status: 'queued' | 'continued'; readonly child: ThreadId }
+
+export async function messageSubagent(context: Context, call: ToolCall): Promise<SubagentMessageReceipt> {
   for (;;) {
     const inputs = await gatherInputs(context, call.thread, { args: call.args })
-    if (call.signal.aborted) return { text: TURN_STOPPED, isError: true }
+    if (call.signal.aborted) return { status: 'refused', reason: TURN_STOPPED }
     const executed = await step(context, call.thread, (facts) => decideMessage(facts, inputs, call.key))
     const decision = executed.result
     switch (decision.kind) {
       case 'refused':
-        return { text: decision.text, isError: true }
+        return { status: 'refused', reason: decision.text }
       case 'queued':
         if (executed.messaged?.status === 'withdrawn') {
           await step(context, call.thread, (facts) => decideSteerWithdrawn(facts, call.key))
           // H3: the turn stopped and its call withdrew the steer; the child runs on, so deciding again would steer it.
-          if (call.signal.aborted) return { text: notDeliveredText(decision.child), isError: true }
+          if (call.signal.aborted) return { status: 'refused', reason: notDeliveredText(decision.child) }
           // G-C5: the run ended before it took the steer, which started nothing; continue the child instead.
           continue
         }
-        return { text: decision.text, isError: false, details: { sessionId: decision.child, continued: false } }
+        return { status: 'queued', child: decision.child }
       case 'continued':
-        return {
-          text: continuedText(decision.child),
-          isError: false,
-          details: { sessionId: decision.child, continued: true }
-        }
+        return { status: 'continued', child: decision.child }
       case 'stopping':
         // Y5: the run is being stopped; once it ended, decide again.
         await context.ports.helpers.awaitAnswer(decision.child, decision.run, decision.key)
@@ -154,7 +160,15 @@ export function subagentTools(host: HostPorts): ToolDefinition[] {
       description:
         'Send a message to a subagent you started, by the id its result or notification gave. A running subagent reads it after its current step. A finished subagent continues in the background with the same id and history; you are notified when it finishes.',
       schema: MESSAGE_SCHEMA,
-      run: (call, ports) => message({ ports, host }, call)
+      run: async (call, ports) => {
+        const result = await messageSubagent({ ports, host }, call)
+        if (result.status === 'refused') return { text: result.reason, isError: true }
+        return {
+          text: result.status === 'continued' ? continuedText(result.child) : queuedText(result.child),
+          isError: false,
+          details: { sessionId: result.child, continued: result.status === 'continued' }
+        }
+      }
     },
     {
       ...SUBAGENT_TOOL,

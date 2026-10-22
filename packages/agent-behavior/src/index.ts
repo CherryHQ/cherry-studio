@@ -122,6 +122,7 @@ export type {
 export { install } from './orchestration/install'
 export type { Installation } from './orchestration/install'
 export type { Entries } from './orchestration/entries'
+export type { SubagentMessageReceipt } from './orchestration/tools/subagents'
 export { harnessContract } from './contract/cases'
 export type {
   ContractCase,

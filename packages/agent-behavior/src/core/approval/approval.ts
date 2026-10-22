@@ -86,6 +86,10 @@ export function decideApproval(
 ): ApprovalDecision {
   if (host.disabled) return { kind: 'block', reason: `Tool "${call.tool}" is disabled for this agent.` }
   if (host.sqliteGuard) return { kind: 'block', reason: host.sqliteGuard }
+  if (host.delegation === 'unattended')
+    return { kind: 'block', reason: 'Cross-Session delegation requires an interactive user turn.' }
+  if (host.delegation === 'interactive' && mode !== 'auto' && mode !== 'bypassPermissions')
+    host = { ...host, approvalRequired: true }
   if (host.globalInstall) return { kind: 'block', reason: globalInstallReason(host.globalInstall) }
   const rewritten = host.rewrittenArgs === undefined ? {} : { args: host.rewrittenArgs }
   const autoAllowed = host.autoApproved && !host.approvalRequired

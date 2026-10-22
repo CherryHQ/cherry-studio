@@ -323,6 +323,17 @@ rejects when a port or the wiring fails, and the host reports that rejection as 
 | `stopSubagent(ports, child, requestKey)`       | A person stops a subagent, or a child thread's `interrupt()` arrives. The entry reads the child and commits on its parent. A background child stops alone (`'stopped-child'`); a running foreground child is part of its parent's turn, which stops (`'stopped-turn'`, D27); `'not-running'` when there was nothing to stop, a finished child included. A repeated request gives the first answer again and reaches no later work: it names the turn it stopped once more, stops the run it stopped only while that run is still the child's active one, and stops nothing when the first found nothing running. |
 | `permissionModeChanged(ports, thread)`         | The host switched the conversation's permission mode; an armed goal that plan mode held still may go on, and only then is the idle driver woken.                                                                                                                                                                                                                      |
 
+`entries.messageSubagent(ports, child, text, requestKey, signal)` accepts host input for an exact child.
+It reads the child's parent and shares the model tool's admission, continuation and reporting rules,
+returning `queued`, `continued` or `refused` with a reason. A repeated request keeps its first delivery.
+The adapter binds the call's ports to the same `signal`, so aborting it withdraws a waiting steer.
+A child stopped by the user remains refused, as it is for
+the model tool; this entry never starts a raw child turn around those rules.
+
+`goalCommand` takes the arguments after `/goal`, not the command prefix. If a permission change reaches
+a driver preparing its plan-mode exit, the driver rechecks permission after recording that exit and
+ensures a new job when necessary; deduplicating the old live job must not lose the wake.
+
 The host must also:
 
 - Persist approval outcomes across restarts and identify a call by its `CallRef`; `Approvals.outcomes(thread, [])`
