@@ -188,6 +188,8 @@ export interface SubagentGoalLink {
 
 /** What the parent's `AgentRuntimeSession` reaches through to its subagents. */
 export interface SubagentControls {
+  /** Uses the same owner admission and continuation path as `message_subagent`. */
+  messageSubagent(sessionId: string, message: string, options?: { inputId?: string }): Promise<SubagentMessageDetails>
   /** Held by a host prompt or compaction until it returns; no notification starts a run meanwhile. */
   hold(): () => void
   /** The user stops a background subagent; false when it is not running. */
@@ -337,8 +339,18 @@ export function createSubagentExtension({
   offload
 }: SubagentToolOptions): { extension: ExtensionFactory; controls: SubagentControls } {
   // Set once the main session starts; a fork's copy of this extension stays unreachable.
-  let main: { registry: SubagentRegistry; delivery: SubagentDelivery } | undefined
+  let main:
+    | {
+        registry: SubagentRegistry
+        delivery: SubagentDelivery
+        messageSubagent: SubagentControls['messageSubagent']
+      }
+    | undefined
   const controls: SubagentControls = {
+    async messageSubagent(sessionId, message, options) {
+      if (!main) throw new Error('Subagent owner is not available.')
+      return main.messageSubagent(sessionId, message, options)
+    },
     hold: () => main?.delivery.hold() ?? (() => {}),
     stopSubagent: (sessionId) =>
       main?.registry.get(sessionId)?.background === true && main.registry.stop(sessionId, 'user') !== undefined,
@@ -387,7 +399,7 @@ export function createSubagentExtension({
       inSubagent = isSubagentSession(branch)
       if (inSubagent) return
       ctx = context
-      main = { registry, delivery }
+      main = { registry, delivery, messageSubagent }
       const { records, undelivered } = restoreSubagents(branch, nativeModelKey(parentModel))
       registry.restore(records)
       delivery.restore(undelivered)
@@ -414,6 +426,7 @@ export function createSubagentExtension({
     })
     pi.on('before_agent_start', () => (inSubagent ? undefined : delivery.beforeAgentStart()))
     pi.on('session_shutdown', () => {
+      if (!inSubagent) main = undefined
       unsubscribeApproval?.()
       unsubscribeApproval = undefined
       delivery.close()
@@ -501,7 +514,11 @@ export function createSubagentExtension({
     })
 
     /** A finished subagent's next run, from its native stored branch. */
-    const continueSubagent = async (record: SubagentRecord, message: string, toolCallId: string) => {
+    const continueSubagent = async (
+      record: SubagentRecord,
+      message: string,
+      admission?: { toolCallId?: string; inputId?: string }
+    ) => {
       const id = record.sessionId
       assertBackgroundAllowed()
       const release = registry.reserveBackground()
@@ -514,7 +531,7 @@ export function createSubagentExtension({
           throw new Error(`Subagent ${id} cannot be continued: its native session is not available.`)
         const subagent: Subagent = {
           parentToolCallId: origin.parentToolCallId,
-          continuedBy: toolCallId,
+          ...(admission?.toolCallId === undefined ? {} : { continuedBy: admission.toolCallId }),
           sessionId: id,
           description: origin.description,
           fork: origin.fork,
@@ -541,16 +558,40 @@ export function createSubagentExtension({
       registry.startBackground(
         record,
         child,
-        { message: interrupted ? `${RECOVERY_HINT}\n\n${message}` : message },
+        { message: interrupted ? `${RECOVERY_HINT}\n\n${message}` : message, inputId: admission?.inputId },
         inbox
       )
       const details: SubagentMessageDetails = { sessionId: id, continued: true, run: record.run }
-      return {
-        content: [
-          text(`Subagent ${id} resumed in the background with your message; you will be notified when it finishes.`)
-        ],
-        details
-      }
+      return details
+    }
+
+    const messageSubagent = async (
+      sessionId: string,
+      content: string,
+      options?: { toolCallId?: string; inputId?: string }
+    ): Promise<SubagentMessageDetails> => {
+      const id = sessionId.trim()
+      const message = content.trim()
+      if (!message) throw new Error('message_subagent needs a non-empty message.')
+      const record = registry.get(id)
+      if (!record) throw new Error(unknownId(id, registry))
+      // A concurrent continuation owns the next run; join its admission before sending.
+      for (let lock = registry.continuationLock(id); lock; lock = registry.continuationLock(id))
+        await lock.catch(() => undefined)
+      if (record.status !== 'finished' && !record.stoppedBy && registry.queueMessage(id, message, options?.inputId))
+        return { sessionId: id, continued: false }
+      return registry.withContinuationLock(id, async () => {
+        await registry.whenRecorded(id)
+        if (record.stoppedBy === 'user')
+          throw new Error(
+            `Subagent ${id} was stopped by the user and cannot be continued. Start a new subagent if the work is still needed.`
+          )
+        if (!port.load)
+          throw new Error(
+            `Subagent ${id} has finished and this app cannot continue finished subagents. Start a new subagent instead.`
+          )
+        return continueSubagent(record, message, options)
+      })
     }
 
     pi.registerTool({
@@ -562,32 +603,17 @@ export function createSubagentExtension({
       exposure: 'model-only',
       async execute(toolCallId, params, _signal, _onUpdate, ctx) {
         if (isSubagentSession(ctx.sessionManager.getBranch())) throw new Error(IN_SUBAGENT)
-        const id = params.id.trim()
-        const message = params.message.trim()
-        if (!message) throw new Error('message_subagent needs a non-empty message.')
-        const record = registry.get(id)
-        if (!record) throw new Error(unknownId(id, registry))
-        // Another message may be continuing it right now; this one then goes to that run.
-        for (let lock = registry.continuationLock(id); lock; lock = registry.continuationLock(id))
-          await lock.catch(() => undefined)
-        // A run being stopped would drop the message; it is answered once the stop is recorded.
-        if (record.status !== 'finished' && !record.stoppedBy && registry.queueMessage(id, message)) {
-          const details: SubagentMessageDetails = { sessionId: id, continued: false }
-          return { content: [text(`Message queued for subagent ${id}; it reads it after its current step.`)], details }
+        const details = await messageSubagent(params.id, params.message, { toolCallId })
+        return {
+          content: [
+            text(
+              details.continued
+                ? `Subagent ${details.sessionId} resumed in the background with your message; you will be notified when it finishes.`
+                : `Message queued for subagent ${details.sessionId}; it reads it after its current step.`
+            )
+          ],
+          details
         }
-        return registry.withContinuationLock(id, async () => {
-          // A run that has just ended is recorded before the next one starts.
-          await registry.whenRecorded(id)
-          if (record.stoppedBy === 'user')
-            throw new Error(
-              `Subagent ${id} was stopped by the user and cannot be continued. Start a new subagent if the work is still needed.`
-            )
-          if (!port.load)
-            throw new Error(
-              `Subagent ${id} has finished and this app cannot continue finished subagents. Start a new subagent instead.`
-            )
-          return continueSubagent(record, message, toolCallId)
-        })
       }
     })
 

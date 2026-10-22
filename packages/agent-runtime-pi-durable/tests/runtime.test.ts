@@ -10,13 +10,28 @@ import {
   Type,
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
-import { configure, createRegistry, defineExtension, defineTool, MemoryStorage } from '@earendil-works/pi-durable'
+import {
+  configure,
+  createRegistry,
+  defineExtension,
+  defineTool,
+  MemoryStorage,
+  StorageRequestError
+} from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime, type PiDurableRuntimeOptions, type PiDurableThreadHandle } from '../src'
+
+function gate() {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
@@ -85,7 +100,7 @@ describe('Pi Durable runtime contract', () => {
     const second = confirmed(await runtime.open(first.thread))
     const left = await observe(first)
     const right = await observe(second)
-    const receipt = await first.submit(draft('question'))
+    const receipt = await first.input.submit(draft('question'))
     expect(receipt).toMatchObject({ status: 'acknowledged', nativeInput: { session: first.thread } })
     await expect
       .poll(() =>
@@ -114,7 +129,14 @@ describe('Pi Durable runtime contract', () => {
     await expect
       .poll(async () => confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
       .toMatchObject({ found: true, input: { outcome: 'completed' } })
-    expect(await first.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    const settled = confirmed(await second.lookupInput({ by: 'native-ref', ref: receipt.nativeInput }))
+    if (!settled.found) throw new Error('Missing input')
+    const response = current(right)?.items.find((item) => item.ref.id === settled.input.response?.id)
+    expect(response).toMatchObject({
+      type: 'message',
+      parts: [{ type: 'text', text: 'a sufficiently long streaming answer' }]
+    })
+    expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   })
 
   it('deduplicates queued input, rejects busy input without admission, and scopes withdrawal to its session', async () => {
@@ -123,16 +145,16 @@ describe('Pi Durable runtime contract', () => {
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
     const other = confirmed(await runtime.create(sessionOptions))
-    await session.submit(draft('start'))
+    await session.input.submit(draft('start'))
     await hold.reached
-    expect(await session.submit({ ...draft('rejected'), deduplicationKey: 'rejected' })).toMatchObject({
+    expect(await session.input.submit({ ...draft('rejected'), deduplicationKey: 'rejected' })).toMatchObject({
       status: 'rejected',
       error: { code: 'busy' }
     })
     expect(confirmed(await session.lookupInput({ by: 'deduplication-key', key: 'rejected' }))).toEqual({ found: false })
     const input = { ...draft('queued', 'follow-up'), deduplicationKey: 'queue-key' }
-    const first = await session.submit(input)
-    const duplicate = await session.submit(input)
+    const first = await session.input.submit(input)
+    const duplicate = await session.input.submit(input)
     expect(first).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
     expect(duplicate).toEqual(first)
     if (first.status !== 'acknowledged' || !first.nativeInput) throw new Error('No native receipt')
@@ -146,9 +168,27 @@ describe('Pi Durable runtime contract', () => {
     })
     expect(confirmed(await session.lookupInput({ by: 'deduplication-key', key: 'queue-key' }))).toMatchObject({
       found: true,
-      input: { outcome: 'unanswered' }
+      input: { outcome: 'aborted' }
     })
     expect(await session.interrupt!()).toEqual({ status: 'confirmed', value: { effect: 'native-scope-idle' } })
+  })
+
+  it('preserves a truncated native answer without reporting successful input completion', async () => {
+    const { runtime, faux } = await setup()
+    faux.setResponses([fauxAssistantMessage('cut off', { stopReason: 'length' })])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(handle)
+    const receipt = await handle.input.submit(draft('long answer'))
+    if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Missing receipt')
+    await expect
+      .poll(async () => confirmed(await handle.lookupInput({ by: 'native-ref', ref: receipt.nativeInput! })))
+      .toMatchObject({
+        found: true,
+        input: { outcome: 'unanswered', response: { session: handle.thread }, error: { code: 'output-truncated' } }
+      })
+    expect(
+      events.filter((event) => event.type === 'input.changed').some((event) => event.input.outcome === 'completed')
+    ).toBe(false)
   })
 
   it('preserves an admission receipt when the subsequent native status read fails', async () => {
@@ -160,11 +200,93 @@ describe('Pi Durable runtime contract', () => {
     const { runtime, faux } = await setup(async () => new BrokenStatusStorage())
     faux.setResponses([fauxAssistantMessage('answer')])
     const session = confirmed(await runtime.create(sessionOptions))
-    const result = await session.submit(draft('admitted before read failure'))
+    const result = await session.input.submit(draft('admitted before read failure'))
     expect(result).toMatchObject({
       status: 'acknowledged',
       nativeInput: { session: session.thread },
-      facts: ['accepted']
+      facts: expect.arrayContaining(['accepted'])
+    })
+  })
+
+  it('retains input correlation through a recoverable status read failure and eventual completion', async () => {
+    class UnavailableStatusStorage extends MemoryStorage {
+      private unavailable = true
+
+      override async submission(...args: Parameters<MemoryStorage['submission']>) {
+        if (this.unavailable) {
+          this.unavailable = false
+          throw new StorageRequestError('status read unavailable')
+        }
+        return super.submission(...args)
+      }
+    }
+    const { runtime, faux } = await setup(async () => new UnavailableStatusStorage())
+    const finish = gate()
+    onTestFinished(() => finish.resolve())
+    faux.setResponses([
+      async () => {
+        await finish.promise
+        return fauxAssistantMessage('answer')
+      }
+    ])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(handle)
+    expect(await handle.input.submit(draft('recoverable'))).toMatchObject({ status: 'acknowledged' })
+    const latest = () => events.filter((event) => event.type === 'input.changed').at(-1)?.input
+    await expect.poll(latest).toMatchObject({ inputId: 'recoverable', facts: expect.arrayContaining(['accepted']) })
+    expect(latest()?.outcome).toBeUndefined()
+    finish.resolve()
+    await expect.poll(latest).toMatchObject({
+      inputId: 'recoverable',
+      outcome: 'completed',
+      response: { session: handle.thread }
+    })
+  })
+
+  it('shares a native final answer across the original input and steering after a tool', async () => {
+    const { runtime, faux, registry } = await setup()
+    const executing = gate()
+    const finish = gate()
+    onTestFinished(() => finish.resolve())
+    registry.install(
+      defineExtension({
+        name: 'hold',
+        tools: [
+          defineTool({
+            name: 'hold',
+            description: 'Hold the tool boundary',
+            parameters: Type.Object({}),
+            async execute() {
+              executing.resolve()
+              await finish.promise
+              return { output: [{ type: 'text', text: 'tool finished' }] }
+            }
+          })
+        ]
+      })
+    )
+    faux.setResponses([
+      fauxAssistantMessage(fauxToolCall('hold', {}), { stopReason: 'toolUse' }),
+      fauxAssistantMessage('answer using both inputs')
+    ])
+    const handle = confirmed(await runtime.create(sessionOptions))
+    const events = await observe(handle)
+    await handle.input.submit({ ...draft('root'), deduplicationKey: 'root' })
+    await executing.promise
+    await handle.input.submit({ ...draft('steering', 'steer'), deduplicationKey: 'steering' })
+    finish.resolve()
+    const lookup = async (key: string) => {
+      const result = confirmed(await handle.lookupInput({ by: 'deduplication-key', key }))
+      if (!result.found) throw new Error('Missing input')
+      return result.input
+    }
+    await expect.poll(() => lookup('steering')).toMatchObject({ outcome: 'completed' })
+    const root = await lookup('root')
+    const steering = await lookup('steering')
+    expect(root).toMatchObject({ outcome: 'completed', response: steering.response })
+    expect(current(events)?.items.find((item) => item.ref.id === root.response?.id)).toMatchObject({
+      type: 'message',
+      parts: [{ type: 'text', text: 'answer using both inputs' }]
     })
   })
 
@@ -199,13 +321,12 @@ describe('Pi Durable runtime contract', () => {
     ])
     const parent = confirmed(await runtime.create(sessionOptions))
     const parentEvents = await observe(parent)
-    await parent.submit(draft('delegate now'))
-    await expect.poll(() => parentEvents.some((event) => event.type === 'delegation.upsert')).toBe(true)
-    const relationship = parentEvents.find((event) => event.type === 'delegation.upsert')
-    if (relationship?.type !== 'delegation.upsert') throw new Error('No child reference')
-    const child = confirmed(await runtime.open(relationship.delegation.child))
+    await parent.input.submit(draft('delegate now'))
+    await expect.poll(() => parentEvents.some((event) => event.type === 'subagent.upsert')).toBe(true)
+    const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
+    if (relationship?.type !== 'subagent.upsert') throw new Error('No child reference')
+    const child = confirmed(await runtime.open(relationship.subagent.child!))
     const events = await observe(child)
-    await parent.release()
     await expect
       .poll(
         () =>
@@ -219,6 +340,61 @@ describe('Pi Durable runtime contract', () => {
       )
       .toBe(true)
     expect(child.thread).not.toEqual(parent.thread)
+    await expect
+      .poll(() =>
+        current(parentEvents)?.items.some(
+          (item) =>
+            item.type === 'message' && item.parts[0]?.text === 'parent finished' && item.completeness === 'complete'
+        )
+      )
+      .toBe(true)
+    const parentItems = current(parentEvents)!.items
+    await parent.release()
+    const started = gate()
+    const finish = gate()
+    onTestFinished(() => finish.resolve())
+    faux.setResponses([
+      async () => {
+        started.resolve()
+        await finish.promise
+        return fauxAssistantMessage('child interim')
+      },
+      (context) => {
+        expect(JSON.stringify(context.messages)).toContain('extra detail')
+        return fauxAssistantMessage('continued child output')
+      }
+    ])
+    const continued = await child.input.submit(draft('continue child'))
+    expect(continued).toMatchObject({ status: 'acknowledged' })
+    await started.promise
+    expect(await child.input.submit(draft('reject busy'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'busy' }
+    })
+    expect(await child.input.submit(draft('extra detail', 'steer'))).toMatchObject({ status: 'acknowledged' })
+    const retained = confirmed(await runtime.open(child.thread))
+    const retainedEvents = await observe(retained)
+    await child.release()
+    finish.resolve()
+    await expect
+      .poll(() =>
+        current(retainedEvents)?.items.some(
+          (item) =>
+            item.type === 'message' &&
+            item.parts[0]?.text === 'continued child output' &&
+            item.completeness === 'complete'
+        )
+      )
+      .toBe(true)
+    if (continued.status !== 'acknowledged' || !continued.nativeInput) throw new Error('Missing receipt')
+    await expect
+      .poll(async () => confirmed(await retained.lookupInput({ by: 'native-ref', ref: continued.nativeInput! })))
+      .toMatchObject({ found: true, input: { outcome: 'completed' } })
+    const reopenedParent = confirmed(await runtime.open(parent.thread))
+    const restored = await observe(reopenedParent)
+    await expect.poll(() => current(restored)).toMatchObject({ subagents: [relationship.subagent] })
+    expect(current(restored)!.subagents).toHaveLength(1)
+    expect(current(restored)!.items).toEqual(parentItems)
   })
 
   it('closes without cancelling durable work, reopens for observation only, then resumes explicitly', async () => {
@@ -228,11 +404,14 @@ describe('Pi Durable runtime contract', () => {
     const hold = blocked()
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
-    const receipt = await session.submit({ ...draft('survive restart'), deduplicationKey: 'restart-key' })
+    const receipt = await session.input.submit({ ...draft('survive restart'), deduplicationKey: 'restart-key' })
     await hold.reached
     expect(receipt.status).toBe('acknowledged')
     expect(await runtime.shutdown()).toEqual({ status: 'confirmed', value: { effect: 'closed' } })
-    expect(await session.submit(draft('too late'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(await session.input.submit(draft('too late'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'closed' }
+    })
 
     faux.setResponses([fauxAssistantMessage('resumed answer')])
     const reopened = confirmed(await createPiDurableRuntime(options))

@@ -46,6 +46,19 @@ Supplying a model implementation, tool, storage facility, or approval UI does no
 
 The common package does not install CLIs, manage logins or business tables, or promise lossless migration across harnesses. Typed adapter configuration owns model, tool, storage, and extension integration until a real shared consumer establishes equivalent semantics.
 
+### Require evidence before adding a public abstraction
+
+Every new type, identity, operation, status, and capability in `agent-runtime` needs a concrete host use case and a comparison against Pi, Pi Durable, DSH, Codex, and ACP. These are research samples, not a requirement to implement five adapters before making progress. Pi and Pi Durable remain separate execution systems; ACP evidence describes a protocol boundary, and a model-facing tool does not establish a host-callable API.
+
+Record the comparison in the [harness evidence note](../testing/2026-10-17-agent-harness-evidence.md), including:
+
+1. The consumer's required behavior and the native entry point available to that consumer.
+2. The target's identity, lifetime, owner, and persistence scope, including counterexamples from the other samples.
+3. The smallest shared guarantee, optional operations, and unsupported or unknown outcomes. Similar names are insufficient; missing behavior must not be simulated by changing the target.
+4. Observable acceptance scenarios covering reuse, cancellation races, delivery, and recovery where relevant. Separate source inspection from execution through the public adapter.
+
+Keep a behavior in typed adapter configuration when the evidence does not justify a public contract. Sharing pure implementation rules also requires matching semantics and actual consumers; it does not justify moving a native queue, registry, or recovery loop into the common package. The [subagent proposal](2026-10-18-agent-runtime-subagent-control.md) applies this rule to the difference between a child relationship and one assignment.
+
 ### Keep child observation separate from Lane projection
 
 Child streaming is harness observability. A Lane is a proposed host projection that organizes content, history relationships, and subscriptions by source; it is neither an execution scheduler nor a synonym for a panel or connection.
@@ -107,6 +120,7 @@ Existing package boundaries are source evidence, not completion of the remaining
 - AC3 — Reopening native context uses its native storage and explicit product relationship, without recreating it from display history or treating missing storage as a new context. (verification: unit — adapter storage and host relationship tests)
 - AC4 — Native and host-owned delegations each have one result-delivery owner, with no duplicate delivery caused by observing completion. (verification: unit — adapter and host orchestration tests)
 - AC5 — Integration documentation distinguishes package source coverage, native recovery guarantees, and actual desktop acceptance. (verification: docs gate — runtime notes and module READMEs)
+- AC6 — Each added public abstraction records its host use case, comparisons across the five samples, counterexamples, supported scope, and adapter acceptance scenarios before implementation. (verification: docs gate — harness evidence and the owning proposed note)
 
 ## Risks
 

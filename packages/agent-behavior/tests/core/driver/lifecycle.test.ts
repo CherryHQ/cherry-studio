@@ -92,7 +92,7 @@ describe('decideOnOpen', () => {
     expect(apply(apply(history, first), again)).toHaveLength(apply(history, first).length)
   })
 
-  // Catches a foreground run left `running` forever (its `Delegation.status` stays active) after its calling tool died
+  // Catches a foreground run left `running` forever (its `delegationStatus` stays active) after its calling tool died
   // with the restart, or one ended that a resumed tool call still awaits.
   it('ends foreground runs whose calling tool died, without stopping or delivering them', () => {
     const history = [

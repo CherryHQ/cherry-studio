@@ -4,6 +4,10 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 
+Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
+`steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
+controller: a live run receives a queued message; a finished child needs `SubagentPort.load` to
+start another background run. An unsupported policy is rejected before native dispatch.
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
 Pi owns the execution loop, tools, context accounting and compaction. The package has no AI SDK
@@ -34,9 +38,12 @@ The gateway owns upstream credentials and billing. Pi owns protocol replay, tool
 
 This package is not wired into the desktop runtime yet. The integration tests live with Cherry's
 gateway integration; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+`tests/runtime.test.ts` exercises public child discovery, input and observation through native
+execution, including continuation, release, once-only native reporting, and shutdown during child loading.
 
 ```bash
 pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/nativeSession.test.ts
+pnpm test:agent-runtime-pi packages/agent-runtime-pi/tests/runtime.test.ts
 pnpm --filter @cherrystudio/agent-runtime-pi typecheck
 ```
 
@@ -59,6 +66,34 @@ existence and verify the native session ID instead of silently replacing it.
 `onEvent` observes copied native entries (`session-append`), compaction start/end, and completed
 turns. These events are for observation; storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
+
+## Input correlation
+
+The pinned [Pi 1.3.0 patch](../../patches/@earendil-works__pi-coding-agent@1.3.0.patch)
+adds an optional caller `inputId` to native prompts, steering, follow-ups, and custom messages.
+Pi carries it with the actual message through input transforms and queues. After its session
+manager appends that message, `input_placed` reports the token and native entry ID; the builder's
+`onEvent` forwards this as `input-placed`, after the corresponding `session-append` observation.
+Placement does not promise a file flush, model consumption, or successful completion.
+
+The common handle forwards `InputDraft.inputId` for roots and owner-managed children. Its
+projection publishes the `placed` fact and associates visible input messages with that ID.
+Hidden child custom messages remain hidden. Local handling emits `locally-handled`; an explicit
+native command failure also records `failed`, and a later admission receipt preserves it.
+
+The token is neither a deduplication key nor persisted in the native transcript. A host needing
+restart correlation must save the observed input/entry association. The native patch snapshots
+unanswered placed inputs at request preparation. A final normal reply settles that batch; tool
+and explicit boundary continuations retain it, and errors settle only after native retries and
+recovery stop. Queued or subsequently placed inputs are excluded from the preceding response.
+
+`input_settled` reports the batch, actual assistant entry/message, and abort flag. The builder
+forwards `input-settled` with typed `stopReason`, native entry ID, input IDs, and optional error.
+The common projection links each input's `response` to the observed item. Several inputs may
+share it; assistant messages do not receive a guessed single `inputId`. Normal final replies map
+to `completed`, errors to `failed`, and interruption to `aborted`. Truncation and settlement
+without a final answer map to `unanswered` with diagnostic codes. Native response completion
+does not prove semantic task success or literal consumption of every input by a context hook.
 
 ## Compaction
 
@@ -203,13 +238,17 @@ the compacting session's id, so a host can tell a subagent's compaction from its
   current tool batch, and one that comes as it settles starts its next run in the same session.
   For a finished subagent it opens its native session (`SubagentPort.load(id)` returns its
   `SessionManager`; the id and origin are checked), configures the same subagent again
-  (`continuedBy`, and `modelKey` from its origin), answers the tool calls an interrupted run left
+  (`continuedBy` for a model-tool continuation, and `modelKey` from its origin), answers the tool calls an interrupted run left
   open with an "interrupted" result and runs the message in the background, after a recovery hint
   when the last run was interrupted or aborted. Without `load`, finished subagents cannot be
   continued. The id must be one this conversation started. A message to a subagent being stopped
   waits for the stop, then continues it or is refused as for a finished one. `details` is
   `SubagentMessageDetails`: `{ sessionId, continued: false }` when queued,
   `{ sessionId, continued: true, run }` when it started a run.
+  The session owner's `messageSubagent(id, message, { inputId? })` and the common handle's `input.submit`
+  share this admission path with the model tool, including continuation locks and user-stop refusal.
+  Host input has no fabricated tool-call identity. A new background run keeps the extension's
+  native once-only parent report; merely observing the child never sends a report.
 - **Stopping** – `stop_subagent` stops a running subagent and returns its partial output; no
   notification follows, and it can be continued, unless the user also stopped that run (before or
   after the model). Its `details` (`SubagentStopDetails`) is
@@ -223,6 +262,13 @@ the compacting session's id, so a host can tell a subagent's compaction from its
   subagent; a running foreground subagent belongs to its parent's turn, so its interrupt is the
   user's `abort()` of that turn. Disposing the parent stops and disposes every subagent session; a
   run that had ended on its own by then keeps its result, which the reopened parent delivers.
+
+The common runtime exposes `Subagent` relationships in `snapshot.subagents` and
+`subagent.upsert`. The relationship ID uses the native child session ID within its parent,
+so child continuation updates the same relationship. It carries no assignment completion status.
+Retained child handles observe the replacement live session after continuation. Releasing a
+parent access does not close its child; runtime shutdown joins pending child admissions before
+disposing the parent owner and its children.
 
 With `SubagentPort.findModels`, `subagent` takes a `model` the user named: the package resolves it
 among the exact candidates the host finds (none or several fail and tell the model what to ask)
