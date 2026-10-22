@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InfoTooltip, InputNumber } from '@cherrystudio/ui'
+import { supportsImageRequestTimeout } from '@shared/ai/imageGenerationTimeout'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
@@ -44,6 +45,8 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
   // request time. Top-level PaintingData fields are not visible to the wire.
   const paintingParams = painting.params ?? {}
   const requestTimeoutSeconds = painting.requestTimeoutMs ? Math.round(painting.requestTimeoutMs / 1000) : null
+  // The override only reaches transports that apply it; hide it where the value would be inert.
+  const requestTimeoutSupported = supportsImageRequestTimeout(painting.providerId)
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
     () =>
@@ -78,21 +81,23 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
             />
           </div>
         ))}
-      <div>
-        <PaintingSectionTitle>
-          {t('paintings.request_timeout')}
-          <InfoTooltip content={t('paintings.request_timeout_tip')} />
-        </PaintingSectionTitle>
-        <InputNumber
-          aria-label={t('paintings.request_timeout')}
-          className="w-28"
-          min={REQUEST_TIMEOUT_MIN_SECONDS}
-          max={REQUEST_TIMEOUT_MAX_SECONDS}
-          step={10}
-          value={requestTimeoutSeconds}
-          onBlur={(value) => onConfigChange({ requestTimeoutMs: value === null ? undefined : value * 1000 })}
-        />
-      </div>
+      {requestTimeoutSupported && (
+        <div>
+          <PaintingSectionTitle>
+            {t('paintings.request_timeout')}
+            <InfoTooltip content={t('paintings.request_timeout_tip')} />
+          </PaintingSectionTitle>
+          <InputNumber
+            aria-label={t('paintings.request_timeout')}
+            className="w-28"
+            min={REQUEST_TIMEOUT_MIN_SECONDS}
+            max={REQUEST_TIMEOUT_MAX_SECONDS}
+            step={10}
+            value={requestTimeoutSeconds}
+            onBlur={(value) => onConfigChange({ requestTimeoutMs: value === null ? undefined : value * 1000 })}
+          />
+        </div>
+      )}
     </>
   )
 }

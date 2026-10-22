@@ -37,6 +37,12 @@ describe('PaintingSettings request timeout', () => {
     expect(onConfigChange).toHaveBeenCalledWith({ requestTimeoutMs: 30_000 })
   })
 
+  it('hides the override where the transport does not apply it', () => {
+    render(<PaintingSettings painting={{ ...painting, providerId: 'dmxapi' }} onConfigChange={vi.fn()} />)
+
+    expect(screen.queryByLabelText('paintings.request_timeout')).not.toBeInTheDocument()
+  })
+
   it('clears the override when the field is emptied', () => {
     const { onConfigChange, input } = renderSettings({ requestTimeoutMs: 30_000 })
 

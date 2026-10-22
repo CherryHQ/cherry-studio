@@ -26,6 +26,7 @@ import { fileToComposerToken } from '@renderer/components/composer/variants/shar
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { FILE_TYPE } from '@renderer/types/file'
+import { supportsImageRequestTimeout } from '@shared/ai/imageGenerationTimeout'
 import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
@@ -160,7 +161,9 @@ const PaintingParamsButton: FC<{
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
-  if (configItems.length === 0) return null
+  // A model without registry fields can still have the timeout control; hiding the entry
+  // point would make that setting unreachable.
+  if (configItems.length === 0 && !supportsImageRequestTimeout(painting.providerId)) return null
 
   return (
     <Popover>
