@@ -116,11 +116,19 @@ describe('followupQueueHandlers', () => {
       claimMock.mockReturnValueOnce({ claimed: true, alreadySent: false })
 
       const result = await followupQueueHandlers['/followup-queues/:id/claim'].POST({
-        params: { id: ITEM_ID }
+        params: { id: ITEM_ID },
+        body: { claimToken: 'token-1' }
       })
 
-      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, undefined)
+      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, 'token-1')
       expect(result).toEqual({ claimed: true, alreadySent: false })
+    })
+
+    it('should reject POST without a claim token', async () => {
+      await expect(
+        followupQueueHandlers['/followup-queues/:id/claim'].POST({ params: { id: ITEM_ID } })
+      ).rejects.toHaveProperty('name', 'ZodError')
+      expect(claimMock).not.toHaveBeenCalled()
     })
   })
 
@@ -129,11 +137,18 @@ describe('followupQueueHandlers', () => {
       claimHeadMock.mockReturnValueOnce({ claimed: true, id: ITEM_ID, alreadySent: false })
 
       const result = await followupQueueHandlers['/followup-queues/claim:head'].POST({
-        body: { scopeKey: SCOPE }
+        body: { scopeKey: SCOPE, claimToken: 'token-1' }
       })
 
-      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, undefined)
+      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, 'token-1')
       expect(result).toEqual({ claimed: true, id: ITEM_ID, alreadySent: false })
+    })
+
+    it('should reject POST without a claim token', async () => {
+      await expect(
+        followupQueueHandlers['/followup-queues/claim:head'].POST({ body: { scopeKey: SCOPE } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+      expect(claimHeadMock).not.toHaveBeenCalled()
     })
   })
 
