@@ -38,12 +38,7 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
 }
 
 export function hasChatDraftDocument(draft: ChatComposerDraftCache): boolean {
-  return (
-    draft.text.length > 0 ||
-    draft.tokens.length > 0 ||
-    draft.files.length > 0 ||
-    draft.knowledgeBaseIds.length > 0
-  )
+  return draft.text.length > 0 || draft.tokens.length > 0 || draft.files.length > 0 || draft.knowledgeBaseIds.length > 0
 }
 
 export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {

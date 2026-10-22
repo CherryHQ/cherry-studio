@@ -462,6 +462,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
+    subscribeFilesDispatch: () => () => {},
     setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: vi.fn(),
     addNewTopic: vi.fn(),
