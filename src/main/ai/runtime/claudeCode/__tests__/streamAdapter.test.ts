@@ -681,6 +681,65 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(deltas.join('')).toBe('Here is the answer.')
     })
 
+    it('does not re-emit snapshot reasoning while its stream is still open (SDK snapshot-before-stop)', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: monologue } })
+      )
+      // SDK 0.3.284: the completed assistant snapshot arrives before the matching content_block_stop.
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      expect(parts.filter((part: any) => part.type === 'reasoning-delta').map((part: any) => part.delta)).toEqual([
+        monologue
+      ])
+      const deltas = parts.filter((part) => part.type === 'text-delta').map((part: any) => part.delta)
+      expect(deltas.join('')).toBe('Here is the answer.')
+    })
+
+    it('does not re-emit snapshot reasoning that completes a still-growing open stream', () => {
+      const { adapter, parts } = createAdapter()
+      const head = monologue.slice(0, 20)
+      const tail = monologue.slice(20)
+
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: head } })
+      )
+      // The snapshot carries the completed block while the rest of its deltas are still in flight.
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: 'Here is the answer.' }
+        ])
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: tail } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      const reasoning = parts
+        .filter((part: any) => part.type === 'reasoning-delta')
+        .map((part: any) => part.delta)
+        .join('')
+      expect(reasoning).toBe(monologue)
+    })
+
     it('keeps text that differs from the reasoning, belongs to another message, or has a parent tool', () => {
       const { adapter, parts } = createAdapter()
 

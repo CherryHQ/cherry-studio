@@ -1119,14 +1119,28 @@ export class ClaudeCodeStreamAdapter {
     texts.add(normalized)
   }
 
-  /** Was this reasoning already streamed for the message (or an idless stream) and closed into the text set? */
+  /**
+   * Was this reasoning already streamed for the message (or an idless stream)? Covers both reasoning
+   * closed into the text set and reasoning still streaming: SDK 0.3.284 can deliver the completed
+   * assistant snapshot before the matching content_block_stop, and the open stream already carries
+   * the block even though it only enters the closed text set on that stop.
+   */
   private wasReasoningStreamed(ctx: StreamContext, messageId: string, reasoning: string | undefined): boolean {
     const normalized = reasoning?.trim()
     if (!normalized) return false
-    return Boolean(
+    if (
       ctx.reasoningTextsByMessageId.get(messageId)?.has(normalized) ||
       (messageId && ctx.reasoningTextsByMessageId.get('')?.has(normalized))
-    )
+    ) {
+      return true
+    }
+    // An open buffer equal to the snapshot block, or a still-growing prefix of it, means the stream
+    // already carries this reasoning; emitting the snapshot would duplicate it under a new reasoning id.
+    for (const buffered of ctx.reasoningBuffers.values()) {
+      const open = buffered.trim()
+      if (open && normalized.startsWith(open)) return true
+    }
+    return false
   }
 
   private isReasoningCopy(ctx: StreamContext, messageId: string, text: string): boolean {
