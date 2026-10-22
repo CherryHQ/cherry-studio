@@ -1,5 +1,11 @@
 # @cherrystudio/remote-protocol
 
+## 0.7.0
+
+### Minor Changes
+
+- [#21387](https://github.com/CherryHQ/cherry-studio/pull/21387) [`bc570d2`](https://github.com/CherryHQ/cherry-studio/commit/bc570d2b98f81be7922fbc1f879b8db530c5b60d) Thanks [@DeJeune](https://github.com/DeJeune)! - Add versioned pairing QR schemas supporting complete direct endpoints, and validation for advertised remote destinations.
+
 ## 0.6.0
 
 ### Minor Changes

@@ -34,7 +34,7 @@ input against one provider, without implicit retries. Results contain `providerI
 | --- | --- |
 | Root | Client, validation, errors, provider vocabulary, and public types |
 | `/catalog` | Immutable remote provider metadata and per-capability public endpoints |
-| `/providers/<id>` | One protocol module: zhipu, tavily, searxng, exa, exa-mcp, bocha, querit, jina, firecrawl, crawl4ai, parallel, serply, deepseek |
+| `/providers/<id>` | One protocol module: zhipu, tavily, searxng, exa, exa-mcp, bocha, querit, jina, firecrawl, crawl4ai, parallel, serply, yuanbao, deepseek |
 | `/tools/config` | Pure endpoint override merging; explicit empty overrides stay empty |
 | `/tools/url-filter` | Optional URL-rule filtering with diagnostics returned to the caller |
 | `/tools/content` | Optional token/character slicing; the application allocates total budgets |
@@ -55,6 +55,12 @@ Local `fetch` and Desktop DuckDuckGo remain host-owned.
 Querit accepts API hosts with or without `/v1` and numeric-string response codes. Crawl4AI uses
 the Cloud `/scrape` protocol for `crawl4ai.com` and its subdomains, requiring an API key. Other
 hosts retain the self-hosted `/md` protocol with an optional token.
+
+Yuanbao rounds `maxResults` up to the next supported `Cnt` value (10–50), then applies
+the requested limit locally. `excludeDomains` sends up to five distinct domain names through
+`Site`; invalid domain entries are omitted. Hosts retain full URL-rule filtering. Yuanbao-only
+`useDefaultResultCount: true` omits `Cnt` for lite-tier compatibility without disabling `Site`
+or the local limit. The protocol itself never retries.
 
 ## Transport and errors
 
