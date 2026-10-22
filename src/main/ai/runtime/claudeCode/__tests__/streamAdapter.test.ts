@@ -772,6 +772,41 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
     })
 
+    it('preserves the fallback suffix when the streamed prefix differs in boundary whitespace', () => {
+      const { adapter, parts } = createAdapter()
+      // The failed stream carries the prefix with extra leading whitespace while the SDK's
+      // complete fallback snapshot is trimmed. Suppression normalizes both sides, so the
+      // reconciliation must match under the same normalization or the suffix is lost
+      // (cherry-pr-review reproduction: 30 characters dropped).
+      const head = '  ' + monologue.slice(0, 20)
+
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: head } })
+      )
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+      adapter.handleMessage(successResult())
+
+      // One reasoning part carries the streamed prefix plus the flushed suffix: every
+      // character of the fallback's content survives; the identical text copy stays suppressed.
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      const reasoning = parts
+        .filter((part: any) => part.type === 'reasoning-delta')
+        .map((part: any) => part.delta)
+        .join('')
+      expect(reasoning).toBe(head + monologue.slice(20))
+      expect(reasoning.trim()).toBe(monologue)
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
     it('keeps text that differs from the reasoning, belongs to another message, or has a parent tool', () => {
       const { adapter, parts } = createAdapter()
 

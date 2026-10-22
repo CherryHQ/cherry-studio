@@ -1157,14 +1157,32 @@ export class ClaudeCodeStreamAdapter {
   }
 
   /**
+   * The content of `complete` the open buffer has not delivered yet: the raw suffix when the
+   * buffer is an exact prefix, otherwise the suffix after the trimmed prefix when both sides
+   * match once trimmed - wasReasoningStreamed suppresses under that same normalization, so a
+   * raw-only check here would strand the undelivered content when boundary whitespace differs
+   * (cherry-pr-review). Returns null when the buffer is not a prefix under either comparison.
+   */
+  private undeliveredReasoningSuffix(buffered: string, complete: string): string | null {
+    if (buffered && complete.length > buffered.length && complete.startsWith(buffered)) {
+      return complete.slice(buffered.length)
+    }
+    const open = buffered.trim()
+    const normalized = complete.trim()
+    if (open && normalized.length > open.length && normalized.startsWith(open)) {
+      return normalized.slice(open.length)
+    }
+    return null
+  }
+
+  /**
    * The open reasoning part whose streamed buffer is a proper prefix of this snapshot: the stream
-   * failed mid-reasoning and the SDK's complete fallback carries the rest. Raw-string comparison
-   * keeps the suffix slice exact; a whitespace-mangled prefix stays on the skip path.
+   * failed mid-reasoning and the SDK's complete fallback carries the rest.
    */
   private findPartiallyStreamedReasoning(ctx: StreamContext, reasoning: string | undefined): { partId: string } | null {
     if (!reasoning) return null
     for (const [partId, buffered] of ctx.reasoningBuffers) {
-      if (buffered && reasoning.length > buffered.length && reasoning.startsWith(buffered)) {
+      if (this.undeliveredReasoningSuffix(buffered, reasoning) !== null) {
         return { partId }
       }
     }
@@ -1381,9 +1399,10 @@ export class ClaudeCodeStreamAdapter {
     for (const [partId, snapshot] of ctx.pendingReasoningSnapshots) {
       const buffered = ctx.reasoningBuffers.get(partId)
       if (buffered === undefined) continue
-      if (snapshot.length > buffered.length && snapshot.startsWith(buffered)) {
-        ctx.sink.enqueue({ type: 'reasoning-delta', id: partId, delta: snapshot.slice(buffered.length) })
-        ctx.reasoningBuffers.set(partId, snapshot)
+      const suffix = this.undeliveredReasoningSuffix(buffered, snapshot)
+      if (suffix !== null) {
+        ctx.sink.enqueue({ type: 'reasoning-delta', id: partId, delta: suffix })
+        ctx.reasoningBuffers.set(partId, buffered + suffix)
       }
     }
     ctx.pendingReasoningSnapshots.clear()
