@@ -78,23 +78,25 @@ describe('nested container tables', () => {
 
 describe('thematic breaks and blockquotes', () => {
   it('retains thematic breaks and quote depth in the document model', () => {
-    expect(parseMarkdown('Before\n\n---\n\n> outer\n>\n> > nested')).toMatchObject([
+    const markdown = 'Before\n\n---\n\n> Outer\n>\n>> Inner\n\nAfter'
+    expect(parseMarkdown(markdown)).toMatchObject([
       { type: 'text', text: 'Before' },
       { type: 'rule' },
-      { type: 'text', text: 'outer', quoteDepth: 1 },
-      { type: 'text', text: 'nested', quoteDepth: 2 }
+      { type: 'text', text: 'Outer', quoteDepth: 1 },
+      { type: 'text', text: 'Inner', quoteDepth: 2 },
+      { type: 'text', text: 'After' }
     ])
     expect(parseMarkdown('> - quoted')).toMatchObject([{ type: 'text', text: 'quoted', bullet: 1, quoteDepth: 1 }])
   })
 
   it('renders quote indentation and thematic breaks in DOCX', async () => {
-    const word = await JSZip.loadAsync(
-      await convertDocx(parseMarkdown('> outer\n\n> > nested\n\n---'), new Map(), 'Quotes')
-    )
+    const markdown = 'Before\n\n---\n\n> Outer\n>\n>> Inner\n\nAfter'
+    const word = await JSZip.loadAsync(await convertDocx(parseMarkdown(markdown), new Map(), 'Quotes'))
     const xml = await word.file('word/document.xml')!.async('string')
     const paragraphs = [...xml.matchAll(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)].map((match) => match[0])
-    const outer = paragraphs.find((paragraph) => paragraph.includes('>outer<'))
-    const nested = paragraphs.find((paragraph) => paragraph.includes('>nested<'))
+    expect(paragraphs).toHaveLength(5)
+    const outer = paragraphs.find((paragraph) => paragraph.includes('>Outer<'))
+    const nested = paragraphs.find((paragraph) => paragraph.includes('>Inner<'))
     const rule = paragraphs.find((paragraph) => paragraph.includes('<w:bottom'))
     expect(outer).toContain('w:left="720"')
     expect(outer).toContain('<w:left w:val="single"')
