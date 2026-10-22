@@ -12,6 +12,8 @@ import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 
+import { resolveCodeViewerBoundary } from './codeViewerSelection'
+
 const logger = loggerService.withContext('CodeViewer')
 
 interface SavedSelection {
@@ -168,7 +170,7 @@ const CodeViewer = ({
   }, [language, getShikiPreProperties, isShikiThemeDark, className, highlight])
 
   // 保存当前选区的逻辑位置
-  const saveSelection = useCallback((): SavedSelection | null => {
+  const saveSelection = useCallback(() => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
       return null
@@ -183,68 +185,8 @@ const CodeViewer = ({
     const scroller = scrollerRef.current
     if (!scroller) return null
 
-    // 查找选区起始和结束位置对应的行号
-    const findLineAndOffset = (node: Node, offset: number): { line: number; offset: number } | null => {
-      // 向上查找包含 data-index 属性的元素
-      let element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
-
-      // 跳过行号元素，找到实际的行内容
-      while (element) {
-        if (element.classList?.contains('line-number')) {
-          // 如果在行号上，移动到同级的 line-content
-          const lineContainer = element.parentElement
-          const lineContent = lineContainer?.querySelector('.line-content')
-          if (lineContent) {
-            element = lineContent
-            break
-          }
-        }
-        if (element.hasAttribute('data-index')) {
-          break
-        }
-        element = element.parentElement
-      }
-
-      if (!element || !element.hasAttribute('data-index')) {
-        logger.warn('Could not find data-index element', {
-          nodeName: node.nodeName,
-          nodeType: node.nodeType
-        })
-        return null
-      }
-
-      const lineIndex = parseInt(element.getAttribute('data-index') || '0', 10)
-      const lineContent = element.querySelector('.line-content') || element
-
-      // Calculate character offset within the line
-      let charOffset = 0
-      if (node.nodeType === Node.TEXT_NODE) {
-        // 遍历该行的所有文本节点，找到当前节点的位置
-        const walker = document.createTreeWalker(lineContent, NodeFilter.SHOW_TEXT)
-        let currentNode: Node | null
-        while ((currentNode = walker.nextNode())) {
-          if (currentNode === node) {
-            charOffset += offset
-            break
-          }
-          charOffset += currentNode.textContent?.length || 0
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        // 如果是元素节点，计算之前所有文本的长度
-        const textBefore = (node as Element).textContent?.slice(0, offset) || ''
-        charOffset = textBefore.length
-      }
-
-      logger.debug('findLineAndOffset result', {
-        lineIndex,
-        charOffset
-      })
-
-      return { line: lineIndex, offset: charOffset }
-    }
-
-    const start = findLineAndOffset(range.startContainer, range.startOffset)
-    const end = findLineAndOffset(range.endContainer, range.endOffset)
+    const start = resolveCodeViewerBoundary(scroller, range.startContainer, range.startOffset, 'start')
+    const end = resolveCodeViewerBoundary(scroller, range.endContainer, range.endOffset, 'end')
 
     if (!start || !end) {
       logger.warn('saveSelection failed', {
@@ -261,13 +203,31 @@ const CodeViewer = ({
       endOffset: end.offset
     })
 
-    return {
-      startLine: start.line,
-      startOffset: start.offset,
-      endLine: end.line,
-      endOffset: end.offset
-    }
+    return { start, end }
   }, [selectionBelongsToViewer])
+
+  const commitSelection = useCallback((): SavedSelection | null => {
+    const parsed = saveSelection()
+    if (!parsed) return null
+    const { start, end } = parsed
+    const previous = savedSelectionRef.current
+    const keepStart =
+      previous &&
+      start.source === 'container' &&
+      (start.line > previous.startLine || (start.line === previous.startLine && start.offset > previous.startOffset))
+    const keepEnd =
+      previous &&
+      end.source === 'container' &&
+      (end.line < previous.endLine || (end.line === previous.endLine && end.offset < previous.endOffset))
+    const saved = {
+      startLine: keepStart ? previous.startLine : start.line,
+      startOffset: keepStart ? previous.startOffset : start.offset,
+      endLine: keepEnd ? previous.endLine : end.line,
+      endOffset: keepEnd ? previous.endOffset : end.offset
+    }
+    savedSelectionRef.current = saved
+    return saved
+  }, [saveSelection])
 
   // 滚动事件处理：保存选择用于复制，但不恢复（避免选择高亮问题）
   const handleScroll = useCallback(() => {
@@ -278,15 +238,14 @@ const CodeViewer = ({
     }
 
     // 只保存选择状态用于复制，不在滚动时恢复选择
-    const saved = saveSelection()
+    const saved = commitSelection()
     if (saved) {
-      savedSelectionRef.current = saved
       logger.debug('Selection saved for copy', {
         startLine: saved.startLine,
         endLine: saved.endLine
       })
     }
-  }, [autoScrollToBottom, expanded, saveSelection])
+  }, [autoScrollToBottom, expanded, commitSelection])
 
   // 处理复制事件，确保跨虚拟滚动的复制能获取完整内容
   const handleCopy = useCallback(
@@ -300,11 +259,7 @@ const CodeViewer = ({
         return
       }
 
-      // Prefer saved selection from scroll, otherwise get it in real-time
-      let saved = savedSelectionRef.current
-      if (!saved) {
-        saved = saveSelection()
-      }
+      const saved = commitSelection() ?? savedSelectionRef.current
 
       if (!saved) {
         logger.warn('Cannot get selection, using browser default')
@@ -368,7 +323,7 @@ const CodeViewer = ({
         }
       }
     },
-    [selectionBelongsToViewer, expanded, saveSelection, rawLines]
+    [selectionBelongsToViewer, expanded, commitSelection, rawLines]
   )
 
   // Virtualizer 配置
@@ -540,10 +495,10 @@ const CodeViewer = ({
       // In collapsed state, detect multi-line selection and request expand
       if (!expanded && onRequestExpand) {
         const saved = saveSelection()
-        if (saved && saved.endLine > saved.startLine) {
+        if (saved && saved.end.line > saved.start.line) {
           logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
-            startLine: saved.startLine,
-            endLine: saved.endLine
+            startLine: saved.start.line,
+            endLine: saved.end.line
           })
           onRequestExpand()
         }
@@ -563,6 +518,36 @@ const CodeViewer = ({
 
     return codeViewerSelectionManager.register(scroller, (selection) => selectionChangeHandlerRef.current(selection))
   }, [])
+
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const document = scroller.ownerDocument
+    const cleanup = () => {
+      document.removeEventListener('pointerup', finish)
+      document.removeEventListener('pointercancel', cancel)
+    }
+    const finish = () => {
+      cleanup()
+      commitSelection()
+    }
+    const cancel = () => cleanup()
+    const begin = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      // Scrollbar gestures do not start a text selection.
+      const rect = scroller.getBoundingClientRect()
+      if (event.clientX >= rect.left + scroller.clientWidth || event.clientY >= rect.top + scroller.clientHeight) return
+      cleanup()
+      savedSelectionRef.current = null
+      document.addEventListener('pointerup', finish, { once: true })
+      document.addEventListener('pointercancel', cancel, { once: true })
+    }
+    scroller.addEventListener('pointerdown', begin)
+    return () => {
+      cleanup()
+      scroller.removeEventListener('pointerdown', begin)
+    }
+  }, [commitSelection])
 
   // Listen for copy events
   useEffect(() => {

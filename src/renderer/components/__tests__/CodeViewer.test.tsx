@@ -2,7 +2,7 @@
 
 import type { useVirtualizer as RealUseVirtualizer } from '@tanstack/react-virtual'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeViewer from '../CodeViewer'
@@ -20,7 +20,8 @@ function createVirtualizerMock(options: VirtualizerOptions) {
 
   return {
     getTotalSize: () => totalSize,
-    getVirtualItems: () => virtualItems,
+    getVirtualItems: () =>
+      virtualItems.filter((item) => item.index >= mocks.firstRenderedRow && item.index <= mocks.lastRenderedRow),
     measureElement: vi.fn(),
     measure: mocks.measure,
     resizeItem: mocks.resizeItem
@@ -28,6 +29,8 @@ function createVirtualizerMock(options: VirtualizerOptions) {
 }
 
 const mocks = vi.hoisted(() => ({
+  firstRenderedRow: 0,
+  lastRenderedRow: Infinity,
   highlightLines: vi.fn(),
   resetHighlight: vi.fn(),
   measureElement: vi.fn(),
@@ -89,6 +92,8 @@ function restoreDescriptor(
 describe('CodeViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.firstRenderedRow = 0
+    mocks.lastRenderedRow = Infinity
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'chat.code.show_line_numbers': false,
@@ -98,6 +103,7 @@ describe('CodeViewer', () => {
   })
 
   afterEach(() => {
+    window.getSelection()?.removeAllRanges()
     restoreDescriptor('clientHeight', originalClientHeightDescriptor)
     restoreDescriptor('clientWidth', originalClientWidthDescriptor)
     restoreDescriptor('scrollHeight', originalScrollHeightDescriptor)
@@ -388,5 +394,223 @@ describe('CodeViewer', () => {
     // over `.markdown pre span { white-space: pre }` inside chat code blocks.
     expect(lineContent).toHaveClass('[&_*]:whitespace-pre-wrap!')
     expect(lineContent).toHaveClass('[&_*]:break-words!')
+  })
+
+  describe('selection copy', () => {
+    const value =
+      'const value0 = "abcdefghij"\nconst value1 = "abcdefghij"\nconst value2 = "abcdefghij"\nconst value3 = "abcdefghij"\nconst value4 = "abcdefghij"\nconst value5 = "abcdefghij"'
+    const wide = 'nst value1 = "abcdefghij"\nconst value2 = "abcdefghij"\nconst value3 = "abcdefghij"\nco'
+    const narrow = 'const value2 = "abcdefghij"\nconst value3 = "abcdefghij"\nco'
+
+    function setup(expanded = false, onRequestExpand?: () => void) {
+      const props = { value, onRequestExpand, language: 'typescript', expanded }
+      const view = render(<CodeViewer {...props} />)
+      const scroller = view.container.querySelector<HTMLElement>('.shiki-scroller')!
+      const wrapper = scroller.querySelector<HTMLElement>('.shiki-list > div')!
+      const content = (index: number) => scroller.querySelector<HTMLElement>(`[data-index="${index}"] .line-content`)!
+      const text = (index: number) => content(index).firstChild!.firstChild!
+      const select = (start: Node, startOffset: number, end: Node, endOffset: number) => {
+        const range = document.createRange()
+        range.setStart(start, startOffset)
+        range.setEnd(end, endOffset)
+        const selection = window.getSelection()!
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+      const pointer = (target: Element | Document, type: string, button = 0, clientX = 10, clientY = 10) => {
+        fireEvent(target, new MouseEvent(type, { bubbles: true, button, clientX, clientY }))
+      }
+      const copy = () => {
+        const data = new Map<string, string>()
+        const clipboardData = { setData: (type: string, text: string) => data.set(type, text) }
+        // jsdom lacks ClipboardEvent; preserve real event cancellation and a controllable clipboard boundary.
+        const ClipboardEvent =
+          window.ClipboardEvent ??
+          class extends Event {
+            clipboardData: unknown
+            constructor(type: string, init: ClipboardEventInit) {
+              super(type, init)
+              this.clipboardData = init.clipboardData
+            }
+          }
+        const event = new ClipboardEvent('copy', {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: clipboardData as unknown as DataTransfer
+        })
+        fireEvent(scroller, event)
+        return { text: data.get('text/plain'), prevented: event.defaultPrevented }
+      }
+      return {
+        ...view,
+        scroller,
+        wrapper,
+        content,
+        text,
+        select,
+        pointer,
+        copy,
+        selectWide: () => select(text(1), 2, text(4), 2),
+        removeFirstRows: () => {
+          mocks.firstRenderedRow = 2
+          view.rerender(<CodeViewer {...props} className="after-scroll" />)
+        }
+      }
+    }
+
+    // Before fix: RED — a cold container start cannot resolve.
+    it('copies a collapsed selection starting at a container without a cache', () => {
+      mocks.firstRenderedRow = 2
+      const view = setup()
+      view.select(view.wrapper, 0, view.text(4), 2)
+      expect(view.copy()).toEqual({ text: narrow, prevented: true })
+    })
+
+    // Before fix: GREEN — failed container parsing left the captured wide snapshot intact.
+    it('keeps a captured wide selection after rows are removed', () => {
+      const view = setup()
+      view.selectWide()
+      fireEvent.scroll(view.scroller)
+      view.removeFirstRows()
+      expect(window.getSelection()!.getRangeAt(0).startContainer).toBe(view.wrapper)
+      fireEvent.scroll(view.scroller)
+      expect(view.copy()).toEqual({ text: wide, prevented: true })
+    })
+
+    // Before fix: RED — completion outside the viewer never captured the logical range.
+    it('captures the completed selection on pointerup', () => {
+      const view = setup()
+      view.pointer(view.scroller, 'pointerdown')
+      view.selectWide()
+      view.pointer(document.body, 'pointerup')
+      view.removeFirstRows()
+      fireEvent.scroll(view.scroller)
+      expect(view.copy()).toEqual({ text: wide, prevented: true })
+    })
+
+    // Before fix: RED — copy unconditionally preferred the old wide cache.
+    it.each([true, false])(
+      'replaces a cached wide selection with a smaller real-line selection (pointerup=%s)',
+      (pointerup) => {
+        const view = setup()
+        view.selectWide()
+        fireEvent.scroll(view.scroller)
+        view.select(view.text(3), 6, view.text(3), 12)
+        if (pointerup) {
+          view.pointer(view.scroller, 'pointerdown')
+          view.select(view.text(3), 6, view.text(3), 12)
+          view.pointer(document.body, 'pointerup')
+        }
+        expect(view.copy()).toEqual({ text: 'value3', prevented: true })
+      }
+    )
+
+    // Before fix: RED — a new gesture left the preceding selection's snapshot alive.
+    it('does not merge a new container selection with the previous gesture', () => {
+      const view = setup()
+      view.selectWide()
+      fireEvent.scroll(view.scroller)
+      view.pointer(view.scroller, 'pointerdown')
+      mocks.lastRenderedRow = 3
+      view.rerender(<CodeViewer value={value} language="typescript" expanded={false} className="last-row-three" />)
+      view.select(view.text(3), 6, view.wrapper, view.wrapper.childNodes.length)
+      view.pointer(document.body, 'pointerup')
+      expect(view.copy()).toEqual({ text: 'value3 = "abcdefghij"', prevented: true })
+    })
+
+    it.each([
+      ['right button', 2, 10, 10],
+      ['middle button', 1, 10, 10],
+      ['vertical scrollbar', 0, 640, 10],
+      ['horizontal scrollbar', 0, 10, 300]
+    ] as const)('preserves a captured selection during %s gestures', (_name, button, clientX, clientY) => {
+      const view = setup()
+      view.selectWide()
+      fireEvent.scroll(view.scroller)
+      view.pointer(view.scroller, 'pointerdown', button, clientX, clientY)
+      view.removeFirstRows()
+      view.pointer(document.body, 'pointerup')
+      expect(view.copy()).toEqual({ text: wide, prevented: true })
+    })
+
+    it('removes the completion listener on pointercancel', () => {
+      const view = setup()
+      view.pointer(view.scroller, 'pointerdown')
+      view.selectWide()
+      view.pointer(document.body, 'pointercancel')
+      view.pointer(document.body, 'pointerup')
+      view.removeFirstRows()
+      fireEvent.scroll(view.scroller)
+      expect(view.copy()).toEqual({ text: narrow, prevented: true })
+    })
+
+    it('uses the current DOM selection rather than the snapshot to request expansion', () => {
+      vi.useFakeTimers()
+      let expanded = false
+      try {
+        const view = setup(false, () => {
+          expanded = true
+        })
+        view.selectWide()
+        fireEvent.scroll(view.scroller)
+        view.select(view.text(3), 6, view.text(3), 12)
+        fireEvent(document, new Event('selectionchange'))
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+        expect(expanded).toBe(false)
+        view.select(view.text(2), 0, view.text(3), 0)
+        fireEvent(document, new Event('selectionchange'))
+        act(() => {
+          vi.advanceTimersByTime(100)
+        })
+        expect(expanded).toBe(true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    // Before fix: GREEN — text offsets and next-line content offset zero keep their source text.
+    it.each([
+      ['single line', 1, 1, 1, 7, 'onst v', false],
+      ['multiple lines', 1, 0, 3, 6, 'const value1 = "abcdefghij"\nconst value2 = "abcdefghij"\nconst ', false],
+      ['triple click', 2, 0, 3, 0, 'const value2 = "abcdefghij"\n', true]
+    ] as const)(
+      'keeps ordinary copy text unchanged (%s)',
+      (_name, startLine, startOffset, endLine, endOffset, expected, elementEnd) => {
+        const view = setup()
+        view.select(
+          view.text(startLine),
+          startOffset,
+          elementEnd ? view.content(endLine) : view.text(endLine),
+          endOffset
+        )
+        expect(view.copy()).toEqual({ text: expected, prevented: true })
+      }
+    )
+
+    // Before fix: GREEN — expanded and foreign selections belong to native copy.
+    it('leaves expanded and outside selections to native copy', () => {
+      const expanded = setup(true)
+      expanded.selectWide()
+      expect(expanded.copy()).toEqual({ text: undefined, prevented: false })
+      expanded.unmount()
+      const view = setup()
+      view.selectWide()
+      fireEvent.scroll(view.scroller)
+      const outside = document.createTextNode('outside')
+      document.body.append(outside)
+      try {
+        view.select(outside, 0, outside, 3)
+        expect(view.copy()).toEqual({ text: undefined, prevented: false })
+        view.select(view.text(3), 0, outside, 3)
+        expect(view.copy()).toEqual({ text: undefined, prevented: false })
+        const other = setup()
+        other.selectWide()
+        expect(view.copy()).toEqual({ text: undefined, prevented: false })
+      } finally {
+        outside.remove()
+      }
+    })
   })
 })
