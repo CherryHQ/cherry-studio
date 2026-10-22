@@ -27,7 +27,7 @@ export function SidebarSettingsButton({ layout }: { layout: SidebarVisibleLayout
         variant="ghost"
         aria-label={t('settings.title')}
         onClick={() => openSettingsTab()}
-        className="flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
+        className="sidebar-action flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-full px-2.5 py-1.75 text-[13px] transition-colors">
         <Settings size={16} strokeWidth={1.6} />
         <span className="min-w-0 truncate">{t('settings.title')}</span>
       </Button>
@@ -35,15 +35,15 @@ export function SidebarSettingsButton({ layout }: { layout: SidebarVisibleLayout
   }
 
   return (
-    <Tooltip content={t('settings.title')} placement="right" delay={800}>
+    <Tooltip content={t('settings.title')} placement="right" delay={400}>
       <Button
         type="button"
         variant="ghost"
         size="icon"
         aria-label={t('settings.title')}
         onClick={() => openSettingsTab()}
-        className="flex size-7 items-center justify-center rounded-none bg-transparent text-muted-foreground opacity-55 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100 focus-visible:bg-transparent focus-visible:text-foreground focus-visible:opacity-100 active:bg-transparent dark:text-muted-foreground dark:hover:text-foreground [&_svg]:text-current">
-        <Settings size={18} strokeWidth={1.6} />
+        className="sidebar-action size-9 rounded-full transition-colors duration-150">
+        <Settings className="size-4.5" strokeWidth={1.6} />
       </Button>
     </Tooltip>
   )

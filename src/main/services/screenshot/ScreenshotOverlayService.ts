@@ -611,9 +611,8 @@ export class ScreenshotOverlayService extends BaseService {
     }
   }
 
-  /** Copy the overlay's result to the clipboard and end the session. */
-  public async commit(result: ScreenshotResultData): Promise<void> {
-    const generation = this.sessionGeneration
+  /** Copy the overlay's result to the clipboard without ending the session. */
+  public async copy(result: ScreenshotResultData): Promise<void> {
     try {
       const bytes = Buffer.from(result.pngBytes)
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
@@ -624,6 +623,12 @@ export class ScreenshotOverlayService extends BaseService {
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
     }
+  }
+
+  /** Copy the overlay's result to the clipboard and end the session. */
+  public async commit(result: ScreenshotResultData): Promise<void> {
+    const generation = this.sessionGeneration
+    await this.copy(result)
 
     // Outside the try: the overlays come down whether or not the clipboard took it, but
     // only for this session — the clipboard write yields, so a newer one may own them now.

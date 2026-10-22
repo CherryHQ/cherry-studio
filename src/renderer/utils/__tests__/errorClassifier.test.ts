@@ -20,7 +20,55 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
   })
 }
 
+/** Serialized API call attempt. Status may be numeric or a numeric string, matching `classifyError`. */
+function makeApiCallAttempt(overrides: Partial<SerializedError> = {}): SerializedError {
+  return {
+    name: 'AI_APICallError',
+    message: null,
+    stack: null,
+    cause: null,
+    url: '',
+    requestBodyValues: null,
+    statusCode: null,
+    responseHeaders: null,
+    responseBody: null,
+    isRetryable: true,
+    data: null,
+    ...overrides
+  }
+}
+
+/** ai-retry copies the terminal phrase onto a status-less RetryError and keeps lastError plus errors. */
+function makeCopiedRetry(
+  phrase: string,
+  attempts: SerializedError[],
+  wrapper: Partial<SerializedError> = {}
+): SerializedError {
+  return makeRetryError({
+    message: `Failed after ${attempts.length} attempts. Last error: ${phrase}`,
+    lastError: attempts[attempts.length - 1],
+    errors: attempts,
+    ...wrapper
+  })
+}
+
 describe('classifyError', () => {
+  it('uses the parse diagnosis for a serialized unresolved tool call', () => {
+    expect(
+      classifyError(
+        makeError({
+          name: 'AI_InvalidResponseDataError',
+          message: "Expected 'function.name' to be a string."
+        }),
+        'custom'
+      )
+    ).toMatchObject({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+  })
+
   it.each([
     [new Error('OpenAI API key is missing. Pass it using the apiKey parameter.'), 'auth'],
     [
@@ -77,7 +125,7 @@ describe('classifyError', () => {
     expect(result.category).toBe('unknown')
   })
 
-  // Wrapped errors — RetryError itself carries no status, the cause does.
+  // Wrapped errors — RetryError itself carries no status; the terminal lastError does.
   it.each([
     [401, 'auth'],
     [429, 'rate_limit'],
@@ -127,6 +175,137 @@ describe('classifyError', () => {
       })
     )
     expect(result.category).toBe('rate_limit')
+  })
+
+  // Copied terminal phrase must not hide a structured HTTP 5xx on lastError.
+  it.each(['unauthorized', 'insufficient_balance', 'too many requests', 'model_not_found', 'fetch failed'])(
+    'classifies a retry wrapper that copied "%s" as server when the terminal attempt is HTTP 503',
+    (phrase) => {
+      const error = makeCopiedRetry(phrase, [
+        makeApiCallAttempt({ statusCode: 401, providerErrorCategory: 'auth', message: 'unauthorized' }),
+        makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' }),
+        makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: phrase })
+      ])
+
+      expect(classifyError(error, 'openai')).toMatchObject({
+        category: 'server',
+        i18nKey: 'error.diagnosis.server',
+        navTarget: null
+      })
+    }
+  )
+
+  it('reads a string terminal status the same way as a numeric 503', () => {
+    const byStatusCode = makeCopiedRetry('unauthorized', [
+      makeApiCallAttempt({ statusCode: '503', message: 'unauthorized' })
+    ])
+    const byStatus = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ status: '503', message: 'unauthorized' })])
+
+    expect(classifyError(byStatusCode).category).toBe('server')
+    expect(classifyError(byStatus).category).toBe('server')
+  })
+
+  it.each([
+    [500, 'server'],
+    [599, 'server'],
+    [499, 'auth'],
+    [600, 'auth']
+  ] as const)('treats terminal HTTP %i as %s when the wrapper only copied "unauthorized"', (statusCode, category) => {
+    const error = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ statusCode, message: 'unauthorized' })])
+
+    expect(classifyError(error).category).toBe(category)
+  })
+
+  it('does not let an earlier HTTP 503 override a terminal 401 or 429', () => {
+    const terminalUnauthorized = makeCopiedRetry('rate limit exceeded', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'Service Unavailable' }),
+      makeApiCallAttempt({ statusCode: 401, providerErrorCategory: 'auth', message: 'unauthorized' })
+    ])
+    const terminalRateLimit = makeCopiedRetry('too many requests', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'Service Unavailable' }),
+      makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' })
+    ])
+
+    expect(classifyError(terminalUnauthorized).category).toBe('rate_limit')
+    expect(classifyError(terminalRateLimit).category).toBe('rate_limit')
+  })
+
+  it('keeps outer status, provider category, Claude category, and finishReason ahead of a terminal 503', () => {
+    const terminalServer = [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'unauthorized' })
+    ]
+
+    expect(
+      classifyError(makeCopiedRetry('too many requests', terminalServer, { statusCode: 401 }), 'openai')
+    ).toMatchObject({
+      category: 'auth',
+      navTarget: '/settings/provider?id=openai'
+    })
+    expect(classifyError(makeCopiedRetry('too many requests', terminalServer, { status: '403' })).category).toBe(
+      'permission'
+    )
+    expect(
+      classifyError(makeCopiedRetry('unauthorized', terminalServer, { providerErrorCategory: 'quota' })).category
+    ).toBe('quota')
+    expect(
+      classifyError(makeCopiedRetry('unauthorized', terminalServer, { claudeCodeExitCategory: 'mcp' })).category
+    ).toBe('mcp')
+    expect(
+      classifyError(makeCopiedRetry('blocked by safety', terminalServer, { finishReason: 'SAFETY' })).category
+    ).toBe('content')
+  })
+
+  it('keeps an outer HTTP 503 ahead of a terminal 401 and a copied unauthorized phrase', () => {
+    const error = makeCopiedRetry('unauthorized', [makeApiCallAttempt({ statusCode: 401, message: 'unauthorized' })], {
+      statusCode: 503
+    })
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
+  it('lets a terminal HTTP 503 outrank message-only safety text', () => {
+    const error = makeCopiedRetry('blocked by safety', [
+      makeApiCallAttempt({ statusCode: 503, providerErrorCategory: 'server', message: 'blocked by safety' })
+    ])
+
+    expect(classifyError(error).category).toBe('server')
+  })
+
+  it('keeps message-only MCP, OCR, and transport categories without a terminal HTTP 5xx', () => {
+    expect(
+      classifyError(
+        makeCopiedRetry('MCP error: service unavailable', [
+          makeApiCallAttempt({ message: 'MCP error: service unavailable' })
+        ])
+      ).category
+    ).toBe('mcp')
+    expect(
+      classifyError(
+        makeCopiedRetry('OCR service unavailable', [makeApiCallAttempt({ message: 'OCR service unavailable' })])
+      ).category
+    ).toBe('ocr')
+    expect(
+      classifyError(makeCopiedRetry('fetch failed', [makeApiCallAttempt({ message: 'fetch failed' })])).category
+    ).toBe('network')
+    expect(
+      classifyError(
+        makeCopiedRetry('net::ERR_PROXY_CONNECTION_FAILED', [
+          makeApiCallAttempt({ message: 'net::ERR_PROXY_CONNECTION_FAILED' })
+        ])
+      ).category
+    ).toBe('proxy')
+  })
+
+  it('lets a terminal HTTP 503 outrank a copied MCP phrase', () => {
+    const error = makeCopiedRetry('MCP error: service unavailable', [
+      makeApiCallAttempt({
+        statusCode: 503,
+        providerErrorCategory: 'server',
+        message: 'MCP error: service unavailable'
+      })
+    ])
+
+    expect(classifyError(error).category).toBe('server')
   })
 
   it.each([
@@ -425,6 +604,16 @@ describe('classifyError', () => {
 
   it('classifies 503 as server', () => {
     const result = classifyError(makeError({ statusCode: 503 }))
+    expect(result.category).toBe('server')
+  })
+
+  it('classifies a 503 with a transport-looking message as server', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'fetch failed' }))
+    expect(result.category).toBe('server')
+  })
+
+  it('keeps a provider 503 server classification ahead of feature text', () => {
+    const result = classifyError(makeError({ statusCode: 503, message: 'MCP error: service unavailable' }))
     expect(result.category).toBe('server')
   })
 

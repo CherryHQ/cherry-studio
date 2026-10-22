@@ -48,7 +48,7 @@ import {
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
@@ -90,7 +90,7 @@ function parseDurationToMinutes(duration: string): number {
 }
 
 const CRON_DESCRIPTION =
-  "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'update' with an id to change only the supplied fields, 'list' to see this Agent's jobs, or 'remove' to delete a job. Edit existing jobs with 'update' instead of removing and re-creating them. For one-time jobs, use the 'at' field with an RFC3339 timestamp."
+  "Manage scheduled jobs: add, update, list, remove. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
 
 const CronInputSchema = z.object({
   action: z.enum(['add', 'update', 'list', 'remove']).describe('The action to perform'),
@@ -133,7 +133,7 @@ const CronInputSchema = z.object({
 type CronInput = z.output<typeof CronInputSchema>
 
 const NOTIFY_DESCRIPTION =
-  'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; DingTalk forwards non-empty files up to 20 MiB with a platform-supported filename extension; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.'
+  'Send a message or workspace file to configured IM recipients. Omit channel_id to reach all; files need file_path.'
 
 // ponytail: no root union — some providers (xAI) reject union root schemas; the handler
 // enforces "message or file_path" on the trimmed values anyway.
@@ -217,7 +217,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 }
 
 const CONFIG_DESCRIPTION =
-  "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' when onboarding is finished or the user declines it (e.g. 'no thanks', 'skip', or an equivalent phrase in their language); this disables onboarding for this agent in future sessions without requiring identity files. Use 'reset_bootstrap' only when the user explicitly asks to re-run onboarding in the next session."
+  'Inspect or change your agent config: status, rename, add/update/remove/reconnect channels, complete or reset bootstrap.'
 
 const ConfigInputSchema = z.object({
   action: z
@@ -481,6 +481,19 @@ function listSessionDeliveries(
   return { content: [{ type: 'text', text: JSON.stringify({ deliveries }) }] }
 }
 
+function resolveWorkspaceForNewSession(
+  ctx: AutonomyToolsContext,
+  targetAgentId: string | undefined
+): AgentSessionWorkspaceSource {
+  if (!targetAgentId || targetAgentId === ctx.agentId) return ctx.workspaceSource
+  // Match a human opening the target Agent: continue that Agent's own last workspace.
+  const latest = agentSessionService.getLatestActive({ agentId: targetAgentId })
+  if (!latest) return ctx.workspaceSource
+  return latest.workspace.type === AGENT_WORKSPACE_TYPE.USER
+    ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: latest.workspaceId }
+    : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+}
+
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
   const content = args.message.trim()
   const title = args.title?.trim() ?? ''
@@ -499,7 +512,7 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
     sessionName: title,
-    workspace: ctx.workspaceSource,
+    workspace: resolveWorkspaceForNewSession(ctx, targetAgentId),
     content,
     ...(targetAgentId ? { targetAgentId } : {})
   })
@@ -1150,7 +1163,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     SESSION_READ_TOOL_NAME,
     {
       description:
-        'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result. Attachments are descriptive only: their addresses and contents are omitted.',
+        'Read messages from a Chat topic, Agent Session, or temp chat. Use message_id for one message; attachments are omitted.',
       inputSchema: SessionReadInputSchema
     },
     (args) => runSessionTool(ctx, () => readSession(args))
@@ -1159,7 +1172,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     SESSION_CREATE_TOOL_NAME,
     {
       description:
-        'Create a new Session and send its first durable message. Omit target_agent_id to use the current Agent; provide it to create the Session for another Agent. The new Session inherits the current workspace policy and uses the target Agent model.',
+        "Create a Session and send its first message. Omit target_agent_id for this Agent; it inherits the current workspace. With target_agent_id, the Session uses that Agent's own most recent workspace, falling back to the current workspace when the Agent has no Session.",
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))
@@ -1176,7 +1189,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     SESSION_SEND_TOOL_NAME,
     {
       description:
-        'Send a durable message to another Cherry Agent Session. Sender agentId/sessionId are injected by the trusted runtime and cannot be supplied by the caller.',
+        'Send a durable message to another Agent Session. Sender identity is injected by the runtime and cannot be set.',
       inputSchema: SessionSendInputSchema
     },
     (args) => runSessionTool(ctx, () => sendSessionMessage(ctx, args))
