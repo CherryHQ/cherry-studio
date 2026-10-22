@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "篩選模型",
   "settings.models.filter.scroll_left": "向左捲動模型類型",
   "settings.models.filter.scroll_right": "向右捲動模型類型",
+  "settings.models.include_reasoning_in_context.label": "在上下文中包含思考內容",
+  "settings.models.include_reasoning_in_context.tooltip": "將歷史思考鏈傳送給模型。關閉可減少 token 消耗。當模型的 API 要求回傳帶簽名的思考內容時會始終保留（Anthropic 或 Gemini 原生端點，包括 Vertex、Bedrock 及閘道路由）",
   "settings.models.list_title": "模型",
   "settings.models.manage.add_listed.label": "新增全部模型",
   "settings.models.manage.add_partial_failure": "部分成功：{{added}} 筆新增成功，{{failed}} 筆失敗",

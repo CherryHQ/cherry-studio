@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "Filtrer les modèles",
   "settings.models.filter.scroll_left": "Faire défiler les types de modèles vers la gauche",
   "settings.models.filter.scroll_right": "Faire défiler les types de modèles vers la droite",
+  "settings.models.include_reasoning_in_context.label": "Inclure le raisonnement dans le contexte",
+  "settings.models.include_reasoning_in_context.tooltip": "Envoyer la chaîne de pensée précédente au modèle. Désactivez pour réduire la consommation de tokens. Le raisonnement est toujours conservé lorsque l'API du modèle exige des allers-retours de raisonnement signés (endpoints natifs Anthropic ou Gemini, y compris Vertex, Bedrock et les routes de passerelle)",
   "settings.models.list_title": "Modèles",
   "settings.models.manage.add_listed.label": "Ajouter tous les modèles",
   "settings.models.manage.add_partial_failure": "Succès partiel : {{added}} ajoutés, {{failed}} échoués",

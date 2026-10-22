@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "Modelleri filtrele",
   "settings.models.filter.scroll_left": "Model türlerini sola kaydır",
   "settings.models.filter.scroll_right": "Model türlerini sağa kaydır",
+  "settings.models.include_reasoning_in_context.label": "Akıl yürütmeyi bağlama dahil et",
+  "settings.models.include_reasoning_in_context.tooltip": "Önceki düşünce zincirini modele gönder. Token kullanımını azaltmak için kapat. Modelin API'si imzalı akıl yürütme gidiş-dönüşleri gerektirdiğinde (Anthropic veya Gemini yerel uç noktaları; Vertex, Bedrock ve ağ geçidi rotaları dahil) akıl yürütme her zaman korunur",
   "settings.models.list_title": "Modeller",
   "settings.models.manage.add_listed.label": "Tüm modelleri ekle",
   "settings.models.manage.add_partial_failure": "Kısmen başarılı: {{added}} eklendi, {{failed}} başarısız oldu",

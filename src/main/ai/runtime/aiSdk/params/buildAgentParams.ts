@@ -327,13 +327,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : undefined
 
   // Stripping historical chain-of-thought is a per-model opt-out, chat-only (caller-owned
-  // histories are excluded), and never applied when the resolved protocol/adapter requires
+  // histories are excluded), and never applied when the normalized wire protocol/adapter requires
   // signed reasoning round-trips (Anthropic thinking blocks, Gemini thought signatures).
   const stripHistoryReasoning =
     request.callOverrides == null &&
     request.contextOwner !== 'caller' &&
     !(model.includeReasoningInContext ?? true) &&
-    !requiresSignedReasoningRoundTrip(endpointType, runtimeProviderId)
+    !requiresSignedReasoningRoundTrip(reasoningEndpointType, runtimeProviderId)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),

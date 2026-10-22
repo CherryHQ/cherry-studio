@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "Lọc mô hình",
   "settings.models.filter.scroll_left": "Cuộn loại mô hình sang trái",
   "settings.models.filter.scroll_right": "Cuộn loại mô hình sang phải",
+  "settings.models.include_reasoning_in_context.label": "Bao gồm suy luận trong ngữ cảnh",
+  "settings.models.include_reasoning_in_context.tooltip": "Gửi chuỗi suy nghĩ trước đó đến mô hình. Tắt để giảm mức sử dụng token. Suy luận luôn được giữ lại khi API của mô hình yêu cầu các lượt suy luận có chữ ký (endpoint gốc của Anthropic hoặc Gemini, bao gồm Vertex, Bedrock và các tuyến gateway)",
   "settings.models.list_title": "Mô hình",
   "settings.models.manage.add_listed.label": "Thêm tất cả mô hình",
   "settings.models.manage.add_partial_failure": "Thành công một phần: {{added}} đã được thêm, {{failed}} thất bại",

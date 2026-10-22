@@ -194,9 +194,9 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
 }
 
 /**
- * Drop persisted `reasoning` parts (prior chain-of-thought) from the history before
- * conversion. Providers never need another turn's draft reasoning to answer, so this
- * saves a large amount of input tokens on long conversations.
+ * Drop persisted `reasoning` parts (prior chain-of-thought) from completed history
+ * before conversion. An assistant turn with an approval-responded tool call is still
+ * being continued, so its reasoning must round-trip for providers such as DeepSeek.
  *
  * Only safe for providers that do NOT require reasoning to be round-tripped — callers
  * must not enable this for Anthropic (signed thinking blocks) or Gemini (thought
@@ -207,6 +207,10 @@ export function stripHistoryReasoning(messages: UIMessage[]): UIMessage[] {
   let changed = false
   const out = messages.map((message) => {
     if (message.role !== 'assistant' || !Array.isArray(message.parts)) return message
+    const isApprovalContinuation = message.parts.some(
+      (part) => part.type.startsWith('tool-') && 'state' in part && part.state === 'approval-responded'
+    )
+    if (isApprovalContinuation) return message
     const parts = message.parts.filter((part) => part.type !== 'reasoning')
     if (parts.length === message.parts.length) return message
     changed = true

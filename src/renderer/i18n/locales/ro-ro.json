@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "Filtrează modelele",
   "settings.models.filter.scroll_left": "Derulează tipurile de modele spre stânga",
   "settings.models.filter.scroll_right": "Derulează tipurile de modele spre dreapta",
+  "settings.models.include_reasoning_in_context.label": "Include raționamentul în context",
+  "settings.models.include_reasoning_in_context.tooltip": "Trimite lanțul de gândire anterior către model. Dezactivează pentru a reduce consumul de tokenuri. Raționamentul este întotdeauna păstrat atunci când API-ul modelului necesită round-trip-uri de raționament semnate (endpointuri native Anthropic sau Gemini, inclusiv Vertex, Bedrock și rute gateway)",
   "settings.models.list_title": "Modele",
   "settings.models.manage.add_listed.label": "Adaugă toate modelele",
   "settings.models.manage.add_partial_failure": "Succes parțial: {{added}} adăugate, {{failed}} eșuate",

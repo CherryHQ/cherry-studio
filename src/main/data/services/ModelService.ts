@@ -174,6 +174,7 @@ export interface UserModelOverlay {
   outputModalities?: Modality[] | null
   endpointTypes?: EndpointType[] | null
   contextWindow?: number | null
+  includeReasoningInContext?: boolean | null
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
   supportsStreaming?: boolean | null
@@ -215,6 +216,9 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   }
   if (overlay.contextWindow != null) {
     result.contextWindow = overlay.contextWindow
+  }
+  if (overlay.includeReasoningInContext != null) {
+    result.includeReasoningInContext = overlay.includeReasoningInContext
   }
   if (overlay.maxInputTokens != null) {
     result.maxInputTokens = overlay.maxInputTokens
@@ -410,6 +414,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     outputModalities: row.outputModalities,
     endpointTypes: row.endpointTypes,
     contextWindow: row.contextWindow,
+    includeReasoningInContext: row.includeReasoningInContext,
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,

@@ -489,6 +489,47 @@ describe('toModelMessages', () => {
     ])
   })
 
+  it('preserves reasoning needed by an approval continuation while stripping completed history', async () => {
+    const model = await toModelMessages(
+      [
+        ui('user', [{ type: 'text', text: 'old question' }], 'u1'),
+        ui(
+          'assistant',
+          [
+            { type: 'reasoning', text: 'completed reasoning to strip' },
+            { type: 'text', text: 'old answer' }
+          ],
+          'a1'
+        ),
+        ui('user', [{ type: 'text', text: 'run the tool' }], 'u2'),
+        ui(
+          'assistant',
+          [
+            { type: 'reasoning', text: 'reasoning required for continuation' },
+            { type: 'text', text: 'let me call a tool' },
+            {
+              type: 'tool-fetch_url',
+              toolCallId: 'call-1',
+              state: 'approval-responded',
+              input: { url: 'https://example.com' },
+              approval: { id: 'approval-1', approved: true }
+            }
+          ],
+          'a2'
+        )
+      ],
+      undefined,
+      { fetch_url: tool({ inputSchema: z.object({ url: z.string() }) }) },
+      undefined,
+      { stripReasoning: true }
+    )
+
+    const serialized = JSON.stringify(model)
+    expect(serialized).toContain('reasoning required for continuation')
+    expect(serialized).toContain('call-1')
+    expect(serialized).not.toContain('completed reasoning to strip')
+  })
+
   it('keeps historical reasoning parts by default', async () => {
     const model = await toModelMessages([
       ui('user', [{ type: 'text', text: 'Q' }], 'u1'),

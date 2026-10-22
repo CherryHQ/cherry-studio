@@ -2185,7 +2185,12 @@ describe('buildAgentParams stripHistoryReasoning gate', () => {
       config: { providerId: runtimeProviderId, providerSettings: {} },
       credentialReceipt: { attribution: 'unknown' }
     })
-    const result = await buildAgentParams({ request: { conversation: CONVERSATION }, signal: undefined, provider, model })
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model
+    })
     return result.stripHistoryReasoning
   }
 
@@ -2208,6 +2213,23 @@ describe('buildAgentParams stripHistoryReasoning gate', () => {
     })
 
     await expect(buildFor(provider, makeModel(), 'openai-chat')).resolves.toBe(false)
+  })
+
+  it('strips for Vertex MaaS using the normalized OpenAI-compatible wire protocol', async () => {
+    const provider = makeProvider({
+      id: 'vertex',
+      authType: 'iam-gcp',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' } }
+    })
+    const model = makeModel({
+      id: 'vertex::openai/gpt-oss-120b-maas',
+      providerId: 'vertex',
+      apiModelId: 'openai/gpt-oss-120b-maas',
+      includeReasoningInContext: false
+    })
+
+    await expect(buildFor(provider, model, 'google-vertex-maas')).resolves.toBe(true)
   })
 
   it('exempts Vertex Gemini — resolved protocol signs reasoning even though provider identity is not "gemini"', async () => {

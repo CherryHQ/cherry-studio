@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "กรองโมเดล",
   "settings.models.filter.scroll_left": "เลื่อนประเภทโมเดลไปซ้าย",
   "settings.models.filter.scroll_right": "เลื่อนประเภทโมเดลไปขวา",
+  "settings.models.include_reasoning_in_context.label": "รวมเหตุผล (Reasoning) ไว้ในบริบท",
+  "settings.models.include_reasoning_in_context.tooltip": "ส่งห่วงโซ่ความคิดก่อนหน้าไปยังโมเดล ปิดเพื่อลดการใช้โทเคน ระบบจะเก็บเหตุผลไว้เสมอเมื่อ API ของโมเดลต้องการการส่งเหตุผลแบบลงลายมือชื่อ (เอนด์พอยต์เนทีฟของ Anthropic หรือ Gemini รวมถึง Vertex, Bedrock และเส้นทางเกตเวย์)",
   "settings.models.list_title": "โมเดล",
   "settings.models.manage.add_listed.label": "เพิ่มโมเดลทั้งหมด",
   "settings.models.manage.add_partial_failure": "สำเร็จบางส่วน: เพิ่ม {{added}} โมเดล, ล้มเหลว {{failed}}",

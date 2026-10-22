@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "Фильтровать модели",
   "settings.models.filter.scroll_left": "Прокрутить типы моделей влево",
   "settings.models.filter.scroll_right": "Прокрутить типы моделей вправо",
+  "settings.models.include_reasoning_in_context.label": "Включать рассуждения в контекст",
+  "settings.models.include_reasoning_in_context.tooltip": "Отправлять предыдущую цепочку рассуждений модели. Отключите, чтобы сократить расход токенов. Рассуждения всегда сохраняются, если API модели требует подписанные раунды рассуждений (нативные эндпоинты Anthropic или Gemini, включая Vertex, Bedrock и маршруты через шлюз)",
   "settings.models.list_title": "Модели",
   "settings.models.manage.add_listed.label": "Добавить все модели",
   "settings.models.manage.add_partial_failure": "Частичный успех: {{added}} добавлено, {{failed}} не удалось",

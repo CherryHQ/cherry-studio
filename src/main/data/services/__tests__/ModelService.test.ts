@@ -297,6 +297,20 @@ describe('ModelService.update', () => {
     expect(row.name).toBe('Updated Name')
   })
 
+  it('preserves the reasoning opt-out through preset update and read round trips', async () => {
+    await seedExistingModel()
+    resolveModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o', includeReasoningInContext: true },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const updated = modelService.update('openai', 'gpt-4o', { includeReasoningInContext: false })
+
+    expect(updated.includeReasoningInContext).toBe(false)
+    expect(modelService.getByKey('openai', 'gpt-4o').includeReasoningInContext).toBe(false)
+  })
+
   it('removes an override when a PATCH echoes the current registry baseline', async () => {
     await seedExistingModel()
     await dbh.db.update(userModelTable).set({ name: 'My GPT-4o' }).where(eq(userModelTable.id, 'openai::gpt-4o'))

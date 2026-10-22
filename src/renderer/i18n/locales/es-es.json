@@ -4978,6 +4978,8 @@
   "settings.models.filter.label": "Filtrar modelos",
   "settings.models.filter.scroll_left": "Desplazar los tipos de modelo a la izquierda",
   "settings.models.filter.scroll_right": "Desplazar los tipos de modelo a la derecha",
+  "settings.models.include_reasoning_in_context.label": "Incluir razonamiento en el contexto",
+  "settings.models.include_reasoning_in_context.tooltip": "Enviar la cadena de pensamiento previa al modelo. Desactívalo para reducir el uso de tokens. El razonamiento siempre se conserva cuando la API del modelo requiere razonamiento firmado de ida y vuelta (endpoints nativos de Anthropic o Gemini, incluidos Vertex, Bedrock y rutas de gateway)",
   "settings.models.list_title": "Modelos",
   "settings.models.manage.add_listed.label": "Añadir todos los modelos",
   "settings.models.manage.add_partial_failure": "Éxito parcial: {{added}} añadidos, {{failed}} fallidos",
