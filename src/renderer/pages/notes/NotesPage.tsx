@@ -303,8 +303,12 @@ const NotesPage: FC = () => {
       if (!notesPath) {
         // An empty synced pref must not bypass this PC's stamped choice:
         // resolve through the device sidecar first (falls back to default).
-        const resolved = await resolveNotesPath('')
-        updateNotesPath(resolved.path)
+        try {
+          const resolved = await resolveNotesPath('')
+          updateNotesPath(resolved.path)
+        } catch (error) {
+          logger.error('Failed to resolve notes path on startup:', error as Error)
+        }
         return
       }
 
