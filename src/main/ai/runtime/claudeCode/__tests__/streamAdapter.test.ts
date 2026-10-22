@@ -740,6 +740,38 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(reasoning).toBe(monologue)
     })
 
+    it('flushes the unstreamed suffix when a partial reasoning stream fails and the fallback completes', () => {
+      const { adapter, parts } = createAdapter()
+      const head = monologue.slice(0, 20)
+
+      // The stream dies after a reasoning prefix; the SDK's complete nonstreaming fallback
+      // delivers the full thinking snapshot under the same message id, with no further deltas.
+      adapter.handleMessage(streamEvent({ type: 'message_start', message: { id: 'msg_1' } }))
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: head } })
+      )
+      adapter.handleMessage(
+        assistant([
+          { type: 'thinking', thinking: monologue, signature: '' },
+          { type: 'text', text: monologue }
+        ])
+      )
+      adapter.handleMessage(successResult())
+
+      // One reasoning part carries the full snapshot: the streamed prefix, then the suffix
+      // flushed at completion. The identical text copy stays suppressed.
+      expect(parts.filter((part) => part.type === 'reasoning-start')).toHaveLength(1)
+      const reasoning = parts
+        .filter((part: any) => part.type === 'reasoning-delta')
+        .map((part: any) => part.delta)
+        .join('')
+      expect(reasoning).toBe(monologue)
+      expect(parts.some((part) => part.type.startsWith('text-'))).toBe(false)
+    })
+
     it('keeps text that differs from the reasoning, belongs to another message, or has a parent tool', () => {
       const { adapter, parts } = createAdapter()
 

@@ -152,6 +152,11 @@ type StreamContext = {
   reasoningBuffers: Map<string, string>
   /** Completed reasoning texts per Anthropic message id, used to drop a parentless text copy of them. */
   reasoningTextsByMessageId: Map<string, Set<string>>
+  /**
+   * Whole fallback thinking snapshots retained against the open part still streaming their prefix.
+   * Reconciled at completion, when the stream has had its last chance to deliver the suffix itself.
+   */
+  pendingReasoningSnapshots: Map<string, string>
 }
 
 /**
@@ -557,7 +562,8 @@ export class ClaudeCodeStreamAdapter {
       textStreamedViaContentBlock: false,
       streamMessageId: '',
       reasoningBuffers: new Map(),
-      reasoningTextsByMessageId: new Map()
+      reasoningTextsByMessageId: new Map(),
+      pendingReasoningSnapshots: new Map()
     }
   }
 
@@ -1073,7 +1079,14 @@ export class ClaudeCodeStreamAdapter {
       if (block.type === 'thinking') {
         // A fallback snapshot arrives whole after a failed stream, so this reasoning may never
         // have streamed. Emit it once before the text copy below can be suppressed as a duplicate.
-        if (!this.wasReasoningStreamed(ctx, messageId, block.thinking)) {
+        const partialReasoning = this.findPartiallyStreamedReasoning(ctx, block.thinking)
+        if (partialReasoning) {
+          // Partial streaming failure with an SDK nonstreaming fallback: the stream carries only a
+          // prefix of this snapshot. It may still deliver the rest itself (snapshot-before-stop),
+          // so retain the snapshot and flush any undelivered suffix at completion - skipping here
+          // would strand the suffix once the text copy below is suppressed.
+          ctx.pendingReasoningSnapshots.set(partialReasoning.partId, block.thinking)
+        } else if (!this.wasReasoningStreamed(ctx, messageId, block.thinking)) {
           const reasoningPartId = generateId()
           const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
           ctx.sink.enqueue({
@@ -1141,6 +1154,21 @@ export class ClaudeCodeStreamAdapter {
       if (open && normalized.startsWith(open)) return true
     }
     return false
+  }
+
+  /**
+   * The open reasoning part whose streamed buffer is a proper prefix of this snapshot: the stream
+   * failed mid-reasoning and the SDK's complete fallback carries the rest. Raw-string comparison
+   * keeps the suffix slice exact; a whitespace-mangled prefix stays on the skip path.
+   */
+  private findPartiallyStreamedReasoning(ctx: StreamContext, reasoning: string | undefined): { partId: string } | null {
+    if (!reasoning) return null
+    for (const [partId, buffered] of ctx.reasoningBuffers) {
+      if (buffered && reasoning.length > buffered.length && reasoning.startsWith(buffered)) {
+        return { partId }
+      }
+    }
+    return null
   }
 
   private isReasoningCopy(ctx: StreamContext, messageId: string, text: string): boolean {
@@ -1343,7 +1371,26 @@ export class ClaudeCodeStreamAdapter {
     ctx.toolResultsEmitted.add(result.tool_use_id)
   }
 
+  /**
+   * Retained fallback snapshots are reconciled at completion: the stream has had its last chance
+   * to deliver the suffix itself, so whatever never streamed is flushed onto the matching open
+   * part. Reasoning the stream did deliver (buffer grown to the snapshot, or part already closed)
+   * is left untouched.
+   */
+  private reconcilePendingReasoningSnapshots(ctx: StreamContext): void {
+    for (const [partId, snapshot] of ctx.pendingReasoningSnapshots) {
+      const buffered = ctx.reasoningBuffers.get(partId)
+      if (buffered === undefined) continue
+      if (snapshot.length > buffered.length && snapshot.startsWith(buffered)) {
+        ctx.sink.enqueue({ type: 'reasoning-delta', id: partId, delta: snapshot.slice(buffered.length) })
+        ctx.reasoningBuffers.set(partId, snapshot)
+      }
+    }
+    ctx.pendingReasoningSnapshots.clear()
+  }
+
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
+    this.reconcilePendingReasoningSnapshots(ctx)
     const finalUsage = convertClaudeCodeUsage(message.usage)
     ctx.usage = {
       ...finalUsage,
