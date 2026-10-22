@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { CommandHint } from '@renderer/components/command'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 
@@ -731,10 +732,22 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
 
 type ErrorStateProps = ComponentProps<'div'> & {
   message?: ReactNode
+  error?: unknown
+  source?: string
+  operation?: string
   ref?: Ref<HTMLDivElement>
 }
 
-function ErrorState({ className, message, ref, children, ...props }: ErrorStateProps) {
+function ErrorState({
+  className,
+  message,
+  error,
+  source = 'resource-list',
+  operation = 'resource.load',
+  ref,
+  children,
+  ...props
+}: ErrorStateProps) {
   const { t } = useTranslation()
 
   return (
@@ -747,6 +760,16 @@ function ErrorState({ className, message, ref, children, ...props }: ErrorStateP
       )}
       {...props}>
       {message ?? children ?? t('error.boundary.default.message')}
+      {error !== undefined ? (
+        <div className="mt-2">
+          <ErrorDetailAction
+            error={error}
+            message={typeof message === 'string' ? message : undefined}
+            source={source}
+            operation={operation}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

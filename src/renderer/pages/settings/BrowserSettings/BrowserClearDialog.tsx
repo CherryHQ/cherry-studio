@@ -13,6 +13,7 @@ import {
   DialogTitle,
   Label
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
 
 const categories = [
@@ -49,11 +50,11 @@ function BrowserClearContent({
 }) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState({ history: false, site_data: false, cache: true })
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<unknown>(null)
 
   const clear = async () => {
     setBusy(true)
-    setError(false)
+    setError(null)
     try {
       for (const { kind } of categories) {
         if (!selected[kind]) continue
@@ -61,8 +62,8 @@ function BrowserClearContent({
         setSelected((current) => ({ ...current, [kind]: false }))
       }
       onDone()
-    } catch {
-      setError(true)
+    } catch (caught) {
+      setError(caught)
     } finally {
       setBusy(false)
     }
@@ -93,11 +94,19 @@ function BrowserClearContent({
           </div>
         ))}
       </div>
-      {error && (
-        <p role="alert" className="text-error text-sm">
-          {t('settings.browser.clearError')}
-        </p>
-      )}
+      {error ? (
+        <div className="flex items-center gap-2">
+          <p role="alert" className="text-error text-sm">
+            {t('settings.browser.clearError')}
+          </p>
+          <ErrorDetailAction
+            error={error}
+            message={t('settings.browser.clearError')}
+            source="settings.browser"
+            operation="browser.clear"
+          />
+        </div>
+      ) : null}
       <DialogFooter>
         <DialogClose asChild>
           <Button variant="outline" disabled={busy}>

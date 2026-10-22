@@ -8,6 +8,7 @@ import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 
 import type { FilePreviewPluginProps } from '../../types'
@@ -64,17 +65,21 @@ function TextPreviewTooLarge() {
   )
 }
 
-function TextPreviewError() {
+function TextPreviewError({ error }: { error: Error }) {
   const { t } = useTranslation()
+  const description = t('file_preview.load_error.description')
 
   return (
-    <div role="alert" className="h-full">
+    <div role="alert" className="flex h-full flex-col">
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.text.read_error.title')}
-        description={t('file_preview.load_error.description')}
-        className="h-full"
+        description={description}
+        className="min-h-0 flex-1"
       />
+      <div className="flex justify-center pb-4">
+        <ErrorDetailAction error={error} message={description} source="file.preview" operation="file.preview.read" />
+      </div>
     </div>
   )
 }
@@ -88,7 +93,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
-  if (loadState.status === 'error') return <TextPreviewError />
+  if (loadState.status === 'error') return <TextPreviewError error={loadState.error} />
 
   return (
     <div className="flex min-h-full w-full">

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { OutputFor } from '@shared/ipc/types'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 vi.unmock('@cherrystudio/ui')
@@ -24,7 +25,8 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: mocks.toastError, success: mocks.toastSuccess }
+  toast: { error: mocks.toastError, success: mocks.toastSuccess },
+  toastInlineError: (message: string) => mocks.toastError({ title: message, data: { suppressDetail: true } })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -337,10 +339,111 @@ describe('DiagnosticBundlePanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.contact' }))
     const copyButton = await screen.findByRole('button', { name: 'settings.about.diagnostics.actions.copy_email' })
-    expect(mocks.toastError).toHaveBeenCalledWith('settings.about.diagnostics.errors.email_client_failed')
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.about.diagnostics.errors.email_client_failed')
+    expect(mocks.toastError).not.toHaveBeenCalled()
 
     await user.click(copyButton)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith('support@cherry-ai.com'))
     expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.about.diagnostics.success.email_copied')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps the saved bundle when revealing it or copying the support email fails', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('clipboard unavailable'))
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.export') return savedResult
+      if (route === 'file.show_in_folder') throw new Error('reveal failed')
+      if (route === 'system.shell.open_website') throw new Error('No mail client')
+      return undefined
+    })
+    renderPanel()
+    await screen.findByText('settings.about.diagnostics.sources.logs.title')
+    await confirmSensitiveExport(user)
+    await screen.findByText('settings.about.diagnostics.success.title')
+
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.reveal' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.about.diagnostics.errors.reveal_failed')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(screen.getByText('cherry-studio-diagnostics.zip')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.reveal' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.contact' }))
+    const copyButton = await screen.findByRole('button', { name: 'settings.about.diagnostics.actions.copy_email' })
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.about.diagnostics.errors.email_client_failed')
+
+    await user.click(copyButton)
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.about.diagnostics.errors.copy_failed')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(screen.getByText('cherry-studio-diagnostics.zip')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.copy_email' })).toBeEnabled()
+  })
+
+  it('keeps export available when another bundle operation is already in progress', async () => {
+    const user = userEvent.setup()
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.export') return { status: 'busy' }
+      return undefined
+    })
+    renderPanel()
+    await screen.findByText('settings.about.diagnostics.sources.logs.title')
+    await confirmSensitiveExport(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.about.diagnostics.errors.busy')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(screen.queryByText('settings.about.diagnostics.success.title')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' })).toBeEnabled()
+  })
+
+  it('discloses the included AI result and retries export with the first snapshot', async () => {
+    const first: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'First conclusion.'
+    }
+    const replacement: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'Replacement conclusion.'
+    }
+    let attempts = 0
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.export') {
+        attempts += 1
+        if (attempts === 1) throw new Error('export failed')
+        return savedResult
+      }
+      return undefined
+    })
+    const user = userEvent.setup()
+    const view = render(<DiagnosticBundlePanel aiDiagnosis={first} appVersion="2.0.0" onClose={vi.fn()} />)
+
+    expect(await screen.findByText('settings.about.diagnostics.report.ai_diagnosis_included')).toBeInTheDocument()
+    await screen.findByText('settings.about.diagnostics.sources.logs.title')
+    await user.click(screen.getByRole('switch', { name: logsSwitchName }))
+    await user.click(screen.getByRole('switch', { name: tracesSwitchName }))
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
+    await waitFor(() => expect(attempts).toBe(1))
+
+    view.rerender(<DiagnosticBundlePanel aiDiagnosis={replacement} appVersion="2.0.0" onClose={vi.fn()} />)
+    expect(screen.getByText('settings.about.diagnostics.report.ai_diagnosis_included')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
+    await waitFor(() => expect(attempts).toBe(2))
+
+    const exports = mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')
+    expect(exports).toHaveLength(2)
+    expect(exports[0]?.[1]).toEqual(
+      expect.objectContaining({
+        aiDiagnosis: first,
+        includeChatRecords: false,
+        includeLogs: false,
+        includeTraces: false,
+        range: '24h'
+      })
+    )
+    expect(exports[1]?.[1]).toEqual(expect.objectContaining({ aiDiagnosis: first }))
   })
 })

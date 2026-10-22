@@ -11,6 +11,8 @@ import { formatDiagnosticBytes } from '@renderer/utils/diagnosticSourceSummary'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
+import type { AppErrorContext } from '@shared/types/appError'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import {
@@ -28,7 +30,9 @@ type ExportState =
   | { readonly result: SavedResult; readonly status: 'saved' }
 
 interface DiagnosticBundlePanelProps {
+  readonly aiDiagnosis?: DiagnosticAiDiagnosis
   readonly appVersion: string
+  readonly errorContext?: AppErrorContext
   readonly onBusyChange?: (busy: boolean) => void
   readonly onClose: () => void
 }
@@ -41,11 +45,19 @@ function isDestinationConflictError(error: unknown): boolean {
   )
 }
 
-const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onBusyChange, onClose }) => {
+const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({
+  aiDiagnosis,
+  appVersion,
+  errorContext,
+  onBusyChange,
+  onClose
+}) => {
   const { t } = useTranslation()
+  const [attachedDiagnosis] = useState(aiDiagnosis)
   const [consent, setConsent] = useState(false)
   const sourceSelection = useDiagnosticSourceSelection(() => setConsent(false))
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [copyEmailFallback, setCopyEmailFallback] = useState(false)
   const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
   const revealButtonRef = useRef<HTMLButtonElement>(null)
@@ -91,13 +103,16 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
   const performExport = async () => {
     if (!canExport) return
     if (includesSensitiveData) setConsent(false)
+    setActionError(null)
     setExportState({ status: 'saving' })
     try {
       const result = await ipcApi.request('diagnostics.bundle.export', {
         includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
-        range
+        range,
+        ...(errorContext ? { errorContext } : {}),
+        ...(attachedDiagnosis ? { aiDiagnosis: attachedDiagnosis } : {})
       })
       if (result.status === 'canceled') {
         setExportState({ status: 'idle' })
@@ -105,14 +120,14 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
       }
       if (result.status === 'busy') {
         setExportState({ status: 'idle' })
-        toast.error(t('settings.about.diagnostics.errors.busy'))
+        setActionError(t('settings.about.diagnostics.errors.busy'))
         return
       }
       setExportState({ result, status: 'saved' })
     } catch (error) {
       logger.error('Failed to export diagnostic bundle', error as Error)
       setExportState({ status: 'idle' })
-      toast.error(
+      setActionError(
         t(
           isDestinationConflictError(error)
             ? 'settings.about.diagnostics.errors.destination_conflict'
@@ -145,20 +160,22 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
 
   const handleReveal = async () => {
     if (!savedResult) return
+    setActionError(null)
     try {
       await ipcApi.request('file.show_in_folder', createFilePathHandle(savedResult.filePath))
     } catch (error) {
       logger.error('Failed to reveal diagnostic bundle', error as Error)
-      toast.error(t('settings.about.diagnostics.errors.reveal_failed'))
+      setActionError(t('settings.about.diagnostics.errors.reveal_failed'))
     }
   }
 
   const copySupportEmail = async () => {
+    setActionError(null)
     try {
       await navigator.clipboard.writeText(SUPPORT_EMAIL)
       toast.success(t('settings.about.diagnostics.success.email_copied'))
     } catch {
-      toast.error(t('settings.about.diagnostics.errors.copy_failed'))
+      setActionError(t('settings.about.diagnostics.errors.copy_failed'))
     }
   }
 
@@ -174,19 +191,25 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
         version: appVersion || t('settings.about.diagnostics.unknown')
       })
     })
+    setActionError(null)
     try {
       const query = params.toString().replaceAll('+', '%20')
       await ipcApi.request('system.shell.open_website', `mailto:${SUPPORT_EMAIL}?${query}`)
     } catch (error) {
       logger.error('Failed to open support email client', error as Error)
       setCopyEmailFallback(true)
-      toast.error(t('settings.about.diagnostics.errors.email_client_failed'))
+      setActionError(t('settings.about.diagnostics.errors.email_client_failed'))
     }
   }
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
+        {attachedDiagnosis ? (
+          <p className="text-muted-foreground mb-4 text-sm">
+            {t('settings.about.diagnostics.report.ai_diagnosis_included')}
+          </p>
+        ) : null}
         {status === 'saved' && savedResult ? (
           <div className="space-y-4">
             <div className="border-success-border bg-success-subtle flex gap-3 rounded-xl border p-4">
@@ -217,6 +240,11 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
         )}
       </Scrollbar>
 
+      {actionError ? (
+        <p role="alert" className="text-error px-6 pt-3 text-xs">
+          {actionError}
+        </p>
+      ) : null}
       <DialogFooter className="mt-4 border-t border-border px-6 py-4">
         {status === 'saved' ? (
           <>

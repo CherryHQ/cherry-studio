@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
@@ -96,7 +97,9 @@ export default function AddModelFormPanel({
   const [inputModalitiesTouched, setInputModalitiesTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitFailure, setSubmitFailure] = useState<
+    { kind: 'validation'; message: string } | { kind: 'operation'; message: string; error: unknown } | null
+  >(null)
   const submitInFlightRef = useRef(false)
   const modelIdInputRef = useRef<HTMLInputElement>(null)
 
@@ -114,7 +117,7 @@ export default function AddModelFormPanel({
     setEndpointTypeTouched(false)
     setInputModalitiesTouched(false)
     setShowMoreSettings(false)
-    setSubmitError(null)
+    setSubmitFailure(null)
   }, [defaultChatEndpoint, prefill])
 
   const handleModelIdChange = useCallback(
@@ -129,7 +132,7 @@ export default function AddModelFormPanel({
         name: value,
         group: getDefaultGroupName(value, provider.id)
       }))
-      setSubmitError(null)
+      setSubmitFailure(null)
       if (value.trim()) {
         setModelIdTouched(false)
       }
@@ -146,7 +149,7 @@ export default function AddModelFormPanel({
       const modelId = values.modelId.trim()
 
       if (models.some((model) => model.id.endsWith(`::${modelId}`))) {
-        setSubmitError(t('error.model.exists'))
+        setSubmitFailure({ kind: 'validation', message: t('error.model.exists') })
         return null
       }
 
@@ -229,7 +232,7 @@ export default function AddModelFormPanel({
 
     submitInFlightRef.current = true
     setIsSubmitting(true)
-    setSubmitError(null)
+    setSubmitFailure(null)
 
     try {
       if (normalizedId.includes(',')) {
@@ -263,8 +266,8 @@ export default function AddModelFormPanel({
       if (addedModelId) {
         onSuccess([addedModelId])
       }
-    } catch {
-      setSubmitError(t('settings.models.manage.operation_failed'))
+    } catch (cause) {
+      setSubmitFailure({ kind: 'operation', error: cause, message: t('settings.models.manage.operation_failed') })
     } finally {
       submitInFlightRef.current = false
       setIsSubmitting(false)
@@ -404,11 +407,20 @@ export default function AddModelFormPanel({
         </div>
       </ProviderSection>
 
-      {submitError && (
+      {submitFailure && (
         <div
           role="alert"
-          className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
-          {submitError}
+          className="flex flex-wrap items-center gap-2 rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
+          <span>{submitFailure.message}</span>
+          {submitFailure.kind === 'operation' && (
+            <ErrorDetailAction
+              error={submitFailure.error}
+              message={submitFailure.message}
+              operation="model.add"
+              recordId={providerId}
+              source="settings.models"
+            />
+          )}
         </div>
       )}
 

@@ -19,6 +19,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
 import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
 
@@ -80,7 +81,7 @@ function BrowserImportContent({
   const [sourceId, setSourceId] = useState('')
   const [loading, setLoading] = useState(true)
   const [scan, setScan] = useState(0)
-  const [error, setError] = useState(false)
+  const [fault, setFault] = useState<unknown>(null)
   const [history, setHistory] = useState(true)
   const [siteData, setSiteData] = useState(false)
   const [result, setResult] = useState<BrowserImportResult>()
@@ -93,12 +94,12 @@ function BrowserImportContent({
     setSourceId(item?.id ?? 'file')
     setHistory(item?.history ?? false)
     setSiteData(!item || item.cookies !== 'unavailable')
-    setError(false)
+    setFault(null)
   }
   useEffect(() => {
     let active = true
     setLoading(true)
-    setError(false)
+    setFault(null)
     ipcApi
       .request('browser.import.sources')
       .then((items) => {
@@ -106,8 +107,8 @@ function BrowserImportContent({
         setSources(items)
         selectSource(items[0])
       })
-      .catch(() => {
-        if (active) setError(true)
+      .catch((cause: unknown) => {
+        if (active) setFault(cause)
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -119,7 +120,7 @@ function BrowserImportContent({
 
   const importData = async () => {
     setBusy(true)
-    setError(false)
+    setFault(null)
     try {
       const imported = await ipcApi.request('browser.import.run', {
         sourceId: file ? undefined : sourceId,
@@ -137,8 +138,8 @@ function BrowserImportContent({
         )
       )
         setResult(imported)
-    } catch {
-      setError(true)
+    } catch (cause) {
+      setFault(cause)
     } finally {
       setBusy(false)
     }
@@ -320,15 +321,21 @@ function BrowserImportContent({
           )}
         </div>
       )}
-      {error && (
-        <p role="alert" className="text-error text-sm">
-          {t('settings.browser.error')}
+      {fault != null && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-error text-sm">
+          <span>{t('settings.browser.error')}</span>
+          <ErrorDetailAction
+            error={fault}
+            message={t('settings.browser.error')}
+            operation={sourceId ? 'browser.import.run' : 'browser.import.sources'}
+            source="settings.browser"
+          />
           {!sourceId && (
             <Button variant="ghost" onClick={() => setScan((value) => value + 1)}>
               {t('common.refresh')}
             </Button>
           )}
-        </p>
+        </div>
       )}
       <DialogFooter>
         {result ? (

@@ -90,6 +90,13 @@ export interface ConfirmPopupProps {
    * `() => triggerButton.focus()`. Omit to keep Radix's default.
    */
   focusOnClose?: () => void
+  /**
+   * Original failure for the error prefab's details control. It does not settle
+   * the `Promise<boolean>`.
+   */
+  cause?: unknown
+  /** Opaque host payload. `suppressDetail: true` hides the details control. */
+  data?: unknown
 }
 
 interface PopupEntryBase {

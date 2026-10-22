@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import DictationControls from '@renderer/components/DictationControls'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
@@ -199,11 +200,18 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     if (contentLoadError) {
       return (
-        <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
+        <div data-ui="notes.editor" className="flex h-full w-full flex-1 flex-col items-center justify-center">
           <EmptyState
             preset="no-note"
             title={t('notes.load_failed')}
             description={t('notes.load_failed_description')}
+          />
+          <ErrorDetailAction
+            error={contentLoadError}
+            message={t('notes.load_failed')}
+            source="notes"
+            operation="notes.load"
+            recordId={activeNodeId}
           />
         </div>
       )

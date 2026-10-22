@@ -14,6 +14,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
+import { REDACTED } from '@shared/utils/redaction'
 
 import type {
   ChatArchiveName,
@@ -751,6 +752,212 @@ describe('DiagnosticBundleService', () => {
     ).resolves.toEqual({ status: 'busy' })
     resolveDialog({ canceled: true, filePath: '' })
     await expect(first).resolves.toEqual({ status: 'canceled' })
+  })
+
+  it('writes error-context.json for export and omits it when no context is supplied', async () => {
+    const errorContext = {
+      id: 'err-1',
+      occurredAt: '2026-10-14T00:00:00.000Z',
+      source: 'painting',
+      operation: 'painting.generate',
+      message: 'upstream failed',
+      stack: 'Error: upstream failed\n    at /Users/alice/app.js',
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      imageOnly: true,
+      params: { size: '1024x1024', prompt: 'draw a cat', apiKey: 'plain-secret-value', n: 1 }
+    }
+    const service = new DiagnosticBundleService()
+    const absent = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' },
+      'main-window'
+    )
+    expect(absent.status).toBe('saved')
+    if (absent.status !== 'saved') return
+    expect((await readZip(destination)).entries).not.toContain('error-context.json')
+
+    const saved = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h', errorContext },
+      'main-window'
+    )
+    expect(saved.status).toBe('saved')
+    const zip = await readZip(destination)
+    expect(zip.entries).toContain('error-context.json')
+    const context = JSON.parse(zip.contents['error-context.json'].toString())
+    expect(context.stack).toContain('Error: upstream failed')
+    expect(context.params).toEqual({ size: '1024x1024', apiKey: '<redacted>', n: 1 })
+    expect(JSON.stringify(context)).not.toContain('draw a cat')
+    expect(JSON.stringify(context)).not.toContain('plain-secret-value')
+  })
+
+  it('uploads the error context without a stack and retries the same archive', async () => {
+    const errorContext = {
+      id: 'err-1',
+      occurredAt: '2026-10-14T00:00:00.000Z',
+      source: 'painting',
+      operation: 'painting.generate',
+      message: 'upstream failed',
+      stack: 'Error: upstream failed\n    at /Users/alice/app.js',
+      params: { size: '1024x1024', prompt: 'draw a cat', apiKey: 'plain-secret-value' }
+    }
+    let uploadedPath = ''
+    uploadMocks.upload.mockImplementation(async (input: { expectedFileSha256?: string; filePath: string }) => {
+      const zip = await readZip(input.filePath)
+      const context = JSON.parse(zip.contents['error-context.json'].toString())
+      expect(context.stack).toBeUndefined()
+      expect(context.params).toEqual({ size: '1024x1024', apiKey: '<redacted>' })
+      expect(JSON.stringify(context)).not.toContain('draw a cat')
+      uploadedPath = input.filePath
+      if (!input.expectedFileSha256) {
+        return { fileSha256: await sha256(input.filePath), reason: 'service_unavailable', status: 'rejected' }
+      }
+      return { reportId: RETRY_REPORT_ID, status: 'uploaded' }
+    })
+    const service = new DiagnosticBundleService()
+
+    const first = await service.uploadBundle({ ...UPLOAD_INPUT, errorContext })
+    expect(first.status).toBe('submission_failed')
+    if (first.status !== 'submission_failed') return
+    const retainedPath = await getRetainedUploadPath()
+    expect(retainedPath).toBe(uploadedPath)
+
+    await expect(service.retryUpload({ bundleId: first.bundleId })).resolves.toMatchObject({
+      reportId: RETRY_REPORT_ID,
+      status: 'uploaded'
+    })
+    expect(uploadMocks.upload).toHaveBeenLastCalledWith(expect.objectContaining({ filePath: retainedPath }))
+  })
+
+  it('writes a redacted ai-diagnosis.json and omits it when absent, invalid, or for another fault', async () => {
+    const errorContext = {
+      id: 'err-1',
+      occurredAt: '2026-10-14T00:00:00.000Z',
+      source: 'chat',
+      operation: 'message.error',
+      message: 'upstream failed'
+    }
+    const secret = 'plain-secret-value-123456'
+    const token = `sk-proj-${'a'.repeat(24)}`
+    const aiDiagnosis = {
+      source: 'doctor-agent' as const,
+      status: 'completed' as const,
+      text: `api_key=${secret}\n${token}\n${'finding '.repeat(2_000)}`,
+      truncated: true as const,
+      scope: 'chat:openai/gpt-4o',
+      runId: 'run-1',
+      reportRunId: 'report-1',
+      modelId: 'openai::gpt-4o',
+      startedAt: '2026-10-15T00:00:00.000Z',
+      errorId: 'err-1',
+      topicId: 'topic-1',
+      messageId: 'message-1'
+    }
+    const service = new DiagnosticBundleService()
+    const exportInput = { includeChatRecords: false, includeLogs: false, includeTraces: false, range: '24h' as const }
+
+    const absent = await service.exportBundle(exportInput, 'main-window')
+    expect(absent.status).toBe('saved')
+    expect((await readZip(destination)).entries).not.toContain('ai-diagnosis.json')
+
+    const mismatched = await service.exportBundle(
+      { ...exportInput, errorContext, aiDiagnosis: { ...aiDiagnosis, errorId: 'err-2', text: 'other fault' } },
+      'main-window'
+    )
+    expect(mismatched.status).toBe('saved')
+    const mismatchedZip = await readZip(destination)
+    expect(mismatchedZip.entries).toContain('error-context.json')
+    expect(mismatchedZip.entries).not.toContain('ai-diagnosis.json')
+
+    const invalidDiagnosis = { ...aiDiagnosis, toolCalls: ['write_file'], proposals: [{ id: 'p1' }] }
+    const invalid = await service.exportBundle(
+      { ...exportInput, errorContext, aiDiagnosis: invalidDiagnosis },
+      'main-window'
+    )
+    expect(invalid.status).toBe('saved')
+    expect((await readZip(destination)).entries).not.toContain('ai-diagnosis.json')
+
+    const saved = await service.exportBundle({ ...exportInput, errorContext, aiDiagnosis }, 'main-window')
+    expect(saved.status).toBe('saved')
+    const zip = await readZip(destination)
+    expect(zip.entries).toContain('ai-diagnosis.json')
+    const diagnosis = JSON.parse(zip.contents['ai-diagnosis.json'].toString()) as Record<string, unknown>
+    expect(diagnosis).toMatchObject({
+      source: 'doctor-agent',
+      status: 'completed',
+      truncated: true,
+      scope: 'chat:openai/gpt-4o',
+      runId: 'run-1',
+      reportRunId: 'report-1',
+      modelId: 'openai::gpt-4o',
+      startedAt: '2026-10-15T00:00:00.000Z',
+      errorId: 'err-1',
+      topicId: 'topic-1',
+      messageId: 'message-1'
+    })
+    expect(String(diagnosis.text)).toContain('finding')
+    expect(String(diagnosis.text)).toContain(REDACTED)
+    expect(String(diagnosis.text)).not.toContain(secret)
+    expect(String(diagnosis.text)).not.toContain(token)
+    const archived = Object.values(zip.contents)
+      .map((entry) => entry.toString())
+      .join('\n')
+    expect(archived).not.toContain(secret)
+    expect(archived).not.toContain(token)
+    expect(archived).not.toContain('toolCalls')
+    expect(archived).not.toContain('write_file')
+  })
+
+  it('keeps the same ai-diagnosis.json through upload failure, retry, and retained save', async () => {
+    const marker = 'diagnosis-body-marker'
+    const errorContext = {
+      id: 'err-1',
+      occurredAt: '2026-10-14T00:00:00.000Z',
+      source: 'chat',
+      operation: 'message.error',
+      message: 'upstream failed'
+    }
+    const aiDiagnosis = {
+      source: 'error-summary' as const,
+      status: 'completed' as const,
+      text: `Quota exceeded. ${marker}`,
+      errorId: 'err-1'
+    }
+    let diagnosisBytes: Buffer | undefined
+    uploadMocks.upload.mockImplementation(async (input: { description: string; filePath: string }) => {
+      const zip = await readZip(input.filePath)
+      const entry = zip.contents['ai-diagnosis.json']
+      expect(entry).toBeDefined()
+      if (!diagnosisBytes) diagnosisBytes = entry
+      else expect(entry.equals(diagnosisBytes)).toBe(true)
+      expect(input.description).toBe('Line one\r\nLine two')
+      expect(input.description).not.toContain(marker)
+      return { fileSha256: await sha256(input.filePath), reason: 'service_unavailable', status: 'rejected' }
+    })
+    const service = new DiagnosticBundleService()
+
+    const first = await service.uploadBundle({ ...UPLOAD_INPUT, errorContext, aiDiagnosis })
+    expect(first.status).toBe('submission_failed')
+    if (first.status !== 'submission_failed') return
+    const retainedPath = await getRetainedUploadPath()
+    const retainedDiagnosis = (await readZip(retainedPath)).contents['ai-diagnosis.json']
+    if (!diagnosisBytes) throw new Error('upload did not capture ai-diagnosis.json')
+    expect(retainedDiagnosis.equals(diagnosisBytes)).toBe(true)
+    expect(retainedDiagnosis.toString()).toContain(marker)
+    expect(retainedDiagnosis.toString()).not.toContain('modelId')
+    expect(retainedDiagnosis.toString()).not.toContain('runId')
+
+    const retried = await service.retryUpload({ bundleId: first.bundleId })
+    expect(retried.status).toBe('submission_failed')
+    expect(uploadMocks.upload).toHaveBeenLastCalledWith(expect.objectContaining({ filePath: retainedPath }))
+    expect((await readZip(retainedPath)).contents['ai-diagnosis.json'].equals(diagnosisBytes)).toBe(true)
+
+    const savedPath = path.join(workDir, 'saved-ai-diagnosis.zip')
+    electronMocks.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: savedPath })
+    await expect(service.saveUploadBundle({ bundleId: first.bundleId }, 'main-window')).resolves.toMatchObject({
+      filePath: savedPath,
+      status: 'saved'
+    })
+    expect((await readZip(savedPath)).contents['ai-diagnosis.json'].equals(diagnosisBytes)).toBe(true)
   })
 
   it('uploads a bundle with the normalized description and returns the opaque report id unchanged', async () => {

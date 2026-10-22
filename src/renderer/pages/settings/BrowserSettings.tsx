@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Dialog, DialogTrigger, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { BrowserImportDialog } from '@renderer/components/BrowserImportDialog'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import {
   SettingDescription,
   SettingDivider,
@@ -38,7 +39,7 @@ export function BrowserSettings() {
   const [openLinks, setOpenLinks] = usePreference('app.browser.open_links_in_browser')
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(false)
+  const [failure, setFailure] = useState<{ error: unknown; operation: string } | null>(null)
   const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
 
   return (
@@ -60,11 +61,11 @@ export function BrowserSettings() {
             disabled={saving}
             onCheckedChange={async (value) => {
               setSaving(true)
-              setError(false)
+              setFailure(null)
               try {
                 await setEnabled(value)
-              } catch {
-                setError(true)
+              } catch (caught) {
+                setFailure({ error: caught, operation: 'browser.agent_control' })
               } finally {
                 setSaving(false)
               }
@@ -86,21 +87,29 @@ export function BrowserSettings() {
             disabled={saving}
             onCheckedChange={async (value) => {
               setSaving(true)
-              setError(false)
+              setFailure(null)
               try {
                 await setOpenLinks(value)
-              } catch {
-                setError(true)
+              } catch (caught) {
+                setFailure({ error: caught, operation: 'browser.open_links' })
               } finally {
                 setSaving(false)
               }
             }}
           />
         </SettingRow>
-        {error && (
-          <p role="alert" className="mt-2 text-error text-sm">
-            {t('settings.browser.error')}
-          </p>
+        {failure && (
+          <div className="mt-2 flex items-center gap-2">
+            <p role="alert" className="text-error text-sm">
+              {t('settings.browser.error')}
+            </p>
+            <ErrorDetailAction
+              error={failure.error}
+              message={t('settings.browser.error')}
+              source="settings.browser"
+              operation={failure.operation}
+            />
+          </div>
         )}
       </SettingGroup>
       <SettingGroup>

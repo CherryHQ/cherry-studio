@@ -4,13 +4,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
+import { updateCheckLabelKey, updateNoticeIsFailure, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import i18n from '@renderer/i18n/resolver'
+import { operationIncident, operationSubject } from '@renderer/services/AppErrorContextService'
+import { OFFICIAL_RELEASES_URL } from '@renderer/services/AppUpdateCheckService'
+import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
+import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkApiCallError,
@@ -38,30 +44,44 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
+import type { AppErrorContext } from '@shared/types/appError'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { selectDiagnosticAiAttachment } from '@shared/utils/diagnosticAi'
 import { doctorScopeKey } from '@shared/utils/doctor'
 
 import Scrollbar from '../Scrollbar'
 import {
   buildDiagnosticReportDescription,
+  buildErrorContextReportDescription,
   type DiagnosticReportConfig,
-  resolveDiagnosticReportLocation
+  formatDiagnosticReportLocation
 } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
 import { isDiagnosticReportEligible } from './isDiagnosticReportEligible'
+
+const logger = loggerService.withContext('ErrorDetailContent')
 
 interface ErrorDetailContentProps {
   error?: SerializedError
   localizedErrorMessage?: string
   diagnosisContext?: DiagnosisContext
   diagnosticReport?: DiagnosticReportConfig
+  /** Occurrence snapshot. Chat and agent errors keep their own subject and incident. */
+  errorContext?: AppErrorContext
   subject?: DoctorSubjectRef
-  /** The failed message this error belongs to; binds the AI consultation to it. */
+  /** The failed message, or the operation snapshot, this error belongs to. */
   incident?: DoctorAgentIncident
-  onOpenDiagnosticReport?: (description: string) => void
+  /** Legacy classify summary. A current Doctor analysis replaces it at report time. */
+  aiDiagnosis?: DiagnosticAiDiagnosis
+  onOpenDiagnosticReport?: (
+    description: string,
+    errorContext?: AppErrorContext,
+    aiDiagnosis?: DiagnosticAiDiagnosis
+  ) => void
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
 
@@ -481,6 +501,46 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
 // --- Main Content Component ---
 
+function technicalError(
+  error: SerializedError | undefined,
+  errorContext: AppErrorContext | undefined
+): SerializedError | undefined {
+  if (error) return error
+  if (!errorContext) return undefined
+  const message = errorContext.message.trim()
+  const statusCode = errorContext.statusCode
+  const responseBody = errorContext.responseBody
+  if (!errorContext.name && message.length === 0 && !errorContext.stack && statusCode === undefined && !responseBody) {
+    return undefined
+  }
+  return {
+    name: errorContext.name ?? null,
+    message: message.length > 0 ? errorContext.message : null,
+    stack: errorContext.stack ?? null,
+    ...(statusCode !== undefined ? { statusCode } : {}),
+    ...(responseBody ? { responseBody } : {})
+  }
+}
+
+const DiagnosticScalars = memo(({ error }: { error: SerializedError }) => {
+  const { t } = useTranslation()
+  const statusCode = typeof error.statusCode === 'number' ? error.statusCode : undefined
+  const responseBody =
+    typeof error.responseBody === 'string' && error.responseBody.length > 0 ? error.responseBody : undefined
+  if (statusCode === undefined && !responseBody) return null
+  return (
+    <>
+      {responseBody ? <TruncatedCodeViewer value={responseBody} label={t('error.responseBody')} /> : null}
+      {statusCode !== undefined ? (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
+          <ErrorDetailValue className="selectable">{statusCode}</ErrorDetailValue>
+        </ErrorDetailItem>
+      ) : null}
+    </>
+  )
+})
+
 const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
   localizedErrorMessage,
@@ -488,69 +548,118 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   subject,
   incident,
   diagnosticReport,
+  errorContext,
+  aiDiagnosis,
   onOpenDiagnosticReport,
   onDoctorNavigate,
   doctorCloseBlocked = false,
   onDoctorCloseBlockedChange
 }) => {
   const { t } = useTranslation()
+  const { appUpdateState, noticeKey, checkForUpdate } = useAppUpdateCheck()
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [releasesOpenFailed, setReleasesOpenFailed] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
+  const shownError = technicalError(error, errorContext)
   const copyErrorDetails = useCallback(() => {
-    if (!error) {
+    if (!shownError) {
       return
     }
 
     let errorText: string
-    if (isSerializedAiSdkError(error)) {
-      errorText = formatAiSdkError(error)
-    } else if (isSerializedError(error)) {
-      errorText = formatError(error)
+    if (isSerializedAiSdkError(shownError)) {
+      errorText = formatAiSdkError(shownError)
+    } else if (isSerializedError(shownError)) {
+      errorText = formatError(shownError)
     } else {
-      errorText = safeToString(error)
+      errorText = safeToString(shownError)
     }
 
     void navigator.clipboard.writeText(errorText)
     toast.success(t('message.copied'))
-  }, [error, t])
+  }, [shownError, t])
+
+  const reportDiagnosis = useCallback((): DiagnosticAiDiagnosis | undefined => {
+    const captured = subject
+      ? captureDiagnosticAiDiagnosis({ scope: doctorScopeKey(subject), incident, errorContext })
+      : undefined
+    if (captured) return captured
+    return selectDiagnosticAiAttachment(aiDiagnosis, errorContext)
+  }, [aiDiagnosis, errorContext, incident, subject])
 
   const openDiagnosticReport = useCallback(() => {
-    if (doctorCloseBlocked || !diagnosticReport || !onOpenDiagnosticReport) return
+    if (doctorCloseBlocked || !onOpenDiagnosticReport) return
+    const diagnosis = reportDiagnosis()
+    if (diagnosticReport) {
+      onOpenDiagnosticReport(
+        buildDiagnosticReportDescription({
+          diagnosisContext,
+          error,
+          localizedErrorMessage,
+          labels: {
+            errorMessage: t('error.message'),
+            location: t('error.diagnostic_report.location'),
+            model: t('error.modelId')
+          },
+          location: formatDiagnosticReportLocation(t, diagnosticReport.location, i18n.language)
+        }),
+        errorContext,
+        diagnosis
+      )
+      return
+    }
+    if (!errorContext) return
     onOpenDiagnosticReport(
-      buildDiagnosticReportDescription({
-        diagnosisContext,
-        error,
-        localizedErrorMessage,
-        labels: {
-          errorMessage: t('error.message'),
-          location: t('error.diagnostic_report.location'),
-          model: t('error.modelId')
-        },
-        location: resolveDiagnosticReportLocation(t, diagnosticReport.location, i18n.language)
-      })
+      buildErrorContextReportDescription(errorContext, {
+        errorMessage: t('error.message'),
+        model: t('error.modelId'),
+        operation: t('error.context.operation'),
+        source: t('error.context.source')
+      }),
+      errorContext,
+      diagnosis
     )
-  }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, localizedErrorMessage, onOpenDiagnosticReport, t])
+  }, [
+    diagnosticReport,
+    diagnosisContext,
+    doctorCloseBlocked,
+    error,
+    errorContext,
+    localizedErrorMessage,
+    onOpenDiagnosticReport,
+    reportDiagnosis,
+    t
+  ])
 
-  const showDiagnosticReportAction =
-    Boolean(diagnosticReport && onOpenDiagnosticReport) && isDiagnosticReportEligible(error)
+  const canReport = Boolean(onOpenDiagnosticReport && (diagnosticReport || errorContext))
+  const showDiagnosticReportAction = canReport && isDiagnosticReportEligible(shownError)
 
   const showDetails = () => {
     setDetailsOpen(true)
   }
 
-  const renderErrorDetails = (error?: SerializedError) => {
-    if (!error) {
+  const openOfficialReleases = () => {
+    setReleasesOpenFailed(false)
+    void openExternalWebsite(OFFICIAL_RELEASES_URL).catch((error: unknown) => {
+      logger.error('Failed to open official releases', error as Error)
+      setReleasesOpenFailed(true)
+    })
+  }
+
+  const renderErrorDetails = (detail?: SerializedError) => {
+    if (!detail) {
       return <div>{t('error.unknown')}</div>
     }
 
-    if (isSerializedAiSdkErrorUnion(error)) {
-      return <AiSdkError error={error} />
+    if (isSerializedAiSdkErrorUnion(detail)) {
+      return <AiSdkError error={detail} />
     }
 
     return (
       <ErrorDetailList>
-        <BuiltinError error={error} />
+        <BuiltinError error={detail} />
+        <DiagnosticScalars error={detail} />
       </ErrorDetailList>
     )
   }
@@ -568,7 +677,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
               subject={subject}
               incident={incident}
               onNavigate={onDoctorNavigate ?? ignoreDoctorNavigation}
-              onReportProblem={onOpenDiagnosticReport}
+              onReportProblem={
+                onOpenDiagnosticReport
+                  ? (description) => onOpenDiagnosticReport(description, errorContext, reportDiagnosis())
+                  : undefined
+              }
               onCloseBlockedChange={onDoctorCloseBlockedChange}
             />
           ) : (
@@ -576,7 +689,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
           )}
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
-            error={error}
+            error={shownError}
             localizedErrorMessage={localizedErrorMessage}
             diagnosisContext={diagnosisContext}
             diagnosticReport={diagnosticReport}
@@ -586,29 +699,63 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      {subject || showDiagnosticReportAction ? (
-        <div className="flex justify-end gap-2">
-          {showDiagnosticReportAction ? (
-            <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
-              <FileUp size={14} />
-              {t('error.diagnostic_report.action')}
-            </Button>
-          ) : null}
-          {subject ? (
-            <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
-              <Sparkles size={14} />
-              {t('settings.doctor.agent.title')}
-            </Button>
+      <div className="flex items-center justify-end gap-2">
+        <div className="mr-auto min-w-0 text-xs text-muted-foreground">
+          {noticeKey ? (
+            <p
+              role={updateNoticeIsFailure(noticeKey) ? 'alert' : 'status'}
+              className={updateNoticeIsFailure(noticeKey) ? 'text-destructive' : 'text-muted-foreground'}>
+              {t(noticeKey)}
+            </p>
+          ) : appUpdateState.downloading && appUpdateState.downloadProgress > 0 ? (
+            <p>
+              {t('settings.about.downloading')} {Math.floor(appUpdateState.downloadProgress)}%
+            </p>
           ) : null}
         </div>
-      ) : null}
+        {noticeKey && updateNoticeIsFailure(noticeKey) ? (
+          <>
+            {releasesOpenFailed ? (
+              <p role="alert" className="max-w-48 text-right text-xs text-destructive">
+                {t('chat.artifacts.preview.openExternal.error.content')}
+              </p>
+            ) : null}
+            <Button variant="outline" onClick={openOfficialReleases}>
+              {t('settings.about.releases.button')}
+            </Button>
+          </>
+        ) : null}
+        <Button
+          variant="outline"
+          disabled={appUpdateState.downloading}
+          loading={appUpdateState.checking}
+          onClick={checkForUpdate}>
+          {t(updateCheckLabelKey(appUpdateState))}
+        </Button>
+        {subject || showDiagnosticReportAction ? (
+          <>
+            {showDiagnosticReportAction ? (
+              <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
+                <FileUp size={14} />
+                {t('error.diagnostic_report.action')}
+              </Button>
+            ) : null}
+            {subject ? (
+              <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
+                <Sparkles size={14} />
+                {t('settings.doctor.agent.title')}
+              </Button>
+            ) : null}
+          </>
+        ) : null}
+      </div>
       {subject && agentOpen ? (
         <DoctorAgentDialog
           subject={subject}
           incident={incident}
           open
           onOpenChange={setAgentOpen}
-          onReportProblem={diagnosticReport && onOpenDiagnosticReport ? openDiagnosticReport : undefined}
+          onReportProblem={canReport ? openDiagnosticReport : undefined}
         />
       ) : null}
 
@@ -633,10 +780,10 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             <DialogTitle>{t('error.detail')}</DialogTitle>
           </DialogHeader>
           <ErrorDetailContainer>
-            <div className="space-y-4">{renderErrorDetails(error)}</div>
+            <div className="space-y-4">{renderErrorDetails(shownError)}</div>
           </ErrorDetailContainer>
           <DialogFooter>
-            <Button variant="outline" disabled={!error} onClick={copyErrorDetails}>
+            <Button variant="outline" disabled={!shownError} onClick={copyErrorDetails}>
               <Copy size={14} />
               {t('common.copy')}
             </Button>
@@ -682,19 +829,49 @@ const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps 
 
 const ErrorDetailPopup = createPopup<ErrorDetailContentProps, void>(ErrorDetailDialog)
 
-export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
+let errorDetailOpen = false
+
+export function isErrorDetailHostMounted(): boolean {
+  return popupService.isHostMounted()
+}
+
+export function showErrorDetailPopup(params: ErrorDetailPopupParams): Promise<void> | null {
+  if (!popupService.isHostMounted() || errorDetailOpen) return null
+  errorDetailOpen = true
+
   const finishHandoff = (action: () => void) => {
     ErrorDetailPopup.hide()
     window.setTimeout(action, POPUP_EXIT_MS)
   }
+  const errorContext = params.errorContext
+  const subject = params.subject ?? (errorContext ? operationSubject(errorContext) : undefined)
+  const incident = params.incident ?? (errorContext && !params.subject ? operationIncident(errorContext) : undefined)
 
-  void ErrorDetailPopup.show({
-    ...params,
-    onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
-    onOpenDiagnosticReport: (initialDescription) =>
-      finishHandoff(() => {
-        void DoctorPopup.show({ initialPanel: 'report', initialDescription })
-      })
+  let pending: Promise<void>
+  try {
+    pending = ErrorDetailPopup.show({
+      ...params,
+      incident,
+      subject,
+      onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+      onOpenDiagnosticReport: (initialDescription, reportedContext, reportedDiagnosis) =>
+        finishHandoff(() => {
+          const reportContext = reportedContext ?? params.errorContext
+          const snapshot = reportedDiagnosis ? Object.freeze({ ...reportedDiagnosis }) : undefined
+          void DoctorPopup.show({
+            initialPanel: 'report',
+            initialDescription,
+            ...(reportContext ? { errorContext: reportContext } : {}),
+            ...(snapshot ? { aiDiagnosis: snapshot } : {})
+          })
+        })
+    })
+  } catch (error) {
+    errorDetailOpen = false
+    throw error
+  }
+  return pending.finally(() => {
+    errorDetailOpen = false
   })
 }
 

@@ -1,6 +1,9 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
+import type { AppErrorContext } from '@shared/types/appError'
+import { appErrorContextSchema } from '@shared/utils/appError'
+
 import {
   CACHE_CLEANUP_GROUPS,
   CACHE_CLEANUP_RESULT_STATUSES,
@@ -90,6 +93,11 @@ export const appRequestSchemas = {
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
+  'app.updater.present_check': defineRoute({ input: z.void(), output: z.void() }),
+  'app.surface.receiver': defineRoute({
+    input: z.object({ kind: z.enum(['error', 'update']), ready: z.boolean() }),
+    output: z.void()
+  }),
   'app.updater.release_notes.get': defineRoute({
     input: z.void(),
     output: z
@@ -97,7 +105,9 @@ export const appRequestSchemas = {
       .min(1)
       .nullable()
   }),
-  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
+  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() }),
+  'app.error.handoff': defineRoute({ input: appErrorContextSchema, output: z.void() }),
+  'app.error.degraded': defineRoute({ input: appErrorContextSchema, output: z.void() })
 }
 
 export type AppEventSchemas = {
@@ -106,4 +116,6 @@ export type AppEventSchemas = {
   'app.updater.not_available': void
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  'app.updater.run_check': void
+  'app.error.open': AppErrorContext
 }

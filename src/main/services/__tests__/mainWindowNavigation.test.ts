@@ -37,7 +37,10 @@ import {
   openRouteInMainWindow,
   openSettingsInMainWindow,
   openTabInMainWindow,
-  resetMainRendererTabAttachDelivery
+  deliverToReadyMain,
+  queueMainRendererFault,
+  resetMainRendererTabAttachDelivery,
+  setMainSurfaceReceiver
 } from '../mainWindowNavigation'
 
 const aliveWindow = {
@@ -278,6 +281,66 @@ describe('mainWindowNavigation', () => {
         tab,
         requestId: expect.any(Number)
       })
+    })
+  })
+
+  describe('deliverToReadyMain', () => {
+    const focusedWindow = {
+      ...aliveWindow,
+      isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn()
+    }
+    const fault = {
+      id: 'fault-1',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      source: 'screenshotWindow',
+      operation: 'react.render',
+      message: 'boom'
+    }
+
+    it('does not deliver an error or update while only tab readiness is set', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
+      markMainRendererReadyForTabAttach('main-1')
+
+      expect(deliverToReadyMain('app.error.open', fault)).toBe(false)
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(false)
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+      expect(focusedWindow.show).not.toHaveBeenCalled()
+    })
+
+    it('shows main and delivers once the matching receiver is mounted', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
+      markMainRendererReadyForTabAttach('main-1')
+      setMainSurfaceReceiver('error', true)
+      setMainSurfaceReceiver('update', true)
+
+      expect(deliverToReadyMain('app.error.open', fault)).toBe(true)
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(true)
+      expect(focusedWindow.show).toHaveBeenCalled()
+      expect(focusedWindow.focus).toHaveBeenCalled()
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.error.open', fault)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.updater.run_check', undefined)
+    })
+
+    it('presents a queued renderer crash when the error receiver becomes ready', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
+      markMainRendererReadyForTabAttach('main-1')
+      queueMainRendererFault('Renderer process crashed')
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+
+      setMainSurfaceReceiver('error', true)
+
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith(
+        'main-1',
+        'app.error.open',
+        expect.objectContaining({
+          source: 'mainWindow',
+          operation: 'renderer.crash',
+          message: 'Renderer process crashed'
+        })
+      )
     })
   })
 

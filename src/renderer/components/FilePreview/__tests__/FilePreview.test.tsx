@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ComponentPropsWithoutRef, ComponentType } from 'react'
+import type { ComponentPropsWithoutRef, ComponentType, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { safeOpen } from '@renderer/utils/file/safeOpen'
@@ -41,6 +41,19 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       ) : null}
     </div>
+  ),
+  Button: ({
+    children,
+    onClick,
+    type
+  }: {
+    children?: ReactNode
+    onClick?: () => void
+    type?: 'button' | 'reset' | 'submit'
+  }) => (
+    <button type={type ?? 'button'} onClick={onClick}>
+      {children}
+    </button>
   ),
   Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
 }))

@@ -6,20 +6,26 @@ const {
   appRelaunchMock,
   cacheCleanupInspectMock,
   cacheCleanupRunMock,
+  deliverToReadyMainMock,
   inspectTargetMock,
   requestDataResetMock,
   requestV1RemigrationMock,
-  requestRelocationMock
+  requestRelocationMock,
+  setMainSurfaceReceiverMock,
+  showSupportedMessageBoxMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   appGetPathMock: vi.fn(),
   appRelaunchMock: vi.fn(),
   cacheCleanupInspectMock: vi.fn(),
   cacheCleanupRunMock: vi.fn(),
+  deliverToReadyMainMock: vi.fn(),
   inspectTargetMock: vi.fn(),
   requestDataResetMock: vi.fn(),
   requestV1RemigrationMock: vi.fn(),
-  requestRelocationMock: vi.fn()
+  requestRelocationMock: vi.fn(),
+  setMainSurfaceReceiverMock: vi.fn(),
+  showSupportedMessageBoxMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -40,13 +46,22 @@ vi.mock('@main/services/userDataRelocation', () => ({
 vi.mock('@main/services/cacheCleanup', () => ({
   cacheCleanupService: { inspect: cacheCleanupInspectMock, run: cacheCleanupRunMock }
 }))
+vi.mock('@main/services/mainWindowNavigation', () => ({
+  deliverToReadyMain: (...args: unknown[]) => deliverToReadyMainMock(...args),
+  setMainSurfaceReceiver: (...args: unknown[]) => setMainSurfaceReceiverMock(...args)
+}))
+vi.mock('@main/core/preboot/nativeErrorDialog', () => ({
+  showSupportedMessageBox: (...args: unknown[]) => showSupportedMessageBoxMock(...args)
+}))
 vi.mock('electron', () => ({
-  app: { getVersion: () => '1.0.0', isPackaged: true },
+  app: { getLocale: () => 'en-US', getVersion: () => '1.0.0', isPackaged: true },
   BrowserWindow: { getAllWindows: () => [] },
   webContents: { getAllWebContents: () => [] }
 }))
 
 import { app } from 'electron'
+
+import { WindowType } from '@main/core/window/types'
 
 import { appHandlers } from '../app'
 
@@ -54,6 +69,9 @@ const appUpdaterService = {
   checkForUpdates: vi.fn(),
   getReleaseHistory: vi.fn(),
   quitAndInstall: vi.fn()
+}
+const windowManager = {
+  getWindowType: vi.fn(() => WindowType.Main)
 }
 const preferenceService = {
   get: vi.fn()
@@ -67,13 +85,87 @@ beforeEach(() => {
   appGetMock.mockImplementation((name: string) => {
     if (name === 'AppUpdaterService') return appUpdaterService
     if (name === 'PreferenceService') return preferenceService
+    if (name === 'WindowManager') return windowManager
     throw new Error(`Unexpected application.get(${name})`)
   })
+  preferenceService.get.mockReset()
+  preferenceService.get.mockReturnValue(undefined)
 })
 
 const ctx = { senderId: 'w1' }
 
+const fault = {
+  id: 'fault-1',
+  occurredAt: '2026-01-01T00:00:00.000Z',
+  source: 'screenshotWindow',
+  operation: 'react.render',
+  message: 'overlay failed',
+  stack: 'at /Users/private/screenshot.ts:1'
+}
+
 describe('appHandlers', () => {
+  it('rejects an update handoff when the main window cannot receive it', async () => {
+    deliverToReadyMainMock.mockReturnValue(false)
+
+    await expect(appHandlers['app.updater.present_check'](undefined, ctx)).rejects.toMatchObject({
+      code: 'MAIN_UNAVAILABLE'
+    })
+    expect(deliverToReadyMainMock).toHaveBeenCalledWith('app.updater.run_check', undefined)
+  })
+
+  it('rejects an error handoff without treating a missed delivery as success', async () => {
+    deliverToReadyMainMock.mockReturnValue(false)
+
+    await expect(appHandlers['app.error.handoff'](fault, ctx)).rejects.toMatchObject({ code: 'MAIN_UNAVAILABLE' })
+    expect(deliverToReadyMainMock).toHaveBeenCalledWith('app.error.open', fault)
+  })
+
+  it('shows a native dialog for a degraded error and keeps the stack off the primary message', async () => {
+    showSupportedMessageBoxMock.mockResolvedValue(0)
+
+    await appHandlers['app.error.degraded'](fault, ctx)
+
+    const input = showSupportedMessageBoxMock.mock.calls[0][0] as {
+      box: { message: string }
+      technicalDetail: string
+    }
+    expect(input.box).toEqual(expect.objectContaining({ buttons: ['Close'] }))
+    expect(input.technicalDetail).toContain('overlay failed')
+    expect(input.technicalDetail).toContain('/Users/private')
+    expect(JSON.stringify(input.box)).not.toContain('/Users/private')
+  })
+
+  it('uses one app language for the degraded dialog when it differs from the OS locale', async () => {
+    preferenceService.get.mockImplementation((key: string) => (key === 'app.language' ? 'zh-CN' : undefined))
+    showSupportedMessageBoxMock.mockResolvedValue(0)
+
+    await appHandlers['app.error.degraded'](fault, ctx)
+
+    expect(app.getLocale()).toBe('en-US')
+    expect(preferenceService.get).toHaveBeenCalledTimes(1)
+    expect(preferenceService.get).toHaveBeenCalledWith('app.language')
+    const input = showSupportedMessageBoxMock.mock.calls[0][0] as {
+      language: string
+      box: { title: string; message: string; buttons: string[] }
+    }
+    expect(input.language).toBe('zh-CN')
+    expect(input.box).toMatchObject({
+      title: '错误',
+      message: 'Cherry Studio 无法在主窗口中显示此错误。',
+      buttons: ['关闭']
+    })
+  })
+
+  it('records the main surface receiver and ignores another window', async () => {
+    await appHandlers['app.surface.receiver']({ kind: 'error', ready: true }, ctx)
+    expect(setMainSurfaceReceiverMock).toHaveBeenCalledWith('error', true)
+
+    setMainSurfaceReceiverMock.mockClear()
+    windowManager.getWindowType.mockReturnValueOnce(WindowType.Screenshot)
+    await appHandlers['app.surface.receiver']({ kind: 'update', ready: true }, ctx)
+    expect(setMainSurfaceReceiverMock).not.toHaveBeenCalled()
+  })
+
   it('inspects relocation targets through the domain validation', async () => {
     const result = await appHandlers['app.user_data_relocation.inspect']({ path: '/new/data' }, ctx)
 

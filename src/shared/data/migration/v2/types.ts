@@ -158,6 +158,14 @@ export interface MigrationDiagnosticSavePayload {
   logDate: string
 }
 
+/** Recovery links the migration window may ask main to open. The renderer never supplies the URL. */
+export const MigrationSupportLinks = {
+  feedback: 'mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback',
+  releases: 'https://github.com/CherryHQ/cherry-studio/releases'
+} as const
+
+export type MigrationSupportLink = keyof typeof MigrationSupportLinks
+
 export type MigrationExportFileWriteMode = 'overwrite' | 'append'
 export type MigrationExportStage = { source: 'redux' } | { source: 'dexie'; table: string } | { source: 'localStorage' }
 
@@ -188,6 +196,8 @@ export const MigrationIpcChannels = {
   // Open the region-appropriate v1 download page in the system browser
   // (the preboot window has no shell access; main picks the site by egress IP)
   OpenDownloadPage: 'migration:open-download-page',
+  // Feedback mailto or official releases. The renderer names a purpose; main resolves the URL.
+  OpenSupportLink: 'migration:open-support-link',
 
   // Skip migration (version incompatible — user chose to use defaults)
   SkipMigration: 'migration:skip-migration',

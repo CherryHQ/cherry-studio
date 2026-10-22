@@ -48,6 +48,8 @@ function withoutCoveredNavigates(row: DoctorRow, covered: ReadonlySet<DoctorNavi
 
 interface ErrorConnectivityStepsProps {
   readonly controller: DoctorController
+  /** Checks that do not apply, such as the chat probe for an image-only model. They are omitted, not shown as skipped. */
+  readonly omittedCheckIds?: readonly DoctorCheckId[]
 }
 
 type ConnectivityStepStatus = DoctorController['viewModel']['rows'][number]['status']
@@ -116,10 +118,10 @@ const STATUS_BADGE_CLASS = {
   muted: ''
 } as const
 
-export function ErrorConnectivitySteps({ controller }: ErrorConnectivityStepsProps) {
+export function ErrorConnectivitySteps({ controller, omittedCheckIds }: ErrorConnectivityStepsProps) {
   const { t } = useTranslation()
   const { interaction } = controller.session
-  const steps = resolveConnectivitySteps(controller)
+  const steps = resolveConnectivitySteps(controller).filter((step) => !omittedCheckIds?.includes(step.id))
   const activeIds = new Set(controller.viewModel.activeCheckIds)
   const rowById = new Map(controller.viewModel.rows.map((row) => [row.id, row]))
   const coveredNavigates = actionRequiredNavigateTargets(controller.viewModel.rows)

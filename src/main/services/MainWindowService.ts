@@ -16,7 +16,11 @@ import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
-import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import {
+  openTabInMainWindow,
+  queueMainRendererFault,
+  resetMainRendererTabAttachDelivery
+} from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
   AgentHtmlArtifactRequestPolicy,
@@ -334,7 +338,9 @@ export class MainWindowService extends BaseService {
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
       if (currentTime - lastCrashTime > 60 * 1000) {
-        // 如果大于1分钟，则重启渲染进程
+        // Reload the renderer and present the fault once it can receive IPC again.
+        // A second crash inside this window calls forceExit and is not presented.
+        queueMainRendererFault(`Renderer process crashed: ${JSON.stringify(details)}`.slice(0, 4000))
         mainWindow.webContents.reload()
       } else {
         // 如果小于1分钟，则退出应用, 可能是连续crash，需要退出应用

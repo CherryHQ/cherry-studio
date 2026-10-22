@@ -20,6 +20,7 @@ import { KnowledgeBaseSelector } from '@renderer/components/KnowledgeBaseSelecto
 import CustomTag from '@renderer/components/tags/CustomTag'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { getMessageTitle } from '@renderer/services/ExportService'
 import {
   analyzeMessagesContent,
@@ -131,6 +132,14 @@ const getNoteSource = async (source: ContentSource, fallbackConversationTitle: s
   }
 
   return getMessageTitle(source.data)
+}
+
+/** Authored save checks. The name keeps them distinct from IO failures in the catch. */
+class KnowledgeSaveValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'KnowledgeSaveValidationError'
+  }
 }
 
 const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, open, resolve }) => {
@@ -322,16 +331,16 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     try {
       // Validate knowledge base configuration before proceeding
       if (!selectedBaseId) {
-        throw new Error('No knowledge base selected')
+        throw new KnowledgeSaveValidationError(t('chat.save.knowledge.error.no_base_selected'))
       }
 
       const selectedBase = bases.find((base) => base.id === selectedBaseId)
       if (!selectedBase) {
-        throw new Error('Selected knowledge base not found')
+        throw new KnowledgeSaveValidationError(t('chat.save.knowledge.error.base_not_found'))
       }
 
       if (selectedBase.status !== 'completed') {
-        throw new Error('Knowledge base is not properly configured. Please check the knowledge base settings.')
+        throw new KnowledgeSaveValidationError(t('chat.save.knowledge.error.invalid_base'))
       }
 
       const items: KnowledgeAddItemInput[] = []
@@ -340,7 +349,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       if (isNoteMode) {
         const note = source.data
         if (!note.externalPath) {
-          throw new Error('Note external path is required for export')
+          throw new KnowledgeSaveValidationError(t('chat.save.knowledge.error.note_path_required'))
         }
 
         let content = ''
@@ -348,11 +357,16 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
           content = await window.api.file.readExternal(note.externalPath)
         } catch (error) {
           logger.error('Failed to read note file:', error as Error)
-          throw new Error('Failed to read note content. Please ensure the file exists and is accessible.')
+          toastAppError(t('chat.save.knowledge.error.note_read_failed'), error, {
+            source: 'knowledge.save',
+            operation: 'knowledge.note.read'
+          })
+          setLoading(false)
+          return
         }
 
         if (!content || content.trim() === '') {
-          throw new Error('Note content is empty. Cannot export empty notes to knowledge base.')
+          throw new KnowledgeSaveValidationError(t('chat.save.knowledge.error.note_empty'))
         }
 
         logger.debug('Note content loaded', { contentLength: content.length })
@@ -432,23 +446,15 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       resolve({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
-
-      // Provide more specific error messages
-      let errorMessage = t(
-        isConversationMode ? 'chat.save.topic.knowledge.error.save_failed' : 'chat.save.knowledge.error.save_failed'
-      )
-
-      if (error instanceof Error) {
-        if (error.message.includes('not properly configured')) {
-          errorMessage = error.message
-        } else if (error.message.includes('empty')) {
-          errorMessage = error.message
-        } else if (error.message.includes('read note content')) {
-          errorMessage = error.message
-        }
-      }
-
-      toast.error(errorMessage)
+      const summary =
+        error instanceof KnowledgeSaveValidationError
+          ? error.message
+          : t(
+              isConversationMode
+                ? 'chat.save.topic.knowledge.error.save_failed'
+                : 'chat.save.knowledge.error.save_failed'
+            )
+      toastAppError(summary, error, { source: 'knowledge.save', operation: 'knowledge.save' })
       setLoading(false)
     }
   }

@@ -10,6 +10,7 @@ import type * as DoctorComponents from '@renderer/components/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckResult, DoctorPendingCheck, DoctorState } from '@shared/types/doctor'
+import { createAppErrorContext } from '@shared/utils/appError'
 
 import type { ErrorDetailContentProps } from '../ErrorDetailModal'
 
@@ -111,7 +112,10 @@ const translations: Record<string, string> = {
   'common.cancel': 'Cancel',
   'common.none': 'None',
   'common.retry': 'Retry',
+  'error.context.operation': 'Operation',
+  'error.context.source': 'Source',
   'error.detail': 'Error Details',
+  'error.responseBody': 'Response body',
   'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
@@ -178,6 +182,12 @@ const translations: Record<string, string> = {
   'settings.doctor.status.pending': 'Pending',
   'settings.doctor.status.skip': 'Skipped',
   'settings.doctor.status.warn': 'Warning',
+  'chat.artifacts.preview.openExternal.error.content': 'Error opening the external browser.',
+  'settings.about.checkUpdate.label': 'Check Update',
+  'settings.about.releases.button': 'Releases',
+  'settings.about.updateError': 'Update error',
+  'settings.about.updateNotAvailable': 'You are using the latest version',
+  'settings.about.updateNotPublished': 'No published update is available yet. Please try again later.',
   'settings.doctor.summary.progress': '{{completed}} of {{total}} completed',
   'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'
@@ -190,9 +200,16 @@ await i18next.use(initReactI18next).init({
   keySeparator: false
 })
 
-vi.mock('@data/CacheService', () => ({
-  cacheService: { isSharedCacheReady: () => mocks.cacheReady, onSharedCacheReady: vi.fn() }
-}))
+vi.mock('@data/CacheService', async () => {
+  const { mockCacheService } = await import('../../../../../tests/__mocks__/renderer/CacheService')
+  return {
+    cacheService: {
+      ...mockCacheService,
+      isSharedCacheReady: () => mocks.cacheReady,
+      onSharedCacheReady: vi.fn()
+    }
+  }
+})
 
 vi.mock('@data/hooks/useCache', () => ({
   useSharedCacheValue: (key: string) => (key.startsWith('doctor.agent.') ? mocks.agentState : mocks.doctorState)
@@ -213,7 +230,8 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
       available: false,
       ignore: false,
       manualCheck: false
-    }
+    },
+    updateAppUpdateState: vi.fn()
   })
 }))
 
@@ -225,7 +243,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: (...args: unknown[]) => mocks.openSettingsTab(...args)
 }))
-vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+  toastInlineError: () => undefined
+}))
 vi.mock('@renderer/utils/errorDiagnosis', () => ({ diagnoseError: mocks.diagnoseError }))
 
 vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: string) => translations[key] ?? key } }))
@@ -238,10 +259,64 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre>{value}</pre>
 }))
 
+import { cacheService } from '@data/CacheService'
 import { PopupHost } from '@renderer/components/PopupHost'
+import { OFFICIAL_RELEASES_URL, appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
+import type { DoctorScopeKey } from '@shared/types/doctor'
+import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
+import { doctorAgentKey, doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
+
+import { MockCacheUtils } from '../../../../../tests/__mocks__/renderer/CacheService'
 
 const { ErrorDetailContent, showErrorDetailPopup } = await import('../ErrorDetailModal')
+
+function publishDiagnosis(scope: DoctorScopeKey, text: string, incident?: DoctorAgentIncident) {
+  const runId = 'report-1'
+  cacheService.setShared(doctorStateCacheKey(scope), {
+    status: 'completed',
+    report: {
+      schemaVersion: 1,
+      scope,
+      runId,
+      tier: 'quick',
+      selectedCheckIds: [],
+      startedAt: '2026-05-01T00:00:00.000Z',
+      finishedAt: '2026-05-01T00:00:01.000Z',
+      expiresAt: '2026-05-01T00:10:01.000Z',
+      basics: {
+        version: '2.0.0',
+        edition: 'global',
+        channel: 'latest',
+        platform: 'darwin',
+        arch: 'arm64',
+        osRelease: '25.0.0',
+        runtime: {},
+        isPackaged: true,
+        isPortable: false
+      },
+      results: [],
+      summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
+    }
+  })
+  const agent: DoctorAgentState = {
+    status: 'completed',
+    runId: 'agent-run-1',
+    scope,
+    reportRunId: runId,
+    sessionId: 'session-1',
+    modelId: 'openai::gpt-4o',
+    startedAt: '2026-05-01T00:00:02.000Z',
+    text,
+    toolCalls: [],
+    proposals: [],
+    changes: [],
+    ...(incident ? { incident } : {})
+  }
+  cacheService.setShared(doctorAgentStateCacheKey(doctorAgentKey(scope, incident)), agent)
+}
 
 Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: vi.fn() })
 
@@ -319,6 +394,8 @@ describe('ErrorDetailContent diagnostics', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    appUpdateCheckService.resetAppUpdateCheckForTests()
+    MockCacheUtils.resetMocks()
     mocks.agentState = undefined
     mocks.cacheReady = true
     mocks.doctorState = { status: 'idle' }
@@ -355,7 +432,7 @@ describe('ErrorDetailContent diagnostics', () => {
       diagnosisContext: { errorSource: 'chat', providerId: 'OpenAI', modelId: 'gpt-5' },
       diagnosticReport: { location: 'Home conversation' },
       localizedErrorMessage: 'API Key is invalid, please check and reconfigure',
-      error: providerError
+      error: { ...providerError, statusCode: 503 }
     })
 
     const basicInformation = screen.getByRole('region', { name: 'Home conversation' })
@@ -391,7 +468,7 @@ describe('ErrorDetailContent diagnostics', () => {
     const view = render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
+      void showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
     })
 
     const outerDialog = screen.getByText('Basic information').closest('[role="dialog"]')
@@ -438,7 +515,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({
+      void showErrorDetailPopup({
         subject: { kind: 'global' },
         diagnosticReport: { location: 'Agent conversation' },
         error: providerError
@@ -479,7 +556,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
+      void showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
     })
 
     await user.click(screen.getByRole('button', { name: 'View Details' }))
@@ -497,7 +574,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({
+      void showErrorDetailPopup({
         subject: { kind: 'global' },
         error: { ...providerError, name: 'AI_InvalidArgumentError', cause: htmlCause }
       })
@@ -815,6 +892,53 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(onOpenDiagnosticReport.mock.calls[0][0]).toContain('Location: Home conversation')
   })
 
+  it('hides the direct report for a 5xx error context and keeps detail, update, and AI actions', async () => {
+    const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
+    MockUseDataApiUtils.mockQueryData('/models', [])
+    mocks.agentState = {
+      status: 'completed',
+      runId: 'agent-run-1',
+      scope: 'operation:op-5xx',
+      reportRunId: 'report-1',
+      sessionId: 'session-1',
+      modelId: 'openai::gpt-5',
+      startedAt: '2026-10-12T00:00:00.000Z',
+      text: '',
+      toolCalls: [],
+      proposals: [],
+      changes: []
+    }
+    const errorContext = createAppErrorContext({
+      id: 'op-5xx',
+      message: 'upstream failed',
+      operation: 'painting.generate',
+      providerId: 'openai',
+      source: 'painting',
+      statusCode: 503
+    })
+    renderErrorDetailContent({
+      errorContext,
+      incident: { kind: 'operation', context: errorContext },
+      onOpenDiagnosticReport,
+      subject: { kind: 'operation', operationId: errorContext.id }
+    })
+
+    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View Details' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'AI consultation' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'AI consultation' }))
+    const consultation = await screen.findByRole('dialog', { name: /AI consultation/ })
+    await user.click(within(consultation).getByRole('button', { name: 'Report a problem' }))
+
+    expect(onOpenDiagnosticReport).toHaveBeenCalledOnce()
+    expect(onOpenDiagnosticReport.mock.calls[0][0]).toContain('Source: painting')
+    expect(onOpenDiagnosticReport.mock.calls[0][0]).toContain('Operation: painting.generate')
+    expect(onOpenDiagnosticReport.mock.calls[0][1]).toBe(errorContext)
+  })
+
   it('shows neither report nor AI consultation for a 503 error without a diagnostic subject', () => {
     renderErrorDetailContent({
       subject: undefined,
@@ -866,7 +990,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({
+      void showErrorDetailPopup({
         subject: { kind: 'global' },
         diagnosticReport: { location: 'Home conversation' },
         error: providerError
@@ -891,5 +1015,308 @@ describe('ErrorDetailContent diagnostics', () => {
       initialDescription: expect.stringContaining('Location: Home conversation')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('does not reserve the detail when no popup host is mounted', () => {
+    expect(showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })).toBeNull()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    render(<PopupHost />)
+    act(() => {
+      void showErrorDetailPopup({
+        error: providerError,
+        localizedErrorMessage: 'Host is ready',
+        subject: { kind: 'global' }
+      })
+    })
+    expect(screen.getByText(/Host is ready/)).toBeInTheDocument()
+  })
+
+  it('does not replace an error detail the user is already reading', () => {
+    render(<PopupHost />)
+
+    act(() => {
+      void showErrorDetailPopup({
+        error: providerError,
+        localizedErrorMessage: 'First fault',
+        subject: chatSubject
+      })
+    })
+    expect(screen.getByText(/First fault/)).toBeInTheDocument()
+
+    let second: Promise<void> | null = null
+    act(() => {
+      second = showErrorDetailPopup({
+        error: providerError,
+        localizedErrorMessage: 'Second fault',
+        subject: { kind: 'global' }
+      })
+    })
+
+    expect(second).toBeNull()
+    expect(screen.getByText(/First fault/)).toBeInTheDocument()
+    expect(screen.queryByText(/Second fault/)).not.toBeInTheDocument()
+  })
+
+  it('reports an operation fault with its context and without a conversation', async () => {
+    vi.useFakeTimers()
+    render(<PopupHost />)
+    const errorContext = createAppErrorContext({
+      id: 'op-1',
+      message: 'HTTP 500 upstream boom',
+      modelId: 'gpt-image-1',
+      operation: 'painting.generate',
+      providerId: 'openai',
+      source: 'painting'
+    })
+
+    act(() => {
+      void showErrorDetailPopup({ errorContext })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }))
+    act(() => {
+      vi.advanceTimersByTime(POPUP_EXIT_MS)
+    })
+    await act(async () => {})
+
+    expect(mocks.showDoctor).toHaveBeenCalledWith({
+      errorContext,
+      initialDescription: expect.stringContaining('Source: painting'),
+      initialPanel: 'report'
+    })
+    expect(mocks.showDoctor.mock.calls[0]?.[0].initialDescription).toContain('Operation: painting.generate')
+    expect(mocks.showDoctor.mock.calls[0]?.[0].initialDescription).not.toContain('topicId')
+  })
+
+  it('forwards the current operation analysis and fault id when the report is opened', async () => {
+    vi.useFakeTimers()
+    const errorContext = createAppErrorContext({
+      id: 'op-1',
+      message: 'HTTP 500 upstream boom',
+      operation: 'painting.generate',
+      source: 'painting'
+    })
+    publishDiagnosis('operation:op-1', 'Operation conclusion.', { kind: 'operation', context: errorContext })
+    render(<PopupHost />)
+
+    act(() => {
+      void showErrorDetailPopup({ errorContext })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }))
+    act(() => {
+      vi.advanceTimersByTime(POPUP_EXIT_MS)
+    })
+    await act(async () => {})
+
+    const handoff = mocks.showDoctor.mock.calls[0]?.[0] as {
+      aiDiagnosis?: DiagnosticAiDiagnosis
+      errorContext?: { id: string }
+    }
+    expect(handoff.errorContext?.id).toBe(errorContext.id)
+    expect(handoff.aiDiagnosis).toMatchObject({
+      source: 'doctor-agent',
+      status: 'completed',
+      errorId: errorContext.id,
+      text: 'Operation conclusion.'
+    })
+    expect(handoff.aiDiagnosis).not.toHaveProperty('topicId')
+    expect(handoff.aiDiagnosis).not.toHaveProperty('messageId')
+  })
+
+  it('forwards an explicit snapshot when the report has no fault and no live capture', async () => {
+    const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
+    publishDiagnosis('global', 'Global cached conclusion.')
+    const snapshot: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'Explicit conclusion.'
+    }
+    renderErrorDetailContent({
+      aiDiagnosis: snapshot,
+      diagnosticReport: { location: 'Home conversation' },
+      onOpenDiagnosticReport,
+      subject: undefined
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+
+    expect(onOpenDiagnosticReport).toHaveBeenCalledWith(
+      expect.stringContaining('Location: Home conversation'),
+      undefined,
+      expect.objectContaining({ source: 'error-summary', status: 'completed', text: 'Explicit conclusion.' })
+    )
+    expect(onOpenDiagnosticReport.mock.calls[0]?.[2]).not.toHaveProperty('errorId')
+    expect(onOpenDiagnosticReport.mock.calls[0]?.[2].text).not.toContain('Global cached conclusion.')
+  })
+
+  it('does not attach a global cached result to a contextual report', async () => {
+    const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
+    const errorContext = createAppErrorContext({
+      id: 'op-1',
+      message: 'HTTP 500 upstream boom',
+      operation: 'painting.generate',
+      source: 'painting'
+    })
+    publishDiagnosis('global', 'Global cached conclusion.')
+    renderErrorDetailContent({
+      errorContext,
+      incident: { kind: 'operation', context: errorContext },
+      onOpenDiagnosticReport,
+      subject: { kind: 'operation', operationId: errorContext.id }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+
+    expect(onOpenDiagnosticReport).toHaveBeenCalledWith(expect.any(String), errorContext, undefined)
+  })
+
+  it('shows provider status and response body in the technical detail', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({
+      error: {
+        cause: null,
+        data: null,
+        isRetryable: false,
+        message: 'quota',
+        name: 'AI_APICallError',
+        requestBodyValues: null,
+        responseBody: '{"error":"quota"}',
+        responseHeaders: null,
+        stack: 'stack line',
+        statusCode: 429,
+        url: 'https://example.test/v1'
+      }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    expect(screen.getByText('429')).toBeInTheDocument()
+    expect(screen.getByText('{"error":"quota"}')).toBeInTheDocument()
+  })
+
+  it('shows the supplied stack when the detail was opened without a serialized error', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({
+      error: undefined,
+      errorContext: createAppErrorContext({
+        id: 'ctx-1',
+        message: 'Render failed',
+        name: 'TypeError',
+        operation: 'react.render',
+        source: 'renderer',
+        stack: 'TypeError: boom\n at Widget.tsx:4'
+      }),
+      subject: { kind: 'operation', operationId: 'ctx-1' }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+    expect(screen.getByText(/Widget\.tsx:4/)).toBeInTheDocument()
+  })
+
+  it('keeps check-again and opens the official releases page only when a failed manual check asks for it', async () => {
+    const user = userEvent.setup()
+    let meta = document.querySelector('meta[name="logger-window-source"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'logger-window-source')
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', 'mainWindow')
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.queryByRole('button', { name: 'Releases' })).not.toBeInTheDocument()
+    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', OFFICIAL_RELEASES_URL)
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotPublished')
+    })
+    const unpublished = screen.getByText('No published update is available yet. Please try again later.')
+    expect(unpublished).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Releases' })).toBeEnabled()
+    expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_external_website', OFFICIAL_RELEASES_URL)
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+    })
+    expect(screen.getByText('Update error')).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Releases' }))
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', OFFICIAL_RELEASES_URL)
+    expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Check Update' }))
+    await waitFor(() => {
+      expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(1)
+    })
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotAvailable')
+    })
+    expect(screen.queryByRole('button', { name: 'Releases' })).not.toBeInTheDocument()
+    expect(screen.getByText('You are using the latest version')).toHaveAttribute('role', 'status')
+  })
+
+  it('shows a local releases-open failure and still allows another open and another update check', async () => {
+    const user = userEvent.setup()
+    const unhandled: unknown[] = []
+    const onWindowRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault()
+      unhandled.push(event.reason)
+    }
+    const onProcessRejection = (reason: unknown) => {
+      unhandled.push(reason)
+    }
+    window.addEventListener('unhandledrejection', onWindowRejection)
+    process.on('unhandledRejection', onProcessRejection)
+    let meta = document.querySelector('meta[name="logger-window-source"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'logger-window-source')
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', 'mainWindow')
+    let failOpen = true
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'system.shell.open_external_website') {
+        return failOpen ? Promise.reject(new Error('shell failed')) : Promise.resolve(undefined)
+      }
+      return Promise.resolve({ status: 'completed', isPortable: false })
+    })
+
+    try {
+      renderErrorDetailContent({ error: providerError })
+      act(() => {
+        appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Releases' }))
+      expect(await screen.findByText('Error opening the external browser.')).toHaveAttribute('role', 'alert')
+      expect(screen.getByRole('button', { name: 'Releases' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
+      expect(screen.getByText('Update error')).toBeInTheDocument()
+      expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+      await waitFor(() => expect(unhandled).toEqual([]))
+
+      failOpen = false
+      await user.click(screen.getByRole('button', { name: 'Releases' }))
+      await waitFor(() => {
+        expect(screen.queryByText('Error opening the external browser.')).not.toBeInTheDocument()
+      })
+      expect(screen.getByRole('button', { name: 'Releases' })).toBeEnabled()
+      expect(unhandled).toEqual([])
+
+      await user.click(screen.getByRole('button', { name: 'Check Update' }))
+      await waitFor(() => {
+        expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(
+          1
+        )
+      })
+      expect(unhandled).toEqual([])
+    } finally {
+      window.removeEventListener('unhandledrejection', onWindowRejection)
+      process.off('unhandledRejection', onProcessRejection)
+    }
   })
 })

@@ -200,28 +200,32 @@ describe('Toast', () => {
     expect(screen.queryByText('Archived Draft')).not.toBeInTheDocument()
   })
 
-  it('aligns actionable toast controls to the primary content row', () => {
+  it('keeps both toast actions on a wrapping row beside a readable title', () => {
     render(<ToastViewport />)
 
     act(() => {
       toast.info({
         action: { label: 'Undo', onClick: vi.fn() },
         description: 'The item can be restored for 30 days.',
+        secondaryAction: { label: 'View', onClick: vi.fn() },
         title: 'Item deleted'
       })
     })
 
     const actionButton = screen.getByRole('button', { name: 'Undo' })
+    const secondaryButton = screen.getByRole('button', { name: 'View' })
     const closeButton = screen.getByRole('button', { name: 'Close' })
     const title = screen.getByText('Item deleted')
 
     expect(actionButton).toHaveAttribute('data-variant', 'outline')
-    // These layout classes keep the 28px action, primary copy, and close control on one row
-    // while the root remains top-aligned so the description stays below that row.
-    expect(screen.getByRole('status')).toHaveClass('items-start')
-    expect(actionButton).toHaveClass('min-h-7')
-    expect(title).toHaveClass('min-h-7', 'py-1')
-    expect(closeButton.parentElement).toHaveClass('flex', 'min-h-7', 'items-center')
+    expect(secondaryButton).toHaveAttribute('data-variant', 'link')
+    expect(title).toHaveClass('break-words')
+    expect(title).not.toHaveClass('truncate')
+    expect(screen.getByText('The item can be restored for 30 days.')).toBeVisible()
+    expect(actionButton.parentElement).toHaveClass('flex-wrap', 'justify-end')
+    expect(actionButton.parentElement).toContainElement(secondaryButton)
+    expect(actionButton.parentElement).not.toContainElement(closeButton)
+    expect(closeButton).toBeVisible()
   })
 
   it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {
@@ -467,5 +471,77 @@ describe('Toast', () => {
     expect(secondClose).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('First')).not.toBeInTheDocument()
     expect(screen.queryByText('Second')).not.toBeInTheDocument()
+  })
+
+  it('keeps a loading rejection sticky, retains its cause, and still renders both actions', async () => {
+    const onError = vi.fn()
+    const failure = new Error('Network failed')
+    render(
+      <ToastViewport
+        renderExtra={(record) => (record.type === 'error' ? <button type="button">Details</button> : null)}
+      />
+    )
+
+    await act(async () => {
+      toast.loading({
+        action: { label: 'Retry', onClick: () => undefined },
+        key: 'failed-task',
+        onError,
+        promise: Promise.reject(failure),
+        secondaryAction: { label: 'Logs', onClick: () => undefined }
+      })
+    })
+
+    const record = toast.getToastQueue().toasts.find((item) => item.key === 'failed-task')
+    expect(onError).toHaveBeenCalledWith(failure)
+    expect(record?.cause).toBe(failure)
+    expect(record?.timeout).toBe(0)
+    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Logs' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Network failed')
+  })
+
+  it('assigns a new occurrence when the same key is written again', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.error({ key: 'sync', title: 'First failure' })
+    })
+    const first = toast.getToastQueue().toasts.find((item) => item.key === 'sync')?.occurrence
+
+    act(() => {
+      toast.error({ key: 'sync', title: 'Second failure' })
+    })
+    const second = toast.getToastQueue().toasts.find((item) => item.key === 'sync')?.occurrence
+
+    expect(first).toEqual(expect.any(Number))
+    expect(second).not.toBe(first)
+    expect(screen.getByText('Second failure')).toBeInTheDocument()
+    expect(screen.queryByText('First failure')).not.toBeInTheDocument()
+  })
+
+  it('keeps the title on its own row when details and both actions are present', () => {
+    render(
+      <ToastViewport
+        renderExtra={(record) => (record.type === 'error' ? <button type="button">Details</button> : null)}
+      />
+    )
+
+    act(() => {
+      toast.error({
+        action: { label: 'Retry', onClick: () => undefined },
+        description: 'The provider rejected the image request with status 429.',
+        secondaryAction: { label: 'Logs', onClick: () => undefined },
+        title: 'Image generation failed because the provider rejected the request'
+      })
+    })
+
+    const title = screen.getByText('Image generation failed because the provider rejected the request')
+    expect(title.className).not.toContain('truncate')
+    expect(title.parentElement).not.toContainElement(screen.getByRole('button', { name: 'Retry' }))
+    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Logs' })).toBeInTheDocument()
+    expect(screen.getByText('The provider rejected the image request with status 429.')).toBeInTheDocument()
   })
 })

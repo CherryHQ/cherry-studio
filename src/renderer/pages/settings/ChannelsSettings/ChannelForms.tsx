@@ -17,6 +17,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
@@ -25,6 +26,8 @@ import { permissionModeCards } from '@renderer/utils/agent'
 import type { ChannelData } from './channelTypes'
 import { DingTalkForm } from './DingTalkForm'
 import { WeComForm } from './WeComForm'
+
+type QrLoginFault = { channelId: string; status: 'error' }
 
 // --------------- Permission mode ---------------
 
@@ -242,9 +245,11 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
   const hasCredentials = !!(cfg.app_id && cfg.app_secret)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
+  const [loginFault, setLoginFault] = useState<QrLoginFault | null>(null)
 
   useIpcOn('channel.feishu.qr_login', (data) => {
     if (data.channelId !== channel.id) return
+    setLoginFault(data.status === 'error' ? { channelId: data.channelId, status: 'error' } : null)
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
@@ -275,6 +280,15 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-error" />
               <span className="text-xs text-error">{t('agent.channels.error')}</span>
+              {loginFault != null ? (
+                <ErrorDetailAction
+                  error={loginFault}
+                  message={t('agent.channels.error')}
+                  source="settings.channels"
+                  operation="channel.feishu.login"
+                  recordId={channel.id}
+                />
+              ) : null}
             </>
           )}
           {status === 'idle' && <span className="text-xs text-info">{t('agent.channels.feishu.loginHint')}</span>}
@@ -422,6 +436,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
   const [status, setStatus] = useState<WeChatStatus>('idle')
   const [loginUserId, setLoginUserId] = useState<string | null>(null)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [loginFault, setLoginFault] = useState<QrLoginFault | null>(null)
 
   useEffect(() => {
     void ipcApi.request('channel.wechat.has_credentials', channel.id).then((result) => {
@@ -434,6 +449,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
 
   useIpcOn('channel.wechat.qr_login', (data) => {
     if (data.channelId !== channel.id) return
+    setLoginFault(data.status === 'error' ? { channelId: data.channelId, status: 'error' } : null)
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
@@ -479,6 +495,15 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-error" />
               <span className="text-xs text-error">{t('agent.channels.error')}</span>
+              {loginFault != null ? (
+                <ErrorDetailAction
+                  error={loginFault}
+                  message={t('agent.channels.error')}
+                  source="settings.channels"
+                  operation="channel.wechat.login"
+                  recordId={channel.id}
+                />
+              ) : null}
             </>
           )}
           {(status === 'idle' || status === 'pending') && (

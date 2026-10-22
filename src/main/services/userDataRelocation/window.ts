@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -9,7 +9,9 @@ import { validateSender } from '@main/core/security/validateSender'
 import {
   type RelocationProgress,
   type RelocationStage,
-  UserDataRelocationIpcChannels
+  UserDataRelocationIpcChannels,
+  type UserDataRelocationSupportLink,
+  UserDataRelocationSupportLinks
 } from '@shared/types/userDataRelocation'
 
 const logger = loggerService.withContext('UserDataRelocationWindow')
@@ -47,6 +49,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   const unregisterIpc = () => {
     ipcMain.removeHandler(UserDataRelocationIpcChannels.GetProgress)
     ipcMain.removeHandler(UserDataRelocationIpcChannels.Restart)
+    ipcMain.removeHandler(UserDataRelocationIpcChannels.OpenSupportLink)
   }
 
   const close = () => {
@@ -64,14 +67,31 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     close()
   }
 
-  const handleGuarded = (channel: string, handler: () => unknown) => {
-    ipcMain.handle(channel, (event: IpcMainInvokeEvent) => {
+  const handleGuarded = (channel: string, handler: (payload: unknown) => unknown) => {
+    ipcMain.handle(channel, (event: IpcMainInvokeEvent, payload: unknown) => {
       if (!validateSender(event, application.getPath('app.root'))) {
         logger.warn('Rejected relocation IPC request from untrusted sender', { channel })
         throw new Error(`Rejected IPC request from untrusted sender: ${channel}`)
       }
-      return handler()
+      return handler(payload)
     })
+  }
+
+  const isSupportLink = (purpose: unknown): purpose is UserDataRelocationSupportLink =>
+    purpose === 'feedback' || purpose === 'releases'
+
+  const openSupportLink = (purpose: unknown): Promise<boolean> | false => {
+    if (!isSupportLink(purpose)) {
+      logger.warn('Rejected relocation support link')
+      return false
+    }
+    return shell.openExternal(UserDataRelocationSupportLinks[purpose]).then(
+      () => true,
+      (error: unknown) => {
+        logger.warn('Failed to open relocation support link', error as Error)
+        return false
+      }
+    )
   }
 
   // The lifecycle IpcApiService never starts during a relocation launch, so the
@@ -79,6 +99,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   // app relaunches.
   handleGuarded(UserDataRelocationIpcChannels.GetProgress, () => options.getProgress())
   handleGuarded(UserDataRelocationIpcChannels.Restart, () => requestRestart())
+  handleGuarded(UserDataRelocationIpcChannels.OpenSupportLink, openSupportLink)
 
   window = new BrowserWindow({
     width: 560,

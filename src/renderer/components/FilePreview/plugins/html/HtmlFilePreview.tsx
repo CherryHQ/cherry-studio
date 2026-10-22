@@ -11,6 +11,7 @@ import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
   HTML_PREVIEW_RESTRICTED_SANDBOX
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
@@ -41,17 +42,21 @@ function HtmlPreviewLoading() {
   )
 }
 
-function HtmlPreviewError() {
+function HtmlPreviewError({ error }: { error: Error }) {
   const { t } = useTranslation()
+  const description = t('file_preview.load_error.description')
 
   return (
-    <div role="alert" className="h-full">
+    <div role="alert" className="flex h-full flex-col">
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.html.read_error.title')}
-        description={t('file_preview.load_error.description')}
-        className="h-full"
+        description={description}
+        className="min-h-0 flex-1"
       />
+      <div className="flex justify-center pb-4">
+        <ErrorDetailAction error={error} message={description} source="file.preview" operation="file.preview.read" />
+      </div>
     </div>
   )
 }
@@ -93,7 +98,7 @@ interface HtmlPreviewContentProps {
 
 function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <HtmlPreviewLoading />
-  if (loadState.status === 'error') return <HtmlPreviewError />
+  if (loadState.status === 'error') return <HtmlPreviewError error={loadState.error} />
   if (loadState.status === 'too_large') return <HtmlPreviewTooLarge />
 
   if (mode === 'source') {

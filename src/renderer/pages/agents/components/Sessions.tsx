@@ -27,6 +27,7 @@ import { SessionHoverPreviewGroup } from '@renderer/components/chat/resourceList
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import {
   ResourceEditDialogHost,
@@ -2230,7 +2231,9 @@ const Sessions = ({
           </>
         )}
       </ResourceList.Header>
-      {refreshError && <ResourceRefreshErrorBanner onRetry={handleRetry} retrying={listValidating} />}
+      {refreshError && (
+        <ResourceRefreshErrorBanner error={refreshError} onRetry={handleRetry} retrying={listValidating} />
+      )}
       <SessionHoverPreviewGroup enabled={dataEnabled}>
         <SessionListBody
           activeSessionId={activeSessionId}
@@ -2395,14 +2398,22 @@ function SessionListBody({
           <div className="flex flex-col gap-2">
             <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
             <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-fit"
-              onClick={() => void onRetry()}
-              disabled={isValidating}>
-              {t('common.retry')}
-            </Button>
+            <div className="flex items-center gap-2">
+              <ErrorDetailAction
+                error={error}
+                message={t('agent.session.get.error.failed')}
+                source="agent.session"
+                operation="agent.session.list"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-fit"
+                onClick={() => void onRetry()}
+                disabled={isValidating}>
+                {t('common.retry')}
+              </Button>
+            </div>
           </div>
         </ResourceList.ErrorState>
       }

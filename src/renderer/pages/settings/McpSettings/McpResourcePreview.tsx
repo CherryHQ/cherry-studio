@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
 import type { OutputFor } from '@shared/ipc/types'
 import type { EventPayload } from '@shared/ipc/types'
@@ -12,7 +13,7 @@ const logger = loggerService.withContext('McpResourcePreview')
 export default function McpResourcePreview({ serverId, uri }: { serverId: string; uri: string }) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<OutputFor<'mcp.server.read_resource_preview'>>()
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState<unknown>(null)
   const [revision, setRevision] = useState(0)
   const [subscription, setSubscription] =
     useState<Exclude<EventPayload<'mcp.resource.changed'>['state'], 'updated'>>('reconnecting')
@@ -38,7 +39,7 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
   useEffect(() => {
     const requestId = crypto.randomUUID()
     let active = true
-    setFailed(false)
+    setFailure(null)
     void ipcApi
       .request('mcp.server.read_resource_preview', {
         serverId,
@@ -53,7 +54,7 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
         },
         (error) => {
           if (active) {
-            setFailed(true)
+            setFailure(error)
             logger.warn('MCP resource preview failed', { serverId, error })
           }
         }
@@ -81,8 +82,12 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
           {t('common.refresh')}
         </Button>
       </div>
-      {failed ? (
-        <Alert type="error" message={t('common.error')} />
+      {failure ? (
+        <Alert
+          type="error"
+          message={t('common.error')}
+          action={<ErrorDetailAction error={failure} source="mcp" operation="mcp.resource.preview" recordId={uri} />}
+        />
       ) : !preview ? (
         <Spinner text={t('common.loading')} />
       ) : (

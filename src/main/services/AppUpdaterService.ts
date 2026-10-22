@@ -94,6 +94,22 @@ export class AppUpdaterService extends BaseService {
   private updateCheckResult: UpdateCheckResult | null = null
   // Consecutive scheduled-check failures, drives backoff; reset on success.
   private updateCheckFailures = 0
+  // electron-updater events do not name the check. A generation is the configured
+  // request: cancellation retires it, and only the version that check returned is
+  // a release of that request. A prerelease feed may promote a stable version.
+  private checkGeneration = 0
+  private listeningGeneration = 0
+  private acceptedRelease: { generation: number; version: string } | null = null
+  private availableAnnouncedFor = 0
+  private stagedAvailable: UpdateInfo | null = null
+  private stagedDownloaded: UpdateInfo | null = null
+  private stagedProgress: ProgressInfo | null = null
+  // electron-updater returns its in-flight check promise. The next check waits
+  // until that promise settles, then configures and calls checkForUpdates again.
+  private updateCheckQueue: Promise<void> = Promise.resolve()
+  // downloadUpdate() likewise returns the in-flight download until its finally
+  // clears it. A canceled download must settle before the next check starts one.
+  private pendingDownload: Promise<void> = Promise.resolve()
 
   protected async onInit(): Promise<void> {
     autoUpdater.logger = logger as Logger
@@ -142,8 +158,86 @@ export class AppUpdaterService extends BaseService {
     this.scheduleNextUpdateCheck(INITIAL_CHECK_DELAY_MS)
   }
 
+  private suppressUpdaterEvents(): void {
+    this.checkGeneration += 1
+    this.listeningGeneration = 0
+    this.acceptedRelease = null
+    this.clearStagedRelease()
+  }
+
+  /** Start one configured check. Events from the previous request stop matching. */
+  private beginConfiguredCheck(): number {
+    this.checkGeneration += 1
+    this.listeningGeneration = this.checkGeneration
+    this.acceptedRelease = null
+    this.clearStagedRelease()
+    return this.checkGeneration
+  }
+
+  private checkStillCurrent(generation: number): boolean {
+    return generation === this.checkGeneration && generation === this.listeningGeneration
+  }
+
+  private trackDownload(promise: Promise<unknown> | null | undefined): void {
+    if (promise == null) return
+    // Cancellation and download failures are already emitted by electron-updater.
+    // This chain only waits until the library drops its reused downloadPromise.
+    const settled = promise.then(
+      () => undefined,
+      () => undefined
+    )
+    const previous = this.pendingDownload
+    this.pendingDownload = previous.then(() => settled)
+  }
+
+  private clearStagedRelease(): void {
+    this.stagedAvailable = null
+    this.stagedDownloaded = null
+    this.stagedProgress = null
+  }
+
+  private releaseIsCurrent(info: UpdateInfo): boolean {
+    return (
+      this.acceptedRelease !== null &&
+      this.acceptedRelease.generation === this.checkGeneration &&
+      info.version === this.acceptedRelease.version
+    )
+  }
+
+  private announceAvailable(info: UpdateInfo): void {
+    if (!this.releaseIsCurrent(info) || this.availableAnnouncedFor === this.checkGeneration) return
+    this.availableAnnouncedFor = this.checkGeneration
+    logger.info('update available', info)
+    application
+      .get('IpcApiService')
+      .broadcastToType(WindowType.Main, 'app.updater.available', this.processReleaseInfo(info))
+  }
+
+  private announceDownloaded(info: UpdateInfo): void {
+    if (!this.releaseIsCurrent(info)) return
+    const processedReleaseInfo = this.processReleaseInfo(info)
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.downloaded', processedReleaseInfo)
+    logger.info('update downloaded', processedReleaseInfo)
+  }
+
+  /** Events that arrived before the check result are kept only when their version is that result. */
+  private flushStagedRelease(): void {
+    const available = this.stagedAvailable
+    const downloaded = this.stagedDownloaded
+    const progress = this.stagedProgress
+    this.clearStagedRelease()
+    const version = this.acceptedRelease?.version
+    const stagedMatches = available?.version === version || downloaded?.version === version
+    if (available) this.announceAvailable(available)
+    if (stagedMatches && progress && this.acceptedRelease?.generation === this.checkGeneration) {
+      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.download_progress', progress)
+    }
+    if (downloaded) this.announceDownloaded(downloaded)
+  }
+
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
+      if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
       logger.error('update error', error)
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.error', error)
     }
@@ -151,29 +245,43 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
 
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
-      logger.info('update available', releaseInfo)
-      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.available', processedReleaseInfo)
+      if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
+      if (!this.acceptedRelease) {
+        this.stagedAvailable = releaseInfo
+        return
+      }
+      this.announceAvailable(releaseInfo)
     }
     autoUpdater.on('update-available', onUpdateAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
     const onUpdateNotAvailable = () => {
+      if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
+      if (this.acceptedRelease) return
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.not_available', undefined)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
 
     const onDownloadProgress = (progress: ProgressInfo) => {
+      if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
+      if (!this.acceptedRelease) {
+        this.stagedProgress = progress
+        return
+      }
+      if (this.acceptedRelease.generation !== this.checkGeneration) return
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.download_progress', progress)
     }
     autoUpdater.on('download-progress', onDownloadProgress)
     this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
 
     const onUpdateDownloaded = (releaseInfo: UpdateInfo) => {
-      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
-      application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.downloaded', processedReleaseInfo)
-      logger.info('update downloaded', processedReleaseInfo)
+      if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
+      if (!this.acceptedRelease) {
+        this.stagedDownloaded = releaseInfo
+        return
+      }
+      this.announceDownloaded(releaseInfo)
     }
     autoUpdater.on('update-downloaded', onUpdateDownloaded)
     this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
@@ -308,6 +416,7 @@ export class AppUpdaterService extends BaseService {
   }
 
   public cancelDownload() {
+    this.suppressUpdaterEvents()
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
     if (autoUpdater.autoDownload) {
@@ -327,7 +436,16 @@ export class AppUpdaterService extends BaseService {
    * event-driven contract: errors reach the renderer via the `UpdateError`
    * broadcast (see `registerAutoUpdaterListeners`), not the return value.
    */
-  private async performUpdateCheck() {
+  private performUpdateCheck() {
+    const run = this.updateCheckQueue.then(() => this.runConfiguredUpdateCheck())
+    this.updateCheckQueue = run.then(
+      () => undefined,
+      () => undefined
+    )
+    return run
+  }
+
+  private async runConfiguredUpdateCheck() {
     void application.get('AnalyticsService').trackAppUpdate()
 
     if (this.isPortable()) {
@@ -337,23 +455,44 @@ export class AppUpdaterService extends BaseService {
       }
     }
 
+    await this.pendingDownload
+    const generation = this.beginConfiguredCheck()
     await this.configureUpdaterForCheck()
+    if (!this.checkStillCurrent(generation)) {
+      return { currentVersion: autoUpdater.currentVersion, updateInfo: null }
+    }
 
     this.updateCheckResult = await autoUpdater.checkForUpdates()
+    this.trackDownload(this.updateCheckResult?.downloadPromise)
+    if (!this.checkStillCurrent(generation)) {
+      // cancelDownload ran before this result existed, so its auto-download token
+      // is still live. Cancel it here; pendingDownload already waits for settlement.
+      this.updateCheckResult?.cancellationToken?.cancel()
+      return { currentVersion: autoUpdater.currentVersion, updateInfo: null }
+    }
     logger.info(
       `update check result: ${this.updateCheckResult?.isUpdateAvailable}, channel: ${autoUpdater.channel}, currentVersion: ${autoUpdater.currentVersion}`
     )
 
-    if (this.updateCheckResult?.isUpdateAvailable && !autoUpdater.autoDownload) {
-      // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
-      // do not use await, because it will block the return of this function
+    const updateInfo = this.updateCheckResult?.isUpdateAvailable ? this.updateCheckResult.updateInfo : null
+    if (updateInfo?.version) {
+      this.acceptedRelease = { generation, version: updateInfo.version }
+      this.flushStagedRelease()
+      this.announceAvailable(updateInfo)
+    } else {
+      this.clearStagedRelease()
+    }
+
+    if (updateInfo && !autoUpdater.autoDownload && this.checkStillCurrent(generation)) {
+      // Manual download stays off the check's return path. The promise is retained
+      // so the next check cannot observe electron-updater's reused download.
       logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
-      void autoUpdater.downloadUpdate(this.cancellationToken)
+      this.trackDownload(autoUpdater.downloadUpdate(this.cancellationToken))
     }
 
     return {
       currentVersion: autoUpdater.currentVersion,
-      updateInfo: this.updateCheckResult?.isUpdateAvailable ? this.updateCheckResult?.updateInfo : null
+      updateInfo
     }
   }
 

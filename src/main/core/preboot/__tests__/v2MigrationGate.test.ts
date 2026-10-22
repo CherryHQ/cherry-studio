@@ -40,6 +40,8 @@ const unregisterMigrationIpcHandlersMock = vi.fn()
 const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
+const showSaveDialogMock = vi.fn()
+const saveBundleMock = vi.fn()
 const appQuitMock = vi.fn()
 const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
@@ -105,7 +107,8 @@ function stubMigrationV2() {
       getBlockMessage: getBlockMessageMock,
       describeErrorChain,
       isMigrationStorageError,
-      isSchemaOutOfSyncError
+      isSchemaOutOfSyncError,
+      saveMigrationDiagnosticBundle: (...args: unknown[]) => saveBundleMock(...args)
     }
   })
 }
@@ -122,7 +125,8 @@ function stubElectron() {
     },
     dialog: {
       showErrorBox: showErrorBoxMock,
-      showMessageBox: showMessageBoxMock
+      showMessageBox: showMessageBoxMock,
+      showSaveDialog: showSaveDialogMock
     }
   }))
 }
@@ -172,6 +176,9 @@ beforeEach(() => {
   unregisterMigrationIpcHandlersMock.mockReset()
   showErrorBoxMock.mockReset()
   showMessageBoxMock.mockReset()
+  showMessageBoxMock.mockResolvedValue({ response: 0 })
+  showSaveDialogMock.mockReset()
+  saveBundleMock.mockReset()
   appQuitMock.mockReset()
   appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
@@ -370,8 +377,9 @@ describe('runV2MigrationGate', () => {
       expect(showMessageBoxMock.mock.calls[0][0]).toMatchObject({
         title: '数据库不可用',
         message: 'Cherry Studio 无法访问本地数据库。',
-        detail: '请检查数据存储位置是否可用且可写，并确保磁盘有足够的可用空间，然后重试。',
-        buttons: ['重试', '退出'],
+        detail:
+          '请检查数据存储位置是否可用且可写，并确保磁盘有足够的可用空间，然后重试。\n\n自动分析不可用。你可以复制错误、发送反馈或打开官方发布页。',
+        buttons: ['重试', '退出', '复制错误', '发送反馈', '打开发布页', '导出诊断信息'],
         defaultId: 0,
         cancelId: 1
       })
@@ -427,8 +435,10 @@ describe('runV2MigrationGate', () => {
         const result = await runV2MigrationGate()
 
         expect(result).toBe('handled')
-        expect(showMessageBoxMock).not.toHaveBeenCalled()
-        expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+        expect(showErrorBoxMock).not.toHaveBeenCalled()
+        expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
+        expect(showMessageBoxMock.mock.calls[0][0].title).toContain('Migration Failed')
+        expect(showMessageBoxMock.mock.calls[0][0].buttons[0]).toBe('Exit')
         expect(appQuitMock).toHaveBeenCalledTimes(1)
       }
     )
@@ -447,8 +457,9 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(whenReadyMock).toHaveBeenCalledTimes(1)
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      const [title, message] = showErrorBoxMock.mock.calls[0]
+      expect(showMessageBoxMock).toHaveBeenCalled()
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      const { title, message } = showMessageBoxMock.mock.calls[0][0]
       expect(title).toContain('Migration Failed')
       expect(title).not.toContain('(Dev)')
       expect(message).toContain('DB unavailable')
@@ -472,13 +483,14 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock).toHaveBeenCalled()
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('handled path — schema out of sync (dev)', () => {
-    it('shows the dev reset dialog with the DB path and quits when running in dev', async () => {
+    it('preserves the database path and original error, shows no delete command, and quits in dev', async () => {
       initializeMock.mockImplementation(() => {
         throw schemaOutOfSyncError()
       })
@@ -486,16 +498,26 @@ describe('runV2MigrationGate', () => {
       stubElectron()
       stubApplication()
       stubPlatform(true)
+      const rmSpy = vi.spyOn(fsp, 'rm')
 
-      const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
+      try {
+        const { runV2MigrationGate } = await loadModule()
+        const result = await runV2MigrationGate()
 
-      expect(result).toBe('handled')
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Database Schema Out of Sync')
-      expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+        expect(result).toBe('handled')
+        expect(showMessageBoxMock).toHaveBeenCalled()
+        const { title, message } = showMessageBoxMock.mock.calls[0][0]
+        expect(title).toContain('Database Schema Out of Sync')
+        expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
+        expect(message).toContain('table `agent` already exists')
+        expect(message).toContain('Preserve this database')
+        expect(message).not.toContain('{{command}}')
+        expect(message).not.toMatch(/\brm\s+-/)
+        expect(appQuitMock).toHaveBeenCalledTimes(1)
+        expect(rmSpy).not.toHaveBeenCalled()
+      } finally {
+        rmSpy.mockRestore()
+      }
     })
 
     it('falls back to the neutral production dialog when the schema is out of sync but not in dev', async () => {
@@ -506,20 +528,27 @@ describe('runV2MigrationGate', () => {
       stubElectron()
       stubApplication()
       stubPlatform(false)
+      const rmSpy = vi.spyOn(fsp, 'rm')
 
-      const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
+      try {
+        const { runV2MigrationGate } = await loadModule()
+        const result = await runV2MigrationGate()
 
-      expect(result).toBe('handled')
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed')
-      // Production must NOT get the dev variant nor any "delete the DB" instruction.
-      expect(title).not.toContain('(Dev)')
-      expect(message).not.toContain('rm -f')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+        expect(result).toBe('handled')
+        const { title, message } = showMessageBoxMock.mock.calls[0][0]
+        expect(title).toContain('Migration Failed')
+        expect(title).not.toContain('(Dev)')
+        expect(message).toContain('table `agent` already exists')
+        expect(message).not.toContain('{{command}}')
+        expect(message).not.toMatch(/\brm\s+-/)
+        expect(appQuitMock).toHaveBeenCalledTimes(1)
+        expect(rmSpy).not.toHaveBeenCalled()
+      } finally {
+        rmSpy.mockRestore()
+      }
     })
 
-    it('shows the dev migration-failed dialog (both causes + DB path) for non-schema errors in dev', async () => {
+    it('preserves the database path and original error for other dev failures, without a delete command', async () => {
       initializeMock.mockImplementation(() => {
         throw new Error('DB unavailable')
       })
@@ -527,19 +556,25 @@ describe('runV2MigrationGate', () => {
       stubElectron()
       stubApplication()
       stubPlatform(true)
+      const rmSpy = vi.spyOn(fsp, 'rm')
 
-      const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
+      try {
+        const { runV2MigrationGate } = await loadModule()
+        const result = await runV2MigrationGate()
 
-      expect(result).toBe('handled')
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed (Dev)')
-      expect(message).toContain('DB unavailable')
-      // Dev surfaces BOTH possibilities (incompatible data vs migration bug) + the DB path,
-      // and explicitly does NOT assert "just delete the DB".
-      expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
-      expect(message).toContain('Do NOT just delete the DB')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+        expect(result).toBe('handled')
+        const { title, message } = showMessageBoxMock.mock.calls[0][0]
+        expect(title).toContain('Migration Failed (Dev)')
+        expect(message).toContain('DB unavailable')
+        expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
+        expect(message).toContain('Preserve this database')
+        expect(message).not.toContain('{{command}}')
+        expect(message).not.toMatch(/\brm\s+-/)
+        expect(appQuitMock).toHaveBeenCalledTimes(1)
+        expect(rmSpy).not.toHaveBeenCalled()
+      } finally {
+        rmSpy.mockRestore()
+      }
     })
   })
 
@@ -564,8 +599,8 @@ describe('runV2MigrationGate', () => {
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
       expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      const [title, message] = showErrorBoxMock.mock.calls[0]
+      expect(showMessageBoxMock).toHaveBeenCalled()
+      const { title, message } = showMessageBoxMock.mock.calls[0][0]
       expect(title).toContain('Migration Required')
       expect(message).toContain('window create failed')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
@@ -588,7 +623,8 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock).toHaveBeenCalled()
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
   })
@@ -652,7 +688,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       // Fallback: dialog + quit + engine close
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock).toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(closeMock).toHaveBeenCalledTimes(1)
       expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
@@ -709,7 +745,8 @@ describe('runV2MigrationGate', () => {
       expect(result).toBe('handled')
       // Regression: the old dialog only had Retry/Quit, dead-ending abandoned dirs.
       const [{ buttons }] = showMessageBoxMock.mock.calls[0]
-      expect(buttons).toEqual(['Retry', 'Use Default Directory', 'Quit'])
+      expect(buttons.slice(0, 3)).toEqual(['Retry', 'Use Default Directory', 'Quit'])
+      expect(buttons).toContain('Copy error')
       expect(appRelaunchMock).toHaveBeenCalledTimes(1)
       expect(pinUserDataPathMock).not.toHaveBeenCalled()
       expect(initializeMock).not.toHaveBeenCalled()
@@ -753,7 +790,9 @@ describe('runV2MigrationGate', () => {
 
     it('quits with a fatal error when pinning the default dir fails on Use Default (response 1)', async () => {
       stubInaccessible()
-      showMessageBoxMock.mockResolvedValue({ response: 1 })
+      // The first dialog's Use Default is response 1. The failure dialog's only
+      // primary button is Exit at 0; response 1 there is Copy and would loop.
+      showMessageBoxMock.mockResolvedValueOnce({ response: 1 }).mockResolvedValue({ response: 0 })
       // Strict pin persistence fails — must not silently proceed into migration
       // on an unpersisted pin (that would relaunch into the old dir and loop).
       pinUserDataPathMock.mockImplementation(() => {
@@ -767,8 +806,8 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      expect(showErrorBoxMock.mock.calls[0][1]).toContain('/mock/cherry-home')
+      expect(showMessageBoxMock).toHaveBeenCalled()
+      expect(showMessageBoxMock.mock.calls.at(-1)?.[0].message).toContain('/mock/cherry-home')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })
@@ -789,7 +828,7 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock).toHaveBeenCalled()
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })
@@ -837,6 +876,76 @@ describe('runV2MigrationGate', () => {
       await runV2MigrationGate()
 
       expect(setDataLocationNoticeMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('migration diagnostic export', () => {
+    function failPin() {
+      resolveMigrationPathsMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+    }
+
+    it('writes the migration bundle from the export button and returns to the dialog', async () => {
+      failPin()
+      showMessageBoxMock.mockResolvedValueOnce({ response: 4 }).mockResolvedValueOnce({ response: 0 })
+      showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/tmp/diagnostics.zip' })
+      saveBundleMock.mockResolvedValue('included')
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showSaveDialogMock).toHaveBeenCalledWith({
+        title: 'Export diagnostics',
+        defaultPath: 'cherry-studio-migration-diagnostics.zip'
+      })
+      expect(saveBundleMock).toHaveBeenCalledWith({
+        destination: '/tmp/diagnostics.zip',
+        stage: 'error',
+        logDate: new Date().toISOString().slice(0, 10)
+      })
+      expect(showMessageBoxMock.mock.calls[0][0].buttons.at(-1)).toBe('Export diagnostics')
+      expect(showMessageBoxMock.mock.calls[1][0].detail).not.toContain('That action failed')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns to the dialog when the export save is canceled', async () => {
+      failPin()
+      showMessageBoxMock.mockResolvedValueOnce({ response: 4 }).mockResolvedValueOnce({ response: 0 })
+      showSaveDialogMock.mockResolvedValue({ canceled: true, filePath: '' })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      await runV2MigrationGate()
+
+      expect(saveBundleMock).not.toHaveBeenCalled()
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(2)
+      expect(showMessageBoxMock.mock.calls[1][0].detail).not.toContain('Could not write the diagnostic archive')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps a failed archive write on the dialog and still quits from the original button', async () => {
+      failPin()
+      showMessageBoxMock.mockResolvedValueOnce({ response: 4 }).mockResolvedValueOnce({ response: 0 })
+      showSaveDialogMock.mockResolvedValue({ canceled: false, filePath: '/tmp/diagnostics.zip' })
+      saveBundleMock.mockResolvedValue(false)
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(saveBundleMock).toHaveBeenCalledOnce()
+      expect(showMessageBoxMock.mock.calls[1][0].detail).toContain('Could not write the diagnostic archive')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
   })
 })

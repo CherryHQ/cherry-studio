@@ -21,6 +21,8 @@ import {
   type MigrationProgress,
   type MigrationResult,
   type MigrationSummary,
+  type MigrationSupportLink,
+  MigrationSupportLinks,
   type PreparedMigrationExportPaths,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
@@ -73,6 +75,15 @@ const V1_DOWNLOAD_URL_GLOBAL = 'https://cherryai.com/download/v1'
 function resolveV1DownloadUrl(language: unknown): string {
   const isChinese = typeof language === 'string' && language.toLowerCase().includes('zh')
   return isChinese ? V1_DOWNLOAD_URL_CN : V1_DOWNLOAD_URL_GLOBAL
+}
+
+function isMigrationSupportLink(purpose: unknown): purpose is MigrationSupportLink {
+  return purpose === 'feedback' || purpose === 'releases'
+}
+
+function resolveMigrationSupportLink(purpose: unknown): string | null {
+  if (!isMigrationSupportLink(purpose)) return null
+  return MigrationSupportLinks[purpose]
 }
 
 const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({
@@ -294,6 +305,22 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
       return true
     } catch (error) {
       logger.warn('Failed to open v1 download page', error as Error)
+      return false
+    }
+  })
+
+  ipcMain.handle(MigrationIpcChannels.OpenSupportLink, async (event: IpcMainInvokeEvent, purpose: unknown) => {
+    assertMigrationWindowSender(event)
+    const url = resolveMigrationSupportLink(purpose)
+    if (!url) {
+      logger.warn('Rejected migration support link')
+      return false
+    }
+    try {
+      await shell.openExternal(url)
+      return true
+    } catch (error) {
+      logger.warn('Failed to open migration support link', error as Error)
       return false
     }
   })

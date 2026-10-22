@@ -69,7 +69,12 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   ConfirmDialog: ({ open, title }: { open: boolean; title: ReactNode }) =>
     open ? <div role="dialog">{title}</div> : null,
-  EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
+  EmptyState: ({ description, title }: { description?: ReactNode; title: ReactNode }) => (
+    <div>
+      {title}
+      {description}
+    </div>
+  ),
   SegmentedControl: ({
     'aria-label': ariaLabel,
     disabled,
@@ -187,6 +192,59 @@ describe('SkillFileBrowser', () => {
     })
   })
 
+  it('shows file-load details when the directory tree fails', () => {
+    mocks.tree = { error: new Error('tree exploded'), isLoading: false, root: null, version: 0 }
+    renderBrowser()
+
+    expect(screen.getByText('library.skill_detail.file_load_failed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.queryByText('tree exploded')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.skill_detail.no_files')).not.toBeInTheDocument()
+  })
+
+  it('keeps the draft and shows save details when the write fails', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.read') {
+          const content = new TextEncoder().encode('# Writer')
+          return { content, mime: 'text/markdown', version: { mtime: 1, size: content.byteLength } }
+        }
+        if (route === 'file.write_if_unchanged') throw new Error('disk full')
+        return undefined
+      })
+      renderBrowser('read_write')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      fireEvent.click(screen.getByRole('radio', { name: 'settings.skills.editor.edit' }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'code-editor' }), { target: { value: '# Draft stays' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+        await Promise.resolve()
+      })
+
+      expect(screen.getByRole('textbox', { name: 'code-editor' })).toHaveValue('# Draft stays')
+      expect(screen.getByText('settings.skills.editor.saveFailed')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+      expect(screen.queryByText('disk full')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows load details when the selected file cannot be read', async () => {
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'file.read') throw new Error('unreadable')
+      return undefined
+    })
+    renderBrowser('read_write')
+
+    await waitFor(() => expect(screen.getByText('settings.skills.editor.loadFailed')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+    expect(screen.queryByText('unreadable')).not.toBeInTheDocument()
+  })
+
   it('selects SKILL.md from the generic directory tree and previews its absolute path', async () => {
     renderBrowser()
 
@@ -276,6 +334,9 @@ describe('SkillFileBrowser', () => {
       })
 
       expect(screen.getByText('settings.skills.editor.syncFailed')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'error.details' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
+      expect(screen.queryByText('mirror unavailable')).not.toBeInTheDocument()
       let shouldBlock = false
       await act(async () => {
         shouldBlock = (await mocks.blockerOptions?.shouldBlockFn()) ?? false
@@ -320,6 +381,8 @@ describe('SkillFileBrowser', () => {
       await vi.advanceTimersByTimeAsync(800)
     })
     expect(screen.getByText('settings.skills.editor.conflict')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.skills.editor.keepDraft' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'error.details' })).not.toBeInTheDocument()
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'settings.skills.editor.keepDraft' }))

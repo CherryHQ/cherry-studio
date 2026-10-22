@@ -4,17 +4,16 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
-import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
 import { WindowControls } from '../WindowControls'
 import { HelpMenu } from './HelpMenu'
 
-const logger = loggerService.withContext('ShellTabBarActions')
 const FeedbackDialog = lazy(() => import('@renderer/components/feedback/FeedbackDialog'))
 
 export function SidebarSettingsButton({ layout }: { layout: SidebarVisibleLayout }) {
@@ -60,9 +59,7 @@ export function AppUpdateButton({ placement = 'bottom' }: { placement?: 'top' | 
     const releaseInfo = appUpdateState.info
     if (!releaseInfo) return
 
-    void import('@renderer/components/UpdateDialogPopup')
-      .then(({ default: UpdateDialogPopup }) => UpdateDialogPopup.show({ releaseInfo }))
-      .catch((error) => logger.error('Failed to open update dialog', error as Error))
+    void appUpdateCheckService.presentDownloadedUpdate(releaseInfo)
   }
 
   const updateLabel = appUpdateState.info

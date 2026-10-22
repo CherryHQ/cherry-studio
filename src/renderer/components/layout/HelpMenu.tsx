@@ -9,6 +9,7 @@ import { DoctorPopup } from '@renderer/components/doctor'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
+import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 
 const logger = loggerService.withContext('HelpMenu')
 
@@ -148,7 +149,11 @@ export function HelpMenu({
               label={t('settings.about.feedback.diagnostics.title')}
               onClick={() =>
                 runAfterClose(async () => {
-                  await DoctorPopup.show({ initialPanel: 'report' })
+                  const aiDiagnosis = captureDiagnosticAiDiagnosis({ scope: 'global' })
+                  await DoctorPopup.show({
+                    initialPanel: 'report',
+                    ...(aiDiagnosis ? { aiDiagnosis } : {})
+                  })
                 })
               }
             />

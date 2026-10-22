@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, type CodeEditorHandles, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -1101,6 +1102,17 @@ const NotesPage: FC = () => {
                     : 'notes.save_failure.description'
                 )}
               </span>
+              <ErrorDetailAction
+                error={fileSession.saveError}
+                message={t(
+                  fileSession.metadataRecoveryPending
+                    ? 'notes.save_failure.metadata_pending'
+                    : 'notes.save_failure.description'
+                )}
+                source="notes"
+                operation={fileSession.metadataRecoveryPending ? 'notes.metadata.recover' : 'notes.file.write'}
+                recordId={activeFilePath || undefined}
+              />
               {!fileSession.metadataRecoveryPending && (
                 <Button
                   type="button"

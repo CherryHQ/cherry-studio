@@ -21,6 +21,7 @@ import {
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { GroupedVirtualList } from '@renderer/components/VirtualList'
 import { useTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
@@ -44,7 +45,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
   const pendingLoad = useRef(false)
   const query = useMemo(() => ({ search }), [search])
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(false)
+  const [actionError, setActionError] = useState<unknown>(null)
   const { openTab } = useTabs()
   const {
     pages,
@@ -106,11 +107,11 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true)
-    setError(false)
+    setActionError(null)
     try {
       await action()
-    } catch {
-      setError(true)
+    } catch (cause) {
+      setActionError(cause)
     } finally {
       setBusy(false)
     }
@@ -156,13 +157,19 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
             }}
           />
         </div>
-        {(error || historyError) && (
-          <p role="alert" className="text-error text-sm">
-            {t('settings.browser.error')}
+        {(actionError || historyError) && (
+          <div role="alert" className="flex items-center gap-2 text-error text-sm">
+            <span>{t('settings.browser.error')}</span>
+            <ErrorDetailAction
+              error={actionError ?? historyError}
+              message={t('settings.browser.error')}
+              source="settings.browser"
+              operation={actionError ? 'browser.history.action' : 'browser.history.load'}
+            />
             <Button variant="ghost" onClick={() => void run(refetch)}>
               {t('common.refresh')}
             </Button>
-          </p>
+          </div>
         )}
       </div>
       <div className="@container min-h-0 flex-1 px-4 pb-4" aria-busy={isRefreshing}>

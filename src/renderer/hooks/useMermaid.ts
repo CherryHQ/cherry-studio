@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { useTheme } from '@renderer/hooks/useTheme'
+import i18n from '@renderer/i18n/resolver'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 // 跟踪 mermaid 模块状态，单例模式
@@ -34,6 +35,7 @@ export const useMermaid = () => {
   const { theme } = useTheme()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [cause, setCause] = useState<unknown>(null)
   const [forceRenderKey, setForceRenderKey] = useState(0)
 
   // 初始化 mermaid 并监听主题变化
@@ -55,8 +57,10 @@ export const useMermaid = () => {
 
         setForceRenderKey((prev) => prev + 1)
         setError(null)
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to initialize Mermaid')
+        setCause(null)
+      } catch (caught) {
+        setCause(caught)
+        setError(i18n.t('preview.mermaid.init_failed'))
       } finally {
         if (mounted) {
           setIsLoading(false)
@@ -75,6 +79,7 @@ export const useMermaid = () => {
     mermaid: mermaidModule,
     isLoading,
     error,
+    cause,
     forceRenderKey
   }
 }

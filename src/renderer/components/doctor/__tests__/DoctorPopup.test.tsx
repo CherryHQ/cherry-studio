@@ -11,6 +11,8 @@ vi.unmock('@cherrystudio/ui')
 
 const mocks = vi.hoisted(() => ({
   doctorState: { status: 'canceled', runId: 'run-1', selectedCheckIds: [] } as DoctorState,
+  reportDiagnosis: undefined as unknown,
+  reportErrorContext: undefined as unknown,
   request: vi.fn(),
   translations: {
     'error.diagnostics.checking_progress': 'Checking: {{check}} · {{completed}}/{{total}}',
@@ -29,9 +31,16 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
-vi.mock('@data/CacheService', () => ({
-  cacheService: { isSharedCacheReady: () => true, onSharedCacheReady: vi.fn() }
-}))
+vi.mock('@data/CacheService', async () => {
+  const { mockCacheService } = await import('../../../../../tests/__mocks__/renderer/CacheService')
+  return {
+    cacheService: {
+      ...mockCacheService,
+      isSharedCacheReady: () => true,
+      onSharedCacheReady: vi.fn()
+    }
+  }
+})
 vi.mock('@data/hooks/useCache', () => ({
   useSharedCacheValue: (key: string) => (key.startsWith('doctor.state.') ? mocks.doctorState : undefined)
 }))
@@ -54,12 +63,25 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => moc
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn() }) }
 }))
-vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+  toastInlineError: () => undefined
+}))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 
 vi.mock('@renderer/components/feedback/DiagnosticUploadPanel', () => {
   const React = require('react')
-  const DiagnosticUploadPanel = ({ ref, description, onBusyChange, onClose, onDescriptionChange }) => {
+  const DiagnosticUploadPanel = ({
+    ref,
+    aiDiagnosis,
+    description,
+    errorContext,
+    onBusyChange,
+    onClose,
+    onDescriptionChange
+  }) => {
+    mocks.reportDiagnosis = aiDiagnosis
+    mocks.reportErrorContext = errorContext
     React.useImperativeHandle(ref, () => ({ requestClose: async () => true }))
     return React.createElement(
       React.Fragment,
@@ -97,9 +119,62 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { cacheService } from '@data/CacheService'
 import { PopupHost } from '@renderer/components/PopupHost'
+import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
+import type { DoctorScopeKey } from '@shared/types/doctor'
+import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
+import { createAppErrorContext } from '@shared/utils/appError'
+import { doctorAgentKey, doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
+import { MockCacheUtils } from '../../../../../tests/__mocks__/renderer/CacheService'
 import DoctorPopup from '../DoctorPopup'
+
+function publishDiagnosis(scope: DoctorScopeKey, text: string, incident?: DoctorAgentIncident) {
+  const runId = 'report-1'
+  const doctor: Extract<DoctorState, { status: 'completed' }> = {
+    status: 'completed',
+    report: {
+      schemaVersion: 1,
+      scope,
+      runId,
+      tier: 'quick',
+      selectedCheckIds: [],
+      startedAt: '2026-05-01T00:00:00.000Z',
+      finishedAt: '2026-05-01T00:00:01.000Z',
+      expiresAt: '2026-05-01T00:10:01.000Z',
+      basics: {
+        version: '2.0.0',
+        edition: 'global',
+        channel: 'latest',
+        platform: 'darwin',
+        arch: 'arm64',
+        osRelease: '25.0.0',
+        runtime: {},
+        isPackaged: true,
+        isPortable: false
+      },
+      results: [],
+      summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
+    }
+  }
+  const agent: DoctorAgentState = {
+    status: 'completed',
+    runId: 'agent-run-1',
+    scope,
+    reportRunId: runId,
+    sessionId: 'session-1',
+    modelId: 'openai::gpt-4o',
+    startedAt: '2026-05-01T00:00:02.000Z',
+    text,
+    toolCalls: [],
+    proposals: [],
+    changes: [],
+    ...(incident ? { incident } : {})
+  }
+  cacheService.setShared(doctorStateCacheKey(scope), doctor)
+  cacheService.setShared(doctorAgentStateCacheKey(doctorAgentKey(scope, incident)), agent)
+}
 
 function completedDoctorState(
   results: readonly DoctorCheckResult[] = [{ id: 'install-version-channel', status: 'pass', durationMs: 1 }],
@@ -148,7 +223,10 @@ afterEach(async () => {
 describe('DoctorPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
     mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
+    mocks.reportDiagnosis = undefined
+    mocks.reportErrorContext = undefined
     mocks.request.mockResolvedValue(undefined)
   })
 
@@ -594,5 +672,42 @@ describe('DoctorPopup', () => {
     await user.click(overlay as HTMLElement)
     await user.keyboard('{Escape}')
     expect(dialog).toBeVisible()
+  })
+
+  it('forwards an explicit report snapshot instead of a global cached result', async () => {
+    publishDiagnosis('global', 'Global cached conclusion.')
+    const snapshot: DiagnosticAiDiagnosis = {
+      source: 'error-summary',
+      status: 'completed',
+      text: 'Explicit conclusion.'
+    }
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ aiDiagnosis: snapshot, initialPanel: 'report' })
+    })
+
+    await screen.findByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })
+    expect(mocks.reportDiagnosis).toBe(snapshot)
+    expect(mocks.reportErrorContext).toBeUndefined()
+  })
+
+  it('does not attach a global cached result to a contextual report that has no snapshot', async () => {
+    publishDiagnosis('global', 'Global cached conclusion.')
+    const errorContext = createAppErrorContext({
+      id: 'op-1',
+      message: 'HTTP 500 upstream boom',
+      operation: 'painting.generate',
+      source: 'painting'
+    })
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ errorContext, initialPanel: 'report' })
+    })
+
+    await screen.findByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })
+    expect(mocks.reportErrorContext).toEqual(errorContext)
+    expect(mocks.reportDiagnosis).toBeUndefined()
   })
 })
