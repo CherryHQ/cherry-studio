@@ -8,7 +8,7 @@ English | [中文](2026-10-17-agent-runtime-contract.zh.md)
 
 Cherry needs to open native contexts, submit input, observe work independently of a particular submission, and release resources across different harnesses. Requiring every harness to adopt Cherry's session engine would duplicate native scheduling and recovery. A large capability matrix would instead make every consumer interpret those differences itself.
 
-This note replaces the stack's runtime ownership and behavior design. It records the implemented v0 access boundary and its reasons, together with the host obligations still needed for integration. [Common types](../../../../packages/agent-runtime/src/contracts.ts), the [Pi adapter](../../../../packages/agent-runtime-pi/src/runtime.ts), and the [Pi Durable adapter](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) own exact signatures. Package code exists; desktop adoption and the full acceptance below remain incomplete. The [harness boundaries](2026-10-17-agent-harness-boundaries.md) own the broader division of responsibilities.
+This note replaces the stack's runtime ownership and behavior design. It records the implemented v0 access boundary and its reasons, together with the host obligations still needed for integration. [Common types](../../../../packages/agent-runtime/src/contracts.ts), the [Pi adapter](../../../../packages/agent-runtime-pi/src/runtime.ts), and the [Pi Durable adapter](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) own exact signatures. Package code exists and Pi root desktop calls now use the common Runtime. Independent child projection, Durable desktop adoption and the full acceptance below remain incomplete. The [harness boundaries](2026-10-17-agent-harness-boundaries.md) own the broader division of responsibilities.
 
 ## Proposal
 
@@ -157,15 +157,15 @@ This section is the implementation target for the four boundaries: native child 
 
 #### Starting point and change ownership
 
-The inspected desktop path still runs `AgentChatContextProvider → AgentSessionRuntimeService → PiRuntimeDriver → PiRuntimeConnection → pi.createAgentSession`. The three packages and the AI SDK model binding exist, but production desktop calls do not yet use their runtime factories. Existing background output finds a parent assistant row through `rootToolCallId`; output without that anchor is ignored, and child parts are persisted back into the parent row. Replacing the factory alone would preserve this ownership problem.
+The Pi root desktop path now runs `AgentChatContextProvider → AgentSessionRuntimeService → PiRuntimeDriver → PiRuntimeConnection → createPiRuntime`. The connection uses the common input and observation boundary; native Pi providers send model requests through Cherry's internal gateway. Existing background output finds a parent assistant row through `rootToolCallId`; output without that anchor is ignored, and child parts are persisted back into the parent row. Replacing the factory alone would preserve this ownership problem.
 
 | Location | Planned change | Responsibility retained there |
 | --- | --- | --- |
 | [Common contract](../../../../packages/agent-runtime/src/contracts.ts) | Use existing thread, optional input, relationship, and observation contracts first. Add a field only after native evidence and a consumer require it. | No product rows, delivery journal, scheduler, or UI lane. |
 | [Pi runtime](../../../../packages/agent-runtime-pi/src/runtime.ts), [projection](../../../../packages/agent-runtime-pi/src/runtimeProjection.ts), and [subagent owner](../../../../packages/agent-runtime-pi/src/subagent.ts) | Add verifiable input correlation and restore child access through its native owner. | Native sessions, child execution, result delivery, and typed Pi extensions. |
 | [Durable runtime](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) | Reconcile persisted input mappings and child ownership against native submissions/tasks before scheduler activation. | Native Harness/storage ownership and recovery semantics. |
-| [Desktop Pi integration](../../../../src/main/ai/runtime/pi/README.md) | Reuse host configuration/materialization and assemble the production AI SDK model port; replace execution and output routing incrementally. | Prompt, skills, MCP, approvals, shell environment, model policy, usage, and tracing. |
-| [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) and its persistence modules | Own configured runtime instances, logical input delivery, and a projection per thread. Extract an instance helper such as `threadProjection.ts` inside the existing module. | Product lifecycle, authorization, persistence barriers, and integration with delivery/fork operations. |
+| [Desktop Pi integration](../../../../src/main/ai/runtime/pi/README.md) | Reuse host configuration/materialization and bind native Pi providers to the internal gateway; replace execution and output routing incrementally. | Prompt, skills, MCP, approvals, shell environment, model policy, usage, and tracing. |
+| [AgentSessionRuntimeService](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts) and its persistence modules | Own configured runtime instances, logical input delivery, and a projection per thread. `ThreadProjection.ts` converts live content inside the existing module. | Product lifecycle, authorization, persistence barriers, and integration with delivery/fork operations. |
 | [Data schemas](../../../../src/main/data/db/schemas/agentSession.ts) and [data services](../../../../src/main/data/services/README.md) | Add context associations and input delivery records using `DbService`, with appended migrations. | Product data transactions; no native execution or transcript parsing. |
 | [useAgentSessionParts](../../../../src/renderer/hooks/useAgentSessionParts.ts) and shared IPC contracts | Address a context's projection independently of the parent assistant message. | Presentation and subscription; Main remains the persistence owner. |
 
@@ -296,7 +296,7 @@ Physical consolidation into `topic`/`message` is a separate migration decision. 
 
 ##### Confirmed edit and branch behavior
 
-The user confirmed that editing and resending retains the old branch and selects the new one. The existing desktop driver path now implements this behavior; common Runtime projection integration remains a later step.
+The user confirmed that editing and resending retains the old branch and selects the new one. The desktop driver now implements this behavior and routes Pi root execution through the common Runtime; independent child projection remains a later step.
 
 ```text
 root
@@ -513,7 +513,32 @@ The current desktop driver path uses the shared sibling navigator. Selecting a s
 
 [Tree fixtures](../../../../src/main/data/services/__tests__/agentSessionMessageTree.test.ts) verify replay-safe migration, selected-path pagination, branch isolation and delayed delivery. The [native publication fixture](../../../../src/main/ai/agentSession/fork/__tests__/branchPublication.sdkContract.test.ts) uses real Pi session files and SQLite to verify repeated edits and independent bindings without rewriting the common prefix. These fixtures do not establish provider execution or application crash recovery. A tracked development Electron instance additionally exercised later-input edit, sibling navigation, continuing both native histories, and first-input edit through the real UI/Main/Pi path using a local scripted HTTP model. Native requests contained only the selected branch's inputs. This is development integration evidence, not live-provider, packaged-build, Durable, or forced-process recovery acceptance.
 
-The note remains proposed: common Runtime desktop owner/projection wiring, native backup/deletion integration and forced-process crash acceptance remain P2–P4 work. Graceful native close/reopen and injected DB failures do not satisfy the application crash gate.
+The note remains proposed: independent child owner/projection wiring, Durable desktop integration, native backup/deletion integration and forced-process crash acceptance remain unfinished. Graceful native close/reopen and injected DB failures do not satisfy the application crash gate.
+
+#### Pi root integration evidence
+
+The root connection now owns a configured Pi Runtime and retained access. Native history and live
+snapshots remain separate from the product archive. Main writes submission facts on existing user
+rows, then commits final response associations with the assistant row. Native Pi providers call
+Cherry's internal gateway, which owns upstream provider selection, credentials and billing;
+Pi owns native history, streaming, tools and the execution loop.
+The Pi facet keeps history, context usage, tool lookup and manual compaction outside the common API.
+Queued inputs left unplaced after stop/error receive aborted evidence and are not automatically resent.
+
+Real native-loop/SQLite fixtures cover create, strict reopen, streamed output, tools, steering,
+interruption, missing/ambiguous files, attachments, disabled tools, compaction, and response-transaction
+rollback. The gateway integration fixture uses a local HTTP provider, executes a native tool and verifies
+one billing row per model call. These fixtures do not prove live-provider or forced-process recovery.
+Reasoning replay and provider metadata follow Pi's native provider implementation and transcript;
+Cherry does not encode a separate replay format. Existing attachment file paths remain in the
+submitted text, without adding a duplicated payload column.
+
+A tracked development Electron instance exercised the common Runtime path with a local scripted HTTP
+model: fresh creation, graceful restart and reopen, retained-branch edit, browsing without model calls,
+and independent continuation of both native histories. Live steering recorded queued, placed and final
+response association in order. Stopping an unplaced native input recorded aborted; the next explicit
+send did not replay it. Persisted partial output and per-call billing were checked in SQLite. These
+checks cover Pi root integration, not independent child projection, packaged builds or crash recovery.
 
 #### Delivery stages and verification gates
 
@@ -523,12 +548,12 @@ These stages describe the cumulative roadmap; the implementation evidence above 
 | --- | --- | --- |
 | P0 — native evidence | Pi correlation/upstream improvement and typed terminal mapping; document many-input answer attribution. | Identical text, transformed/handled/failed commands, queued and undelivered input, abort, truncation, late acknowledgement, and child continuation preserve the correct identities/outcomes. AC2, AC7. |
 | P1 — associations and submission facts | Native associations, necessary private submission metadata on messages, stable backend scope, strict loaders, and populated-database migration. | Read old history without inventing admission, detect missing native context, reconcile partial creation/admission, and reject changed drafts under an old identity/key. AC1, AC8. |
-| P2 — Pi root integration | Agent tree migration, retained-branch edit actions, typed native history access, production model port, root projection, and lifecycle mapping. | Exercise the desktop create/open/submit/observe/stop/reopen path and independent branch continuation; preserve permissions, configuration, usage, commands, and delivery completion. AC3, AC4, AC6, AC9, AC12. |
+| P2 — Pi root integration | Agent tree migration, retained-branch edit actions, typed native history access, native provider binding to the internal gateway, root projection, and lifecycle mapping. | Exercise the desktop create/open/submit/observe/stop/reopen path and independent branch continuation; preserve permissions, configuration, usage, commands, and delivery completion. AC3, AC4, AC6, AC9, AC12. |
 | P3 — independent Pi children | Owner restoration, child projection, and child input without a live parent message. | Parent completion/window closure does not lose child output; cold reopening retains ownership; continuation reports once through the owner. AC5, AC9, AC10. |
 | P4 — Durable host integration | Reuse host projection and message submission associations while retaining native submissions, task scheduling, reporting policy, and recovery. | Passive reopen performs no model/tool work; a forced process death and a new process using the same store reconcile unfinished work and input receipts. AC8, AC11, AC12. |
 | Later — common controls | Optional spawn/stop and host-owned cross-harness delegation under the control note. | Prove creation/partial admission, stop scope, and continued-input semantics for both adapters before sharing signatures. Not a gate for P0–P4. |
 
-Before P2 cutover, map each current `PiRuntimeConnection` responsibility to its replacement. The AI SDK port must execute a single model request through Cherry's provider path without re-entering `AiService.streamText`'s agent-session branch or adding a second tool loop. Name one usage-accounting owner. Preserve approval and MCP behavior, frozen/live configuration rules, identity prompts, shell setup, tracing, commands/compaction, and native edit/fork checkpoints. Resolve the model bridge's documented thinking-replay metadata gap and state how unsupported content/attachments are represented before claiming parity.
+Before P2 cutover, map each current `PiRuntimeConnection` responsibility to its replacement. Each native Pi model request must pass through the internal gateway and Cherry's provider execution without re-entering `AiService.streamText`'s agent-session branch or adding a second tool loop. The gateway is the sole billing owner; native usage serves context and display. Preserve approval and MCP behavior, frozen/live configuration rules, identity prompts, shell setup, tracing, commands/compaction, and native edit/fork checkpoints. Validate reasoning replay through the selected native protocol and state how unsupported content/attachments are represented before claiming parity.
 
 Extend existing public-boundary tests in the [Pi runtime suite](../../../../packages/agent-runtime-pi/tests/runtime.test.ts), [Durable runtime suite](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts), and [observation suite](../../../../packages/agent-runtime/tests/observation.test.ts). Host verification belongs with the existing runtime, archive-persistence, delivery, message-backend, and `useAgentSessionParts` tests; add focused projection and private-submission-metadata tests there as those paths are introduced. SQLite tests use `setupTestDatabase()` and production migrations. Durable crash tests use an isolated worker process and persistent store, kill after an evidenced checkpoint without `shutdown`, and verify recovery in a fresh process. External tool effects are not assumed exactly once.
 

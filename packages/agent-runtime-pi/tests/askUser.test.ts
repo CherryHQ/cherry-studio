@@ -1,17 +1,11 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { AssistantMessage, JsonObject, JsonValue, ToolCall } from '@earendil-works/pi-ai'
 import { describe, expect, it } from 'vitest'
 
-import {
-  type AskUserPort,
-  type AskUserRequest,
-  type AskUserResponse,
-  createAskUserExtension
-} from '@cherrystudio/agent-runtime-pi'
+import { type AskUserPort, type AskUserRequest, type AskUserResponse, createAskUserExtension } from '../src'
+import { assistantReply, createTestSession, hostStore, plain, scriptedModel } from './sessionSupport'
+import { textOf, toolOutputs, toolResults } from './toolResults'
 
-import { createTestSession, finish, hostStore, plain, scriptedModel, gatewayModel, textParts } from './gatewaySupport'
-import { textOf, toolOutputs, toolResults } from './gatewayToolResults'
-
-const question = (text: string, extra: Record<string, unknown> = {}) => ({
+const question = (text: string, extra: JsonObject = {}) => ({
   question: text,
   header: 'Choice',
   options: [
@@ -21,14 +15,14 @@ const question = (text: string, extra: Record<string, unknown> = {}) => ({
   ...extra
 })
 
-const askCall = (id: string, questions: unknown[]): LanguageModelV3StreamPart => ({
-  type: 'tool-call',
-  toolCallId: id,
-  toolName: 'AskUserQuestion',
-  input: JSON.stringify({ questions })
+const askCall = (id: string, questions: JsonValue[]): ToolCall => ({
+  type: 'toolCall',
+  id: id,
+  name: 'AskUserQuestion',
+  arguments: { questions }
 })
 
-const reply = (text: string) => [...textParts('t', text), finish('stop')]
+const reply = (text: string) => assistantReply([{ type: 'text', text: text }])
 
 /** A host fake: records every request and how many were open at once. */
 function hostPort(respond: (request: AskUserRequest) => AskUserResponse | Promise<AskUserResponse>) {
@@ -49,10 +43,10 @@ function hostPort(respond: (request: AskUserRequest) => AskUserResponse | Promis
   return { port, state }
 }
 
-async function run(port: AskUserPort, scripts: LanguageModelV3StreamPart[][], host = hostStore()) {
+async function run(port: AskUserPort, scripts: AssistantMessage[], host = hostStore()) {
   const { model, calls } = scriptedModel(scripts)
   const runtime = await createTestSession({
-    port: gatewayModel(model).upstream,
+    stream: model,
     extensionFactories: [createAskUserExtension(port)],
     onEvent: host.onEvent
   })
@@ -78,7 +72,7 @@ describe('ask-user extension', () => {
       answers: { 'Which database?': 'Postgres', 'Which features?': 'Auth, Billing' },
       annotations: { 'Which database?': { notes: 'we already run it' } }
     }))
-    const { session, calls } = await run(port, [[askCall('ask_1', questions), finish('tool-calls')], reply('OK.')])
+    const { session, calls } = await run(port, [assistantReply([askCall('ask_1', questions)], 'toolUse'), reply('OK.')])
     await session.prompt('Set up the app')
 
     expect(state.requests).toHaveLength(1)
@@ -96,14 +90,14 @@ describe('ask-user extension', () => {
       annotations: { 'Which database?': { notes: 'we already run it' } },
       outcome: 'answered'
     })
-    expect(toolOutputs(calls[1].prompt).ask_1).toEqual({ type: 'text', value: textOf(result) })
+    expect(toolOutputs(calls[1].messages).ask_1).toBe(textOf(result))
   })
 
   // Breaks when an omitted answer is read through the prototype (`answers.constructor` is a function).
   it('reports a question named like an Object.prototype member as not answered when its answer is omitted', async () => {
     const { port } = hostPort(() => ({ status: 'answered', answers: {} }))
     const questions = [question('constructor'), question('__proto__')]
-    const { session } = await run(port, [[askCall('ask_1', questions), finish('tool-calls')], reply('OK.')])
+    const { session } = await run(port, [assistantReply([askCall('ask_1', questions)], 'toolUse'), reply('OK.')])
     await session.prompt('Set up the app')
 
     const [result] = toolResults(session)
@@ -133,7 +127,7 @@ describe('ask-user extension', () => {
   ])('reports $name as an error result and lets the run continue', async ({ response, text, outcome }) => {
     const { port, state } = hostPort(() => response)
     const { session, calls } = await run(port, [
-      [askCall('ask_1', [question('Which database?')]), finish('tool-calls')],
+      assistantReply([askCall('ask_1', [question('Which database?')])], 'toolUse'),
       reply('Going with SQLite.')
     ])
     await session.prompt('Set up the app')
@@ -143,7 +137,7 @@ describe('ask-user extension', () => {
     expect(textOf(result)).toMatch(text)
     expect(result.details).toEqual({ questions: state.requests[0].questions, answers: {}, outcome })
     expect(calls).toHaveLength(2)
-    expect(toolOutputs(calls[1].prompt).ask_1).toEqual({ type: 'text', value: textOf(result) })
+    expect(toolOutputs(calls[1].messages).ask_1).toBe(textOf(result))
   })
 
   it('stops waiting when the turn is aborted, withdraws the question and ignores a late answer', async () => {
@@ -155,11 +149,10 @@ describe('ask-user extension', () => {
       return new Promise((resolve) => (answerLate = resolve))
     })
     const { session, calls, host } = await run(port, [
-      [
-        askCall('ask_1', [question('Which database?')]),
-        askCall('ask_2', [question('Deploy where?')]),
-        finish('tool-calls')
-      ],
+      assistantReply(
+        [askCall('ask_1', [question('Which database?')]), askCall('ask_2', [question('Deploy where?')])],
+        'toolUse'
+      ),
       reply('unreachable')
     ])
     const turn = session.prompt('Set up the app')
@@ -191,11 +184,10 @@ describe('ask-user extension', () => {
         )
     )
     const { session } = await run(port, [
-      [
-        askCall('ask_1', [question('Which database?')]),
-        askCall('ask_2', [question('Which cache?')]),
-        finish('tool-calls')
-      ],
+      assistantReply(
+        [askCall('ask_1', [question('Which database?')]), askCall('ask_2', [question('Which cache?')])],
+        'toolUse'
+      ),
       reply('OK.')
     ])
     await session.prompt('Set up the app')
@@ -238,7 +230,7 @@ describe('ask-user extension', () => {
     }
   ])('rejects $name without showing the user anything', async ({ questions, reason }) => {
     const { port, state } = hostPort(() => ({ status: 'unavailable' }))
-    const { session } = await run(port, [[askCall('ask_1', questions), finish('tool-calls')], reply('Sorry.')])
+    const { session } = await run(port, [assistantReply([askCall('ask_1', questions)], 'toolUse'), reply('Sorry.')])
     await session.prompt('Set up the app')
 
     const [result] = toolResults(session)
@@ -250,7 +242,7 @@ describe('ask-user extension', () => {
   it('keeps an answered question and its details in the history of a rebuilt session', async () => {
     const { port } = hostPort(() => ({ status: 'answered', answers: { 'Which database?': 'Postgres' } }))
     const live = await run(port, [
-      [askCall('ask_1', [question('Which database?')]), finish('tool-calls')],
+      assistantReply([askCall('ask_1', [question('Which database?')])], 'toolUse'),
       reply('Postgres it is.')
     ])
     await live.session.prompt('Set up the app')
@@ -265,23 +257,20 @@ describe('ask-user extension', () => {
 
     const rebuilt = scriptedModel([reply('Postgres, as you said.')])
     const { session } = await createTestSession({
-      port: gatewayModel(rebuilt.model).upstream,
+      stream: rebuilt.model,
       extensionFactories: [createAskUserExtension(hostPort(() => ({ status: 'unavailable' })).port)],
       entries: plain(live.host.entries)
     })
     await session.prompt('Which database did I pick?')
 
-    const prompt = rebuilt.calls[0].prompt
+    const prompt = rebuilt.calls[0].messages
     expect(prompt.flatMap((message) => (message.role === 'assistant' ? message.content : []))).toContainEqual(
       expect.objectContaining({
-        type: 'tool-call',
-        toolCallId: 'ask_1',
-        input: { questions: [question('Which database?')] }
+        type: 'toolCall',
+        id: 'ask_1',
+        arguments: { questions: [question('Which database?')] }
       })
     )
-    expect(toolOutputs(prompt).ask_1).toEqual({
-      type: 'text',
-      value: expect.stringContaining('"Which database?" = "Postgres"')
-    })
+    expect(toolOutputs(prompt).ask_1).toContain('"Which database?" = "Postgres"')
   })
 })

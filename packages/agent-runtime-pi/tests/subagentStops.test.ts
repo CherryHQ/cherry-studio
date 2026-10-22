@@ -1,10 +1,10 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { Type } from '@earendil-works/pi-ai'
 import { type AgentSession, defineTool } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort } from '@cherrystudio/agent-runtime-pi'
-
+import type { SubagentPort } from '../src'
+import { assistantReply, createTestSession, lastAssistant, MODEL } from './sessionSupport'
 import {
   noteTool,
   outputText,
@@ -15,19 +15,18 @@ import {
   toolCallPart,
   toolResultOf,
   toolResults
-} from './gatewaySubagentSupport'
-import { createTestSession, finish, lastAssistant, MODEL, gatewayModel, textParts } from './gatewaySupport'
+} from './subagentSupport'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
-const upstreamError = { type: 'error' as const, error: new Error('upstream exploded') }
+const upstreamError = { ...assistantReply([], 'error', 0, 0), errorMessage: 'upstream exploded' }
 
 /** Parent delegates TASK-A once; `child` scripts the subagent. */
-function delegate(child: (lastRole: string) => LanguageModelV3StreamPart[]) {
+function delegate(child: (lastRole: string) => AssistantMessage) {
   return routedModel(({ userText, lastRole }) => {
     if (userText.includes('TASK-A')) return child(lastRole)
     return lastRole === 'user'
-      ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
-      : [...textParts('d', 'Done'), finish('stop')]
+      ? assistantReply([subagentCall('call_a', TASK_A)], 'toolUse')
+      : assistantReply([{ type: 'text', text: 'Done' }])
   })
 }
 
@@ -35,11 +34,11 @@ describe('subagent stops', () => {
   it('reports a failed subagent as an error with its partial output and usage', async () => {
     const { model } = delegate((lastRole) =>
       lastRole === 'user'
-        ? [...textParts('p', 'PARTIAL-A'), toolCallPart('note_1', 'note'), finish('tool-calls', 100, 20)]
-        : [upstreamError]
+        ? assistantReply([{ type: 'text', text: 'PARTIAL-A' }, toolCallPart('note_1', 'note')], 'toolUse', 100, 20)
+        : upstreamError
     )
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [noteTool],
       subagents: recordingSubagentPort().port
     })
@@ -56,9 +55,9 @@ describe('subagent stops', () => {
   })
 
   it('reports a subagent cut off by its output limit as truncated', async () => {
-    const { model } = delegate(() => [...textParts('h', 'HALF-A'), finish('length')])
+    const { model } = delegate(() => assistantReply([{ type: 'text', text: 'HALF-A' }], 'length'))
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: recordingSubagentPort().port
     })
 
@@ -72,26 +71,25 @@ describe('subagent stops', () => {
 
   it('returns the report of one subagent when its sibling fails', async () => {
     const { model, calls } = routedModel(({ userText, lastRole }) => {
-      if (userText.includes('TASK-A')) return [upstreamError]
-      if (userText.includes('TASK-B')) return [...textParts('r', 'REPORT-B'), finish('stop')]
+      if (userText.includes('TASK-A')) return upstreamError
+      if (userText.includes('TASK-B')) return assistantReply([{ type: 'text', text: 'REPORT-B' }])
       return lastRole === 'user'
-        ? [
-            subagentCall('call_a', TASK_A),
-            subagentCall('call_b', { description: 'Check B', prompt: 'TASK-B' }),
-            finish('tool-calls')
-          ]
-        : [...textParts('d', 'Done'), finish('stop')]
+        ? assistantReply(
+            [subagentCall('call_a', TASK_A), subagentCall('call_b', { description: 'Check B', prompt: 'TASK-B' })],
+            'toolUse'
+          )
+        : assistantReply([{ type: 'text', text: 'Done' }])
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: recordingSubagentPort().port
     })
 
     await session.prompt('Check modules A and B')
 
     const [a, b] = toolResults(calls.at(-1)!)
-    expect(a.output.type).toBe('text')
-    expect(outputText(b.output)).toMatch(/^REPORT-B\n\n\(id: /)
+    expect(a.content[0].type).toBe('text')
+    expect(outputText(b.content)).toMatch(/^REPORT-B\n\n\(id: /)
   })
 
   it('stops the subagent and shuts it down when the parent turn aborts', async () => {
@@ -99,8 +97,8 @@ describe('subagent stops', () => {
     let shutdowns = 0
     const { model, calls } = delegate((lastRole) =>
       lastRole === 'user'
-        ? [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
-        : [...textParts('r', 'LATE'), finish('stop')]
+        ? assistantReply([toolCallPart('stop_1', 'stop_turn')], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'LATE' }])
     )
     const host = recordingSubagentPort(() => ({
       extensionFactories: [
@@ -110,7 +108,7 @@ describe('subagent stops', () => {
       ]
     }))
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurnTool(parent)],
       subagents: host.port
     })
@@ -127,7 +125,7 @@ describe('subagent stops', () => {
 
   it('does not let a subagent run when the turn aborts while its before_agent_start handlers run', async () => {
     const parent: { session?: AgentSession } = {}
-    const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
+    const { model, calls } = delegate(() => assistantReply([{ type: 'text', text: 'REPORT-A' }]))
     const host = recordingSubagentPort(() => ({
       extensionFactories: [
         (pi) => {
@@ -138,7 +136,7 @@ describe('subagent stops', () => {
         }
       ]
     }))
-    const runtime = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const runtime = await createTestSession({ stream: model, subagents: host.port })
     parent.session = runtime.session
 
     await runtime.session.prompt('Delegate the check')
@@ -151,7 +149,7 @@ describe('subagent stops', () => {
   // run, which Pi ignores) is dropped: the subagent would still send its requests.
   it('does not let a subagent run when the turn aborts while its input handlers run', async () => {
     const parent: { session?: AgentSession } = {}
-    const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
+    const { model, calls } = delegate(() => assistantReply([{ type: 'text', text: 'REPORT-A' }]))
     const host = recordingSubagentPort(() => ({
       extensionFactories: [
         (pi) => {
@@ -163,7 +161,7 @@ describe('subagent stops', () => {
         }
       ]
     }))
-    const runtime = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const runtime = await createTestSession({ stream: model, subagents: host.port })
     parent.session = runtime.session
 
     await runtime.session.prompt('Delegate the check')
@@ -174,13 +172,13 @@ describe('subagent stops', () => {
 
   it('does not start a subagent when the turn aborts before the host finishes configuring it', async () => {
     const parent: { session?: AgentSession } = {}
-    const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
+    const { model, calls } = delegate(() => assistantReply([{ type: 'text', text: 'REPORT-A' }]))
     const host = recordingSubagentPort(async () => {
       void parent.session!.abort()
       await new Promise((resolve) => setTimeout(resolve, 0))
       return {}
     })
-    const runtime = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const runtime = await createTestSession({ stream: model, subagents: host.port })
     parent.session = runtime.session
 
     await runtime.session.prompt('Delegate the check')
@@ -196,22 +194,22 @@ describe('subagent stops', () => {
         throw new Error('no workspace for subagents')
       }
     }
-    const { model, calls } = delegate(() => [...textParts('r', 'REPORT-A'), finish('stop')])
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: port })
+    const { model, calls } = delegate(() => assistantReply([{ type: 'text', text: 'REPORT-A' }]))
+    const { session } = await createTestSession({ stream: model, subagents: port })
 
     await session.prompt('Delegate the check')
 
     const [result] = toolResults(calls.at(-1)!)
-    expect(result.output.type).toBe('text')
-    expect(outputText(result.output)).toContain('no workspace for subagents')
+    expect(result.content[0].type).toBe('text')
+    expect(outputText(result.content)).toContain('no workspace for subagents')
     expect(lastAssistant(session).stopReason).toBe('stop')
   })
 
   it('stops a subagent after 200 model requests', { timeout: 60_000 }, async () => {
     let next = 0
-    const { model, calls } = delegate(() => [toolCallPart(`note_${++next}`, 'note'), finish('tool-calls')])
+    const { model, calls } = delegate(() => assistantReply([toolCallPart(`note_${++next}`, 'note')], 'toolUse'))
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [noteTool],
       subagents: recordingSubagentPort().port
     })
@@ -238,30 +236,28 @@ describe('subagent stops', () => {
       }
     })
     // Reports the prompt's real size so Pi's context accounting crosses the threshold every few pages.
-    const sized = (unified: 'stop' | 'tool-calls', prompt: unknown): LanguageModelV3StreamPart => {
-      const input = Math.ceil(JSON.stringify(prompt).length / 3.5)
-      return {
-        type: 'finish',
-        usage: {
-          inputTokens: { total: input, noCache: input, cacheRead: 0, cacheWrite: 0 },
-          outputTokens: { total: 20, text: 20, reasoning: undefined }
-        },
-        finishReason: { unified, raw: unified }
-      }
-    }
-    const { model } = routedModel(({ userText, lastRole, options }) => {
+    const { model, requests } = routedModel(({ userText, lastRole, options }) => {
       // Pi's summary requests carry no tools.
       if ((options.tools ?? []).length === 0)
-        return [...textParts('s', 'Summary: paging through TASK-A.'), sized('stop', options.prompt)]
+        return assistantReply(
+          'Summary: paging through TASK-A.',
+          'stop',
+          Math.ceil(JSON.stringify(options.messages).length / 3.5),
+          20
+        )
       if (userText.includes('TASK-A'))
-        return [toolCallPart(`page_${++next}`, 'fetch_page'), sized('tool-calls', options.prompt)]
+        return assistantReply(
+          [toolCallPart(`page_${++next}`, 'fetch_page')],
+          'toolUse',
+          Math.ceil(JSON.stringify(options.messages).length / 3.5),
+          20
+        )
       return lastRole === 'user'
-        ? [subagentCall('call_a', TASK_A), finish('tool-calls')]
-        : [...textParts('d', 'Done'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', TASK_A)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
     })
-    const { upstream: port, requests } = gatewayModel(model)
     const { session } = await createTestSession({
-      port,
+      stream: model,
       model: { ...MODEL, contextWindow: 9_000 },
       tools: [pageTool],
       compaction: { reserveTokens: 2_000, keepRecentTokens: 3_000 },
@@ -281,7 +277,7 @@ describe('subagent stops', () => {
   })
 
   it('stops a subagent after 200 model requests that bring no tool results', { timeout: 60_000 }, async () => {
-    const { model, calls } = delegate(() => [...textParts('r', 'AGAIN'), finish('stop')])
+    const { model, calls } = delegate(() => assistantReply([{ type: 'text', text: 'AGAIN' }]))
     const host = recordingSubagentPort(() => ({
       extensionFactories: [
         (pi) => {
@@ -291,7 +287,7 @@ describe('subagent stops', () => {
         }
       ]
     }))
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
 
     await session.prompt('Delegate the check')
 
@@ -313,13 +309,12 @@ describe('subagent stops', () => {
       }
     })
     let next = 0
-    const { model } = delegate(() => {
+    const { model, requests } = delegate(() => {
       next++
-      return [toolCallPart(`step_${next}`, next === 1 ? 'build' : 'note'), finish('tool-calls')]
+      return assistantReply([toolCallPart(`step_${next}`, next === 1 ? 'build' : 'note')], 'toolUse')
     })
-    const { upstream: port, requests } = gatewayModel(model)
     const { session } = await createTestSession({
-      port,
+      stream: model,
       // A cache lifetime Pi keeps warm (11 s, refreshed after 1 s) and a price that makes warming pay.
       model: {
         ...MODEL,

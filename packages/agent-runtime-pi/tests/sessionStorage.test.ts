@@ -9,21 +9,23 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { expect, it } from 'vitest'
 
-import { createTestSession, finish, plain, scriptedModel, gatewayModel, tempDir, textParts } from './gatewaySupport'
+import { assistantReply, createTestSession, plain, scriptedModel, tempDir } from './sessionSupport'
 
 it('reopens the native file with native reasoning, cost, custom state and edited context intact', async () => {
   const cwd = tempDir('persistent-cwd')
   const manager = SessionManager.create(cwd, tempDir('sessions'), { id: 'persistent-session' })
   const first = scriptedModel([
-    [
-      { type: 'reasoning-start', id: 'r' },
-      { type: 'reasoning-delta', id: 'r', delta: 'remember the name' },
-      { type: 'reasoning-end', id: 'r' },
-      ...textParts('t', 'Hi Li.'),
-      finish('stop', 20, 10)
-    ]
+    assistantReply(
+      [
+        { type: 'thinking', thinking: 'remember the name' },
+        { type: 'text', text: 'Hi Li.' }
+      ],
+      'stop',
+      20,
+      10
+    )
   ])
-  const earlier = await createTestSession({ cwd, sessionManager: manager, port: gatewayModel(first.model).upstream })
+  const earlier = await createTestSession({ cwd, sessionManager: manager, stream: first.model })
   await earlier.session.prompt('My name is Li.')
   const user = manager.getBranch().find((entry) => entry.type === 'message' && entry.message.role === 'user')!
   manager.appendCustomEntry('other.extension', { enabled: true })
@@ -42,11 +44,11 @@ it('reopens the native file with native reasoning, cost, custom state and edited
       seen.push(...ctx.sessionManager.getBranch().filter((entry) => entry.type === 'custom'))
     })
   }
-  const second = scriptedModel([[...textParts('t', 'Hello again.'), finish('stop')]])
+  const second = scriptedModel([assistantReply([{ type: 'text', text: 'Hello again.' }])])
   const restored = await createTestSession({
     cwd,
     sessionManager: opened,
-    port: gatewayModel(second.model).upstream,
+    stream: second.model,
     extensionFactories: [observeStart]
   })
   expect(seen).toContainEqual(
@@ -57,7 +59,7 @@ it('reopens the native file with native reasoning, cost, custom state and edited
     message: { usage: { input: 20, output: 10, cacheRead: 2, cost: { total: expect.closeTo(0.0000402, 12) } } }
   })
   await restored.session.prompt('Do you remember me?')
-  const prompt = JSON.stringify(second.calls[0].prompt)
+  const prompt = JSON.stringify(second.calls[0].messages)
   expect(prompt).toContain('My name is Lin.')
   expect(prompt).not.toContain('My name is Li.')
   expect(prompt).toContain('remember the name')
@@ -83,16 +85,16 @@ it('restores activated tools beside newly enabled tools from native state', asyn
     execute: async () => ({ content: [{ type: 'text' as const, text: 'Done' }], details: {} })
   })
   const first = scriptedModel([
-    [
-      { type: 'tool-call', toolCallId: 'search-1', toolName: 'tool_search', input: '{"query":"weather forecast"}' },
-      finish('tool-calls')
-    ],
-    [...textParts('t', 'Loaded.'), finish('stop')]
+    assistantReply(
+      [{ type: 'toolCall', id: 'search-1', name: 'tool_search', arguments: { query: 'weather forecast' } }],
+      'toolUse'
+    ),
+    assistantReply([{ type: 'text', text: 'Loaded.' }])
   ])
   const earlier = await createTestSession({
     cwd,
     sessionManager: manager,
-    port: gatewayModel(first.model).upstream,
+    stream: first.model,
     tools: [weather],
     builtinTools: ['tool_search'],
     extensionFactories: [createToolSearchExtension()]
@@ -101,11 +103,11 @@ it('restores activated tools beside newly enabled tools from native state', asyn
   expect(first.calls[1].tools?.map((tool) => tool.name)).toContain('get_weather')
   await earlier.dispose()
 
-  const second = scriptedModel([[...textParts('t', 'Ready.'), finish('stop')]])
+  const second = scriptedModel([assistantReply([{ type: 'text', text: 'Ready.' }])])
   const restored = await createTestSession({
     cwd,
     sessionManager: SessionManager.open(manager.getSessionFile()!),
-    port: gatewayModel(second.model).upstream,
+    stream: second.model,
     tools: [weather, newTool],
     builtinTools: ['tool_search'],
     extensionFactories: [createToolSearchExtension()]
@@ -146,7 +148,7 @@ it('preserves image error results and tool usage without converting them to AI S
   const restored = await createTestSession({
     cwd,
     sessionManager: SessionManager.open(manager.getSessionFile()!),
-    port: gatewayModel(scriptedModel([]).model).upstream
+    stream: scriptedModel([]).model
   })
   const result = restored.session.messages.find((message) => message.role === 'toolResult')
   expect(result).toMatchObject({

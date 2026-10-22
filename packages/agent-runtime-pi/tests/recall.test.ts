@@ -1,35 +1,27 @@
-import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { AssistantMessage, JsonObject } from '@earendil-works/pi-ai'
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type SessionEntry } from '@earendil-works/pi-coding-agent'
-import { simulateReadableStream } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import type { AgentRuntimeEvent } from '@cherrystudio/agent-runtime-pi'
-
-import { createTestSession, finish, hostStore, plain, gatewayModel, textParts } from './gatewaySupport'
+import type { AgentRuntimeEvent } from '../src'
+import type { ModelCall } from './sessionSupport'
+import { respondingModel as nativeModel } from './sessionSupport'
+import { assistantReply, createTestSession, hostStore, plain } from './sessionSupport'
 
 /** Agent requests follow `script`; requests without tools are Pi's own compaction summaries. */
-function respondingModel(script: (call: number) => LanguageModelV3StreamPart[]) {
-  const agentCalls: LanguageModelV3CallOptions[] = []
-  const model = new MockLanguageModelV3({
-    doStream: async (options) => {
-      const summary = (options.tools ?? []).length === 0
-      if (!summary) agentCalls.push(options)
-      const chunks = summary
-        ? [...textParts('s', 'Summary: CI was set up.'), finish('stop')]
-        : script(agentCalls.length)
-      return { stream: simulateReadableStream({ chunks }) }
-    }
+function respondingModel(script: (call: number) => AssistantMessage) {
+  const agentCalls: ModelCall[] = []
+  const { model } = nativeModel((options) => {
+    const summary = (options.tools ?? []).length === 0
+    if (!summary) agentCalls.push(options)
+    return summary ? assistantReply('Summary: CI was set up.') : script(agentCalls.length)
   })
   return { model, agentCalls }
 }
 
-const recall = (id: string, input: object): LanguageModelV3StreamPart[] => [
-  { type: 'tool-call', toolCallId: id, toolName: 'vcc_recall', input: JSON.stringify(input) },
-  finish('tool-calls')
-]
-const reply = (text: string) => [...textParts('t', text), finish('stop')]
+const recall = (id: string, input: JsonObject): AssistantMessage =>
+  assistantReply([{ type: 'toolCall', id: id, name: 'vcc_recall', arguments: input }], 'toolUse')
+const reply = (text: string) => assistantReply([{ type: 'text', text: text }])
 
 const recallOutputs = (entries: readonly SessionEntry[]) =>
   entries.flatMap((entry) => {
@@ -52,7 +44,7 @@ describe('vcc_recall', () => {
         ][call - 1]
     )
     const { session } = await createTestSession({
-      port: gatewayModel(first.model).upstream,
+      stream: first.model,
       compaction: { reserveTokens: 16_384, keepRecentTokens: 1 },
       recall: true,
       onEvent: host.onEvent
@@ -62,7 +54,7 @@ describe('vcc_recall', () => {
     await session.compact()
     await session.prompt('What was the password hint?')
 
-    expect(JSON.stringify(first.agentCalls[2].prompt)).not.toContain('BLUE-HERON')
+    expect(JSON.stringify(first.agentCalls[2].messages)).not.toContain('BLUE-HERON')
     const [found] = recallOutputs(host.entries)
     expect(found).toContain('#0 [user] The deploy password hint is BLUE-HERON')
 
@@ -72,7 +64,7 @@ describe('vcc_recall', () => {
     )
     const rebuiltHost = hostStore()
     const rebuilt = await createTestSession({
-      port: gatewayModel(second.model).upstream,
+      stream: second.model,
       recall: true,
       entries: plain(host.entries),
       onEvent: rebuiltHost.onEvent
@@ -102,16 +94,16 @@ describe('vcc_recall', () => {
     const first = respondingModel(
       (call) =>
         [
-          [
-            { type: 'tool-call', toolCallId: 'call_lookup', toolName: 'lookup_order', input: '{}' },
-            finish('tool-calls')
-          ] satisfies LanguageModelV3StreamPart[],
+          assistantReply(
+            [{ type: 'toolCall', id: 'call_lookup', name: 'lookup_order', arguments: {} }],
+            'toolUse'
+          ) satisfies AssistantMessage,
           recall('recall_1', { query: 'ORDER-7731' }),
           reply('Shipped.')
         ][call - 1]
     )
     const { session } = await createTestSession({
-      port: gatewayModel(first.model).upstream,
+      stream: first.model,
       tools: [lookup],
       recall: true,
       onEvent
@@ -124,7 +116,7 @@ describe('vcc_recall', () => {
     const second = respondingModel((call) => [recall('recall_2', { expand: [index] }), reply('ok')][call - 1])
     const rebuiltHost = hostStore()
     const rebuilt = await createTestSession({
-      port: gatewayModel(second.model).upstream,
+      stream: second.model,
       tools: [lookup],
       recall: true,
       entries: [...committed],

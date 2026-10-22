@@ -4694,6 +4694,23 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', updated)
     })
 
+    it('keeps a Runtime owner across view release and idle timeout until explicit close', async () => {
+      vi.useFakeTimers()
+      try {
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn(baseTurnInput)
+        getEntry(service).connection = { retainWhileIdle: true, close: async () => {}, send: () => {}, events: [] }
+        service.markTurnTerminal('session-1', 'success')
+        service.releaseIdleConnection('session-1')
+        await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+        expect(service.inspect('session-1')?.status).toBe('idle')
+        await service.closeSession('session-1')
+        expect(service.inspect('session-1')).toBeUndefined()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('releaseIdleConnection closes an idle session but leaves a busy one running', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -5026,6 +5043,8 @@ describe('AgentSessionRuntimeService', () => {
         knowledgeBaseIds: [],
         fastMode: false,
         resumeToken: undefined,
+        nativeSessionId: undefined,
+        branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',
@@ -5140,6 +5159,8 @@ describe('AgentSessionRuntimeService', () => {
         knowledgeBaseIds: [],
         fastMode: false,
         resumeToken: 'resume-db',
+        nativeSessionId: undefined,
+        branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
         trace: {
           topicId: 'agent-session:session-1',

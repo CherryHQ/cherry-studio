@@ -1,8 +1,8 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort } from '@cherrystudio/agent-runtime-pi'
-
+import type { SubagentPort } from '../src'
+import { assistantReply, createTestSession, hostStore } from './sessionSupport'
 import {
   gate,
   outputText,
@@ -17,9 +17,8 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, gatewayModel, textParts } from './gatewaySupport'
-import { textOf } from './gatewayToolResults'
+} from './subagentSupport'
+import { textOf } from './toolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 
@@ -29,15 +28,16 @@ describe('background subagents', () => {
   it('returns its id at once, keeps running after the turn ends, and records its run', async () => {
     const held = gate()
     const { model } = routedModel(({ userText, lastText }) => {
-      if (userText.includes('TASK-A')) return held.wait([...textParts('r', 'REPORT-A'), finish('stop', 100, 20)])
+      if (userText.includes('TASK-A'))
+        return held.wait(assistantReply([{ type: 'text', text: 'REPORT-A' }], 'stop', 100, 20))
       return lastText === 'Check A in the background'
-        ? [subagentCall('call_a', BG_A), finish('tool-calls')]
-        : [...textParts('d', 'Launched.'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Launched.' }])
     })
     const host = recordingSubagentPort()
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: parent.onEvent
     })
@@ -58,7 +58,7 @@ describe('background subagents', () => {
     await waitFor(() => subagentStates(parent.entries).length === 2)
     const view = { sessionId, parentToolCallId: 'call_a', description: 'Check A' }
     expect(subagentStates(parent.entries)).toEqual([
-      { ...view, fork: false, background: true, modelKey: 'cherry/bridged-model', run: 1, status: 'running' },
+      { ...view, fork: false, background: true, modelKey: 'test/test-model', run: 1, status: 'running' },
       expect.objectContaining({
         ...view,
         run: 1,
@@ -80,14 +80,14 @@ describe('background subagents', () => {
     const held = gate()
     const parent: { session?: AgentSession } = {}
     const { model } = routedModel(({ userText, lastText }) => {
-      if (userText.includes('TASK-A')) return held.wait([...textParts('r', 'REPORT-A'), finish('stop')])
+      if (userText.includes('TASK-A')) return held.wait(assistantReply([{ type: 'text', text: 'REPORT-A' }]))
       return lastText === 'Check A, then stop'
-        ? [subagentCall('call_a', BG_A), toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
-        : [...textParts('d', 'Done'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', BG_A), toolCallPart('stop_1', 'stop_turn')], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
     })
     const store = hostStore()
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [stopTurnTool(parent, () => held.reached)],
       subagents: recordingSubagentPort().port,
       onEvent: store.onEvent
@@ -107,21 +107,23 @@ describe('background subagents', () => {
   it('runs at most 20 background subagents at once, while foreground subagents still run', async () => {
     const held = gate()
     const { model } = routedModel(({ userText, lastText }) => {
-      if (userText.includes('TASK-BG')) return held.wait([...textParts('r', 'BG'), finish('stop')])
-      if (userText.includes('TASK-FG')) return [...textParts('r', 'REPORT-FG'), finish('stop')]
+      if (userText.includes('TASK-BG')) return held.wait(assistantReply([{ type: 'text', text: 'BG' }]))
+      if (userText.includes('TASK-FG')) return assistantReply([{ type: 'text', text: 'REPORT-FG' }])
       if (lastText === 'Now one in the foreground')
-        return [subagentCall('call_fg', { description: 'FG', prompt: 'TASK-FG' }), finish('tool-calls')]
-      if (lastText !== 'Start 21 in the background') return [...textParts('d', 'Done'), finish('stop')]
-      return [
-        ...Array.from({ length: 21 }, (_, i) =>
-          subagentCall(`call_${i}`, { description: `BG ${i}`, prompt: `TASK-BG ${i}`, background: true })
-        ),
-        finish('tool-calls')
-      ]
+        return assistantReply([subagentCall('call_fg', { description: 'FG', prompt: 'TASK-FG' })], 'toolUse')
+      if (lastText !== 'Start 21 in the background') return assistantReply([{ type: 'text', text: 'Done' }])
+      return assistantReply(
+        [
+          ...Array.from({ length: 21 }, (_, i) =>
+            subagentCall(`call_${i}`, { description: `BG ${i}`, prompt: `TASK-BG ${i}`, background: true })
+          )
+        ],
+        'toolUse'
+      )
     })
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: recordingSubagentPort().port,
       onEvent: parent.onEvent
     })
@@ -157,14 +159,14 @@ describe('background subagents', () => {
       }
     }
     const { model } = routedModel(({ userText, lastText }) => {
-      if (userText.includes('TASK-A')) return held.wait([...textParts('r', 'REPORT-A'), finish('stop')])
+      if (userText.includes('TASK-A')) return held.wait(assistantReply([{ type: 'text', text: 'REPORT-A' }]))
       return lastText.startsWith('Check A')
-        ? [subagentCall('call_a', BG_A), finish('tool-calls')]
-        : [...textParts('d', 'Done'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done' }])
     })
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: port,
       onEvent: parent.onEvent
     })
@@ -182,14 +184,14 @@ describe('background subagents', () => {
   it('starts a background fork from the conversation as it is', async () => {
     const held = gate()
     const { model, calls } = routedModel(({ userText, lastText }) => {
-      if (userText.includes('TASK-A')) return held.wait([...textParts('r', 'REPORT-A'), finish('stop')])
+      if (userText.includes('TASK-A')) return held.wait(assistantReply([{ type: 'text', text: 'REPORT-A' }]))
       return lastText === 'Fork A in the background; the codename is ORCHID'
-        ? [subagentCall('call_a', { ...BG_A, fork: true }), finish('tool-calls')]
-        : [...textParts('d', 'Launched.'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', { ...BG_A, fork: true })], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Launched.' }])
     })
     const parent = hostStore()
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: recordingSubagentPort().port,
       onEvent: parent.onEvent
     })
@@ -199,7 +201,7 @@ describe('background subagents', () => {
 
     const fork = calls.find((call) => call.userText.includes('TASK-A'))!
     expect(fork.userText).toContain('ORCHID')
-    expect(toolResults(fork).map((part) => [part.toolCallId, outputText(part.output)])).toEqual([
+    expect(toolResults(fork).map((part) => [part.toolCallId, outputText(part.content)])).toEqual([
       ['call_a', 'This tool call was still running when the subagent started; its result is not available here.']
     ])
     held.open()
@@ -212,10 +214,10 @@ describe('background subagents', () => {
     const held = gate()
     let shutdowns = 0
     const { model, calls } = routedModel(({ userText, lastText }) => {
-      if (userText.includes('TASK-A')) return held.wait([...textParts('r', 'REPORT-A'), finish('stop')])
+      if (userText.includes('TASK-A')) return held.wait(assistantReply([{ type: 'text', text: 'REPORT-A' }]))
       return lastText === 'Check A in the background'
-        ? [subagentCall('call_a', BG_A), finish('tool-calls')]
-        : [...textParts('d', 'Launched.'), finish('stop')]
+        ? assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Launched.' }])
     })
     const host = recordingSubagentPort(() => ({
       extensionFactories: [
@@ -226,7 +228,7 @@ describe('background subagents', () => {
     }))
     const store = hostStore()
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: store.onEvent
     })
@@ -237,9 +239,7 @@ describe('background subagents', () => {
     await runtime.dispose()
 
     expect(shutdowns).toBe(1)
-    await expect
-      .poll(() => calls.find((call) => call.userText.includes('TASK-A'))!.options.abortSignal?.aborted)
-      .toBe(true)
+    await expect.poll(() => calls.find((call) => call.userText.includes('TASK-A'))!.options.signal?.aborted).toBe(true)
     expect(subagentStates(store.entries).map((state) => state.status)).toEqual(['running'])
     expect(store.events).toHaveLength(eventsBefore)
   })

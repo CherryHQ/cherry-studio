@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AgentRuntimeModel, SubagentModelCandidate, SubagentPort } from '@cherrystudio/agent-runtime-pi'
-
+import type { AgentRuntimeModel, SubagentModelCandidate, SubagentPort } from '../src'
+import { assistantReply, createTestSession, MODEL } from './sessionSupport'
 import {
   recordingSubagentPort,
   reply,
@@ -11,13 +11,12 @@ import {
   toolCallPart,
   toolResultOf,
   waitFor
-} from './gatewaySubagentSupport'
-import { createTestSession, finish, NATIVE_MODEL, gatewayModel } from './gatewaySupport'
-import { textOf } from './gatewayToolResults'
+} from './subagentSupport'
+import { textOf } from './toolResults'
 
-const SONNET_OR: AgentRuntimeModel = { ...NATIVE_MODEL, provider: 'openrouter', id: 'sonnet-4.5' }
-const SONNET_AN: AgentRuntimeModel = { ...NATIVE_MODEL, provider: 'anthropic', id: 'claude-sonnet-4-5' }
-const DEFAULT_SUB: AgentRuntimeModel = { ...NATIVE_MODEL, provider: 'cherry', id: 'small-model' }
+const SONNET_OR: AgentRuntimeModel = { ...MODEL, provider: 'openrouter', id: 'sonnet-4.5' }
+const SONNET_AN: AgentRuntimeModel = { ...MODEL, provider: 'anthropic', id: 'claude-sonnet-4-5' }
+const DEFAULT_SUB: AgentRuntimeModel = { ...MODEL, provider: 'cherry', id: 'small-model' }
 const MODELS = [SONNET_OR, SONNET_AN, DEFAULT_SUB]
 const CATALOG = [
   { key: `${SONNET_OR.provider}/${SONNET_OR.id}`, provider: 'OpenRouter', model: 'Claude Sonnet 4.5' },
@@ -56,15 +55,15 @@ function delegating(input: Record<string, unknown>) {
   return routedModel(({ userText, humanText }) => {
     if (userText.includes('TASK-A')) return reply('REPORT-A')
     if (humanText === 'Delegate')
-      return [
-        toolCallPart('call_a', 'subagent', { description: 'Check A', prompt: 'TASK-A', ...input }),
-        finish('tool-calls')
-      ]
+      return assistantReply(
+        [toolCallPart('call_a', 'subagent', { description: 'Check A', prompt: 'TASK-A', ...input })],
+        'toolUse'
+      )
     return reply('OK.')
   })
 }
 
-const childRequests = (requests: { sessionId: string | undefined; model: { id: string } }[], parentId: string) =>
+const childRequests = (requests: { sessionId?: string; model: { id: string } }[], parentId: string) =>
   requests.filter((request) => request.sessionId !== parentId)
 
 describe('subagent models', () => {
@@ -72,9 +71,8 @@ describe('subagent models', () => {
   // records another model (a continuation would switch models).
   it('runs the subagent on the one model the user named', async () => {
     const host = modelPort()
-    const { model } = delegating({ model: 'OpenRouter Claude Sonnet 4.5' })
-    const { upstream: port, requests } = gatewayModel(model)
-    const { session } = await createTestSession({ port, subagents: host.port })
+    const { model, requests } = delegating({ model: 'OpenRouter Claude Sonnet 4.5' })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
     await session.prompt('Delegate')
 
     expect(host.subagents[0].modelKey).toBe(`${SONNET_OR.provider}/${SONNET_OR.id}`)
@@ -90,7 +88,7 @@ describe('subagent models', () => {
   it('asks the model to let the user choose when several providers have the named model', async () => {
     const host = modelPort()
     const { model } = delegating({ model: 'Claude Sonnet 4.5' })
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
     await session.prompt('Delegate')
 
     expect(host.subagents).toEqual([])
@@ -103,7 +101,7 @@ describe('subagent models', () => {
   it('fails with similar names when no model matches', async () => {
     const host = modelPort()
     const { model } = delegating({ model: 'Sonnet 9' })
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
     await session.prompt('Delegate')
 
     expect(host.subagents).toEqual([])
@@ -117,7 +115,7 @@ describe('subagent models', () => {
     const recording = recordingSubagentPort()
     const port: SubagentPort = { ...recording.port, findModels }
     const { model } = delegating({ model: 'OpenRouter Claude Sonnet 4.5' })
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: port })
+    const { session } = await createTestSession({ stream: model, subagents: port })
     await session.prompt('Delegate')
 
     expect(textOf(toolResultOf(session, 'call_a'))).toBe(
@@ -129,7 +127,7 @@ describe('subagent models', () => {
   it('refuses a model for a fork', async () => {
     const host = modelPort()
     const { model } = delegating({ model: 'OpenRouter Claude Sonnet 4.5', fork: true })
-    const { session } = await createTestSession({ port: gatewayModel(model).upstream, subagents: host.port })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
     await session.prompt('Delegate')
 
     expect(textOf(toolResultOf(session, 'call_a'))).toBe(
@@ -141,11 +139,10 @@ describe('subagent models', () => {
   it("runs on the host's default subagent model when none is named, else on the parent's", async () => {
     const withDefault = modelPort(DEFAULT_SUB)
     const first = delegating({})
-    const firstPort = gatewayModel(first.model)
-    const one = await createTestSession({ port: firstPort.upstream, subagents: withDefault.port })
+    const one = await createTestSession({ stream: first.model, subagents: withDefault.port })
     await one.session.prompt('Delegate')
     expect(withDefault.subagents[0].modelKey).toBeUndefined()
-    expect(childRequests(firstPort.requests, one.session.sessionId).map((request) => request.model.id)).toEqual([
+    expect(childRequests(first.requests, one.session.sessionId).map((request) => request.model.id)).toEqual([
       'small-model'
     ])
     expect(withDefault.sessions.get(withDefault.subagents[0].sessionId)!.sessionManager.getBranch()).toContainEqual(
@@ -158,30 +155,26 @@ describe('subagent models', () => {
 
     const withoutDefault = modelPort()
     const second = delegating({})
-    const secondPort = gatewayModel(second.model)
-    const two = await createTestSession({ port: secondPort.upstream, subagents: withoutDefault.port })
+    const two = await createTestSession({ stream: second.model, subagents: withoutDefault.port })
     await two.session.prompt('Delegate')
-    expect(childRequests(secondPort.requests, two.session.sessionId).map((request) => request.model.id)).toEqual([
-      NATIVE_MODEL.id
-    ])
+    expect(childRequests(second.requests, two.session.sessionId).map((request) => request.model.id)).toEqual([MODEL.id])
   })
 
   // Breaks when a continuation asks the host for its default model instead of the first run's.
   it('continues a subagent on the model its first run used', async () => {
     const host = modelPort(DEFAULT_SUB, storingSubagentPort())
-    const { model, calls } = routedModel(({ userText, humanText, lastText }) => {
+    const { model, calls, requests } = routedModel(({ userText, humanText, lastText }) => {
       if (userText.includes('TASK-A')) return reply(lastText === 'AGAIN' ? 'REPORT-2' : 'REPORT-1')
       if (humanText === 'Delegate')
-        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' }), finish('tool-calls')]
+        return assistantReply([subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A' })], 'toolUse')
       if (humanText === 'Again')
-        return [
-          toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'AGAIN' }),
-          finish('tool-calls')
-        ]
+        return assistantReply(
+          [toolCallPart('call_msg', 'message_subagent', { id: host.subagents[0].sessionId, message: 'AGAIN' })],
+          'toolUse'
+        )
       return reply('OK.')
     })
-    const { upstream: port, requests } = gatewayModel(model)
-    const { session } = await createTestSession({ port, subagents: host.port })
+    const { session } = await createTestSession({ stream: model, subagents: host.port })
     await session.prompt('Delegate')
     await session.prompt('Again')
     await waitFor(() => calls.some((call) => call.lastText.includes('REPORT-2')))
@@ -196,17 +189,17 @@ describe('subagent models', () => {
   it('offers no model parameter when the host cannot find models', async () => {
     const { model, calls } = delegating({})
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: recordingSubagentPort().port
     })
     await session.prompt('Delegate')
 
     const tool = calls[0].options.tools?.find((candidate) => candidate.name === 'subagent')
-    expect(Object.keys((tool as { inputSchema: { properties: object } }).inputSchema.properties)).toEqual([
-      'description',
-      'prompt',
-      'fork',
-      'background'
-    ])
+    expect(tool?.parameters).toHaveProperty('properties', {
+      description: expect.any(Object),
+      prompt: expect.any(Object),
+      fork: expect.any(Object),
+      background: expect.any(Object)
+    })
   })
 })

@@ -1,16 +1,13 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { AssistantMessage, JsonValue } from '@earendil-works/pi-ai'
 import type { SessionEntry } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
-import { createTodoExtension } from '@cherrystudio/agent-runtime-pi'
+import { createTodoExtension } from '../src'
+import { assistantReply, createTestSession, hostStore, plain, scriptedModel } from './sessionSupport'
+import { textOf, toolOutputs, toolResults } from './toolResults'
 
-import { createTestSession, finish, hostStore, plain, scriptedModel, gatewayModel, textParts } from './gatewaySupport'
-import { textOf, toolOutputs, toolResults } from './gatewayToolResults'
-
-const todoCall = (id: string, todos: unknown): LanguageModelV3StreamPart[] => [
-  { type: 'tool-call', toolCallId: id, toolName: 'todo_write', input: JSON.stringify({ todos }) },
-  finish('tool-calls')
-]
+const todoCall = (id: string, todos: JsonValue): AssistantMessage =>
+  assistantReply([{ type: 'toolCall', id: id, name: 'todo_write', arguments: { todos } }], 'toolUse')
 
 /** Where a host reads the list back from its stored transcript: the last successful `todo_write` result. */
 const latestStoredList = (entries: readonly SessionEntry[]) =>
@@ -34,10 +31,10 @@ describe('todo extension', () => {
         { content: 'Book flights', status: 'completed' }
       ]),
       todoCall('call_3', []),
-      [...textParts('t', 'Done.'), finish('stop')]
+      assistantReply([{ type: 'text', text: 'Done.' }])
     ])
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       extensionFactories: [createTodoExtension()]
     })
     await session.prompt('Plan the trip')
@@ -85,9 +82,12 @@ describe('todo extension', () => {
       reason: /todos\.0: must not have additional properties/
     }
   ])('rejects $name and tells the model why', async ({ todos, reason }) => {
-    const { model, calls } = scriptedModel([todoCall('call_bad', todos), [...textParts('t', 'Sorry.'), finish('stop')]])
+    const { model, calls } = scriptedModel([
+      todoCall('call_bad', todos),
+      assistantReply([{ type: 'text', text: 'Sorry.' }])
+    ])
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       extensionFactories: [createTodoExtension()]
     })
     await session.prompt('Plan it')
@@ -95,7 +95,7 @@ describe('todo extension', () => {
     const [result] = toolResults(session)
     expect(result.isError).toBe(true)
     expect(textOf(result)).toMatch(reason)
-    expect(toolOutputs(calls[1].prompt).call_bad).toEqual({ type: 'text', value: textOf(result) })
+    expect(toolOutputs(calls[1].messages).call_bad).toBe(textOf(result))
   })
 
   it('keeps the latest accepted list across a rebuild, for the host and for the model', async () => {
@@ -108,17 +108,17 @@ describe('todo extension', () => {
         { content: 'Book flights', status: 'in_progress' },
         { content: 'Book hotel', status: 'pending' }
       ]),
-      [...textParts('a', 'Flights first.'), finish('stop')],
+      assistantReply([{ type: 'text', text: 'Flights first.' }]),
       todoCall('call_2', latest),
       todoCall('call_3', [
         { content: 'Book hotel', status: 'in_progress' },
         { content: 'Rent car', status: 'in_progress' }
       ]),
-      [...textParts('b', 'Hotel next.'), finish('stop')]
+      assistantReply([{ type: 'text', text: 'Hotel next.' }])
     ])
     const host = hostStore()
     const earlier = await createTestSession({
-      port: gatewayModel(live.model).upstream,
+      stream: live.model,
       extensionFactories: [createTodoExtension()],
       onEvent: host.onEvent
     })
@@ -130,23 +130,23 @@ describe('todo extension', () => {
       message: { toolCallId: 'call_2', details: { todos: latest } }
     })
 
-    const rebuilt = scriptedModel([[...textParts('c', 'Still on the hotel.'), finish('stop')]])
+    const rebuilt = scriptedModel([assistantReply([{ type: 'text', text: 'Still on the hotel.' }])])
     const { session } = await createTestSession({
-      port: gatewayModel(rebuilt.model).upstream,
+      stream: rebuilt.model,
       extensionFactories: [createTodoExtension()],
       entries: plain(host.entries)
     })
     await session.prompt('Where are we?')
 
-    const prompt = rebuilt.calls[0].prompt
+    const prompt = rebuilt.calls[0].messages
     const sentCalls = prompt.flatMap((message) =>
-      message.role === 'assistant' ? message.content.filter((part) => part.type === 'tool-call') : []
+      message.role === 'assistant' ? message.content.filter((part) => part.type === 'toolCall') : []
     )
-    expect(sentCalls.map((part) => part.toolCallId)).toEqual(['call_1', 'call_2', 'call_3'])
-    expect(sentCalls[1].input).toEqual({ todos: latest })
+    expect(sentCalls.map((part) => part.id)).toEqual(['call_1', 'call_2', 'call_3'])
+    expect(sentCalls[1].arguments).toEqual({ todos: latest })
     expect(toolOutputs(prompt)).toMatchObject({
-      call_2: { type: 'text', value: 'Updated todo list: 0 pending, 1 in progress, 1 completed.' },
-      call_3: { type: 'text' }
+      call_2: 'Updated todo list: 0 pending, 1 in progress, 1 completed.',
+      call_3: expect.stringContaining('at most one todo may be in_progress')
     })
     expect(rebuilt.calls[0].tools?.map((tool) => tool.name)).toContain('todo_write')
   })

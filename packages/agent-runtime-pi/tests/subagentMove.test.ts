@@ -1,6 +1,7 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { describe, expect, it } from 'vitest'
 
+import { assistantReply, createTestSession, hostStore } from './sessionSupport'
 import {
   gate,
   NOTE,
@@ -17,9 +18,8 @@ import {
   toolResultOf,
   toolResults,
   waitFor
-} from './gatewaySubagentSupport'
-import { createTestSession, finish, hostStore, gatewayModel } from './gatewaySupport'
-import { textOf } from './gatewayToolResults'
+} from './subagentSupport'
+import { textOf } from './toolResults'
 
 const TASK_A = { description: 'Check A', prompt: 'TASK-A' }
 const notified = (calls: readonly RoutedCall[]) => calls.filter((call) => call.lastText.startsWith(NOTE))
@@ -35,16 +35,16 @@ describe('moving a foreground subagent to the background', () => {
     const { model, calls } = routedModel(({ userText, lastText, lastRole, humanText }) => {
       if (userText.includes('TASK-A'))
         return lastText.includes('TASK-A')
-          ? [toolCallPart('note_1', 'note'), finish('tool-calls')]
+          ? assistantReply([toolCallPart('note_1', 'note')], 'toolUse')
           : held.wait(reply('REPORT-A'))
-      if (humanText === 'Check A') return [subagentCall('call_a', TASK_A), finish('tool-calls')]
+      if (humanText === 'Check A') return assistantReply([subagentCall('call_a', TASK_A)], 'toolUse')
       // The same turn goes on after the moved call returns, and the user stops it.
-      if (lastRole === 'tool' && toolResults(calls.at(-1)!).at(-1)?.toolCallId === 'call_a')
-        return [toolCallPart('stop_1', 'stop_turn'), finish('tool-calls')]
+      if (lastRole === 'toolResult' && toolResults(calls.at(-1)!).at(-1)?.toolCallId === 'call_a')
+        return assistantReply([toolCallPart('stop_1', 'stop_turn')], 'toolUse')
       return reply('OK.')
     })
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [noteTool, stopTurnTool(parent)],
       subagents: host.port,
       onEvent: store.onEvent
@@ -85,16 +85,18 @@ describe('moving a foreground subagent to the background', () => {
       if (userText.includes('TASK-BG')) return held.wait(reply('BG'))
       if (userText.includes('TASK-A')) return reply('REPORT-A')
       if (humanText === 'Start both')
-        return [
-          subagentCall('call_bg', { description: 'BG', prompt: 'TASK-BG', background: true }),
-          subagentCall('call_a', TASK_A),
-          finish('tool-calls')
-        ]
+        return assistantReply(
+          [
+            subagentCall('call_bg', { description: 'BG', prompt: 'TASK-BG', background: true }),
+            subagentCall('call_a', TASK_A)
+          ],
+          'toolUse'
+        )
       return reply('OK.')
     })
     const parent = hostStore()
     const runtime = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       subagents: host.port,
       onEvent: parent.onEvent
     })

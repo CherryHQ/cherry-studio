@@ -19,6 +19,21 @@ const locatorSchema = z.discriminatedUnion('kind', [
 ])
 
 class AgentSessionContextService {
+  preparePiBranch(sessionId: string, messageId?: string, nativeId?: string): AgentSessionContextRow {
+    return application.get('DbService').withWriteTx((tx) => {
+      const anchor = messageId ?? ensureAgentSessionRootTx(tx, sessionId)
+      const existing = this.branchTx(tx, sessionId, anchor)
+      if (existing) {
+        if (nativeId && (existing.nativeThreadId ?? existing.intendedThreadId) !== nativeId)
+          throw new Error('Requested Pi identity does not match the captured branch')
+        return existing
+      }
+      const root = ensureAgentSessionRootTx(tx, sessionId)
+      this.bindBranchTx(tx, sessionId, root, nativeId ?? uuid())
+      return this.branchTx(tx, sessionId, root)!
+    })
+  }
+
   bindBranchTx(
     tx: DbOrTx,
     sessionId: string,

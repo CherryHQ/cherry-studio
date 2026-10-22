@@ -1,10 +1,18 @@
-import { type AgentSession, SessionManager } from '@earendil-works/pi-coding-agent'
+import {
+  type AgentSession,
+  type ContextUsage,
+  type SessionEntry,
+  type ToolDefinition,
+  SessionManager
+} from '@earendil-works/pi-coding-agent'
 
 import {
   runtimeId,
   type AgentRuntime,
   type BackendId,
   type InputFact,
+  type InputId,
+  type ItemRef,
   type InterruptReceipt,
   type Observation,
   type OperationResult,
@@ -28,6 +36,14 @@ export interface PiRuntimeOptions {
 export type PiSessionOptions = AgentRuntimeSessionOptions
 export interface PiThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
+  readonly pi: {
+    contextUsage(): ContextUsage | undefined
+    history(): readonly SessionEntry[]
+    toolDefinition(name: string): ToolDefinition | undefined
+    toolCallId(ref: ItemRef): string | undefined
+    cancelQueuedInputs(): OperationResult<readonly InputId[]>
+    compact(instructions?: string): Promise<OperationResult<void>>
+  }
 }
 export interface PiRuntime extends AgentRuntime {
   create(options: PiSessionOptions): Promise<OperationResult<PiThreadHandle>>
@@ -140,6 +156,41 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
     const unavailable = () => released || closing
     return {
       thread: entry.ref,
+      pi: {
+        contextUsage: () => (unavailable() ? undefined : entry.session.getContextUsage()),
+        history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
+        toolDefinition: (name) => (unavailable() ? undefined : entry.session.getToolDefinition(name)),
+        toolCallId: (ref) => (unavailable() ? undefined : entry.projection.toolCallId(ref)),
+        cancelQueuedInputs() {
+          if (unavailable()) return rejected('cancel-queued-inputs', 'closed')
+          if (!entry.owner) return rejected('cancel-queued-inputs', 'not-owner')
+          if (entry.session.isStreaming) return rejected('cancel-queued-inputs', 'busy')
+          const ids = entry.projection.feed.snapshot.inputs.flatMap((input) =>
+            input.inputId && input.facts.includes('queued') && !input.facts.includes('placed') && !input.outcome
+              ? [input.inputId]
+              : []
+          )
+          entry.session.clearQueue()
+          for (const inputId of ids) entry.projection.recordInput({ inputId, facts: [], outcome: 'aborted' })
+          return { status: 'confirmed', value: ids }
+        },
+        compact(instructions) {
+          const work = entry.admission.then(async (): Promise<OperationResult<void>> => {
+            if (unavailable()) return rejected('compact', 'closed')
+            if (!entry.owner) return rejected('compact', 'not-owner')
+            if (entry.session.isStreaming) return rejected('compact', 'busy')
+            try {
+              await entry.owner.compact(instructions)
+              return { status: 'confirmed', value: undefined }
+            } catch (cause) {
+              report(cause)
+              return { status: 'unknown', error: error('compact', 'native-error') }
+            }
+          })
+          entry.admission = work.then(() => {})
+          return work
+        }
+      },
       input: {
         policies: entry.owner ? ['reject', 'steer', 'follow-up'] : ['steer'],
         submit(input): Promise<SubmitResult> {

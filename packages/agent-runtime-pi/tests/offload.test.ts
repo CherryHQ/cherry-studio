@@ -1,53 +1,31 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
-import type { LanguageModelV3CallOptions, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { AssistantMessage, JsonObject } from '@earendil-works/pi-ai'
+import type { Message, ToolCall } from '@earendil-works/pi-ai'
 import { Type, type ToolResultMessage } from '@earendil-works/pi-ai'
 import { defineTool, type SessionEntry } from '@earendil-works/pi-coding-agent'
-import { APICallError, simulateReadableStream } from 'ai'
-import { MockLanguageModelV3 } from 'ai/test'
 import { describe, expect, it } from 'vitest'
 
-import type { ToolOutputStore } from '@cherrystudio/agent-runtime-pi'
-
-import {
-  createTestSession,
-  finish,
-  hostStore,
-  lastAssistant,
-  MODEL,
-  plain,
-  gatewayModel,
-  tempDir,
-  textParts
-} from './gatewaySupport'
+import type { ToolOutputStore } from '../src'
+import { messageText, respondingModel } from './sessionSupport'
+import { assistantReply, createTestSession, hostStore, lastAssistant, MODEL, tempDir } from './sessionSupport'
 
 const WINDOW = 9_000
-const tokensOf = (prompt: LanguageModelV3Prompt) => Math.ceil(JSON.stringify(prompt).length / 4)
+const tokensOf = (prompt: Message[]) => Math.ceil(JSON.stringify(prompt).length / 4)
 /** ~40k chars: alone more than the 9k-token window. */
 const OUTPUT = Array.from({ length: 800 }, (_, row) => `row ${row}: ${'data '.repeat(9)}`).join('\n')
 
 /** A provider that rejects any prompt over the window, with the error text real providers use. */
-function windowedModel(
-  window: number,
-  script: (prompt: LanguageModelV3Prompt, call: number) => LanguageModelV3StreamPart[]
-) {
-  const calls: LanguageModelV3CallOptions[] = []
-  const model = new MockLanguageModelV3({
-    doStream: async (options) => {
-      calls.push(options)
-      const tokens = tokensOf(options.prompt)
-      if (tokens > window)
-        throw new APICallError({
-          message: `This model's maximum context length is ${window} tokens. However, your messages resulted in ${tokens} tokens.`,
-          url: 'https://api.example.com/v1/chat/completions',
-          requestBodyValues: {},
-          statusCode: 400
-        })
-      return { stream: simulateReadableStream({ chunks: script(options.prompt, calls.length) }) }
-    }
+function windowedModel(window: number, script: (prompt: Message[], call: number) => AssistantMessage) {
+  return respondingModel((options, call) => {
+    const tokens = tokensOf(options.messages)
+    if (tokens > window)
+      throw new Error(
+        `This model's maximum context length is ${window} tokens. However, your messages resulted in ${tokens} tokens.`
+      )
+    return script(options.messages, call)
   })
-  return { model, calls }
 }
 
 /** Saves outputs as files Pi's `read` tool can open. */
@@ -71,11 +49,11 @@ const dumpTable = defineTool({
   }
 })
 
-const toolCall = (id: string, toolName: string, input: object): LanguageModelV3StreamPart => ({
-  type: 'tool-call',
-  toolCallId: id,
-  toolName,
-  input: JSON.stringify(input)
+const toolCall = (id: string, toolName: string, input: JsonObject): ToolCall => ({
+  type: 'toolCall',
+  id: id,
+  name: toolName,
+  arguments: input
 })
 
 const toolEntries = (entries: SessionEntry[]) =>
@@ -89,13 +67,13 @@ describe('tool output offload', () => {
     expect(OUTPUT.length / 4).toBeGreaterThan(WINDOW)
     const { model, calls } = windowedModel(WINDOW, (_prompt, call) =>
       call === 1
-        ? [toolCall('call_dump', 'dump_table', {}), finish('tool-calls')]
-        : [...textParts('t', 'The table has 800 rows.'), finish('stop')]
+        ? assistantReply([toolCall('call_dump', 'dump_table', {})], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'The table has 800 rows.' }])
     )
     const host = hostStore()
     const structured: unknown[] = []
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       model: { ...MODEL, contextWindow: WINDOW },
       tools: [dumpTable],
       offload: { store: fileStore(tempDir('offload')), thresholdChars: 20_000 },
@@ -110,15 +88,15 @@ describe('tool output offload', () => {
       stopReason: 'stop',
       content: [{ type: 'text', text: 'The table has 800 rows.' }]
     })
-    expect(Math.max(...calls.map((call) => tokensOf(call.prompt)))).toBeLessThanOrEqual(WINDOW)
+    expect(Math.max(...calls.map((call) => tokensOf(call.messages)))).toBeLessThanOrEqual(WINDOW)
     const [stored] = toolEntries(host.entries)
     expect(stored).toMatchObject({ role: 'toolResult', content: [expect.objectContaining({ type: 'text' })] })
     const marker = resultText(stored)
     expect(marker).toContain('Read the full content with the read tool')
     expect(marker.length).toBeLessThan(3_000)
     expect(readFileSync(/Full output saved to: (.+)/.exec(marker)![1], 'utf8')).toBe(OUTPUT)
-    const sent = calls[1].prompt.find((message) => message.role === 'tool')!
-    expect(plain(sent.content[0])).toMatchObject({ output: { type: 'text', value: marker } })
+    const sent = calls[1].messages.find((message) => message.role === 'toolResult')!
+    expect(messageText(sent)).toBe(marker)
     expect(structured).toEqual([{ rows: 800 }])
   })
 
@@ -134,22 +112,24 @@ describe('tool output offload', () => {
     })
     const { model } = windowedModel(100_000, (prompt, call) => {
       if (call === 1)
-        return [
-          toolCall('call_a', 'dump_table', {}),
-          toolCall('call_b', 'dump_table', {}),
-          toolCall('call_c', 'fail_loudly', {}),
-          finish('tool-calls')
-        ]
+        return assistantReply(
+          [
+            toolCall('call_a', 'dump_table', {}),
+            toolCall('call_b', 'dump_table', {}),
+            toolCall('call_c', 'fail_loudly', {})
+          ],
+          'toolUse'
+        )
       if (call === 2) {
         const saved = /Full output saved to: ([^\s\\]+)/.exec(JSON.stringify(prompt))![1]
-        return [toolCall('call_read', 'read', { path: saved }), finish('tool-calls')]
+        return assistantReply([toolCall('call_read', 'read', { path: saved })], 'toolUse')
       }
-      return [...textParts('t', 'Read it back.'), finish('stop')]
+      return assistantReply([{ type: 'text', text: 'Read it back.' }])
     })
     const dir = tempDir('offload')
     const host = hostStore()
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       model: { ...MODEL, contextWindow: 100_000 },
       tools: [dumpTable, failing],
       builtinTools: ['read'],
@@ -172,8 +152,8 @@ describe('tool output offload', () => {
   it('still keeps an oversized result out of the context when the store cannot save it', async () => {
     const { model, calls } = windowedModel(WINDOW, (_prompt, call) =>
       call === 1
-        ? [toolCall('call_dump', 'dump_table', {}), finish('tool-calls')]
-        : [...textParts('t', 'I only see part of it.'), finish('stop')]
+        ? assistantReply([toolCall('call_dump', 'dump_table', {})], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'I only see part of it.' }])
     )
     const store: ToolOutputStore = {
       async save() {
@@ -181,7 +161,7 @@ describe('tool output offload', () => {
       }
     }
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       model: { ...MODEL, contextWindow: WINDOW },
       tools: [dumpTable],
       offload: { store, thresholdChars: 20_000 }
@@ -189,8 +169,8 @@ describe('tool output offload', () => {
     await session.prompt('Dump the table')
 
     expect(lastAssistant(session).stopReason).toBe('stop')
-    const sent = calls[1].prompt.find((message) => message.role === 'tool')!
-    const marker = (plain(sent.content[0]) as { output: { value: string } }).output.value
+    const sent = calls[1].messages.find((message) => message.role === 'toolResult')!
+    const marker = messageText(sent)
     expect(marker).toContain('disk full')
     expect(marker).not.toContain('Full output saved to')
     expect(marker.length).toBeLessThan(3_000)
@@ -210,19 +190,19 @@ describe('tool output offload', () => {
     })
     const { model, calls } = windowedModel(100_000, (_prompt, call) =>
       call === 1
-        ? [toolCall('call_list', 'list_records', {}), finish('tool-calls')]
-        : [...textParts('t', 'Done.'), finish('stop')]
+        ? assistantReply([toolCall('call_list', 'list_records', {})], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done.' }])
     )
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       model: { ...MODEL, contextWindow: 100_000 },
       tools: [listRecords],
       offload: { store: fileStore(tempDir('offload')), thresholdChars: 1_000 }
     })
     await session.prompt('List the records')
 
-    const sent = calls[1].prompt.find((message) => message.role === 'tool')!
-    const marker = (plain(sent.content[0]) as { output: { value: string } }).output.value
+    const sent = calls[1].messages.find((message) => message.role === 'toolResult')!
+    const marker = messageText(sent)
     expect(readFileSync(/Full output saved to: (.+)/.exec(marker)![1], 'utf8')).toBe(records.join('\n'))
     expect(marker).toContain(`${records[0]}\n${records[1]}\n`)
     expect(marker).toContain(`\n${records[98]}\n${records[99]}`)
@@ -241,20 +221,20 @@ describe('tool output offload', () => {
     })
     const { model, calls } = windowedModel(100_000, (_prompt, call) =>
       call === 1
-        ? [toolCall('call_echo', 'echo_block', {}), finish('tool-calls')]
-        : [...textParts('t', 'Done.'), finish('stop')]
+        ? assistantReply([toolCall('call_echo', 'echo_block', {})], 'toolUse')
+        : assistantReply([{ type: 'text', text: 'Done.' }])
     )
     const dir = tempDir('offload')
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       model: { ...MODEL, contextWindow: 100_000 },
       tools: [echo],
       offload: { store: fileStore(dir), thresholdChars: 1_000 }
     })
     await session.prompt('Echo the block')
 
-    const sent = calls[1].prompt.find((message) => message.role === 'tool')!
-    expect(plain(sent.content[0])).toMatchObject({ output: { type: 'text', value: output } })
+    const sent = calls[1].messages.find((message) => message.role === 'toolResult')!
+    expect(messageText(sent)).toBe(output)
     expect(readdirSync(dir)).toEqual([])
   })
 })

@@ -308,10 +308,11 @@ The predecessor document records passing initial adapter validation with native 
 | [Pi adapter](../../../../packages/agent-runtime-pi/tests/runtime.test.ts) | Shared content identities across accesses; streaming and release isolation; native busy rejection; command preflight and queued follow-up; rejection of a wrong native identity; orderly native file close and reopen; owner-routed child continuation and live steering; stable relationships and observation through child rebinding; one native parent notification; shutdown joining child admission. |
 | [Pi native session](../../../../packages/agent-runtime-pi/tests/nativeSession.test.ts) | Native provider execution and caller ownership of the borrowed model runtime, independent of Cherry's AI SDK bridge. |
 | [Pi Durable adapter](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts) | Current views and input completion; busy rejection, deduplication, conversation-scoped withdrawal; admission receipts surviving later status-read failure; independent owned-child observation and continued input after parent release; stable relationships and unchanged parent output; orderly SQLite close/reopen; passive observation/query followed by explicit resume. |
-| Cherry bridge tests under `src/main/ai/runtime/pi/gateway*.test.ts` | Model bridge, native history, tools, compaction, goals, foreground/background subagents, continuation, and result delivery. The [subagent stop tests](../../../../src/main/ai/runtime/pi/gatewaySubagentStop.test.ts) also exercise child-thread interruption through the owning controller. Native-only tests stay in `packages/agent-runtime-pi/tests/`. |
+| Native behavior tests under `packages/agent-runtime-pi/tests/` | Native history, tools, compaction, goals, foreground/background subagents, continuation, and result delivery, using native test providers. The [subagent stop tests](../../../../packages/agent-runtime-pi/tests/subagentStop.test.ts) also exercise child-thread interruption through the owning controller. |
+| [Cherry gateway integration](../../../../src/main/ai/runtime/pi/gatewayIntegration.test.ts) | Real gateway execution, provider selection, request options, cancellation, and SQLite billing against a loopback upstream. |
 | [Validation selection](../../../../scripts/__tests__/validationPlan.test.ts), [validation workflow](../../../../scripts/__tests__/validationWorkflow.test.ts) | Packages enter affected selection; changes to the common package include both adapters' consumer checks. |
 
-The [Pi bridge README](../../../../src/main/ai/runtime/pi/README.md) specifies real AI SDK streaming against a local HTTP provider. This is not live-provider acceptance, the complete upstream SDK test suite, or Electron acceptance. Test files and historical passes must not be used as substitutes for those boundaries.
+The [Pi integration README](../../../../src/main/ai/runtime/pi/README.md) separates native package tests, gateway integration, and desktop connection ownership tests. These do not establish live-provider acceptance, the complete upstream SDK test suite, or Electron acceptance. Test files and historical passes must not be used as substitutes for those boundaries.
 
 #### Subagent input implementation check — 2026-10-19
 
@@ -409,6 +410,10 @@ Unsupported or unknown can be legitimate results, but neither passes acceptance 
 - Require every harness to expose the richest child's conversation and cancellation behavior: rejected because one-shot tasks and observation-only children remain valid; the separate control proposal defines optional abilities.
 - Declare the adapter complete once offline tests pass: rejected because production wiring, UI projection, real providers, crash behavior, and side effects require their own acceptance.
 
+### Native gateway transition
+
+The host now registers Pi's native providers against the internal gateway. `gateway*.test.ts` uses HTTP fixtures with the production gateway converters; the old `aiSdk*.test.ts` command logs above remain historical. The affected Main scope passed 39 test files / 659 cases, and the two native Pi package files passed 15 cases. `gatewayIntegration.test.ts` exercises real gateway execution, provider resolution, reasoning selection, cancellation and SQLite billing against a loopback upstream. These checks do not establish live-provider or Electron acceptance. Desktop root wiring is present; independent child projection and Durable desktop integration remain separate work.
+
 ## Acceptance criteria
 
 - AC1 — Each public guarantee is traceable to a named sample, pinned source or executed test, and an explicit evidence level; historical versions remain identifiable. (verification: docs gate — runtime contract and evidence-note maintainers)
@@ -417,7 +422,7 @@ Unsupported or unknown can be legitimate results, but neither passes acceptance 
 - AC4 — Persistence evidence identifies orderly reopen separately from crash recovery and external effects; a stronger recovery claim includes a dedicated scenario that actually exercises it. (verification: unit — adapter storage and recovery test owners)
 - AC5 — Before declaring desktop integration complete, the real application demonstrates independent child output after parent completion, the intended input/control paths, and consumer reconnection without confusing host presentation with native execution. (verification: Electron — desktop runtime and projection owners)
 
-AC1 is a documentation constraint; AC2–AC4 require evidence on the implementation revision being accepted. AC5 remains pending because the adapters are not wired into the desktop. This proposed note does not imply the entire stack meets those criteria.
+AC1 is a documentation constraint; AC2–AC4 require evidence on the implementation revision being accepted. AC5 remains pending for independent child projection and Durable desktop wiring. This proposed note does not imply the entire stack meets those criteria.
 
 ## Risks
 
