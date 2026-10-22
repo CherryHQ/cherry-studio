@@ -23,6 +23,10 @@ on:
           - custom-assistant
           - chat-stream-failure
           - about
+          - topics
+          - composer
+          - message-actions
+          - settings-nav
           - translation
           - quick-assistant
           - knowledge
