@@ -128,6 +128,50 @@ describe('bounded MCP disable rules', () => {
     mocks.listTools.mockReset().mockReturnValue([{ name: 'read_file' }, { name: 'write_file' }])
   })
 
+  it('expands cross-server suffix rules before truncating allocated names', () => {
+    const name = 'read_' + 'long_name_'.repeat(12) + '_sensitive'
+    mocks.listTools.mockReturnValue([{ name }, { name: 'write_file' }])
+    const result = externalRules(['mcp__*__*_sensitive'])
+    expect({ result, truncated: !alias(name).includes('_sensitive') }).toEqual({
+      result: [alias(name)],
+      truncated: true
+    })
+  })
+
+  it('expands across mounts and deduplicates overlapping original identity forms', () => {
+    const other = { id: 'second-server', name: 'Second Server' }
+    const mount = 'stored-mount'
+    mocks.findServer.mockImplementation((key: string) => (key === id ? server : other))
+    mocks.listTools.mockReturnValue([{ name: 'read_sensitive' }])
+    expect(externalRules(['mcp__*__*_sensitive', 'mcp__*__read*'], [id, mount])).toEqual([
+      alias('read_sensitive'),
+      alias('read_sensitive', mount, other.id)
+    ])
+  })
+
+  it.each([
+    ['mcp__second-*__read_*', 'read_sensitive'],
+    ['mcp__stored-*__read_*', 'read_sensitive'],
+    ['mcp__secondS*__readS*', 'read_sensitive'],
+    ['mcp__*__read_[a].*', 'read_[a].file'],
+    ['mcp__*__read_*', 'read_']
+  ])('matches cross-server original forms with literal case-sensitive globs (%s)', (rule, name) => {
+    const other = { id: 'second-server', name: 'Second Server' }
+    mocks.findServer.mockReturnValue(other)
+    mocks.listTools.mockReturnValue([
+      { name },
+      { name: rule === 'mcp__secondS*__readS*' ? 'write_file' : 'Read_sensitive' },
+      { name: name === 'read_[a].file' ? 'read_aXfile' : 'write_file' }
+    ])
+    expect(externalRules([rule], ['stored-mount'])).toEqual([alias(name, 'stored-mount', other.id)])
+  })
+
+  it('drops unmatched cross-server patterns while preserving unknown concrete servers', () => {
+    expect(externalRules(['mcp__*__*_sensitive', 'mcp__concrete-unmounted-id__*_sensitive'])).toEqual([
+      'mcp__concrete-unmounted-id__*_sensitive'
+    ])
+  })
+
   it('expands partial wildcards only to matching original tools', () => {
     const result = externalRules([`mcp__${id}__read_*`])
     expect(result).toEqual([alias('read_file')])

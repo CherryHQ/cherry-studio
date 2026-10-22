@@ -1754,6 +1754,63 @@ describe('buildClaudeCodeSessionSettings', () => {
     await expect(pending).resolves.toEqual({ behavior: 'deny', message: 'User denied permission for this tool' })
   })
 
+  it.each([false, true])('denies cross-server calls through real PreToolUse (cold %s)', async (cold) => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    const names = ['read_' + 'long_name_'.repeat(12) + '_sensitive', 'write_file']
+    const agent = {
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [id],
+      disabledTools: ['mcp__*__*_sensitive'],
+      configuration: { permission_mode: 'bypassPermissions' }
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    mocks.findByIdOrName.mockReturnValue({ id, name: 'User MCP', type: 'stdio' })
+    const tools = names.map((name) => ({ id: name, name, inputSchema: { type: 'object' } }))
+    mocks.listMcpTools.mockReturnValue(cold ? [] : tools)
+    const { createClaudeAgentToolPolicySnapshot } = await vi.importActual<typeof ClaudeAgentTools>(
+      '@main/ai/tools/adapters/claudeCode/agentTools'
+    )
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent as never, { boundedMcpToolNames: true })
+    mocks.createToolPolicySnapshot.mockResolvedValue(snapshot)
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {} as never,
+      { boundedMcpToolNames: true }
+    )
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, names)
+    const aliases = names.map((name) => `mcp__${plan.serverKey}__${plan.toolName(name)}`)
+    if (cold) {
+      registerMcpSessionCatalogSync('session-1', 'agent-1', [id], settings.mcpToolMetadata, true)
+      mocks.listMcpTools.mockReturnValue(tools)
+      mocks.onToolsCacheUpdated.mock.calls.at(-1)![0]({ serverId: id })
+      await vi.waitFor(() => expect(snapshot.isDisabled(aliases[0])).toBe(true))
+    }
+    const denial = expect.objectContaining({
+      hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
+    })
+    const decisions = await Promise.all(
+      aliases.map(async (toolName) => {
+        const results = await Promise.all(
+          (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+            hook(
+              { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+              'cross-server-call',
+              {} as never
+            )
+          )
+        )
+        return results.some((result) => denial.asymmetricMatch(result))
+      })
+    )
+    expect({ mode: settings.permissionMode, disabled: aliases.map(snapshot.isDisabled), decisions }).toEqual({
+      mode: 'bypassPermissions',
+      disabled: [true, false],
+      decisions: [true, false]
+    })
+  })
+
   it.each(['partial', 'collision'])(
     'enforces the real %s policy through PreToolUse under Full Access',
     async (kind) => {

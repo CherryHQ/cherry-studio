@@ -22,6 +22,15 @@ export interface ClaudeToolContext {
   cwd: string
 }
 
+function disableRulePattern(rule: string): RegExp {
+  return new RegExp(
+    `^${rule
+      .split('*')
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.*')}$`
+  )
+}
+
 function dirHasGit(cwd: string): boolean {
   try {
     return fs.existsSync(path.join(cwd, '.git'))
@@ -110,6 +119,7 @@ export function resolveDisallowedTools(
     const delimiter = rule.indexOf('__', 'mcp__'.length)
     const segment = rule.slice('mcp__'.length, delimiter === -1 ? undefined : delimiter)
     const tail = delimiter === -1 ? undefined : rule.slice(delimiter + 2)
+    if (tail === '') return [rule]
     // Canonical ownership must be settled across all mounts before considering display aliases.
     const owner =
       serverPlans.find(({ server }) => server.id === segment) ??
@@ -120,19 +130,27 @@ export function resolveDisallowedTools(
           tools.some((tool) => rule === buildClaudeMcpToolName(server.name, tool.name)) ||
           buildClaudeMcpWildcard(server.name) === `mcp__${segment}__*`
       )
-    if (!owner || tail === '') return [rule]
+    if (!owner) {
+      if (!segment.includes('*')) return [rule]
+      const pattern = disableRulePattern(rule)
+      return serverPlans.flatMap(({ server, mcpId, plan, tools }) =>
+        tools
+          .filter(
+            (tool) =>
+              pattern.test(`mcp__${server.id}__${tool.name}`) ||
+              pattern.test(`mcp__${mcpId}__${tool.name}`) ||
+              pattern.test(buildClaudeMcpToolName(server.name, tool.name))
+          )
+          .map((tool) => `mcp__${plan.serverKey}__${plan.toolName(tool.name)}`)
+      )
+    }
     const { server, plan, tools } = owner
     const allocated = (name: string) => `mcp__${plan.serverKey}__${plan.toolName(name)}`
     const compatibilityTool = tools.find((tool) => rule === buildClaudeMcpToolName(server.name, tool.name))
     if (compatibilityTool && !tools.some((tool) => tool.name === tail)) return [allocated(compatibilityTool.name)]
     if (tail === undefined || tail === '*') return [`mcp__${plan.serverKey}__*`]
     if (!tail.includes('*')) return [allocated(tail)]
-    const pattern = new RegExp(
-      `^${rule
-        .split('*')
-        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-        .join('.*')}$`
-    )
+    const pattern = disableRulePattern(rule)
     return tools
       .filter(
         (tool) =>

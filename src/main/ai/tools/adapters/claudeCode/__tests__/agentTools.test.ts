@@ -114,6 +114,56 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     }
   )
 
+  it.each([false, true])('denies cross-server suffix matches under Full Access (cold %s)', async (cold) => {
+    const id = '12345678-1234-4234-8234-123456789abc'
+    const names = ['read_' + 'long_name_'.repeat(12) + '_sensitive', 'write_file']
+    mocks.findMcpServer.mockReturnValue({ id, name: 'User MCP' })
+    mocks.listMcpTools.mockReturnValue(cold ? [] : names.map((name) => ({ name })))
+    const agent = makeAgent(['mcp__*__*_sensitive'], [id])
+    agent.configuration = { permission_mode: 'bypassPermissions' }
+    if (cold) {
+      const { agentService } = await import('@data/services/AgentService')
+      const { Emitter } = await import('@main/core/lifecycle')
+      const { ClaudeCodeSessionStateService } =
+        await import('@main/ai/runtime/claudeCode/ClaudeCodeSessionStateService')
+      const updates = new Emitter<{ serverId: string }>()
+      const getAgent = vi.spyOn(agentService, 'getAgent').mockReturnValue(agent)
+      const state = new ClaudeCodeSessionStateService()
+      mocks.applicationGet.mockImplementation((service: string) => {
+        if (service === 'McpCatalogService') {
+          return { listTools: mocks.listMcpTools, onToolsCacheUpdated: updates.event }
+        }
+        throw new Error(`Unexpected application.get(${service})`)
+      })
+      try {
+        const snapshot = await state.ensureToolPolicySnapshot('session-1', agent, { boundedMcpToolNames: true })
+        state.registerMcpSessionCatalogSync('session-1', agent.id, [id], {}, true)
+        mocks.listMcpTools.mockReturnValue(names.map((name) => ({ name })))
+        updates.fire({ serverId: id })
+        const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, names)
+        const aliases = names.map((name) => `mcp__${plan.serverKey}__${plan.toolName(name)}`)
+        await vi.waitFor(() =>
+          expect({ mode: snapshot.getPermissionMode(), disabled: aliases.map(snapshot.isDisabled) }).toEqual({
+            mode: 'bypassPermissions',
+            disabled: [true, false]
+          })
+        )
+      } finally {
+        state.disposeToolPolicySnapshot('session-1')
+        updates.dispose()
+        getAgent.mockRestore()
+      }
+      return
+    }
+    const snapshot = await createClaudeAgentToolPolicySnapshot(agent, { boundedMcpToolNames: true })
+    const plan = planClaudeMcpToolNames({ serverId: id, sdkServerKey: id }, names)
+    const aliases = names.map((name) => `mcp__${plan.serverKey}__${plan.toolName(name)}`)
+    expect({ mode: snapshot.getPermissionMode(), disabled: aliases.map(snapshot.isDisabled) }).toEqual({
+      mode: 'bypassPermissions',
+      disabled: [true, false]
+    })
+  })
+
   it('recomputes partial denials after catalog growth and saved-rule changes under Full Access', async () => {
     const id = '12345678-1234-4234-8234-123456789abc'
     mocks.findMcpServer.mockReturnValue({ id, name: 'User MCP' })
