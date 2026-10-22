@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-18-subagent-resume-flow-identity.md
-2026-10-18-subagent-resume-flow-identity.md: 2860c58849a92596f6923a7ece456f05f3eba0b5
-2026-10-18-subagent-resume-flow-identity.zh.md: 4cecda56cf39a53ef42b2de89711b94f4d30c755
+2026-10-18-subagent-resume-flow-identity.md: 3c35ea9dd566467d3d17a1110af27e80d7e636b4
+2026-10-18-subagent-resume-flow-identity.zh.md: a15acd19f3c3d235e1e37d1d37053b5468d9a670
