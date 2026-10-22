@@ -8,7 +8,7 @@ Status: proposed
 
 不同 harness 的方法都叫 `prompt`、对象都叫 `session`，或者 Promise 都成功返回，并不表示行为相同。通用契约需要身份、接纳、观察、中断、所有权和恢复方面的证据。某个适配器没有暴露一项操作，也不能证明原生 harness 没有该能力。
 
-本文保留 Runtime 栈中五类样本的研究与验证记录，区分固定源码调研、历史已执行探针、当前测试覆盖与应用验收。[Harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)和[运行时契约](../architecture/2026-10-17-agent-runtime-contract.md)维护设计，本文维护证据与验收缺口。[子智能体控制提案](https://github.com/CherryHQ/cherry-studio/pull/21578)维护超出已实现 v0 契约的变更。本次迁移不把这些工作标为已实现，也不产生新的测试通过记录。
+本文保留 Runtime 栈中五类样本的研究与验证记录，区分固定源码调研、历史已执行探针、当前测试覆盖与应用验收。[Harness 边界](../architecture/2026-10-17-agent-harness-boundaries.md)和[运行时契约](../architecture/2026-10-17-agent-runtime-contract.md)维护设计，本文维护证据与验收缺口。[子智能体控制提案](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护超出已实现 v0 契约的变更。本次迁移不把这些工作标为已实现，也不产生新的测试通过记录。
 
 本文的实现事实以累计 Runtime 栈 `bd6509eb5f71a9c6bbb57453f0a7ced25e92c766` 的检查结果为依据。由上层提供的行为在本层仍属于目标，不表示这些功能已存在于本层。源码链接指向该固定快照，尚未引入的文档链接到其所属 PR。
 
@@ -66,7 +66,7 @@ ACP 是接入协议，不是执行引擎。该样本研究协议可表达的 har
 
 官方子智能体示例通过 `--mode json -p --no-session` 启动子进程，并把进度送到父工具的 `onUpdate`。这一组合本身不提供稳定 child session、重启后继续对话或独立子流订阅的核心契约。[官方子智能体示例](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/examples/extensions/subagent/index.ts)
 
-Cherry 适配器使用自研的进程内[子智能体扩展](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/subagent.ts)，复用 Pi 原生会话。扩展已有消息和停止控制，而公共 child 访问仍以 `managed-child` 拒绝 `submit`。当前选择和公共控制桥接提案由[子智能体控制记录](https://github.com/CherryHQ/cherry-studio/pull/21578)维护。官方示例和适配缺口都不能证明 Pi 不支持子会话对话。
+Cherry 适配器使用自研的进程内[子智能体扩展](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/packages/agent-runtime-pi/src/subagent.ts)，复用 Pi 原生会话。扩展已有消息和停止控制，而公共 child 访问仍以 `managed-child` 拒绝 `submit`。当前选择和公共控制桥接提案由[子智能体控制记录](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护。官方示例和适配缺口都不能证明 Pi 不支持子会话对话。
 
 #### 关系示例
 
@@ -232,7 +232,7 @@ Subagent RFD 通过父 session 的 `subagent_update` 宣告 child session；chil
 
 依据：[桌面连接与事件](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/types.ts)、[Pi 创建与恢复](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/PiRuntimeConnection.ts)、[宿主回合与后台输出](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/agentSession/AgentSessionRuntimeService.ts)。这些是静态结构结论，不表示每个潜在竞态均已复现。[桌面 Pi README](https://github.com/CherryHQ/cherry-studio/blob/bd6509eb5f71a9c6bbb57453f0a7ced25e92c766/src/main/ai/runtime/pi/README.md)明确现有连接尚未使用新包。
 
-Opaque resume token、宿主输入队列和展示历史都可以存在。问题不是它们存在，而是证据、所有权不清晰，以及它们可能与原生状态竞争。产品会话之间的消息投递也不建立子智能体所有权；[子智能体控制记录](https://github.com/CherryHQ/cherry-studio/pull/21578)维护这一区别。
+Opaque resume token、宿主输入队列和展示历史都可以存在。问题不是它们存在，而是证据、所有权不清晰，以及它们可能与原生状态竞争。产品会话之间的消息投递也不建立子智能体所有权；[子智能体控制记录](../architecture/2026-10-18-agent-runtime-subagent-control.md)维护这一区别。
 
 OAR 基线 `141921ea5a818bd8b0a1c0c1e17a2593898dbefe` 的 `packages/oar/src/runtimes/pi-durable/session.ts` 在 open 时 resume，并把部分 Submission 结果折叠为 turn_ended。Cherry 当前适配器将访问与显式 resume 分开，不强制通用 Turn。OAR 的 steer 状态预检查本身不能证明接纳时仍针对同一执行。这是保证边界分析，不是已经复现的用户故障。
 
