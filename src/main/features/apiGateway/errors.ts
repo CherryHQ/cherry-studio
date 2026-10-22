@@ -310,6 +310,23 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
     return status(400, restEnvelope('BAD_REQUEST', 'Malformed request body'))
   }
 
+  // Preserve classified HTTP status from errors that carry it (e.g. idle timeout → 504).
+  const explicitStatus = (error as { status?: number })?.status
+  if (explicitStatus && explicitStatus >= 500 && explicitStatus !== 500) {
+    const statusCode = explicitStatus
+    return status(
+      statusCode,
+      restEnvelope(
+        statusCode >= 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR',
+        isDev
+          ? messageOf(error, `Server error ${statusCode}`)
+          : statusCode === 504
+            ? 'Upstream idle timeout exceeded'
+            : 'Internal server error'
+      )
+    )
+  }
+
   logger.error('API gateway request error', { code, error })
   // Don't leak raw internal error messages to clients in production.
   return status(
