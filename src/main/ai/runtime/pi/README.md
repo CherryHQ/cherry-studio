@@ -49,10 +49,10 @@ Queued inputs Pi never placed are marked aborted and are not automatically resen
 
 ## Verification boundaries
 
-`gatewaySession.test.ts` and `gatewayCompaction.test.ts` run real Pi sessions against a loopback
-HTTP fixture using the production gateway converters and an AI SDK mock upstream. They cover
-streaming, abort, tool ownership, session configuration and compaction. This fixture does not prove
-provider selection, billing or Electron integration. `gatewayIntegration.test.ts` exercises real gateway
+Native session, goal and subagent tests live in `packages/agent-runtime-pi/tests/`. They use Pi
+providers directly, including scripted native streams with fixed usage for budget assertions.
+`gatewayIntegration.test.ts` exercises real gateway
 execution, provider selection, request options, cancellation and SQLite billing against a loopback upstream.
-`PiRuntimeConnection.test.ts` covers desktop connection ownership and native context associations.
+`PiRuntimeConnection.test.ts` covers desktop connection ownership and native context associations
+with a native test provider substituted at the model-binding boundary.
 Live-provider and Electron acceptance remain separate checks.
