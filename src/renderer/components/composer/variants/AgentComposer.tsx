@@ -1666,9 +1666,18 @@ const AgentComposerInner = ({
       if (isStreaming && !options?.steer) {
         const enqueueScope = sessionTopicId
         const enqueueRevision = draftEditRevisionRef.current
-        const queued = await enqueueFollowup(draft, payload)
-        if (queued && queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
-          clearCurrentDraft()
+        // Hold the submission guard across the enqueue too: the direct-send guard below is
+        // acquired only under this branch, so a second Send activation while this enqueue is
+        // in flight would mint a second UUID and queue a duplicate. The editor stays editable
+        // (newer edits win via the revision check) and a failed enqueue keeps the draft.
+        directSendInFlightRef.current = true
+        try {
+          const queued = await enqueueFollowup(draft, payload)
+          if (queued && queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
+            clearCurrentDraft()
+          }
+        } finally {
+          directSendInFlightRef.current = false
         }
         return
       }
