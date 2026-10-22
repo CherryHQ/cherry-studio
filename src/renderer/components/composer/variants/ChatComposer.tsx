@@ -562,6 +562,12 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  // Pending queued-edit take: the claim and DELETE await across the network
+  // and restoreFollowupDraft then replaces the whole document, so the input
+  // is blocked for the duration to keep intervening edits from being
+  // silently overwritten (cherry-pr-review).
+  const followupTakePendingRef = useRef(false)
+  const [followupTakePending, setFollowupTakePending] = useState(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
@@ -2028,22 +2034,30 @@ const ChatComposerInner = ({
                 }}
                 onEdit={async (id) => {
                   if (directSendInFlightRef.current) return
-                  if (editingMessageForCurrentTopic) {
-                    // A message-edit session owns the composer: taking a queued
-                    // item must not try to capture it as an outgoing followup.
-                    releaseEdit()
-                    const item = await takeFollowupForEdit(id, () => null)
-                    if (!item) return
-                    restoreFollowupDraft(item)
-                    return
+                  if (followupTakePendingRef.current) return
+                  followupTakePendingRef.current = true
+                  setFollowupTakePending(true)
+                  try {
+                    if (editingMessageForCurrentTopic) {
+                      // A message-edit session owns the composer: taking a queued
+                      // item must not try to capture it as an outgoing followup.
+                      releaseEdit()
+                      const item = await takeFollowupForEdit(id, () => null)
+                      if (!item) return
+                      restoreFollowupDraft(item)
+                      return
+                    }
+                    // Atomic take: undefined when the item is owned by an
+                    // in-flight drain, so an edit can never race its send.
+                    // Switching the edit target returns the outgoing draft to
+                    // its queue slot, rebuilt from the live editor, first.
+                    const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
+                    if (!incoming) return
+                    restoreFollowupDraft(incoming)
+                  } finally {
+                    followupTakePendingRef.current = false
+                    setFollowupTakePending(false)
                   }
-                  // Atomic take: undefined when the item is owned by an
-                  // in-flight drain, so an edit can never race its send.
-                  // Switching the edit target returns the outgoing draft to
-                  // its queue slot, rebuilt from the live editor, first.
-                  const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
-                  if (!incoming) return
-                  restoreFollowupDraft(incoming)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
@@ -2058,9 +2072,9 @@ const ChatComposerInner = ({
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
           quickPanelEnabled={config.enableQuickPanel ?? true}
-          enableDragDrop={config.enableDragDrop ?? true}
+          enableDragDrop={(config.enableDragDrop ?? true) && !followupTakePending}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching && !isDirectSending && !isSavingEdit}
+          editable={!searching && !isDirectSending && !isSavingEdit && !followupTakePending}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}

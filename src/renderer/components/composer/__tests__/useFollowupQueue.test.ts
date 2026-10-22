@@ -998,16 +998,21 @@ describe('useFollowupQueue', () => {
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('second')
     expect(captureOutgoing).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }))
+    // The restored copy carries a fresh id: the original row closed when it
+    // was taken, so a same-id enqueue would settle against the receipt
+    // without storing the edited draft.
     expect(postTrigger).toHaveBeenCalledWith({
       body: {
-        id: 'a',
+        id: expect.any(String),
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
         payload: { text: 'first edited', userMessageParts: [] }
       }
     })
+    const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    expect(restoreId).not.toBe('a')
     // 'a' was taken from slot 0, so its rebuilt copy goes back to the head.
-    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: 'a', anchor: { position: 'first' } }] } })
+    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { position: 'first' } }] } })
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
   })
 
@@ -1097,13 +1102,15 @@ describe('useFollowupQueue', () => {
 
     expect(postTrigger).toHaveBeenCalledWith({
       body: {
-        id: 'a',
+        id: expect.any(String),
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
         payload: { text: 'first edited', userMessageParts: [] }
       }
     })
-    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: 'a', anchor: { position: 'first' } }] } })
+    const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+    expect(restoreId).not.toBe('a')
+    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { position: 'first' } }] } })
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
   })
 

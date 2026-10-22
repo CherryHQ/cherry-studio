@@ -570,12 +570,11 @@ export function useFollowupQueue({
         if (taken) takenEditRef.current = null
         return undefined
       }
-      if (scopeKeyRef.current !== scope || !mountedRef.current) {
-        // Scope moved or the consumer unmounted while DELETE was pending: the
-        // row is gone, but its draft belongs to the old scope — put it back at
-        // the end of that scope's queue instead of restoring it into a composer
-        // that can no longer receive it. (Unmount keeps the stale scopeKey, so
-        // the scope comparison alone cannot see it.)
+      // Recover a taken item into its original scope when this consumer can
+      // no longer receive it: the row is already deleted, so re-enqueue a
+      // fresh copy (the original row closed when it was taken, so a same-id
+      // enqueue would settle against the receipt without storing anything).
+      const recoverItemInScope = async () => {
         let restored = false
         let conversationGone = false
         const restoreId = crypto.randomUUID()
@@ -596,10 +595,27 @@ export function useFollowupQueue({
           toast.error(t('message.error.operation_unavailable'))
           scheduleReenqueueRetryRef.current(restoreId, scope, item.draft, item.payload)
         }
+      }
+      if (scopeKeyRef.current !== scope || !mountedRef.current) {
+        // Scope moved or the consumer unmounted while DELETE was pending: the
+        // row is gone, but its draft belongs to the old scope — put it back at
+        // the end of that scope's queue instead of restoring it into a composer
+        // that can no longer receive it. (Unmount keeps the stale scopeKey, so
+        // the scope comparison alone cannot see it.)
+        await recoverItemInScope()
         takenEditRef.current = null
         return undefined
       }
       await placeRestoredEdit()
+      if (scopeKeyRef.current !== scope || !mountedRef.current) {
+        // The consumer unmounted or changed scope while the deferred restore
+        // reorder was pending: the taken row is already deleted, so recover it
+        // in its original scope instead of returning it to an obsolete
+        // composer (cherry-pr-review).
+        await recoverItemInScope()
+        takenEditRef.current = null
+        return undefined
+      }
       takenEditRef.current = { item, slot: Math.max(incomingSlot, 0), scopeKey: scope }
       return item
     },
