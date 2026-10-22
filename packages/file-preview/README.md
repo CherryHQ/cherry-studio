@@ -48,8 +48,9 @@ Refreshing the same source ID and format retains the mounted format and its vali
 reading state while opening a fresh document. Formats preserve zoom, page, scroll,
 worksheet and image transforms as applicable, and clamp positions to shorter content.
 A different source ID or format starts a new preview. The previous document still
-closes on refresh; retained content cannot publish selections or terminal errors for
-the replacement session. Closing and reopening a preview does not persist reading
+closes on refresh; obsolete reads and parsing results cannot overwrite retained
+content or publish selections or terminal errors for the replacement session.
+Closing and reopening a preview does not persist reading
 history. Hosts must clear any held selection when requesting a refresh.
 
 `onSelection` reports `{ sourceId, revision, anchor, excerpt }`, or `null` when a
@@ -248,7 +249,9 @@ pnpm exec playwright test --config packages/file-preview/playwright.config.ts
 The test configuration builds the package and starts its own Vite server, then stops
 the server after the run. No running Electron instance or renderer development server
 is required. The PDF cases exercise the built public package and actual worker/layout
-for mixed page sizes, reading offsets, refresh, zoom, Activity and shorter documents.
+for mixed/changed page geometry, reading offsets, refresh, zoom, Activity and shorter documents.
+The PowerPoint case uses the real renderer to retain a slide-relative reading offset
+when the same deck changes its slide proportions, including Activity restoration.
 
 ## Publishing
 

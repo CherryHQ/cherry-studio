@@ -1,7 +1,7 @@
 import FileCode from 'lucide-react/dist/esm/icons/file-code'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
@@ -131,11 +131,13 @@ export default function HtmlFilePreview({
   filePath,
   fileName,
   metadata,
+  metadataRequest,
   refreshKey,
   type = 'file'
 }: FilePreviewPluginProps) {
   const [mode, setMode] = useState<HtmlFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<HtmlFileLoadState>({ status: 'loading' })
+  const sourceMetadata = metadataRequest ?? metadata.size
   const baseUrl = useMemo(() => toSafeFileUrl(filePath, getFilePreviewExtension(filePath)), [filePath])
   const effectiveMode = type === 'artifact' ? 'preview' : mode
   const artifactTarget = useMemo(() => {
@@ -147,14 +149,21 @@ export default function HtmlFilePreview({
     }
   }, [fileName, filePath])
 
-  useEffect(() => {
+  // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
+  // Read metadata after ancestor layout setup, including Activity reconnections.
+  useLayoutEffect(() => {
     if (type === 'artifact') return
     let cancelled = false
     setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {
-        if (metadata.size > HTML_PREVIEW_MAX_SIZE_BYTES) {
+        const loadedMetadata =
+          typeof sourceMetadata === 'function'
+            ? await Promise.resolve().then(sourceMetadata)
+            : { kind: 'file', size: sourceMetadata }
+        if (cancelled || loadedMetadata?.kind !== 'file') return
+        if (loadedMetadata.size > HTML_PREVIEW_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }
@@ -173,7 +182,7 @@ export default function HtmlFilePreview({
     return () => {
       cancelled = true
     }
-  }, [filePath, metadata.size, refreshKey, type])
+  }, [filePath, sourceMetadata, refreshKey, type])
 
   if (type === 'artifact') {
     return (

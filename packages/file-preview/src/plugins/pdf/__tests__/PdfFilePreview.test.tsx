@@ -15,7 +15,7 @@ type MockPageView = {
   pdfPage: unknown
   div: HTMLDivElement
   height: number
-  viewport: { convertToViewportPoint: (x: number, y: number) => number[] }
+  viewport: { viewBox: number[]; convertToViewportPoint: (x: number, y: number) => number[] }
   setPdfPage: (page: unknown) => void
 }
 
@@ -163,7 +163,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
       const view = {
         div,
         height: 1000,
-        viewport: { convertToViewportPoint: (x: number, y: number) => [x, y] },
+        viewport: { viewBox: [0, 0, 1000, 1000], convertToViewportPoint: (x: number, y: number) => [x, y] },
         pdfPage: mocks.pageReady ? {} : (null as unknown),
         setPdfPage(page: unknown) {
           this.pdfPage = page

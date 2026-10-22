@@ -105,7 +105,17 @@ const mocks = vi.hoisted(() => {
     async renderList(options: unknown) {
       await state.renderList(options)
       if (state.slideError) this.options.onSlideError?.(0, state.slideError)
-      this.container.textContent = 'rendered pptx'
+      this.container.replaceChildren(
+        ...Array.from({ length: this.slideCount }, (_, index) => {
+          const slide = document.createElement('div')
+          slide.dataset.slideIndex = String(index)
+          Object.defineProperties(slide, {
+            offsetHeight: { value: 1000 },
+            offsetWidth: { value: 1000 }
+          })
+          return slide
+        })
+      )
       this.options.onSlideChange?.(0)
     }
 
@@ -199,7 +209,9 @@ describe('PowerPointFilePreview', () => {
   /** Mounts a slide the way PptxViewer.renderList would, and returns it for clicking. */
   function renderSlide(text: string, slideIndex: string | null): HTMLDivElement {
     const container = screen.getByTestId('pptx-viewer-container')
-    const slide = document.createElement('div')
+    const slide =
+      (slideIndex === null ? null : container.querySelector<HTMLDivElement>(`[data-slide-index="${slideIndex}"]`)) ??
+      document.createElement('div')
     if (slideIndex !== null) slide.setAttribute('data-slide-index', slideIndex)
     slide.textContent = text
     container.appendChild(slide)

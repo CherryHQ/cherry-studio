@@ -110,7 +110,7 @@ export default function PowerPointFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PowerPointFilePreview')
-  const { options, failDocument } = usePreviewHost()
+  const { options, failDocument, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
@@ -120,11 +120,13 @@ export default function PowerPointFilePreview({
     const viewer = viewerRef.current
     const container = containerRef.current
     if (!viewer || restoredViewerRef.current !== viewer || !container || container.clientHeight === 0) return
+    const slide = container.querySelector<HTMLElement>(`[data-slide-index="${viewer.currentSlideIndex}"]`)
+    if (!slide) return
     readingPositionRef.current = {
       zoom: viewer.zoomPercent,
       page: viewer.currentSlideIndex + 1,
-      top: container.scrollTop,
-      left: container.scrollLeft
+      top: container.scrollTop - slide.offsetTop,
+      left: container.scrollLeft - slide.offsetLeft
     }
   }, [])
   useLayoutEffect(() => captureReadingPosition, [captureReadingPosition])
@@ -211,6 +213,7 @@ export default function PowerPointFilePreview({
     const controller = new AbortController()
     let cancelled = false
     let viewer: PptxViewer | null = null
+    const isCurrent = () => !cancelled && isCurrentDocument?.() !== false
 
     setError(null)
     setLoading(true)
@@ -222,11 +225,12 @@ export default function PowerPointFilePreview({
     void (async () => {
       try {
         const pptxData = await readPreviewDocument(previewDocument, PPTX_PREVIEW_MAX_SOURCE_BYTES, controller.signal)
-        if (cancelled) return
+        if (!isCurrent()) return
 
         throwIfAborted(controller.signal)
         const pptxFiles = await parseZipLazyMedia(toArrayBuffer(pptxData), RECOMMENDED_ZIP_LIMITS)
         throwIfAborted(controller.signal)
+        if (!isCurrent()) return
         const presentation = buildPresentation(pptxFiles, { lazySlides: true })
         if (presentation.slides.length === 0) {
           throw new PreviewError('load_error', 'PPTX contains no slides to preview')
@@ -244,19 +248,19 @@ export default function PowerPointFilePreview({
           lazySlides: true,
           pdfjs: false,
           onSlideChange: (index) => {
-            if (!cancelled) setCurrentPage(index + 1)
+            if (isCurrent()) setCurrentPage(index + 1)
           },
           onRenderStart: () => {
-            if (!cancelled) setPreviewControlsBusy(true)
+            if (isCurrent()) setPreviewControlsBusy(true)
           },
           onRenderComplete: () => {
-            if (cancelled) return
+            if (!isCurrent()) return
             const activeViewer = viewerRef.current
             if (activeViewer) setZoom(activeViewer.zoomPercent)
             setPreviewControlsBusy(false)
           },
           onSlideError: (index, slideError) => {
-            if (cancelled) return
+            if (!isCurrent()) return
             const normalized = slideError instanceof Error ? slideError : new Error(String(slideError))
             logger.error(`Failed to render PPTX preview slide ${index + 1}: ${sourceId}`, normalized)
           },
@@ -278,22 +282,27 @@ export default function PowerPointFilePreview({
           overscanViewport: 2
         })
         throwIfAborted(controller.signal)
-        if (cancelled) return
+        if (!isCurrent()) return
 
         const nextPageCount = viewer.slideCount
         const position = readingPositionRef.current
         if (position && nextPageCount > 0) {
           await viewer.goToSlide(clamp(position.page, 1, nextPageCount) - 1, { block: 'start' })
-          if (cancelled) return
-          container.scrollTop = position.top
-          container.scrollLeft = position.left
+          if (!isCurrent()) return
+          const slide = container.querySelector<HTMLElement>(`[data-slide-index="${viewer.currentSlideIndex}"]`)
+          if (slide) {
+            container.scrollTop =
+              slide.offsetTop + clamp(position.top, 1 - container.clientHeight, Math.max(0, slide.offsetHeight - 1))
+            container.scrollLeft =
+              slide.offsetLeft + clamp(position.left, 1 - container.clientWidth, Math.max(0, slide.offsetWidth - 1))
+          }
         }
         restoredViewerRef.current = viewer
         setPageCount(nextPageCount)
         setCurrentPage(nextPageCount > 0 ? viewer.currentSlideIndex + 1 : 0)
         focusContainer()
       } catch (loadError) {
-        if (cancelled) return
+        if (!isCurrent()) return
         if (viewerRef.current === viewer) {
           viewerRef.current = null
         }
@@ -306,7 +315,7 @@ export default function PowerPointFilePreview({
         failDocument?.(reported)
         setError(reported)
       } finally {
-        if (!cancelled) setLoading(false)
+        if (isCurrent()) setLoading(false)
       }
     })()
 
@@ -323,7 +332,16 @@ export default function PowerPointFilePreview({
       viewer?.destroy()
       container.innerHTML = ''
     }
-  }, [captureReadingPosition, sourceId, focusContainer, previewDocument, logger, failDocument, setPreviewControlsBusy])
+  }, [
+    captureReadingPosition,
+    sourceId,
+    focusContainer,
+    previewDocument,
+    logger,
+    failDocument,
+    setPreviewControlsBusy,
+    isCurrentDocument
+  ])
 
   // The marker goes on only after createPreviewSelection confirms the host receives something: a slide
   // with no text must not look picked while the host gets null.

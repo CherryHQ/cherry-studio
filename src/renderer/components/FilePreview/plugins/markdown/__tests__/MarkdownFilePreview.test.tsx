@@ -84,6 +84,46 @@ function renderPreview(
 }
 
 describe('MarkdownFilePreview', () => {
+  it('ignores an obsolete read failure while replacement metadata is pending', async () => {
+    const obsoleteRead = Promise.withResolvers<string>()
+    const metadata = {
+      kind: 'file' as const,
+      type: 'text' as const,
+      size: 15,
+      modifiedAt: 1,
+      createdAt: 1,
+      mime: 'text/markdown'
+    }
+    const latestMetadata = Promise.withResolvers<typeof metadata>()
+    const currentMetadata = () => Promise.resolve(metadata)
+    const replacementMetadata = () => latestMetadata.promise
+    const props = { filePath, fileName: 'README.md', metadata }
+    const view = render(<MarkdownFilePreview {...props} refreshKey={0} metadataRequest={currentMetadata} />)
+    const heading = await screen.findByRole('heading', { name: 'File preview' })
+    mocks.readText.mockReturnValueOnce(obsoleteRead.promise).mockResolvedValueOnce('# Updated content')
+
+    view.rerender(<MarkdownFilePreview {...props} refreshKey={1} metadataRequest={currentMetadata} />)
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(2))
+    view.rerender(<MarkdownFilePreview {...props} refreshKey={1} metadataRequest={replacementMetadata} />)
+    await act(async () => obsoleteRead.reject(new Error('Obsolete read failed')))
+    expect(screen.getByRole('heading', { name: 'File preview' })).toBe(heading)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.readText).toHaveBeenCalledTimes(2)
+
+    const refreshedMetadata = { ...metadata, size: 32, modifiedAt: 3 }
+    await act(async () => latestMetadata.resolve(refreshedMetadata))
+    expect(await screen.findByRole('heading', { name: 'Updated content' })).toBeInTheDocument()
+    view.rerender(
+      <MarkdownFilePreview
+        {...props}
+        metadata={refreshedMetadata}
+        refreshKey={1}
+        metadataRequest={replacementMetadata}
+      />
+    )
+    expect(mocks.readText).toHaveBeenCalledTimes(3)
+  })
+
   it('retries an unchanged failed image only after the refreshed document finishes loading', async () => {
     mocks.readText.mockResolvedValue('![Retry image](images/missing.png)')
     const view = renderPreview()

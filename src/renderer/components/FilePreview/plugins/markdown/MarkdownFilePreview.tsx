@@ -1,7 +1,7 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useId, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useId, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
@@ -168,19 +168,33 @@ function MarkdownPreviewContent({
   )
 }
 
-export default function MarkdownFilePreview({ filePath, metadata, refreshKey, type = 'file' }: FilePreviewPluginProps) {
+export default function MarkdownFilePreview({
+  filePath,
+  metadata,
+  metadataRequest,
+  refreshKey,
+  type = 'file'
+}: FilePreviewPluginProps) {
   const markdownId = useId()
   const [mode, setMode] = useState<MarkdownFilePreviewMode>('preview')
   const [loadState, setLoadState] = useState<MarkdownFileLoadState>({ status: 'loading' })
+  const sourceMetadata = metadataRequest ?? metadata.size
   const effectiveMode = type === 'artifact' ? 'preview' : mode
 
-  useEffect(() => {
+  // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
+  // Read metadata after ancestor layout setup, including Activity reconnections.
+  useLayoutEffect(() => {
     let cancelled = false
     setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
     void (async () => {
       try {
-        if (metadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
+        const loadedMetadata =
+          typeof sourceMetadata === 'function'
+            ? await Promise.resolve().then(sourceMetadata)
+            : { kind: 'file', size: sourceMetadata }
+        if (cancelled || loadedMetadata?.kind !== 'file') return
+        if (loadedMetadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }
@@ -205,7 +219,7 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
     return () => {
       cancelled = true
     }
-  }, [filePath, metadata.size, refreshKey])
+  }, [filePath, sourceMetadata, refreshKey])
 
   return (
     <FilePreviewLayout.Frame>

@@ -106,7 +106,7 @@ Embedded and tab previews are host composition choices, not `FilePreview` displa
 
 The public package has a static registry for its five formats. `ElectronFilePreview` supplies
 `PreviewSource` through file IPC, forwards PDF resource reads and diagnostics, and builds
-`SelectionReference` from its own path and metadata props. The desktop registry routes those formats through
+`SelectionReference` from its path and the same metadata request used to open the document. The desktop registry routes those formats through
 that adapter. Only HTML, Markdown, text and video keep application-owned plugins under `plugins/`.
 All formats reuse layout and toolbar components exported by the package.
 
@@ -290,13 +290,17 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   opens. Abort signals discard the result of an in-flight IPC read; they do not stop that request
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
   Synchronous parsing cannot be interrupted.
-- Local loading effects depend on `filePath` and `refreshKey`. Shared plugins reload when their
-  opened document changes. Do not request metadata again inside a format plugin.
+- Local loading effects depend on `filePath`, `refreshKey`, and the host's metadata request. Text,
+  Markdown, and restricted HTML wait for that request before checking size or reading content.
+  Shared plugins reload when their opened document changes. Do not request metadata again inside a format plugin.
 - A same-path refresh retains a compatible preview while metadata and content reload. Local plugins
   and the portable preview package preserve valid reading state; different paths or formats reset it.
   The consumer clears held selections when requesting refresh. `FilePreview` rejects callbacks from
   an obsolete metadata resolution, and `Preview` rejects obsolete document selections and failures.
   Format plugins cancel their own selection work and clamp positions when refreshed content shrinks.
+- The desktop source changes as soon as a refresh is committed and waits for the host's single metadata
+  request before opening. Metadata completion keeps that source stable. Activity reconnections start a
+  fresh metadata request even when the path and refresh key are unchanged.
 - `FilePreview` owns directory, invalid-path, unavailable-path, unsupported-format, plugin-load, and synchronous render error states.
 - A plugin owns its loading, empty, too-large, and read-error states. It must catch asynchronous failures from effects and event handlers so errors remain inside the preview region.
 - The desktop adapter routes package `onDiagnostic` events to `loggerService`, preserving `Error`

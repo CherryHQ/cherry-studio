@@ -24,7 +24,13 @@ import { createFilePathHandle } from '@shared/utils/file'
 
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
+import type {
+  FilePreviewFileMetadata,
+  FilePreviewMetadataRequest,
+  FilePreviewPlugin,
+  FilePreviewPluginProps,
+  FilePreviewType
+} from './types'
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
@@ -118,6 +124,7 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
+  metadataRequest?: FilePreviewMetadataRequest
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
   plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
   refreshKey: number
@@ -140,6 +147,7 @@ function FilePreviewPluginRenderer({
   fileName,
   filePath,
   metadata,
+  metadataRequest,
   onSelectionReference,
   plugin,
   refreshKey,
@@ -157,6 +165,7 @@ function FilePreviewPluginRenderer({
         filePath={filePath}
         fileName={fileName}
         metadata={metadata}
+        metadataRequest={metadataRequest}
         onSelectionReference={onSelectionReference}
         refreshKey={refreshKey}
         type={type}
@@ -187,8 +196,8 @@ type FilePreviewResolution =
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
+      metadataPromise: ReturnType<FilePreviewMetadataRequest>
       plugin: FilePreviewPluginRendererProps['plugin'] | null
-      refreshKey: number
       requestKey: string
       status: 'ready'
     }
@@ -208,32 +217,51 @@ export function FilePreview({
       return null
     }
   }, [filePath])
-  const requestKey = file ? `${file.filePath}\0${refreshKey}` : ''
+  const metadataRequest = useMemo(() => {
+    if (!file) return null
+    let promise: ReturnType<FilePreviewMetadataRequest> | undefined
+    return {
+      key: `${file.filePath}\0${refreshKey}`,
+      start() {
+        promise = Promise.resolve().then(() => ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath)))
+        // The host and retained source attach in passive effects, after this layout effect.
+        void promise.catch(() => {})
+        return promise
+      },
+      read() {
+        if (!promise) throw new Error('Preview metadata request has not started')
+        return promise
+      }
+    }
+  }, [file, refreshKey])
+  const requestKey = metadataRequest?.key ?? ''
   const [resolution, setResolution] = useState<FilePreviewResolution>({ requestKey: '', status: 'loading' })
-  const selectionRequestRef = useRef<string | null>(null)
+  const selectionRequestRef = useRef<ReturnType<FilePreviewMetadataRequest> | null>(null)
   useLayoutEffect(() => {
-    selectionRequestRef.current = requestKey
+    selectionRequestRef.current = metadataRequest?.start() ?? null
     return () => {
       selectionRequestRef.current = null
     }
-  }, [requestKey])
+  }, [metadataRequest])
   const reportSelection = useCallback<NonNullable<FilePreviewPluginProps['onSelectionReference']>>(
     (reference) => {
       // A retained plugin can finish an old selection while new metadata is pending.
       // Only the resolution belonging to the current request may publish results.
-      if (selectionRequestRef.current === resolution.requestKey) onSelectionReference?.(reference)
+      if (resolution.status === 'ready' && selectionRequestRef.current === resolution.metadataPromise) {
+        onSelectionReference?.(reference)
+      }
     },
-    [onSelectionReference, resolution.requestKey]
+    [onSelectionReference, resolution]
   )
 
   useEffect(() => {
-    if (!file) return
+    if (!file || !metadataRequest) return
 
     let cancelled = false
 
     void (async () => {
       try {
-        const metadataPromise = ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const metadataPromise = metadataRequest.read()
         const candidateDescriptor = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
         const candidatePlugin = candidateDescriptor ? preloadFilePreviewPlugin(candidateDescriptor) : null
         const metadata = await metadataPromise
@@ -277,8 +305,8 @@ export function FilePreview({
         setResolution({
           file,
           metadata,
+          metadataPromise,
           requestKey,
-          refreshKey,
           status: 'ready',
           plugin: plugin && module ? { descriptor: plugin.descriptor, component: module.default } : null
         })
@@ -290,7 +318,7 @@ export function FilePreview({
     return () => {
       cancelled = true
     }
-  }, [file, requestKey, refreshKey])
+  }, [file, metadataRequest, requestKey])
 
   let preview: ReactNode
 
@@ -313,9 +341,10 @@ export function FilePreview({
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
+        metadataRequest={metadataRequest?.read}
         onSelectionReference={onSelectionReference ? reportSelection : undefined}
         plugin={resolution.plugin}
-        refreshKey={resolution.refreshKey}
+        refreshKey={refreshKey}
         type={type}
       />
     )

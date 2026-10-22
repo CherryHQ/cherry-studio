@@ -21,7 +21,7 @@ const IMAGE_MEDIA_TYPE_BY_EXTENSION: Record<string, string> = {
 
 export default function ImageFilePreview({ sourceId, fileName, document, mediaType }: FilePreviewPluginProps) {
   const { t } = useTranslation()
-  const { failDocument } = usePreviewHost()
+  const { failDocument, isCurrentDocument } = usePreviewHost()
   const [url, setUrl] = useState<string | null>(null)
   const objectUrlRef = useRef<string | null>(null)
   const [status, setStatus] = useState<'error' | 'loading' | 'ready' | 'too_large'>('loading')
@@ -56,7 +56,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
     setUrl(null)
     void readPreviewDocument(document, IMAGE_PREVIEW_MAX_SIZE_BYTES, controller.signal)
       .then((bytes) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || isCurrentDocument?.() === false) return
         const extension = fileName.split('.').at(-1)?.toLowerCase()
         const normalizedMediaType = mediaType?.split(';', 1)[0].trim().toLowerCase()
         const mime =
@@ -67,7 +67,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
         setUrl(objectUrlRef.current)
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted) return
+        if (controller.signal.aborted || isCurrentDocument?.() === false) return
         failDocument?.(error)
         setStatus(error instanceof PreviewError && error.code === 'too_large' ? 'too_large' : 'error')
       })
@@ -75,7 +75,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
       controller.abort()
       releaseImageUrl()
     }
-  }, [document, fileName, mediaType, failDocument, releaseImageUrl])
+  }, [document, fileName, mediaType, failDocument, releaseImageUrl, isCurrentDocument])
 
   if (status === 'too_large') {
     return (
@@ -124,10 +124,12 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
               item={item}
               transformControls={transformControls}
               onLoad={() => {
+                if (isCurrentDocument?.() === false) return
                 transformControls.update(pendingTransform)
                 setStatus('ready')
               }}
               onError={() => {
+                if (isCurrentDocument?.() === false) return
                 const error = new Error(`Failed to load image preview: ${sourceId}`)
                 failDocument?.(error)
                 releaseImageUrl()

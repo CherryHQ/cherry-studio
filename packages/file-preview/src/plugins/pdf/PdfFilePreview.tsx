@@ -123,7 +123,7 @@ export default function PdfFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PdfFilePreview')
-  const { root: previewRoot, resources, options, failDocument } = usePreviewHost()
+  const { root: previewRoot, resources, options, failDocument, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -138,6 +138,7 @@ export default function PdfFilePreview({
     page: number
     top: number
     left: number
+    viewBox: number[]
   } | null>(null)
   const captureReadingPosition = useCallback(() => {
     const viewer = pdfViewerRef.current
@@ -388,6 +389,7 @@ export default function PdfFilePreview({
     let workerPort: Worker | null = null
     let worker: PDFWorker | null = null
     let disposing = false
+    const isCurrent = () => !cancelled && isCurrentDocument?.() !== false
 
     const dispose = () => {
       if (disposing) return
@@ -412,6 +414,10 @@ export default function PdfFilePreview({
 
     const failLoad = (error: unknown) => {
       if (cancelled || failed) return
+      if (!isCurrent()) {
+        dispose()
+        return
+      }
       failed = true
       dispose()
       const normalized = error instanceof Error ? error : new Error(String(error))
@@ -464,7 +470,10 @@ export default function PdfFilePreview({
           ...(resources?.readPdfResource ? createPdfResourceFactories(resources.readPdfResource) : {})
         })
         const nextDocument = await loadingTask.promise
-        if (cancelled || failed) return
+        if (!isCurrent() || failed) {
+          dispose()
+          return
+        }
 
         setDocumentProxy(nextDocument)
       } catch (error) {
@@ -476,7 +485,7 @@ export default function PdfFilePreview({
       cancelled = true
       dispose()
     }
-  }, [sourceId, previewDocument, resources, failDocument, logger, captureReadingPosition])
+  }, [sourceId, previewDocument, resources, failDocument, logger, captureReadingPosition, isCurrentDocument])
 
   useEffect(() => {
     if (!documentProxy || documentProxy.loadingTask.destroyed) return
@@ -488,12 +497,12 @@ export default function PdfFilePreview({
     void documentProxy
       .getOutline()
       .then((items) => {
-        if (cancelled) return
+        if (cancelled || isCurrentDocument?.() === false) return
         setOutlineItems(items ?? [])
         setOutlineStatus('ready')
       })
       .catch((error: unknown) => {
-        if (cancelled) return
+        if (cancelled || isCurrentDocument?.() === false) return
         const normalized = error instanceof Error ? error : new Error(String(error))
         logger.error(`Failed to load PDF outline: ${sourceId}`, normalized)
         setOutlineStatus('error')
@@ -502,7 +511,7 @@ export default function PdfFilePreview({
     return () => {
       cancelled = true
     }
-  }, [documentProxy, sourceId, logger])
+  }, [documentProxy, sourceId, logger, isCurrentDocument])
 
   useEffect(() => {
     const container = containerRef.current
@@ -513,6 +522,7 @@ export default function PdfFilePreview({
     const linkService = new PDFLinkService({ eventBus })
     const viewerAbortController = new AbortController()
     let pdfViewer: PdfJsViewer
+    const isCurrent = () => pdfViewerRef.current === pdfViewer && isCurrentDocument?.() !== false
 
     try {
       const viewerOptions: PdfViewerOptionsWithAbortSignal = {
@@ -566,12 +576,14 @@ export default function PdfFilePreview({
     const handleViewArea = (event: PdfViewAreaEvent) => {
       if (restoredViewerRef.current !== pdfViewer || container.clientHeight === 0) return
       const { pageNumber, left, top } = event.location
-      if (!pdfViewer.getPageView(pageNumber - 1)?.pdfPage) return
+      const pageView = pdfViewer.getPageView(pageNumber - 1)
+      if (!pageView?.pdfPage) return
       readingPositionRef.current = {
         scale: pdfViewer.currentScale,
         page: pageNumber,
         left,
-        top
+        top,
+        viewBox: [...pageView.viewport.viewBox]
       }
     }
     const zoomOptions = { drawingDelay: ZOOM_DRAWING_DELAY }
@@ -687,7 +699,7 @@ export default function PdfFilePreview({
       syncPreviewControls()
       void pdfViewer.firstPagePromise
         .then(async () => {
-          if (pdfViewerRef.current !== pdfViewer) return
+          if (!isCurrent()) return
           const position = readingPositionRef.current
           if (position) {
             const pageNumber = clamp(position.page, 1, documentProxy.numPages)
@@ -695,43 +707,45 @@ export default function PdfFilePreview({
               const view: PDFPageView = pdfViewer.getPageView(number - 1)
               if (!view.pdfPage) {
                 const page = await documentProxy.getPage(number)
-                if (pdfViewerRef.current !== pdfViewer) return null
+                if (!isCurrent()) return null
                 if (!view.pdfPage) view.setPdfPage(page)
               }
               return view
             }
             const pageView = await ensurePageGeometry(pageNumber)
-            if (!pageView || pdfViewerRef.current !== pdfViewer) return
+            if (!pageView || !isCurrent()) return
             pdfViewer.currentPageNumber = pageNumber
             pdfViewer.currentScaleValue = String(position.scale)
+            const point =
+              pageNumber === position.page
+                ? [position.left, position.top].map((value, axis) => {
+                    const min = pageView.viewport.viewBox[axis]
+                    const max = pageView.viewport.viewBox[axis + 2]
+                    // Preserve native page margins; constrain formerly in-page points to the new bounds.
+                    if (value < position.viewBox[axis]) return min + value - position.viewBox[axis]
+                    if (value > position.viewBox[axis + 2]) return max + value - position.viewBox[axis + 2]
+                    return clamp(value, min, max)
+                  })
+                : null
             // Unloaded views inherit page 1's size. Resolve the reading area before scrolling so
             // a short placeholder after the anchor cannot clamp the destination above that anchor.
-            const offsetTop =
-              pageNumber === position.page
-                ? pageView.viewport.convertToViewportPoint(position.left, position.top)[1]
-                : 0
+            const offsetTop = point ? pageView.viewport.convertToViewportPoint(point[0], point[1])[1] : 0
             let remainingHeight = container.clientHeight + offsetTop - pageView.height
             for (let number = pageNumber + 1; remainingHeight > 0 && number <= documentProxy.numPages; number++) {
               const nextPage = await ensurePageGeometry(number)
-              if (!nextPage || pdfViewerRef.current !== pdfViewer) return
+              if (!nextPage || !isCurrent()) return
               remainingHeight -= nextPage.height
             }
             // At the document end, the clamped viewport also includes pages before the anchor.
             remainingHeight -= Math.max(0, offsetTop)
             for (let number = pageNumber - 1; remainingHeight > 0 && number >= 1; number--) {
               const previousPage = await ensurePageGeometry(number)
-              if (!previousPage || pdfViewerRef.current !== pdfViewer) return
+              if (!previousPage || !isCurrent()) return
               remainingHeight -= previousPage.height
             }
             pdfViewer.scrollPageIntoView({
               pageNumber,
-              destArray: [
-                null,
-                { name: 'XYZ' },
-                pageNumber === position.page ? position.left : null,
-                pageNumber === position.page ? position.top : null,
-                null
-              ],
+              destArray: [null, { name: 'XYZ' }, point?.[0] ?? null, point?.[1] ?? null, null],
               allowNegativeOffset: true,
               ignoreDestinationZoom: true
             })
@@ -745,7 +759,7 @@ export default function PdfFilePreview({
           setStatus('ready')
         })
         .catch((error: unknown) => {
-          if (pdfViewerRef.current !== pdfViewer) return
+          if (!isCurrent()) return
           const normalized = error instanceof Error ? error : new Error(String(error))
           failDocument?.(normalized)
           setStatus('error')
@@ -790,7 +804,7 @@ export default function PdfFilePreview({
         linkServiceRef.current = null
       }
     }
-  }, [applyViewerBackground, documentProxy, sourceId, focusContainer, logger, failDocument])
+  }, [applyViewerBackground, documentProxy, sourceId, focusContainer, logger, failDocument, isCurrentDocument])
 
   const hasPages = status === 'ready' && pageCount > 0
 

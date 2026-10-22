@@ -6,13 +6,13 @@ import type { PreviewSource } from '@cherrystudio/file-preview/core'
 import { Preview } from '@cherrystudio/file-preview/react'
 
 // ASCII-only PDF objects keep byte offsets deterministic without an extra fixture-generation dependency.
-function createPdf(mixed: boolean, count: number, wide: boolean): Uint8Array {
+function createPdf(mixed: boolean, count: number, wide: boolean, shortReadingPage = false): Uint8Array {
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     `<< /Type /Pages /Count ${count} /Kids [${Array.from({ length: count }, (_, i) => `${i * 2 + 3} 0 R`).join(' ')}] >>`
   ]
   for (let i = 0; i < count; i++) {
-    const height = mixed && (i === 0 || i === count - 1) ? 200 : 1000
+    const height = (mixed && (i === 0 || i === count - 1)) || (shortReadingPage && i === 7) ? 200 : 1000
     const width = wide && i > 0 && i < count - 1 ? 1200 : 600
     const content = `0.2 0.5 0.8 rg 30 ${height - 60} 540 30 re f\n`
     objects.push(
@@ -86,6 +86,14 @@ function mountPdfPreview(mixed: boolean, wide: boolean, responsive: boolean) {
           </button>
           <button type="button" onClick={() => setWidth(450)}>
             Width 450
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              bytes = createPdf(mixed, 9, wide, true)
+              refresh()
+            }}>
+            Shrink reading page
           </button>
           <button
             type="button"

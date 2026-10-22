@@ -159,9 +159,10 @@ function PreviewSession({
       options,
       onDiagnostic: reportDiagnostic,
       onRequestOpen: hasOpenAction ? requestOpen : undefined,
-      failDocument
+      failDocument,
+      isCurrentDocument: isCurrentSession
     }),
-    [root, resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
+    [root, resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument, isCurrentSession]
   )
   useEffect(() => {
     setFailure(null)

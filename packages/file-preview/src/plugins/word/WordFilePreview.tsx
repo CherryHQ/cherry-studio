@@ -65,7 +65,7 @@ export default function WordFilePreview({
   document: previewDocument,
   onSelection
 }: FilePreviewPluginProps) {
-  const { options, failDocument } = usePreviewHost()
+  const { options, failDocument, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const docxClassName = `docx-preview-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const containerRef = useRef<HTMLDivElement>(null)
@@ -182,7 +182,7 @@ export default function WordFilePreview({
 
     const controller = new AbortController()
     const token = ++renderTokenRef.current
-    const isCurrent = () => renderTokenRef.current === token
+    const isCurrent = () => renderTokenRef.current === token && isCurrentDocument?.() !== false
     // Font compatibility is sampled for this document; options alone must not trigger a reparse.
     const normalizeSymbolBullets = normalizeSymbolBulletsRef.current
     setError(null)
@@ -255,7 +255,7 @@ export default function WordFilePreview({
       renderTokenRef.current += 1
       stagingHost.remove()
     }
-  }, [sourceId, focusContainer, previewDocument, failDocument, docxClassName])
+  }, [sourceId, focusContainer, previewDocument, failDocument, docxClassName, isCurrentDocument])
 
   useEffect(() => {
     const scrollRoot = containerRef.current

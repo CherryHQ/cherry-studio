@@ -306,4 +306,40 @@ describe('HtmlFilePreview', () => {
     resolveFirstRead?.('<p>Stale</p>')
     await waitFor(() => expect(screen.getByTestId('html-frame')).toHaveAttribute('srcdoc', '<p>Second</p>'))
   })
+
+  it('ignores an obsolete read failure while replacement metadata is pending', async () => {
+    const obsoleteRead = Promise.withResolvers<string>()
+    const metadata = {
+      kind: 'file' as const,
+      type: 'text' as const,
+      size: 42,
+      modifiedAt: 1,
+      createdAt: 1,
+      mime: 'text/html'
+    }
+    const latestMetadata = Promise.withResolvers<typeof metadata>()
+    const currentMetadata = () => Promise.resolve(metadata)
+    const replacementMetadata = () => latestMetadata.promise
+    const props = { filePath, fileName: 'index.html', metadata }
+    const view = render(<HtmlFilePreview {...props} refreshKey={0} metadataRequest={currentMetadata} />)
+    const frame = await screen.findByTestId('html-frame')
+    mocks.readText.mockReturnValueOnce(obsoleteRead.promise).mockResolvedValueOnce('<h1>Updated</h1>')
+
+    view.rerender(<HtmlFilePreview {...props} refreshKey={1} metadataRequest={currentMetadata} />)
+    await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(2))
+    view.rerender(<HtmlFilePreview {...props} refreshKey={1} metadataRequest={replacementMetadata} />)
+    await act(async () => obsoleteRead.reject(new Error('Obsolete read failed')))
+    expect(screen.getByTestId('html-frame')).toBe(frame)
+    expect(frame).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mocks.readText).toHaveBeenCalledTimes(2)
+
+    const refreshedMetadata = { ...metadata, size: 64, modifiedAt: 3 }
+    await act(async () => latestMetadata.resolve(refreshedMetadata))
+    await waitFor(() => expect(screen.getByTestId('html-frame')).toHaveAttribute('srcdoc', '<h1>Updated</h1>'))
+    view.rerender(
+      <HtmlFilePreview {...props} metadata={refreshedMetadata} refreshKey={1} metadataRequest={replacementMetadata} />
+    )
+    expect(mocks.readText).toHaveBeenCalledTimes(3)
+  })
 })
