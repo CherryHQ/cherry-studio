@@ -243,24 +243,36 @@ export class FollowupQueueService {
    * already-closed row is a no-op, so a retried DELETE settles cleanly.
    */
   remove(id: string): void {
-    const [row] = this.db
-      .update(followupQueueTable)
-      .set({ status: 'closed' })
-      .where(and(eq(followupQueueTable.id, id), ne(followupQueueTable.status, 'closed')))
-      .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
-      .all()
-
-    if (!row) {
-      const [existing] = this.db
-        .select({ id: followupQueueTable.id })
-        .from(followupQueueTable)
-        .where(eq(followupQueueTable.id, id))
-        .limit(1)
+    const dbService = application.get('DbService')
+    const row = dbService.withWriteTx((tx) => {
+      const [closed] = tx
+        .update(followupQueueTable)
+        .set({ status: 'closed' })
+        .where(and(eq(followupQueueTable.id, id), ne(followupQueueTable.status, 'closed')))
+        .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
         .all()
-      if (existing) return
-      throw DataApiErrorFactory.notFound('FollowupQueue', id)
-    }
 
+      if (!closed) {
+        const [existing] = tx
+          .select({ id: followupQueueTable.id })
+          .from(followupQueueTable)
+          .where(eq(followupQueueTable.id, id))
+          .limit(1)
+          .all()
+        if (existing) return null
+        throw DataApiErrorFactory.notFound('FollowupQueue', id)
+      }
+
+      // Release the durable file refs in the same transaction as the close.
+      // The retained receipt must keep blocking same-id resurrection, but a
+      // closed draft no longer owns its bytes: without this, the cleanup
+      // anti-join keeps `delete_when_unreferenced` entries protected until an
+      // unrelated enqueue or conversation purge collects the receipt.
+      tx.delete(followupQueueFileRefTable).where(eq(followupQueueFileRefTable.sourceId, id)).run()
+      return closed
+    })
+
+    if (!row) return
     notifyQueueChange('membership', row.scopeKey, [id])
     logger.info('Removed followup', { id })
   }
@@ -331,11 +343,11 @@ export class FollowupQueueService {
    * the cross-window arbitration point. `alreadySent` reports a send recorded
    * before a crash between send and dequeue: dequeue it, don't resend it.
    */
-  claim(id: string, claimToken?: string): { claimed: boolean; alreadySent: boolean } {
+  claim(id: string, claimToken: string): { claimed: boolean; alreadySent: boolean } {
     const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
     const [row] = this.db
       .update(followupQueueTable)
-      .set({ status: 'sending', claimToken: claimToken ?? null })
+      .set({ status: 'sending', claimToken })
       .where(
         and(
           eq(followupQueueTable.id, id),
@@ -343,9 +355,7 @@ export class FollowupQueueService {
             inArray(followupQueueTable.status, ['pending', 'failed']),
             and(eq(followupQueueTable.status, 'sending'), lt(followupQueueTable.updatedAt, cutoff)),
             // Retry of our own committed claim whose response was lost: re-acquire, don't lose to it.
-            claimToken
-              ? and(eq(followupQueueTable.status, 'sending'), eq(followupQueueTable.claimToken, claimToken))
-              : undefined
+            and(eq(followupQueueTable.status, 'sending'), eq(followupQueueTable.claimToken, claimToken))
           )
         )
       )
@@ -426,7 +436,7 @@ export class FollowupQueueService {
    */
   claimHead(
     scopeKey: string,
-    claimToken?: string
+    claimToken: string
   ): { claimed: true; id: string; alreadySent: boolean } | { claimed: false } {
     const dbService = application.get('DbService')
     const result = dbService.withWriteTx((tx) => {
@@ -446,7 +456,7 @@ export class FollowupQueueService {
       if (!head) return { claimed: false as const }
       const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
       // A retry carrying the token of a claim that committed but whose response was lost re-acquires it.
-      const ownRetry = claimToken !== undefined && head.status === 'sending' && head.claimToken === claimToken
+      const ownRetry = head.status === 'sending' && head.claimToken === claimToken
       const claimable =
         ownRetry ||
         head.status === 'pending' ||
@@ -455,7 +465,7 @@ export class FollowupQueueService {
       if (!claimable) return { claimed: false as const }
       const [updated] = tx
         .update(followupQueueTable)
-        .set({ status: 'sending', claimToken: claimToken ?? null })
+        .set({ status: 'sending', claimToken })
         .where(and(eq(followupQueueTable.id, head.id), eq(followupQueueTable.status, head.status)))
         .returning({ id: followupQueueTable.id })
         .all()
@@ -549,9 +559,16 @@ export class FollowupQueueService {
    * (`topicFollowupScopePrefix` / `sessionFollowupScopePrefix`); LIKE is safe
    * here because scope prefixes contain no `%` / `_` wildcards.
    */
-  purgeForScopePrefixTx(tx: Pick<DbType, 'delete'>, prefix: string): void {
+  purgeForScopePrefixTx(tx: Pick<DbType, 'delete'>, prefix: string, options?: { keepClosedReceipts?: boolean }): void {
     tx.delete(followupQueueTable)
-      .where(like(followupQueueTable.scopeKey, `${prefix}%`))
+      .where(
+        options?.keepClosedReceipts
+          ? // Retained conversations can still accept a late same-id enqueue
+            // retry; keep the closed receipts so the retry settles against the
+            // receipt instead of resurrecting an already-delivered item.
+            and(like(followupQueueTable.scopeKey, `${prefix}%`), ne(followupQueueTable.status, 'closed'))
+          : like(followupQueueTable.scopeKey, `${prefix}%`)
+      )
       .run()
     tx.delete(followupQueueStateTable)
       .where(like(followupQueueStateTable.scopeKey, `${prefix}%`))

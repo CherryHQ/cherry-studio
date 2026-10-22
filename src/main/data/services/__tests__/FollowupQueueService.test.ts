@@ -3,6 +3,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fileEntryTable } from '@data/db/schemas/file'
+import { followupQueueFileRefTable } from '@data/db/schemas/fileRelations'
 import { followupQueueStateTable, followupQueueTable } from '@data/db/schemas/followupQueue'
 import { topicTable } from '@data/db/schemas/topic'
 import { FollowupQueueService, followupQueueService } from '@data/services/FollowupQueueService'
@@ -112,13 +114,13 @@ describe('FollowupQueueService', () => {
       const item = enqueueIn(SCOPE_A, 'a')
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true, alreadySent: false })
+      expect(followupQueueService.claim(item.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/followup-queues', kind: 'projection', entityIds: [item.id] }
       ])
       notifyDataApiDataChangeMock.mockClear()
       // Second window racing the same head loses without writing or notifying.
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: false, alreadySent: false })
+      expect(followupQueueService.claim(item.id, 'token-2')).toEqual({ claimed: false, alreadySent: false })
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
 
       const [row] = followupQueueService.listByScope(SCOPE_A)
@@ -131,9 +133,8 @@ describe('FollowupQueueService', () => {
 
       // The first response timed out client-side; the retry carries the same token.
       expect(followupQueueService.claim(item.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
-      // Another window (different token, or none) still loses to the live claim.
+      // Another window (different token) still loses to the live claim.
       expect(followupQueueService.claim(item.id, 'token-2')).toEqual({ claimed: false, alreadySent: false })
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: false, alreadySent: false })
     })
 
     it('should let a claim:head retry with the same token re-acquire its committed head claim', () => {
@@ -195,8 +196,8 @@ describe('FollowupQueueService', () => {
         }
       ])
 
-      expect(followupQueueService.claim(staleId)).toEqual({ claimed: true, alreadySent: false })
-      expect(followupQueueService.claim(liveId)).toEqual({ claimed: false, alreadySent: false })
+      expect(followupQueueService.claim(staleId, 'token-1')).toEqual({ claimed: true, alreadySent: false })
+      expect(followupQueueService.claim(liveId, 'token-1')).toEqual({ claimed: false, alreadySent: false })
     })
   })
 
@@ -206,11 +207,15 @@ describe('FollowupQueueService', () => {
       const second = enqueueIn(SCOPE_A, 'b')
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: first.id, alreadySent: false })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: first.id,
+        alreadySent: false
+      })
 
       // The head is now owned: a second claim finds it unclaimable instead of
       // handing out the next row (one drain per arbitration round).
-      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: false })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-2')).toEqual({ claimed: false })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/followup-queues', kind: 'projection', entityIds: [first.id] }
       ])
@@ -223,8 +228,8 @@ describe('FollowupQueueService', () => {
       enqueueIn(SCOPE_A, 'a')
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(followupQueueService.claimHead(SCOPE_B)).toEqual({ claimed: false })
-      expect(followupQueueService.claimHead('missing:scope')).toEqual({ claimed: false })
+      expect(followupQueueService.claimHead(SCOPE_B, 'token-1')).toEqual({ claimed: false })
+      expect(followupQueueService.claimHead('missing:scope', 'token-1')).toEqual({ claimed: false })
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
 
@@ -243,7 +248,11 @@ describe('FollowupQueueService', () => {
         }
       ])
 
-      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: staleId, alreadySent: false })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: staleId,
+        alreadySent: false
+      })
     })
   })
 
@@ -287,8 +296,12 @@ describe('FollowupQueueService', () => {
       // Crash between send and dequeue: reclaiming owners see the marker
       // instead of resending, on both claim paths.
       followupQueueService.markFailed(item.id, 'token-1')
-      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: item.id, alreadySent: true })
-      expect(followupQueueService.claim(other.id)).toEqual({ claimed: true, alreadySent: false })
+      expect(followupQueueService.claimHead(SCOPE_A, 'token-1')).toEqual({
+        claimed: true,
+        id: item.id,
+        alreadySent: true
+      })
+      expect(followupQueueService.claim(other.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
     })
 
     it('should ignore rows that are not sending', () => {
@@ -358,6 +371,45 @@ describe('FollowupQueueService', () => {
       ])
     })
 
+    it('should release durable file refs atomically while retaining the receipt', async () => {
+      const fileEntryId = '55555555-5555-7555-8555-555555555555'
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'shot',
+        ext: 'png',
+        size: 1,
+        externalPath: null,
+        cleanupPolicy: 'delete_when_unreferenced',
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      const item = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('shot'),
+        payload: payload('shot'),
+        fileEntryIds: [fileEntryId]
+      })
+      expect(await dbh.db.select().from(followupQueueFileRefTable)).toHaveLength(1)
+
+      followupQueueService.remove(item.id)
+
+      // Refs are released, so the cleanup anti-join may collect the entry...
+      expect(await dbh.db.select().from(followupQueueFileRefTable)).toHaveLength(0)
+      // ...while the receipt survives and still settles a same-id enqueue retry.
+      const retry = followupQueueService.enqueue({
+        scopeKey: SCOPE_A,
+        draft: draft('shot'),
+        payload: payload('shot'),
+        id: item.id
+      })
+      expect(retry).toMatchObject({ id: item.id, status: 'closed' })
+      expect(followupQueueService.listByScope(SCOPE_A)).toEqual([])
+      expect(await dbh.db.select().from(followupQueueFileRefTable)).toHaveLength(0)
+    })
+
     it('should settle a retried DELETE as an idempotent no-op', () => {
       const item = enqueueIn(SCOPE_A, 'a')
       followupQueueService.remove(item.id)
@@ -393,19 +445,9 @@ describe('FollowupQueueService', () => {
       expect(followupQueueService.listByScope(SCOPE_A)[0]?.sentAt).not.toBeNull()
     })
 
-    it('should fence a tokenless claim off from all settlements', () => {
-      const item = enqueueIn(SCOPE_A, 'a')
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true, alreadySent: false })
-      notifyDataApiDataChangeMock.mockClear()
-
-      followupQueueService.markSent(item.id, 'token-1')
-      followupQueueService.markFailed(item.id, 'token-1')
-      expect(followupQueueService.heartbeat(item.id, 'token-1')).toEqual({ live: false })
-
-      const [row] = followupQueueService.listByScope(SCOPE_A)
-      expect(row).toMatchObject({ id: item.id, status: 'sending', sentAt: null })
-      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
-    })
+    // Tokenless claims no longer exist: the claim endpoints require a claim
+    // token (see the handler schema tests), so every stored claim carries the
+    // token its settlements must present.
   })
 
   describe('enqueue receipts', () => {
@@ -499,7 +541,7 @@ describe('FollowupQueueService', () => {
     it('should refuse reorders while a live send holds a claim', () => {
       const first = enqueueIn(SCOPE_A, 'a')
       const second = enqueueIn(SCOPE_A, 'b')
-      expect(followupQueueService.claim(first.id)).toEqual({ claimed: true, alreadySent: false })
+      expect(followupQueueService.claim(first.id, 'token-1')).toEqual({ claimed: true, alreadySent: false })
 
       // Moving rows under a live send could expose a pending row that another
       // window's auto-drain claims and sends concurrently with the live owner.
@@ -558,6 +600,32 @@ describe('FollowupQueueService', () => {
       expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(1)
       expect(followupQueueService.listByScope(SCOPE_B)).toHaveLength(1)
       expect(await dbh.db.select().from(followupQueueStateTable)).toHaveLength(0)
+    })
+  })
+
+  describe('purgeForScopePrefixTx receipts', () => {
+    it('should keep closed receipts when asked, so late same-id retries still settle', async () => {
+      const delivered = enqueueIn('topic-a:assistant-1', 'delivered')
+      followupQueueService.remove(delivered.id)
+      enqueueIn('topic-a:assistant-1', 'queued')
+
+      application.get('DbService').withWriteTx((tx) => {
+        followupQueueService.purgeForScopePrefixTx(tx, 'topic-a:', { keepClosedReceipts: true })
+      })
+
+      const rows = await dbh.db.select().from(followupQueueTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: delivered.id, status: 'closed' })
+
+      // The late same-id retry settles against the retained receipt instead of resurrecting.
+      const retry = followupQueueService.enqueue({
+        scopeKey: 'topic-a:assistant-1',
+        draft: draft('delivered'),
+        payload: payload('delivered'),
+        id: delivered.id
+      })
+      expect(retry).toMatchObject({ id: delivered.id, status: 'closed' })
+      expect(followupQueueService.listByScope('topic-a:assistant-1')).toEqual([])
     })
   })
 
