@@ -131,7 +131,7 @@ describe('Browser settings workflows', () => {
     renderSettings()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(ipcApi.request).not.toHaveBeenCalled()
+    expect(vi.mocked(ipcApi.request).mock.calls.filter(([route]) => route !== 'adblock.list_rules')).toHaveLength(0)
     const trigger = screen.getByRole('button', { name: 'Import Import browser data' })
     trigger.focus()
     await user.keyboard('{Enter}')
@@ -295,7 +295,18 @@ describe('Browser settings workflows', () => {
 
   it('can retry browser discovery after an error', async () => {
     const user = userEvent.setup()
-    vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('Read failed'))
+    let sourcesFailed = false
+    vi.mocked(ipcApi.request).mockImplementation((async (route: string) => {
+      if (route === 'adblock.list_rules') return []
+      if (route === 'browser.import.sources') {
+        if (!sourcesFailed) {
+          sourcesFailed = true
+          throw new Error('Read failed')
+        }
+        return [chrome]
+      }
+      return { ...emptyResult() }
+    }) as never)
     renderSettings()
     await user.click(screen.getByRole('button', { name: 'Import Import browser data' }))
     await screen.findByRole('alert')
@@ -492,7 +503,7 @@ describe('Browser settings workflows', () => {
         '/app/browser?url=http%3A%2F%2Finternal.test%2Fdashboard%3Fq%3Da%2526b%26lang%3Dzh%23section',
         { title: 'Dashboard', forceNew: true }
       )
-      expect(ipcApi.request).not.toHaveBeenCalled()
+      expect(vi.mocked(ipcApi.request).mock.calls.filter(([route]) => route !== 'adblock.list_rules')).toHaveLength(0)
     }
   )
 })
@@ -548,5 +559,56 @@ describe('Browser preferences', () => {
       expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(false)
     )
     await waitForBrowserSwitchSave(en['settings.browser.control'])
+  })
+
+  it('toggles ad blocking and search-ad hiding independently', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.adblock.enabled', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.adblock.search_ads', false)
+    renderSettings()
+
+    const adblock = screen.getByRole('switch', { name: en['settings.browser.adblock'] })
+    const searchAds = screen.getByRole('switch', { name: en['settings.browser.searchAds'] })
+    expect(adblock).not.toBeChecked()
+    expect(searchAds).not.toBeChecked()
+
+    await user.click(adblock)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.adblock.enabled']).toBe(true)
+    )
+    expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.adblock.search_ads']).toBe(false)
+    await waitForBrowserSwitchSave(en['settings.browser.adblock'])
+
+    await user.click(searchAds)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.adblock.search_ads']).toBe(true)
+    )
+    await waitForBrowserSwitchSave(en['settings.browser.searchAds'])
+  })
+
+  it('lists AI-written ad rules and removes them', async () => {
+    const user = userEvent.setup()
+    const rule = {
+      id: 'rule-1',
+      domain: 'example.com',
+      kind: 'cosmetic' as const,
+      value: '.ad-slot',
+      note: '',
+      source: 'ai' as const,
+      enabled: true,
+      createdAt: 1
+    }
+    vi.mocked(ipcApi.request).mockImplementation((async (route: string) => {
+      if (route === 'adblock.list_rules') return [rule]
+      return undefined
+    }) as never)
+
+    renderSettings()
+
+    expect(await screen.findByText('example.com')).toBeInTheDocument()
+    expect(screen.getByText('.ad-slot')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: en['settings.browser.aiRulesDelete'] }))
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('adblock.remove_rule', { id: 'rule-1' }))
   })
 })

@@ -4,9 +4,28 @@ import type { BrowserCursorState } from '../../types/browserCursor'
 import { defineRoute } from '../define'
 import { BrowserImportOptionsSchema, BrowserImportResultSchema, BrowserImportSourceSchema } from './browserImport'
 
+export const CustomAdblockRuleSchema = z.object({
+  id: z.string(),
+  domain: z.string(),
+  kind: z.enum(['cosmetic', 'network']),
+  value: z.string(),
+  note: z.string(),
+  source: z.enum(['ai', 'manual']),
+  enabled: z.boolean(),
+  createdAt: z.number()
+})
+
+export type CustomAdblockRuleView = z.infer<typeof CustomAdblockRuleSchema>
+
 export const browserRequestSchemas = {
   'browser.import.sources': defineRoute({ input: z.void(), output: z.array(BrowserImportSourceSchema) }),
   'browser.import.run': defineRoute({ input: BrowserImportOptionsSchema, output: BrowserImportResultSchema }),
+  'adblock.list_rules': defineRoute({ input: z.void(), output: z.array(CustomAdblockRuleSchema) }),
+  'adblock.remove_rule': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() }),
+  'adblock.set_rule_enabled': defineRoute({
+    input: z.strictObject({ id: z.string().min(1), enabled: z.boolean() }),
+    output: z.void()
+  }),
   'browser.data.clear': defineRoute({
     input: z.strictObject({ kind: z.enum(['site_data', 'cache', 'history']) }),
     output: z.void()
