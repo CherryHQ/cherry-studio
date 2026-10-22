@@ -24,7 +24,7 @@ describe('Claude Code process exit diagnostics', () => {
     ['API Error: 403 {"error":{"message":"unsupported_country_region_territory"}}', 'region'],
     ['API Error: 400 prompt is too long: 210000 tokens > 200000 maximum', 'context_length']
   ] as const)('maps %s to the %s recovery category', (terminalReason, category) => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('known-ref')
+    const diagnostics = createClaudeCodeProcessDiagnostics(undefined, 'known-ref')
     diagnostics.terminalReason = terminalReason
     diagnostics.exitCode = 1
 
@@ -36,7 +36,7 @@ describe('Claude Code process exit diagnostics', () => {
 
   it('keeps an unknown raw terminal reason out of the renderer payload', () => {
     const raw = 'unexpected failure at /Users/alice/private; api_key=sk-ant-private'
-    const diagnostics = createClaudeCodeProcessDiagnostics('unknown-ref')
+    const diagnostics = createClaudeCodeProcessDiagnostics(undefined, 'unknown-ref')
     diagnostics.terminalReason = raw
     diagnostics.exitCode = 1
 
@@ -55,7 +55,7 @@ describe('Claude Code process exit diagnostics', () => {
   })
 
   it('does not classify a process exit code as an HTTP status', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('exit-code-ref')
+    const diagnostics = createClaudeCodeProcessDiagnostics(undefined, 'exit-code-ref')
 
     recordClaudeCodeProcessExit(diagnostics, 429, null, 'unexpected CLI termination')
 
@@ -64,7 +64,7 @@ describe('Claude Code process exit diagnostics', () => {
   })
 
   it('clears a prior process result before a resume recovery spawns again', () => {
-    const diagnostics = createClaudeCodeProcessDiagnostics('retry-ref')
+    const diagnostics = createClaudeCodeProcessDiagnostics(undefined, 'retry-ref')
     Object.assign(diagnostics, {
       terminalReason: 'first process failed',
       category: 'auth',
@@ -74,6 +74,6 @@ describe('Claude Code process exit diagnostics', () => {
 
     resetClaudeCodeProcessDiagnostics(diagnostics)
 
-    expect(diagnostics).toEqual({ reference: 'retry-ref' })
+    expect(diagnostics).toEqual({ reference: 'retry-ref', sessionId: null })
   })
 })

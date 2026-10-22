@@ -119,6 +119,7 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const MAX_TERMINAL_RECEIPTS = 256
 /**
  * Grace period before a session with no remaining warm-lease holders is actually torn down.
  * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
@@ -205,6 +206,8 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
+  runtimeGenerated?: boolean
+  rowRoll?: boolean
   forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
@@ -313,7 +316,9 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   constructor(
     private readonly service: AgentSessionRuntimeService,
     private readonly sessionId: string,
-    private readonly turnId: string
+    private readonly turnId: string,
+    private readonly entry: AgentSessionRuntimeEntry,
+    private readonly turn: AgentSessionTurn
   ) {
     this.id = `agent-runtime:${sessionId}`
   }
@@ -324,16 +329,19 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
     // Always advance the runtime turn. For a single-model agent turn, `isTopicDone=false` only means
     // the stream manager is CHAINING the next turn (keeping the stream alive so the queued follow-up
     // can carry the renderer listeners) — which still needs markTurnTerminal to open that next turn.
+    this.service.recordPersistedTurnOutcome(this.entry, this.turn, 'success')
     this.service.markTurnTerminal(this.sessionId, 'success', this.turnId)
   }
 
   onPaused(result: StreamPausedResult): void {
     if (result.isTopicDone === false) return
+    this.service.recordPersistedTurnOutcome(this.entry, this.turn, 'paused')
     this.service.markTurnTerminal(this.sessionId, 'paused', this.turnId)
   }
 
   onError(result: StreamErrorResult): void {
     if (result.isTopicDone === false) return
+    this.service.recordPersistedTurnOutcome(this.entry, this.turn, 'error', result.error)
     this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
   }
 
@@ -353,6 +361,133 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 ])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
+  private readonly failureStreaks = new Map<string, { modelId: UniqueModelId; count: number }>()
+  private readonly terminalReceipts = new Set<string>()
+  private readonly requiredResets = new Map<
+    string,
+    {
+      promise?: Promise<void>
+      entry?: AgentSessionRuntimeEntry
+      queue: PendingAgentSessionTurn[]
+    }
+  >()
+
+  hasRequiredRuntimeReset(sessionId: string): boolean {
+    return this.requiredResets.has(sessionId)
+  }
+
+  recordPersistedTurnOutcome(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    status: AgentSessionRuntimeTerminalStatus,
+    error?: StreamErrorResult['error']
+  ): void {
+    if (this.terminalReceipts.has(turn.turnId)) return
+    this.terminalReceipts.add(turn.turnId)
+    // Retain recent receipts for duplicate callbacks without accumulating every completed turn.
+    if (this.terminalReceipts.size > MAX_TERMINAL_RECEIPTS) {
+      this.terminalReceipts.delete(this.terminalReceipts.values().next().value!)
+    }
+    if (turn.headless || turn.runtimeGenerated) return
+    if (turn.rowRoll && status === 'success') return
+    if (entry.agentType !== 'claude-code') return
+    const qualifying =
+      status === 'error' &&
+      !turn.abortController.signal.aborted &&
+      error?.name === 'ClaudeCodeProcessExitError' &&
+      typeof error.claudeCodeExitCategory === 'string' &&
+      typeof error.diagnosticReference === 'string'
+    if (!qualifying) {
+      this.failureStreaks.delete(entry.sessionId)
+      return
+    }
+    const prior = this.failureStreaks.get(entry.sessionId)
+    const count = prior?.modelId === turn.modelId ? prior.count + 1 : 1
+    this.failureStreaks.set(entry.sessionId, { modelId: turn.modelId, count })
+    if (count >= 3) void this.resetRuntime(entry.sessionId).catch(() => undefined)
+  }
+
+  resetRuntime(sessionId: string): Promise<void> {
+    let reset = this.requiredResets.get(sessionId)
+    if (!reset) {
+      reset = { queue: [] }
+      this.requiredResets.set(sessionId, reset)
+    }
+    if (reset.promise) return reset.promise
+    const operation = Promise.resolve()
+      .then(() => this.runRuntimeReset(sessionId))
+      .catch((error) => {
+        logger.warn('Agent runtime reset failed', { sessionId, category: 'runtime_reset_failed' })
+        throw error
+      })
+      .finally(() => {
+        if (this.requiredResets.get(sessionId) === reset) reset.promise = undefined
+        this.syncRuntimeActivity()
+      })
+    reset.promise = operation
+    this.syncRuntimeActivity()
+    return operation
+  }
+
+  ensureRuntimeResetComplete(sessionId: string): Promise<void> {
+    return this.requiredResets.has(sessionId) ? this.resetRuntime(sessionId) : Promise.resolve()
+  }
+
+  private async runRuntimeReset(sessionId: string): Promise<void> {
+    const reset = this.requiredResets.get(sessionId)!
+    await application.get('AiStreamManager').whenTerminalDispatchSettled(buildAgentSessionTopicId(sessionId))
+    const conflicts = [
+      ...[...this.forks.pending.values()]
+        .filter((fork) => fork.sourceSessionId === sessionId)
+        .map((fork) => fork.promise),
+      this.forks.edits.get(sessionId)?.promise,
+      this.inFlightTurnStarts.get(sessionId)
+    ].filter((promise) => promise !== undefined)
+    await Promise.allSettled(conflicts)
+    const entry = this.entries.get(sessionId)
+    if (
+      this.isShuttingDown ||
+      this.isWriteQuiesced ||
+      toolApprovalRegistry.hasSession(sessionId) ||
+      [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId) ||
+      [...this.pendingEditInputs.values()].some(({ counts }) => counts.has(sessionId)) ||
+      this.forks.edits.has(sessionId) ||
+      [...this.forks.pending.values()].some((fork) => fork.sourceSessionId === sessionId) ||
+      (entry &&
+        (entry.runtimeState.execution.kind !== 'idle' || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)))
+    ) {
+      throw new AgentSessionEditError('busy')
+    }
+    await this.closeSessionForArchive(sessionId)
+    if (
+      this.entries.has(sessionId) ||
+      this.closingSessions.has(sessionId) ||
+      this.connectionAttempts.has(sessionId) ||
+      [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId)
+    ) {
+      throw new AgentSessionEditError('close_failed')
+    }
+    if (this.isShuttingDown || this.isWriteQuiesced) throw new AgentSessionEditError('busy')
+    agentSessionMessageService.clearRuntimeIdentity(sessionId)
+    this.failureStreaks.delete(sessionId)
+    this.requiredResets.delete(sessionId)
+    if (reset.entry && reset.queue.length) {
+      const old = reset.entry
+      const fresh: AgentSessionRuntimeEntry = {
+        sessionId,
+        topicId: old.topicId,
+        agentId: old.agentId,
+        agentType: old.agentType,
+        modelId: old.modelId,
+        sessionTraceId: old.sessionTraceId,
+        runtimeState: { ...createAgentSessionRuntimeState(), queue: reset.queue }
+      }
+      this.entries.set(sessionId, fresh)
+      this.requestRuntimeLaunch(fresh, 'queued-turn')
+    }
+    this._onRuntimeIdle.fire({ sessionId })
+  }
+
   private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
   private readonly failedClosureResumeTokens = new WeakMap<AgentRuntimeConnection, string>()
   private readonly pendingEditInputs = new Map<
@@ -378,7 +513,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   assertSessionWritable(sessionId: string): void {
-    if (this.forks.edits.has(sessionId)) throw new AgentSessionEditError('busy')
+    if (this.forks.edits.has(sessionId) || this.requiredResets.has(sessionId)) throw new AgentSessionEditError('busy')
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
@@ -592,6 +727,8 @@ export class AgentSessionRuntimeService extends BaseService {
         for (const chunk of effect.chunks) this.enqueueTurnChunk(entry, effect.turn, chunk)
         break
       case 'settle-turn': {
+        const execution = entry.runtimeState.execution
+        if (execution.kind === 'steer-transition' && execution.sourceTurn === effect.turn) effect.turn.rowRoll = true
         // Closing the controller only requests stream settlement. The state remains
         // `awaiting-persistence` until the stream manager has awaited PersistenceListener and its
         // terminal listener dispatches `turn-terminal`; only that event may launch a successor.
@@ -661,7 +798,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return {
         listeners: [
           this.createPersistenceListener(existing, userMessage),
-          new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
+          new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, existing, turn),
           new TraceFlushListener(input.topicId)
         ],
         turnId,
@@ -687,7 +824,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return {
       listeners: [
         this.createPersistenceListener(entry, userMessage),
-        new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, input.sessionId, turnId, entry, turn),
         new TraceFlushListener(input.topicId)
       ],
       turnId,
@@ -757,7 +894,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
-    if (this.forks.edits.has(sessionId)) return
+    if (this.forks.edits.has(sessionId) || this.requiredResets.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1051,6 +1188,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) {
       // closeSession may remove the runtime before AiStreamManager publishes the terminal callback.
       // That callback is the reliable post-stream wake for durable work blocked by the old turn.
+      if (this.requiredResets.has(sessionId)) void this.resetRuntime(sessionId).catch(() => undefined)
       this._onRuntimeIdle.fire({ sessionId })
       return
     }
@@ -1078,6 +1216,8 @@ export class AgentSessionRuntimeService extends BaseService {
         boundary: isRowRoll ? 'row-roll' : 'turn'
       })
     }
+
+    if (this.requiredResets.has(sessionId)) void this.resetRuntime(sessionId).catch(() => undefined)
 
     // Connection stays warm across turns (no per-turn close) — only `closeSession`/idle TTL tears it
     // down. A queued steer drains into the same warm subprocess via `scheduleNextTurn`.
@@ -1307,7 +1447,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
-    if (this.forks.edits.size || this.failedClosures.size) return true
+    if (
+      this.forks.edits.size ||
+      this.failedClosures.size ||
+      [...this.requiredResets.values()].some((reset) => reset.promise)
+    )
+      return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
@@ -1429,6 +1574,14 @@ export class AgentSessionRuntimeService extends BaseService {
     const seen = new WeakSet<Promise<unknown>>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
+      for (const [sessionId, reset] of this.requiredResets) {
+        const operation = reset.promise
+        if (!operation || seen.has(operation)) continue
+        seen.add(operation)
+        pending.set(operation, sessionId)
+        const remove = () => pending.delete(operation)
+        operation.then(remove, remove)
+      }
       for (const fork of this.forks.pending.values()) {
         if (seen.has(fork.promise)) continue
         seen.add(fork.promise)
@@ -1602,6 +1755,10 @@ export class AgentSessionRuntimeService extends BaseService {
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
     await this.forks.cancel()
+    await Promise.allSettled(
+      [...this.requiredResets.values()].flatMap((reset) => (reset.promise ? [reset.promise] : []))
+    )
+    this.failureStreaks.clear()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
     for (const entry of this.entries.values()) {
@@ -1616,7 +1773,12 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    this.isShuttingDown = true
     await this.forks.cancel()
+    await Promise.allSettled(
+      [...this.requiredResets.values()].flatMap((reset) => (reset.promise ? [reset.promise] : []))
+    )
+    this.failureStreaks.clear()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
     await this.closeAll()
@@ -1710,10 +1872,15 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
+      if (this.requiredResets.has(entry.sessionId)) {
+        await this.ensureRuntimeResetComplete(entry.sessionId)
+        if (!this.isCurrentEntry(entry)) return false
+      }
       this.assertSessionWritable(entry.sessionId)
       const closing = this.closingSessions.get(entry.sessionId)
       if (closing) {
         await closing.promise
+        if (this.requiredResets.has(entry.sessionId)) continue
         if (this.isCurrentEntry(entry) && !entry.lastResumeToken && closing.resumeToken) {
           entry.lastResumeToken = closing.resumeToken
         }
@@ -2779,6 +2946,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private requestRuntimeLaunch(entry: AgentSessionRuntimeEntry, target: AgentSessionRuntimeLaunchTarget): void {
+    if (this.requiredResets.has(entry.sessionId)) {
+      void this.resetRuntime(entry.sessionId).catch(() => undefined)
+      return
+    }
     this.applyRuntimeStateEvent(entry, { type: 'launch-requested', target })
   }
 
@@ -2798,7 +2969,7 @@ export class AgentSessionRuntimeService extends BaseService {
           resolve()
           return
         }
-        if (this.isWriteQuiesced) {
+        if (this.isWriteQuiesced || this.requiredResets.has(entry.sessionId)) {
           this.applyRuntimeStateEvent(entry, { type: 'launch-suppressed', target })
           if (this.inFlightTurnStarts.get(entry.sessionId) === launch) {
             this.inFlightTurnStarts.delete(entry.sessionId)
@@ -2983,7 +3154,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: nextTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, nextMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, entry, nextTurn),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3054,7 +3225,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: turn.abortController,
       listeners: [
         this.createPersistenceListener(entry, turn.userMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turn.turnId, entry, turn),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3113,6 +3284,7 @@ export class AgentSessionRuntimeService extends BaseService {
       .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
     const receiveOnlyTurn: AgentSessionTurn = {
+      runtimeGenerated: true,
       turnId,
       assistantMessageId,
       userMessage: syntheticMessage,
@@ -3163,7 +3335,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: receiveOnlyTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, syntheticMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, entry, receiveOnlyTurn),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3280,7 +3452,7 @@ export class AgentSessionRuntimeService extends BaseService {
       abortController: continuationTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, steerMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId),
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId, turnId, entry, continuationTurn),
         new TraceFlushListener(entry.topicId)
       ]
     })
@@ -3411,6 +3583,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
+    if (this.requiredResets.has(entry.sessionId)) return
     if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
       return
     }
@@ -3475,6 +3648,11 @@ export class AgentSessionRuntimeService extends BaseService {
 
     const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
     const connection = this.closeConnection(entry, false)
+    const reset = this.requiredResets.get(entry.sessionId)
+    if (reset) {
+      reset.entry = entry
+      reset.queue.push(...entry.runtimeState.queue)
+    }
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
     this.inFlightTurnStarts.delete(entry.sessionId)
 

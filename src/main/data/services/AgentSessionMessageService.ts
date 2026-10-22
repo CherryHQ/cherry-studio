@@ -909,6 +909,20 @@ export class AgentSessionMessageService {
     })
   }
 
+  clearRuntimeIdentity(sessionId: string): void {
+    application
+      .get('DbService')
+      .getDb()
+      .update(sessionMessagesTable)
+      .set({
+        runtimeResumeToken: null,
+        data: sql`json_remove(${sessionMessagesTable.data}, '$.nativeSessionId')`,
+        updatedAt: sql`${sessionMessagesTable.updatedAt}`
+      })
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .run()
+  }
+
   /** Best-effort terminalization after a live assistant persistence failure. */
   markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
     const changed = application.get('DbService').withWriteTx((tx) => {

@@ -594,7 +594,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     }
   )
   const sdkModelId = route.modelIds.primary
+  const diagnosticContext = { sessionId: session.id }
   const options = createClaudeCodeQueryOptions({
+    diagnosticContext,
     modelId: sdkModelId,
     settings,
     effectiveResume: resumeSessionId ?? settings.resume
@@ -607,6 +609,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   return {
     connectionConfig,
     key: settings.warmQueryKey ?? session.id,
+    diagnosticContext,
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     notificationContext,
@@ -1040,6 +1043,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   if (!request) return undefined
   return {
     key: request.key,
+    diagnosticContext: request.diagnosticContext,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
     connectionRebuildSignature: request.connectionConfig.rebuildSignature,

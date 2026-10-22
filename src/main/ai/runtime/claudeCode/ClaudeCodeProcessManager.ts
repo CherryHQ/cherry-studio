@@ -16,6 +16,7 @@ import {
   recordClaudeCodeSpawnError,
   resetClaudeCodeProcessDiagnostics
 } from './processExitDiagnostics'
+import { getClaudeCodeSpawnFacts } from './spawnFacts'
 
 const logger = loggerService.withContext('ClaudeCodeProcessManager')
 
@@ -55,6 +56,9 @@ type ErrorListener = (error: Error) => void
 function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics): void {
   logger.warn('Claude Code process failed', {
     reference: diagnostics.reference,
+    sessionId: diagnostics.sessionId,
+    resumeToken: diagnostics.spawn!.resumeToken,
+    spawnArgsFingerprint: diagnostics.spawn!.spawnArgsFingerprint,
     category: diagnostics.category,
     exitCode: diagnostics.exitCode,
     exitSignal: diagnostics.exitSignal,
@@ -190,6 +194,7 @@ export class ClaudeCodeProcessManager extends BaseService {
 
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
     resetClaudeCodeProcessDiagnostics(diagnostics)
+    diagnostics.spawn = Object.freeze(getClaudeCodeSpawnFacts(options.command, options.args))
     const spawnOptions: Parameters<SpawnProcess>[2] = {
       cwd: options.cwd,
       env: options.env,

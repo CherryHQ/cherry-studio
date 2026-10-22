@@ -3,7 +3,8 @@ import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import type { ClaudeCodeDiagnosticContext } from './processExitDiagnostics'
 import type { ClaudeCodeSettings } from './types'
 
 /** An explicit child environment is authoritative, even when it omits the config override. */
@@ -15,6 +16,7 @@ export function resolveClaudeConfigDirectory(env?: Options['env']): string {
 }
 
 export interface ClaudeCodeQueryOptionsInput {
+  diagnosticContext?: ClaudeCodeDiagnosticContext
   modelId: string
   settings: ClaudeCodeSettings
   abortController?: AbortController
@@ -23,6 +25,7 @@ export interface ClaudeCodeQueryOptionsInput {
 }
 
 export function createClaudeCodeQueryOptions({
+  diagnosticContext,
   modelId,
   settings,
   abortController,
@@ -47,7 +50,7 @@ export function createClaudeCodeQueryOptions({
 
   const opts: Partial<Options> = {
     ...settingsRest,
-    spawnClaudeCodeProcess,
+    spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(createClaudeCodeProcessDiagnostics(diagnosticContext)),
     model: modelId,
     ...(abortController ? { abortController } : {}),
     resume: effectiveResume ?? settings.resume

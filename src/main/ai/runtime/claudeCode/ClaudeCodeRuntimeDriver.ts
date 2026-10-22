@@ -376,7 +376,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
-    const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
+    const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics({ sessionId: this.input.sessionId })
     const options: Options = {
       ...request.options,
       ...(!this.resumeToken && this.input.nativeSessionId ? { sessionId: this.input.nativeSessionId } : {}),
@@ -396,6 +396,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.
     const consumedWarmQuery = await application.get('ClaudeCodeWarmQueryManager').consume({
       key: request.key,
+      diagnosticContext: request.diagnosticContext,
       options,
       initializeTimeoutMs: request.initializeTimeoutMs,
       connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
@@ -415,9 +416,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : options
     // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
     const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
-    this.query = consumedWarmQuery
-      ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+    try {
+      this.query = consumedWarmQuery
+        ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
+        : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+    } catch (error) {
+      throw isClaudeCodeProcessFailure(error, this.processDiagnostics)
+        ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
+        : error
+    }
     this.adapterModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
