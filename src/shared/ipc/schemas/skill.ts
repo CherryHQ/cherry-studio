@@ -9,6 +9,7 @@ import {
   type SkillResult,
   type SystemSkillCandidate
 } from '@shared/types/skill'
+import { SkillCaptureRefSchema, SkillDraftReviewSchema } from '@shared/types/skillCapture'
 
 import { defineRoute } from '../define'
 
@@ -23,6 +24,16 @@ import { defineRoute } from '../define'
  * validates inputs, not outputs.
  */
 export const skillRequestSchemas = {
+  'skill.capture.start': defineRoute({
+    input: SkillCaptureRefSchema.extend({ requestText: z.string().trim().min(1).max(500) }),
+    output: z.void()
+  }),
+  'skill.capture.review': defineRoute({ input: SkillCaptureRefSchema, output: SkillDraftReviewSchema }),
+  'skill.capture.save': defineRoute({
+    input: SkillCaptureRefSchema.extend({ revision: z.string().regex(/^[a-f0-9]{64}$/) }),
+    output: z.object({ skillId: z.string() })
+  }),
+  'skill.capture.discard': defineRoute({ input: SkillCaptureRefSchema, output: z.void() }),
   'skill.install': defineRoute({
     input: z.object({ installSource: z.string() }),
     output: z.custom<SkillResult<InstalledSkill>>()

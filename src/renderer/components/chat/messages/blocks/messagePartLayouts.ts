@@ -283,6 +283,7 @@ export function isResultPart(part: CherryMessagePart): boolean {
  */
 export function projectCompletedMessageParts(entries: readonly PartEntry[]): CompletedMessagePartLayout {
   const reportEntries: PartEntry[] = []
+  const afterAnswerEntries: PartEntry[] = []
   const forkEntries: PartEntry[] = []
   const contentEntries: PartEntry[] = []
 
@@ -292,6 +293,8 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
       forkEntries.push(entry)
     } else if (isReportToolPart(entry.part)) {
       reportEntries.push(entry)
+    } else if (agentInlineResultPresentationRegistry.isAfterAnswerPart(entry.part)) {
+      afterAnswerEntries.push(entry)
     } else if (!isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)) {
       contentEntries.push(entry)
     }
@@ -368,7 +371,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),
-    resultEntries: [...contentEntries.filter(isDirectResult), ...forkEntries],
+    resultEntries: [...contentEntries.filter(isDirectResult), ...afterAnswerEntries, ...forkEntries],
     reportEntries
   }
 }

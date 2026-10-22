@@ -27,6 +27,10 @@ export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 
 When you finish producing the file(s) the user asked for, call the \`${REPORT_ARTIFACTS_RUNTIME_NAME}\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
 
+export const SUGGEST_SKILL_PROMPT = `## Reusable tasks
+
+If mcp__skills__suggest_skill is available, consider it after successfully completing a task with reusable steps, templates, or user-refined rules. Suggest only when replacing the inputs would make the method useful again. Skip simple questions, unfinished work, unchanged execution of an existing skill, and skill creation itself. Use a stable taskKey and never repeat an ignored or saved suggestion. The tool displays an optional action after the task ends; do not interrupt the task to ask permission or generate a skill before the user clicks it.`
+
 export interface AgentRuntimePrompt {
   base: AgentPromptBase
   append: string
@@ -84,6 +88,7 @@ export async function buildAgentRuntimePrompt({
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
+    SUGGEST_SKILL_PROMPT,
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,

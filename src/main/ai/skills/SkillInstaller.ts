@@ -28,8 +28,8 @@ export class SkillInstaller {
    * If sourceDir and destPath resolve to the same location, the files are
    * already in place (in-place registration flow) and no copy is performed.
    */
-  async install(sourceDir: string, destPath: string): Promise<void> {
-    const prepared = await this.prepareInstall(sourceDir, destPath)
+  async install(sourceDir: string, destPath: string, expectedContentHash?: string): Promise<void> {
+    const prepared = await this.prepareInstall(sourceDir, destPath, expectedContentHash)
     try {
       await prepared.commit()
     } catch (error) {
@@ -43,13 +43,20 @@ export class SkillInstaller {
   }
 
   /** Publish verified files while keeping the prior directory available for rollback. */
-  async prepareInstall(sourceDir: string, destPath: string): Promise<PreparedSkillInstall> {
+  async prepareInstall(
+    sourceDir: string,
+    destPath: string,
+    expectedContentHash?: string
+  ): Promise<PreparedSkillInstall> {
     if (path.resolve(sourceDir) === path.resolve(destPath)) {
       logger.debug('Source equals destination, skipping copy', { destPath })
       return { commit: async () => undefined, rollback: async () => undefined }
     }
 
     const sourceHash = await this.computeDirectoryHash(sourceDir)
+    if (expectedContentHash && `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}${sourceHash}` !== expectedContentHash) {
+      throw new Error('The reviewed Skill changed before installation')
+    }
     await this.recoverInterruptedInstall(destPath)
     await this.removeCommittedCleanup(destPath)
 

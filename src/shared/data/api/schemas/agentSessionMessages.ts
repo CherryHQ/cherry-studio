@@ -89,6 +89,12 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 // ============================================================================
 
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/messages/:messageId/skill-suggestion': {
+    DELETE: {
+      params: { sessionId: string; messageId: string }
+      response: void
+    }
+  }
   '/agent-sessions/:sessionId/messages': {
     GET: {
       params: { sessionId: string }

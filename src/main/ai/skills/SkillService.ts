@@ -254,7 +254,9 @@ export class SkillService {
     }
 
     const canonicalPath = await fs.promises.realpath(directoryPath)
-    return this.installSkillDir(canonicalPath, 'local', pathToFileURL(canonicalPath).href)
+    return this.installSkillDir(canonicalPath, 'local', pathToFileURL(canonicalPath).href, {
+      expectedContentHash: options.expectedContentHash
+    })
   }
 
   /** List user-owned workspace skills from supported project skill roots. */
@@ -483,7 +485,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; expectedContentHash?: string } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -494,7 +496,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; expectedContentHash?: string } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
@@ -533,11 +535,14 @@ export class SkillService {
     }
 
     const contentHash = await this.installer.computeContentHash(skillDir)
+    if (provenance.expectedContentHash && provenance.expectedContentHash !== contentHash) {
+      throw new Error('The reviewed Skill changed before installation')
+    }
     const destFolderName = existing?.folderName ?? folderName
     const destPath = this.getSkillStoragePath(destFolderName)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
-    await this.installer.install(skillDir, destPath)
+    await this.installer.install(skillDir, destPath, provenance.expectedContentHash)
     await this.linkMirror(destFolderName)
 
     const tags = metadata.tags ?? []

@@ -90,6 +90,20 @@ and replaces changed content. Neither path rebuilds a connection solely because
 an identity file changed. Changes made during an active turn are picked up at the
 next turn boundary; workspace prompt files retain their existing lifecycle.
 
+## Save as Skill context
+
+The shared prompt lets interactive Agents suggest saving a completed, reusable
+task through `suggest_skill`. Suggestions do not create or install skills. Their
+task keys and handling states belong to the source message and survive restarts.
+
+After the user accepts a suggestion, the host adds its task evidence, the trusted
+`skill-creator` location, and the isolated draft directory to model input in the
+same conversation. This extra context is not appended to the stored user message.
+The draft mode takes precedence over the creator's direct-install workflow;
+`prepare_skill_draft` prepares a file preview, while only the renderer's confirmed
+save installs the reviewed files and enables the skill for the current Agent.
+Headless turns do not receive this creation context.
+
 ## Update and variable lifecycle
 
 Saving `agent.instructions` invalidates the connection rebuild signature. Changes to `app.user.name` and the Agent's resolved primary model name also invalidate it because they affect `{{username}}` and `{{model_name}}`. An idle stale connection closes eagerly; a live response finishes with its captured prompt; the next fresh model turn rebuilds and sees the saved value.

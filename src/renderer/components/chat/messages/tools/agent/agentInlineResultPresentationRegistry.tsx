@@ -9,13 +9,23 @@ import { getPrepareDiagnosticReportResult, isPrepareDiagnosticReportResultPart }
 import { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
 import { getScheduledTaskResult, isScheduledTaskResultPart } from './scheduledTaskResult'
 import { ScheduledTaskToolInline } from './ScheduledTaskTool'
+import { getSkillCaptureResult, isSkillCaptureResultPart, SkillCaptureTool } from './skillCaptureResult'
 
 interface AgentInlineResultPresentation {
+  readonly afterAnswer?: boolean
   readonly isResultPart: (part: CherryMessagePart) => boolean
   readonly renderResult: (toolResponse: McpToolResponse | NormalToolResponse) => ReactElement | undefined
 }
 
 const AGENT_INLINE_RESULT_PRESENTATIONS = [
+  {
+    isResultPart: isSkillCaptureResultPart,
+    afterAnswer: true,
+    renderResult: (toolResponse) => {
+      const result = getSkillCaptureResult(toolResponse)
+      return result ? <SkillCaptureTool result={result} /> : undefined
+    }
+  },
   {
     isResultPart: isPrepareDiagnosticReportResultPart,
     renderResult: (toolResponse) => {
@@ -40,6 +50,11 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
 ] satisfies readonly AgentInlineResultPresentation[]
 
 export const agentInlineResultPresentationRegistry = {
+  isAfterAnswerPart(part: CherryMessagePart): boolean {
+    return AGENT_INLINE_RESULT_PRESENTATIONS.some(
+      (presentation) => 'afterAnswer' in presentation && presentation.afterAnswer && presentation.isResultPart(part)
+    )
+  },
   isResultPart(part: CherryMessagePart): boolean {
     return AGENT_INLINE_RESULT_PRESENTATIONS.some((presentation) => presentation.isResultPart(part))
   },

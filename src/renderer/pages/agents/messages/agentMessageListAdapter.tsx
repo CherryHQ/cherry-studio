@@ -50,6 +50,7 @@ import {
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
 } from './agentSessionImageActionBus'
+import { AgentSkillCapture } from './AgentSkillCapture'
 
 const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
@@ -472,6 +473,9 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      renderSkillCapture: normalInteractionsEnabled
+        ? (result) => (result.sessionId === sessionId ? <AgentSkillCapture result={result} /> : null)
+        : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
         normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
@@ -518,6 +522,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      sessionId,
       startEditing,
       editBusy,
       openForkSourceSession,
