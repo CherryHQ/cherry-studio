@@ -150,7 +150,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     if (skillDenial) return { block: true, reason: skillDenial }
 
     const mode = ctx.getPermissionMode() ?? 'default'
-    const skillApproval = application.get('McpSkillService').toolApproval(ctx.sessionId, toolName, input, mode)
+    const skillApproval = application.get('McpSkillService').toolApproval(ctx.sessionId, toolName, input, mode, signal)
     if (skillApproval) signal = AbortSignal.any([skillApproval.signal, ...(signal ? [signal] : [])])
     const delegationApproval = ctx.delegationTools.has(toolName)
       ? resolveDelegationApproval(mode, ctx.getInteractionState())
@@ -268,11 +268,11 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
     if (skillApproval) {
       try {
-        skillApproval.validate()
+        if (decision.updatedInput) return { block: true, reason: 'Retry the edited call for a new skill approval.' }
+        applyInputEdit(input, skillApproval.approve())
       } catch (error) {
         return { block: true, reason: error instanceof Error ? error.message : String(error) }
       }
-      if (decision.updatedInput) return { block: true, reason: 'Retry the edited call for a new skill approval.' }
     }
     if (decision.updatedInput) applyInputEdit(input, decision.updatedInput)
     return

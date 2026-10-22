@@ -10,8 +10,12 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { ClientMcpConnection } from '@main/ai/mcp/connections/ClientMcpConnection'
 import type { McpConnection } from '@main/ai/mcp/connections/McpConnection'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
@@ -22,6 +26,8 @@ import { createPiToolAuthorizer } from '@main/ai/runtime/pi/approvalExtension'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { BaseService } from '@main/core/lifecycle'
+import { createUniqueModelId } from '@shared/data/types/model'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { McpSkillService } from '../McpSkillService'
 
@@ -153,10 +159,11 @@ describe('session MCP skills through real protocol and persistence', () => {
       const catalog = await client.callTool({ name: 'list_mcp_skills', arguments: {} })
       expect(JSON.stringify(catalog)).toContain('reports')
       expect(fixture.requests.filter((request) => request.startsWith('read:'))).toEqual([])
-      const load = await client.callTool({
-        name: 'load_mcp_skill',
-        arguments: { server_id: serverId, skill_uri: fixture.uri }
-      })
+      const input = { server_id: serverId, skill_uri: fixture.uri }
+      expect(
+        await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'load', input })
+      ).toBeUndefined()
+      const load = await client.callTool({ name: 'load_mcp_skill', arguments: input })
       expect(load.isError).not.toBe(true)
       expect(JSON.stringify(load)).toContain('Read references/facts.txt')
       expect(JSON.stringify(load)).toContain(serverId)
@@ -173,6 +180,157 @@ describe('session MCP skills through real protocol and persistence', () => {
     } finally {
       await client.close()
     }
+  })
+
+  it('rejects a reconfigured origin after authorization returns but before builtin execution', async () => {
+    const input = { server_id: serverId, skill_uri: fixture.uri }
+    expect(
+      await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'gap', input })
+    ).toBeUndefined()
+    mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:2/mcp' })
+    const client = await connectMcpTestClient(() => createSkillsServer(agentId, sessionId))
+    try {
+      const result = await client.callTool({ name: 'load_mcp_skill', arguments: input })
+      expect(result.isError).toBe(true)
+      expect(fixture.requests).toEqual([])
+      expect(agentSessionMessageService.listMcpSkills(sessionId)).toEqual([])
+    } finally {
+      await client.close()
+    }
+  })
+
+  it('does not let a new approval revive an old call or permit replay', async () => {
+    const oldInput = { server_id: serverId, skill_uri: fixture.uri }
+    await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'old', input: oldInput })
+    mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:2/mcp' })
+    const input = { server_id: serverId, skill_uri: fixture.uri }
+    await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'fresh', input })
+    const client = await connectMcpTestClient(() => createSkillsServer(agentId, sessionId))
+    try {
+      expect((await client.callTool({ name: 'load_mcp_skill', arguments: oldInput })).isError).toBe(true)
+      expect(fixture.requests).toEqual([])
+      const loaded = await client.callTool({ name: 'load_mcp_skill', arguments: input })
+      expect(loaded.isError).not.toBe(true)
+      expect(JSON.stringify(loaded)).toContain('Read references/facts.txt')
+      const requests = [...fixture.requests]
+      expect((await client.callTool({ name: 'load_mcp_skill', arguments: input })).isError).toBe(true)
+      expect(fixture.requests).toEqual(requests)
+    } finally {
+      await client.close()
+    }
+  })
+
+  it('rejects a changed load input and allows Full Access without a receipt', async () => {
+    const input = { server_id: serverId, skill_uri: fixture.uri }
+    await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'changed-input', input })
+    const client = await connectMcpTestClient(() => createSkillsServer(agentId, sessionId))
+    try {
+      expect(
+        (
+          await client.callTool({
+            name: 'load_mcp_skill',
+            arguments: { ...input, skill_uri: 'skill://other/SKILL.md' }
+          })
+        ).isError
+      ).toBe(true)
+      expect(
+        (await client.callTool({ name: 'load_mcp_skill', arguments: { server_id: serverId, skill_uri: fixture.uri } }))
+          .isError
+      ).toBe(true)
+      expect(fixture.requests).toEqual([])
+      agentService.updateAgent(agentId, { configuration: { permission_mode: 'bypassPermissions' } })
+      const loaded = await client.callTool({
+        name: 'load_mcp_skill',
+        arguments: { server_id: serverId, skill_uri: fixture.uri }
+      })
+      expect(loaded.isError).not.toBe(true)
+      expect(JSON.stringify(loaded)).toContain('Read references/facts.txt')
+    } finally {
+      await client.close()
+    }
+  })
+
+  it('keeps the approved cancellation signal through the protocol response', async () => {
+    const input = { server_id: serverId, skill_uri: fixture.uri }
+    await authorizer(true)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'during-load', input })
+    const received = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const getSkill = runtime.getSkill.bind(runtime)
+    vi.spyOn(runtime, 'getSkill').mockImplementation(async (...args) => {
+      const entry = await getSkill(...args)
+      received.resolve()
+      await release.promise
+      return entry
+    })
+    const client = await connectMcpTestClient(() => createSkillsServer(agentId, sessionId))
+    try {
+      const loading = client.callTool({ name: 'load_mcp_skill', arguments: input })
+      await received.promise
+      mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:2/mcp' })
+      mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:1/mcp' })
+      release.resolve()
+      expect((await loading).isError).toBe(true)
+      expect(fixture.requests.filter((request) => request.startsWith('read:'))).toEqual([])
+      expect(agentSessionMessageService.listMcpSkills(sessionId)).toEqual([])
+    } finally {
+      release.resolve()
+      await client.close()
+    }
+  })
+
+  it('settles a cancelled cross-origin approval in persisted history before returning', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    const other = mcpServerService.create({
+      name: 'Other',
+      type: 'streamableHttp',
+      baseUrl: 'http://127.0.0.1:3/mcp',
+      isActive: true
+    })
+    dbh.db.insert(agentMcpServerTable).values({ agentId, mcpServerId: other.id }).run()
+    dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'p0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: createUniqueModelId('test', 'model'),
+        providerId: 'test',
+        modelId: 'model',
+        name: 'Test model',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .run()
+    const host = new AgentSessionRuntimeService()
+    host.beginTurn({
+      sessionId,
+      topicId: `agent-session:${sessionId}`,
+      agentId,
+      agentType: 'pi',
+      modelId: createUniqueModelId('test', 'model'),
+      assistantMessageId: '019a0000-0000-7000-8000-000000000002'
+    })
+    vi.spyOn(host, 'getInteractionState').mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    decide.mockImplementation((id, request) =>
+      host.requestToolApproval(id, { ...request, toolName: 'mcp__skills__read_mcp_skill_file' })
+    )
+    const reading = runtime.getResource({ serverId: other.id, uri: fixture.uri, interactionContext: { sessionId } })
+    const rejected = expect(reading).rejects.toThrow()
+    const published: unknown[] = []
+    vi.spyOn(application, 'isReady').mockReturnValue(true)
+    vi.spyOn(application.get('WindowManager'), 'broadcast').mockImplementation((channel) => {
+      if (channel === IpcChannel.DataApi_DataChanged)
+        published.push(agentSessionMessageService.listApprovalMessages(sessionId).map((message) => message.data.parts))
+    })
+    await vi.waitFor(() => expect(agentSessionMessageService.listApprovalMessages(sessionId)).toHaveLength(1))
+    mcpServerService.update(other.id, { baseUrl: 'http://127.0.0.1:4/mcp' })
+    await rejected
+    expect(toolApprovalRegistry.hasSession(sessionId)).toBe(false)
+    expect(published).toContainEqual([
+      [expect.objectContaining({ state: 'approval-responded', approval: expect.objectContaining({ approved: false }) })]
+    ])
+    expect(agentSessionMessageService.listApprovalMessages(sessionId)[0].data.parts).toMatchObject([
+      { state: 'approval-responded', approval: { approved: false } }
+    ])
   })
 
   it('can load directly by URI without listing or an independent interaction host', async () => {

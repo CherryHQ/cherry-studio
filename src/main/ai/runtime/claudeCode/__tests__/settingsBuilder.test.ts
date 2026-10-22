@@ -1674,7 +1674,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       const validate = vi.fn()
       defaultServiceInstances.McpSkillService.toolApproval.mockReturnValue({
         signal: new AbortController().signal,
-        validate
+        validate,
+        approve: () => {
+          validate()
+          return toolName === 'Bash'
+            ? { command: 'echo ready' }
+            : { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
+        }
       })
       const emit = vi.fn()
       settings.approvalEmitter!.emit = emit

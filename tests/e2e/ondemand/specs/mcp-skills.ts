@@ -205,15 +205,20 @@ export default async function mcpSkillsScenario(context: ScenarioContext) {
         } else {
           expect(server.fixture.requests.filter((request) => request.startsWith('read:'))).toHaveLength(before)
         }
-        const messages = await page.evaluate(
-          (sessionId) =>
-            window.api.dataApi.request({
-              id: crypto.randomUUID(),
-              method: 'GET',
-              path: `/agent-sessions/${sessionId}/messages`
-            }),
-          session.id
-        )
+        const readMessages = () =>
+          page.evaluate(
+            (sessionId) =>
+              window.api.dataApi.request({
+                id: crypto.randomUUID(),
+                method: 'GET',
+                path: `/agent-sessions/${sessionId}/messages`
+              }),
+            session.id
+          )
+        await expect
+          .poll(async () => JSON.stringify((await readMessages()).data), { timeout: 30_000 })
+          .toContain(marker)
+        const messages = await readMessages()
         expect(messages.status).toBe(200)
         expect(JSON.stringify(messages.data)).toContain(marker)
         if (fullAccess) await expect(approval).toHaveCount(0)

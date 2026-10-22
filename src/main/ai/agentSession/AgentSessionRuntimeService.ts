@@ -1522,7 +1522,8 @@ export class AgentSessionRuntimeService extends BaseService {
       return { approved: false, reason: 'This operation requires interactive tool approval.' }
     const approvalId = uuidv7()
     const toolCallId = uuidv7()
-    return new Promise((resolve) => {
+    const messageId = uuidv7()
+    return new Promise((resolve, reject) => {
       if (
         !toolApprovalRegistry.register({
           approvalId,
@@ -1532,23 +1533,34 @@ export class AgentSessionRuntimeService extends BaseService {
           originalInput: request.input,
           presentation: 'message',
           signal: request.signal,
-          resolve
+          resolve: (decision) => {
+            try {
+              agentSessionMessageService.applyToolApprovalDecision(sessionId, messageId, { approvalId, ...decision })
+              resolve(decision)
+            } catch (error) {
+              reject(error)
+            }
+          }
         })
       )
         return
-      this.handleToolApprovalRequest(entry, {
-        approvalId,
-        toolCallId,
-        toolName: request.toolName,
-        input: request.input,
-        presentation: 'message',
-        providerMetadata: {
-          cherry: {
-            transport: AGENT_RUNTIME_CAPABILITIES[entry.agentType].transport,
-            toolName: request.toolName
+      this.handleToolApprovalRequest(
+        entry,
+        {
+          approvalId,
+          toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          presentation: 'message',
+          providerMetadata: {
+            cherry: {
+              transport: AGENT_RUNTIME_CAPABILITIES[entry.agentType].transport,
+              toolName: request.toolName
+            }
           }
-        }
-      })
+        },
+        messageId
+      )
     })
   }
 
@@ -2618,7 +2630,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
+  private handleToolApprovalRequest(
+    entry: AgentSessionRuntimeEntry,
+    request: AgentRuntimeToolApprovalRequest,
+    messageId?: string
+  ): void {
     if (request.presentation === 'stream') {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
@@ -2655,6 +2671,7 @@ export class AgentSessionRuntimeService extends BaseService {
         {
           sessionId: entry.sessionId,
           message: {
+            id: messageId,
             role: 'assistant',
             status: 'success',
             data: { parts: [part] },

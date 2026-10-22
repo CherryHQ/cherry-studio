@@ -546,7 +546,7 @@ async function buildToolPermissions(
     if (skillDenial) return { behavior: 'deny', message: skillDenial }
     const skillApproval = application
       .get('McpSkillService')
-      .toolApproval(session.id, toolName, input, snapshot.getPermissionMode())
+      .toolApproval(session.id, toolName, input, snapshot.getPermissionMode(), opts.signal)
     const approvalHoldsInThisMode =
       !!skillApproval ||
       policy?.approval === 'delegation' ||
@@ -620,8 +620,8 @@ async function buildToolPermissions(
         resolve: (decision) => {
           if (decision.approved && skillApproval) {
             try {
-              skillApproval.validate()
               if (decision.updatedInput) throw new Error('Retry the edited call for a new skill approval.')
+              decision = { ...decision, updatedInput: skillApproval.approve() }
             } catch (error) {
               resolve({ behavior: 'deny', message: error instanceof Error ? error.message : String(error) })
               return

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
 import { application } from '@application'
@@ -27,10 +27,15 @@ type SkillSession = {
   abort: AbortController
   skills: Map<string, HeldSkill>
   loadTargets: Map<string, { fingerprint: string; abort: AbortController }>
+  loadApprovals: Map<
+    string,
+    { serverId: string; uri: string; signal: AbortSignal; validate: () => void; dispose: () => void }
+  >
   loads: Map<string, Promise<{ entry: McpSkillEntry; content: McpResource }>>
 }
 
 const fingerprintOf = (serverKey: string) => createHash('sha256').update(serverKey).digest('hex')
+const loadApprovalInput = '__cherry_mcp_skill_approval'
 const keyOf = (serverId: string, uri: string) => JSON.stringify([serverId, uri])
 const manifestOf = (entry: McpSkillEntry) => ({
   frontmatter: entry.frontmatter,
@@ -125,7 +130,8 @@ export class McpSkillService extends BaseService {
       abort: new AbortController(),
       skills: new Map(),
       loads: new Map(),
-      loadTargets: new Map()
+      loadTargets: new Map(),
+      loadApprovals: new Map()
     }
     for (const context of agentSessionMessageService.listMcpSkills(sessionId)) {
       const entry = McpSkillEntrySchema.parse(context)
@@ -264,6 +270,31 @@ export class McpSkillService extends BaseService {
     }
   }
 
+  async loadFromTool(
+    sessionId: string,
+    input: { server_id: string; skill_uri: string; [key: string]: unknown },
+    signal: AbortSignal
+  ) {
+    const session = this.session(sessionId)
+    const token = input[loadApprovalInput]
+    if (
+      token === undefined &&
+      agentService.getAgent(session.agentId)?.configuration?.permission_mode === 'bypassPermissions'
+    )
+      return this.load(sessionId, input.server_id, input.skill_uri, signal)
+    const approval = typeof token === 'string' ? session.loadApprovals.get(token) : undefined
+    if (!approval) throw new Error(t('mcp.skills.changed'))
+    approval.dispose()
+    if (approval.serverId !== input.server_id || approval.uri !== input.skill_uri)
+      throw new Error(t('mcp.skills.changed'))
+    approval.validate()
+    const requestSignal = AbortSignal.any([signal, approval.signal])
+    requestSignal.throwIfAborted()
+    const result = await this.load(sessionId, input.server_id, input.skill_uri, requestSignal)
+    requestSignal.throwIfAborted()
+    return result
+  }
+
   private async loadOnce(sessionId: string, serverId: string, uri: string, signal?: AbortSignal) {
     const session = this.session(sessionId)
     const requestSignal = AbortSignal.any([session.abort.signal, ...(signal ? [signal] : [])])
@@ -372,7 +403,8 @@ export class McpSkillService extends BaseService {
     sessionId: string,
     toolName: string,
     input: Record<string, unknown>,
-    permissionMode?: AgentPermissionMode
+    permissionMode?: AgentPermissionMode,
+    requestSignal?: AbortSignal
   ) {
     if (permissionMode === 'bypassPermissions') return undefined
     const session = this.sessions.get(sessionId)
@@ -395,7 +427,8 @@ export class McpSkillService extends BaseService {
     const signal = AbortSignal.any([
       session.abort.signal,
       ...active.map((held) => held.abort.signal),
-      ...(target ? [target.abort.signal] : [])
+      ...(target ? [target.abort.signal] : []),
+      ...(requestSignal ? [requestSignal] : [])
     ])
     const validate = () => {
       signal.throwIfAborted()
@@ -413,7 +446,19 @@ export class McpSkillService extends BaseService {
     validate()
     return {
       signal,
-      validate
+      validate,
+      approve: () => {
+        validate()
+        if (!targetId || typeof input.skill_uri !== 'string') return { ...input }
+        const token = randomUUID()
+        const dispose = () => {
+          session.loadApprovals.delete(token)
+          signal.removeEventListener('abort', dispose)
+        }
+        session.loadApprovals.set(token, { serverId: targetId, uri: input.skill_uri, signal, validate, dispose })
+        signal.addEventListener('abort', dispose, { once: true })
+        return { ...input, [loadApprovalInput]: token }
+      }
     }
   }
 
