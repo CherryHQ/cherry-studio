@@ -743,8 +743,8 @@ const boot = () => {
   // The runner must be a member before the shell is created — membership is inherited at creation
   // and never retroactively — so the command waits for the keeper to report the job held. The first
   // PowerShell on a machine compiles the keeper type, and anti-malware can make that cold start
-  // slow; the wait is bounded, not short.
-  const deadline = Date.now() + 25000
+  // slow; a loaded CI runner has already pushed it past 25s, so the wait is long but bounded.
+  const deadline = Date.now() + 90000
   const waitForJob = () => {
     if (started) return
     // A failed spawn or an exited keeper is decided by its own handler: starting here would strip
