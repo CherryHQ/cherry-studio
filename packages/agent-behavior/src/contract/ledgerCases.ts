@@ -220,7 +220,7 @@ export const ledgerCases: readonly ContractCase[] = [
     }
   },
   // Catches child usage taken from tool results or a stale running flag, which double-bills or mis-counts slots (R3, S-e),
-  // or a stale or wrong lastItem, which would fork a continuation from the wrong point (S-j).
+  // or a stale or wrong lastItem, which would fork a child from the wrong point.
   {
     name: 'children report running and per-run usage from their own entries',
     covers: ['ledger.read', 'helpers.message', 'helpers.awaitAnswer'],

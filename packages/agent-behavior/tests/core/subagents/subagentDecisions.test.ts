@@ -15,7 +15,7 @@ import {
   decideUserStopSubagent,
   reportTarget
 } from '../../../src/core/subagents/subagentDecisions'
-import { continuedText, TURN_STOPPED } from '../../../src/core/subagents/subagentText'
+import { TURN_STOPPED } from '../../../src/core/subagents/subagentText'
 import {
   apply,
   assistant,
@@ -139,7 +139,7 @@ describe('spawning', () => {
 
 describe('messaging and stopping', () => {
   const live = { children: { a: { running: true, runUsage: [usage(0)] } } }
-  const message = (history: HistoryEntry[], options: FactsOptions = {}) =>
+  const message = (history: HistoryEntry[], options: FactsOptions = { children: { a: {} } }) =>
     decideMessage(facts(history, options), inputs({ args: { id: 'a', message: 'more' } }), k)
 
   // Catches a message to a running child starting a second run, or a finished background child not continuing in
@@ -151,7 +151,7 @@ describe('messaging and stopping', () => {
     })
     const interrupted = [runEntry(run('a', { status: 'finished', outcome: 'interrupted' }))]
     const continued = message(interrupted)
-    expect(continued.result).toMatchObject({ kind: 'continued', from: 'a', child: 'a', run: 2 })
+    expect(continued.result).toMatchObject({ kind: 'continued', child: 'a', run: 2 })
     expect(continued.ops).toMatchObject([
       { type: 'append-record', record: { value: { run: 2, background: true, status: 'running' } } },
       {
@@ -201,27 +201,47 @@ describe('messaging and stopping', () => {
     })
   })
 
-  // Catches a finished foreground child continued inside the tool call that owned it (S-j, AC10): it is forked from its
-  // whole history into a new background child, and a rerun finds that child instead of forking again.
-  it('forks a finished foreground child into a new background child', () => {
+  // Catches ordinary continuation replacing the child's identity or resetting its run number; replay starts no extra run.
+  it('continues a finished foreground child in place as its next background run', () => {
     const finished = [runEntry(run('a', { status: 'finished', outcome: 'completed', background: false, fork: false }))]
-    const forked = message(finished, { children: { a: { lastItem: 'a-9' as never } } })
-    expect(forked.ops).toMatchObject([
+    const continued = message(finished)
+    expect(continued.ops).toMatchObject([
       {
-        type: 'spawn-child',
+        type: 'append-record',
         key: 'subagent-continue:k1',
-        spec: { boundary: 'background', fork: { from: 'a', at: 'a-9' }, record: { background: true, run: 1 } }
+        record: { type: 'subagent-run', value: { sessionId: 'a', background: true, run: 2, status: 'running' } }
       },
       {
         type: 'ensure-job',
-        key: 'subagent-report:subagent-continue:k1',
-        job: { input: { runKey: 'subagent-continue:k1', run: 1 } }
+        key: 'subagent-report:subagent-msg:a:2',
+        job: { input: { child: 'a', runKey: 'subagent-msg:a:2', run: 2, text: 'more' } }
       }
     ])
-    expect(forked.result).toEqual({ kind: 'continued', from: 'a', key: 'subagent-continue:k1', run: 1 })
-    const after = apply(finished, forked, ['b'])
-    expect(message(after)).toMatchObject({ ops: [], result: { kind: 'continued', from: 'a', child: 'b', run: 1 } })
-    expect(continuedText('a', 'b')).toContain('use id b from now on')
+    expect(continued.result).toMatchObject({ kind: 'continued', child: 'a', run: 2 })
+    expect(message(apply(finished, continued))).toMatchObject({
+      ops: [],
+      result: { kind: 'continued', child: 'a', run: 2 }
+    })
+  })
+
+  // Catches a stored run record being mistaken for an available native child, leaving an unstartable run and report job.
+  it.each([false, true])('refuses continuation when the child is unavailable (background: %s)', (background) => {
+    const finished = [runEntry(run('a', { status: 'finished', outcome: 'completed', background }))]
+    expect(message(finished, { children: {} })).toEqual({
+      ops: [],
+      effects: [],
+      result: { kind: 'refused', text: 'Subagent a cannot be continued: its history is not available.' }
+    })
+  })
+
+  // Catches message and stop routing to another child merely because it shares the originating tool call.
+  it('messages and stops the named child when two children share a tool origin', () => {
+    const history = [runEntry(run('a')), runEntry(run('b', { parentToolCallId: 'call-a' }))]
+    const options = { children: { ...live.children, b: { running: true, runUsage: [usage(0)] } } }
+    expect(message(history, options).effects).toMatchObject([{ type: 'message-child', child: 'a', run: 1 }])
+    expect(decideStop(facts(history, options), inputs({ args: { id: 'a' } })).effects).toEqual([
+      { type: 'stop-child', child: 'a', run: 1 }
+    ])
   })
 
   // Catches continuing a child the user stopped (agent-runtime-pi README subagents), or stop_subagent on a finished
