@@ -114,10 +114,15 @@ export class ChannelAdapterListener implements StreamListener {
     return text
   }
 
-  private completeStream(text: string, status: 'success' | 'paused'): Promise<boolean> {
-    const complete = this.updateChain.then(() =>
-      this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
-    )
+  private completeStream(text: string, status: 'success' | 'paused'): Promise<void> {
+    // The fallback send is part of the same terminal: Telegram splits a long answer into parts, and
+    // a wake that reused this listener must queue behind all of them, not land between two.
+    const complete = this.updateChain.then(async () => {
+      const handled = await this.adapter.onStreamComplete(this.platformChatId, text, this.responseOptions, { status })
+      if (!handled && text) {
+        await this.deliver(status === 'paused' ? `${text}\n\n_(${t('common.channel_stopped')})_` : text)
+      }
+    })
     this.updateChain = complete.catch(() => undefined)
     return complete
   }
@@ -210,10 +215,7 @@ export class ChannelAdapterListener implements StreamListener {
     this.delivered = true
     if (attemptId !== undefined) this.deliveredAttempts.add(attemptId)
     try {
-      const handled = await this.completeStream(text, status)
-      if (!handled && text) {
-        await this.deliver(status === 'paused' ? `${text}\n\n_(${t('common.channel_stopped')})_` : text)
-      }
+      await this.completeStream(text, status)
     } catch (err) {
       logger.error('Failed to deliver terminal message to channel', {
         channelId: this.adapter.channelId,
@@ -244,17 +246,15 @@ export class ChannelAdapterListener implements StreamListener {
     const error = sanitizeChannelOutput(result.error.message ?? t('common.channel_message_processing_error')).text
     // Append the terminal to the chain like `completeStream` does: a wake reusing this listener
     // while the error card is still being written must queue behind it, not overwrite it.
-    const terminal = this.updateChain.then(() =>
-      this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
+    const terminal = this.updateChain.then(async () => {
+      const handled = await this.adapter.onStreamError(this.platformChatId, error, this.responseOptions, {
         suppressDelivery: suppress
       })
-    )
+      if (!handled && !suppress) await this.deliver(t('common.channel_error', { error }))
+    })
     this.updateChain = terminal.catch(() => undefined)
     try {
-      const handled = await terminal
-      if (!handled && !suppress) {
-        await this.deliver(t('common.channel_error', { error }))
-      }
+      await terminal
     } catch (err) {
       logger.error('Failed to deliver error to channel', {
         channelId: this.adapter.channelId,

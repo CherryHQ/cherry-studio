@@ -652,6 +652,47 @@ describe('ChannelAdapterListener', () => {
     expect(order.indexOf('error:foreground boom')).toBeLessThan(order.indexOf('update:wake result'))
   })
 
+  // Telegram splits a long answer across several sends. The fallback send runs when the adapter
+  // declines the terminal, and it must stay inside the chain: a wake reusing this listener while
+  // the first part is in flight otherwise lands its reply between the foreground's parts.
+  it('keeps a wake out from between the parts of a fallback terminal send', async () => {
+    const events: string[] = []
+    let releaseSecondPart!: () => void
+    const secondPartGate = new Promise<void>((resolve) => {
+      releaseSecondPart = resolve
+    })
+    const adapter = makeAdapter({
+      onStreamComplete: vi.fn().mockResolvedValue(false),
+      sendMessage: vi.fn(async () => {
+        events.push('fg:part1')
+        await secondPartGate
+        events.push('fg:part2')
+      }),
+      onTextUpdate: vi.fn(async (_chatId: string, text: string) => {
+        events.push(`update:${text}`)
+      })
+    })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('foreground answer'), undefined, undefined, 1)
+    await flushLiveUpdate()
+    const done = listener.onDone({ status: 'success', isTopicDone: true, attemptId: 1 })
+    await vi.waitFor(() => expect(events).toContain('fg:part1'))
+
+    // A background wake reuses the carried listener while the multipart send is still parked.
+    listener.onChunk(delta('wake report'), undefined, undefined, 2)
+    await flushLiveUpdate()
+    await flushLiveUpdate()
+    expect(events).not.toContain('update:wake report')
+
+    releaseSecondPart()
+    await done
+    await flushLiveUpdate()
+
+    expect(events.indexOf('fg:part1')).toBeLessThan(events.indexOf('fg:part2'))
+    expect(events.indexOf('update:wake report')).toBeGreaterThan(events.indexOf('fg:part2'))
+  })
+
   it('keeps two channel listeners’ terminal text separate when the first finalizes slowly', async () => {
     const firstText: string[] = []
     const secondText: string[] = []
