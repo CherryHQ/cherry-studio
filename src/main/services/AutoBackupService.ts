@@ -345,18 +345,11 @@ export class AutoBackupService extends BaseService {
       return false
     }
 
-    // The offset changed under the pending target, which now names a different instant.
+    // The offset changed under the pending target, so the date it named belongs to the previous
+    // zone: run it late when the reconverted instant has already passed, otherwise take the
+    // earliest slot on the current local grid (which westward can be today, not the stored date).
     if (!anchored || startMinute === null) return true
-    if (wallClockMatches) {
-      // Still a real wall clock: re-arm when it has moved later (westward), run it late when
-      // the new instant is already due (eastward change discovered after the slot passed).
-      if (recomputed > now) {
-        this.armAnchoredSchedule(type, generation, recomputed)
-        return false
-      }
-      return true
-    }
-    // A DST gap erased the stored wall clock; fall back to the next slot that exists.
+    if (wallClockMatches && recomputed <= now) return true
     const nextAt = nextAnchoredRun(now, startMinute, settings.intervalMinutes)
     if (nextAt <= now) return true
     this.armAnchoredSchedule(type, generation, nextAt)
