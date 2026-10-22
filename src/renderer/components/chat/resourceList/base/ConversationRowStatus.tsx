@@ -16,7 +16,7 @@ const CONVERSATION_ROW_APPROVAL_BADGE_CLASS =
 
 const CONVERSATION_ROW_STREAM_INDICATOR_CLASS =
   // A pinned rail stays expanded at rest, so the overlay steps left into the title's yield instead of sitting under the pin.
-  '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-[opacity,right] duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0 no-hover:opacity-100! group-has-[[data-resource-list-item-actions][data-pinned=true]]:right-7 no-hover:static no-hover:translate-y-0'
+  '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-[opacity,right] duration-150 group-hover:opacity-0 group-has-[[data-slot=hover-card-trigger][data-state=open]]:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0 no-hover:opacity-100! group-has-[[data-resource-list-item-actions][data-pinned=true]]:right-7 no-hover:static no-hover:translate-y-0'
 
 export function ConversationRowStatus({ status, testId }: ConversationRowStatusProps) {
   const { t } = useTranslation()
