@@ -659,6 +659,54 @@ describe('backgroundTasks', () => {
       }
     )
 
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps a force kill unresolved when a restart lost the liveness pipe',
+      async () => {
+        // After a restart no pipe survives, so a group kill cannot prove a setsid worker died with
+        // it. The record must stay unresolved rather than say stopped over a live survivor.
+        const pidFile = path.join(storageDir, 'restart-daemon.pid')
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command:
+            `python3 -c "import os,sys,time; os.setsid(); open(sys.argv[1],'w').write(str(os.getpid())); time.sleep(30)" "${pidFile}"` +
+            ` & sleep 0.5`,
+          cwd: storageDir
+        })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+
+          // A record read after a restart owns nothing in memory: same supervisor pid, fresh id.
+          const restarted = { ...record, id: 'bt-restarted', name: 'restarted' }
+          await writeFile(path.join(storageDir, 'bt-restarted.json'), JSON.stringify(restarted))
+
+          const afterKill = await stopDetachedBackgroundTask(storageDir, 'bt-restarted', true)
+          expect(afterKill?.status).not.toBe('stopped')
+          expect(afterKill?.terminationUnverified).toBe(true)
+          expect(isPidAlive(workerPid)).toBe(true)
+          // Destructive cleanup must keep refusing this record.
+          await expect(hasLiveTaskEvidence(storageDir, afterKill!)).resolves.toBe(true)
+        } finally {
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
     it.skipIf(process.platform === 'win32')(
       'finalizes a task whose group empties together with its shell',
       async () => {

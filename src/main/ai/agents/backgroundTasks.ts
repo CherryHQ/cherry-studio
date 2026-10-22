@@ -1238,6 +1238,9 @@ async function stopDetachedBackgroundTaskUnlocked(
     return undefined
   }
   const signal = force ? 'SIGKILL' : 'SIGTERM'
+  // Captured before the signal kills the supervisor: its own exit drops this entry, and a later
+  // read cannot tell an in-process task from one whose pipe a restart lost.
+  const ownedLiveness = process.platform === 'win32' ? undefined : ownedTaskGroups.get(record.id)?.liveness
   // Read after the identity check above, which can be the call that seeds the ownership the spawn
   // could not: this write is the record's only identity after a restart. Already under the lock.
   const pidStartTime = record.pidStartTime ?? recoveredLeaderStamp(record.id)
@@ -1308,8 +1311,16 @@ async function stopDetachedBackgroundTaskUnlocked(
   // A worker that called setsid() is not in the group the kill reaches, so an empty group says
   // nothing about it. The liveness pipe does: until it closes, the record must not claim stopped
   // or the survivor loses its tracking and its workspace is free to be erased underneath it.
-  if (process.platform !== 'win32' && !(await waitForLivenessClose(record.id))) {
-    return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+  if (process.platform !== 'win32') {
+    const liveness = await waitForLivenessClose(ownedLiveness)
+    if (liveness === 'open') return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+    if (liveness === 'unknown') {
+      // No pipe outlives a restart, so this kill cannot prove the whole tree died. Keep the record
+      // unresolved so a setsid survivor neither loses its tracking nor its workspace.
+      const unverified: BackgroundTaskRecord = { ...requested, terminationUnverified: true }
+      await writeRecord(storageDir, unverified)
+      return unverified
+    }
   }
   // On Windows the kill is only as good as taskkill's live-parent walk, which cannot reach a
   // worker past the shell that spawned it. Until the table proves nothing of the task is left,
@@ -1381,18 +1392,19 @@ function groupHasLiveMember(pgid: number): boolean {
 /**
  * Bounded wait for the task's liveness pipe to lose its last writer. The group signal cannot reach
  * a member that left the group through setsid(), so an empty group is not enough to certify a kill:
- * only the pipe closing proves the whole tree is gone. No ownership entry (after a restart) means
- * no pipe to wait on.
+ * only the pipe closing proves the whole tree is gone. A restart loses the pipe, so its absence is
+ * unverified — never proof that nothing survived the kill.
  */
-async function waitForLivenessClose(taskId: string): Promise<boolean> {
-  const owned = ownedTaskGroups.get(taskId)
-  if (!owned?.liveness) return true
+async function waitForLivenessClose(liveness: { open: boolean } | undefined): Promise<'closed' | 'open' | 'unknown'> {
+  // The handle is captured before the signal: the supervisor's own exit deletes its ownership
+  // entry during the drain wait, and a re-read there would call a live task a restart's.
+  if (!liveness) return 'unknown'
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
-  while (owned.liveness.open) {
-    if (Date.now() >= deadline) return false
+  while (liveness.open) {
+    if (Date.now() >= deadline) return 'open'
     await new Promise((resolve) => setTimeout(resolve, STOP_DRAIN_POLL_MS))
   }
-  return true
+  return 'closed'
 }
 
 /** A live member of a process group: its pid, its parent, and the start stamp identifying it. */
@@ -1458,6 +1470,8 @@ export async function hasLiveTaskEvidence(storageDir: string, record: Background
 
 export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   if (record.pid <= 0) return false
+  // A kill this app could not verify may have left a setsid survivor behind.
+  if (record.terminationUnverified) return true
   // Work that left the group (setsid) is live even when the leader and the group are gone: the
   // pipe still has a writer. Destructive cleanup must not read this task as finished.
   if (ownedTaskGroups.get(record.id)?.liveness?.open) return true
@@ -1826,6 +1840,9 @@ async function reconcileDetachedBackgroundTask(
   if (completion) {
     return { ...record, ...completion, status: completion.status }
   }
+  // A kill that could not be verified stays unresolved: folding it into a terminal status would
+  // let destructive cleanup erase the tracking and workspace of work that may still be running.
+  if (record.terminationUnverified) return record
   if (record.pid > 0 && isPidAlive(record.pid)) {
     const recycled = isRecycledPid(record) || (await hasReplacedWindowsRunner(storageDir, record, readTable))
     return recycled ? { ...record, status: 'unknown', note: t('background_task.note.gone_no_marker') } : record

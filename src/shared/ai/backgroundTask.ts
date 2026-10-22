@@ -18,5 +18,7 @@ export interface BackgroundTaskRecord {
   durationMs?: number
   stopRequestedAt?: string
   stopSignal?: string
+  /** A force kill whose termination this app could not verify; blocks destructive cleanup. */
+  terminationUnverified?: true
   note?: string
 }
