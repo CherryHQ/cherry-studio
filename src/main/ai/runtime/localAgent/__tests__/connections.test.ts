@@ -721,6 +721,13 @@ describe('local protocol processes', () => {
     toolApprovalRegistry.dispatch(approval.request.approvalId, { approved })
     await sending
     expect(text()).toContain(`"outcome":{"outcome":"${approved ? 'accepted' : 'rejected'}"}`)
+    expect(
+      events.flatMap((event) =>
+        event.type === 'chunk' && event.chunk.type === 'text-start'
+          ? [event.chunk.providerMetadata?.acp?.messageId]
+          : []
+      )
+    ).toEqual(['cursor-message', undefined, 'cursor-message'])
   })
 
   it.each(['cursor-question', 'cursor-plan'])('cancels %s on close without approval', async (scenario) => {

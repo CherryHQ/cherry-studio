@@ -56,6 +56,7 @@ type Terminal = {
 
 export class AcpConnection extends LocalConnection {
   private promptCapabilities: PromptCapabilities = {}
+  private messageId?: string
   readonly usageCapture: AgentSessionUsageCapture = {
     owner: 'agent-sdk',
     credentialReceipt: { attribution: 'auth', method: 'external-cli' },
@@ -329,7 +330,11 @@ export class AcpConnection extends LocalConnection {
       isActive: () => this.active && !this.abort.signal.aborted,
       signal: this.abort.signal,
       approve: (id, name, input, signal) => this.approve(id, name, input, signal),
-      text: (text) => this.content(text),
+      text: (text) => {
+        if (this.messageId !== undefined) this.endContent()
+        this.messageId = undefined
+        this.content(text)
+      },
       result: (id, output) => this.result(id, output)
     })
     this.connection = app.connect(
@@ -614,11 +619,23 @@ export class AcpConnection extends LocalConnection {
       this.active &&
       (update.sessionUpdate === 'agent_thought_chunk' || update.sessionUpdate === 'agent_message_chunk')
     ) {
+      const messageId = update.messageId ?? undefined
+      if (messageId !== this.messageId) this.endContent()
+      this.messageId = messageId
       const reasoning = update.sessionUpdate === 'agent_thought_chunk'
-      if (update.content.type === 'text') this.content(update.content.text, reasoning ? 'reasoning' : 'text')
+      if (update.content.type === 'text')
+        this.content(
+          update.content.text,
+          reasoning ? 'reasoning' : 'text',
+          messageId !== undefined ? { acp: { messageId } } : undefined
+        )
       else {
         this.endContent()
-        this.chunk({ type: 'data-acp-content', id: randomUUID(), data: { content: update.content, reasoning } })
+        this.chunk({
+          type: 'data-acp-content',
+          id: randomUUID(),
+          data: { content: update.content, reasoning, ...(messageId !== undefined ? { messageId } : {}) }
+        })
       }
     }
     if (update.sessionUpdate === 'plan' && this.active) {

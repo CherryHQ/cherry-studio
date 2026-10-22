@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { FinishReason, UIMessageChunk } from 'ai'
 
 import { agentService } from '@data/services/AgentService'
@@ -91,12 +92,12 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     if (this.contentPart) this.chunk({ type: `${this.contentPart.type}-end`, id: this.contentPart.id })
     this.contentPart = undefined
   }
-  protected content(delta: string, type: 'text' | 'reasoning' = 'text') {
+  protected content(delta: string, type: 'text' | 'reasoning' = 'text', providerMetadata?: SharedV3ProviderMetadata) {
     if (!this.active || !delta) return
     if (this.contentPart?.type !== type) {
       this.endContent()
       this.contentPart = { type, id: randomUUID() }
-      this.chunk({ type: `${type}-start`, id: this.contentPart.id })
+      this.chunk({ type: `${type}-start`, id: this.contentPart.id, ...(providerMetadata ? { providerMetadata } : {}) })
     }
     this.chunk({ type: `${type}-delta`, id: this.contentPart.id, delta })
   }

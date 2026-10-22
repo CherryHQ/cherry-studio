@@ -186,7 +186,13 @@ the controls, and failed requests preserve the last confirmed value. Modes remai
 session-owned and do not change Cherry's permission policy or the global Agent.
 
 ACP thought chunks become ordinary reasoning parts, closing at text/tool/plan
-boundaries and turn completion. Plans use a dedicated `data-agent-plan` message
+boundaries, native message ID changes and turn completion. Text and reasoning
+parts retain an optional native `messageId` in `providerMetadata.acp.messageId`;
+other ACP content retains it in `data-acp-content.data.messageId`. Missing or null
+IDs do not inherit a preceding ID. A native message can span several parts, while
+Cherry message UUIDs and the existing JSON storage remain unchanged. Native IDs
+are attribution, not global deduplication or replay keys.
+Plans use a dedicated `data-agent-plan` message
 part; full snapshots replace the same per-turn part and reuse the task-list view.
 They are not synthetic tool calls. Loading native history suppresses both thoughts
 and plans to avoid duplicating Cherry's persisted transcript.

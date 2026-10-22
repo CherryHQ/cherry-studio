@@ -17,7 +17,11 @@ const requestClient = (method, params) =>
   })
 const text = (value) =>
   protocol === 'acp'
-    ? update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: value } })
+    ? update({
+        sessionUpdate: 'agent_message_chunk',
+        ...(scenario === 'cursor-plan' ? { messageId: 'cursor-message' } : {}),
+        content: { type: 'text', text: value }
+      })
     : emit({
         method: 'item/agentMessage/delta',
         params: { threadId: 'native-session', itemId: 'answer', delta: value }
@@ -547,6 +551,29 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       update({ sessionUpdate: 'session_info_update', title: 'Native updated title' })
       update({ sessionUpdate: 'session_info_update', title: null })
       update({ sessionUpdate: 'session_info_update', updatedAt: '2026-09-30T00:00:00Z' })
+    }
+    if (scenario === 'message-ids') {
+      const content = (sessionUpdate, messageId, value) => update({ sessionUpdate, messageId, content: value })
+      const chunk = (messageId, text) => content('agent_message_chunk', messageId, { type: 'text', text })
+      content('agent_thought_chunk', 'thought', { type: 'text', text: 'Think' })
+      content('agent_thought_chunk', 'thought', { type: 'text', text: ' carefully' })
+      chunk('native:id/中文 1', 'First')
+      update({ sessionUpdate: 'usage_update', used: 10, size: 100 })
+      chunk('native:id/中文 1', ' message')
+      chunk('second', 'Second message')
+      chunk('third', '')
+      chunk('third', 'Third message')
+      update({ sessionUpdate: 'tool_call', toolCallId: 'read', title: 'Read', status: 'completed' })
+      chunk('third', 'After tool')
+      content('agent_message_chunk', 'third', { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' })
+      content('agent_thought_chunk', 'thought-image', { type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' })
+      chunk(undefined, 'Legacy')
+      chunk(null, ' response')
+      chunk('third', 'Tagged again')
+      chunk(undefined, 'Final without ID')
+      content('agent_message_chunk', undefined, { type: 'resource_link', uri: 'file:///example.txt', name: 'Result' })
+      finish()
+      return
     }
     text(`turn ${turn}: `)
     if (scenario === 'rich-cancel' || scenario === 'close-active') {
