@@ -163,6 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@aiany/sqlite-vec-linux-x64': npm:sqlite-vec-linux-x64@0.1.9
   '@earendil-works/pi-ai@1.0.0>@google/genai': 2.23.0
   picomatch: 4.0.4
   concurrently>shell-quote: 1.8.4
@@ -225,7 +226,7 @@ patchedDependencies:
   '@ai-sdk/anthropic': b463d924d4601388f4617f16ba1bf8c69c5ea486fcb572bb3bc2fb7442c8e575
   '@ai-sdk/google@3.0.132': 0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821
   '@ai-sdk/open-responses@1.0.34': 83f5f29fe22a32569d6255265c8ebd3420fabe87e392c751590c8f4c06dab366
-  '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
+  '@ai-sdk/openai-compatible@2.0.72': c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771
   '@ai-sdk/openai@3.0.109': 5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
   '@aiden0z/pptx-renderer@1.2.2': cef8fdac29413f0b6e59df97fe5c874f536c1bc064d77aa88f7d5028f78a6329
@@ -244,7 +245,7 @@ patchedDependencies:
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   bonjour-service@1.3.0: ce76684812d05a0ac063923cfea7b96c9281e5ac059b6684fd8f13675aaa4d49
   dingtalk-stream@2.1.7-beta.1: b81b5999ab52fb82bc76c6c7599eb74137cf8c6304b84aa5e8d3c3c562049172
-  docx-preview@0.3.7: d30b0b8d883838e98a8c1b7bd36ee5c68369e065be35545122ccd202bb9ffd1f
+  docx-preview@0.3.7: 2a780ab6775f1223fd4fb6f344769f949bdf72d851058935b3f34e59b25cfabb
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
@@ -252,6 +253,7 @@ patchedDependencies:
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
+  rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
   streamdown@2.5.0: e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
@@ -266,6 +268,9 @@ importers:
       '@cherrystudio/computer-use':
         specifier: 0.1.9
         version: 0.1.9
+      '@cherrystudio/mlx-asr':
+        specifier: github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr
+        version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
@@ -381,8 +386,8 @@ importers:
         specifier: 1.16.1
         version: 1.16.1
       selection-hook:
-        specifier: 2.1.1
-        version: 2.1.1
+        specifier: 2.1.2
+        version: 2.1.2
       sharp:
         specifier: 0.35.3
         version: 0.35.3(@types/node@24.10.4)
@@ -464,7 +469,7 @@ importers:
         version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.72
-        version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+        version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/perplexity':
         specifier: ^3.0.29
         version: 3.0.29(zod@4.4.3)
@@ -572,10 +577,10 @@ importers:
         version: 3.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       '@electron-toolkit/preload':
         specifier: ^3.0.0
-        version: 3.0.2(electron@44.4.4(supports-color@8.1.1))
+        version: 3.0.2(electron@44.9.3(supports-color@8.1.1))
       '@electron-toolkit/utils':
         specifier: ^3.0.0
-        version: 3.0.0(electron@44.4.4(supports-color@8.1.1))
+        version: 3.0.0(electron@44.9.3(supports-color@8.1.1))
       '@electron/asar':
         specifier: 3.4.1
         version: 3.4.1
@@ -1039,8 +1044,8 @@ importers:
         specifier: ^6.1.0
         version: 6.1.0
       electron:
-        specifier: 44.4.4
-        version: 44.4.4(supports-color@8.1.1)
+        specifier: 44.9.3
+        version: 44.9.3(supports-color@8.1.1)
       electron-builder:
         specifier: 26.15.6
         version: 26.15.6(electron-builder-squirrel-windows@26.15.6)(supports-color@8.1.1)
@@ -1469,8 +1474,8 @@ importers:
         specifier: 0.1.10-alpha.4.aiany.2
         version: 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-linux-x64':
-        specifier: 0.1.10-alpha.4.aiany.2
-        version: 0.1.10-alpha.4.aiany.2
+        specifier: npm:sqlite-vec-linux-x64@0.1.9
+        version: sqlite-vec-linux-x64@0.1.9
       '@aiany/sqlite-vec-windows-arm64':
         specifier: 0.1.10-alpha.4.aiany.2
         version: 0.1.10-alpha.4.aiany.2
@@ -1641,7 +1646,7 @@ importers:
         version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
-        version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+        version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider':
         specifier: 3.0.18
         version: 3.0.18
@@ -1678,7 +1683,7 @@ importers:
         version: 3.0.109(patch_hash=5f9e13ebd31194840619c56ab3cae8a89c2ccd2c1f24bcfb8e16b0dd0e1dded6)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
-        version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+        version: 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider':
         specifier: 3.0.18
         version: 3.0.18
@@ -1776,7 +1781,7 @@ importers:
         version: 19.2.3(@types/react@19.2.7)
       docx-preview:
         specifier: 0.3.7
-        version: 0.3.7(patch_hash=d30b0b8d883838e98a8c1b7bd36ee5c68369e065be35545122ccd202bb9ffd1f)
+        version: 0.3.7(patch_hash=2a780ab6775f1223fd4fb6f344769f949bdf72d851058935b3f34e59b25cfabb)
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
@@ -1816,6 +1821,9 @@ importers:
       rolldown-plugin-dts:
         specifier: 0.27.14
         version: 0.27.14(oxc-resolver@11.21.2)(rolldown@1.2.6)(typescript@5.9.3)
+      rtf.js:
+        specifier: 3.0.9
+        version: 3.0.9(patch_hash=8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -2367,11 +2375,6 @@ packages:
   '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2':
     resolution: {integrity: sha512-pT0hJnscNnjVWHdTWMv3npjkzteORzmb1HwM6gmN4pGpwdgKy/sqxb4rRszmSvAtEjd1NoZnkjw6AfAoGD6Jug==}
     cpu: [arm64]
-    os: [linux]
-
-  '@aiany/sqlite-vec-linux-x64@0.1.10-alpha.4.aiany.2':
-    resolution: {integrity: sha512-6nZtJNrA0F8Df4eM+6vRQzKVqjTnqvhqFPAMEJv5viw/Dwc9kqOSIDCighclkS4T4je+zRZjofBSqL6cR3TL7w==}
-    cpu: [x64]
     os: [linux]
 
   '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2':
@@ -2970,6 +2973,10 @@ packages:
   '@cherrystudio/computer-use@0.1.9':
     resolution: {integrity: sha512-CNZqlyYOdr9Rl+SSygMuV9EZOomlrualFl5AYzTYJDkj4lbu8ro95bJlEiG/ZSgD1HnKZfbUc3ucj2L/ck6C+w==}
     engines: {node: '>=24'}
+
+  '@cherrystudio/mlx-asr@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr':
+    resolution: {gitHosted: true, integrity: sha512-oUswcywFB8j5sfDyKfn+QICE4ax0mwE/VgsN22if1ipkd8nsQ2FOyq3C3kzlZjMUjqgUgyPktyhCsceWhLaaKA==, path: distribution/asr, tarball: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac}
+    version: 0.0.16-cherry.1
 
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts':
     resolution: {commit: f4c21043f557965345b527bc04179ad26d08378f, path: distribution/tts, repo: https://github.com/CherryHQ/mlx-node.git, type: git}
@@ -9394,6 +9401,10 @@ packages:
   codemirror@6.0.2:
     resolution: {integrity: sha512-VhydHotNW5w1UGK0Qj96BwSk/Zqbp9WbnyK2W/eVMv4QyF41INRGpjUhFJY7/uDNuudSc33a/PKr4iDqRduvHw==}
 
+  codepage@1.15.0:
+    resolution: {integrity: sha512-3g6NUTPd/YtuuGrhMnOMRjFc+LJw/bnMp3+0r/Wcz3IXUuCosKRJvMphm5+Q+bvTVGcJJuRvVLuYba+WojaFaA==}
+    engines: {node: '>=0.8'}
+
   collapse-white-space@2.1.0:
     resolution: {integrity: sha512-loKTxY1zCOuG4j9f6EPnuyyYkf58RnhhWTvRoZEokgB+WbdXehfjFviyOVYkqzEWz1Q5kRiZdBYS5SwxbQYwzw==}
 
@@ -10250,8 +10261,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.4.4:
-    resolution: {integrity: sha512-UNi4cRJf9VEDHp8nRIQ+xsPz4AKnluMmxB5D3r7z/2XoG08IrtwGFEhqCub19RCFjM+dKTkMeI93ZqXdvw+JSQ==}
+  electron@44.9.3:
+    resolution: {integrity: sha512-Cv9/yMnZxNWsMlIe8T4v//NKHdUvbeyoTJoXE3BIcRxus2meeFaO9h/P3zB5d4cBXum51IgAYrT2QjpIDWKpJA==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -14104,6 +14115,9 @@ packages:
   rrweb-cssom@0.8.0:
     resolution: {integrity: sha512-guoltQEx+9aMf2gDZ0s62EcV8lsXR+0w8915TC3ITdn2YueuNjdAYh/levpU9nFaoChh9RUS5ZdQMrKfVEN9tw==}
 
+  rtf.js@3.0.9:
+    resolution: {integrity: sha512-I1GpDat4i548WzmeZXv27f/743984fvEeeBS8BC01/Sop17pMlUl3M7DYcdcB3PUvOZTrFIMxGZx8qw7cSMAKQ==}
+
   run-applescript@7.1.0:
     resolution: {integrity: sha512-DPe5pVFaAsinSaV6QjQ6gdiedWDcRCbUuiQfQa2wmWV7+xC9bGulGI8+TdRmoFkAPaBXk8CrAbnlY2ISniJ47Q==}
     engines: {node: '>=18'}
@@ -14166,8 +14180,8 @@ packages:
   selderee@0.11.0:
     resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
 
-  selection-hook@2.1.1:
-    resolution: {integrity: sha512-8ZqU2ModYR7Ji2s/T4GUgxBeZw2oeOJZeYMyMT6kxZUPkJUD193kGLIF1mxqlV6pYSmo0CBGi9mW8468PsMuYA==}
+  selection-hook@2.1.2:
+    resolution: {integrity: sha512-eNPQzL+OFf4WUXApxpXiplTUicL5MAtxm3yXi6dIRY8VUZ+2vuXHnlFBSQ/LXAe8hXewMM91SWK+YjU06ZbZVg==}
     engines: {node: '>=18.0.0'}
 
   semver-compare@1.0.0:
@@ -14400,6 +14414,11 @@ packages:
 
   sprintf-js@1.1.3:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
+
+  sqlite-vec-linux-x64@0.1.9:
+    resolution: {integrity: sha512-w3tCH8xK2finW8fQJ/m8uqKodXUZ9KAuAar2UIhz4BHILfpE0WM/MTGCRfa7RjYbrYim5Luk3guvMOGI7T7JQA==}
+    cpu: [x64]
+    os: [linux]
 
   srvx@0.11.16:
     resolution: {integrity: sha512-bp07zRuycfTY43IjAvvTFnmnJi8ikW0VFiHwOhhYcVW/L4xQ1XY4PAd4Nuum1rsA17C39zL7x+CDhrn5AL32Rw==}
@@ -15777,7 +15796,7 @@ snapshots:
 
   '@ai-sdk/cerebras@2.0.78(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
@@ -15811,7 +15830,7 @@ snapshots:
     dependencies:
       '@ai-sdk/anthropic': 3.0.125(patch_hash=b463d924d4601388f4617f16ba1bf8c69c5ea486fcb572bb3bc2fb7442c8e575)(zod@4.4.3)
       '@ai-sdk/google': 3.0.132(patch_hash=0f7a4832e8029104102bcfd399e7f889c9f272f6a6812f752749b4688f749821)(zod@4.4.3)
-      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       google-auth-library: 10.6.2(supports-color@8.1.1)
@@ -15833,7 +15852,7 @@ snapshots:
 
   '@ai-sdk/huggingface@1.0.74(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
@@ -15850,7 +15869,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai-compatible@2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)':
+  '@ai-sdk/openai-compatible@2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
@@ -15899,14 +15918,14 @@ snapshots:
 
   '@ai-sdk/togetherai@2.0.78(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
 
   '@ai-sdk/xai@3.0.126(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
       zod: 4.4.3
@@ -15920,9 +15939,6 @@ snapshots:
   '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2':
     optional: true
 
-  '@aiany/sqlite-vec-linux-x64@0.1.10-alpha.4.aiany.2':
-    optional: true
-
   '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2':
     optional: true
 
@@ -15934,7 +15950,7 @@ snapshots:
       '@aiany/sqlite-vec-darwin-arm64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-darwin-x64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-linux-arm64': 0.1.10-alpha.4.aiany.2
-      '@aiany/sqlite-vec-linux-x64': 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-linux-x64': sqlite-vec-linux-x64@0.1.9
       '@aiany/sqlite-vec-windows-arm64': 0.1.10-alpha.4.aiany.2
       '@aiany/sqlite-vec-windows-x64': 0.1.10-alpha.4.aiany.2
 
@@ -16988,6 +17004,8 @@ snapshots:
       '@cherrystudio/computer-use-win32-arm64': 0.1.9
       '@cherrystudio/computer-use-win32-x64': 0.1.9
 
+  '@cherrystudio/mlx-asr@https://codeload.github.com/CherryHQ/mlx-node/tar.gz/ad3bf3ec3a141ec06fb8f73933685b1420ed09ac#path:distribution/asr': {}
+
   '@cherrystudio/mlx-tts@git+https://github.com/CherryHQ/mlx-node.git#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts': {}
 
   '@cherrystudio/openai@6.15.0(ws@8.21.3)(zod@4.4.3)':
@@ -17440,13 +17458,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@44.4.4(supports-color@8.1.1))':
+  '@electron-toolkit/preload@3.0.2(electron@44.9.3(supports-color@8.1.1))':
     dependencies:
-      electron: 44.4.4(supports-color@8.1.1)
+      electron: 44.9.3(supports-color@8.1.1)
 
-  '@electron-toolkit/utils@3.0.0(electron@44.4.4(supports-color@8.1.1))':
+  '@electron-toolkit/utils@3.0.0(electron@44.9.3(supports-color@8.1.1))':
     dependencies:
-      electron: 44.4.4(supports-color@8.1.1)
+      electron: 44.9.3(supports-color@8.1.1)
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -19130,7 +19148,7 @@ snapshots:
 
   '@opeoginni/github-copilot-openai-compatible@1.0.0(patch_hash=e0be38439b76d1d8d7966c0f789373ed393adba22bd9b0ff333898c0c8223301)(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
+      '@ai-sdk/openai-compatible': 2.0.72(patch_hash=c06be46e8512764ce8def5a392570a772f237774598cfff51631f7f6d7b8b771)(zod@4.4.3)
       '@ai-sdk/provider': 3.0.18
       '@ai-sdk/provider-utils': 4.0.58(zod@4.4.3)
     transitivePeerDependencies:
@@ -23872,6 +23890,8 @@ snapshots:
       '@codemirror/state': 6.5.4
       '@codemirror/view': 6.39.16
 
+  codepage@1.15.0: {}
+
   collapse-white-space@2.1.0: {}
 
   color-convert@2.0.1:
@@ -24507,7 +24527,7 @@ snapshots:
     dependencies:
       esutils: 2.0.3
 
-  docx-preview@0.3.7(patch_hash=d30b0b8d883838e98a8c1b7bd36ee5c68369e065be35545122ccd202bb9ffd1f):
+  docx-preview@0.3.7(patch_hash=2a780ab6775f1223fd4fb6f344769f949bdf72d851058935b3f34e59b25cfabb):
     dependencies:
       jszip: 3.10.1
 
@@ -24736,7 +24756,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@44.4.4(supports-color@8.1.1):
+  electron@44.9.3(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.3
       '@electron/get': 5.0.0(supports-color@8.1.1)
@@ -29476,6 +29496,10 @@ snapshots:
 
   rrweb-cssom@0.8.0: {}
 
+  rtf.js@3.0.9(patch_hash=8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24):
+    dependencies:
+      codepage: 1.15.0
+
   run-applescript@7.1.0: {}
 
   run-async@4.0.6: {}
@@ -29527,7 +29551,7 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  selection-hook@2.1.1:
+  selection-hook@2.1.2:
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4
@@ -29787,6 +29811,9 @@ snapshots:
   sprintf-js@1.0.3: {}
 
   sprintf-js@1.1.3:
+    optional: true
+
+  sqlite-vec-linux-x64@0.1.9:
     optional: true
 
   srvx@0.11.16: {}
