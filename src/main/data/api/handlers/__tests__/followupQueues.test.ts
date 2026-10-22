@@ -126,7 +126,7 @@ describe('followupQueueHandlers', () => {
 
     it('should reject POST without a claim token', async () => {
       await expect(
-        followupQueueHandlers['/followup-queues/:id/claim'].POST({ params: { id: ITEM_ID } })
+        followupQueueHandlers['/followup-queues/:id/claim'].POST({ params: { id: ITEM_ID } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(claimMock).not.toHaveBeenCalled()
     })
