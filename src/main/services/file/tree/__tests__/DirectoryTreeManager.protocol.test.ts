@@ -45,6 +45,7 @@ function makeFakeBuilder(rootPath = '/ws') {
   const builder = {
     root: {} as never,
     disposeCount: 0,
+    isDisposed: false,
     onMutation: (listener: (e: TreeMutationEvent) => void) => {
       listeners.add(listener)
       return { dispose: () => listeners.delete(listener) }
@@ -54,9 +55,11 @@ function makeFakeBuilder(rootPath = '/ws') {
     rename: vi.fn(() => true),
     dispose: () => {
       builder.disposeCount += 1
+      builder.isDisposed = true
     },
     disposeAsync: async () => {
       builder.disposeCount += 1
+      builder.isDisposed = true
     },
     /** Test seam: push a mutation through every attached consumer. */
     emit: (event: TreeMutationEvent) => {
@@ -301,6 +304,20 @@ describe('DirectoryTreeManager protocol', () => {
       await create(makeSender(1))
       await create(makeSender(2))
       expect(createDirectoryTreeMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('rebuilds instead of returning a disposed cached builder', async () => {
+      const first = await create(makeSender(1))
+      const replacement = makeFakeBuilder()
+      builder.isDisposed = true
+      createDirectoryTreeMock.mockResolvedValueOnce(replacement)
+
+      const second = await create(makeSender(2))
+
+      expect(createDirectoryTreeMock).toHaveBeenCalledTimes(2)
+      expect(first.snapshot).toEqual(second.snapshot)
+      expect(manager.activateTree(first.treeId, first.revision, 1)).toBe(false)
+      expect(replacement.listenerCount()).toBe(1)
     })
 
     it('dedupes truly concurrent creates through the inflight map', async () => {

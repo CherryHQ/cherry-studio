@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
@@ -27,10 +27,10 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
-import DiagnosticUploadDialog from '@renderer/components/feedback/DiagnosticUploadDialog'
+import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -49,14 +49,12 @@ import type { Model } from '@shared/data/types/model'
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
+import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
-import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
-
-const CitationsPanel = lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
@@ -69,11 +67,6 @@ interface ModelSwitchTarget {
 interface CitationPanelState {
   sessionId: string
   citations: Citation[]
-}
-
-interface DiagnosticReportDraft {
-  sessionId: string
-  description: string
 }
 
 function getNewSessionWorkspaceDefaults(
@@ -201,7 +194,6 @@ const AgentChat = ({
   const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
-  const [diagnosticReportDraft, setDiagnosticReportDraft] = useState<DiagnosticReportDraft | null>(null)
   const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
 
   const sessionSnapshot = conversationBootstrap.session
@@ -219,13 +211,10 @@ const AgentChat = ({
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
-  const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
-  const activeDiagnosticReportDraft =
-    diagnosticReportDraft?.sessionId === currentSessionId ? diagnosticReportDraft : null
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -235,9 +224,6 @@ const AgentChat = ({
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
   useEffect(() => {
     setCitationPanelState(null)
-  }, [currentSessionId])
-  useEffect(() => {
-    setDiagnosticReportDraft((current) => (current?.sessionId === currentSessionId ? current : null))
   }, [currentSessionId])
 
   const handleOpenCitationsPanel = useCallback(
@@ -264,6 +250,8 @@ const AgentChat = ({
   const sessionMessagesEnabled = Boolean(sessionSnapshot)
   const runtime = useAgentChatRuntimeState({
     sessionId: sessionSnapshot?.id ?? '',
+    modelId: activeModel?.id,
+    agentType: activeAgent?.type,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount: shouldFetchSessionHistoryOnMount,
     reservedMessages: EMPTY_MESSAGES
@@ -278,7 +266,7 @@ const AgentChat = ({
   const openDiagnosticReport = useCallback(
     (description = '') => {
       if (!currentSessionId) return
-      setDiagnosticReportDraft({ sessionId: currentSessionId, description })
+      void DoctorPopup.show({ initialPanel: 'report', initialDescription: description })
     },
     [currentSessionId]
   )
@@ -475,7 +463,6 @@ const AgentChat = ({
               onModelSelect={handleAgentModelChange}
               onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
               modelFilter={agentModelFilter}
-              isModelDisabled={isModelDisabled}
               onAgentDialogCloseAutoFocus={handleRestoreComposerFocus}
             />
           ) : undefined
@@ -487,7 +474,7 @@ const AgentChat = ({
     )
     sidePanel = shouldMountCitationsPanel ? (
       <Suspense fallback={null}>
-        <CitationsPanel
+        <AgentCitationsPanel
           open={citationsPanelOpen}
           onClose={() => setCitationPanelState(null)}
           citations={citationPanelCitations ?? []}
@@ -554,19 +541,6 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
-      {canReviewDiagnosticReport && activeDiagnosticReportDraft ? (
-        <DiagnosticUploadDialog
-          key={activeDiagnosticReportDraft.sessionId}
-          initialDescription={activeDiagnosticReportDraft.description}
-          open
-          onOpenChange={(nextOpen) => {
-            if (nextOpen) return
-            setDiagnosticReportDraft((current) =>
-              current?.sessionId === activeDiagnosticReportDraft.sessionId ? null : current
-            )
-          }}
-        />
-      ) : null}
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
@@ -582,7 +556,7 @@ const AgentChat = ({
             />
             <label
               htmlFor="skip-model-switch-confirmation"
-              className="cursor-pointer text-foreground text-sm leading-none">
+              className="cursor-pointer text-sm leading-none text-foreground">
               {t('agent.session.model_switch_confirm.skip_for_app_run')}
             </label>
           </div>
@@ -654,6 +628,7 @@ const AgentChatSessionCenter = ({
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
       <AgentComposerSlot
+        editBusy={runtime.editBusy}
         agentId={agentId}
         activeAgent={activeAgent}
         activeModel={activeModel}
@@ -670,6 +645,9 @@ const AgentChatSessionCenter = ({
         onCreateEmptySession={onCreateEmptySession}
         composerContext={runtime.composerContext}
         composerLaunchOptions={composerLaunchOptions}
+        editing={runtime.editing}
+        cancelEditing={runtime.cancelEditing}
+        resendEditedMessage={runtime.resendEditedMessage}
       />
     </div>
   )
@@ -691,6 +669,8 @@ const AgentChatSessionCenter = ({
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
       deleteMessage={runtime.deleteMessage}
+      startEditing={runtime.startEditing}
+      editBusy={runtime.editBusy}
       respondToolApproval={runtime.respondToolApproval}
     />
   )
@@ -705,7 +685,6 @@ const AgentChatSessionCenter = ({
         </div>
       )}
       {messageList}
-      <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )
 

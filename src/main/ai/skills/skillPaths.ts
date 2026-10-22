@@ -4,7 +4,6 @@ import * as path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
-import type { SkillFileNode } from '@shared/types/skill'
 
 const logger = loggerService.withContext('SkillPaths')
 
@@ -44,30 +43,4 @@ export async function safeRemoveDirectory(dirPath: string): Promise<void> {
       error: error instanceof Error ? error.message : String(error)
     })
   }
-}
-
-export async function buildFileTree(dir: string, root: string): Promise<SkillFileNode[]> {
-  const entries = await fs.promises.readdir(dir, { withFileTypes: true })
-  const nodes: SkillFileNode[] = []
-
-  const sorted = entries
-    .filter((e) => !e.name.startsWith('.') && e.name !== 'node_modules')
-    .sort((a, b) => {
-      if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
-
-  for (const entry of sorted) {
-    const fullPath = path.join(dir, entry.name)
-    const relativePath = path.relative(root, fullPath)
-
-    if (entry.isDirectory()) {
-      const children = await buildFileTree(fullPath, root)
-      nodes.push({ name: entry.name, path: relativePath, type: 'directory', children })
-    } else {
-      nodes.push({ name: entry.name, path: relativePath, type: 'file' })
-    }
-  }
-
-  return nodes
 }

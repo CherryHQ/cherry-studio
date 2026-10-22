@@ -95,6 +95,21 @@ export default defineCreator({
       maxOutputTokens: 131072
     },
     {
+      id: 'qwen3-8-flash-next',
+      name: 'Qwen 3.8 Flash Next',
+      family: 'qwen',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text']
+    },
+    {
       id: 'qwen3-8-max',
       name: 'Qwen3.8 Max',
       family: 'qwen',

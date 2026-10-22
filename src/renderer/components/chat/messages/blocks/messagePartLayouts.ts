@@ -283,11 +283,14 @@ export function isResultPart(part: CherryMessagePart): boolean {
  */
 export function projectCompletedMessageParts(entries: readonly PartEntry[]): CompletedMessagePartLayout {
   const reportEntries: PartEntry[] = []
+  const forkEntries: PartEntry[] = []
   const contentEntries: PartEntry[] = []
 
   for (let position = 0; position < entries.length; position++) {
     const entry = entries[position]
-    if (isReportToolPart(entry.part)) {
+    if (entry.part.type === 'data-agent-session-fork') {
+      forkEntries.push(entry)
+    } else if (isReportToolPart(entry.part)) {
       reportEntries.push(entry)
     } else if (!isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)) {
       contentEntries.push(entry)
@@ -365,7 +368,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
 
   return {
     historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),
-    resultEntries: contentEntries.filter(isDirectResult),
+    resultEntries: [...contentEntries.filter(isDirectResult), ...forkEntries],
     reportEntries
   }
 }

@@ -118,13 +118,19 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'use-serif-font',
     titleKey: 'settings.messages.use_serif_font',
     groupKey: messagesGroup,
-    aliases: ['serif', '字体', '衬线']
+    aliases: ['serif', 'serif font', 'message font', '字体', '衬线']
   },
   {
     anchorId: 'thought-auto-collapse',
     titleKey: 'chat.settings.thought_auto_collapse.label',
     groupKey: messagesGroup,
     aliases: ['thinking', '思维链']
+  },
+  {
+    anchorId: 'user-message-default-expanded',
+    titleKey: 'settings.messages.user_content.default_expanded.label',
+    descriptionKey: 'settings.messages.user_content.default_expanded.hint',
+    groupKey: messagesGroup
   },
   {
     anchorId: 'show-message-outline',
@@ -135,7 +141,7 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'message-style',
     titleKey: 'message.message.style.label',
     groupKey: messagesGroup,
-    aliases: ['气泡', '气泡样式', '对话样式']
+    aliases: ['bubble', 'bubble mode', 'message style', 'conversation bubbles', '气泡', '气泡样式', '对话样式']
   },
   {
     anchorId: 'multi-model-style',

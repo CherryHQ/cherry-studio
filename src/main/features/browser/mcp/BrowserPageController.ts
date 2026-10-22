@@ -1,7 +1,9 @@
 import type TurndownService from 'turndown'
 
+import { applyTableRules } from '@main/utils/htmlToMarkdown'
+
 import { type BrowserScreenshot, captureScreenshot, type ScreenshotOptions } from '../actions/screenshot'
-import type { BrowserPointerFeedback } from '../BrowserCursor'
+import type { BrowserActionOptions, BrowserPointerFeedback } from '../BrowserCursor'
 import type { GuestSession } from '../session/GuestSession'
 import { logger } from './types'
 
@@ -11,7 +13,13 @@ export abstract class BrowserPageController {
   abstract getSession(
     privateMode?: boolean,
     tabId?: string
-  ): Promise<{ tabId: string; session: GuestSession; signal?: AbortSignal; pointer?: BrowserPointerFeedback }>
+  ): Promise<{
+    tabId: string
+    session: GuestSession
+    signal?: AbortSignal
+    pointer?: BrowserPointerFeedback
+    focusInput?: BrowserActionOptions['focusInput']
+  }>
   abstract open(
     url: string,
     timeout?: number,
@@ -23,8 +31,8 @@ export abstract class BrowserPageController {
   abstract validateUrl(url: string): string
 
   private getTurndownService(): Promise<TurndownService> {
-    return (this.turndownServicePromise ??= import('turndown').then(
-      ({ default: TurndownService }) => new TurndownService()
+    return (this.turndownServicePromise ??= import('turndown').then(({ default: TurndownService }) =>
+      applyTableRules(new TurndownService())
     ))
   }
 

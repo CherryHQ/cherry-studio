@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.14",
+    "version": "2.1.7",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -62,9 +62,11 @@
       "/settings/about",
       "/settings/api-gateway",
       "/settings/appearance",
+      "/settings/archive",
       "/settings/browser",
       "/settings/channels",
       "/settings/code-execution",
+      "/settings/computer-use",
       "/settings/data",
       "/settings/dependencies",
       "/settings/device-connections",
@@ -75,6 +77,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/profile",
       "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
@@ -84,8 +87,10 @@
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
+      "/settings/subscription",
       "/settings/system",
       "/settings/usage",
+      "/settings/voice",
       "/settings/websearch",
       "/app/mini-app/$appId",
       "/app/paintings/$",
@@ -96,6 +101,7 @@
       "/settings/mcp/npx-search",
       "/settings/mcp/servers",
       "/settings/scheduled-tasks/$taskId",
+      "/settings/skills/$skillId",
       "/app/mini-app",
       "/app/paintings",
       "/settings/mcp/settings/$serverId"
@@ -173,6 +179,23 @@
       "keybinding": {
         "defaultBinding": [],
         "global": true
+      }
+    },
+    {
+      "id": "app.window.close",
+      "titleKey": "settings.shortcuts.close_window",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "main",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "W"
+        ],
+        "editable": false,
+        "supportedPlatforms": [
+          "darwin"
+        ]
       }
     },
     {
@@ -426,6 +449,18 @@
       }
     },
     {
+      "id": "tab.close",
+      "titleKey": "settings.shortcuts.close_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "W"
+        ]
+      }
+    },
+    {
       "id": "tab.next",
       "titleKey": "settings.shortcuts.next_tab",
       "categoryKey": "settings.shortcuts.general",
@@ -465,8 +500,8 @@
     }
   ],
   "providers": {
-    "version": "e47c80cffa19d83b",
-    "count": 62,
+    "version": "1b44511badb438e6",
+    "count": 66,
     "entries": [
       {
         "id": "cherryin",
@@ -561,6 +596,10 @@
         "name": "LM Studio"
       },
       {
+        "id": "litellm",
+        "name": "LiteLLM"
+      },
+      {
         "id": "anthropic",
         "name": "Anthropic"
       },
@@ -575,6 +614,10 @@
       {
         "id": "grok-cli",
         "name": "Grok CLI"
+      },
+      {
+        "id": "omlx",
+        "name": "oMLX"
       },
       {
         "id": "openai",
@@ -605,6 +648,10 @@
         "name": "Moonshot AI"
       },
       {
+        "id": "moonshot-global",
+        "name": "Moonshot"
+      },
+      {
         "id": "baichuan",
         "name": "BAICHUAN AI"
       },
@@ -618,7 +665,7 @@
       },
       {
         "id": "doubao",
-        "name": "doubao"
+        "name": "Doubao"
       },
       {
         "id": "minimax",
@@ -705,6 +752,10 @@
         "name": "Cerebras AI"
       },
       {
+        "id": "comfyui",
+        "name": "ComfyUI"
+      },
+      {
         "id": "mimo",
         "name": "Xiaomi MiMo"
       },
@@ -775,6 +826,11 @@
       "label": "Română"
     },
     {
+      "value": "th-TH",
+      "flag": "🇹🇭",
+      "label": "ภาษาไทย"
+    },
+    {
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
@@ -783,6 +839,11 @@
       "value": "tr-TR",
       "flag": "🇹🇷",
       "label": "Türkçe"
+    },
+    {
+      "value": "it-IT",
+      "flag": "🇮🇹",
+      "label": "Italiano"
     }
   ],
   "agents": {
@@ -791,6 +852,8 @@
       "feishu",
       "qq",
       "wechat",
+      "wecom",
+      "dingtalk",
       "discord",
       "slack"
     ],
@@ -814,7 +877,8 @@
         "qoder-cli",
         "github-copilot-cli",
         "pi",
-        "hermes"
+        "hermes",
+        "minimax-code"
       ]
     }
   },

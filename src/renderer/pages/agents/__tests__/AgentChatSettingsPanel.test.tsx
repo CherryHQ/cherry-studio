@@ -57,7 +57,9 @@ const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval'
+        ? toolApprovalRespondMock(input)
+        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined),
     on: () => () => {}
   },
   useIpcOn: vi.fn()
@@ -135,6 +137,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
     key === 'agent.model_switch_confirmation.skipped'
       ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
       : [null, vi.fn()],
+  useSharedCacheValue: () => undefined,
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -201,6 +204,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
+    persistedPartsByMessageId: partsByMessageIdMock.value,
     messages: Object.entries(partsByMessageIdMock.value).map(([id, parts]) => ({
       id,
       role: 'assistant',
@@ -268,9 +272,12 @@ vi.mock('../components/AgentRightPane', () => {
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
+      canPreviewInputFileInRightPane: true,
       openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
-      openArtifactFile: agentRightPanePropsMock.openArtifactFile
-    })
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
+      previewInputFileInRightPane: vi.fn()
+    }),
+    useOptionalAgentRightPaneActions: () => undefined
   }
 })
 

@@ -72,6 +72,53 @@ describe('ProxyBypassRuleMatcher', () => {
     expect(isByPass('http://[fefe:13::abc]')).toBe(true)
   })
 
+  it('matches wildcard IPs with fewer than four octets, as in Windows proxy exceptions', () => {
+    updateByPassRules(['192.168.*', '10.*'])
+
+    expect(isByPass('http://192.168.1.10:11434')).toBe(true)
+    expect(isByPass('http://10.0.0.5')).toBe(true)
+    expect(isByPass('http://192.169.1.1')).toBe(false)
+    expect(isByPass('http://110.0.0.5')).toBe(false)
+  })
+
+  it('matches unbracketed IPv6 literals as addresses, not as host:port pairs', () => {
+    updateByPassRules(['::1'])
+    expect(isByPass('http://[::1]')).toBe(true)
+    expect(isByPass('http://[::1]:8080')).toBe(true)
+    expect(isByPass('http://[::2]')).toBe(false)
+
+    updateByPassRules(['fe80::1', '2001:db8::1'])
+    expect(isByPass('http://[fe80::1]:8080')).toBe(true)
+    expect(isByPass('http://[2001:db8::1]')).toBe(true)
+    expect(isByPass('http://[2001:db8::2]')).toBe(false)
+  })
+
+  it('matches an IPv6 rule whatever notation the URL host uses', () => {
+    updateByPassRules(['0:0:0:0:0:0:0:1'])
+    expect(isByPass('http://[::1]:8080')).toBe(true)
+    expect(isByPass('http://[0:0:0:0:0:0:0:1]')).toBe(true)
+    expect(isByPass('http://[::2]')).toBe(false)
+
+    updateByPassRules(['::FFFF:127.0.0.1'])
+    expect(isByPass('http://[::ffff:127.0.0.1]')).toBe(true)
+  })
+
+  it('still splits the port of a bracketed IPv6 host', () => {
+    updateByPassRules(['[::1]:8080'])
+    expect(isByPass('http://[::1]:8080')).toBe(true)
+    expect(isByPass('http://[::1]')).toBe(false)
+
+    updateByPassRules(['example.com:8080'])
+    expect(isByPass('http://example.com:8080')).toBe(true)
+    expect(isByPass('http://example.com')).toBe(false)
+  })
+
+  it('reads `::1:8080` as the address it is, since a URL carries an IPv6 port in brackets', () => {
+    updateByPassRules(['::1:8080'])
+    expect(isByPass('http://[::1:8080]')).toBe(true)
+    expect(isByPass('http://[::1]:8080')).toBe(false)
+  })
+
   it('matches CIDR ranges specified with IPv6 prefix lengths', () => {
     updateByPassRules(['[2001:db8::1]', '2001:db8::/32'])
 

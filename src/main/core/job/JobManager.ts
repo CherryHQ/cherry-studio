@@ -50,7 +50,7 @@ const DEFAULT_GLOBAL_MAX_CONCURRENCY = 50
 const DEFAULT_CANCEL_TIMEOUT_MS = 30_000
 const GC_INTERVAL_MS = 60 * 60 * 1000 // 1h
 const GC_TERMINAL_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
-const GC_KEEP_PER_TYPE = 100
+const GC_KEEP_PER_SCHEDULE = 100
 const DELAYED_PROMOTION_INTERVAL_MS = 5 * 60 * 1000 // 5min
 
 /**
@@ -139,7 +139,7 @@ interface RecoveryResumePoint {
  */
 @Injectable('JobManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SchedulerService'])
+@DependsOn(['SchedulerService', 'RuntimeActivityService'])
 export class JobManager extends BaseService {
   private readonly handlers = new Map<string, JobHandler>()
   private readonly queues = new Map<string, DispatchQueue>()
@@ -1798,12 +1798,8 @@ export class JobManager extends BaseService {
     }
 
     const task = (async () => {
-      // Keep the machine awake for this attempt — best-effort, gated by the user's
-      // `app.power.prevent_sleep_when_busy` preference. preventSleep never throws and always
-      // returns a Disposable (the provider degrades internally), so no guard is needed here.
-      // Declared in the IIFE scope so the finally can dispose it. Per-attempt: between retries
-      // the job sits in `delayed` (not working) and must not hold the machine awake.
-      const sleepHold = application.get('PowerService').preventSleep(`job:${row.type}:${row.id}`)
+      // Only running attempts are active; delayed retries must allow the machine to sleep.
+      const activity = application.get('RuntimeActivityService').begin(`job:${row.type}:${row.id}`)
       try {
         const output = await handler.execute(ctx)
         if (timeoutHandle) clearTimeout(timeoutHandle)
@@ -1845,7 +1841,7 @@ export class JobManager extends BaseService {
           await this.finalizeJob(row.id, userCancel ? 'cancelled' : 'failed', undefined, error)
         }
       } finally {
-        sleepHold.dispose()
+        activity.dispose()
         this.abortControllers.delete(row.id)
         this.inFlightExecuted.delete(row.id)
         resolveExecuted()
@@ -2334,9 +2330,10 @@ export class JobManager extends BaseService {
 
   /**
    * Prune terminal rows: drop anything older than the 7-day TTL, then drop
-   * rows beyond the per-type keep-latest threshold (100). The two steps run
-   * in independent try/catch so a single failed prune (table locked, batch
-   * too large) does not abort the whole sweep silently — `registerInterval`'s
+   * rows beyond the per-schedule keep-latest threshold (100) — per schedule so
+   * a chatty producer cannot evict sibling schedules' run history. The two
+   * steps run in independent try/catch so a single failed prune (table locked,
+   * batch too large) does not abort the whole sweep silently — `registerInterval`'s
    * exception isolation prevents a crash but does not log, so each step
    * surfaces its own error.
    */
@@ -2350,9 +2347,9 @@ export class JobManager extends BaseService {
       logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
     }
     try {
-      byCount = jobService.pruneTerminalKeepLatestPerType(GC_KEEP_PER_TYPE)
+      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE)
     } catch (err) {
-      logger.error('GC: pruneTerminalKeepLatestPerType failed', { err: (err as Error).message })
+      logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err: (err as Error).message })
     }
     if (byTtl + byCount > 0) {
       logger.info('GC pass', { byTtl, byCount })

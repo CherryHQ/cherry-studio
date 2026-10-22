@@ -160,7 +160,6 @@ vi.mock('react-i18next', () => ({
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
-          'launchpad.deepseek_harness_shortcut': 'DSH',
           'launchpad.miniApps': 'Mini Apps',
           'launchpad.pin_to_sidebar': 'Add to Sidebar',
           'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
@@ -302,20 +301,6 @@ describe('LaunchpadPage', () => {
     await user.click(screen.getByRole('button', { name: 'Knowledge' }))
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
-  })
-
-  it('opens the dedicated DeepSeek Harness CodeMate view from its app shortcut', async () => {
-    const user = userEvent.setup()
-
-    render(<LaunchpadPage />)
-    const shortcut = screen.getByRole('button', { name: 'DSH' })
-
-    await user.click(shortcut)
-
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/app/code',
-      search: { tool: 'deepseek-harness' }
-    })
   })
 
   it('suppresses only the dragged launchpad item click', () => {
@@ -528,7 +513,6 @@ describe('LaunchpadPage', () => {
     render(<LaunchpadPage />)
 
     expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toHaveTextContent('Remove from Sidebar')
-    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toBeDisabled()
     expect(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge')).toHaveTextContent('Add to Sidebar')
 
     await user.click(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge'))
@@ -539,9 +523,9 @@ describe('LaunchpadPage', () => {
     ])
   })
 
-  it('removes an existing sidebar app icon from the context menu', async () => {
+  it('removes the final sidebar app icon from the context menu', async () => {
     const user = userEvent.setup()
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
+    mocks.sidebarFavorites = [appFavorite('knowledge')]
 
     render(<LaunchpadPage />)
 
@@ -549,6 +533,6 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([])
   })
 })

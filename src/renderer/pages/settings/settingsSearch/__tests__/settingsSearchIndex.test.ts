@@ -113,6 +113,23 @@ describe('settings search index', () => {
       }
     }
   })
+
+  it.each([
+    { locale: enUS, language: 'en-US', query: 'Expand long user messages by default' },
+    { locale: zhCN, language: 'zh-CN', query: '默认展开长用户消息' },
+    { locale: enUS, language: 'en-US', query: 'Messages you manually expand or collapse' }
+  ])('finds the long user message preference for $language query "$query"', ({ locale, query }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    const result = rankEntries(query, settingsSearchSections, t).find(
+      (entry) => entry.focusId === 'setting-appearance-user-message-default-expanded'
+    )
+
+    expect(result).toMatchObject({
+      route: '/settings/appearance',
+      title: t('settings.messages.user_content.default_expanded.label'),
+      description: t('settings.messages.user_content.default_expanded.hint')
+    })
+  })
 })
 
 // Chinese queries must hit their rows via aliases even under the en-US catalog:
@@ -135,6 +152,12 @@ describe('settings search index aliases', () => {
     ['字体', 'use-serif-font'],
     ['衬线', 'use-serif-font'],
     ['serif', 'use-serif-font'],
+    ['bubble', 'message-style'],
+    ['bubble mode', 'message-style'],
+    ['message style', 'message-style'],
+    ['conversation bubbles', 'message-style'],
+    ['serif font', 'use-serif-font'],
+    ['message font', 'use-serif-font'],
     ['气泡', 'message-style'],
     ['气泡样式', 'message-style'],
     ['对话样式', 'message-style'],
@@ -147,5 +170,10 @@ describe('settings search index aliases', () => {
   ])('query "%s" hits the indexed row via alias', (query, anchorId) => {
     const focusIds = rankEntries(query, settingsSearchSections, tEnUs).map((r) => r.focusId)
     expect(focusIds).toContain(focusIdOf(anchorId))
+  })
+
+  it('finds Proxy Mode from the TUN explanation', () => {
+    const focusIds = rankEntries('tun', settingsSearchSections, tEnUs).map((result) => result.focusId)
+    expect(focusIds).toContain(focusIdOf('proxy-mode'))
   })
 })

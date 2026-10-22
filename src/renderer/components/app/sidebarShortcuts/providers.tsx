@@ -140,7 +140,9 @@ const appProvider: SidebarShortcutProvider = {
     gateway.openWorkspace({
       url,
       title: i18n.t(getSidebarIconLabelKey(id)),
-      matchesCurrent: (currentUrl) => this.isActive!(target, { url: currentUrl })
+      matchesCurrent: (currentUrl) => this.isActive!(target, { url: currentUrl }),
+      // App entries have no resource identity: always replace the active tab, never focus a sibling.
+      matchesTab: () => false
     })
   },
   subscribe: (_targets, invalidate) => languageSubscription(invalidate),
@@ -211,7 +213,8 @@ const agentProvider: SidebarShortcutProvider = {
         ? getSidebarApp('agents')!.conversationRoute!.urlForKey(sessionId)
         : `/app/agents?agentId=${encodeURIComponent(target.locator.resourceId)}`,
       conversation: sessionId ? { conversationType: 'agent', conversationId: sessionId } : undefined,
-      title: target.locator.resourceId
+      title: target.locator.resourceId,
+      metadata: { agentPinPending: true }
     })
   },
   isActive: (target, navigation) =>
@@ -398,10 +401,12 @@ const codeCliProvider: SidebarShortcutProvider = {
     if (!this.validate(target)) return
     const tool = CODE_CLI_TOOL_BY_ID.get(target.locator.resourceId)
     if (!tool) return
+    const isActiveToolUrl = (url: string) => isActiveResourceUrl(url, '/app/code', 'tool', tool.value)
     gateway.openWorkspace({
       url: `/app/code?tool=${encodeURIComponent(tool.value)}`,
       title: i18n.t(tool.label),
-      matchesCurrent: (currentUrl) => isActiveResourceUrl(currentUrl, '/app/code', 'tool', tool.value)
+      matchesCurrent: isActiveToolUrl,
+      matchesTab: isActiveToolUrl
     })
   },
   isActive: (target, navigation) => isActiveResourceUrl(navigation.url, '/app/code', 'tool', target.locator.resourceId)

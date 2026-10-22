@@ -23,17 +23,27 @@ const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = ['searchKeyw
 
 type WebSearchProviderDisplayMeta = {
   descriptionKey: string
-  iconRef: IconRef
+  iconRef?: IconRef
   officialWebsite?: string
   apiKeyWebsite?: string
 }
 
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
+  crawl4ai: {
+    descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
+    officialWebsite: 'https://crawl4ai.com'
+  },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
     iconRef: providerIconRef('bocha'),
     officialWebsite: 'https://bochaai.com',
     apiKeyWebsite: 'https://open.bochaai.com/overview'
+  },
+  deepseek: {
+    descriptionKey: 'settings.tool.websearch.provider_description.deepseek',
+    iconRef: providerIconRef('deepseek'),
+    officialWebsite: 'https://api-docs.deepseek.com/guides/search',
+    apiKeyWebsite: 'https://platform.deepseek.com/api_keys'
   },
   exa: {
     descriptionKey: 'settings.tool.websearch.provider_description.exa',
@@ -85,6 +95,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://tavily.com',
     apiKeyWebsite: 'https://app.tavily.com/home'
   },
+  yuanbao: {
+    descriptionKey: 'settings.tool.websearch.provider_description.yuanbao',
+    iconRef: providerIconRef('yuanbao'),
+    officialWebsite: 'https://cloud.tencent.com/document/product/1806/130615',
+    apiKeyWebsite: 'https://console.cloud.tencent.com/wsa'
+  },
   zhipu: {
     descriptionKey: 'settings.tool.websearch.provider_description.zhipu',
     iconRef: providerIconRef('zhipu'),
@@ -96,6 +112,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('firecrawl'),
     officialWebsite: 'https://firecrawl.dev',
     apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
+  },
+  duckduckgo: {
+    descriptionKey: 'settings.tool.websearch.provider_description.duckduckgo',
+    iconRef: providerIconRef('duck'),
+    officialWebsite: 'https://duckduckgo.com'
   }
 }
 
@@ -103,7 +124,7 @@ export function getWebSearchProviderDescriptionKey(providerId: WebSearchProvider
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].descriptionKey
 }
 
-export function getWebSearchProviderIconRef(providerId: WebSearchProviderId): IconRef {
+export function getWebSearchProviderIconRef(providerId: WebSearchProviderId): IconRef | undefined {
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].iconRef
 }
 

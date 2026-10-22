@@ -120,7 +120,11 @@ export function createProxyBypassMatcher(
     const portMatch = workingRule.match(/^(.+?):(\d+)$/)
     if (portMatch) {
       const potentialHost = portMatch[1]
-      if (!potentialHost.startsWith('[') || potentialHost.includes(']')) {
+      // `::1` is one IPv6 address, not host `:` on port `1`: an unbracketed literal has to survive the
+      // split untouched, or every IPv6 rule whose last group is decimal silently stops matching.
+      // `isValid` rejects bracketed hosts, so `[::1]:8080` still splits into host + port.
+      const isUnbracketedIpv6 = ipaddrModule.isValid(workingRule) && ipaddrModule.parse(workingRule).kind() === 'ipv6'
+      if (!isUnbracketedIpv6 && (!potentialHost.startsWith('[') || potentialHost.includes(']'))) {
         workingRule = potentialHost
         port = portMatch[2]
       }
@@ -145,7 +149,8 @@ export function createProxyBypassMatcher(
     }
 
     if (isWildcardIp(cleanedHost)) {
-      const regexPattern = cleanedHost.replace(/\./g, '\\.').replace(/\*/g, '\\d+')
+      // `*` may span several octets: Windows exceptions like `192.168.*` must still match `192.168.1.10`.
+      const regexPattern = cleanedHost.replace(/\./g, '\\.').replace(/\*/g, '[\\d.]+')
       return {
         type: 'ip',
         matchType: 'generalWildcard',
@@ -216,6 +221,23 @@ export function createProxyBypassMatcher(
     return false
   }
 
+  /**
+   * Whether two host strings denote the same address. The URL host is WHATWG-normalized
+   * (`[::1]`, lowercased), while a bypass rule keeps the text the user typed (`0:0:0:0:0:0:0:1`,
+   * `::FFFF:127.0.0.1`), so text equality alone rejects equivalent IPv6 literals.
+   */
+  const isSameAddress = (left: string, right: string): boolean => {
+    if (left === right) {
+      return true
+    }
+
+    const parsedLeft = ipaddrModule.parse(left)
+    const parsedRight = ipaddrModule.parse(right)
+    return (
+      parsedLeft.kind() === parsedRight.kind() && parsedLeft.toNormalizedString() === parsedRight.toNormalizedString()
+    )
+  }
+
   const parsedByPassRules: ParsedProxyBypassRule[] = []
   for (const rule of rules) {
     const parsedRule = parseProxyBypassRule(rule)
@@ -263,7 +285,7 @@ export function createProxyBypassMatcher(
                 break
               }
 
-              if (rule.ip && cleanedHostname === rule.ip) {
+              if (rule.ip && isSameAddress(cleanedHostname, rule.ip)) {
                 return true
               }
 

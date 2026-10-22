@@ -50,9 +50,73 @@ function tabContext(tabs: Tab[]): TabsContextValue {
   }
 }
 
+/**
+ * Tabs context whose operations actually run, so tests can assert the resulting navigation —
+ * which tab is active, what it shows, which tabs survive — instead of which mock was called.
+ * Mirrors `TabsProvider`: exact-URL reuse unless `forceNew`, and `setActiveTab` ignores unknown ids.
+ */
+function statefulTabContext(initial: Tab[]) {
+  let nextId = 0
+  const state = { tabs: initial, activeTabId: initial[0].id }
+  const context: TabsContextValue = {
+    ...tabContext(initial),
+    get tabs() {
+      return state.tabs
+    },
+    get activeTabId() {
+      return state.activeTabId
+    },
+    get activeTab() {
+      return state.tabs.find((tab) => tab.id === state.activeTabId)
+    },
+    setActiveTab: (id) => {
+      if (state.tabs.some((tab) => tab.id === id)) state.activeTabId = id
+    },
+    updateTab: (id, updates) => {
+      state.tabs = state.tabs.map((tab) => (tab.id === id ? { ...tab, ...updates } : tab))
+    },
+    openTab: (url, options = {}) => {
+      const existing = options.forceNew
+        ? undefined
+        : state.tabs.find((tab) => tab.type === (options.type ?? 'route') && tab.url === url)
+      if (existing) {
+        state.activeTabId = existing.id
+        return existing.id
+      }
+      const id = `opened-${++nextId}`
+      state.tabs = [
+        ...state.tabs,
+        {
+          id,
+          type: options.type ?? 'route',
+          url,
+          title: options.title ?? url,
+          icon: options.icon,
+          metadata: options.metadata,
+          isPinned: options.isPinned,
+          lastAccessTime: 0,
+          isDormant: false
+        }
+      ]
+      state.activeTabId = id
+      return id
+    }
+  }
+  return { context, state }
+}
+
+async function activateShortcut(context: TabsContextValue, providerId: string, resourceId: string) {
+  const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: context }, children)
+  const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+  const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === providerId)!
+  await act(async () => provider.activate(createSidebarShortcutTarget(providerId, resourceId), result.current))
+}
+
 describe('sidebar conversation navigation', () => {
   it('does not reset an already active app detail route', async () => {
-    const tabs = tabContext([{ id: 'files', type: 'route', url: '/app/files?entryId=file-1', title: 'File' }])
+    const { context: tabs, state } = statefulTabContext([
+      { id: 'files', type: 'route', url: '/app/files?entryId=file-1', title: 'File' }
+    ])
     const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
     const { result } = renderHook(() => useSidebarShortcutActivation(), { wrapper })
     const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.app')!
@@ -62,8 +126,8 @@ describe('sidebar conversation navigation', () => {
         renderIcon: () => null
       })
     )
-    expect(tabs.updateTab).not.toHaveBeenCalled()
-    expect(tabs.openTab).not.toHaveBeenCalled()
+    expect(state.activeTabId).toBe('files')
+    expect(state.tabs).toEqual([{ id: 'files', type: 'route', url: '/app/files?entryId=file-1', title: 'File' }])
   })
 
   it('ignores a late ordinary activation after a newer shortcut was opened', async () => {
@@ -75,7 +139,9 @@ describe('sidebar conversation navigation', () => {
         resolveFirst = resolve
       })
     )
-    const tabs = tabContext([{ id: 'current', type: 'route', url: '/app/files', title: 'Files' }])
+    const { context: tabs, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/files', title: 'Files' }
+    ])
     const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
     const { result } = renderHook(() => useSidebarShortcutActivation(), { wrapper })
     const assistant = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.assistant')!
@@ -87,11 +153,9 @@ describe('sidebar conversation navigation', () => {
       resolveFirst({ topic: { id: 'late-topic' } })
       await first
     })
-    expect(tabs.updateTab).toHaveBeenCalledTimes(1)
-    expect(tabs.updateTab).toHaveBeenLastCalledWith(
-      'current',
-      expect.objectContaining({ url: '/app/knowledge?baseId=b' })
-    )
+    expect(state.activeTabId).toBe('current')
+    expect(state.tabs).toHaveLength(1)
+    expect(state.tabs[0].url).toBe('/app/knowledge?baseId=b')
     MockDataApiUtils.resetMocks()
   })
 
@@ -104,7 +168,9 @@ describe('sidebar conversation navigation', () => {
         resolveEntry = resolve
       })
     )
-    const tabs = tabContext([{ id: 'current', type: 'route', url: '/app/files', title: 'Files' }])
+    const { context: tabs, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/files', title: 'Files' }
+    ])
     const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: { ...tabs } }, children)
     const { result, rerender, unmount } = renderHook(() => useSidebarShortcutActivation(), { wrapper })
     const assistant = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.assistant')!
@@ -114,27 +180,36 @@ describe('sidebar conversation navigation', () => {
     })
     if (change === 'unmount') unmount()
     else {
-      tabs.activeTab = { ...tabs.activeTab!, ...(change === 'switch' ? { id: 'other' } : { url: '/app/code' }) }
+      if (change === 'switch') {
+        state.tabs = [...state.tabs, { id: 'other', type: 'route', url: '/app/code', title: 'Code' }]
+        state.activeTabId = 'other'
+      } else tabs.updateTab('current', { url: '/app/code' })
       rerender()
     }
     await act(async () => {
       resolveEntry({ topic: { id: 'late-topic' } })
       await first
     })
-    expect(tabs.updateTab).not.toHaveBeenCalled()
-    expect(tabs.openTab).not.toHaveBeenCalled()
-    expect(tabs.setActiveTab).not.toHaveBeenCalled()
+    expect(state.activeTabId).toBe(change === 'switch' ? 'other' : 'current')
+    expect(state.tabs).toHaveLength(change === 'switch' ? 2 : 1)
+    expect(state.tabs.find((tab) => tab.id === 'current')?.url).toBe(change === 'navigate' ? '/app/code' : '/app/files')
     MockDataApiUtils.resetMocks()
   })
 
   it.each([
-    ['core.assistant', '/topics/latest', 'topic', '/app/chat?extra=1&topicId=conversation-1'],
-    ['core.agent', '/agent-sessions/latest', 'session', '/app/agents?extra=1&sessionId=conversation-1']
+    ['core.assistant', '/topics/latest', 'topic', '/app/chat?extra=1&topicId=conversation-1', 'conversation-1'],
+    [
+      'core.agent',
+      '/agent-sessions/latest',
+      'session',
+      '/app/agents?extra=1&sessionId=conversation-1',
+      'sessionId=conversation-1'
+    ]
   ] as const)(
     'reuses an existing canonical conversation for %s, but honors an explicit new tab',
-    async (providerId, endpoint, field, url) => {
+    async (providerId, endpoint, field, url, newTabUrlPart) => {
       MockDataApiUtils.setCustomResponse(endpoint, 'GET', { [field]: { id: 'conversation-1' } })
-      const tabs = tabContext([
+      const { context: tabs, state } = statefulTabContext([
         { id: 'other', type: 'route', url: '/app/files', title: 'Files' },
         { id: 'conversation', type: 'route', url, title: 'Conversation' }
       ])
@@ -144,9 +219,10 @@ describe('sidebar conversation navigation', () => {
       const target = createSidebarShortcutTarget(providerId, 'owner-1')
 
       await act(async () => provider.activate(target, result.current))
-      expect(tabs.setActiveTab).toHaveBeenCalledWith('conversation')
-      expect(tabs.updateTab).not.toHaveBeenCalled()
-      expect(tabs.openTab).not.toHaveBeenCalled()
+      expect(state.activeTabId).toBe('conversation')
+      expect(state.tabs).toHaveLength(2)
+      expect(state.tabs[1].url).toBe(url)
+      expect(state.tabs[1].metadata).toEqual(providerId === 'core.agent' ? { agentPinPending: true } : undefined)
 
       await act(async () =>
         provider.activate(target, {
@@ -154,13 +230,223 @@ describe('sidebar conversation navigation', () => {
           openWorkspace: (destination) => result.current.openWorkspace(destination, { inNewTab: true })
         })
       )
-      expect(tabs.openTab).toHaveBeenCalledWith(
-        expect.stringContaining('conversation-1'),
-        expect.objectContaining({ forceNew: true })
-      )
+      expect(state.tabs).toHaveLength(3)
+      expect(state.activeTabId).toBe('opened-1')
+      expect(state.tabs[2].url).toContain(newTabUrlPart)
+      expect(state.tabs[2].metadata).toEqual(providerId === 'core.agent' ? { agentPinPending: true } : undefined)
       MockDataApiUtils.resetMocks()
     }
   )
+
+  it('repurposes the active tab for an app shortcut instead of focusing another tab of that app', async () => {
+    const { context, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat' },
+      { id: 'other-agent', type: 'route', url: '/app/agents?sessionId=session-1', title: 'Agent' }
+    ])
+
+    await activateShortcut(context, 'core.app', 'agents')
+
+    expect(state.activeTabId).toBe('current')
+    expect(state.tabs.find((tab) => tab.id === 'current')?.url).toBe('/app/agents')
+    expect(state.tabs.find((tab) => tab.id === 'other-agent')?.url).toBe('/app/agents?sessionId=session-1')
+  })
+
+  it.each(['translate', 'notes'])(
+    'repurposes the active tab for the %s app shortcut even when a sibling tab has its exact URL',
+    async (appId) => {
+      const { context, state } = statefulTabContext([
+        { id: 'current', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat' },
+        { id: 'sibling', type: 'route', url: `/app/${appId}`, title: appId }
+      ])
+
+      await activateShortcut(context, 'core.app', appId)
+
+      expect(state.activeTabId).toBe('current')
+      expect(state.tabs).toHaveLength(2)
+      expect(state.tabs.find((tab) => tab.id === 'current')?.url).toBe(`/app/${appId}`)
+      expect(state.tabs.find((tab) => tab.id === 'sibling')?.url).toBe(`/app/${appId}`)
+    }
+  )
+
+  it('opens a new tab for an app shortcut instead of focusing a sibling when the active tab is pinned', async () => {
+    const { context, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat', isPinned: true },
+      { id: 'sibling', type: 'route', url: '/app/translate', title: 'Translate' }
+    ])
+
+    await activateShortcut(context, 'core.app', 'translate')
+
+    expect(state.tabs).toHaveLength(3)
+    expect(state.activeTabId).not.toBe('sibling')
+    expect(state.tabs.find((tab) => tab.id === state.activeTabId)?.url).toBe('/app/translate')
+    expect(state.tabs.find((tab) => tab.id === 'current')?.url).toBe('/app/chat?topicId=topic-1')
+  })
+
+  it('opens a new tab for an app shortcut while a mini app tab stays alive instead of focusing a sibling', async () => {
+    const { context, state } = statefulTabContext([
+      { id: 'mini-app', type: 'route', url: '/app/mini-app/foo', title: 'Mini App' },
+      { id: 'sibling', type: 'route', url: '/app/translate', title: 'Translate' }
+    ])
+
+    await activateShortcut(context, 'core.app', 'translate')
+
+    expect(state.activeTabId).not.toBe('sibling')
+    expect(state.tabs.find((tab) => tab.id === state.activeTabId)?.url).toBe('/app/translate')
+    expect(state.tabs.find((tab) => tab.id === 'mini-app')?.url).toBe('/app/mini-app/foo')
+    expect(state.tabs).toHaveLength(3)
+  })
+
+  it.each([
+    ['core.mini-app', 'one', '/app/mini-app/one'],
+    ['core.knowledge-base', 'one', '/app/knowledge?baseId=one'],
+    [
+      'core.file-entry',
+      '11111111-1111-4111-8111-111111111111',
+      '/app/files?entryId=11111111-1111-4111-8111-111111111111'
+    ]
+  ] as const)('focuses the open tab for %s', async (providerId, resourceId, url) => {
+    const { context, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/code', title: 'Code' },
+      { id: 'open', type: 'route', url, title: 'Open' }
+    ])
+
+    await activateShortcut(context, providerId, resourceId)
+
+    expect(state.activeTabId).toBe('open')
+    expect(state.tabs).toHaveLength(2)
+  })
+
+  it('does not rewrite the active tab when it already shows the shortcut resource', async () => {
+    const { context, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/knowledge?baseId=one', title: 'KB' }
+    ])
+
+    await activateShortcut(context, 'core.knowledge-base', 'one')
+
+    expect(state.activeTabId).toBe('current')
+    expect(state.tabs).toHaveLength(1)
+    expect(state.tabs[0]).toMatchObject({ url: '/app/knowledge?baseId=one', title: 'KB' })
+  })
+
+  it('does not duplicate a pinned agent tab that already shows the agent entry', async () => {
+    MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: null })
+    const { context, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/agents?agentId=owner-1', title: 'Agent', isPinned: true }
+    ])
+
+    await activateShortcut(context, 'core.agent', 'owner-1')
+
+    expect(state.tabs).toHaveLength(1)
+    expect(state.activeTabId).toBe('current')
+    MockDataApiUtils.resetMocks()
+  })
+
+  it('focuses an open code tool tab matched by param rather than by string equality', async () => {
+    const { context, state } = statefulTabContext([
+      { id: 'current', type: 'route', url: '/app/files', title: 'Files' },
+      { id: 'code', type: 'route', url: '/app/code?foo=1&tool=pi', title: 'Code' }
+    ])
+
+    await activateShortcut(context, 'core.code-cli', 'pi')
+
+    expect(state.activeTabId).toBe('code')
+    expect(state.tabs).toHaveLength(2)
+  })
+
+  it.each([
+    ['core.topic', '/app/chat?topicId=conversation-1', '/app/chat?extra=1&topicId=conversation-1'],
+    ['core.agent-session', '/app/agents?sessionId=conversation-1', '/app/agents?extra=1&sessionId=conversation-1']
+  ] as const)(
+    'keeps an already-active matching %s tab when an earlier duplicate exists',
+    async (providerId, earlierUrl, laterUrl) => {
+      const { context, state } = statefulTabContext([
+        { id: 'earlier', type: 'route', url: earlierUrl, title: 'Earlier' },
+        { id: 'later', type: 'route', url: laterUrl, title: 'Later' }
+      ])
+      state.activeTabId = 'later'
+
+      await activateShortcut(context, providerId, 'conversation-1')
+
+      expect(state.activeTabId).toBe('later')
+      expect(state.tabs.find((tab) => tab.id === 'later')?.url).toBe(laterUrl)
+      expect(state.tabs.find((tab) => tab.id === 'earlier')?.url).toBe(earlierUrl)
+    }
+  )
+
+  it.each([false, true])('delivers an Agent pin on an unchanged canonical URL (background: %s)', async (background) => {
+    MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'conversation-1' } })
+    const originalMetadata = { retained: 'value' }
+    const conversation: Tab = {
+      id: 'conversation',
+      type: 'route',
+      url: '/app/agents?sessionId=conversation-1',
+      title: 'Conversation',
+      metadata: originalMetadata
+    }
+    const { context, state } = statefulTabContext(
+      background ? [{ id: 'files', type: 'route', url: '/app/files', title: 'Files' }, conversation] : [conversation]
+    )
+
+    await activateShortcut(context, 'core.agent', 'owner-1')
+
+    expect(state.activeTabId).toBe('conversation')
+    expect(state.tabs).toHaveLength(background ? 2 : 1)
+    expect(state.tabs.find((tab) => tab.id === 'conversation')).toEqual({
+      ...conversation,
+      metadata: { retained: 'value', agentPinPending: true }
+    })
+    expect(originalMetadata).toEqual({ retained: 'value' })
+    if (background) expect(state.tabs[0].url).toBe('/app/files')
+    MockDataApiUtils.resetMocks()
+  })
+
+  it('keeps an already-active matching Agent session tab and preserves its metadata', async () => {
+    MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'conversation-1' } })
+    const { context, state } = statefulTabContext([
+      { id: 'earlier', type: 'route', url: '/app/agents?sessionId=conversation-1', title: 'Earlier' },
+      {
+        id: 'later',
+        type: 'route',
+        url: '/app/agents?extra=1&sessionId=conversation-1',
+        title: 'Later',
+        metadata: { retained: true }
+      }
+    ])
+    state.activeTabId = 'later'
+
+    await activateShortcut(context, 'core.agent', 'owner-1')
+
+    expect(state.activeTabId).toBe('later')
+    expect(state.tabs).toHaveLength(2)
+    expect(state.tabs[1]).toMatchObject({
+      url: '/app/agents?extra=1&sessionId=conversation-1',
+      metadata: { retained: true, agentPinPending: true }
+    })
+    expect(state.tabs[0].url).toBe('/app/agents?sessionId=conversation-1')
+    expect(state.tabs[0].metadata).toBeUndefined()
+    MockDataApiUtils.resetMocks()
+  })
+
+  it.each(['/app/files', '/app/mini-app/foo', '/app/code'])('transports Agent pin metadata from %s', async (url) => {
+    MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'conversation-1' } })
+    const pinned = url === '/app/code'
+    const { context, state } = statefulTabContext([
+      { id: 'current', type: 'route', url, title: 'Current', isPinned: pinned, metadata: { unrelated: true } }
+    ])
+
+    await activateShortcut(context, 'core.agent', 'owner-1')
+
+    const opensNew = pinned || url.includes('mini-app')
+    expect(state.tabs).toHaveLength(opensNew ? 2 : 1)
+    expect(state.activeTabId).toBe(opensNew ? 'opened-1' : 'current')
+    expect(state.tabs.find((tab) => tab.id === state.activeTabId)).toMatchObject({
+      url: '/app/agents?sessionId=conversation-1',
+      metadata: { agentPinPending: true }
+    })
+    expect(state.tabs.find((tab) => tab.id === state.activeTabId)?.metadata).not.toHaveProperty('unrelated')
+    if (opensNew) expect(state.tabs[0]).toMatchObject({ url, metadata: { unrelated: true } })
+    MockDataApiUtils.resetMocks()
+  })
 
   it('drops the previous conversation owner as soon as the route changes', () => {
     MockUseDataApiUtils.mockQueryData('/topics/topic-1', {

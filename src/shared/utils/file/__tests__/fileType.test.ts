@@ -25,6 +25,10 @@ describe('getFileTypeByExt', () => {
 
   it('classifies common video / audio / text / document / image extensions', () => {
     expect(getFileTypeByExt('mp4')).toBe('video')
+    expect(getFileTypeByExt('webm')).toBe('video')
+    expect(getFileTypeByExt('ogv')).toBe('video')
+    expect(getFileTypeByExt('m4v')).toBe('video')
+    expect(getFileTypeByExt('ogg')).toBe('audio')
     expect(getFileTypeByExt('mp3')).toBe('audio')
     expect(getFileTypeByExt('pdf')).toBe('document')
     expect(getFileTypeByExt('jpg')).toBe('image')
@@ -33,5 +37,23 @@ describe('getFileTypeByExt', () => {
   it('classifies both legacy .xls and modern .xlsx as document', () => {
     expect(getFileTypeByExt('xls')).toBe('document')
     expect(getFileTypeByExt('xlsx')).toBe('document')
+  })
+
+  it('classifies C# / CSS / shell sources as text so they attach in chat', () => {
+    for (const ext of ['cs', 'css', 'sh', 'bash']) {
+      expect(getFileTypeByExt(ext)).toBe('text')
+    }
+  })
+
+  it('classifies common configuration formats as text so they attach in chat', () => {
+    for (const ext of ['conf', 'config', 'yaml', 'yml', 'toml', 'ini', 'json']) {
+      expect(getFileTypeByExt(ext)).toBe('text')
+    }
+  })
+
+  it('keeps binary formats as other so they stay rejected in chat', () => {
+    for (const ext of ['exe', 'zip', 'dat', 'bin']) {
+      expect(getFileTypeByExt(ext)).toBe('other')
+    }
   })
 })

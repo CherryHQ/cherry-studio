@@ -43,7 +43,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/agent-tasks/:taskId': {
     GET: async ({ params }) => {
-      const task = taskService.getTaskById(params.taskId)
+      const task = taskService.getTaskDetail(params.taskId)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     }
@@ -78,6 +78,13 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   // Task reads only — task mutations are mixed-effect commands (schedule row +
   // subscriptions + timer) and live on IpcApi `ai.agent.task.*` (AgentJobsService).
+  '/agents/:agentId/heartbeat': {
+    GET: async ({ params }) => {
+      if (!agentService.getAgent(params.agentId)) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return taskService.getHeartbeatStatus(params.agentId)
+    }
+  },
+
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))

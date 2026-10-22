@@ -1,5 +1,8 @@
 import { application } from '@application'
+import { hasPendingRestore } from '@data/db/restore/restoreJournal'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
@@ -12,11 +15,19 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
-import { removeAgentStorageSubdirectory } from './agentDataDirectory'
-import { sweepAgentOrphans } from './agentOrphanSweep'
+import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'
+import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
+import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentLifecycleService')
 const RETRY_AGENT_SESSION_ARCHIVE = Symbol('retry-agent-session-archive')
+
+function resumeTokensForDeletedSessions(
+  ids: readonly string[],
+  tokensBySession: Map<string, Set<string>>
+): Set<string> {
+  return new Set(ids.flatMap((id) => [...(tokensBySession.get(id) ?? [])]))
+}
 
 export class AgentSessionArchiveBusyError extends Error {
   constructor(readonly sessionIds: string[]) {
@@ -46,7 +57,7 @@ export class AgentLifecycleService extends BaseService {
   }
 
   protected override onReady(): void {
-    application.get('DbService').withWriteTx((tx) => agentTaskService.reconcileOwnerStatesTx(tx, Date.now()))
+    application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
   }
 
   protected override async onStop(): Promise<void> {
@@ -74,16 +85,30 @@ export class AgentLifecycleService extends BaseService {
 
   restoreAgent(agentId: string) {
     return this.runOperation('restore-agent:' + agentId, () =>
-      this.agentLocks.runExclusive(agentId, () => {
-        const { agent, scheduleIds } = application.get('DbService').withWriteTx((tx) => ({
-          agent: agentService.restoreAgentTx(tx, agentId),
-          scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now())
-        }))
-        this.syncSchedules(scheduleIds)
-        application.get('ChannelManager').reconcileAgent(agentId)
-        agentService.notifyReadModelChange([agentId], 'membership')
-        return agent
-      })
+      this.agentLocks.runExclusive(agentId, () =>
+        this.withOperationLocks(agentSessionService.listIdsByAgent(agentId), async () => {
+          const workspaces = agentSessionService
+            .listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
+            .filter((workspace) => workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt)
+          const { agent, scheduleIds, restoredSessionIds } = await agentWorkspaceStorageService.restoreWorkspaces(
+            workspaces,
+            () =>
+              application.get('DbService').withWriteTx((tx) => {
+                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
+                return {
+                  agent,
+                  restoredSessionIds,
+                  scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
+                }
+              })
+          )
+          this.syncSchedules(scheduleIds)
+          application.get('ChannelManager').reconcileAgent(agentId)
+          agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+          agentService.notifyReadModelChange([agentId], 'membership')
+          return agent
+        })
+      )
     )
   }
 
@@ -107,7 +132,12 @@ export class AgentLifecycleService extends BaseService {
 
   restoreSession(id: string) {
     return this.runOperation('restore-session:' + id, () =>
-      this.sessionLocks.runExclusive(id, () => agentSessionService.restore(id))
+      this.sessionLocks.runExclusive(id, async () => {
+        const workspaces = agentSessionService
+          .listSystemWorkspaceSessions([id])
+          .filter((workspace) => workspace.deletedAt !== null)
+        return agentWorkspaceStorageService.restoreWorkspaces(workspaces, () => agentSessionService.restore(id))
+      })
     )
   }
 
@@ -146,16 +176,32 @@ export class AgentLifecycleService extends BaseService {
 
   reconcile() {
     return this.runOperation('reconcile-agent-schedules', () => {
-      const ids = application
-        .get('DbService')
-        .withWriteTx((tx) => agentTaskService.reconcileOwnerStatesTx(tx, Date.now()))
+      const ids = application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
       this.syncSchedules(ids)
       return ids.length
     })
   }
 
   sweepOrphans(signal?: AbortSignal) {
-    return this.runOperation('sweep-agent-orphans', () => sweepAgentOrphans(signal))
+    return this.runOperation('sweep-agent-orphans', async () => {
+      if (hasPendingRestore()) return sweepAgentOrphans(signal)
+      for (const { id } of agentSessionService.listSystemWorkspaceSessions()) {
+        signal?.throwIfAborted()
+        await this.sessionLocks.runExclusive(id, async () => {
+          for (const workspace of agentSessionService.listSystemWorkspaceSessions([id])) {
+            try {
+              await agentWorkspaceStorageService.reconcileWorkspace(
+                workspace,
+                workspace.deletedAt === null ? 'active' : 'archived'
+              )
+            } catch (error) {
+              logger.warn('Workspace storage operation retained for retry', { workspace: workspace.path, error })
+            }
+          }
+        })
+      }
+      return sweepAgentOrphans(signal)
+    })
   }
 
   pauseIngress(reason?: string): Disposable {
@@ -240,6 +286,12 @@ export class AgentLifecycleService extends BaseService {
     agentTaskService.notifyReadModelChange(ids, 'membership')
   }
 
+  private reconcileSchedulesTx(tx: DbOrTx): string[] {
+    const { scheduleIds, deletedSchedules } = agentTaskService.reconcileOwnerStatesTx(tx, Date.now())
+    reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
+    return scheduleIds
+  }
+
   private async withOperationLocks<T>(ids: string[], operation: () => T | Promise<T>): Promise<T> {
     const releases: Array<() => void> = []
     try {
@@ -290,6 +342,8 @@ export class AgentLifecycleService extends BaseService {
         const failedDrain = drains.find((result): result is PromiseRejectedResult => result.status === 'rejected')
         if (failedDrain) throw failedDrain.reason
 
+        const workspaces = agentSessionService.listSystemWorkspaceSessions(expiredSessionIds)
+        const tokensBySession = agentSessionMessageService.listRuntimeResumeTokensBySession(expiredSessionIds)
         const purgedIds =
           expiredSessionIds.length === 0
             ? []
@@ -297,6 +351,8 @@ export class AgentLifecycleService extends BaseService {
                 .get('DbService')
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
+        await this.removePurgedSystemWorkspaces(workspaces.filter(({ id }) => purgedIds.includes(id)))
+        await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(purgedIds, tokensBySession))
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
         for (const release of releases.reverse()) release()
@@ -312,12 +368,21 @@ export class AgentLifecycleService extends BaseService {
     targetState: 'active' | 'trashed' = 'trashed'
   ): Promise<{ deletedIds: string[] }> {
     const deleteSessions = async () => {
+      const workspaces = agentSessionService.listSystemWorkspaceSessions(ids)
+      const tokensBySession = permanent
+        ? agentSessionMessageService.listRuntimeResumeTokensBySession(ids)
+        : new Map<string, Set<string>>()
       const result = agentSessionService.deleteByIdsWithImpact(ids, {
         permanent,
         ...(targetState === 'active' ? { targetState } : {})
       })
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
-      await this.removePurgedSystemWorkspaces(result.purgedSystemWorkspacePaths)
+      await this.removePurgedSystemWorkspaces(
+        workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
+      )
+      if (permanent) {
+        await reclaimPurgedRuntimeSessions(resumeTokensForDeletedSessions(result.deletedIds, tokensBySession))
+      }
       return { deletedIds: result.deletedIds }
     }
     if (permanent && targetState === 'trashed')
@@ -354,11 +419,17 @@ export class AgentLifecycleService extends BaseService {
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
     const deleteAgent = async () => {
+      const workspaces = agentSessionService.listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
+      const tokensBySession =
+        permanent && targetState === 'active' && deleteSessions
+          ? agentSessionMessageService.listRuntimeResumeTokensBySession(agentSessionService.listIdsByAgent(agentId))
+          : new Map<string, Set<string>>()
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
         const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })
-        const scheduleIds = result.deleted
+        const { scheduleIds, deletedSchedules } = result.deleted
           ? agentTaskService.setOwnerStateTx(tx, agentId, permanent ? 'missing' : 'trashed', Date.now())
-          : []
+          : { scheduleIds: [], deletedSchedules: [] }
+        reclaimHeartbeatWorkspacesTx(tx, deletedSchedules)
         return { result, scheduleIds }
       })
       agentService.notifyDeleted(agentId, result)
@@ -375,7 +446,14 @@ export class AgentLifecycleService extends BaseService {
         result.deliveryResults,
         deleteSessions ? [] : result.affectedSessionIds
       )
-      await this.removePurgedSystemWorkspaces(result.purgedSystemWorkspacePaths)
+      await this.removePurgedSystemWorkspaces(
+        workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
+      )
+      if (permanent && targetState === 'active' && deleteSessions) {
+        await reclaimPurgedRuntimeSessions(
+          resumeTokensForDeletedSessions(result.deletedSessionIds ?? [], tokensBySession)
+        )
+      }
       return {
         deleted: result.deleted,
         ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
@@ -389,14 +467,23 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
-  private async removePurgedSystemWorkspaces(paths: string[]): Promise<void> {
-    if (paths.length === 0) return
-    const root = application.getPath('feature.agents.system_workspaces')
-    for (const workspacePath of paths) {
+  private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<void> {
+    for (const workspace of workspaces) {
       try {
-        await removeAgentStorageSubdirectory(root, workspacePath)
+        await agentWorkspaceStorageService.purgeWorkspace(workspace)
       } catch (error) {
-        logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
+        logger.warn('Failed to remove purged Agent Session workspace', { workspacePath: workspace.path, error })
+      }
+    }
+  }
+
+  private async archiveSystemWorkspaces(ids: string[]): Promise<void> {
+    for (const workspace of agentSessionService.listSystemWorkspaceSessions(ids)) {
+      if (workspace.deletedAt === null) continue
+      try {
+        await agentWorkspaceStorageService.archiveWorkspace(workspace)
+      } catch (error) {
+        logger.warn('Failed to archive system workspace; retained for retry', { workspacePath: workspace.path, error })
       }
     }
   }
@@ -432,8 +519,16 @@ export class AgentLifecycleService extends BaseService {
     retrySessionIds: string[] = []
   ): Promise<void> {
     const closed = await Promise.allSettled(
-      sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
+      sessionIds.map(async (sessionId) => {
+        const runtime = application.get('AgentSessionRuntimeService')
+        await runtime.cancelSessionForks(sessionId)
+        await runtime.closeSession(sessionId)
+      })
     )
+    await application
+      .get('AgentSessionRuntimeService')
+      .recoverSessionForks()
+      .catch((error) => logger.warn('Fork cleanup remains pending after session deletion', { error }))
     for (const deliveryResult of deliveryResults)
       application.get('AgentSessionDeliveryService').kick(deliveryResult.sessionId)
     retrySessionIds.forEach((sessionId) => application.get('AgentSessionDeliveryService').kick(sessionId))
@@ -445,6 +540,7 @@ export class AgentLifecycleService extends BaseService {
         error: result.reason
       })
     })
+    await this.archiveSystemWorkspaces(sessionIds.filter((_, index) => closed[index].status === 'fulfilled'))
   }
 
   private async withStableSessions<T>(
@@ -484,7 +580,7 @@ export class AgentLifecycleService extends BaseService {
     const runtime = application.get('AgentSessionRuntimeService')
     const busySessionIds = sessionIds.filter(
       (sessionId) =>
-        manager.hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)) || runtime.isSessionBusy(sessionId)
+        manager.hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)) || runtime.isSessionBusyForArchive(sessionId)
     )
     if (busySessionIds.length > 0) throw new AgentSessionArchiveBusyError(busySessionIds)
   }

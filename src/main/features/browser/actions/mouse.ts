@@ -8,7 +8,7 @@ export async function click(
   session: GuestSession,
   ref: BrowserRef,
   button: 'left' | 'right' | 'middle',
-  clickCount: 1 | 2,
+  clickCount: number,
   options: BrowserActionOptions
 ) {
   const point = await resolvePointerTarget(session, ref, options)

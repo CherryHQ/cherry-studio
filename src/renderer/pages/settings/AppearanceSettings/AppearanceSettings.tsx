@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  CodeEditor,
   Combobox,
   type ComboboxOption,
   Flex,
@@ -25,6 +24,7 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
+import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import {
   SettingDescription,
   SettingDivider,
@@ -35,7 +35,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
-import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -46,11 +45,6 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
-import {
-  canRemoveSidebarShortcut,
-  createSidebarShortcutTarget,
-  SIDEBAR_SHORTCUT_PROVIDER_IDS
-} from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -61,7 +55,6 @@ import ThemeColorPicker from './components/ThemeColorPicker'
 
 const DEFAULT_COLOR_PRIMARY = '#00b96b'
 const DEFAULT_ZOOM_FACTOR = 1
-const CHAT_ASSISTANT_SHORTCUT_TARGET = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, 'assistants')
 const THEME_COLOR_PRESETS = [
   DEFAULT_COLOR_PRIMARY,
   '#EF4444', // Red
@@ -129,8 +122,6 @@ const AppearanceSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const activeCmTheme = useCmTheme()
-  const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
-  const isChatAssistantVisible = isPinned(CHAT_ASSISTANT_SHORTCUT_TARGET)
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -481,20 +472,6 @@ const AppearanceSettings: FC = () => {
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.sidebar.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.display.sidebar.chat.visible')}</SettingRowTitle>
-          <Switch
-            checked={isChatAssistantVisible}
-            disabled={isChatAssistantVisible && !canRemoveSidebarShortcut(shortcuts, CHAT_ASSISTANT_SHORTCUT_TARGET)}
-            onCheckedChange={(checked) => setPinned(CHAT_ASSISTANT_SHORTCUT_TARGET, checked)}
-            aria-label={t('settings.display.sidebar.chat.visible')}
-          />
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.font.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-appearance-font-global" className="scroll-mt-6">
@@ -602,7 +579,7 @@ const AppearanceSettings: FC = () => {
         <div
           id="setting-appearance-custom-css"
           className="mt-4 scroll-mt-6 overflow-hidden rounded-lg border border-border-subtle">
-          <CodeEditor
+          <LazyCodeEditor
             theme={activeCmTheme}
             fontSize={fontSize - 1}
             value={customCss}

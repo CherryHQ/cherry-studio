@@ -61,18 +61,17 @@ describe('SidebarShortcutService', () => {
     ])
   })
 
-  it('refuses to remove the final built-in app shortcut', async () => {
+  it('persists an empty sidebar when the final built-in app is removed', async () => {
     const app = createSidebarShortcutTarget('core.app', 'assistants')
     const initial = [
       { type: 'shortcut', id: createSidebarShortcutId(app), target: app }
     ] satisfies SidebarShortcutItem[]
-    const harness = createClient(initial)
-    const service = new SidebarShortcutService(harness.client)
+    const preferences = createMockPreferenceService({ 'ui.sidebar_shortcut': initial })
+    const service = new SidebarShortcutService(preferences)
 
     await service.remove(app)
 
-    expect(harness.current()).toEqual(initial)
-    expect(harness.set).not.toHaveBeenCalled()
+    expect(preferences.getCachedValue('ui.sidebar_shortcut')).toEqual([])
   })
 
   it('rejects a failed mutation without blocking the next queued mutation', async () => {

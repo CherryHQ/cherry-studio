@@ -78,6 +78,10 @@ interface Options {
   target: WebviewAnnotationTarget
   locale: WebviewAnnotationLocale
   theme: 'light' | 'dark'
+  /** Host-resolved primary colour handed to the guest overlay. */
+  accent: string
+  /** Host-resolved readable foreground for the guest overlay's pin digits. */
+  accentForeground: string
   /** Fired when the guest persists a newly created annotation. */
   onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
 }
@@ -127,6 +131,8 @@ export function useWebviewAnnotationSession({
   target,
   locale,
   theme,
+  accent,
+  accentForeground,
   onAnnotationSaved
 }: Options) {
   const webview = webviewRef.current
@@ -144,11 +150,11 @@ export function useWebviewAnnotationSession({
   const generationRef = useRef(0)
   const targetRef = useRef(target)
   const hostActiveRef = useRef(isHostActive)
-  const configurationRef = useRef({ locale, theme })
+  const configurationRef = useRef({ locale, theme, accent, accentForeground })
   const onAnnotationSavedRef = useRef(onAnnotationSaved)
   targetRef.current = target
   hostActiveRef.current = isHostActive
-  configurationRef.current = { locale, theme }
+  configurationRef.current = { locale, theme, accent, accentForeground }
   onAnnotationSavedRef.current = onAnnotationSaved
 
   const sendCommand = useCallback(
@@ -419,7 +425,7 @@ export function useWebviewAnnotationSession({
     const sessionId = sessionRef.current
     if (!binding || !sessionId) return
     void sendCommand(binding.webview, { type: 'configure', sessionId, ...configurationRef.current })
-  }, [locale, sendCommand, target.label, theme])
+  }, [accent, accentForeground, locale, sendCommand, target.label, theme])
 
   useEffect(() => {
     const binding = bindingRef.current

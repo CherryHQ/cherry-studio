@@ -24,6 +24,7 @@
  */
 
 import { application } from '@application'
+import type { AgentSessionType } from '@data/db/schemas/agentSession'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -33,15 +34,17 @@ import {
   readTaskSessionReuse,
   type TaskSessionReuse
 } from '@data/services/AgentTaskService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
+import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
+import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
-import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -50,7 +53,7 @@ export type AgentTaskInput = {
   agentId: string
   prompt: string
   timeoutMinutes: number
-  workspace: AgentSessionWorkspaceSource
+  workspace?: AgentSessionWorkspaceSource
   /** Reuse-config epoch captured when this job was enqueued. */
   reuseRevision: number
 }
@@ -97,21 +100,20 @@ function loadReusableSession(taskScheduleId: string, agentId: string) {
 
 /**
  * Resolve the session this fire runs in. A reused session keeps its own
- * workspace, so the task's `workspace` field only applies when creating one —
- * system for regular tasks (the picker defaults there), the validated user
- * workspace for heartbeats.
+ * workspace, so the task's workspace source only applies when creating one.
  *
  * Admission is checked atomically under `startAgentSessionRun`'s topic lock, after this
  * read-side resolution step, so an interactive turn cannot slip through between check and start.
  */
 function resolveTaskSession(params: {
+  sessionType: AgentSessionType
   reuse: TaskSessionReuse
   reuseBinding: { scheduleId: string; reuseRevision: number } | null
   agentId: string
   name: string
   workspace: AgentSessionWorkspaceSource
 }): ReturnType<typeof agentSessionService.create> {
-  const { reuse, reuseBinding, agentId, name, workspace } = params
+  const { reuse, reuseBinding, agentId, name, workspace, sessionType } = params
 
   if (reuse.enabled && reuseBinding) {
     const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
@@ -123,7 +125,7 @@ function resolveTaskSession(params: {
     })
   }
 
-  const session = agentSessionService.create({ agentId, name, workspace })
+  const session = agentSessionService.create({ agentId, name, workspace }, sessionType)
   if (reuse.enabled && reuseBinding) {
     application.get('AgentJobsService').bindTaskSessionReuse({
       ...reuseBinding,
@@ -136,7 +138,7 @@ function resolveTaskSession(params: {
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
-  const { agentId, prompt, timeoutMinutes, workspace } = ctx.input
+  const { agentId, prompt, timeoutMinutes } = ctx.input
 
   // schedule-fired jobs carry `scheduleId` on the row; manual ad-hoc enqueues
   // (no schedule) degrade gracefully: skip channel notification.
@@ -154,44 +156,59 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   // Identity is the reserved prompt, not the schedule name — see HEARTBEAT_PROMPT_SENTINEL.
   const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL
+  const workspace: AgentSessionWorkspaceSource = isHeartbeat
+    ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    : (ctx.input.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM })
 
   let effectivePrompt = prompt
 
   if (isHeartbeat) {
-    if (config.heartbeat_enabled === false) {
+    if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { result: 'Skipped (disabled)' }
     }
-    switch (workspace.type) {
-      case AGENT_WORKSPACE_TYPE.SYSTEM:
-        logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
-        return { result: 'Skipped (no file)' }
-      case AGENT_WORKSPACE_TYPE.USER:
-        break
-      default: {
-        const exhaustive: never = workspace
-        throw new Error(`Unsupported heartbeat workspace source: ${String(exhaustive)}`)
-      }
+    // Runtime changes may bypass heartbeat configuration events; recheck capabilities at execution.
+    const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
+      ? AGENT_RUNTIME_CAPABILITIES[agent.type]
+      : undefined
+    if (capabilities?.heartbeat !== true) {
+      logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
+      return { result: 'Skipped (capability)' }
     }
-    let workspaceRow: Awaited<ReturnType<typeof agentWorkspaceService.getById>>
+    const agentsDataRoot = application.getPath('feature.agents.data')
+    const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
+    // Revalidate at execution because directories may be replaced after provisioning.
     try {
-      workspaceRow = agentWorkspaceService.getById(workspace.workspaceId)
+      await assertAgentStorageDirectory(agentsDataRoot, agentDataPath)
     } catch (error) {
-      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        logger.debug('Heartbeat skipped (workspace deleted)', {
+      logger.warn('Heartbeat agent data directory failed the storage check; skipping tick', {
+        agentId,
+        scheduleId,
+        agentDataPath,
+        error
+      })
+      const liveTemplate = scheduleSnapshot?.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+      if (
+        scheduleId &&
+        scheduleSnapshot?.type === 'agent.task' &&
+        liveTemplate?.agentId === agentId &&
+        liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL
+      ) {
+        pauseHeartbeatSchedule(
           agentId,
           scheduleId,
-          workspaceId: workspace.workspaceId
-        })
-        return { result: 'Skipped (workspace deleted)' }
+          'Failed to pause heartbeat schedule on an untrusted agent data path'
+        )
+        void application
+          .get('AgentJobsService')
+          .syncHeartbeat(agentId)
+          .catch((error) => {
+            logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
+          })
       }
-      throw error
+      return { result: 'Skipped (untrusted agent data path)' }
     }
-    if (workspaceRow.type !== AGENT_WORKSPACE_TYPE.USER) {
-      throw new Error(`Heartbeat workspace must be user-owned: ${workspace.workspaceId}`)
-    }
-    const workspacePath = workspaceRow.path
-    const content = await readHeartbeat(workspacePath)
+    const content = await readHeartbeat(agentDataPath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
       return { result: 'Skipped (no file)' }
@@ -211,9 +228,14 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // A queued job captures the reuse epoch at enqueue time. It must not attach
   // to a sticky session selected by a newer task configuration.
   const reuseIsCurrent =
-    scheduleSnapshot?.type === 'agent.task' && currentReuse.enabled && currentReuse.revision === expectedReuseRevision
+    !isHeartbeat &&
+    scheduleSnapshot?.type === 'agent.task' &&
+    currentReuse.enabled &&
+    currentReuse.revision === expectedReuseRevision
   const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
+  const sessionType = isHeartbeat ? 'background' : 'conversation'
   let session = resolveTaskSession({
+    sessionType,
     reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
     reuseBinding,
     agentId,
@@ -328,7 +350,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
-      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace })
+      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace }, sessionType)
       topicId = buildAgentSessionTopicId(session.id)
       if (reuseBinding) {
         application.get('AgentJobsService').bindTaskSessionReuse({

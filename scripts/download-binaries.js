@@ -220,7 +220,7 @@ function hasReferencedFile(dir) {
 //                 (MinGit — other platforms fall back to the user's system git)
 
 const MISE_VERSION = '2026.7.14'
-const BUN_VERSION = '1.3.14'
+const BUN_VERSION = '1.4.2'
 const UV_VERSION = '0.11.16'
 const RG_VERSION = '14.1.1'
 const MINGIT_VERSION = '2.54.0'
@@ -299,42 +299,42 @@ const TOOLS = [
         archive: 'zip',
         binaries: ['bun'],
         strip: 'bun-darwin-aarch64',
-        sha256: 'd8b96221828ad6f97ac7ac0ab7e95872341af763001e8803e8267652c2652620'
+        sha256: '90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f'
       },
       'darwin-x64': {
         url: bunUrl('bun-darwin-x64'),
         archive: 'zip',
         binaries: ['bun'],
         strip: 'bun-darwin-x64',
-        sha256: '4183df3374623e5bab315c547cfa0974533cd457d86b73b639f7a87974cd6633'
+        sha256: '80520d7e17526308c9185d261679ac6d27798d3803a0e9f7ff9121ab8affb012'
       },
       'linux-arm64': {
         url: bunUrl('bun-linux-aarch64'),
         archive: 'zip',
         binaries: ['bun'],
         strip: 'bun-linux-aarch64',
-        sha256: 'a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b'
+        sha256: '54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7'
       },
       'linux-x64': {
         url: bunUrl('bun-linux-x64'),
         archive: 'zip',
         binaries: ['bun'],
         strip: 'bun-linux-x64',
-        sha256: '951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f'
+        sha256: '36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913'
       },
       'win32-x64': {
         url: bunUrl('bun-windows-x64'),
         archive: 'zip',
         binaries: ['bun.exe'],
         strip: 'bun-windows-x64',
-        sha256: '0a0620930b6675d7ba440e81f4e0e00d3cfbe096c4b140d3fff02205e9e18922'
+        sha256: 'ce4c17497b2f29712a99d3d53f028de28cd42e3bacb8589599e7f000e49b6405'
       },
       'win32-arm64': {
         url: bunUrl('bun-windows-aarch64'),
         archive: 'zip',
         binaries: ['bun.exe'],
         strip: 'bun-windows-aarch64',
-        sha256: '89841f5a57f2348b67ec0839b718f4bf4ea7d07c371c9ba4b77b6c790f918953'
+        sha256: 'a7a16b876a305fd1029c66dbd27007b4f6112ae896532f675878731a21e50cfd'
       }
     }
   },

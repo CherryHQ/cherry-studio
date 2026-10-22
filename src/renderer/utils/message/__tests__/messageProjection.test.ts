@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { sharedMessageToUIMessage } from '../messageProjection'
 
 describe('sharedMessageToUIMessage', () => {
-  it('projects persisted assistant turn options into UI metadata', () => {
+  it('projects persisted retry settings into UI metadata', () => {
     const message = sharedMessageToUIMessage({
       id: 'assistant-1',
       topicId: 'topic-1',
@@ -11,6 +11,7 @@ describe('sharedMessageToUIMessage', () => {
       role: 'assistant',
       data: {
         parts: [],
+        modelSelection: 'explicit',
         turnOptions: { reasoningEffort: 'high', fastMode: true }
       },
       searchableText: '',
@@ -24,5 +25,6 @@ describe('sharedMessageToUIMessage', () => {
     })
 
     expect(message.metadata?.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
+    expect(message.metadata?.modelSelection).toBe('explicit')
   })
 })

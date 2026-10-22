@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 const initialTopic: Topic = {
@@ -138,6 +139,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   const React = await import('react')
 
   return {
+    useCache: () => [undefined, vi.fn()],
     usePersistCache: (key: string) => {
       const [value, setValue] = React.useState<unknown>(() => {
         if (homeMocks.persistCacheValues.has(key)) {
@@ -180,8 +182,7 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTabId: () => 'chat-tab',
-  useIsActiveTab: () => homeMocks.isActiveTab,
-  useTabSelfVisuals: vi.fn()
+  useIsActiveTab: () => homeMocks.isActiveTab
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -685,7 +686,6 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-import { useTabSelfVisuals } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -2017,12 +2017,6 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-b'))
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        routePrefix: '/app/chat',
-        preserveVisuals: true
-      })
-    )
   })
 
   it('writes same-tab topic changes to the URL', async () => {
@@ -2062,5 +2056,65 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBeNull())
     expect(homeMocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('clears the remembered topic id and converges when the bound route resolves NOT_FOUND', async () => {
+    homeMocks.entryTopic = undefined
+    homeMocks.routeSearch = { topicId: 'topic-deleted' }
+    cacheService.setPersist('ui.chat.last_used_topic_id', 'topic-deleted')
+    homeMocks.activeTopicOverride = undefined
+    homeMocks.forceActiveTopicUndefined = true
+    homeMocks.activeTopicLoading = false
+    homeMocks.activeTopicSource = 'none'
+    homeMocks.activeTopicError = DataApiErrorFactory.notFound('Topic', 'topic-deleted')
+    homeMocks.navigate.mockImplementation(async (opts) => {
+      if (opts.to === '/app/chat' && opts.search && Object.keys(opts.search as Record<string, unknown>).length === 0) {
+        homeMocks.routeSearch = {}
+        homeMocks.forceActiveTopicUndefined = false
+        homeMocks.activeTopicError = undefined
+        homeMocks.activeTopicOverride = historyTopic
+      }
+    })
+
+    const { rerender } = render(<HomePage />)
+
+    await waitFor(() =>
+      expect(homeMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/chat',
+        search: {},
+        replace: true
+      })
+    )
+    await act(async () => {
+      rerender(<HomePage />)
+    })
+    expect(cacheService.getPersist('ui.chat.last_used_topic_id')).toBeNull()
+    const recoveryNavigations = homeMocks.navigate.mock.calls.filter(
+      (call) => call[0]?.to === '/app/chat' && call[0]?.search && Object.keys(call[0].search).length === 0
+    )
+    expect(recoveryNavigations).toHaveLength(1)
+    expect(screen.getByTestId('active-topic')).toHaveTextContent(historyTopic.id)
+  })
+
+  it('does not clear a different remembered topic id when NOT_FOUND recovery re-enters bare chat', async () => {
+    homeMocks.entryTopic = undefined
+    homeMocks.routeSearch = { topicId: 'topic-deleted' }
+    cacheService.setPersist('ui.chat.last_used_topic_id', 'topic-still-valid')
+    homeMocks.activeTopicOverride = undefined
+    homeMocks.forceActiveTopicUndefined = true
+    homeMocks.activeTopicLoading = false
+    homeMocks.activeTopicSource = 'none'
+    homeMocks.activeTopicError = DataApiErrorFactory.notFound('Topic', 'topic-deleted')
+
+    render(<HomePage />)
+
+    await waitFor(() =>
+      expect(homeMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/chat',
+        search: {},
+        replace: true
+      })
+    )
+    expect(cacheService.getPersist('ui.chat.last_used_topic_id')).toBe('topic-still-valid')
   })
 })

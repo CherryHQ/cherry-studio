@@ -8,6 +8,7 @@
 
 import * as z from 'zod'
 
+import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -16,7 +17,7 @@ import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
-import { TriggerSchema } from './jobs'
+import { type JobSnapshot, TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -41,7 +42,7 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi', 'dsh'] as const
+export const AGENT_TYPES = ['claude-code', 'pi'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
@@ -63,7 +64,10 @@ export const AgentConfigurationSchema = z
     scheduler_last_run: z.string().optional(),
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional(),
-    builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
+    heartbeat_timeout_minutes: z.number().int().positive().max(MAX_HEARTBEAT_TIMEOUT_MINUTES).optional(),
+    builtin_role: z
+      .enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])
+      .optional(),
     language: AgentLanguageSchema.nullable().optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
@@ -312,11 +316,18 @@ export type AgentSchemas = {
   '/agent-tasks/:taskId': {
     GET: {
       params: { taskId: string }
-      response: ScheduledTaskEntity
+      response: ScheduledTaskListItem
     }
   }
 
   /** List tasks for an agent (mutations live on IpcApi `ai.agent.task.*`) */
+  '/agents/:agentId/heartbeat': {
+    GET: {
+      params: { agentId: string }
+      response: { scheduleEnabled: boolean; latestRun: JobSnapshot | null }
+    }
+  }
+
   '/agents/:agentId/tasks': {
     GET: {
       params: { agentId: string }

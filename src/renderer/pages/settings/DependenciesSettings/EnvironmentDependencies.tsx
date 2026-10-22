@@ -51,6 +51,7 @@ import {
 } from '@renderer/components/BinaryInstallErrorDialog'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -658,7 +659,7 @@ const BinaryToolPresetCard: FC<{
         <button
           type="button"
           className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => void ipcApi.request('system.shell.open_website', tool.repoUrl)}>
+          onClick={() => void openExternalWebsite(tool.repoUrl)}>
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
@@ -666,7 +667,7 @@ const BinaryToolPresetCard: FC<{
           <button
             type="button"
             className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-            onClick={() => void ipcApi.request('system.shell.open_website', tool.homepage!)}>
+            onClick={() => void openExternalWebsite(tool.homepage!)}>
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>

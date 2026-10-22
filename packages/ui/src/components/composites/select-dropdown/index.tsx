@@ -211,7 +211,8 @@ export function SelectDropdown<T extends { id: string }>({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-(--radix-popover-trigger-width) rounded-md border border-border-subtle bg-popover p-1 shadow-lg">
+        style={{ width: 'var(--radix-popover-trigger-width)' }}
+        className="rounded-md border border-border-subtle bg-popover p-1 shadow-lg">
         {items.length === 0 && emptyText ? (
           <div className="px-2.5 py-3 text-sm text-muted-foreground/45">{emptyText}</div>
         ) : virtualize ? (

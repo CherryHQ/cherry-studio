@@ -1,18 +1,9 @@
-import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
 import { createFileProcessingJobOutput } from '../persistence/artifacts'
-import type {
-  FileProcessingRemoteContext,
-  FileProcessingRemotePollResult,
-  PersistableRemoteState
-} from '../processors/types'
 import { prepareFileProcessingJob } from './jobExecution'
+import { executeRemotePolling } from './remotePolling'
 import { type FileProcessingJobPayload, fileProcessingQueue } from './shared'
-
-const logger = loggerService.withContext('FileProcessing:RemotePollJobHandler')
-
-const POLL_INTERVAL_MS = 1_000
 
 /**
  * Handles capability handlers whose execution model is "submit → poll":
@@ -38,73 +29,8 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 30 * 60_000,
   async execute(ctx) {
-    const { feature, config, prepared } = await prepareFileProcessingJob(ctx, 'remote-poll')
-
-    let providerTaskId: string
-    let remoteContext: FileProcessingRemoteContext
-
-    const persisted = ctx.metadata.remoteState as PersistableRemoteState | undefined
-    if (persisted?.providerTaskId) {
-      const rehydrated = prepared.rehydrate(persisted, config)
-      providerTaskId = rehydrated.providerTaskId
-      remoteContext = rehydrated.remoteContext
-      logger.debug('Resumed remote-poll job from persisted state', {
-        jobId: ctx.jobId,
-        providerTaskId,
-        stage: persisted.stage
-      })
-    } else {
-      const start = await prepared.startRemote(ctx.signal)
-      providerTaskId = start.providerTaskId
-      remoteContext = start.remoteContext
-      await ctx.patchMetadata({ remoteState: prepared.toPersistable(remoteContext, providerTaskId) })
-      ctx.reportProgress(start.progress, { stage: 'started' })
-    }
-
-    while (!ctx.signal.aborted) {
-      const result: FileProcessingRemotePollResult = await prepared.pollRemote(
-        { providerTaskId, remoteContext },
-        ctx.signal
-      )
-
-      if (result.status === 'failed') {
-        const message =
-          result.error?.trim() || `${config.id} ${feature} failed (no diagnostic, providerTaskId=${providerTaskId})`
-        throw new Error(message)
-      }
-
-      if (result.status === 'completed') {
-        return await createFileProcessingJobOutput(ctx, result.output)
-      }
-
-      ctx.reportProgress(result.progress, { stage: 'polling' })
-
-      if (result.remoteContext !== undefined && result.remoteContext !== remoteContext) {
-        remoteContext = result.remoteContext
-        await ctx.patchMetadata({ remoteState: prepared.toPersistable(remoteContext, providerTaskId) })
-      }
-
-      await sleepWithSignal(POLL_INTERVAL_MS, ctx.signal)
-    }
-
-    throw new DOMException('aborted', 'AbortError')
+    const { config, prepared } = await prepareFileProcessingJob(ctx, 'remote-poll')
+    const output = await executeRemotePolling(ctx, prepared, config)
+    return await createFileProcessingJobOutput(ctx, output)
   }
-}
-
-function sleepWithSignal(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) {
-    return Promise.reject(signal.reason ?? new DOMException('aborted', 'AbortError'))
-  }
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      signal.removeEventListener('abort', onAbort)
-      reject(signal.reason ?? new DOMException('aborted', 'AbortError'))
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
 }
