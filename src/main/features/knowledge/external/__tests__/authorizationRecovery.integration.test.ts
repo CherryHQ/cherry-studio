@@ -11,11 +11,13 @@ import { externalKnowledgeConnectionService as connections } from '@data/service
 import { ExternalKnowledgeCredentialStore } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
 import {
+  exchangeDeviceAuthorization,
   FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
   getDocxMarkdown,
   getWikiNode,
   listWikiChildNodes,
+  refreshUserToken,
   type FeishuUserTokenSet
 } from '../feishuKnowledgeProvider'
 
@@ -86,6 +88,7 @@ describe('authorization recovery ownership', () => {
   afterEach(async () => {
     await Promise.all(runtimes.splice(0).map((runtime) => runtime.stop()))
     vi.restoreAllMocks()
+    vi.mocked(net.fetch).mockReset()
     await rm(directory, { recursive: true, force: true })
   })
 
@@ -203,6 +206,31 @@ describe('authorization recovery ownership', () => {
     }
   })
 
+  it.each([{ code: 20002 }, { error: 'invalid_client' }])(
+    'persists recovery after invalid application credentials reject refresh: %j',
+    async (body) => {
+      let now = 1_000
+      const api = provider()
+      const runtime = await start(api, () => now)
+      const original = await connected(runtime)
+      now += token.expiresIn * 1_000
+      api.refreshUserToken.mockImplementation(() => refreshUserToken(app, token.refreshToken))
+      vi.mocked(net.fetch).mockResolvedValueOnce(Response.json(body, { status: 400 }))
+
+      await expect(runtime.acquireAccessToken(original.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+      expect(connections.getById(original.id)?.authorizationStatus).toBe('reauthorization-required')
+      await expect(runtime.acquireAccessToken(original.id)).rejects.toMatchObject({ code: 'reauthorization-required' })
+      expect(net.fetch).toHaveBeenCalledTimes(1)
+
+      await runtime.stop()
+      const restarted = await start(api, () => now)
+      await expect(restarted.acquireAccessToken(original.id)).rejects.toMatchObject({
+        code: 'reauthorization-required'
+      })
+      expect(net.fetch).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it.each(['pending', 'committed'])('does not let old initial cancellation delete a %s replacement', async (stage) => {
     const api = provider()
     const runtime = await start(api)
@@ -263,6 +291,8 @@ describe('authorization recovery ownership', () => {
     ['expired', 'authorization-failed'],
     ['invalid-candidate-token', 'reauthorization-required'],
     ['candidate-app-scope', 'scope-missing'],
+    ['candidate-app-secret', 'reauthorization-required'],
+    ['candidate-invalid-client', 'reauthorization-required'],
     ['candidate-grants', 'scope-missing'],
     ['candidate-identity-token', 'reauthorization-required'],
     ['candidate-identity-missing', 'identity-unverifiable'],
@@ -284,6 +314,15 @@ describe('authorization recovery ownership', () => {
         break
       case 'invalid-candidate-token':
         api.exchangeDeviceAuthorization.mockRejectedValue(new FeishuProviderError('reauthorization-required', true))
+        break
+      case 'candidate-app-secret':
+      case 'candidate-invalid-client':
+        vi.mocked(net.fetch).mockResolvedValueOnce(
+          Response.json(failure === 'candidate-app-secret' ? { code: 20002 } : { error: 'invalid_client' }, {
+            status: 400
+          })
+        )
+        api.exchangeDeviceAuthorization.mockImplementation(() => exchangeDeviceAuthorization(app, device.deviceCode))
         break
       case 'candidate-app-scope':
         api.exchangeDeviceAuthorization.mockRejectedValue(new FeishuProviderError('app-scope-missing', true))
