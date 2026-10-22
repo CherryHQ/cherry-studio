@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
 import { dispatchTouch } from '../../../__tests__/touchEvents'
+import type { PreviewOptions } from '../../../types'
 
 const mocks = vi.hoisted(() => {
   const createValidDocxBytes = () => {
@@ -30,6 +32,7 @@ const mocks = vi.hoisted(() => {
     fsRead: vi.fn(),
     failDocument: vi.fn(),
     renderAsync: vi.fn(),
+    options: undefined as PreviewOptions | undefined,
     MockIntersectionObserver
   }
 })
@@ -39,7 +42,7 @@ vi.mock('docx-preview', () => ({
 }))
 
 vi.mock('../../../previewContext', () => ({
-  usePreviewHost: () => ({ failDocument: mocks.failDocument })
+  usePreviewHost: () => ({ failDocument: mocks.failDocument, options: mocks.options })
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -70,6 +73,7 @@ const filePath = '/tmp/documents/report.docx'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.options = undefined
   mocks.fsRead.mockResolvedValue(mocks.createValidDocxBytes())
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
     body.innerHTML = '<section>Page 1</section><section>Page 2</section>'
@@ -85,6 +89,70 @@ afterEach(() => {
 })
 
 describe('WordFilePreview', () => {
+  it('samples font compatibility on refresh without reparsing for an options-only update', async () => {
+    let document = previewTestDocument(22, 7, mocks.fsRead, 0)
+    const content = () => <WordFilePreview sourceId={filePath} fileName="report.docx" document={document} />
+    const view = render(content())
+    await screen.findByText('Page 2')
+    expect(mocks.renderAsync).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ normalizeSymbolBullets: false })
+    )
+    for (const [generation, normalizeSymbolBullets] of [
+      [1, true],
+      [2, false]
+    ] as const) {
+      mocks.options = { docx: { normalizeSymbolBullets } }
+      view.rerender(content())
+      await act(async () => {})
+      expect(mocks.renderAsync).toHaveBeenCalledTimes(generation)
+      document = previewTestDocument(22, 7, mocks.fsRead, generation)
+      view.rerender(content())
+      await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(generation + 1))
+      expect(mocks.renderAsync).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ normalizeSymbolBullets })
+      )
+      await screen.findByText('Page 2')
+    }
+  })
+
+  it('retains zoom, page and scroll on replacement and clamps a shorter document', async () => {
+    const user = userEvent.setup()
+    const view = (generation: number) => (
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 7, mocks.fsRead, generation)}
+      />
+    )
+    const { rerender } = render(view(0))
+    await screen.findByText('Page 2')
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    const region = screen.getByRole('region', { name: 'report.docx' })
+    region.scrollTop = 450
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<section>Updated page 1</section><section>Updated page 2</section>'
+    })
+    rerender(view(1))
+    await screen.findByText('Updated page 2')
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    expect(region.scrollTop).toBe(450)
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<section>Shortened document</section>'
+    })
+    rerender(view(2))
+    await screen.findByText('Shortened document')
+    expect(screen.getByText('1 / 1')).toBeInTheDocument()
+    expect(screen.getByText('110%')).toBeInTheDocument()
+  })
+
   /** Puts a paragraph into the rendered body the way docx-preview would, and returns it for clicking. */
   function renderParagraph(text: string, attributes: Record<string, string>): HTMLParagraphElement {
     const bodyContainer = screen.getByTestId('docx-preview-content')
