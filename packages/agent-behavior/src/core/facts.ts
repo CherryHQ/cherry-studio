@@ -216,7 +216,7 @@ export interface ChildFacts {
   readonly running: boolean
   /** Index `i` is run `i + 1`: the sum of the usage on the child's own entries of that run. */
   readonly runUsage: readonly UsageFact[]
-  /** The child's last history entry, where a fork of the child's whole history ends (S-j). */
+  /** The child's last history entry, usable as an explicit fork point. */
   readonly lastItem: ItemId
 }
 export interface LiveFacts {

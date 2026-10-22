@@ -76,7 +76,7 @@ export interface Turns {
   /**
    * Aborts the active run, and the foreground children its tool calls own, and withdraws queued input. With `turn`,
    * only while the conversation's latest run, active or ended, is the one that began with entry `turn`; once a later
-   * run has begun it does nothing.
+   * run has begun it does nothing. A child's completed foreground run gives this turn no ownership of later child runs.
    */
   stop(thread: ThreadId, cause: StopCause, turn?: ItemId): Promise<void>
 }
@@ -91,6 +91,8 @@ export type MessageResult = { readonly run: number; readonly status: 'started' |
  * the caller's turn never waits for the child's next boundary. `ChildFacts.runUsage` partitions the child's usage by
  * these runs. Before a message starts a run, each call of the child's last assistant entry that has no result gets one
  * with `INTERRUPTED_CALL_RESULT` as its text and `isError: true`, unless that entry ended in an error or was aborted.
+ * Continuing a finished child keeps its id and native history and starts the next run in the background, independent
+ * of the completed run's parent cancellation boundary. `message` never forks or aliases the child to another id.
  *
  * @harness coding-agent `message` steers a running child and loads then continues a finished one, answering its open
  * calls first; a steer that missed the run's last boundary, or whose tool call's signal aborted, is withdrawn, not
@@ -101,7 +103,9 @@ export type MessageResult = { readonly run: number; readonly status: 'started' |
  * is `pi.live.run`, and aborts the submission when that run ends before taking it or the calling tool task aborts.
  * `awaitAnswer` refetches that submission by request id, waits and reads the answer entry; `stop` checks that the
  * child's active run is `run`, then calls `conversation(child).abort()`, or before resume marks it as `Turns.stop`
- * does.
+ * does. A completed foreground child's immutable native owner does not provide the independent continuation above:
+ * until ownership is resolved, the adapter must reject that continuation transaction before writing its run record
+ * or report job. Silently forking or treating a foreground-owned run as background is not supported.
  * @harness fake Children are fake conversations; a steer waits for the child's next boundary and is withdrawn when the
  * run ends first or the calling tool's signal aborts; a message that starts a run answers the open calls first;
  * `awaitAnswer` waits for the run the message actually joined; `stop` aborts only when the fake child's active run is

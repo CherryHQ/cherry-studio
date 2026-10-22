@@ -16,14 +16,14 @@ export type TurnInput = { readonly kind: string; readonly text: string; readonly
 export type StopCause = 'goal-withdraw' | 'goal-pause' | 'goal-clear' | 'user'
 /** The child's parent is the thread `Ledger.transact` was called on. */
 export type ChildSpec = {
+  /** The first run's waiting and cancellation boundary; later continuations run independently in the background. */
   readonly boundary: 'foreground' | 'background'
   /**
-   * Fork from `from`'s history up to and including `at` (a fork subagent, or design §8.3 S-j). A fork always creates a
-   * new conversation with a new id on every harness: run numbers and end-record keys are per conversation, so re-owning
-   * `from` in place would collide with its earlier runs. When `from` is the transacting thread (a fork subagent), the
+   * Explicitly fork from `from`'s history up to and including `at`. A fork creates a new conversation with a new id
+   * and its own run sequence; ordinary continuation messages the existing child instead. When `from` is the transacting thread, the
    * child's copy then answers each call of the `at` entry with a result whose text is `FORK_PLACEHOLDER_RESULT` and
-   * `isError: false`: those calls run on in `from`. A fork of another conversation (S-j) copies that conversation's
-   * open calls as they are; they ended with it, and H3 answers them as interrupted before the fork's first run.
+   * `isError: false`: those calls run on in `from`. A fork of another conversation copies its open calls as they are;
+   * H3 answers them as interrupted before the fork's first run.
    */
   readonly fork?: { readonly from: ThreadId; readonly at: ItemId }
   readonly origin: SubagentOrigin

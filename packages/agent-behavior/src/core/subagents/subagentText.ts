@@ -40,11 +40,8 @@ export const taskText = (prompt: string) => `${PREAMBLE}\n\nTask:\n${prompt}`
 export const idTrailer = (child: string) => `(id: ${child} — continue this subagent with message_subagent.)`
 export const startedText = (child: string) =>
   `Subagent started in the background (id: ${child}). You will be notified when it finishes. Do not wait, poll or guess its result, and do not redo its work or edit the files it is working on. Continue with independent work, or end your turn.`
-/** The reply to a continuation; `child` differs from `from` when the old id now forwards to a forked child (S-j). */
-export const continuedText = (from: string, child: string) =>
-  from === child
-    ? `Subagent ${child} resumed in the background with your message; you will be notified when it finishes.`
-    : `Subagent ${from} continues as ${child} in the background with your message; use id ${child} from now on. You will be notified when it finishes.`
+export const continuedText = (child: string) =>
+  `Subagent ${child} resumed in the background with your message; you will be notified when it finishes.`
 export const queuedText = (child: string) => `Message queued for subagent ${child}; it reads it after its current step.`
 export const notDeliveredText = (child: string) =>
   `Message not delivered to subagent ${child}: the turn was stopped before the subagent read it.`

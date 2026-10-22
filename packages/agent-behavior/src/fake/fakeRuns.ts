@@ -201,6 +201,7 @@ function finish(host: RunHost, epoch: Epoch, thread: ThreadState, end: RunEnding
   const { run } = thread.active!
   thread.ends.set(run, end)
   thread.active = undefined
+  thread.owner = undefined
   for (const submission of thread.submissions.values())
     if (submission.run === run && submission.state === 'running') submission.state = 'settled'
   // A steer that missed the run's last boundary is withdrawn, never carried into the next run (G-C5).
