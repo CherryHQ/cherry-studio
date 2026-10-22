@@ -2691,6 +2691,19 @@ describe('a malformed tag that never closes', () => {
     expect(joined(chunks)).toContain('para two')
   })
 
+  it('reads a heading of unterminated raw-text openers once', () => {
+    // `<style ` with no `>` behind it made the raw-text strip rescan the suffix per candidate;
+    // the 224 KB line took ~9.8 s before the long-line fallback could even be chosen.
+    const content = `# ${'<style '.repeat(32_000)}\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
   it('reads a block of unterminated heading openers once', () => {
     // Each `<h1` candidate was matched with `[^>]*>` in one regex, so a block that never closes
     // rescanned the rest of it per candidate: 256 KB took ~5.7s before the fallback was chosen.
@@ -2772,6 +2785,17 @@ describe('unequal emphasis runs in a heading', () => {
 
     const chunks = chunksOf(content)
     expect(chunks.length).toBeGreaterThan(1)
+    expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
+})
+
+describe('nested emphasis runs in a heading', () => {
+  it('lists the ids the renderer numbers when a long run closes against a shorter one', () => {
+    // micromark consumes two markers of `***` against `**` and leaves one for the trailing `*`, so
+    // the heading renders `foobarbaz`. Equal-run pairing left every marker literal and keyed it
+    // `foo-bar-baz`, which made the neighbour's `foobarbaz-1` a `foobarbaz` instead.
+    const content = `# foo***bar**baz*\n\n${'filler\n\n'.repeat(3072)}# foobarbaz\n\n[jump](#foobarbaz-1)\n`
+
     expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
   })
 })

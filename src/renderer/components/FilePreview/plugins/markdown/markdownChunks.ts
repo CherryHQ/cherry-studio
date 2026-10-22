@@ -1022,25 +1022,40 @@ function emphasisRuns(
 
 /**
  * The emphasis runs of `source` that the renderer reads as the markers of a span — which render no
- * text of their own. A run is emphasis only once it has a partner: micromark matches each closing
- * run with the nearest opening one of the same marker, so the trailing `*` of `a *b` and the `_` of
- * `foo_bar_baz` never pair and stay the text they were written as.
+ * text of their own — keyed by the run's start with the number of markers consumed. A closing run
+ * matches the nearest opener of the same character, taking two markers when both hold two (so `***`
+ * can close against `**` and leave `*` for a later closer) and one otherwise; the rule of three
+ * keeps a single `*` from closing a `**` the renderer leaves literal.
  */
-function emphasisSpans(source: string): Set<number> {
+function emphasisSpans(source: string): Map<number, number> {
   const runs = emphasisRuns(source)
-  const spans = new Set<number>()
-  // A stack of runs still looking for a partner: micromark pairs a closing run with the nearest
-  // opening one of the same marker, so the top of the stack is the one it takes.
-  const open: Array<{ at: number; marker: string }> = []
+  const spans = new Map<number, number>()
+  const open: Array<{ at: number; marker: string; remaining: number; closes: boolean }> = []
   for (const current of runs) {
-    const top = open[open.length - 1]
-    // micromark pairs runs of equal length: `**` never closes a `*`, so the markers stay text.
-    if (current.closes && top?.marker === current.run) {
-      spans.add(top.at)
-      spans.add(current.open)
-      open.pop()
-    } else if (current.opens) {
-      open.push({ at: current.open, marker: current.run })
+    let remaining = current.run.length
+    if (current.closes) {
+      while (remaining > 0 && open.length > 0) {
+        const top = open[open.length - 1]
+        if (top.marker !== current.run[0]) break
+        const use = top.remaining >= 2 && remaining >= 2 ? 2 : 1
+        // Rule of three: a delimiter that can both open and close cannot pair when the two runs'
+        // lengths sum to a multiple of three, unless both are multiples of three.
+        if (
+          (top.closes || current.opens) &&
+          (top.remaining + remaining) % 3 === 0 &&
+          !(top.remaining % 3 === 0 && remaining % 3 === 0)
+        ) {
+          break
+        }
+        spans.set(top.at, (spans.get(top.at) ?? 0) + use)
+        spans.set(current.open, (spans.get(current.open) ?? 0) + use)
+        top.remaining -= use
+        remaining -= use
+        if (top.remaining === 0) open.pop()
+      }
+    }
+    if (remaining > 0 && current.opens) {
+      open.push({ at: current.open, marker: current.run[0], remaining, closes: current.closes })
     }
   }
   return spans
@@ -1289,9 +1304,13 @@ function headingRenderedText(
   while (pending.length > 0) {
     const entry = pending.pop() as { text: string; label: boolean }
     const segment = entry.text
+    // No `>` after this offset means no tag can close there; scanning the suffix per `<` is what
+    // made a line of unterminated `<style ` quadratic.
+    const lastCloseAngle = segment.lastIndexOf('>')
+    const lowerSegment = lastCloseAngle === -1 ? '' : segment.toLowerCase()
     // A label is inline content of its own, so its emphasis pairs within it rather than across the
     // link that holds it. Matched on first use, so a segment with no emphasis never pays the scan.
-    let spans: Set<number> | null = null
+    let spans: Map<number, number> | null = null
     // The strikethrough markers, matched the same way on their own first use.
     let strikes: Set<number> | null = null
     // The highlight markers, matched the same way on their own first use.
@@ -1349,10 +1368,18 @@ function headingRenderedText(
           index += 1
         }
       } else if (character === '<') {
+        // A `<` with no `>` behind it cannot open a tag, so it is the text it was written as.
+        if (index > lastCloseAngle) {
+          text += character
+          index += 1
+          continue
+        }
         const rest = segment.slice(index)
         // A raw-text element the sanitizer strips keeps none of the text it holds — `A<style>x</style>B`
         // renders `AB`, and a heading id keyed on `axb` would take the id a later `# AB` should get.
-        const stripped = /^<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/i.exec(rest)
+        // Without a closing tag the element cannot strip anything, so the scan is skipped.
+        const hasRawTextClose = lowerSegment.includes('</style') || lowerSegment.includes('</script')
+        const stripped = hasRawTextClose ? /^<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/i.exec(rest) : null
         if (stripped) {
           index += stripped[0].length
           continue
@@ -1371,8 +1398,9 @@ function headingRenderedText(
         if (!autolink && !raw) text += character
       } else if (character === '*' || character === '_') {
         const run = EMPHASIS_RUN.exec(segment.slice(index))?.[0] ?? character
-        // Only a run that paired with a partner is the markers of a span; one that did not is text.
-        if (!(spans ??= emphasisSpans(segment)).has(index)) text += run
+        // Only the markers a partner consumed render nothing; any leftover stays the text it was.
+        const consumed = (spans ??= emphasisSpans(segment)).get(index) ?? 0
+        if (consumed < run.length) text += run.slice(consumed)
         index += run.length
       } else if (character === '~') {
         const run = TILDE_RUN.exec(segment.slice(index))?.[0] ?? character
