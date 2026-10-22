@@ -63,6 +63,33 @@ export interface FollowupQueueItem {
   updatedAt: string
 }
 
+type RestoreQueueBody = {
+  id: string
+  scopeKey: string
+  draft: ComposerSerializedDraft
+  payload: ComposerQueuedMessagePayload
+  fileEntryIds?: string[]
+}
+
+// Restoration enqueues (edit handoff, scope/unmount recovery, background
+// retry) persist like an ordinary enqueue: fresh Blobs become durable files
+// and the row records fileEntryIds, otherwise restored attachments serialize
+// as {} and managed attachments become cleanup-eligible once the original
+// row's references close (cherry-pr-review). Already-durable payloads pass
+// through unchanged, so a background retry can rebuild the body safely.
+async function buildRestoreBody(
+  id: string,
+  scopeKey: string,
+  draft: ComposerSerializedDraft,
+  payload: ComposerQueuedMessagePayload
+): Promise<RestoreQueueBody> {
+  const durablePayload = await persistBlobAttachments(payload)
+  const fileEntryIds = (durablePayload.attachments ?? [])
+    .map((attachment) => attachment.entryId)
+    .filter((id): id is string => typeof id === 'string')
+  return { id, scopeKey, draft, payload: durablePayload, ...(fileEntryIds.length > 0 ? { fileEntryIds } : {}) }
+}
+
 // A resolve write that fails with NOT_FOUND needs no retry: the row is
 // already gone, so the dequeue already took effect.
 function isAlreadyResolved(error: unknown): boolean {
@@ -113,7 +140,10 @@ async function awaitSendWithTimeout(send: Promise<boolean>): Promise<SendOutcome
  * won the send.
  */
 // Scope keys may contain ':' (topic scopes), which template keys forbid — encode it.
-const consumedKeyFor = (scopeKey: string): SharedCacheKey => `followup-queue.consumed.${encodeURIComponent(scopeKey)}`
+// Keep the narrow template-literal type: widening to the SharedCacheKey union
+// makes getShared infer every cache value type (TS2322 at the lookup).
+const consumedKeyFor = (scopeKey: string): `followup-queue.consumed.${string}` =>
+  `followup-queue.consumed.${encodeURIComponent(scopeKey)}`
 const loadConsumed = (scopeKey: string): number | null => cacheService.getShared(consumedKeyFor(scopeKey)) ?? null
 
 interface UseFollowupQueueParams {
@@ -502,11 +532,19 @@ export function useFollowupQueue({
         // row closed when it was taken, so re-enqueueing under its id returns
         // the receipt without storing the edited content (cherry-pr-review).
         const restoreId = crypto.randomUUID()
+        let restoreBody: RestoreQueueBody
+        try {
+          restoreBody = await buildRestoreBody(restoreId, scope, outgoing.draft, outgoing.payload)
+        } catch {
+          // Attachments cannot be made durable right now: refuse the switch —
+          // the outgoing edit is still in the editor, nothing is lost.
+          await releaseClaim()
+          toast.error(t('message.error.operation_unavailable'))
+          return undefined
+        }
         for (let attempt = 0; attempt < 3 && !restored; attempt++) {
           try {
-            await enqueueTrigger({
-              body: { id: restoreId, scopeKey: scope, draft: outgoing.draft, payload: outgoing.payload }
-            })
+            await enqueueTrigger({ body: restoreBody })
             restored = true
           } catch (error) {
             // The conversation was permanently deleted: nothing to restore
@@ -517,7 +555,7 @@ export function useFollowupQueue({
         if (!restored) {
           await releaseClaim()
           toast.error(t('message.error.operation_unavailable'))
-          scheduleReenqueueRetryRef.current(restoreId, scope, outgoing.draft, outgoing.payload)
+          scheduleReenqueueRetryRef.current(restoreBody)
           return undefined
         }
         // Move the restored row back to the slot it was taken from; the slot
@@ -578,22 +616,33 @@ export function useFollowupQueue({
         let restored = false
         let conversationGone = false
         const restoreId = crypto.randomUUID()
-        for (let attempt = 0; attempt < 3 && !restored && !conversationGone; attempt++) {
-          try {
-            await enqueueTrigger({
-              body: { id: restoreId, scopeKey: scope, draft: item.draft, payload: item.payload }
-            })
-            restored = true
-          } catch (error) {
-            // The old conversation was permanently deleted; the service refuses
-            // to recreate its rows. Otherwise transient — retry inline, then in
-            // the background below.
-            if (isAlreadyResolved(error)) conversationGone = true
+        // The taken row's payload is already durable; rebuilding the body
+        // re-derives fileEntryIds so the replacement row keeps attachment
+        // ownership once the original row's references close (cherry-pr-review).
+        let restoreBody: RestoreQueueBody | null = null
+        try {
+          restoreBody = await buildRestoreBody(restoreId, scope, item.draft, item.payload)
+        } catch {
+          // Persistence IPC failed: the background retry rebuilds the body each tick.
+        }
+        if (restoreBody) {
+          for (let attempt = 0; attempt < 3 && !restored && !conversationGone; attempt++) {
+            try {
+              await enqueueTrigger({ body: restoreBody })
+              restored = true
+            } catch (error) {
+              // The old conversation was permanently deleted; the service refuses
+              // to recreate its rows. Otherwise transient — retry inline, then in
+              // the background below.
+              if (isAlreadyResolved(error)) conversationGone = true
+            }
           }
         }
         if (!restored && !conversationGone) {
           toast.error(t('message.error.operation_unavailable'))
-          scheduleReenqueueRetryRef.current(restoreId, scope, item.draft, item.payload)
+          scheduleReenqueueRetryRef.current(
+            restoreBody ?? { id: restoreId, scopeKey: scope, draft: item.draft, payload: item.payload }
+          )
         }
       }
       if (scopeKeyRef.current !== scope || !mountedRef.current) {
@@ -759,31 +808,26 @@ export function useFollowupQueue({
   // Background restore for a take orphaned by a mid-delete scope switch whose
   // replacement enqueue keeps failing. Uncapped like resolve retries — each
   // tick is one statement — and refetches on success so mirrors converge.
-  const scheduleReenqueueRetryRef = useRef<
-    (id: string, scope: string, draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
-  >(() => {})
-  scheduleReenqueueRetryRef.current = (
-    id: string,
-    scope: string,
-    draft: ComposerSerializedDraft,
-    payload: ComposerQueuedMessagePayload
-  ) => {
-    if (pendingReenqueueRef.current.has(id)) return
+  const scheduleReenqueueRetryRef = useRef<(body: RestoreQueueBody) => void>(() => {})
+  scheduleReenqueueRetryRef.current = (body: RestoreQueueBody) => {
+    if (pendingReenqueueRef.current.has(body.id)) return
     const tick = () => {
-      pendingReenqueueRef.current.delete(id)
+      pendingReenqueueRef.current.delete(body.id)
       void (async () => {
         try {
-          await enqueueTrigger({ body: { id, scopeKey: scope, draft, payload } })
+          // Rebuild per tick: a failed inline persist gets another chance, and
+          // an already-durable payload passes through unchanged.
+          await enqueueTrigger({ body: await buildRestoreBody(body.id, body.scopeKey, body.draft, body.payload) })
           if (mountedRef.current) void refetch()
         } catch (error) {
           // The conversation was permanently deleted: the service refuses to
           // recreate its rows, so there is nothing left to restore into.
           if (isAlreadyResolved(error)) return
-          scheduleReenqueueRetryRef.current(id, scope, draft, payload)
+          scheduleReenqueueRetryRef.current(body)
         }
       })()
     }
-    pendingReenqueueRef.current.set(id, setTimeout(tick, 5000))
+    pendingReenqueueRef.current.set(body.id, setTimeout(tick, 5000))
   }
 
   // Resolve a won claim: dequeue on success, mark failed otherwise. Retried so
@@ -1044,8 +1088,11 @@ export function useFollowupQueue({
       // Releasing the busy guard does not re-fire the drain effect: a
       // completion that arrived while this scope was busy exited at the
       // guard. After a settlement, re-drive the drain when an unconsumed
-      // completion is still pending (same gates as the claim retry).
-      if (settled) {
+      // completion is still pending (same gates as the claim retry). Never
+      // re-drive for an unmounted consumer: its delivery releases the next
+      // claim, and restarting would sustain claim/fail cycles on the row
+      // (cherry-pr-review). Settling the existing delivery above is unaffected.
+      if (settled && mountedRef.current) {
         const pendingHead = itemsRef.current[0]
         if (
           statusRef.current === 'done' &&
