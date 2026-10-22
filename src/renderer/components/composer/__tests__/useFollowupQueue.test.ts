@@ -912,6 +912,163 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('returns the outgoing edit to its slot with the rebuilt draft when switching targets', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    let taken: unknown
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', captureOutgoing)
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('second')
+    expect(captureOutgoing).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }))
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: {
+        id: 'a',
+        scopeKey: SCOPE,
+        draft: { text: 'first edited', tokens: [] },
+        payload: { text: 'first edited', userMessageParts: [] }
+      }
+    })
+    // 'a' was taken from slot 0, so its rebuilt copy goes back to the head.
+    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: 'a', anchor: { position: 'first' } }] } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+  })
+
+  it('refuses the switch when captureOutgoing cannot build a message', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', () => null)
+    })
+
+    expect(taken).toBeUndefined()
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(takeDeleteTrigger).not.toHaveBeenCalledWith({ params: { id: 'b' } })
+    // The won claim on 'b' is released so the row returns to the queue.
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { claimToken: expect.any(String) } })
+  })
+
+  it('ignores a re-take of the item already being edited', async () => {
+    wireQuery([row('a', 'first')])
+    const { claimTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    let again: unknown = 'unset'
+    await act(async () => {
+      again = await result.current.takeForEdit('a', () => null)
+    })
+
+    expect(again).toBeUndefined()
+    expect(claimTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not requeue the previous edit after releaseEdit', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    act(() => {
+      result.current.releaseEdit()
+    })
+    const captureOutgoing = vi.fn(() => ({ draft: draft('x'), payload: payload('x') }))
+    let taken: unknown
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', captureOutgoing)
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('second')
+    expect(captureOutgoing).not.toHaveBeenCalled()
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+  })
+
+  it('moves the restore slot up when an earlier row leaves the queue', async () => {
+    wireQuery([row('x', 'head'), row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger, reorderTrigger } = wireMutations()
+    claimTrigger.mockResolvedValue({ claimed: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    // Take 'a' from slot 1, then remove the earlier row 'x': the restore slot follows to 0.
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    await act(async () => {
+      result.current.removeId('x')
+    })
+    await act(async () => {
+      await result.current.takeForEdit('b', () => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    })
+
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: {
+        id: 'a',
+        scopeKey: SCOPE,
+        draft: { text: 'first edited', tokens: [] },
+        payload: { text: 'first edited', userMessageParts: [] }
+      }
+    })
+    expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: 'a', anchor: { position: 'first' } }] } })
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+  })
+
+  it('restores the outgoing edit but returns nothing when the incoming take was already sent', async () => {
+    wireQuery([row('a', 'first'), row('b', 'second')])
+    const { claimTrigger, takeDeleteTrigger, postTrigger } = wireMutations()
+    claimTrigger
+      .mockResolvedValueOnce({ claimed: true })
+      .mockResolvedValueOnce({ claimed: true, alreadySent: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      await result.current.takeForEdit('a', () => null)
+    })
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('b', () => ({ draft: draft('first edited'), payload: payload('first edited') }))
+    })
+
+    expect(taken).toBeUndefined()
+    expect(postTrigger).toHaveBeenCalledTimes(1)
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    // The session is cleared: a later take does not requeue 'a' again.
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    let third: unknown
+    await act(async () => {
+      third = await result.current.takeForEdit('a', () => ({ draft: draft('z'), payload: payload('z') }))
+    })
+    expect((third as { draft: { text: string } }).draft.text).toBe('first')
+    expect(postTrigger).toHaveBeenCalledTimes(1)
+  })
+
   it('releases the head claim without sending when the scope moves mid-claim', async () => {
     wireQuery([row('h', 'head')])
     const { claimHeadTrigger, failTrigger } = wireMutations()
