@@ -10,6 +10,26 @@
       "response": { "content": "Two plus two equals four. ASSISTANT_PROMPT_PASS" }
     },
     {
+      "match": { "userMessage": "Reply with exactly TOPIC_ONE_PASS_31415 and nothing else." },
+      "response": { "content": "TOPIC_ONE_PASS_31415" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly TOPIC_TWO_PASS_27182 and nothing else." },
+      "response": { "content": "TOPIC_TWO_PASS_27182" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly TOPIC_RENAME_PASS_16180 and nothing else." },
+      "response": { "content": "TOPIC_RENAME_PASS_16180" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
+      "match": { "userMessage": "Reply with exactly MESSAGE_ACTION_PASS_27182 and nothing else." },
+      "response": { "content": "MESSAGE_ACTION_PASS_27182" },
+      "opts": { "chunkSize": 6, "latency": 0 }
+    },
+    {
       "match": { "userMessage": "Hello" },
       "response": { "content": "Hi there! How can I help?" },
       "opts": { "chunkSize": 8, "latency": 0 }
