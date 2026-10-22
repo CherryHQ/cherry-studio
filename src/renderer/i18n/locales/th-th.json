@@ -688,6 +688,7 @@
   "chat.input.file_not_supported": "โมเดลไม่รองรับไฟล์ประเภทนี้",
   "chat.input.file_not_supported_count": "{{count}} ไฟล์ไม่รองรับ",
   "chat.input.followup_queue.edit": "แก้ไข",
+  "chat.input.followup_queue.limit_reached": "[to be translated]:Queue is full ({{count}} max)",
   "chat.input.followup_queue.pause": "หยุดส่งอัตโนมัติ",
   "chat.input.followup_queue.remove": "ลบ",
   "chat.input.followup_queue.resume": "ส่งอัตโนมัติต่อ",
