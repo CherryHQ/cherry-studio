@@ -1,5 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Plain closure, not vi.fn() — the real Agent is a module-level singleton
+// constructed exactly once at import time, before any test's `afterEach`
+// (which clears vi.fn() mock-call history) has a chance to run.
+const { MockAgent, getConstructedOptions } = vi.hoisted(() => {
+  let constructedOptions: unknown
+  class MockAgent {
+    constructor(options: unknown) {
+      constructedOptions = options
+    }
+  }
+  return { MockAgent, getConstructedOptions: () => constructedOptions }
+})
+
+vi.mock('undici', () => ({ Agent: MockAgent }))
+
 import { createDashScopeTransport } from '../dashscope/dashscopeTransport'
 import { DEFAULT_IMAGE_REQUEST_TIMEOUT_MS, type ImageGenerationSubmitInput } from '../imageGenerationModel'
 
@@ -80,5 +95,39 @@ describe('DashScope submit timeout', () => {
     const outcome = await Promise.race([promise, Promise.resolve('still-pending' as const)])
     expect(outcome).toBeInstanceOf(Error)
     expect((outcome as Error).message).toBe('DashScope API request timeout after 15s')
+  })
+
+  it('arms the global-fetch fallback with a dispatcher whose headers timeout outlives undici’s 300s ceiling', async () => {
+    const options = getConstructedOptions() as { headersTimeout: number; bodyTimeout: number }
+    expect(options.headersTimeout).toBeGreaterThan(300_000)
+    expect(options.bodyTimeout).toBeGreaterThan(300_000)
+
+    const transport = createDashScopeTransport({ apiKey: 'token' })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', results: [] } }), { status: 200 })
+      )
+
+    await transport.submit({ ...baseInput, modelId: 'qwen-image', prompt: 'a fox', modelDescriptor: descriptor })
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit & { dispatcher: unknown }
+    expect(init.dispatcher).toBeInstanceOf(MockAgent)
+  })
+
+  it('prefers the injected proxy-aware fetch and leaves its transport alone', async () => {
+    const injectedFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', results: [] } }), { status: 200 })
+      )
+    const globalFetchSpy = vi.spyOn(globalThis, 'fetch')
+    const transport = createDashScopeTransport({ apiKey: 'token', fetch: injectedFetch })
+
+    await transport.submit({ ...baseInput, modelId: 'qwen-image', prompt: 'a fox', modelDescriptor: descriptor })
+
+    expect(globalFetchSpy).not.toHaveBeenCalled()
+    expect(injectedFetch).toHaveBeenCalledOnce()
+    expect((injectedFetch.mock.calls[0][1] as RequestInit & { dispatcher?: unknown }).dispatcher).toBeUndefined()
   })
 })
