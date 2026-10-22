@@ -211,6 +211,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
+  if (streamOptions.maxOutputTokens !== undefined && model.maxOutputTokens !== undefined) {
+    streamOptions.maxOutputTokens = Math.min(streamOptions.maxOutputTokens, model.maxOutputTokens)
+  }
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
