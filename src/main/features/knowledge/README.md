@@ -133,8 +133,9 @@ one page or body request does not replay completed traversal work. Preview is ep
 metadata only. The adapter holds no queue, token, limiter, or session state of its own.
 `KnowledgeService` opens its local admission gate only after the runtime starts, persisted
 reauthorization state converges, and every persisted `activeJobId` is reconciled with JobManager.
-Missing/terminal references are cleared; previous-process non-terminal work remains blocked until
-JobManager recovery settles it. Shutdown closes that
+Terminal provider-work Jobs project their persisted result and finish time into the matching Source
+before clearing its active reference; missing or stale references are only cleared. Previous-process
+non-terminal work remains blocked until JobManager recovery settles it. Shutdown closes that
 gate first, lists and individually cancels pending, delayed, and running external-sync Jobs with a
 cancellation grace bounded to half the service-stop budget, and stops the runtime only after every
 listed Job is settled or no longer cancellable. A listing/cancellation error or timeout leaves the

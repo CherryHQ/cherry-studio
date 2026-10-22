@@ -277,8 +277,11 @@ function classifyError(response: Response, body: Record<string, unknown>): Feish
   }
   if (
     oauthError === 'invalid_grant' ||
+    oauthError === 'invalid_client' ||
+    providerCode === 20002 ||
     providerCode === 20005 ||
     providerCode === 99991668 ||
+    providerCode === 99991677 ||
     response.status === 401
   ) {
     return failure('reauthorization-required', true)

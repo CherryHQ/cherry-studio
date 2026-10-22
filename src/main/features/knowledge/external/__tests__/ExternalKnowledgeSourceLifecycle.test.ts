@@ -1,13 +1,15 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as dataChange from '@data/dataApiDataChange'
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
 import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
 import { externalKnowledgeSourceService } from '@data/services/ExternalKnowledgeSourceService'
+import { jobService } from '@data/services/JobService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 
 const SCHEDULE_ID = '33333333-3333-4333-8333-333333333333'
@@ -499,6 +501,198 @@ describe('ExternalKnowledgeSourceLifecycle', () => {
     await lifecycle.pauseSource(SOURCE_ID)
     await expect(lifecycle.dispatchScheduledEnvelope(envelope, 'scheduled')).resolves.toBeUndefined()
     expect(requestSyncForTriggerMock).toHaveBeenCalledTimes(1)
+  })
+
+  const seedInterruptedSync = (input: Record<string, unknown> = {}, type = 'knowledge.sync-external-source') => {
+    seedSource({ activeJobId: JOB_ID })
+    dbh.db
+      .update(externalKnowledgeSourceTable)
+      .set({
+        lastOutcome: 'completed',
+        lastFinishedAt: 100,
+        lastSuccessfulSyncAt: 100,
+        lastIndexedCount: 7,
+        lastUnchangedCount: 8,
+        lastSkippedCount: 9,
+        lastWarningCount: 0
+      })
+      .run()
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: JOB_ID,
+        type,
+        status: 'running',
+        queue: `base.${BASE_ID}`,
+        scheduledAt: 200,
+        input: { baseId: BASE_ID, sourceId: SOURCE_ID, sourceRevision: 3, trigger: 'manual', ...input }
+      })
+      .run()
+  }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each([false, true])(
+    'projects abandoned recovery into the Source with persisted partial summary: %s',
+    async (partial) => {
+      seedInterruptedSync()
+      if (partial) {
+        dbh.db
+          .update(jobTable)
+          .set({
+            metadata: {
+              externalKnowledgeSync: {
+                code: 'cancelled',
+                summary: {
+                  scannedCount: 3,
+                  indexedCount: 1,
+                  unchangedCount: 1,
+                  skippedCount: 1,
+                  warningCount: 1,
+                  warnings: [{ code: 'transient', remoteObjectId: 'doc-1' }]
+                }
+              }
+            }
+          })
+          .run()
+      }
+      jobService.cancelByIds([JOB_ID], null)
+      const recoveredJob = jobService.getById(JOB_ID)!
+      getJobMock.mockResolvedValueOnce(recoveredJob)
+      const notifiedRows: unknown[] = []
+      vi.spyOn(dataChange, 'notifyDataApiDataChange').mockImplementation((effects) => {
+        if (effects.some((effect) => effect.endpoint === '/external-knowledge-sources/:id')) {
+          expect(dbh.sqlite.inTransaction).toBe(false)
+          notifiedRows.push(dbh.db.select().from(externalKnowledgeSourceTable).get())
+        }
+      })
+
+      await lifecycle.reconcileAllActiveJobs(new AbortController().signal)
+
+      const expected = {
+        activeJobId: null,
+        lastOutcome: 'cancelled',
+        lastErrorSummary: 'cancelled',
+        lastFinishedAt: Date.parse(recoveredJob.finishedAt!),
+        lastSuccessfulSyncAt: 100,
+        lastIndexedCount: partial ? 1 : 0,
+        lastUnchangedCount: partial ? 1 : 0,
+        lastSkippedCount: partial ? 1 : 0,
+        lastWarningCount: partial ? 1 : 0
+      }
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject(expected)
+      expect(notifiedRows).toEqual([expect.objectContaining(expected)])
+      expect(dbh.db.select().from(jobTable).all()).toMatchObject([{ id: JOB_ID, status: 'cancelled' }])
+      expect(requestSyncForTriggerMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['completed', 'failed'] as const)(
+    'projects a persisted %s result when live settlement was interrupted',
+    async (status) => {
+      seedInterruptedSync()
+      dbh.db
+        .update(jobTable)
+        .set({
+          status,
+          finishedAt: 500,
+          output: {
+            scannedCount: 2,
+            indexedCount: 2,
+            unchangedCount: 0,
+            skippedCount: 0,
+            warningCount: 0,
+            warnings: []
+          }
+        })
+        .run()
+      getJobMock.mockResolvedValueOnce(jobService.getById(JOB_ID))
+
+      await lifecycle.reconcileAllActiveJobs(new AbortController().signal)
+
+      expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+        activeJobId: null,
+        lastOutcome: status,
+        lastFinishedAt: 500,
+        lastSuccessfulSyncAt: status === 'completed' ? 500 : 100,
+        lastIndexedCount: status === 'completed' ? 2 : 0,
+        lastErrorSummary: status === 'completed' ? null : 'failed'
+      })
+    }
+  )
+
+  it.each([
+    { sourceRevision: 2 },
+    { sourceId: SECOND_SOURCE_ID },
+    { baseId: 'another-base' },
+    { dispatch: 'schedule' },
+    { trigger: 'invalid' }
+  ])('does not publish a terminal summary from an unrelated or malformed payload: %j', async (input) => {
+    seedInterruptedSync(input)
+    jobService.cancelByIds([JOB_ID], null)
+    getJobMock.mockResolvedValueOnce(jobService.getById(JOB_ID))
+
+    await lifecycle.reconcileAllActiveJobs(new AbortController().signal)
+
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+      activeJobId: null,
+      lastOutcome: 'completed',
+      lastFinishedAt: 100,
+      lastIndexedCount: 7
+    })
+  })
+
+  it('does not publish the terminal result of a different job type', async () => {
+    seedInterruptedSync({}, 'knowledge.index-documents')
+    jobService.cancelByIds([JOB_ID], null)
+    getJobMock.mockResolvedValueOnce(jobService.getById(JOB_ID))
+
+    await lifecycle.reconcileAllActiveJobs(new AbortController().signal)
+
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+      activeJobId: null,
+      lastOutcome: 'completed',
+      lastFinishedAt: 100,
+      lastIndexedCount: 7
+    })
+  })
+
+  it('does not overwrite a newer Source revision while reading a recovered job', async () => {
+    seedInterruptedSync()
+    jobService.cancelByIds([JOB_ID], null)
+    getJobMock.mockImplementationOnce(async () => {
+      dbh.db.update(externalKnowledgeSourceTable).set({ revision: 4, activeJobId: null, lastOutcome: 'failed' }).run()
+      return jobService.getById(JOB_ID)
+    })
+
+    await lifecycle.reconcileAllActiveJobs(new AbortController().signal)
+
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+      revision: 4,
+      activeJobId: null,
+      lastOutcome: 'failed',
+      lastFinishedAt: 100
+    })
+  })
+
+  it('keeps a replacement active job when recovery loses its job-id fence', async () => {
+    seedInterruptedSync()
+    jobService.cancelByIds([JOB_ID], null)
+    const replacementId = '0198f3f2-7d12-7abc-8def-123456789abd'
+    getJobMock
+      .mockImplementationOnce(async () => {
+        dbh.db.update(externalKnowledgeSourceTable).set({ activeJobId: replacementId }).run()
+        return jobService.getById(JOB_ID)
+      })
+      .mockResolvedValueOnce({ id: replacementId, status: 'running' })
+
+    await expect(lifecycle.reconcileSourceActiveJob(SOURCE_ID)).resolves.toBe('active')
+
+    expect(dbh.db.select().from(externalKnowledgeSourceTable).get()).toMatchObject({
+      activeJobId: replacementId,
+      lastOutcome: 'completed',
+      lastFinishedAt: 100
+    })
   })
 
   it('clears missing and terminal activeJobId references before accepting another trigger', async () => {

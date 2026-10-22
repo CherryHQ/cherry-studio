@@ -149,10 +149,12 @@ use a lightweight `knowledge.sync-external-source` dispatch envelope, then admit
 fresh provider-work Job through the same per-Source idempotency key used by initial
 and manual synchronization.
 
-Startup clears missing or terminal `activeJobId` correlations and waits for
-JobManager recovery to settle previous-process non-terminal work before opening
-provider admission. A restart never resumes an abandoned scan; a later trigger
-starts a complete new scan.
+Startup projects persisted terminal provider-work results and finish times into
+the Source only while its identity, revision, and active Job still match, then
+emits a read-model notification after commit. Missing, stale, or unrelated
+`activeJobId` correlations are only cleared. Previous-process non-terminal work
+waits for JobManager recovery before provider admission opens. A restart never
+resumes an abandoned scan; a later trigger starts a complete new scan.
 
 One Job owns the full scan → per-document read/prepare/publication → missing
 document reconciliation run. Provider reads and embedding preparation happen
