@@ -879,10 +879,15 @@ export class AgentService {
         })
         if (!deleteSessions) {
           // Sessions survive with the agent row gone, but their queued
-          // follow-ups can never drain — purge those scopes here. Deleted
-          // sessions purge through their own path instead.
+          // follow-ups can never drain — purge those scopes here. Closed
+          // receipts survive: a retained session still accepts enqueues, so a
+          // late same-id retry must settle against the receipt instead of
+          // resurrecting an already-delivered item. Deleted sessions purge
+          // through their own path instead.
           for (const sessionId of sessionImpact.sessionIds)
-            followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(sessionId))
+            followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(sessionId), {
+              keepClosedReceipts: true
+            })
         }
         return {
           ...this.deleteAgentTx(tx, id),

@@ -1562,6 +1562,16 @@ describe('AssistantDataService', () => {
           updatedAt: 1
         },
         {
+          id: '33333333-3333-7333-8333-333333333333',
+          scopeKey: 'topic-1:ast-1',
+          draft: { text: 'delivered', tokens: [] },
+          payload: { text: 'delivered', userMessageParts: [] },
+          status: 'closed',
+          orderKey: 'a2',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
           id: '22222222-2222-7222-8222-222222222222',
           scopeKey: 'topic-1:ast-2',
           draft: { text: 'kept', tokens: [] },
@@ -1574,13 +1584,14 @@ describe('AssistantDataService', () => {
       ])
 
       // Topic retained (no deleteTopics): the deleted assistant's own scope
-      // purges, but another assistant's queue on the same topic must survive.
+      // purges, but another assistant's queue on the same topic must survive,
+      // and the deleted scope's closed receipt stays as the retry barrier.
       assistantDataService.delete('ast-1')
       assistantDataService.delete('ast-1', { permanent: true })
 
-      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id)).toEqual([
-        '22222222-2222-7222-8222-222222222222'
-      ])
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id).sort()).toEqual(
+        ['22222222-2222-7222-8222-222222222222', '33333333-3333-7333-8333-333333333333'].sort()
+      )
     })
 
     it('should roll back both parent and child trash when the cascade fails midway', async () => {
