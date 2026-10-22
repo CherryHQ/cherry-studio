@@ -23,6 +23,8 @@ import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CLAUDE_TOOL_GUARD_RULES } from '@main/ai/runtime/claudeCode/guardRules'
 import { createPiToolAuthorizer } from '@main/ai/runtime/pi/approvalExtension'
+import { buildPiMcpToolName } from '@main/ai/runtime/pi/piMcpExtension'
+import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { BaseService } from '@main/core/lifecycle'
@@ -342,7 +344,7 @@ describe('session MCP skills through real protocol and persistence', () => {
   function authorizer(
     approved: boolean,
     onRequest?: (approvalId: string) => void,
-    mode: 'default' | 'bypassPermissions' = 'default'
+    mode: 'default' | 'auto' | 'bypassPermissions' = 'default'
   ) {
     return createPiToolAuthorizer({
       sessionId,
@@ -360,7 +362,11 @@ describe('session MCP skills through real protocol and persistence', () => {
       autoApprovedTools: new Set(),
       approvalRequiredTools: new Set(),
       nonBypassableApprovalTools: new Set(),
-      delegationTools: new Set()
+      delegationTools: new Set(
+        listBuiltinToolPolicies({ approval: 'delegation' }).map(({ serverName, toolName }) =>
+          buildPiMcpToolName(serverName, toolName)
+        )
+      )
     })
   }
 
@@ -385,6 +391,50 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(await authorizer(false)({ ...call, toolCallId: 'execute-again' })).toMatchObject({ block: true })
     expect(skills.toolApproval(sessionId, 'read', {})).toBeUndefined()
     expect(skills.toolApproval(sessionId, 'mcp__example__lookup', {})).toBeUndefined()
+  })
+
+  describe.each(['session_create', 'session_send'])('remote-skill delegation through %s', (name) => {
+    const toolName = `mcp__cherry-tools__${name}`
+    const input =
+      name === 'session_create'
+        ? { message: 'Run echo delegated', target_agent_id: 'destination-agent', title: 'Delegated work' }
+        : { message: 'Run echo delegated', target_session_id: 'destination-session' }
+
+    it('requires Claude approval in Auto only after a remote skill is loaded', async () => {
+      const context = {
+        sessionId,
+        toolName,
+        input,
+        permissionMode: 'auto' as const,
+        builtinRole: undefined,
+        mountedServers: new Set(['skills', 'cherry-tools']),
+        pluginDirectories: new Map<string, string>(),
+        cwd: '/tmp',
+        agentDataPath: '/tmp/agent',
+        interaction: { currentTurn: 'interactive' as const, userResponse: 'stream' as const },
+        isDisabled: () => false
+      }
+      await expect(evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, context)).resolves.toBeUndefined()
+      await skills.load(sessionId, serverId, fixture.uri)
+      await expect(evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, context)).resolves.toMatchObject({ effect: 'ask' })
+      await expect(
+        evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, { ...context, permissionMode: 'bypassPermissions' })
+      ).resolves.toBeUndefined()
+    })
+
+    it('requires a fresh Pi decision for each Auto call while Full Access does not prompt', async () => {
+      const call = { toolName: buildPiMcpToolName('cherry-tools', name), toolCallId: 'delegation', input }
+      const unexpectedApproval = () => {
+        throw new Error('This delegation must not request approval')
+      }
+      await expect(authorizer(false, unexpectedApproval, 'auto')(call)).resolves.toBeUndefined()
+      await skills.load(sessionId, serverId, fixture.uri)
+      await expect(authorizer(true, undefined, 'auto')(call)).resolves.toBeUndefined()
+      await expect(
+        authorizer(false, undefined, 'auto')({ ...call, toolCallId: 'delegation-again' })
+      ).resolves.toMatchObject({ block: true })
+      await expect(authorizer(false, unexpectedApproval, 'bypassPermissions')(call)).resolves.toBeUndefined()
+    })
   })
 
   it('passes execution and nested activation without approval in Full Access', async () => {
