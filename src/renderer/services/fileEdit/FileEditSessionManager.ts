@@ -84,10 +84,12 @@ function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
 
+class AcquisitionInterruptedError extends Error {}
+
 export class FileEditSessionManager {
   private readonly sessions = new Map<string, Session>()
   private acquisitionEpoch = 0
-  private mutating = false
+  private mutationSettled?: Promise<void>
   private composing = false
   private readonly inventoryListeners = new Set<() => void>()
   private inventory: readonly SessionSnapshot[] = []
@@ -119,13 +121,14 @@ export class FileEditSessionManager {
   }
 
   async prepareMutation(roots: readonly AbsoluteFilePath[]): Promise<PreparedFileMutation> {
-    if (this.composing || this.mutating) throw new Error('File editing is not ready for a transition')
+    if (this.composing || this.mutationSettled) throw new Error('File editing is not ready for a transition')
     const affected = [...this.sessions.values()].filter((session) =>
       roots.some((root) => isSamePath(session.resource.path, root) || isPathInside(session.resource.path, root))
     )
     if (affected.some((session) => session.transition || session.snapshot.sealed))
       throw new Error('A file transition is already running')
-    this.mutating = true
+    const settlement = Promise.withResolvers<void>()
+    this.mutationSettled = settlement.promise
     this.acquisitionEpoch++
     for (const session of affected) {
       session.transition = true
@@ -136,12 +139,14 @@ export class FileEditSessionManager {
     const cancel = () => {
       if (finished) return
       finished = true
-      this.mutating = false
       for (const session of affected) {
         session.transition = false
         this.publish(session, { sealed: false })
-        void this.invalidate(session)
+        this.evict(session)
+        if (this.sessions.get(session.resource.resourceKey) === session) void this.invalidate(session)
       }
+      this.mutationSettled = undefined
+      settlement.resolve()
     }
     const results = await Promise.allSettled(affected.map((session) => this.flush(session)))
     const failure = results.find((result) => result.status === 'rejected')
@@ -219,20 +224,28 @@ export class FileEditSessionManager {
             } finally {
               session.transition = false
               this.publish(session, { sealed: false })
+              this.evict(session)
             }
           })
         )
         const failed = results.find((result) => result.status === 'rejected')
-        this.mutating = false
+        this.mutationSettled = undefined
+        settlement.resolve()
         if (failed?.status === 'rejected') throw failed.reason
       }
     }
   }
   private readonly observation = new FileEditObservation()
 
-  acquire(handle: FileHandle): Promise<SessionLease> {
-    if (this.mutating) return Promise.reject(new Error('File sessions are transitioning'))
-    return this.open(handle, this.acquisitionEpoch)
+  async acquire(handle: FileHandle): Promise<SessionLease> {
+    for (;;) {
+      while (this.mutationSettled) await this.mutationSettled
+      try {
+        return await this.open(handle, this.acquisitionEpoch)
+      } catch (error) {
+        if (!(error instanceof AcquisitionInterruptedError)) throw error
+      }
+    }
   }
 
   listRetained(): readonly SessionSnapshot[] {
@@ -242,8 +255,8 @@ export class FileEditSessionManager {
   private async open(handle: FileHandle, acquisitionEpoch: number): Promise<SessionLease> {
     const resource = await ipcApi.request('file.edit.open', { handle })
     try {
-      if (this.mutating || acquisitionEpoch !== this.acquisitionEpoch)
-        throw new Error('File sessions are transitioning')
+      if (this.mutationSettled || acquisitionEpoch !== this.acquisitionEpoch)
+        throw new AcquisitionInterruptedError('File sessions are transitioning')
       let session = this.sessions.get(resource.resourceKey)
       if (!session) {
         let observed: Session | undefined
@@ -263,9 +276,9 @@ export class FileEditSessionManager {
           watch.dispose()
           throw error
         }
-        if (this.mutating || acquisitionEpoch !== this.acquisitionEpoch) {
+        if (this.mutationSettled || acquisitionEpoch !== this.acquisitionEpoch) {
           watch.dispose()
-          throw new Error('File sessions are closing')
+          throw new AcquisitionInterruptedError('File sessions are transitioning')
         }
         session = this.sessions.get(resource.resourceKey)
         if (!session) {

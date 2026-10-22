@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
 import { ContentHashSchema } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import type { FileEditRead, FileWriteOutcome } from '@shared/ipc/schemas/fileEdit'
+import { fileEditRequestSchemas, type FileEditRead, type FileWriteOutcome } from '@shared/ipc/schemas/fileEdit'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FileEditSessionManager } from '../FileEditSessionManager'
@@ -11,7 +13,7 @@ import { FileEditSessionManager } from '../FileEditSessionManager'
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) } }))
 const path = AbsoluteFilePathSchema.parse('/notes/A.md')
 const handle = { kind: 'path', path } as const
-const hash = (value: string) => ContentHashSchema.parse(`sha256:${value.padEnd(64, '0').slice(0, 64)}`)
+const hash = (value: string) => ContentHashSchema.parse(`sha256:${createHash('sha256').update(value).digest('hex')}`)
 let disk: FileEditRead
 let manager: FileEditSessionManager
 let writes: string[]
@@ -33,13 +35,16 @@ beforeEach(() => {
   manager = new FileEditSessionManager()
   vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
     const input = args[0]
-    if (route === 'file.edit.open')
+    if (route === 'file.edit.open') {
+      const { handle } = fileEditRequestSchemas[route].input.parse(input)
+      if (handle.kind !== 'path') throw new Error('Path fixture required')
       return {
         editId: crypto.randomUUID(),
-        resourceKey: path,
-        path,
+        resourceKey: handle.path,
+        path: handle.path,
         observationRoot: AbsoluteFilePathSchema.parse('/notes')
       }
+    }
     if (route === 'file.observe.create')
       return { observationId: crypto.randomUUID(), generation: crypto.randomUUID(), sequence: 0 }
     if (route === 'file.observe.activate') return true
@@ -216,24 +221,101 @@ describe('file editing lifetime', () => {
     expect(lease.getSnapshot().documentEpoch).toBe(old.documentEpoch)
   })
 
-  it('fences an acquisition started before a mutation even after the mutation is cancelled', async () => {
+  it('retries an acquisition interrupted by a mutation without publishing its stale read', async () => {
+    const reading = Promise.withResolvers<void>()
     const gate = Promise.withResolvers<FileEditRead>()
     const original = vi.mocked(ipcApi.request).getMockImplementation()!
-    vi.mocked(ipcApi.request).mockImplementation((route, ...args) =>
-      route === 'file.edit.read' ? gate.promise : original(route, ...args)
-    )
+    let firstRead = true
+    vi.mocked(ipcApi.request).mockImplementation((route, ...args) => {
+      if (route === 'file.edit.read' && firstRead) {
+        firstRead = false
+        reading.resolve()
+        return gate.promise
+      }
+      return original(route, ...args)
+    })
     const acquiring = manager.acquire(handle)
-    const rejected = expect(acquiring).rejects.toThrow('closing')
-    await vi.waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('file.edit.read', expect.anything()))
+    await reading.promise
     const mutation = await manager.prepareMutation([path])
-    await expect(manager.acquire(handle)).rejects.toThrow('transitioning')
     mutation.cancel()
-    gate.resolve(disk)
-    await rejected
+    disk = snapshot('new')
+    gate.resolve(snapshot('stale'))
+    const lease = await acquiring
+    expect(lease.getSnapshot().draft).toBe('new')
+    expect(lease.acceptEdit('after mutation')).toBe(true)
+    await lease.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('after mutation')
+    lease.release()
+  })
+
+  it.each(['cancel', 'move'] as const)('releases detached clean sessions after mutation %s', async (outcome) => {
+    const openLeases = new Set<string>()
+    const original = vi.mocked(ipcApi.request).getMockImplementation()!
+    vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
+      const result = await original(route, ...args)
+      if (route === 'file.edit.open') {
+        openLeases.add(fileEditRequestSchemas[route].output.parse(result).editId)
+      } else if (route === 'file.edit.close') {
+        openLeases.delete(fileEditRequestSchemas[route].input.parse(args[0]).editId)
+      }
+      return result
+    })
+    const lease = await manager.acquire(handle)
+    const mutation = await manager.prepareMutation([path])
+    lease.release()
+    expect(openLeases.size).toBe(1)
+    if (outcome === 'cancel') mutation.cancel()
+    else await mutation.commit({ from: path, to: AbsoluteFilePathSchema.parse('/notes/moved.md') })
+    await vi.waitFor(() => expect(openLeases.size).toBe(0))
     expect(manager.listRetained()).toEqual([])
-    vi.mocked(ipcApi.request).mockImplementation(original)
-    const fresh = await manager.acquire(handle)
-    expect(fresh.acceptEdit('after mutation')).toBe(true)
+  })
+
+  it('retains a detached failed mutation for recovery and releases queued acquisitions', async () => {
+    const lease = await manager.acquire(handle)
+    lease.acceptEdit('unsaved')
+    const gate = Promise.withResolvers<void>()
+    holdWrite = gate.promise
+    failWrite = true
+    const preparing = manager.prepareMutation([path])
+    const rejected = expect(preparing).rejects.toThrow('File save failed')
+    const next = manager.acquire({ kind: 'path', path: AbsoluteFilePathSchema.parse('/notes/B.md') })
+    const acquired = expect(next).resolves.toMatchObject({ writable: true })
+    lease.release()
+    gate.resolve()
+    await rejected
+    await acquired
+    expect(manager.getSnapshot()).toEqual([
+      expect.objectContaining({
+        resourceKey: path,
+        draft: 'unsaved',
+        isDirty: true,
+        sealed: false,
+        saveError: expect.any(Error)
+      })
+    ])
+    const nextLease = await next
+    nextLease.release()
+    await manager.recover(path, 'discard')
+    await vi.waitFor(() => expect(manager.listRetained()).toEqual([]))
+  })
+
+  it('unblocks acquisitions after a failed move while retaining its detached source for recovery', async () => {
+    const lease = await manager.acquire(handle)
+    const mutation = await manager.prepareMutation([path])
+    lease.release()
+    disk = snapshot('changed destination')
+    const next = manager.acquire({ kind: 'path', path: AbsoluteFilePathSchema.parse('/notes/B.md') })
+    await expect(mutation.commit({ from: path, to: AbsoluteFilePathSchema.parse('/notes/moved.md') })).rejects.toThrow(
+      'Moved file content changed'
+    )
+    const nextLease = await next
+    expect(nextLease.getSnapshot().draft).toBe('changed destination')
+    expect(manager.getSnapshot()).toEqual([
+      expect.objectContaining({ resourceKey: path, draft: 'a', sealed: false, saveError: expect.any(Error) })
+    ])
+    nextLease.release()
+    await manager.recover(path, 'discard')
+    await vi.waitFor(() => expect(manager.listRetained()).toEqual([]))
   })
 
   it('refuses file mutations during composition without discarding accepted text', async () => {
