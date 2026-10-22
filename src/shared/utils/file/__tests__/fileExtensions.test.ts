@@ -129,6 +129,12 @@ describe('media catalogs are grounded in mime-db', () => {
     expect(audioExts).not.toContain('.caf')
   })
 
+  it('keeps the Abstract Meaning Representation .amr alias out of the audio catalog', () => {
+    // AMR corpora publish plain-text `.amr` files; like `.caf`, `.mid`, `.dts` and
+    // `.asf`, the audio claim would reject them before the content sniff runs.
+    expect(audioExts).not.toContain('.amr')
+  })
+
   it('keeps the Acclaim .asf alias out of the video catalog so motion-capture text files stay text', () => {
     // Acclaim motion-capture skeletons are plain-text `.asf` files, and the
     // CMU Graphics Lab archive publishes them with that extension. The video

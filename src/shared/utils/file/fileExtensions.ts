@@ -37,6 +37,10 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * `.caf` is deliberately absent for the same reason: MIRA's Common Assembly
  * Format stores genomic assemblies as plain-text `.caf` files, while Core Audio
  * Format shares the extension. Leaving it unclassified keeps both readable.
+ *
+ * `.amr` is deliberately absent for the same reason: Abstract Meaning
+ * Representation corpora are plain-text `.amr` files, while Adaptive Multi-Rate
+ * speech shares the extension. Leaving it unclassified keeps both readable.
  */
 export const imageExts = [
   '.apng',
@@ -83,7 +87,6 @@ export const audioExts = [
   '.aif',
   '.aifc',
   '.aiff',
-  '.amr',
   '.au',
   '.flac',
   '.m4a',
