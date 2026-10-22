@@ -767,7 +767,7 @@ the runtime from that captured provider, model, skill paths,
 MCP rows, and linked channel, then captures those facts again before publishing
 the connection.
 If the signatures differ, startup fails closed before publishing the connection.
-The model port resolves credentials for each request through Cherry's provider path. Prompt-file content is deliberately
+The internal gateway resolves upstream credentials for each native Pi request through Cherry's provider path. Prompt-file content is deliberately
 outside this signature because it follows the connection-lifetime cache
 contract above.
 
