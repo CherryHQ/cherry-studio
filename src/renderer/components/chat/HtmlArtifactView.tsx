@@ -105,16 +105,20 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       frameDocument.scrollingElement?.scrollHeight ?? 0
     )
 
-    // Scrollable: scrollHeight is authoritative (scrollbar-bounded); the sweep
-    // exists only for collapsed bottom margins in non-scrolling documents.
-    if (documentScrollHeight > iframe.clientHeight + 1) {
-      return documentScrollHeight
-    }
-
     const bodyStyle = frameWindow.getComputedStyle(body)
     const bodyEndSpacing =
       (Number.parseFloat(bodyStyle.paddingBottom) || 0) + (Number.parseFloat(bodyStyle.borderBottomWidth) || 0)
     const bodyMarginBottom = Number.parseFloat(bodyStyle.marginBottom) || 0
+    const bodyHeight = body.getBoundingClientRect().height
+    const contentBoxHeight =
+      bodyHeight > 0 ? bodyHeight + (Number.parseFloat(bodyStyle.marginTop) || 0) + bodyMarginBottom : 0
+
+    // Scrollable: scrollHeight is authoritative (scrollbar-bounded); the sweep
+    // exists only for collapsed bottom margins in non-scrolling documents.
+    if (documentScrollHeight > iframe.clientHeight + 1) {
+      return Math.ceil(Math.max(documentScrollHeight, contentBoxHeight))
+    }
+
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
     let renderedContentBottom = 0
 
@@ -143,7 +147,7 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       }
     }
 
-    const renderedContentHeight = Math.ceil(renderedContentBottom)
+    const renderedContentHeight = Math.ceil(Math.max(renderedContentBottom, contentBoxHeight))
     return renderedContentHeight > 0 ? renderedContentHeight : documentScrollHeight || null
   } catch {
     return null
@@ -239,6 +243,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const lastReportedHeightRef = useRef<number | null>(null)
   const isScrollActiveRef = useDelayedScrollActivation(viewportRef)
   const scrollRuntime = useScrollRuntimeBoundary()
   const zoomScale = zoom / 100
@@ -264,6 +269,8 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
         getMaxPreviewHeight(viewport, scrollRuntime.getScrollContainer()),
         Math.max(1, Math.ceil(contentHeight * zoomScale))
       )
+      if (nextHeight === lastReportedHeightRef.current) return
+      lastReportedHeightRef.current = nextHeight
       onHeightChange(nextHeight)
     }
 
