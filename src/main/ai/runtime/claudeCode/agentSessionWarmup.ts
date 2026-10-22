@@ -658,9 +658,7 @@ function resolveClaudeCodeThinkingOptions(
     model: invocationModel,
     profile: profile.wire,
     maxTokens: model.maxOutputTokens,
-    userEffortMap: routedViaGateway
-      ? undefined
-      : getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
+    userEffortMap: routedViaGateway ? undefined : getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   })
   const encoded = encodeReasoningInvocation(invocation)
 

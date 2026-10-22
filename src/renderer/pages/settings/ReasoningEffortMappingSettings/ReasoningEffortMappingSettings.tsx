@@ -96,7 +96,9 @@ const ReasoningEffortMappingSettings: FC = () => {
       if (scope === 'provider' && !selectedProviderId) return
 
       const currentOverrides =
-        pendingOverridesRef.current ?? preferenceService.getCachedValue('feature.reasoning.effort_mappings') ?? overrides
+        pendingOverridesRef.current ??
+        preferenceService.getCachedValue('feature.reasoning.effort_mappings') ??
+        overrides
       const currentScopeMap = readScopeMap(currentOverrides, scope, selectedProviderId)
       const nextMap = { ...currentScopeMap }
       if (target === AUTOMATIC_VALUE) {
