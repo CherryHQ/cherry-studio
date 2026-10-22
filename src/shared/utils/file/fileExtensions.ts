@@ -41,6 +41,10 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
  * `.amr` is deliberately absent for the same reason: Abstract Meaning
  * Representation corpora are plain-text `.amr` files, while Adaptive Multi-Rate
  * speech shares the extension. Leaving it unclassified keeps both readable.
+ *
+ * `.jxl` is deliberately absent for the same reason: Trimble JobXML survey
+ * files are plain text, while JPEG XL images share the extension. An image
+ * claim would send the survey files to OCR instead of the text path.
  */
 export const imageExts = [
   '.apng',
@@ -56,7 +60,6 @@ export const imageExts = [
   '.jpeg',
   '.jpg',
   '.jp2',
-  '.jxl',
   '.ktx2',
   '.png',
   '.psd',

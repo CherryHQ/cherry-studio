@@ -135,6 +135,12 @@ describe('media catalogs are grounded in mime-db', () => {
     expect(audioExts).not.toContain('.amr')
   })
 
+  it('keeps the Trimble JobXML .jxl alias out of the image catalog', () => {
+    // Survey JobXML files are plain text; an image claim would route them to OCR
+    // instead of the text path (same contract as `.caf`, `.amr` and `.asf`).
+    expect(imageExts).not.toContain('.jxl')
+  })
+
   it('keeps the Acclaim .asf alias out of the video catalog so motion-capture text files stay text', () => {
     // Acclaim motion-capture skeletons are plain-text `.asf` files, and the
     // CMU Graphics Lab archive publishes them with that extension. The video
