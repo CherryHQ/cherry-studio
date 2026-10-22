@@ -534,14 +534,14 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
   })
 
-  it('invalidates the initial-load validation handle before any protocol lookup', () => {
+  it('rejects initial-load approval after its origin changes without any protocol lookup', () => {
     const approval = skills.toolApproval(sessionId, 'mcp__skills__load_mcp_skill', {
       server_id: serverId,
       skill_uri: fixture.uri
     })!
     mcpServerService.update(serverId, { headers: { Authorization: 'new-auth' } })
     expect(approval.signal.aborted).toBe(true)
-    expect(() => approval.validate()).toThrow()
+    expect(() => approval.approve()).toThrow()
     expect(fixture.requests).toEqual([])
   })
 
@@ -659,7 +659,7 @@ describe('session MCP skills through real protocol and persistence', () => {
     const approval = skills.toolApproval(sessionId, 'Bash', {})!
     skills.closeSession(sessionId)
     expect(approval.signal.aborted).toBe(true)
-    expect(() => approval.validate()).toThrow()
+    expect(() => approval.approve()).toThrow()
     await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow('not active')
   })
 })

@@ -616,7 +616,7 @@ async function buildToolPermissions(
         toolName,
         originalInput: input,
         presentation,
-        signal: skillApproval ? AbortSignal.any([opts.signal, skillApproval.signal]) : opts.signal,
+        signal: skillApproval?.signal ?? opts.signal,
         resolve: (decision) => {
           if (decision.approved && skillApproval) {
             try {

@@ -30,7 +30,7 @@ Names are display labels. The stable identity is `(serverId, skillUri)`, includi
 
 | Owner | Contract |
 |---|---|
-| `ClientMcpConnection` | Capability-gated, paginated `skills/list`, `skills/get`, and optional `resources/directory/read` through the SDK's public extension request API. |
+| `ClientMcpConnection` | Capability-gated, paginated `skills/list` and direct `skills/get` through the SDK's public extension request API. |
 | `McpRuntimeService` / `McpCatalogService` | Existing connection, timeout, cancellation, current server configuration, and metadata projection. Metadata is fetched afresh. |
 | `McpSkillService` | Session-held manifests, provenance, integrity checks, memory-only content cache, origin enforcement, and tool guards. |
 | `AgentSessionRuntimeService` | Open/close the skill session, persist load provenance before returning content, and present tool approvals through the existing Tool Approval registry. |

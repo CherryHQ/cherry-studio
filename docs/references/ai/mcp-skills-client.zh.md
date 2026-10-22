@@ -30,7 +30,7 @@ Cherry 在 Claude Code 和 Pi Agent 会话中使用 [MCP Skills 扩展](https://
 
 | 所有者 | 契约 |
 |---|---|
-| `ClientMcpConnection` | 通过 SDK 的公开扩展请求 API，按能力声明调用并处理 `skills/list`、`skills/get` 和可选的 `resources/directory/read` 分页。 |
+| `ClientMcpConnection` | 通过 SDK 的公开扩展请求 API，按能力声明处理 `skills/list` 分页并直接调用 `skills/get`。 |
 | `McpRuntimeService` / `McpCatalogService` | 复用既有连接、超时、取消、当前服务配置和元数据投影。元数据每次重新获取。 |
 | `McpSkillService` | 会话持有的清单、来源、完整性校验、仅在内存中的内容缓存、来源限制及工具守卫。 |
 | `AgentSessionRuntimeService` | 打开和关闭技能会话，在返回内容前持久化加载来源，并通过现有 Tool Approval 注册表展示工具审批。 |

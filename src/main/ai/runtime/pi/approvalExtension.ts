@@ -151,7 +151,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
 
     const mode = ctx.getPermissionMode() ?? 'default'
     const skillApproval = application.get('McpSkillService').toolApproval(ctx.sessionId, toolName, input, mode, signal)
-    if (skillApproval) signal = AbortSignal.any([skillApproval.signal, ...(signal ? [signal] : [])])
+    signal = skillApproval?.signal ?? signal
     const delegationApproval = ctx.delegationTools.has(toolName)
       ? resolveDelegationApproval(mode, ctx.getInteractionState())
       : undefined

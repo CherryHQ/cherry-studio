@@ -446,7 +446,6 @@ export class McpSkillService extends BaseService {
     validate()
     return {
       signal,
-      validate,
       approve: () => {
         validate()
         if (!targetId || typeof input.skill_uri !== 'string') return { ...input }

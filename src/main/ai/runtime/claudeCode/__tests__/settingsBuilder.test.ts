@@ -1674,7 +1674,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       const validate = vi.fn()
       defaultServiceInstances.McpSkillService.toolApproval.mockReturnValue({
         signal: new AbortController().signal,
-        validate,
         approve: () => {
           validate()
           return toolName === 'Bash'

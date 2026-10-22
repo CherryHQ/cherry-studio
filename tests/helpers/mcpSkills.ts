@@ -13,7 +13,6 @@ export function createMcpSkillsFixture() {
   ])
   const requests: string[] = []
   let advertise = true
-  let directoryRead = false
   const additional = new Map<string, McpSkill>()
   let repeatCursor = false
   const manifest = () => ({
@@ -37,9 +36,6 @@ export function createMcpSkillsFixture() {
     publish(skill: McpSkill) {
       additional.set(skill.uri, skill)
     },
-    directoryRead(value: boolean) {
-      directoryRead = value
-    },
     advertise(value: boolean) {
       advertise = value
     },
@@ -52,7 +48,7 @@ export function createMcpSkillsFixture() {
         {
           capabilities: {
             resources: {},
-            ...(advertise ? { extensions: { 'io.modelcontextprotocol/skills': { directoryRead } } } : {})
+            ...(advertise ? { extensions: { 'io.modelcontextprotocol/skills': {} } } : {})
           }
         }
       )
@@ -85,16 +81,6 @@ export function createMcpSkillsFixture() {
         if (request.method === 'skills/get') {
           const skill = additional.get(String(request.params?.uri)) ?? (request.params?.uri === uri ? held : undefined)
           if (skill) return { resultType: 'complete', skill, ttlMs: 0, cacheScope: 'private' }
-        }
-        if (request.method === 'resources/directory/read' && directoryRead) {
-          const second = request.params?.cursor === 'files'
-          return {
-            resultType: 'complete',
-            resources: second ? [{ uri, name: 'SKILL.md', mimeType: 'text/markdown' }] : [],
-            ...(second ? {} : { nextCursor: 'files' }),
-            ttlMs: 0,
-            cacheScope: 'private'
-          }
         }
         throw new Error('Unknown extension request')
       }

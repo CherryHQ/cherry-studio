@@ -30,7 +30,7 @@ import {
 } from '@modelcontextprotocol/client'
 import { withInputRequired } from '@modelcontextprotocol/client'
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
-import { GetPromptResultSchema, ReadResourceResultSchema, ResourceSchema } from '@modelcontextprotocol/core'
+import { GetPromptResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/core'
 import * as z from 'zod'
 
 import { validateMcpSkill } from '@main/ai/skills/mcpSkillContent'
@@ -362,32 +362,6 @@ export class ClientMcpConnection implements McpConnection {
       )
       if (result.skill.uri !== uri) throw new Error('Server returned a different skill URI')
       return validateMcpSkill(result.skill)
-    })
-  }
-
-  public async readSkillDirectory(uri: string, options?: McpRequestOptions): Promise<Resource[]> {
-    if (!this.skillsCapability?.directoryRead) throw new Error('Server does not advertise directoryRead')
-    return this.withRequestContext(options, async (signal) => {
-      const resources: Resource[] = []
-      const cursors = new Set<string>()
-      let cursor: string | undefined
-      do {
-        const result = await this.client.request(
-          { method: 'resources/directory/read', params: this.paramsWithLogLevel({ uri, cursor, _meta: {} }) },
-          z.object({
-            resources: ResourceSchema.array(),
-            nextCursor: z.string().optional(),
-            ttlMs: z.number().nonnegative(),
-            cacheScope: z.enum(['public', 'private'])
-          }),
-          { signal, timeout: options?.timeoutMs }
-        )
-        resources.push(...result.resources)
-        cursor = result.nextCursor
-        if (cursor !== undefined && cursors.has(cursor)) throw new Error('Repeated directory cursor')
-        if (cursor !== undefined) cursors.add(cursor)
-      } while (cursor !== undefined)
-      return resources
     })
   }
 

@@ -78,7 +78,6 @@ export interface McpConnection {
 
   listSkills(options?: McpRequestOptions): Promise<McpSkill[]>
   getSkill(uri: string, options?: McpRequestOptions): Promise<McpSkill>
-  readSkillDirectory(uri: string, options?: McpRequestOptions): Promise<Resource[]>
   listTools(cacheMode?: CacheMode): Promise<Tool[]>
   callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult>
   forwardRequest(

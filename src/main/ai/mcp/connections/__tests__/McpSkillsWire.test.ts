@@ -60,7 +60,6 @@ describe('MCP Skills wire contract', () => {
     try {
       expect(await connection.listSkills()).toEqual([])
       await expect(connection.getSkill(fixture.uri)).rejects.toThrow('advertise')
-      await expect(connection.readSkillDirectory('skill://reports')).rejects.toThrow('directoryRead')
       expect(fixture.requests).toEqual([])
       expect((await connection.readResource(fixture.uri)).contents).toHaveLength(1)
     } finally {
@@ -68,7 +67,7 @@ describe('MCP Skills wire contract', () => {
     }
   })
 
-  it('ignores the extension on a legacy connection and pages optional directory reads only when advertised', async () => {
+  it('ignores the extension on a legacy connection', async () => {
     const fixture = createMcpSkillsFixture()
     const legacy = await connect(fixture, true)
     try {
@@ -76,16 +75,6 @@ describe('MCP Skills wire contract', () => {
       expect(fixture.requests).toEqual([])
     } finally {
       await legacy.close()
-    }
-    fixture.directoryRead(true)
-    const modern = await connect(fixture)
-    try {
-      expect(await modern.readSkillDirectory('skill://reports')).toEqual([
-        { uri: fixture.uri, name: 'SKILL.md', mimeType: 'text/markdown' }
-      ])
-      expect(fixture.requests).toEqual(['resources/directory/read', 'resources/directory/read'])
-    } finally {
-      await modern.close()
     }
   })
 
