@@ -579,7 +579,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
@@ -597,7 +597,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
 
     expect(taken).toBeUndefined()
@@ -614,7 +614,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
 
     expect(taken).toBeUndefined()
@@ -633,7 +633,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
@@ -656,7 +656,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
@@ -676,7 +676,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
 
     expect((taken as { draft: { text: string } }).draft.text).toBe('head')
@@ -701,9 +701,11 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      void result.current.takeForEdit('h').then((value) => {
-        taken = value
-      })
+      void result.current
+        .takeForEdit('h', () => null)
+        .then((value) => {
+          taken = value
+        })
     })
     // Switch conversations while DELETE is pending: the deleted row must go
     // back to its own scope instead of restoring into the new composer.
@@ -729,7 +731,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
 
     // The delete above is the correct dequeue; restoring its draft would
@@ -751,7 +753,7 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      taken = await result.current.takeForEdit('h')
+      taken = await result.current.takeForEdit('h', () => null)
     })
     await act(async () => {
       result.current.removeId('h')
@@ -784,9 +786,11 @@ describe('useFollowupQueue', () => {
 
     let taken: unknown = 'unset'
     await act(async () => {
-      void result.current.takeForEdit('h').then((value) => {
-        taken = value
-      })
+      void result.current
+        .takeForEdit('h', () => null)
+        .then((value) => {
+          taken = value
+        })
     })
     await act(async () => {
       rerender({ scopeKey: 's2' })
@@ -828,9 +832,11 @@ describe('useFollowupQueue', () => {
 
       let taken: unknown = 'unset'
       await act(async () => {
-        void result.current.takeForEdit('h').then((value) => {
-          taken = value
-        })
+        void result.current
+          .takeForEdit('h', () => null)
+          .then((value) => {
+            taken = value
+          })
       })
       await act(async () => {
         rerender({ scopeKey: 's2' })
@@ -882,7 +888,7 @@ describe('useFollowupQueue', () => {
       })
 
       await act(async () => {
-        void result.current.takeForEdit('h')
+        void result.current.takeForEdit('h', () => null)
       })
       await act(async () => {
         rerender({ scopeKey: 's2' })
