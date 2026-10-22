@@ -143,6 +143,24 @@ test('runs Python in the page after approval', async ({ page }) => {
   await expect(page.getByText(/^tools said: 42 3$/)).toBeVisible({ timeout: 90_000 })
 })
 
+test("keeps Python out of the app's storage", async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+
+  const code = [
+    'from js import navigator',
+    'try:',
+    '    await navigator.storage.getDirectory()',
+    "    print('opfs: open')",
+    'except Exception:',
+    "    print('opfs: denied')"
+  ].join('\n')
+  await send(page, `please call python_execute ${JSON.stringify({ code })}`)
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said: opfs: denied$/)).toBeVisible({ timeout: 90_000 })
+})
+
 test('runs JavaScript in a sandbox and stops an endless loop at its timeout', async ({ page }) => {
   await gotoApp(page, 'Work')
   await setUpAssistant(page)

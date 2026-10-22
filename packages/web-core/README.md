@@ -72,7 +72,9 @@ registers `BrowserAgentDriver` as the `pi` runtime; each turn runs the desktop A
 with the tools in `src/agent/fileTools.ts` (`read`, `write`, `edit`, `ls`, `find`, `grep` on
 the workspace, plus `report_artifacts`) and `src/agent/codeTools.ts`:
 `python_execute` is served by the desktop `PythonService`, which asks the page's Pyodide
-(`app/main.ts` loads its listener at start; Pyodide comes from jsDelivr), and `js_execute`
+(`app/main.ts` loads its listener at start; Pyodide comes from jsDelivr). The desktop Pyodide
+worker runs in a sandboxed iframe (`src/page/pyodideWorker.ts`), whose opaque origin keeps
+Python away from the app's OPFS, IndexedDB and storage. `js_execute`
 runs in QuickJS (`quickjs-wasi`) in a Worker of its own, terminated when the run times out.
 Tool calls go through the desktop Pi approval rules
 (`createPiToolAuthorizer`), and the AI SDK chunks are fed to the desktop `PiStreamAdapter`,
@@ -105,8 +107,9 @@ build:app` writes `dist/app`. `app/main.ts` runs the preload, starts `app/coreWo
 opens the `local` account (every visitor shares it until login exists) and then imports
 `src/renderer/windows/main/entryPoint.tsx`. `pageModuleReplacements` swaps renderer modules
 in the page: Sentry is off, the settings menu keeps the provider, default model,
-general, appearance and about sections, and creating an agent shows Pi as its runtime
-instead of a choice. Nothing under `src/renderer` is edited.
+general, appearance and about sections, creating an agent shows Pi as its runtime
+instead of a choice, and the Pyodide worker starts in a sandboxed iframe. Nothing under
+`src/renderer` is edited.
 
 ## Database invariants
 

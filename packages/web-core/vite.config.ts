@@ -145,7 +145,8 @@ export const workerModuleReplacements: Record<string, string> = {
 const pageModuleReplacements: Record<string, string> = {
   'components/settingsMenu.ts': page('settingsMenu.ts'),
   'components/AgentRuntimeOption.tsx': page('AgentRuntimeOption.tsx'),
-  'services/sentry.ts': page('sentry.ts')
+  'services/sentry.ts': page('sentry.ts'),
+  'workers/pyodide.worker.ts?worker': page('pyodideWorker.ts')
 }
 
 /** Shared modules replaced in both the Worker and the page, keyed by their path under `src/shared`. */
