@@ -87,6 +87,7 @@ describe('createWebSearchProvider', () => {
       'searxng',
       'serply',
       'tavily',
+      'yuanbao',
       'zhipu'
     ])
   })

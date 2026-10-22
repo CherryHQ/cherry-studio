@@ -71,11 +71,11 @@ describe('web search provider schemas', () => {
     })
   })
 
-  it('requires a user-provided host but permits anonymous Crawl4AI fetching', () => {
+  it('defaults Crawl4AI to the hosted Cloud host while keeping anonymous self-hosted fetching available', () => {
     const crawl4ai = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'crawl4ai')
 
     expect(crawl4ai?.capabilities).toEqual([
-      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: '' }
+      { feature: 'fetchUrls', requiresApiHost: true, requiresApiKey: false, apiHost: 'https://api.crawl4ai.com' }
     ])
     expect(
       WebSearchProviderOverridesSchema.safeParse({
@@ -186,4 +186,21 @@ describe('web search provider schemas', () => {
     expect(idResult.success).toBe(false)
     expect(overridesResult.success).toBe(false)
   })
+})
+
+it('accepts saved Yuanbao credentials and exposes only keyword search', () => {
+  expect(
+    WebSearchProviderOverridesSchema.safeParse({
+      yuanbao: { apiKeys: ['key'], capabilities: { searchKeywords: { apiHost: 'https://proxy.example' } } }
+    }).success
+  ).toBe(true)
+  const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((item) => item.id === 'yuanbao')
+  expect(preset?.capabilities).toEqual([
+    {
+      feature: 'searchKeywords',
+      requiresApiHost: true,
+      requiresApiKey: true,
+      apiHost: 'https://api.wsa.cloud.tencent.com'
+    }
+  ])
 })
