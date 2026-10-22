@@ -2221,6 +2221,26 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.queueContent).toBeTruthy()
   })
 
+  it('queues the follow-up only once when Send is activated again while the first enqueue persists', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      const first = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      // Second activation lands while the first enqueue write is still in flight.
+      const second = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await Promise.all([first, second])
+    })
+    // The DataApi write settles asynchronously; re-render to pick up the revalidated queue.
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(onSend).not.toHaveBeenCalled()
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.items).toHaveLength(1)
+  })
+
   it('keeps newer unsent input typed while a queued follow-up is being persisted', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)

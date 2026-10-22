@@ -1351,6 +1351,28 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeFalsy()
   })
 
+  it('queues the follow-up only once when Send is activated again while the first enqueue persists', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      const first = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      // Second activation lands while the first enqueue write is still in flight.
+      const second = mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+      await Promise.all([first, second])
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(1))
+  })
+
   it('treats the steer option as a plain send when idle', async () => {
     render(
       <AgentComposer
