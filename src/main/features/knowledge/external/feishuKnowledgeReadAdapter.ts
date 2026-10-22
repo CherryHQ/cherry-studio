@@ -243,12 +243,12 @@ export async function previewFeishuKnowledgeScope(
         if (
           child.spaceId !== selectedSpaceId ||
           child.parentNodeToken !== traversalNode.nodeToken ||
-          ancestorNodeTokens.has(child.nodeToken) ||
           childNodeTokens.has(child.nodeToken)
         ) {
           throw new FeishuKnowledgeReadError('invalid-provider-response')
         }
         childNodeTokens.add(child.nodeToken)
+        if (ancestorNodeTokens.has(child.nodeToken)) continue
         if (child.nodeType === 'origin') originNodes.set(child.nodeToken, child)
         const breadcrumb = [...parent.breadcrumb, child.title]
         references.push(reference(child, `https://${host}/wiki/${child.nodeToken}`, breadcrumb))
