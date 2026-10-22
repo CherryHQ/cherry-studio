@@ -339,7 +339,7 @@ vi.mock('../PlaceholderBlock', () => ({
   usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
 }))
 
-import MessagePartsRenderer from '../MessagePartsRenderer'
+import MessagePartsRenderer, { getHoistedAttachments } from '../MessagePartsRenderer'
 
 const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
   id: 'msg-1',
@@ -1046,56 +1046,6 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
     })
 
-    it('keeps non-image attachment tokens visible when attachments are hoisted', () => {
-      const previewInputFile = vi.fn()
-
-      renderParts(
-        [
-          {
-            type: 'text',
-            text: 'see the doc',
-            providerMetadata: {
-              cherry: {
-                composer: {
-                  version: 1,
-                  tokens: [{ id: 'file:hoisted-doc', kind: 'file', label: 'report.pdf', index: 0, textOffset: 0 }]
-                }
-              }
-            }
-          },
-          {
-            type: 'file',
-            url: 'file:///tmp/report.pdf',
-            mediaType: 'application/pdf',
-            filename: 'report.pdf',
-            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-doc' } }
-          }
-        ] as unknown as CherryMessagePart[],
-        msg({ role: 'user' }),
-        { previewInputFile },
-        defaultMessageRenderConfig,
-        [],
-        true
-      )
-
-      expect(screen.getByText('see the doc')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-attachments')).toBeNull()
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
-
-      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('hoisted-doc')
-      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
-        id: 'file:hoisted-doc',
-        kind: 'file',
-        label: 'report.pdf'
-      })
-
-      expect(previewInputFile).toHaveBeenCalledWith({
-        displayName: 'report.pdf',
-        previewPath: '/tmp/report.pdf',
-        mediaType: 'application/pdf'
-      })
-    })
-
     it('opens uniquely named sent files from their read-only tokens when parts omit fileTokenSourceId', () => {
       const previewInputFile = vi.fn()
 
@@ -1161,7 +1111,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
@@ -1237,7 +1187,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
@@ -1288,7 +1238,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
@@ -1346,7 +1296,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       const cards = screen.getAllByTestId('mock-attachments')
@@ -1407,7 +1357,7 @@ describe('MessagePartsRenderer', () => {
         { previewInputFile },
         defaultMessageRenderConfig,
         [],
-        true
+        false
       )
 
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute(
@@ -1691,7 +1641,32 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('Open')).toBeInTheDocument()
     })
 
-    it('keeps one right-pane file token when previewInputFile is available', () => {
+    it('preserves original file identity when moving a managed attachment outside the bubble', () => {
+      const { files } = getHoistedAttachments(
+        [
+          {
+            type: 'file',
+            url: 'file:///managed/report%20copy.pdf',
+            mediaType: 'application/pdf',
+            filename: 'report.pdf',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report', originalPath: '/original/report.pdf' } }
+          }
+        ] as CherryMessagePart[],
+        'message-1',
+        true
+      )
+
+      expect(files).toHaveLength(1)
+      expect(files[0].inputFilePreview).toEqual({
+        displayName: 'report.pdf',
+        previewPath: '/managed/report copy.pdf',
+        fileEntryId: 'entry-report',
+        originalPath: '/original/report.pdf',
+        mediaType: 'application/pdf'
+      })
+    })
+
+    it('hides the inline file token when its external card supports right-pane preview', () => {
       const previewInputFile = vi.fn()
       renderParts(
         [
@@ -1732,15 +1707,9 @@ describe('MessagePartsRenderer', () => {
         true
       )
 
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
-      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
-      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
-        id: 'file:source-report',
-        kind: 'file',
-        label: 'report.pdf'
-      })
-      expect(previewInputFile).toHaveBeenCalledTimes(1)
+      expect(screen.getByText('Open')).toBeInTheDocument()
     })
 
     it('hides a duplicate attachment when its composer file token is visible', () => {

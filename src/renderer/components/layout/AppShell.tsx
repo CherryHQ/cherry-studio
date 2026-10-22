@@ -100,14 +100,8 @@ export const AppShell = () => {
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
-    // Closing the last tab would strand the shell in the empty Launchpad state;
-    // browsers close the window for the final tab (Safari / Chrome convention).
-    if (tabs.length === 1) {
-      void ipcApi.request('window.close')
-      return
-    }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab, tabs])
+  }, [activeTabId, handleCloseTab])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('tab.close', handleCloseActiveTab, { enabled: canCloseTab })
