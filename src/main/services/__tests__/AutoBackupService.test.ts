@@ -260,6 +260,41 @@ describe('AutoBackupService', () => {
       }
     })
 
+    it('re-arms a pending anchored run after the machine changes timezone', async () => {
+      const originalTimezone = process.env.TZ
+      process.env.TZ = 'America/New_York'
+      try {
+        setPreference('data.backup.s3.auto_sync', false)
+        setPreference('data.backup.local.auto_sync', false)
+        setPreference('data.backup.nutstore.auto_sync', false)
+        setPreference('data.backup.webdav.sync_start', 18 * 60)
+        setPreference('data.backup.webdav.sync_interval', 1440)
+        // 09:00 in New York: the one-shot is armed for 18:00 Eastern, nine hours out.
+        vi.setSystemTime(new Date(2026, 9, 22, 9, 0))
+        await recreateService()
+
+        // The machine moves to Los Angeles before the slot: 18:00 Eastern is 15:00 Pacific now.
+        process.env.TZ = 'America/Los_Angeles'
+
+        // The armed instant arrives at 15:00 Pacific. Firing there would back up three hours
+        // early and then again at the real slot, so the run is re-armed instead.
+        await vi.advanceTimersByTimeAsync(9 * 3600_000 - 60_000)
+        expect(clock()).toBe('14:59')
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(mocks.backupToWebdav).not.toHaveBeenCalled()
+        expect(clock()).toBe('15:00')
+
+        await vi.advanceTimersByTimeAsync(3 * 3600_000 - 60_000)
+        expect(mocks.backupToWebdav).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+        expect(clock()).toBe('18:00')
+      } finally {
+        if (originalTimezone === undefined) delete process.env.TZ
+        else process.env.TZ = originalTimezone
+      }
+    })
+
     it('returns to the grid after a missed slot instead of drifting with the gap', async () => {
       setPreference('data.backup.webdav.sync_start', 18 * 60)
       await isolateWebdavAt(17, 59)

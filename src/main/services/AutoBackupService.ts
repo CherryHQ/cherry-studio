@@ -29,6 +29,8 @@ const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
 const ACTIVE_WRITERS_POLL_MS = 30_000
 const ANCHOR_SEARCH_DAYS = 7
+/** An anchored slot is a wall-clock promise; an offset change moves its epoch by whole minutes. */
+const ANCHORED_TARGET_TOLERANCE_MS = 60_000
 
 const WATCHED_PREFERENCES: Record<AutoBackupType, UnifiedPreferenceKeyType[]> = {
   webdav: [
@@ -114,6 +116,15 @@ const createScheduleState = (): ScheduleState => ({
   running: false
 })
 
+interface AnchoredTarget {
+  scheduledAt: number
+  year: number
+  month: number
+  day: number
+  hours: number
+  minutes: number
+}
+
 @Injectable('AutoBackupService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn([
@@ -138,6 +149,8 @@ export class AutoBackupService extends BaseService {
     local: createScheduleState(),
     nutstore: createScheduleState()
   }
+  /** The wall-clock slot each pending anchored one-shot was armed for, in its arming zone. */
+  private readonly anchoredTargets = new Map<AutoBackupType, AnchoredTarget>()
 
   protected override onInit(): void {
     const lastAttemptTimes = application.get('CacheService').getPersist(LAST_ATTEMPT_TIMES_KEY)
@@ -262,16 +275,68 @@ export class AutoBackupService extends BaseService {
       }
     }
 
+    const at = Date.now() + delay
+    if (settings.startMinute != null && delayOverride === undefined) this.rememberAnchoredTarget(type, at)
+    else this.anchoredTargets.delete(type)
     application
       .get('SchedulerService')
-      .registerSchedule(this.scheduleId(type), { kind: 'once', at: Date.now() + delay }, () =>
+      .registerSchedule(this.scheduleId(type), { kind: 'once', at }, () => this.handleScheduledBackup(type, generation))
+    logger.debug('Automatic backup scheduled', { type, delayMs: delay })
+  }
+
+  private rememberAnchoredTarget(type: AutoBackupType, at: number): void {
+    const target = new Date(at)
+    this.anchoredTargets.set(type, {
+      scheduledAt: at,
+      year: target.getFullYear(),
+      month: target.getMonth(),
+      day: target.getDate(),
+      hours: target.getHours(),
+      minutes: target.getMinutes()
+    })
+  }
+
+  /**
+   * An anchored one-shot names a local wall clock, not an instant: after a timezone change the
+   * stored epoch is a different local time, so re-arm the slot instead of firing early and again.
+   */
+  private reconcileAnchoredTarget(type: AutoBackupType, generation: number): boolean {
+    const target = this.anchoredTargets.get(type)
+    if (!target) return true
+    this.anchoredTargets.delete(type)
+    const wall = new Date(target.year, target.month, target.day, target.hours, target.minutes)
+    const wallClockMatches =
+      wall.getFullYear() === target.year &&
+      wall.getMonth() === target.month &&
+      wall.getDate() === target.day &&
+      wall.getHours() === target.hours &&
+      wall.getMinutes() === target.minutes
+    const recomputed = wall.getTime()
+    if (Math.abs(recomputed - target.scheduledAt) < ANCHORED_TARGET_TOLERANCE_MS) return true
+    const settings = this.getScheduleSettings(type)
+    if (!settings.enabled || settings.intervalMs <= 0 || settings.startMinute == null) return true
+    const nextAt =
+      wallClockMatches && recomputed > Date.now()
+        ? recomputed
+        : nextAnchoredRun(Date.now(), settings.startMinute, settings.intervalMinutes)
+    if (nextAt <= Date.now()) return true
+    this.rememberAnchoredTarget(type, nextAt)
+    application
+      .get('SchedulerService')
+      .registerSchedule(this.scheduleId(type), { kind: 'once', at: nextAt }, () =>
         this.handleScheduledBackup(type, generation)
       )
-    logger.debug('Automatic backup scheduled', { type, delayMs: delay })
+    logger.debug('Anchored backup re-armed after the local timezone changed', {
+      type,
+      delayMs: nextAt - Date.now()
+    })
+    return false
   }
 
   private async handleScheduledBackup(type: AutoBackupType, generation: number): Promise<void> {
     if (!this.isEnabled(type, generation)) return
+    // The instant this timer was armed for may no longer be its local slot; a re-arm must not run.
+    if (!this.reconcileAnchoredTarget(type, generation)) return
 
     if (this.activeRun) {
       this.pendingRuns.set(type, generation)
@@ -532,6 +597,7 @@ export class AutoBackupService extends BaseService {
   }
 
   private unregisterSchedule(type: AutoBackupType): void {
+    this.anchoredTargets.delete(type)
     application.get('SchedulerService').unregister(this.scheduleId(type))
   }
 
