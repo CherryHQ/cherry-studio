@@ -105,6 +105,11 @@ predicate. They include common dependency/build/editor directories and OS metada
 force-excluded. When `respectGitignore` is enabled, user rules are added after defaults for the
 builder predicate, then `.git` is re-applied so it cannot be unignored.
 
+Watcher sharing includes a fingerprint of the rules actually loaded by each builder, not just the
+`respectGitignore` flag. The fingerprint and predicate use the same read of `.gitignore`; builders
+with identical loaded rules can share coverage, while changed rules get separate coverage. Rules
+remain a construction-time snapshot: editing `.gitignore` does not reload an existing builder.
+
 The two scanners do not have perfectly symmetric opt-out semantics. `search.ts` lets ripgrep apply
 its normal ignore discovery and always supplies the default negative globs. Therefore
 `respectGitignore: false` skips the builder/chokidar `.gitignore` predicate but does not pass

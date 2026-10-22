@@ -364,6 +364,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
             this.rootPath,
             this.options.includeHidden,
             this.options.respectGitignore,
+            this.ignorePredicate?.policyKey ?? null,
             this.rootMissingAtInit
           ])
     )
