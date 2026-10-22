@@ -15,6 +15,7 @@ import { application } from '@application'
 import {
   agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
+  followupQueueFileRefTable,
   jobFileRefTable,
   type MiniAppFileRefRow,
   miniAppFileRefTable,
@@ -33,6 +34,7 @@ import {
   agentSessionMessageSourceType,
   chatMessageSourceType,
   FileRefSchema,
+  followupQueueSourceType,
   jobSourceType,
   miniAppFileRef,
   miniAppLogoRef,
@@ -64,6 +66,7 @@ const SQLITE_INARRAY_CHUNK = 500
 
 type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
 type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
+type FollowupQueueFileRefRow = typeof followupQueueFileRefTable.$inferSelect
 type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
 type JobFileRefRow = typeof jobFileRefTable.$inferSelect
 type TranslateHistoryFileRefRow = typeof translateHistoryFileRefTable.$inferSelect
@@ -105,6 +108,11 @@ function jobRowToFileRef(row: JobFileRefRow): FileRef {
 function translateHistoryRowToFileRef(row: TranslateHistoryFileRefRow): FileRef {
   return FileRefSchema.parse({ ...row, sourceType: translateHistorySourceType })
 }
+
+function followupQueueRowToFileRef(row: FollowupQueueFileRefRow): FileRef {
+  return FileRefSchema.parse({ ...row, sourceType: followupQueueSourceType })
+}
+
 
 class FileRefServiceImpl implements FileRefService {
   private getDbService() {
@@ -188,6 +196,15 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(translateHistoryFileRefTable.createdAt), asc(translateHistoryFileRefTable.id))
           .all()
         return rows.map(translateHistoryRowToFileRef)
+      },
+      [followupQueueSourceType]: () => {
+        const rows = this.getDb()
+          .select()
+          .from(followupQueueFileRefTable)
+          .where(eq(followupQueueFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(followupQueueFileRefTable.createdAt), asc(followupQueueFileRefTable.id))
+          .all()
+        return rows.map(followupQueueRowToFileRef)
       }
     } satisfies Record<PersistentFileRefSourceType, () => FileRef[]>
 
@@ -270,6 +287,15 @@ class FileRefServiceImpl implements FileRefService {
           .all()
         return rows.map(translateHistoryRowToFileRef)
       }
+      case followupQueueSourceType: {
+        const rows = this.getDb()
+          .select()
+          .from(followupQueueFileRefTable)
+          .where(eq(followupQueueFileRefTable.sourceId, source.sourceId))
+          .orderBy(asc(followupQueueFileRefTable.createdAt), asc(followupQueueFileRefTable.id))
+          .all()
+        return rows.map(followupQueueRowToFileRef)
+      }
     }
   }
 
@@ -339,6 +365,13 @@ class FileRefServiceImpl implements FileRefService {
             .from(translateHistoryFileRefTable)
             .where(inArray(translateHistoryFileRefTable.fileEntryId, chunk))
             .groupBy(translateHistoryFileRefTable.fileEntryId)
+            .all(),
+        [followupQueueSourceType]: () =>
+          this.getDb()
+            .select({ entryId: followupQueueFileRefTable.fileEntryId, refCount: count() })
+            .from(followupQueueFileRefTable)
+            .where(inArray(followupQueueFileRefTable.fileEntryId, chunk))
+            .groupBy(followupQueueFileRefTable.fileEntryId)
             .all()
       } satisfies Record<PersistentFileRefSourceType, () => Array<{ entryId: FileEntryId; refCount: number }>>
 

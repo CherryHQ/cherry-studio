@@ -572,7 +572,11 @@ export class TopicService {
       messageService.purgeByTopicIdsTx(tx, chunk)
       tagService.purgeForEntitiesTx(tx, 'topic', chunk)
       pinService.purgeForEntitiesTx(tx, 'topic', chunk)
-      for (const id of chunk) followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(id))
+      // followup_queue has no FK to conversation tables by design; purge its
+      // rows (and paused state) for every scope rooted at the deleted topics.
+      for (const topicId of chunk) {
+        followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(topicId))
+      }
       tx.delete(topicTable).where(inArray(topicTable.id, chunk)).run()
     }
 

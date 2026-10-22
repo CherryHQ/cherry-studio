@@ -30,6 +30,7 @@ import {
   followupQueueStateTable,
   followupQueueTable
 } from '@data/db/schemas/followupQueue'
+import { followupQueueFileRefTable } from '@data/db/schemas/fileRelations'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -214,7 +215,18 @@ export class FollowupQueueService {
         },
         { pkColumn: followupQueueTable.id, scope: eq(followupQueueTable.scopeKey, dto.scopeKey) }
       )
-      return rowToItem(inserted as FollowupQueueRow)
+      const insertedRow = inserted as FollowupQueueRow
+      if (dto.fileEntryIds?.length) {
+        // Register durable file refs so blob-attachment entries survive the
+        // idle sweep for the draft's whole queue lifetime; the FK cascade
+        // drops these rows when the draft is dequeued.
+        for (const fileEntryId of dto.fileEntryIds) {
+          tx.insert(followupQueueFileRefTable)
+            .values({ fileEntryId, sourceId: insertedRow.id, role: 'attachment' as const })
+            .run()
+        }
+      }
+      return rowToItem(insertedRow)
     })
     notifyQueueChange('membership', dto.scopeKey, [item.id])
     logger.info('Enqueued followup', { id: item.id, scopeKey: dto.scopeKey })

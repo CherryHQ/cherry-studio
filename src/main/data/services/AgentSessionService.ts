@@ -1406,7 +1406,13 @@ export class AgentSessionService {
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     }
 
-    return { deletedIds: Array.from(deleted), taskScheduleIds, deliveryResults }
+    const deletedIds = Array.from(deleted)
+    // followup_queue has no FK to conversation tables by design; purge its
+    // rows (and paused state) for every deleted session scope.
+    for (const sessionId of deletedIds) {
+      followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(sessionId))
+    }
+    return { deletedIds, taskScheduleIds, deliveryResults }
   }
 
   private getTaskScheduleIdsForSessionIdsTx(tx: DbOrTx, sessionIds: readonly string[]): string[] {

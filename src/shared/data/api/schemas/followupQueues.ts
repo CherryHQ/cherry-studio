@@ -39,7 +39,11 @@ export const CreateFollowupQueueSchema = z.strictObject({
   id: FollowupQueueIdSchema.optional(),
   scopeKey: FollowupQueueScopeKeySchema,
   draft: FollowupQueueDraftSchema,
-  payload: FollowupQueuePayloadSchema
+  payload: FollowupQueuePayloadSchema,
+  /** Managed file entries created by the renderer for blob attachments in the
+   * payload. The service registers durable refs so the idle sweep keeps the
+   * bytes alive until the draft is dequeued. */
+  fileEntryIds: z.array(z.uuid()).max(64).optional()
 })
 export type CreateFollowupQueueDto = z.infer<typeof CreateFollowupQueueSchema>
 
