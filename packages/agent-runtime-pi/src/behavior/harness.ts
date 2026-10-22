@@ -1,7 +1,14 @@
 import type { ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 
-import type { BoundPorts, HarnessPorts, Key, LifecycleHandlers, SubagentOrigin } from '@cherrystudio/agent-behavior'
-import { type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
+import type {
+  BoundPorts,
+  CallRef,
+  HarnessPorts,
+  Key,
+  LifecycleHandlers,
+  SubagentOrigin
+} from '@cherrystudio/agent-behavior'
+import { type InputId, type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
@@ -13,6 +20,7 @@ import {
   inputDone,
   latestStart,
   messageChild,
+  promptUser,
   retract,
   startTurn,
   stopRun,
@@ -63,14 +71,27 @@ export interface PiBehaviorOptions {
 
 /** The agent-behavior harness ports on native coding-agent sessions (README "Behavior ports"). */
 export interface PiBehavior {
+  /** Resolve a behavior call, including a nested call, to its native display identity. */
+  toolCallId(call: CallRef): string | undefined
   /** Opens a conversation on `sessionManager`; `onOpen` has run when it resolves. */
   openConversation(sessionManager: SessionManager): Promise<ThreadId>
   /** Runs `use` with outbound ports bound to one host call on `thread`; they expire when `use` settles. */
-  withCall<T>(thread: ThreadId, use: (ports: BoundPorts) => Promise<T>): Promise<T>
+  withCall<T>(
+    thread: ThreadId,
+    use: (ports: BoundPorts) => Promise<T>,
+    options?: { readonly inputId?: InputId; readonly signal?: AbortSignal }
+  ): Promise<T>
   /** A person's text: starts a run when the conversation is idle, otherwise waits in the inbox for a run of its own. */
   submitUser(thread: ThreadId, text: string): Promise<void>
+  /** Native prompt admission, including commands, input hooks, input correlation and busy policies. */
+  prompt(
+    thread: ThreadId,
+    text: string,
+    options?: Parameters<AgentRuntimeSession['prompt']>[1],
+    signal?: AbortSignal
+  ): Promise<void>
   /** Compacts now; resolves once `onCompacted` has run, or once `onCompacting` declined and nothing was compacted. */
-  compact(thread: ThreadId): Promise<void>
+  compact(thread: ThreadId, instructions?: string): Promise<void>
   /** Resolves once no run is active and no job is live; inputs a failed run left do not count. */
   settled(): Promise<void>
   /** Stops every run, calls `onClose` for every conversation and disposes the sessions. */
@@ -151,7 +172,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
             } finally {
               // A job may message the commit's children, so it starts once they are open (failing if one never
               // launched); none starts once close() began, which drops it.
-              if (!scope.opening && !closing) for (const job of applied.jobs) startJob(job)
+              if (!scope.opening && !closing) for (const job of applied.jobs) startJob(job, scope.input)
             }
             return { result: step.result, effects: step.effects, spawned: applied.spawned }
           }),
@@ -171,7 +192,14 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         message: (child, input, key, run) =>
           enter(scope, async () => {
             const conv = conversation(child)
-            const accepted = messageChild(adapter, conv, input, key, run)
+            const accepted = messageChild(
+              adapter,
+              conv,
+              input,
+              key,
+              run,
+              scope.input?.thread === child ? scope.input.id : undefined
+            )
             if (accepted.status !== 'queued') return accepted
             // H3: a steer answers once a boundary of its run took it, or once it was withdrawn: its run ended first or
             // the tool call that sent it aborted.
@@ -200,7 +228,10 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
         untilIdle: (thread) =>
           enter(scope, () => {
             const conv = conversation(thread)
-            return waitFor(conv, () => conv.active === undefined && conv.hostCompacts === 0 && piIdle(conv))
+            return waitFor(
+              conv,
+              () => conv.active === undefined && conv.hostCompacts === 0 && conv.hostPrompts === 0 && piIdle(conv)
+            )
           }),
         untilDone: (thread, key) =>
           enter(scope, () => {
@@ -232,8 +263,8 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     return handlers ? withScope({}, (ports) => call(handlers, ports), opening) : Promise.resolve()
   }
   /** H4 coding-agent: an in-process promise per job, started from the next microtask. */
-  function startJob(job: JobRecord): void {
-    const scope: Scope = { ended: false }
+  function startJob(job: JobRecord, input?: CallScope['input']): void {
+    const scope: Scope = { ended: false, input }
     const run = async () => {
       try {
         await installation.jobs.get(job.spec.kind)!(bound(scope), job.spec)
@@ -381,20 +412,33 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       await launch(openRoot(conv))
       return thread
     },
-    withCall: (_thread, use) => withScope({}, use),
+    toolCallId: (call) => conversation(call.thread).callIds.get(call.key),
+    withCall: (thread, use, call) =>
+      withScope(
+        {
+          ...(call?.inputId && { input: { thread, id: call.inputId } }),
+          signal: call?.signal
+        },
+        use
+      ),
     async submitUser(thread, text) {
       if (closed) throw new Error('The coding-agent harness is closed')
       users += 1
       // A person's submissions get adapter-local keys; rules never see them.
       submit(adapter, conversation(thread), `user:${users}`, text)
     },
-    async compact(thread) {
+    prompt(thread, text, promptOptions, signal) {
+      if (closing || closed) return Promise.reject(new Error('The coding-agent harness is closed'))
+      users += 1
+      return promptUser(adapter, conversation(thread), `user:${users}`, text, promptOptions, signal)
+    },
+    async compact(thread, instructions) {
       const conv = conversation(thread)
       if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
       conv.hostCompacts += 1
       conv.declined = false
       try {
-        await conv.native.compact()
+        await conv.native.compact(instructions)
       } catch (error) {
         // A decline compacts nothing and is no failure of the call; its reason is the `compaction-end` error.
         if (!conv.declined) throw error

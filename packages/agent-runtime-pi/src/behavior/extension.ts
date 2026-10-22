@@ -88,6 +88,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
         const run = conv.active
         const nested = event.parentToolCallId !== undefined
         const key = callKeyFor(conv.thread, event.toolCallId)
+        conv.callIds.set(key, event.toolCallId)
         const args = structuredClone(event.input) as JsonValue
         const call: ToolCallFact = { callId: event.toolCallId, callKey: key, name: event.toolName, args }
         if (run && !nested) run.window.push(call)

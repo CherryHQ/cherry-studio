@@ -21,14 +21,18 @@ import type {
   TurnInput,
   UsageFact
 } from '@cherrystudio/agent-behavior'
-import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
+import type { InputId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { AgentRuntimeSession } from '../session'
 
 /** The parent run whose tool call owns the child's first run; the ownership ends with that child run. */
 export type Owner = { readonly thread: ThreadId; readonly run: number }
 /** What a call's ports are bound to: the run of a tool call that owns its foreground children, and its abort signal. */
-export type CallScope = { readonly owner?: Owner; readonly signal?: AbortSignal }
+export type CallScope = {
+  readonly owner?: Owner
+  readonly signal?: AbortSignal
+  readonly input?: { readonly thread: ThreadId; readonly id: InputId }
+}
 /** How a run ended: what the conversation reports as `live.runEnd`, and what `awaitAnswer` answers. */
 export type RunEnding = { readonly live: 'completed' | 'error' | 'aborted'; readonly answer: RunEndFacts }
 export type Submission = {
@@ -38,6 +42,7 @@ export type Submission = {
   state: 'queued' | 'running' | 'settled' | 'withdrawn'
   /** The run that took it. */
   run?: number
+  readonly inputId?: InputId
 }
 /** One run: from the input that starts it to Pi's `agent_settled`. */
 export type RunState = {
@@ -63,6 +68,7 @@ export type RunState = {
 }
 /** One conversation in this process: its native session plus what Pi does not keep (admissions, run ends, usage). */
 export type Conversation = {
+  readonly callIds: Map<string, string>
   readonly thread: ThreadId
   readonly manager: SessionManager
   readonly lineage: ConversationFacts['lineage']
@@ -87,6 +93,8 @@ export type Conversation = {
   readonly waiters: (() => boolean)[]
   /** Host compactions accepted and not yet returned (G6: a host call in flight). */
   hostCompacts: number
+  /** Prompts still in native preflight or execution; background jobs must not overtake them. */
+  hostPrompts: number
   /** `onCompacted` of the latest compaction and the drain after it. */
   compacted: Promise<void>
   /** The adapter's summarizer declined the latest compaction: `onCompacting` declined or the meter refused it. */
@@ -146,6 +154,8 @@ export function newConversation(
     runUsage: [],
     waiters: [],
     hostCompacts: 0,
+    hostPrompts: 0,
+    callIds: new Map(),
     compacted: Promise.resolve(),
     declined: false,
     summarized: false
