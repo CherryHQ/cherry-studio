@@ -25,6 +25,19 @@ import { isWin } from '@main/core/platform'
  * here and `shellEnv.appendCherryToolDirsToPath` run it back-to-back on the
  * same PATH during shell capture, so they must agree byte-for-byte.
  */
+/** PATH segment identity for dedup/exclusion — trailing separators do not distinguish entries. */
+export function normalizePathSegmentForComparison(value: string): string {
+  let normalized = path.normalize(value.trim())
+  if (isWin) {
+    normalized = normalized.replace(/[\\/]+$/, '')
+    return normalized.toLowerCase()
+  }
+  while (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
+  return normalized
+}
+
 export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []

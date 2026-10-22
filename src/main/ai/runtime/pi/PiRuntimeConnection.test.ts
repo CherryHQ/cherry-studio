@@ -216,6 +216,7 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { buildPiLoginPathPrefix, mergeMiseEnvEntries, PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { ApiGatewayNotRunningError } = await import('../agentApiGateway')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
