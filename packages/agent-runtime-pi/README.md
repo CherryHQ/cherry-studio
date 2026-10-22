@@ -43,8 +43,11 @@ Cherry registers native Pi providers against its internal gateway in `src/main/a
 The gateway owns upstream credentials and billing. Pi owns protocol replay, tool execution and session retries.
 
 Cherry's desktop root Pi connection uses this package through `create/open/observe/input.submit`.
-Independent desktop child projections are not yet connected. Integration tests live with Cherry's
-gateway integration; `tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
+Independent desktop child projections are not yet connected. Native session, goal and subagent
+tests live in `tests/`, using Pi providers directly. `tests/sessionSupport.ts` supplies native
+scripted streams with fixed usage for budget and compaction assertions, without an HTTP or AI SDK fixture.
+Cherry gateway integration tests remain in `src/main/ai/runtime/pi/`.
+`tests/nativeSession.test.ts` verifies native provider execution and borrowed-runtime ownership.
 `tests/runtime.test.ts` exercises public child discovery, input and observation through native
 execution, including continuation, release, once-only native reporting, and shutdown during child loading.
 

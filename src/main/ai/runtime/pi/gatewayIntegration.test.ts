@@ -23,8 +23,8 @@ import { BaseService } from '@main/core/lifecycle'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import { lastAssistant, tempDir } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
-import { tempDir, lastAssistant } from './gatewaySupport'
 
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
@@ -225,6 +225,25 @@ describe('native Pi through the production gateway', () => {
       { providerId: 'port', messageId: 'original-answer', inputTokens: 100, outputTokens: 25 },
       { providerId: 'port', messageId: 'original-answer', inputTokens: 100, outputTokens: 25 }
     ])
+  })
+
+  it.each(['null', '{}'])('executes only valid optional tool input through the gateway: %s', async (input) => {
+    const executed: unknown[] = []
+    call = () => requests.length === 1 ? { tool_calls: [{ index: 0, id: 'optional-call', type: 'function', function: { name: 'optional_tool', arguments: input } }] } : { content: 'complete' }
+    const binding = await createPiGatewayModelBinding({ sessionId: 'session' }, providerService.getByProviderId('port'), modelService.getByKey('port', 'wire-model'))
+    const directory = tempDir('gateway-invalid-tool')
+    session = await createAgentRuntimeSession({ ...binding, cwd: directory, agentDir: directory, settings: { retry: { enabled: false } }, tools: [defineTool({
+      name: 'optional_tool', label: 'Optional', description: 'Optional input', parameters: Type.Object({ path: Type.Optional(Type.String()) }),
+      async execute(_id, args) { executed.push(args); return { content: [{ type: 'text', text: 'done' }], details: undefined } }
+    })] })
+    await session.prompt('use the optional tool')
+    if (input === 'null') {
+      expect(executed).toEqual([])
+      expect(lastAssistant(session.session).stopReason).toBe('error')
+    } else {
+      expect(executed).toEqual([{}])
+      expect(lastAssistant(session.session).content).toEqual([{ type: 'text', text: 'complete' }])
+    }
   })
 
   it('freezes message attribution before gateway dispatch', async () => {

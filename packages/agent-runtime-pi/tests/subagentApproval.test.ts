@@ -1,10 +1,9 @@
 import { Type } from '@earendil-works/pi-ai'
 import { defineTool, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
-import { createTestSession, finish, hostStore, gatewayModel } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
-import type { SubagentPort, ToolApprovalEvent } from '@cherrystudio/agent-runtime-pi'
-
+import type { SubagentPort, ToolApprovalEvent } from '../src'
+import { assistantReply, createTestSession, hostStore } from './sessionSupport'
 import {
   gate,
   recordingSubagentPort,
@@ -15,8 +14,8 @@ import {
   toolCallPart,
   toolResultOf,
   waitFor
-} from './gatewaySubagentSupport'
-import { textOf } from './gatewayToolResults'
+} from './subagentSupport'
+import { textOf } from './toolResults'
 
 const BG_A = { description: 'Check A', prompt: 'TASK-A', background: true }
 
@@ -135,15 +134,15 @@ describe('subagent approvals', () => {
     const { model } = routedModel(({ userText, lastText, humanText }) => {
       if (userText.includes('TASK-A'))
         return lastText.includes('TASK-A')
-          ? [toolCallPart('risky_1', 'risky'), finish('tool-calls')]
+          ? assistantReply([toolCallPart('risky_1', 'risky')], 'toolUse')
           : reply('REPORT-A')
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
       if (humanText === 'Message B')
-        return [toolCallPart('call_msg', 'message_subagent', { id: 'B', message: 'hi' }), finish('tool-calls')]
+        return assistantReply([toolCallPart('call_msg', 'message_subagent', { id: 'B', message: 'hi' })], 'toolUse')
       return reply('OK.')
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [risky],
       subagents: port,
       onEvent: parent.onEvent
@@ -191,13 +190,15 @@ describe('subagent approvals', () => {
     const parent = hostStore()
     const { model } = routedModel(({ userText, lastText, humanText }) => {
       if (userText.includes('TASK-A'))
-        return lastText.includes('TASK-A') ? [toolCallPart('x_1', 'slow'), finish('tool-calls')] : reply('REPORT-A')
-      if (humanText === 'Check A in the background') return [subagentCall('call_a', BG_A), finish('tool-calls')]
-      if (humanText === 'Do the risky thing') return [toolCallPart('x_1', 'risky'), finish('tool-calls')]
+        return lastText.includes('TASK-A')
+          ? assistantReply([toolCallPart('x_1', 'slow')], 'toolUse')
+          : reply('REPORT-A')
+      if (humanText === 'Check A in the background') return assistantReply([subagentCall('call_a', BG_A)], 'toolUse')
+      if (humanText === 'Do the risky thing') return assistantReply([toolCallPart('x_1', 'risky')], 'toolUse')
       return reply('OK.')
     })
     const { session } = await createTestSession({
-      port: gatewayModel(model).upstream,
+      stream: model,
       tools: [risky, slow],
       subagents: { ...recording.port, onApproval: hub.onApproval },
       extensionFactories: [parentApproval],
@@ -226,10 +227,13 @@ describe('subagent approvals', () => {
         return reply('REPORT-A')
       }
       if (humanText === 'Fork A')
-        return [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A', fork: true }), finish('tool-calls')]
+        return assistantReply(
+          [subagentCall('call_a', { description: 'Check A', prompt: 'TASK-A', fork: true })],
+          'toolUse'
+        )
       return reply('OK.')
     })
-    const runtime = await createTestSession({ port: gatewayModel(model).upstream, subagents: port })
+    const runtime = await createTestSession({ stream: model, subagents: port })
     await runtime.prompt('Fork A')
     expect(duringFork).toBe(1)
 
