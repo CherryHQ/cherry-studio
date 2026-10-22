@@ -16,14 +16,16 @@ export function protocolError(
   context: ProtocolContext,
   code: string,
   message: string,
-  providerCode?: string
+  providerCode?: string,
+  requestId?: string
 ): WebSearchError {
   return new WebSearchError({
     ...context.call,
     kind: 'provider',
     code,
     message: safeText(context, message, 500),
-    providerCode: safeText(context, providerCode, 128) || undefined
+    providerCode: safeText(context, providerCode, 128) || undefined,
+    requestId: safeText(context, requestId, 128) || undefined
   })
 }
 
