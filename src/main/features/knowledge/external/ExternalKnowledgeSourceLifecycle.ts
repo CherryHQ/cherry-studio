@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { application } from '@application'
 import type { DbOrTx } from '@data/db/types'
 import {
@@ -16,6 +18,7 @@ import type {
 } from '@shared/data/types/externalKnowledge'
 
 import type { KnowledgeSyncExternalSourcePayload } from '../tasks/jobTypes'
+import { settleExternalSourceSync } from '../tasks/syncExternalSourceJobHandler'
 import { notifyExternalKnowledgeSourceChange } from './externalKnowledgeDataChange'
 
 type SyncRequester = {
@@ -38,6 +41,14 @@ type ConnectionSourceStateChange = {
   changedSourceIds: string[]
   scheduleIds: string[]
 }
+
+const SyncWorkPayloadSchema = z.object({
+  baseId: z.string(),
+  sourceId: z.string(),
+  sourceRevision: z.number().int(),
+  trigger: z.enum(['initial', 'manual', 'scheduled', 'startup']),
+  dispatch: z.never().optional()
+})
 
 const defaultDependencies = {
   waitForRetry: (signal: AbortSignal) =>
@@ -207,6 +218,24 @@ export class ExternalKnowledgeSourceLifecycle {
       if (!source?.activeJobId) return 'ready'
       const activeJobId = source.activeJobId
       const job = await application.get('JobManager').get(activeJobId)
+      if (job && isTerminalStatus(job.status) && job.type === 'knowledge.sync-external-source') {
+        const input = SyncWorkPayloadSchema.safeParse(job.input)
+        const finishedAt = job.finishedAt ? Date.parse(job.finishedAt) : NaN
+        if (
+          input.success &&
+          input.data.baseId === source.baseId &&
+          input.data.sourceId === source.id &&
+          input.data.sourceRevision === source.revision &&
+          Number.isFinite(finishedAt)
+        ) {
+          const settled = settleExternalSourceSync(
+            { ...job, jobId: job.id, input: input.data, status: job.status },
+            finishedAt
+          )
+          if (settled) return 'ready'
+          continue
+        }
+      }
       if (!job || isTerminalStatus(job.status)) {
         const cleared = application.get('DbService').withWriteTx((tx) =>
           externalKnowledgeSourceService.clearActiveJobTx(tx, {
