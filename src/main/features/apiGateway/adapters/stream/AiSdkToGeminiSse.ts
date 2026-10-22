@@ -97,6 +97,7 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         this.appendText(chunk.delta || '', true)
         break
 
+      case 'tool-input-error':
       case 'tool-input-available': {
         // Gemini 3 requires the model's thought signature echoed back on the next
         // function-calling turn; the Google provider surfaces it on the tool call's

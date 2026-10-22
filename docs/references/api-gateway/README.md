@@ -22,7 +22,10 @@ Generation requests route through main's `AiStreamManager` as equal,
 **non-persisting** subscribers (alongside the renderer's `WebContentsListener`
 and the IM `ChannelAdapterListener`), and the resulting `UIMessageChunk` stream
 is translated back into the caller's dialect by the adapter system. Models,
-knowledge, and MCP routes call their owning services directly.
+knowledge, and MCP routes call their owning services directly. Client tool calls with invalid
+arguments are forwarded for the client harness to validate; the gateway does not execute them.
+Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
+external callers cannot override these through internal headers.
 
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
@@ -39,7 +42,7 @@ to enable it. It is disabled by default.
 | Use case | When the gateway is needed |
 |---|---|
 | Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
-| An Agent needs a model bridge | Cherry Studio shows **Enable the API Gateway?** when the selected runtime/model route requires it. Choose **Enable** to use that route, or leave it disabled and choose a route that can connect directly. |
+| An Agent needs a model bridge | Agent traffic uses the internal loopback listener, started on demand independently of the public gateway setting. Pi registers its native providers against this listener. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
 | A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
 
