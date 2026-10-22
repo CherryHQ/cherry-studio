@@ -162,6 +162,8 @@ type StreamContext = {
   toolProtocolStripAccumulator: string
   toolProtocolStripEmittedLength: number
   suppressActiveTextPart: boolean
+  /** Set once a text part is classified as a compaction artifact: its remaining deltas are dropped. */
+  suppressCompactionArtifactPart: boolean
   textStartDeferred: boolean
   textPartStarted: boolean
 }
@@ -529,6 +531,22 @@ export class ClaudeCodeStreamAdapter {
   private turnHasActivity = false
   /** Runtime compaction prose is internal state transfer and must not land in visible transcript text. */
   private runtimeCompactionActive = false
+  /**
+   * Grace window after a completed compaction. Non-standard gateways can commit the compaction
+   * exchange (an `<analysis>` scratchpad plus a `<summary>` in the compaction prompt's section
+   * format) as regular assistant text that arrives just after the compacting status clears, so
+   * text starts stay deferred until the first visible text emits.
+   */
+  private compactionArtifactGrace = false
+
+  /** Section headings demanded by the compaction instruction; two or more mark a compaction summary. */
+  private static readonly COMPACTION_SUMMARY_SECTIONS = [
+    'Task Overview',
+    'Current State',
+    'Important Discoveries',
+    'Next Steps',
+    'Context to Preserve'
+  ]
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -575,6 +593,7 @@ export class ClaudeCodeStreamAdapter {
       toolProtocolStripAccumulator: '',
       toolProtocolStripEmittedLength: 0,
       suppressActiveTextPart: false,
+      suppressCompactionArtifactPart: false,
       textStartDeferred: false,
       textPartStarted: false
     }
@@ -934,8 +953,9 @@ export class ClaudeCodeStreamAdapter {
     ctx.textPartId = partId
     ctx.scratchpadTextProbe = ''
     ctx.suppressActiveTextPart = false
+    ctx.suppressCompactionArtifactPart = false
     this.resetToolProtocolStripState(ctx)
-    ctx.textStartDeferred = ctx.filterParentlessScratchpadText
+    ctx.textStartDeferred = ctx.filterParentlessScratchpadText || this.compactionArtifactWatchActive()
     ctx.textPartStarted = false
     if (!ctx.textStartDeferred) {
       ctx.sink.enqueue({
@@ -1026,6 +1046,46 @@ export class ClaudeCodeStreamAdapter {
     return emit
   }
 
+  /** Compaction artifact watch: live while compaction runs and during the post-complete grace. */
+  private compactionArtifactWatchActive(): boolean {
+    return this.runtimeCompactionActive || this.compactionArtifactGrace
+  }
+
+  private endCompactionArtifactGrace(): void {
+    this.compactionArtifactGrace = false
+  }
+
+  /**
+   * Classifies deferred probe text against the compaction artifact shape: content that is entirely
+   * scratchpad plus a `<summary>` carrying the compaction prompt's numbered sections. Gateways that
+   * commit the compaction exchange as regular (parented) assistant text bypass the parentless
+   * message filter, so this shape check runs regardless of how the turn started.
+   */
+  private classifyCompactionArtifactProbe(probe: string, atBlockEnd: boolean): 'pending' | 'artifact' | 'not-artifact' {
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
+    const trimmed = stripped.trimStart()
+    if (!trimmed) {
+      if (!atBlockEnd) return 'pending'
+      // A block that is entirely scratchpad (e.g. a lone <analysis>) is internal content.
+      return probe.trim() ? 'artifact' : 'not-artifact'
+    }
+    if (!trimmed.startsWith('<')) return 'not-artifact'
+    if (!trimmed.includes('>')) {
+      return atBlockEnd ? 'not-artifact' : 'pending'
+    }
+    if (textStartsWithModelScratchpadTag(trimmed)) {
+      // Unclosed scratchpad block still streaming - wait for the close to see what follows.
+      return atBlockEnd ? 'not-artifact' : 'pending'
+    }
+    if (!trimmed.startsWith('<summary')) return 'not-artifact'
+    const markerCount = ClaudeCodeStreamAdapter.COMPACTION_SUMMARY_SECTIONS.filter((section) =>
+      new RegExp(`(^|\\n)\\s*\\d+\\.\\s*${section}\\b`, 'i').test(trimmed)
+    ).length
+    if (markerCount >= 2) return 'artifact'
+    if (!trimmed.includes('</summary>') && !atBlockEnd) return 'pending'
+    return 'not-artifact'
+  }
+
   private classifyScratchpadProbe(
     probe: string,
     atBlockEnd = false
@@ -1088,6 +1148,26 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadTextProbe = ''
     if (!pending) return
 
+    if (this.compactionArtifactWatchActive()) {
+      const verdict = this.classifyCompactionArtifactProbe(pending, true)
+      if (verdict === 'artifact') {
+        ctx.suppressActiveTextPart = true
+        ctx.suppressCompactionArtifactPart = true
+        return
+      }
+      if (!ctx.filterParentlessScratchpadText) {
+        // Flow-context text under the watch is healthy: emit verbatim.
+        ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+        ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: pending })
+        ctx.textPartStarted = true
+        ctx.textStreamedViaContentBlock = true
+        ctx.accumulatedText += pending
+        ctx.streamedTextLength += pending.length
+        this.endCompactionArtifactGrace()
+        return
+      }
+    }
+
     const classified = this.classifyScratchpadProbe(pending, true)
     if (classified.action === 'pending') {
       if (classified.rewriteProbe !== undefined) {
@@ -1108,6 +1188,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.textStreamedViaContentBlock = true
     ctx.accumulatedText += visible
     ctx.streamedTextLength += visible.length
+    this.endCompactionArtifactGrace()
   }
 
   /** Appends visible text without scratchpad probing — used when a content block ends. */
@@ -1133,6 +1214,7 @@ export class ClaudeCodeStreamAdapter {
     providerMetadata?: Record<string, JSONObject>
   ): void {
     if (!text) return
+    if (ctx.suppressCompactionArtifactPart) return
     if (ctx.suppressActiveTextPart) {
       if (ctx.textPartStarted) return
       ctx.suppressActiveTextPart = false
@@ -1140,7 +1222,7 @@ export class ClaudeCodeStreamAdapter {
 
     if (!ctx.textPartId) {
       ctx.textPartId = generateId()
-      ctx.textStartDeferred = ctx.filterParentlessScratchpadText
+      ctx.textStartDeferred = ctx.filterParentlessScratchpadText || this.compactionArtifactWatchActive()
       ctx.scratchpadTextProbe = ''
       ctx.textPartStarted = false
       if (!ctx.textStartDeferred) {
@@ -1153,28 +1235,61 @@ export class ClaudeCodeStreamAdapter {
       }
     }
 
-    if (ctx.filterParentlessScratchpadText && ctx.textStartDeferred) {
+    if (ctx.textStartDeferred) {
       ctx.scratchpadTextProbe += text
-      const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
-      if (classified.action === 'pending') {
-        if (classified.rewriteProbe !== undefined) {
-          ctx.scratchpadTextProbe = classified.rewriteProbe
+      let watchEmittedProbe = false
+      if (this.compactionArtifactWatchActive()) {
+        const verdict = this.classifyCompactionArtifactProbe(ctx.scratchpadTextProbe, false)
+        if (verdict === 'pending') {
+          return
         }
-        return
+        if (verdict === 'artifact') {
+          // Drop the rest of this text part too: the artifact is the whole part, so later
+          // deltas of the same block must not leak either.
+          ctx.scratchpadTextProbe = ''
+          ctx.textStartDeferred = false
+          ctx.suppressCompactionArtifactPart = true
+          return
+        }
+        if (!ctx.filterParentlessScratchpadText) {
+          // Flow-context text under the watch is healthy: emit the probe as-is. Scratchpad
+          // turns keep their own classification below.
+          ctx.textStartDeferred = false
+          text = ctx.scratchpadTextProbe
+          ctx.scratchpadTextProbe = ''
+          ctx.sink.enqueue({
+            type: 'text-start',
+            id: ctx.textPartId,
+            ...(providerMetadata ? { providerMetadata } : {})
+          })
+          ctx.textPartStarted = true
+          this.endCompactionArtifactGrace()
+          watchEmittedProbe = true
+        }
       }
-      if (classified.action === 'suppress') {
+      if (!watchEmittedProbe) {
+        const classified = this.classifyScratchpadProbe(ctx.scratchpadTextProbe)
+        if (classified.action === 'pending') {
+          if (classified.rewriteProbe !== undefined) {
+            ctx.scratchpadTextProbe = classified.rewriteProbe
+          }
+          return
+        }
+        if (classified.action === 'suppress') {
+          ctx.scratchpadTextProbe = ''
+          return
+        }
+        ctx.textStartDeferred = false
+        ctx.sink.enqueue({
+          type: 'text-start',
+          id: ctx.textPartId,
+          ...(providerMetadata ? { providerMetadata } : {})
+        })
+        ctx.textPartStarted = true
+        this.endCompactionArtifactGrace()
+        text = classified.visible
         ctx.scratchpadTextProbe = ''
-        return
       }
-      ctx.textStartDeferred = false
-      ctx.sink.enqueue({
-        type: 'text-start',
-        id: ctx.textPartId,
-        ...(providerMetadata ? { providerMetadata } : {})
-      })
-      ctx.textPartStarted = true
-      text = classified.visible
-      ctx.scratchpadTextProbe = ''
     }
 
     if (ctx.filterParentlessScratchpadText && ctx.textPartStarted && !ctx.textStartDeferred) {
@@ -1258,6 +1373,7 @@ export class ClaudeCodeStreamAdapter {
         ctx.scratchpadStreamRemainder = ''
         this.resetToolProtocolStripState(ctx)
         ctx.suppressActiveTextPart = false
+        ctx.suppressCompactionArtifactPart = false
         ctx.textStartDeferred = false
         ctx.textPartStarted = false
       }
@@ -1583,11 +1699,19 @@ export class ClaudeCodeStreamAdapter {
       !ctx.textStreamedViaContentBlock &&
       ctx.streamedTextLength < ctx.accumulatedText.length
     ) {
-      const fallbackTextId = generateId()
       const fallbackDelta = ctx.accumulatedText.slice(ctx.streamedTextLength)
-      ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
-      ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: fallbackDelta })
-      ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
+      if (
+        !(
+          this.compactionArtifactWatchActive() &&
+          this.classifyCompactionArtifactProbe(fallbackDelta, true) === 'artifact'
+        )
+      ) {
+        const fallbackTextId = generateId()
+        ctx.sink.enqueue({ type: 'text-start', id: fallbackTextId })
+        ctx.sink.enqueue({ type: 'text-delta', id: fallbackTextId, delta: fallbackDelta })
+        ctx.sink.enqueue({ type: 'text-end', id: fallbackTextId })
+        this.endCompactionArtifactGrace()
+      }
       ctx.streamedTextLength = ctx.accumulatedText.length
     }
 
@@ -1828,6 +1952,7 @@ export class ClaudeCodeStreamAdapter {
       // Success ends suppression: the SDK does not guarantee a boundary, so content after
       // success is post-compaction output and must stay visible. A later boundary still wins.
       this.runtimeCompactionActive = false
+      this.compactionArtifactGrace = true
       // closeActiveTextPart on compacting may have cleared textPartId while offsets still
       // reflect pre-compaction streaming; reset so snapshot reconciliation starts fresh.
       ctx.accumulatedText = ''
@@ -1859,6 +1984,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage, ctx: StreamContext): void {
     this.runtimeCompactionActive = false
+    this.compactionArtifactGrace = true
     // A boundary starts a fresh context window, so the next assistant snapshot is a new response.
     // Reset the streaming offsets or its prefix would be sliced against pre-compaction lengths.
     this.closeActiveTextPart(ctx)
@@ -2274,6 +2400,7 @@ export class ClaudeCodeStreamAdapter {
     ctx.scratchpadStreamRemainder = ''
     this.resetToolProtocolStripState(ctx)
     ctx.suppressActiveTextPart = false
+    ctx.suppressCompactionArtifactPart = false
     ctx.textStartDeferred = false
     ctx.textPartStarted = false
     for (const [idx, blockTextId] of ctx.textBlocksByIndex) {

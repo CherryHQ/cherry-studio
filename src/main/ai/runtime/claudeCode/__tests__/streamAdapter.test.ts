@@ -2233,6 +2233,269 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents).toEqual([{ type: 'compaction-start' }, { type: 'compaction-complete' }])
     })
 
+    it('suppresses a parented analysis+summary compaction artifact that streams after compaction success', () => {
+      const { adapter, parts, statusEvents } = createAdapter()
+      // Shape of the 2.1.7 gateway leak: a compaction response committed as regular assistant
+      // text (parented in the session transcript, single closing tags).
+      const artifact =
+        '<analysis>Reviewing the session chronologically before summarizing.</analysis>\n' +
+        '<summary>\n' +
+        '1. Task Overview:\n   Maintain the team wiki.\n\n' +
+        '2. Current State:\n   - Drafted three pages\n\n' +
+        '3. Important Discoveries:\n   - Publishing requires admin rights\n\n' +
+        '4. Next Steps:\n   Publish the drafts.\n\n' +
+        '5. Context to Preserve:\n   Prefer concise pages.\n' +
+        '</summary>'
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: artifact } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      // The gateway-committed snapshot repeats the same text as a completed assistant message.
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: artifact }] }
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'text_delta', text: 'The wiki drafts are published.' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 1 }))
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).not.toContain('Task Overview')
+      expect(text).not.toContain('<summary>')
+      expect(text).not.toContain('<analysis>')
+      expect(text).toContain('The wiki drafts are published.')
+      expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
+      expect(statusEvents).toEqual([{ type: 'compaction-start' }, { type: 'compaction-complete' }])
+    })
+
+    it('emits healthy text that streams during the post-compaction grace window', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'Compaction finished, resuming work.' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toBe('Compaction finished, resuming work.')
+      expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(1)
+      expect(parts.filter((part) => part.type === 'text-end')).toHaveLength(1)
+    })
+
+    it('preserves summary-shaped text when no compaction window is active', () => {
+      const { adapter, parts } = createAdapter()
+      const summaryText =
+        '<summary>\n' +
+        '1. Task Overview:\n   The user asked for a status digest.\n\n' +
+        '2. Current State:\n   - All systems nominal\n' +
+        '</summary>'
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: summaryText } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('Task Overview')
+    })
+
+    it('suppresses a compaction artifact that arrives only as a snapshot after compaction success', () => {
+      const { adapter, parts } = createAdapter()
+      const artifact =
+        '<analysis>Internal review.</analysis>\n' +
+        '<summary>\n' +
+        '1. Task Overview:\n   Maintain the team wiki.\n\n' +
+        '2. Current State:\n   - Drafted three pages\n' +
+        '</summary>'
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: null,
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        message: { role: 'assistant', content: [{ type: 'text', text: artifact }] }
+      } as any)
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).not.toContain('Task Overview')
+      expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(0)
+    })
+
+    it('suppresses an analysis-only text part during the post-compaction grace window', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: '<analysis>Internal working notes.</analysis>' }
+        })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage(successResult())
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).not.toContain('Internal working notes')
+      expect(parts.filter((part) => part.type === 'text-start')).toHaveLength(0)
+    })
+
+    it('suppresses subagent-parented artifact text while compaction is active', () => {
+      const { adapter, parts } = createAdapter()
+      const artifact =
+        '<analysis>Flow-scoped scratchpad.</analysis>\n' +
+        '<summary>\n' +
+        '1. Task Overview:\n   Maintain the team wiki.\n\n' +
+        '2. Current State:\n   - Drafted three pages\n' +
+        '</summary>'
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      const flowEvent = (event: Record<string, unknown>) => ({
+        ...streamEvent(event),
+        parent_tool_use_id: 'toolu_flow_1'
+      })
+      adapter.handleMessage(
+        flowEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        flowEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: artifact } })
+      )
+      adapter.handleMessage(flowEvent({ type: 'content_block_stop', index: 0 }))
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage(
+        flowEvent({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        flowEvent({
+          type: 'content_block_delta',
+          index: 1,
+          delta: { type: 'text_delta', text: 'flow visible reply' }
+        })
+      )
+      adapter.handleMessage(flowEvent({ type: 'content_block_stop', index: 1 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).not.toContain('Task Overview')
+      expect(text).toContain('flow visible reply')
+    })
+
     it('preserves ordinary markup and avoids orphan text-end while probing scratchpad prefixes', () => {
       const { adapter, parts } = createAdapter()
 
