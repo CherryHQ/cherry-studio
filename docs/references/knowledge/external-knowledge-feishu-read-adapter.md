@@ -36,7 +36,8 @@ rechecks access in main before scanning all of its visible root nodes.
 The wizard supports selecting multiple spaces. It previews each space and creates
 a Source named after each Wiki space, using one shared scheduling choice. Link-based
 Sources use the resolved Wiki or document title. The renderer does not offer a
-separate Source name field or rename action.
+separate Source name field or rename action. Automatically derived Source names
+are capped at the creation API's 256-character limit.
 Creation continues after an individual failure; retries skip Sources already
 created in that wizard session, and partial success keeps the confirmed plan fixed.
 New PersonalAgent registrations request the discovery scope. The connection wizard
@@ -248,7 +249,8 @@ The runtime and IPC boundary preserve these distinct outcomes:
 - an unsupported node reports `unsupported-resource` without invalidating the
   Connection;
 - provider throttling and temporary failures report `transient` and honor
-  Retry-After;
+  `Retry-After` and Feishu's `x-ogw-ratelimit-reset` (seconds), using the longer
+  delay when both are present;
 - invalid provider data reports `invalid-provider-response` without returning
   the private payload.
 

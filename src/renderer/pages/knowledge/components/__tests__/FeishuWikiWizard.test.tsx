@@ -9,6 +9,7 @@ import { toast } from '@renderer/services/toast'
 import type { ExternalKnowledgeConnectionListItem } from '@shared/data/api/schemas/externalKnowledgeConnections'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
+import { knowledgeRequestSchemas } from '@shared/ipc/schemas/knowledge'
 
 import FeishuWikiWizard from '../FeishuWikiWizard'
 
@@ -973,6 +974,85 @@ describe('FeishuWikiWizard', () => {
       )
       expect(onOpenChange).toHaveBeenCalledWith(false)
       expect(mockOpenExternal).toHaveBeenCalledWith('https://accounts.feishu.cn/verify')
+    }
+  )
+
+  it.each([
+    ['url', 'success'],
+    ['url', 'failure'],
+    ['space', 'success'],
+    ['space', 'failure']
+  ] as const)('allows retry after a hidden %s preview settles with %s', async (mode, outcome) => {
+    const user = userEvent.setup()
+    let settle!: () => void
+    let attempts = 0
+    const route = mode === 'url' ? 'knowledge.feishu.scope.preview' : 'knowledge.feishu.space.preview'
+    mockRequest.mockImplementation(async (requestedRoute: string) => {
+      if (requestedRoute === 'knowledge.feishu.spaces.list') return { spaces: [space] }
+      if (requestedRoute === route) {
+        const result = mode === 'url' ? preview : spacePreview
+        if (attempts++ === 0)
+          return new Promise((resolve, reject) => {
+            settle = () => (outcome === 'success' ? resolve(result) : reject(new Error('Preview unavailable')))
+          })
+        return result
+      }
+      return undefined
+    })
+    const wizard = (visibility: 'visible' | 'hidden') => (
+      <Activity mode={visibility}>
+        <FeishuWikiWizard open baseId="base-1" onOpenChange={vi.fn()} />
+      </Activity>
+    )
+    const { rerender } = render(wizard('visible'))
+    await selectApplication(user)
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    if (mode === 'url') {
+      await user.click(screen.getByRole('radio', { name: 'Paste a link' }))
+      await user.type(screen.getByRole('textbox', { name: 'Feishu Wiki URL' }), url)
+    } else await selectWiki(user, /Project Wiki/)
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    rerender(wizard('hidden'))
+    await act(async () => settle())
+    rerender(wizard('visible'))
+
+    expect(await screen.findByRole('button', { name: 'Next' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(await screen.findByRole('button', { name: 'Add' })).toBeEnabled()
+  })
+
+  it.each(['url', 'space'] as const)(
+    'creates a %s source with a provider title longer than the local name limit',
+    async (mode) => {
+      const user = userEvent.setup()
+      const title = 'Knowledge title '.repeat(20)
+      const onOpenChange = vi.fn()
+      mockRequest.mockImplementation(async (route: string, input: unknown) => {
+        if (route === 'knowledge.feishu.spaces.list') return { spaces: [{ ...space, name: title }] }
+        if (route === 'knowledge.feishu.space.preview') return { ...spacePreview, space: { ...space, name: title } }
+        if (route === 'knowledge.feishu.scope.preview')
+          return {
+            ...preview,
+            resolution: { ...preview.resolution, selected: { ...preview.resolution.selected, title } }
+          }
+        if (route === 'knowledge.external_source.create') {
+          knowledgeRequestSchemas['knowledge.external_source.create'].input.parse(input)
+          return createdSource
+        }
+        return undefined
+      })
+      render(<FeishuWikiWizard open baseId="11111111-1111-4111-8111-111111111111" onOpenChange={onOpenChange} />)
+      if (mode === 'url') await reachReview(user)
+      else {
+        await selectApplication(user)
+        await user.click(screen.getByRole('button', { name: 'Next' }))
+        await selectWiki(user, /Knowledge title/)
+        await user.click(screen.getByRole('button', { name: 'Next' }))
+      }
+      await user.click(await screen.findByRole('button', { name: 'Add' }))
+
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     }
   )
 

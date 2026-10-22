@@ -284,7 +284,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
           )
         )
     } finally {
-      if (!closed.current) setBusy(false)
+      setBusy(false)
     }
   }
 
@@ -309,7 +309,7 @@ const FeishuWikiWizard = ({ open, baseId, onOpenChange }: FeishuWikiWizardProps)
             baseId,
             connectionId: selectedConnectionId,
             ...scope.scope,
-            name: scope.name
+            name: scope.name.slice(0, 256)
           })
           createdScopes.current.add(scope.key)
           setCreatedCount(createdScopes.current.size)
