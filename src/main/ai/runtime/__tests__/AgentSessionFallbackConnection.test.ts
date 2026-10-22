@@ -112,6 +112,24 @@ describe('fallback error classification', () => {
       classifyRuntimeFallbackError(new Error('400 {"type":"error","error":{"type":"invalid_request_error"}}'))
     ).toBeUndefined()
   })
+
+  it('recognises the provider envelope even without a status prefix', () => {
+    // The streaming adapter can stringify the body alone; its error type is still the verdict.
+    expect(
+      classifyRuntimeFallbackError(
+        new Error('{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}')
+      )
+    ).toBe('overloaded_error')
+    expect(classifyRuntimeFallbackError(new Error('{"type":"error","error":{"type":"rate_limit_error"}}'))).toBe(
+      'rate_limit_error'
+    )
+    // A non-retryable provider type must not fall through to the prose beside it.
+    expect(
+      classifyRuntimeFallbackError(
+        new Error('{"type":"error","error":{"type":"invalid_request_error","message":"429"}}')
+      )
+    ).toBeUndefined()
+  })
 })
 
 describe('Pi/DSH connection fallback', () => {
@@ -144,6 +162,30 @@ describe('Pi/DSH connection fallback', () => {
     expect(fallback.send).toHaveBeenCalledWith(userInput)
     fallback.events.push({ type: 'turn-complete' })
     await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+    await wrapper.close()
+  })
+
+  it('falls back when an empty text block closes before the provider failure', async () => {
+    const primary = fakeConnection()
+    const fallback = fakeConnection()
+    const driver = { connect: vi.fn(async () => fallback) }
+    const wrapper = new AgentSessionFallbackConnection(
+      driver as unknown as AgentSessionRuntimeDriver,
+      { sessionId: 's1', agentId: 'a1', modelId: 'primary::model' },
+      primary as unknown as AgentRuntimeConnection
+    )
+    await wrapper.send({ message: { id: 'u1' } } as never)
+    // Pi opens and closes a block before the terminal failure with no delta between them: that
+    // boundary shows the user nothing, so the replay cannot duplicate an answer.
+    primary.events.push({ type: 'chunk', chunk: { type: 'text-start', id: 't1' } } as never)
+    primary.events.push({ type: 'chunk', chunk: { type: 'text-end', id: 't1' } } as never)
+    primary.events.push({ type: 'chunk', chunk: { type: 'reasoning-start', id: 'r1' } } as never)
+    primary.events.push({ type: 'chunk', chunk: { type: 'reasoning-end', id: 'r1' } } as never)
+    primary.events.push({ type: 'error', error: new Error('HTTP 529 overloaded') })
+
+    await vi.waitFor(() => expect(driver.connect).toHaveBeenCalled())
+    expect(driver.connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'backup::model' }))
+    expect(fallback.send).toHaveBeenCalledWith(expect.objectContaining({ message: { id: 'u1' } }))
     await wrapper.close()
   })
 

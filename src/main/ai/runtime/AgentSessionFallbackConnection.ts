@@ -69,6 +69,14 @@ function classifyProviderFailure(facts: ProviderFailureFacts): string | undefine
 
 /** Pi's Anthropic adapter stringifies the provider envelope verbatim: `<status> {"type":"error",...}`. */
 const MESSAGE_PROVIDER_ENVELOPE = /^\s*(\d{3})\s*\{\s*"type"\s*:\s*"error"/
+/** The same body without a status prefix: its error type is still the provider's own verdict. */
+const MESSAGE_PROVIDER_ERROR_TYPE = /\{\s*"type"\s*:\s*"error"\s*,\s*"error"\s*:\s*\{\s*"type"\s*:\s*"([a-z_]+)"/
+const RETRYABLE_PROVIDER_ERROR_TYPES = new Set([
+  'overloaded_error',
+  'rate_limit_error',
+  'api_error',
+  'insufficient_quota'
+])
 /** Compatibility prose matching only: a retryable status has to be named as one. */
 const MESSAGE_HTTP_STATUS =
   /\b(?:http|status(?:[\s_-]?code)?|code|api[\s_-]?error)\b[\s:#=()/-]{0,8}(429|500|502|503|529)\b/i
@@ -86,6 +94,10 @@ function classifyMessageFailure(message: string): string | undefined {
   const envelopeStatus = MESSAGE_PROVIDER_ENVELOPE.exec(message)?.[1]
   if (envelopeStatus !== undefined) {
     return RETRYABLE_STATUS.has(Number(envelopeStatus)) ? `http ${envelopeStatus}` : undefined
+  }
+  const errorType = MESSAGE_PROVIDER_ERROR_TYPE.exec(message)?.[1]
+  if (errorType !== undefined) {
+    return RETRYABLE_PROVIDER_ERROR_TYPES.has(errorType) ? errorType : undefined
   }
   const inProviderFrame = MESSAGE_PROVIDER_FRAME.test(message)
   const status =
@@ -120,9 +132,11 @@ const NON_CONTENT_CHUNK_TYPES = new Set([
   'finish',
   'message-metadata',
   'abort',
-  // Pi emits block starts separately from their deltas, so an empty boundary shows nothing yet.
+  // Pi emits block starts and ends separately from their deltas, so an empty boundary shows nothing.
   'text-start',
-  'reasoning-start'
+  'text-end',
+  'reasoning-start',
+  'reasoning-end'
 ])
 
 /**
