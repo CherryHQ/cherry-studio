@@ -178,6 +178,8 @@ export const MAX_BACKGROUND_TASK_COMMAND_LENGTH = 10_000
 
 /** Env marker every task descendant inherits; unlike an fd it survives setsid() and close_fds. */
 const BACKGROUND_TASK_MARKER_ENV = 'CHERRY_BG_TASK_ID'
+/** Set on the marker probe's own `ps`, so the probe can prove this table shows environments at all. */
+const BACKGROUND_TASK_PROBE_ENV = 'CHERRY_BG_TASK_PROBE'
 
 /** How often a leaderless group is polled for its last member's exit. */
 const LEADERLESS_GROUP_POLL_MS = 250
@@ -770,6 +772,52 @@ boot()
 `
 
 /**
+ * The marker read, shared with the POSIX supervisor so both answer ownership the same way.
+ *
+ * `ps eww` appends a process's environment to its command line with nothing between them, so a task
+ * id that merely appears as an argument would otherwise read as membership. A row is a holder only
+ * when the text after its own argv carries the marker as an environment entry. And a table that
+ * prints no environments at all would report every worker as absent, so the probe puts a nonce in
+ * its own `ps` environment: unless that nonce comes back, the table is not environment evidence
+ * and the answer is `unknown` — never "nothing left".
+ */
+const POSIX_MARKER_PROBE_SOURCE = `
+const probeTaskMarker = (execFileSync, marker, self) => {
+  const nonce = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+  const scan = { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
+  const run = (args, env) =>
+    String(execFileSync('ps', args, { encoding: 'utf8', timeout: 5000, maxBuffer: 16 * 1024 * 1024, env }))
+  let table
+  try {
+    table = run(['eww', '-axo', 'pid=,command='], { ...scan, CHERRY_BG_TASK_PROBE: nonce })
+  } catch (error) {
+    return { status: 'unknown' }
+  }
+  if (!table.includes('CHERRY_BG_TASK_PROBE=' + nonce)) return { status: 'unknown' }
+  const holders = []
+  for (const row of table.split('\\n')) {
+    const trimmed = row.trim()
+    if (!trimmed.includes(marker)) continue
+    const pid = Number(trimmed.split(/\\s+/)[0])
+    if (!Number.isInteger(pid) || pid <= 0 || pid === self) continue
+    const command = trimmed.slice(String(pid).length).trimStart()
+    let argv
+    try {
+      argv = run(['ww', '-o', 'command=', '-p', String(pid)], scan).trim()
+    } catch (error) {
+      return { status: 'unknown' }
+    }
+    // Without the argv of that same process the environment cannot be separated from the command
+    // line, so this row establishes no membership either way.
+    if (!argv || !command.startsWith(argv)) return { status: 'unknown' }
+    if (!command.slice(argv.length).split(/\\s+/).includes(marker)) continue
+    holders.push({ pid })
+  }
+  return { status: 'observable', holders }
+}
+`
+
+/**
  * POSIX keeps the task's identity in one long-lived anchor. The command runs in a shell that is a
  * child of this supervisor, so the supervisor is the session and group leader, and it exits only
  * once the group holds no other live member. A process joins a group by inheriting it from a parent
@@ -786,6 +834,7 @@ const { spawn, execFileSync } = require('node:child_process')
 const fs = require('node:fs')
 const self = process.pid
 const pgid = self
+${POSIX_MARKER_PROBE_SOURCE}
 // The app ran this process with ELECTRON_RUN_AS_NODE=1 to get a Node here, and that flag is for
 // this process alone: left in the environment it would turn any Electron binary the command
 // launches into a plain Node too.
@@ -817,24 +866,9 @@ if (liveness) {
 const marker = process.env.CHERRY_BG_TASK_ID || ''
 const markerSurvivors = () => {
   if (!marker) return 0
-  try {
-    // The probe runs without the marker so ps cannot count itself.
-    const table = execFileSync('ps', ['eww', '-axo', 'pid=,command='], {
-      encoding: 'utf8',
-      timeout: 5000,
-      env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
-    })
-    let count = 0
-    for (const row of table.split('\\n')) {
-      const trimmed = row.trim()
-      if (!trimmed) continue
-      if (Number(trimmed.split(/\\s+/)[0]) === self) continue
-      if (trimmed.includes('CHERRY_BG_TASK_ID=' + marker)) count++
-    }
-    return count
-  } catch (error) {
-    return 1
-  }
+  // An unobservable table proves nothing, so only an observable one without holders may let go.
+  const probe = probeTaskMarker(execFileSync, 'CHERRY_BG_TASK_ID=' + marker, self)
+  return probe.status === 'observable' ? probe.holders.length : 1
 }
 task.on('error', () => process.exit(1))
 task.on('exit', (code, signal) => {
@@ -924,49 +958,77 @@ export function buildDetachedBackgroundTaskSpawn(
  * are not pids at all — `process.kill` reads 0 and negatives as whole process groups — so nothing
  * may be reported alive through them, especially not a pid that failed to parse.
  */
+/** A live process carrying the task marker, with the start stamp that identifies it. */
+interface MarkerHolder {
+  pid: number
+  lstart: string
+}
+
 /**
- * Live processes still carrying the task's inherited marker. `null` when the table cannot be read,
- * which is never evidence of anything; the probe runs without the marker so ps cannot count itself.
+ * Live processes holding the task's marker. `unknown` when the table cannot be read, or when `ps`
+ * does not demonstrably print environments — an absent marker in such a table proves nothing.
  */
-function readMarkerProcesses(taskId: string): number[] | null {
-  if (process.platform === 'win32') return null
+type MarkerRead = { status: 'unknown' } | { status: 'observable'; holders: MarkerHolder[] }
+
+/**
+ * The app-side twin of `POSIX_MARKER_PROBE_SOURCE`, which the detached supervisor runs in its own
+ * process. Both must read ownership the same way: exact environment membership, and no answer at
+ * all when the table cannot show environments.
+ */
+function readMarkerProcesses(taskId: string): MarkerRead {
+  if (process.platform === 'win32') return { status: 'unknown' }
+  const marker = `${BACKGROUND_TASK_MARKER_ENV}=${taskId}`
+  const nonce = randomUUID()
+  const scan = { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
+  const run = (args: string[], env: NodeJS.ProcessEnv): string =>
+    String(execFileSync('ps', args, { encoding: 'utf8', timeout: 5_000, maxBuffer: 16 * 1024 * 1024, env }))
   let table: string
   try {
-    table = execFileSync('ps', ['eww', '-axo', 'pid=,command='], {
-      encoding: 'utf8',
-      timeout: 5_000,
-      maxBuffer: 16 * 1024 * 1024,
-      env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin' }
-    })
+    table = run(['eww', '-axo', 'pid=,command='], { ...scan, [BACKGROUND_TASK_PROBE_ENV]: nonce })
   } catch {
-    return null
+    return { status: 'unknown' }
   }
-  const marker = `${BACKGROUND_TASK_MARKER_ENV}=${taskId}`
-  const pids: number[] = []
+  if (!table.includes(`${BACKGROUND_TASK_PROBE_ENV}=${nonce}`)) return { status: 'unknown' }
+  const holders: MarkerHolder[] = []
   for (const row of table.split('\n')) {
     const trimmed = row.trim()
-    if (!trimmed) continue
+    if (!trimmed.includes(marker)) continue
     const pid = Number(trimmed.split(/\s+/)[0])
     if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) continue
-    if (trimmed.includes(marker)) pids.push(pid)
+    const command = trimmed.slice(String(pid).length).trimStart()
+    let argv: string
+    try {
+      argv = run(['ww', '-o', 'command=', '-p', String(pid)], scan).trim()
+    } catch {
+      return { status: 'unknown' }
+    }
+    if (!argv || !command.startsWith(argv)) return { status: 'unknown' }
+    if (!command.slice(argv.length).split(/\s+/).includes(marker)) continue
+    // A holder that cannot be stamped is one whose identity this read never established.
+    const lstart = getPidStartTime(pid)
+    if (!lstart) return { status: 'unknown' }
+    holders.push({ pid, lstart })
   }
-  return pids
+  return { status: 'observable', holders }
 }
 
 /**
  * SIGKILL every process still carrying the task marker and wait for the table to lose them. Unlike
  * the group signal this reaches a setsid() worker that closed its descriptors; unlike the pipe it
- * works after a restart. `unknown` when the table cannot be read — never a certification.
+ * works after a restart. `unknown` when the table does not establish ownership either way — never
+ * a certification.
  */
 async function killMarkerSurvivors(taskId: string): Promise<'clear' | 'survivors' | 'unknown'> {
   const deadline = Date.now() + STOP_DRAIN_TIMEOUT_MS
   while (true) {
-    const pids = readMarkerProcesses(taskId)
-    if (pids === null) return 'unknown'
-    if (pids.length === 0) return 'clear'
-    for (const pid of pids) {
+    const read = readMarkerProcesses(taskId)
+    if (read.status === 'unknown') return 'unknown'
+    if (read.holders.length === 0) return 'clear'
+    for (const holder of read.holders) {
+      // The pid is only a number: the OS may have handed it to someone else since the read.
+      if (getPidStartTime(holder.pid) !== holder.lstart) continue
       try {
-        process.kill(pid, 'SIGKILL')
+        process.kill(holder.pid, 'SIGKILL')
       } catch {
         // already gone
       }
@@ -1562,10 +1624,11 @@ export async function hasLiveTaskEvidence(storageDir: string, record: Background
 export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   if (record.pid <= 0) return false
   // The inherited marker names work that left the group and closed its descriptors, and it is the
-  // only evidence a restart can still read.
+  // only evidence a restart can still read. A table that cannot show environments is not evidence
+  // that the work is gone.
   const markers = readMarkerProcesses(record.id)
-  if (markers === null) return true
-  if (markers.length > 0) return true
+  if (markers.status === 'unknown') return true
+  if (markers.holders.length > 0) return true
   // Work that left the group (setsid) is live even when the leader and the group are gone: the
   // pipe still has a writer. Destructive cleanup must not read this task as finished.
   if (ownedTaskGroups.get(record.id)?.liveness?.open) return true
@@ -1574,12 +1637,6 @@ export function hasLiveGroupEvidence(record: BackgroundTaskRecord): boolean {
   // members stay conservative — unreadable or unattributed evidence still counts as live.
   if (isPidAlive(record.pid) && !isRecycledPid(record)) return true
   if (process.platform === 'win32') return false
-  return groupHasLiveMember(record.pid)
-}
-
-export function hasUnownedLiveGroup(record: BackgroundTaskRecord): boolean {
-  if (process.platform === 'win32' || record.pid <= 0) return false
-  if (ownedTaskGroups.get(record.id)?.pgid === record.pid) return false
   return groupHasLiveMember(record.pid)
 }
 

@@ -754,6 +754,113 @@ describe('backgroundTasks', () => {
       }
     )
 
+    // `ps eww` prints argv and environment in one space-separated line, so a task id that merely
+    // appears as an argument is not ownership. A bystander that carries the exact marker token on
+    // its command line — and not in its environment — must survive both the app's kill and the
+    // supervisor's exit probe.
+    const spawnMarkerBystander = (taskId: string) =>
+      spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)', `CHERRY_BG_TASK_ID=${taskId}`], {
+        stdio: 'ignore'
+      })
+
+    it.skipIf(process.platform === 'win32')(
+      'does not kill a process that only mentions the task marker on its command line',
+      async () => {
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setTimeout(() => {}, 30_000)"`,
+          cwd: storageDir
+        })
+        const bystander = spawnMarkerBystander(record.id)
+        try {
+          await vi.waitFor(() => expect(isPidAlive(bystander.pid!)).toBe(true), { timeout: 5_000 })
+          const afterKill = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(afterKill?.status).toBe('stopped')
+          expect(isPidAlive(bystander.pid!)).toBe(true)
+        } finally {
+          try {
+            process.kill(bystander.pid!, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'lets a task finish while a bystander only mentions its marker on the command line',
+      async () => {
+        const onExit = vi.fn()
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command: `${nodeBin} -e "setTimeout(() => process.exit(0), 500)"`,
+          cwd: storageDir,
+          onExit
+        })
+        const bystander = spawnMarkerBystander(record.id)
+        try {
+          await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1), { timeout: 15_000 })
+          expect(onExit.mock.calls[0][0].record.status).toBe('completed')
+        } finally {
+          try {
+            process.kill(bystander.pid!, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32' || !python3Available)(
+      'keeps a force kill unresolved when the process table cannot show environments',
+      async () => {
+        // A table that answers without any environment at all cannot express the marker's absence:
+        // the worker below may be alive in exactly that blind spot, so the kill may not be certified.
+        const pidFile = path.join(storageDir, 'blind-worker.pid')
+        const record = await startDetachedBackgroundTask({
+          storageDir,
+          command:
+            `python3 -c "import subprocess,sys; p=subprocess.Popen(['sleep','30'], start_new_session=True); open(sys.argv[1],'w').write(str(p.pid))" "${pidFile}"` +
+            ` & sleep 0.6`,
+          cwd: storageDir
+        })
+        let workerPid = 0
+        try {
+          await vi.waitFor(
+            async () => {
+              workerPid = Number((await readFile(pidFile, 'utf8')).trim())
+              expect(workerPid).toBeGreaterThan(0)
+            },
+            { timeout: 10_000 }
+          )
+          psSteer.read = (args) => (args[0] === 'eww' ? `${workerPid} Mon Jan  1 00:00:00 2001 sleep 30\n` : null)
+
+          const afterKill = await stopDetachedBackgroundTask(storageDir, record.id, true)
+          expect(afterKill?.status).toBe('running')
+          expect(afterKill?.terminationUnverified).toBe(true)
+          expect(isPidAlive(workerPid)).toBe(true)
+          await expect(hasLiveTaskEvidence(storageDir, afterKill!)).resolves.toBe(true)
+        } finally {
+          psSteer.read = null
+          try {
+            if (workerPid > 0) process.kill(workerPid, 'SIGKILL')
+          } catch {
+            // already gone
+          }
+          try {
+            process.kill(-record.pid, 'SIGKILL')
+          } catch {
+            // the group is already gone
+          }
+        }
+      }
+    )
+
     it.skipIf(process.platform === 'win32')(
       'finalizes a task whose group empties together with its shell',
       async () => {

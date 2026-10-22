@@ -549,6 +549,50 @@ describe('stopAllAgentBackgroundTasks', () => {
       }
     }
   )
+
+  it.skipIf(process.platform === 'win32')(
+    'refuses the purge for an unknown record whose marked worker left its group',
+    async () => {
+      // A restart followed by an external kill of the supervisor leaves the record `unknown` while
+      // a worker that called setsid() keeps running: the recorded group no longer holds it, so a
+      // group-only predicate reads it as already dead and the purge erases its last tracking.
+      const id = 'bt-marked-survivor'
+      await writeFile(
+        path.join(storageDir, `${id}.json`),
+        JSON.stringify({
+          id,
+          name: id,
+          command: 'true',
+          pid: 4_194_304,
+          cwd: storageDir,
+          startedAt: new Date().toISOString(),
+          logFile: path.join(storageDir, `${id}.log`),
+          status: 'unknown',
+          exitCode: null,
+          signal: null
+        })
+      )
+      const survivor = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60_000)'], {
+        detached: true,
+        stdio: 'ignore',
+        env: { ...process.env, CHERRY_BG_TASK_ID: id }
+      })
+      survivor.unref()
+      try {
+        await vi.waitFor(() => expect(isPidAlive(survivor.pid!)).toBe(true), { timeout: 5_000 })
+        await expect(stopAllAgentBackgroundTasks('agent-1')).rejects.toThrow(
+          `Cannot permanently delete Agent agent-1 while background task ${id} is unresolved`
+        )
+        expect(isPidAlive(survivor.pid!)).toBe(true)
+      } finally {
+        try {
+          process.kill(survivor.pid!, 'SIGKILL')
+        } catch {
+          // already gone
+        }
+      }
+    }
+  )
 })
 
 describe('listAgentBackgroundTasks', () => {

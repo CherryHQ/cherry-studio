@@ -11,7 +11,6 @@ import { isSameOrInside } from '@main/utils/file'
 import {
   getDetachedBackgroundTask,
   hasLiveTaskEvidence,
-  hasUnownedLiveGroup,
   listDetachedBackgroundTasks,
   startDetachedBackgroundTask,
   stopDetachedBackgroundTask,
@@ -282,14 +281,15 @@ export async function stopAllAgentBackgroundTasks(agentId: string): Promise<void
     if (settled && settled.status !== 'running') continue
     throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is running`)
   }
-  // An unresolved record — its leader gone while its pgid still holds live members this app
-  // cannot own after a restart — must survive the purge: the members may be the task's own
-  // survivors, and deleting the record would strip the last control path they answer to. The
-  // pre-stop snapshot cannot tell this: a force-stop itself can move a task there, when its
-  // SIGKILL removes the supervisor the restart had verified while a privileged worker survives
-  // the group signal, so the records are re-read as the stops left them.
+  // An unresolved record must survive the purge: live work may answer to it — in its old group, or
+  // through the marker after a setsid() escape — and deleting the record would strip the last
+  // control path it has. The pre-stop snapshot cannot tell this: a force-stop itself can move a
+  // task there, when its SIGKILL removes the supervisor the restart had verified while a privileged
+  // worker survives the group signal, so the records are re-read as the stops left them. The group
+  // alone is not enough: a supervisor killed from outside leaves its marked worker in no group at
+  // all, and the full evidence is what still names it.
   for (const record of await listDetachedBackgroundTasks(storageDir)) {
-    if (record.status === 'unknown' && hasUnownedLiveGroup(record)) {
+    if (record.status === 'unknown' && (await hasLiveTaskEvidence(storageDir, record))) {
       throw new Error(`Cannot permanently delete Agent ${agentId} while background task ${record.id} is unresolved`)
     }
   }
