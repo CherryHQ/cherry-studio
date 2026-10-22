@@ -61,7 +61,7 @@ starting refuses execution until setup succeeds. No automatic elevation or
 startup task is installed. See the [official host preparation guide](https://github.com/microsoft/mxc/blob/v1.0.0/docs/backends/process-container/host-prep.md).
 
 Windows streams require Node 24.21+ (24.x) or 26.8+. This checkout uses Electron
-44.7.0 with Node 24.21.0. Older embedded runtimes fail closed at probe/start.
+44.9.3 with Node 24.22.0. Older embedded runtimes fail closed at probe/start.
 
 ## Application diagnostics
 

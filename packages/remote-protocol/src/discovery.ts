@@ -8,7 +8,7 @@ const hostnameSchema = z
   .max(253)
   .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i)
 const hostSchema = z
-  .union([z.ipv4(), z.ipv6(), hostnameSchema])
+  .union([z.ipv4(), z.ipv6().regex(/^[0-9a-f:.]+$/i), hostnameSchema])
   .transform((host) => (host.includes(':') ? new URL(`http://[${host}]`).hostname.slice(1, -1) : host.toLowerCase()))
 
 export const directEndpointSchema = z.strictObject({
@@ -36,12 +36,14 @@ export function directEndpointUrl(endpoint: DirectEndpoint): string {
 export function parseDirectEndpoint(value: string): DirectEndpoint {
   if (
     value.length > 512 ||
-    !/^wss?:\/\/(?:\[[a-fA-F0-9:]+\]|[a-zA-Z0-9.-]+)(?::[0-9]{1,5})?(?:\/(?:v1\/remote\/connect)?)?$/.test(value)
+    !/^(?:wss?|https?):\/\/(?:\[[a-fA-F0-9:]+\]|[a-zA-Z0-9.-]+)(?::[0-9]{1,5})?(?:\/(?:v1\/remote\/connect)?)?$/.test(
+      value
+    )
   )
     throw new Error('Invalid desktop address')
   const url = new URL(value)
   if (
-    !['ws:', 'wss:'].includes(url.protocol) ||
+    !['ws:', 'wss:', 'http:', 'https:'].includes(url.protocol) ||
     url.username ||
     url.password ||
     url.search ||
@@ -51,7 +53,23 @@ export function parseDirectEndpoint(value: string): DirectEndpoint {
     throw new Error('Invalid desktop address')
   return directEndpointSchema.parse({
     host: url.hostname.replace(/^\[|\]$/g, ''),
-    port: url.port ? Number(url.port) : url.protocol === 'wss:' ? 443 : 80,
-    security: url.protocol.slice(0, -1)
+    port: url.port ? Number(url.port) : ['wss:', 'https:'].includes(url.protocol) ? 443 : 80,
+    security: ['wss:', 'https:'].includes(url.protocol) ? 'wss' : 'ws'
   })
 }
+
+/** A destination shared with another device must not resolve to its own loopback interface. */
+export const advertisedEndpointSchema = directEndpointSchema.refine(({ host }) => {
+  if (host === 'localhost' || host.endsWith('.localhost')) return false
+  if (host === '::' || host === '::1' || host === '0.0.0.0' || host.startsWith('127.')) return false
+  if (host.startsWith('::ffff:')) {
+    const first = Number.parseInt(host.split(':').at(-2) ?? '', 16)
+    if (first === 0 || first >> 8 === 127) return false
+  }
+  // Reject abbreviated and numeric IPv4 spellings parsed differently by URL implementations.
+  try {
+    return host.includes(':') || new URL(`http://${host}`).hostname === host
+  } catch {
+    return false
+  }
+}, 'Invalid remote destination')

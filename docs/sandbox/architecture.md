@@ -21,7 +21,7 @@ sources:
 
 本文描述 2026-10-12 的实际代码：**Cherry 管理实例、权限映射、生命周期和双向 RPC；MXC 负责操作系统隔离。** 独立包 `@cherrystudio/sandbox` 已接通 macOS Seatbelt 和 Windows ProcessContainer，CLI 与程序调用使用同一实现。Windows 不接受上游尚未可靠执行的显式 deny 覆盖策略。自研 Seatbelt 后端、C supervisor 和对应构建脚本已删除。
 
-包仍为 private `0.0.1`，已由 Cherry Electron 主进程的 `SandboxService` 托管。设置 → 关于中的沙箱诊断入口通过类型化 IPC 提供环境检测、JavaScript 执行和停止。Electron 44.7.0 内置 Node 24.21.0，满足 Windows 标准流要求。本文是当前实现说明；[design](./design.md)、[api](./api.md)保留更完整的设计目标，不代表这些目标已经实现。运行命令与示例见[包 README](../../packages/sandbox/README.md)。
+包仍为 private `0.0.1`，已由 Cherry Electron 主进程的 `SandboxService` 托管。设置 → 关于中的沙箱诊断入口通过类型化 IPC 提供环境检测、JavaScript 执行和停止。Electron 44.9.3 内置 Node 24.22.0，满足 Windows 标准流要求。本文是当前实现说明；[design](./design.md)、[api](./api.md)保留更完整的设计目标，不代表这些目标已经实现。运行命令与示例见[包 README](../../packages/sandbox/README.md)。
 
 应用 IPC 固定使用内置 Electron 的 Node 模式，禁止网络，只授予运行时文件读取和单次临时目录写入，限制 30 秒及 64 KiB 输出。调用窗口身份来自主进程，不接受 renderer 指定权限、命令或 owner。每个窗口最多一个实例；停止、窗口销毁和应用退出均会取消运行。源码写入单次临时目录中的 CommonJS 文件后执行，避免有效的 32,768 字符脚本超过 Windows 命令行长度限制。后端完成清理后删除脚本和临时目录，状态未知时保留并记录日志。当前后端不执行内存和进程数配额。SDK 与 Koffi 在打包时解包，通过 `MXC_FFI_DIR` 指向真实原生库目录。应用入口暂不提供 Python 或 RPC；双向 RPC 继续由独立包提供。
 
@@ -149,7 +149,7 @@ sequenceDiagram
 | Windows 原生命令与 RPC | 已接通 ProcessContainer；实测允许读写、越界拒绝、只读保护、loopback 拒绝、ACL 回收；早期本机 detached 子进程停止结果不能代表托管 BaseContainer，后者的子进程启动与后代回收尚未验收，不纳入当前 demo 必需门槛 |
 | Linux | 当前 adapter 明确拒绝 |
 | 内存/进程数配额、挂载映射、专用通道、其他网络模式 | 当前拒绝请求，不声称已强制执行 |
-| Electron 集成 | Electron 44.7.0 / Node 24.21.0；主进程服务与开发者诊断入口已接通，Windows 原生库在 ASAR 外加载；签名分发另行验证 |
+| Electron 集成 | Electron 44.9.3 / Node 24.22.0；主进程服务与开发者诊断入口已接通，Windows 原生库在 ASAR 外加载；签名分发另行验证 |
 | 插件加载、编排、Durable API | 不属于本包职责 |
 
 复现方式、平台前置条件和测试命令见[包 README](../../packages/sandbox/README.md#tests)。[后端调研](./backend-options.md)保留机制和历史实验；本机功能测试不代表三平台或打包后的验收。

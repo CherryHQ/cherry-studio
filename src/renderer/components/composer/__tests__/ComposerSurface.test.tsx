@@ -3288,7 +3288,7 @@ describe('ComposerSurface', () => {
     expect(selectFile).not.toHaveBeenCalled()
   })
 
-  it('renders image file tokens as chips with icon-sized thumbnails inside the editable composer', async () => {
+  it('renders image file tokens with type icons inside the editable composer', async () => {
     const imageToken = {
       id: 'file:image-1',
       kind: 'file' as const,
@@ -3321,7 +3321,8 @@ describe('ComposerSurface', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveTextContent('preview.png')
-    expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeInTheDocument()
+    expect(token?.querySelector('img')).toBeNull()
+    expect(token?.querySelector('[data-file-token-icon="image"]')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
   })
 
