@@ -1544,14 +1544,12 @@ describe('AssistantDataService', () => {
       ])
     })
 
-    it('should purge only the deleted assistant\'s own scope on a retained topic', async () => {
+    it("should purge only the deleted assistant's own scope on a retained topic", async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'delete' },
         { id: 'ast-2', name: 'keep' }
       ])
-      await dbh.db.insert(topicTable).values([
-        { id: 'topic-1', name: 'shared', assistantId: 'ast-1', orderKey: 'a0' }
-      ])
+      await dbh.db.insert(topicTable).values([{ id: 'topic-1', name: 'shared', assistantId: 'ast-1', orderKey: 'a0' }])
       await dbh.db.insert(followupQueueTable).values([
         {
           id: '11111111-1111-7111-8111-111111111111',
@@ -2053,14 +2051,14 @@ describe('AssistantDataService', () => {
       ])
     })
 
-    it('should purge only the expired assistant\'s own scope on a retained topic', async () => {
+    it("should purge only the expired assistant's own scope on a retained topic", async () => {
       await seedAssistantRow([
         { id: 'ast-expired', name: 'expired', deletedAt: 100 },
         { id: 'ast-active', name: 'active' }
       ])
-      await dbh.db.insert(topicTable).values([
-        { id: 'topic-gone', name: 'shared', assistantId: 'ast-expired', orderKey: 'a0' }
-      ])
+      await dbh.db
+        .insert(topicTable)
+        .values([{ id: 'topic-gone', name: 'shared', assistantId: 'ast-expired', orderKey: 'a0' }])
       await dbh.db.insert(followupQueueTable).values([
         {
           id: '11111111-1111-7111-8111-111111111111',
