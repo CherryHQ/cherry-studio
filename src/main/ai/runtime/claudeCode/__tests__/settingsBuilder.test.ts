@@ -1653,50 +1653,56 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   })
 
-  it('does not auto-allow skill execution and rechecks context after the approval', async () => {
-    mocks.createToolPolicySnapshot.mockResolvedValue({
-      resolve: vi.fn(() => ({ approval: 'auto' })),
-      isDisabled: () => false,
-      getPermissionMode: () => 'default',
-      update: vi.fn(),
-      setPermissionMode: vi.fn()
-    })
-    const settings = await buildClaudeCodeSessionSettings(
-      {
-        id: 'session-1',
-        agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
-      } as never,
-      {} as never
-    )
-    const validate = vi.fn()
-    defaultServiceInstances.McpSkillService.toolApproval.mockReturnValue({
-      signal: new AbortController().signal,
-      validate
-    })
-    const emit = vi.fn()
-    settings.approvalEmitter!.emit = emit
-    try {
-      for (const changed of [false, true]) {
-        const input = { command: 'echo ready' }
-        const pending = settings.canUseTool!('Bash', input, {
-          signal: new AbortController().signal,
-          toolUseID: 'skill-exec',
-          requestId: 'skill-exec-request'
-        })
-        if (changed)
-          validate.mockImplementation(() => {
-            throw new Error('Skill changed')
+  it.each(['Bash', 'mcp__skills__load_mcp_skill'])(
+    'does not auto-allow %s and rechecks skill context after approval',
+    async (toolName) => {
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(() => ({ approval: 'auto' })),
+        isDisabled: () => false,
+        getPermissionMode: () => 'default',
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const validate = vi.fn()
+      defaultServiceInstances.McpSkillService.toolApproval.mockReturnValue({
+        signal: new AbortController().signal,
+        validate
+      })
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      try {
+        for (const changed of [false, true]) {
+          const input =
+            toolName === 'Bash'
+              ? { command: 'echo ready' }
+              : { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
+          const pending = settings.canUseTool!(toolName, input, {
+            signal: new AbortController().signal,
+            toolUseID: 'skill-exec',
+            requestId: 'skill-exec-request'
           })
-        mocks.approvalRegister.mock.lastCall![0].resolve({ approved: true })
-        await expect(pending).resolves.toMatchObject(
-          changed ? { behavior: 'deny', message: 'Skill changed' } : { behavior: 'allow', updatedInput: input }
-        )
+          if (changed)
+            validate.mockImplementation(() => {
+              throw new Error('Skill changed')
+            })
+          mocks.approvalRegister.mock.lastCall![0].resolve({ approved: true })
+          await expect(pending).resolves.toMatchObject(
+            changed ? { behavior: 'deny', message: 'Skill changed' } : { behavior: 'allow', updatedInput: input }
+          )
+        }
+      } finally {
+        defaultServiceInstances.McpSkillService.toolApproval.mockReset().mockReturnValue(undefined)
       }
-    } finally {
-      defaultServiceInstances.McpSkillService.toolApproval.mockReset().mockReturnValue(undefined)
     }
-  })
+  )
 
   describe.each(['auto', 'bypassPermissions'])('SDK-forced delegation approval in %s', (permissionMode) => {
     it.each(

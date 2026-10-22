@@ -41,10 +41,7 @@ describe('session MCP skills through real protocol and persistence', () => {
   let interactive = true
   const decide =
     vi.fn<
-      (
-        sessionId: string,
-        request: { signal: AbortSignal; reason: string; input: Record<string, unknown> }
-      ) => Promise<DispatchDecision>
+      (sessionId: string, request: { signal: AbortSignal; input: Record<string, unknown> }) => Promise<DispatchDecision>
     >()
 
   beforeEach(async () => {
@@ -283,6 +280,17 @@ describe('session MCP skills through real protocol and persistence', () => {
     await skills.load(sessionId, serverId, fixture.uri)
     skills.closeSession(sessionId)
     skills.openSession(sessionId, agentId)
+    await expect(
+      authorizer(
+        true,
+        undefined,
+        'bypassPermissions'
+      )({
+        toolName: 'bash',
+        toolCallId: 'valid-restore',
+        input: { command: 'echo restored' }
+      })
+    ).resolves.toBeUndefined()
     expect(
       await authorizer(false)({
         toolName: 'bash',
@@ -294,6 +302,105 @@ describe('session MCP skills through real protocol and persistence', () => {
     fixture.refresh()
     await skills.get(sessionId, serverId, fixture.uri)
     await expect(skills.read(sessionId, serverId, fixture.uri, fixture.uri)).rejects.toThrow()
+  })
+
+  it.each(['digest', 'manifest'] as const)('retains %s invalidation after session teardown', async (failure) => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    fixture.files.set('skill://reports/references/facts.txt', 'replacement')
+    if (failure === 'manifest') {
+      fixture.refresh()
+      await skills.get(sessionId, serverId, fixture.uri)
+    } else {
+      await expect(
+        skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')
+      ).rejects.toThrow()
+    }
+    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+    skills.closeSession(sessionId)
+    skills.openSession(sessionId, agentId)
+    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+    await expect(
+      authorizer(
+        true,
+        undefined,
+        'bypassPermissions'
+      )({
+        toolName: 'bash',
+        toolCallId: 'restored',
+        input: { command: 'echo stale' }
+      })
+    ).resolves.toMatchObject({ block: true })
+    await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
+  })
+
+  it.each([{ baseUrl: 'http://127.0.0.1:2/mcp' }, { headers: { Authorization: 'replacement-secret' } }])(
+    'rejects an origin changed while the session is closed: %j',
+    async (change) => {
+      await skills.load(sessionId, serverId, fixture.uri)
+      skills.closeSession(sessionId)
+      mcpServerService.update(serverId, change)
+      skills.openSession(sessionId, agentId)
+      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+      await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
+    }
+  )
+
+  it('keeps invalidation across service restart and stores only an opaque origin fingerprint', async () => {
+    const secret = 'private-auth-header'
+    mcpServerService.update(serverId, { headers: { Authorization: secret } })
+    const loaded = await skills.load(sessionId, serverId, fixture.uri)
+    const context = agentSessionMessageService.listMcpSkills(sessionId)[0]
+    expect(context).toMatchObject({ originFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/), invalidated: false })
+    expect(JSON.stringify(context)).not.toContain(secret)
+    expect(loaded.entry).not.toHaveProperty('originFingerprint')
+    fixture.files.set('skill://reports/references/facts.txt', 'tampered')
+    await expect(
+      skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')
+    ).rejects.toThrow()
+    await skills._doStop()
+    BaseService.resetInstances()
+    skills = new McpSkillService()
+    await skills._doInit()
+    skills.openSession(sessionId, agentId)
+    await expect(
+      authorizer(
+        true,
+        undefined,
+        'bypassPermissions'
+      )({
+        toolName: 'bash',
+        toolCallId: 'service-restart',
+        input: { command: 'echo stale' }
+      })
+    ).resolves.toMatchObject({ block: true })
+    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
+  })
+
+  it('invalidates the initial-load validation handle before any protocol lookup', () => {
+    const approval = skills.toolApproval(sessionId, 'mcp__skills__load_mcp_skill', {
+      server_id: serverId,
+      skill_uri: fixture.uri
+    })!
+    mcpServerService.update(serverId, { headers: { Authorization: 'new-auth' } })
+    expect(approval.signal.aborted).toBe(true)
+    expect(() => approval.validate()).toThrow()
+    expect(fixture.requests).toEqual([])
+  })
+
+  it('cancels the first load approval when its target changes and requires a fresh decision', async () => {
+    const call = {
+      toolName: 'mcp__skills__load_mcp_skill',
+      toolCallId: 'initial-load',
+      input: { server_id: serverId, skill_uri: fixture.uri }
+    }
+    const decision = await authorizer(true, (approvalId) => {
+      mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:2/mcp' })
+      toolApprovalRegistry.dispatch(approvalId, { approved: true })
+    })(call)
+    expect(decision).toMatchObject({ block: true })
+    expect(fixture.requests).toEqual([])
+    expect(await authorizer(true)({ ...call, toolCallId: 'fresh-load' })).toBeUndefined()
+    expect((await skills.load(sessionId, serverId, fixture.uri)).content.text).toContain('Read references/facts.txt')
   })
 
   it('rejects tampering and unlisted reads through the generic resource path', async () => {

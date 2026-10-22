@@ -66,7 +66,7 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { McpSkillEntry } from '@shared/types/mcpSkills'
+import type { McpSkillContext } from '@shared/types/mcpSkills'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -3326,7 +3326,7 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  recordMcpSkillLoad(sessionId: string, skill: McpSkillEntry): void {
+  recordMcpSkillLoad(sessionId: string, skill: McpSkillContext): void {
     const entry = this.entries.get(sessionId)
     const turn = entry && this.liveTurn(entry)
     if (!turn) throw new Error('MCP skill loading requires an active turn')

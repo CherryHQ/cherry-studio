@@ -27,3 +27,10 @@ export const McpSkillSchema = z.object({
 export const McpSkillEntrySchema = McpSkillSchema.extend({ serverId: z.string(), serverName: z.string() })
 export type McpSkill = z.infer<typeof McpSkillSchema>
 export type McpSkillEntry = z.infer<typeof McpSkillEntrySchema>
+
+/** Private retained context; never returned as remote skill metadata. */
+export const McpSkillContextSchema = McpSkillEntrySchema.extend({
+  originFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  invalidated: z.boolean()
+})
+export type McpSkillContext = z.infer<typeof McpSkillContextSchema>

@@ -62,7 +62,7 @@ import {
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { McpSkillEntrySchema, type McpSkillEntry } from '@shared/types/mcpSkills'
+import { McpSkillContextSchema, type McpSkillContext } from '@shared/types/mcpSkills'
 
 import { AgentSessionEditError } from './AgentSessionEditError'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -756,7 +756,7 @@ export class AgentSessionMessageService {
     return { items, nextCursor }
   }
 
-  recordMcpSkill(sessionId: string, messageId: string, skill: McpSkillEntry): void {
+  recordMcpSkill(sessionId: string, messageId: string, skill: McpSkillContext): void {
     application.get('DbService').withWriteTx((tx) => {
       this.assertActiveSession(tx, sessionId)
       const row = this.findExistingMessageRow(tx, sessionId, messageId)
@@ -771,7 +771,35 @@ export class AgentSessionMessageService {
     })
   }
 
-  listMcpSkills(sessionId: string): McpSkillEntry[] {
+  invalidateMcpSkill(sessionId: string, serverId: string, uri: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .select({ id: sessionMessagesTable.id, data: sessionMessagesTable.data })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            sql`json_type(${sessionMessagesTable.data}, '$.mcpSkills') = 'array'`
+          )
+        )
+        .all()
+      for (const row of rows) {
+        if (
+          !row.data.mcpSkills?.some((entry) => entry.serverId === serverId && entry.uri === uri && !entry.invalidated)
+        )
+          continue
+        const mcpSkills = row.data.mcpSkills.map((entry) =>
+          entry.serverId === serverId && entry.uri === uri ? { ...entry, invalidated: true } : entry
+        )
+        tx.update(sessionMessagesTable)
+          .set({ data: { ...row.data, mcpSkills } })
+          .where(eq(sessionMessagesTable.id, row.id))
+          .run()
+      }
+    })
+  }
+
+  listMcpSkills(sessionId: string): McpSkillContext[] {
     const db = application.get('DbService').getDb()
     this.assertActiveSession(db, sessionId)
     return db
@@ -784,7 +812,7 @@ export class AgentSessionMessageService {
         )
       )
       .all()
-      .flatMap(({ data }) => McpSkillEntrySchema.array().parse(data.mcpSkills))
+      .flatMap(({ data }) => McpSkillContextSchema.array().parse(data.mcpSkills))
   }
 
   listApprovalMessages(sessionId: string): AgentSessionMessageEntity[] {

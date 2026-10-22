@@ -94,8 +94,16 @@ export default async function mcpSkillsScenario(context: ScenarioContext) {
       )
       const agent = z.object({ ok: z.literal(true), data: AgentEntitySchema }).parse(created).data
       agentIds.push(agent.id)
-      for (const scenario of ['load-accept', 'load-deny', 'execute-accept', 'execute-deny', 'full-access'] as const) {
-        const approve = !scenario.endsWith('deny')
+      for (const scenario of [
+        'load-accept',
+        'load-deny',
+        'load-reconfigure',
+        'execute-accept',
+        'execute-deny',
+        'full-access'
+      ] as const) {
+        const reconfigure = scenario === 'load-reconfigure'
+        const approve = !scenario.endsWith('deny') && !reconfigure
         const fullAccess = scenario === 'full-access'
         const execution = scenario.startsWith('execute') || fullAccess
         const updated = await page.evaluate(
@@ -172,7 +180,20 @@ export default async function mcpSkillsScenario(context: ScenarioContext) {
             })
           }
           await context.screenshot(`${type}-${scenario}-approval`)
-          await approval.getByRole('button', { name: approve ? /^Allow/ : /^Deny/ }).click()
+          if (reconfigure) {
+            const changed = await page.evaluate(
+              ({ serverId, baseUrl }) =>
+                window.api.dataApi.request({
+                  id: crypto.randomUUID(),
+                  method: 'PATCH',
+                  path: `/mcp-servers/${serverId}`,
+                  body: { baseUrl: `${baseUrl}/mcp-reconfigured-${crypto.randomUUID()}` }
+                }),
+              { serverId: mcpId, baseUrl: server.baseUrl }
+            )
+            expect(changed.status).toBe(200)
+            await expect(approval).toHaveCount(0)
+          } else await approval.getByRole('button', { name: approve ? /^Allow/ : /^Deny/ }).click()
         }
         const marker = approve ? 'MCP_SKILL_RESULT: CHERRY-2640' : 'MCP_SKILL_DECLINED'
         await expect(view.getByText(marker, { exact: true }).last()).toBeVisible({ timeout: 120_000 })
