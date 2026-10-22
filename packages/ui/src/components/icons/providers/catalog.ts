@@ -155,6 +155,7 @@ import { ThinkAnyIcon } from './think-any'
 import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
 import { TokendanceIcon } from './tokendance'
+import { TokendosIcon } from './tokendos'
 import { TwitterIcon } from './twitter'
 import { UpstageIcon } from './upstage'
 import { VercelIcon } from './vercel'
@@ -321,6 +322,7 @@ export const PROVIDER_ICON_CATALOG = {
   tng: TngIcon,
   together: TogetherIcon,
   tokendance: TokendanceIcon,
+  tokendos: TokendosIcon,
   twitter: TwitterIcon,
   upstage: UpstageIcon,
   vercel: VercelIcon,
