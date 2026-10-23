@@ -26,6 +26,7 @@ import {
   resolveReasoningInvocation,
   resolveSelection
 } from '@main/ai/utils/reasoningSerializers'
+import { registerSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -564,6 +565,14 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route.branch === 'gateway' &&
       resolveEffectiveEndpoint(provider, model).endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   })
+  if (thinkingOptions.canonicalEffort) {
+    // thinkingOptions.effort is the SDK transport tier, which may be the
+    // Anthropic-serialized carrier of this canonical destination (minimal ->
+    // low): record the destination so the gateway restores it during target
+    // serialization for this session's validated internal requests
+    // (cherry-pr-review inv_234f741ac324acb8).
+    registerSessionCanonicalEffort(sessionId, thinkingOptions.canonicalEffort)
+  }
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
@@ -672,7 +681,7 @@ function resolveClaudeCodeThinkingOptions(
   model: Model,
   reasoningEffort: ReasoningEffortOption,
   target?: { gatewayToNonAnthropicTarget?: boolean }
-): { effort?: Options['effort']; thinking?: Options['thinking'] } {
+): { effort?: Options['effort']; thinking?: Options['thinking']; canonicalEffort?: string } {
   const { profile, invocationModel } = resolveClaudeCodeReasoningContext(model)
   const userEffortMap = getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   const invocation = resolveReasoningInvocation({
@@ -685,6 +694,7 @@ function resolveClaudeCodeThinkingOptions(
   const encoded = encodeReasoningInvocation(invocation)
 
   let effort = encoded.effort as Options['effort'] | undefined
+  let canonicalEffort: string | undefined
   if (target?.gatewayToNonAnthropicTarget) {
     // This route's Anthropic dialect ends at Cherry's own gateway, which
     // serializes the literal tier against the TARGET profile. Anthropic
@@ -704,12 +714,14 @@ function resolveClaudeCodeThinkingOptions(
       // tier (low) instead — the SDK-supported transport that lands where
       // the frozen base landed (cherry-pr-review inv_ab2d93e990367ead).
       effort = (SDK_TRANSPORT_EFFORT_TIERS.has(canonical) ? canonical : encoded.effort) as Options['effort']
+      canonicalEffort = canonical
     }
   }
 
   return {
     effort,
-    thinking: encoded.thinking as Options['thinking'] | undefined
+    thinking: encoded.thinking as Options['thinking'] | undefined,
+    canonicalEffort
   }
 }
 

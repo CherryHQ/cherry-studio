@@ -26,6 +26,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import { resolveSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
@@ -211,6 +212,27 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     : positionedMessages
   const tools = converter.toAiSdkTools?.(effectiveParams)
   const streamOptions = converter.extractStreamOptions(effectiveParams)
+
+  // Restore the session's canonical effort destination over the SDK transport
+  // tier before dialect normalization: the Claude Code SDK vocabulary
+  // (low|medium|high|xhigh|max) cannot carry a mapped destination like GPT-5
+  // minimal, which crosses as its Anthropic-serialized tier (low). The
+  // validated internal session header keys the restore - external clients
+  // never present it, so their literal effort is untouched, and the user
+  // effort map stays applied exactly once at the session boundary
+  // (cherry-pr-review inv_234f741ac324acb8).
+  if (inputFormat === 'anthropic' && agentSessionId) {
+    const sessionCanonicalEffort = resolveSessionCanonicalEffort(agentSessionId)
+    if (sessionCanonicalEffort) {
+      effectiveParams = {
+        ...(effectiveParams as MessageCreateParams),
+        output_config: {
+          ...(effectiveParams as MessageCreateParams).output_config,
+          effort: sessionCanonicalEffort as NonNullable<MessageCreateParams['output_config']>['effort']
+        }
+      }
+    }
+  }
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =

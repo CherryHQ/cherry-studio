@@ -2,6 +2,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
+import { clearSessionCanonicalEffort, resolveSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -303,6 +304,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     // inv_ab2d93e990367ead).
     const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
     expect(thinkingOptions?.effort).toBe('low')
+    // ...and the canonical destination is recorded for the gateway to restore
+    // during target serialization (cherry-pr-review inv_234f741ac324acb8).
+    expect(resolveSessionCanonicalEffort('session-1')).toBe('minimal')
+    clearSessionCanonicalEffort('session-1')
   })
 
   it('preserves an SDK-native mapped destination tier verbatim across the gateway boundary', async () => {
