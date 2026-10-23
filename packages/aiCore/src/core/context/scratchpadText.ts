@@ -421,24 +421,27 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
     const fenceLen = openMatch[0].length
     const afterOpen = markerStart + openMatch[0].length
     const closeEnd = findCodeFenceClose(text, afterOpen, fenceChar, fenceLen)
-    if (closeEnd === -1) {
-      // An unfinished fence inside a scratchpad block ends at that block's
-      // closing tag: masking through EOF would hide the closer and keep internal
-      // analysis from being stripped (cherry-pr-review inv_85d2261387fd1a1f). A
-      // fence outside any scratchpad block still masks to EOF.
-      let fenceEnd = text.length
-      const enclosing = enclosingScratchpadTag(text, fenceStart)
-      if (enclosing) {
-        const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
-        closer.lastIndex = afterOpen
-        let match: RegExpExecArray | null
-        while ((match = closer.exec(text)) !== null) {
-          if (!isBackslashEscaped(text, match.index)) {
-            fenceEnd = match.index
-            break
-          }
+    // A fence opened inside a scratchpad block ends at that block's closing
+    // tag, whether it has no close of its own or only finds one past the
+    // boundary: masking through the closer would hide it and keep internal
+    // analysis from being stripped (cherry-pr-review inv_85d2261387fd1a1f,
+    // inv_e5404aa552bba2ea). A fence outside any scratchpad block still masks
+    // to its own close or EOF.
+    let blockCloseIdx = -1
+    const enclosing = enclosingScratchpadTag(text, fenceStart)
+    if (enclosing) {
+      const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
+      closer.lastIndex = afterOpen
+      let match: RegExpExecArray | null
+      while ((match = closer.exec(text)) !== null) {
+        if (!isBackslashEscaped(text, match.index)) {
+          blockCloseIdx = match.index
+          break
         }
       }
+    }
+    if (closeEnd === -1 || (blockCloseIdx !== -1 && closeEnd > blockCloseIdx)) {
+      const fenceEnd = blockCloseIdx !== -1 ? blockCloseIdx : text.length
       fences.push(text.slice(fenceStart, fenceEnd))
       out += `${CODE_FENCE_PLACEHOLDER_PREFIX}${fences.length - 1}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
       pos = fenceEnd
@@ -471,6 +474,14 @@ export function textHasUnclosedInlineCode(text: string): boolean {
       const next = text.indexOf('`', pos)
       if (next === -1) return false
       pos = next
+      continue
+    }
+
+    // An escaped backtick is literal text, never an opener: pairing it with a
+    // later backtick releases an unresolved code span over real content,
+    // unlike the masking scanner (cherry-pr-review inv_c15500c90c596f07).
+    if (isBackslashEscaped(text, pos)) {
+      pos++
       continue
     }
 
@@ -573,10 +584,27 @@ export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string)
 
 function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string, openerLength: number): number {
   const afterOpen = openIndex + openerLength
-  const closePattern = new RegExp(`</${tagName}\\s*>`, 'i')
-  const closeMatch = closePattern.exec(text.slice(afterOpen))
-  if (!closeMatch || closeMatch.index === undefined) return -1
-  let end = afterOpen + closeMatch.index + closeMatch[0].length
+  // Nested same-tag wrappers pair by depth: stopping at the first close would
+  // leave the outer block's remaining internal text (and its real closer) in
+  // the output (cherry-pr-review inv_66625e6e9e1af1a5).
+  const tagPattern = new RegExp(`<(/?)${tagName}(?=[\\s/>])[^>]*>`, 'gi')
+  tagPattern.lastIndex = afterOpen
+  let depth = 1
+  let end = -1
+  let tagMatch: RegExpExecArray | null
+  while ((tagMatch = tagPattern.exec(text)) !== null) {
+    if (isBackslashEscaped(text, tagMatch.index)) continue
+    if (tagMatch[1] === '/') {
+      depth--
+      if (depth === 0) {
+        end = tagMatch.index + tagMatch[0].length
+        break
+      }
+    } else if (!tagMatch[0].endsWith('/>')) {
+      depth++
+    }
+  }
+  if (end === -1) return -1
   // Compaction/concatenation can append duplicate closing tags for the same scratchpad wrapper.
   const duplicateClose = new RegExp(`^\\s*</${tagName}\\s*>`, 'i')
   for (;;) {

@@ -167,6 +167,7 @@ type StreamContext = {
   suppressActiveTextPart: boolean
   /** Set once a text part is classified as a compaction artifact: its remaining deltas are dropped. */
   suppressCompactionArtifactPart: boolean
+  compactionScratchpadStripped: boolean
   textStartDeferred: boolean
   textPartStarted: boolean
   /** Parent of the active text part, retained so deferred text-start emission keeps it. */
@@ -609,6 +610,7 @@ export class ClaudeCodeStreamAdapter {
       toolProtocolStripEmittedLength: 0,
       suppressActiveTextPart: false,
       suppressCompactionArtifactPart: false,
+      compactionScratchpadStripped: false,
       textStartDeferred: false,
       textPartStarted: false,
       textPartParentId: null
@@ -621,15 +623,55 @@ export class ClaudeCodeStreamAdapter {
   }
 
   /** Strips tool-protocol closings only once trailing content is known (block may span deltas). */
-  private takeToolProtocolStrippedVisibleDelta(text: string, ctx: StreamContext): string {
-    if (!ctx.filterParentlessScratchpadText || !text) {
+  private takeToolProtocolStrippedVisibleDelta(text: string, ctx: StreamContext, flush = false): string {
+    if (!ctx.filterParentlessScratchpadText || (!text && !flush)) {
       return text
     }
     ctx.toolProtocolStripAccumulator += text
     const stripped = stripTrailingToolProtocolClosingFragments(ctx.toolProtocolStripAccumulator)
-    const emit = stripped.slice(ctx.toolProtocolStripEmittedLength)
-    ctx.toolProtocolStripEmittedLength = stripped.length
+    // Hold back the trailing suffix that further text could still complete into
+    // a strippable fragment (a whitespace run, or a partial `<...` tag).
+    // Emitting it eagerly rewinds toolProtocolStripEmittedLength when the
+    // fragment completes and is stripped, duplicating protocol text in the
+    // output (cherry-pr-review inv_9a2a758db93aa142). The offset only advances;
+    // flush at text-part end releases the remainder.
+    let emitEnd = stripped.length
+    if (!flush) {
+      // Whitespace alone is not held: a stripped fragment keeps its leading
+      // whitespace consumed, and emitted trailing whitespace must stay emitted.
+      const holdBack = /\s*<\/?[\p{L}\p{N}_|｜-]*$/u.exec(stripped)
+      if (holdBack) emitEnd -= holdBack[0].length
+    }
+    if (emitEnd <= ctx.toolProtocolStripEmittedLength) return ''
+    const emit = stripped.slice(ctx.toolProtocolStripEmittedLength, emitEnd)
+    ctx.toolProtocolStripEmittedLength = emitEnd
     return emit
+  }
+
+  /**
+   * Releases the held-back tool-protocol remainder without hold-back when a
+   * text part closes. Whatever is still buffered at part end is final content:
+   * a completed trailing fragment was already stripped, so what remains is real
+   * text (cherry-pr-review inv_9a2a758db93aa142).
+   */
+  private flushToolProtocolStripRemainder(ctx: StreamContext): void {
+    const remaining = this.takeToolProtocolStrippedVisibleDelta('', ctx, true)
+    if (!remaining || ctx.suppressActiveTextPart) return
+    if (!ctx.textPartId) {
+      ctx.textPartId = generateId()
+    }
+    if (!ctx.textPartStarted) {
+      ctx.sink.enqueue({
+        type: 'text-start',
+        id: ctx.textPartId,
+        providerMetadata: this.textStartProviderMetadata(ctx)
+      })
+      ctx.textPartStarted = true
+    }
+    ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: remaining })
+    ctx.textStreamedViaContentBlock = true
+    ctx.accumulatedText += remaining
+    ctx.streamedTextLength += remaining.length
   }
 
   /** Filter at the SDK adapter boundary so live rendering and persisted snapshots consume the same text. */
@@ -1063,6 +1105,9 @@ export class ClaudeCodeStreamAdapter {
     }
 
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(combined)
+    if (stripped.length < combined.length && this.compactionArtifactWatchActive()) {
+      ctx.compactionScratchpadStripped = true
+    }
     const scanned = stripped.slice(prefix.length)
     const { emit, buffer } = this.splitIncompleteTagSuffix(scanned)
     ctx.scratchpadStreamRemainder = buffer
@@ -1091,8 +1136,19 @@ export class ClaudeCodeStreamAdapter {
    * commit the compaction exchange as regular (parented) assistant text bypass the parentless
    * message filter, so this shape check runs regardless of how the turn started.
    */
-  private classifyCompactionArtifactProbe(probe: string, atBlockEnd: boolean): 'pending' | 'artifact' | 'not-artifact' {
+  private classifyCompactionArtifactProbe(
+    probe: string,
+    atBlockEnd: boolean,
+    ctx: StreamContext
+  ): 'pending' | 'artifact' | 'not-artifact' {
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(probe)
+    // Stripping only removes scratchpad blocks (code fences round-trip), so a
+    // length change is provenance that the model wrapped internal blocks
+    // around this content (cherry-pr-review inv_a80cefcbe270db4f).
+    // The probe itself may already be summary-only because a snapshot or an
+    // earlier block lost its scratchpad wrapper upstream; the context flag
+    // carries that provenance forward (cherry-pr-review inv_a80cefcbe270db4f).
+    const hadScratchpad = stripped.length < probe.length || ctx.compactionScratchpadStripped
     const trimmed = stripped.trimStart()
     if (!trimmed) {
       if (!atBlockEnd) return 'pending'
@@ -1111,7 +1167,9 @@ export class ClaudeCodeStreamAdapter {
     const markerCount = ClaudeCodeStreamAdapter.COMPACTION_SUMMARY_SECTIONS.filter((section) =>
       new RegExp(`(^|\\n)\\s*\\d+\\.\\s*${section}\\b`, 'i').test(trimmed)
     ).length
-    if (markerCount >= 2) {
+    // A bare summary-shaped answer with numbered headings but no scratchpad
+    // provenance is legitimate user-facing prose, not a compaction artifact.
+    if (markerCount >= 2 && hadScratchpad) {
       // The artifact is the summary exchange alone. Validate the complete
       // boundary before suppressing: ordinary text after the closing tag is a
       // real answer, not compaction prose (cherry-pr-review inv_673840dd69889b50).
@@ -1188,7 +1246,7 @@ export class ClaudeCodeStreamAdapter {
     if (!pending) return
 
     if (this.compactionArtifactWatchActive()) {
-      const verdict = this.classifyCompactionArtifactProbe(pending, true)
+      const verdict = this.classifyCompactionArtifactProbe(pending, true, ctx)
       if (verdict === 'artifact') {
         ctx.suppressActiveTextPart = true
         ctx.suppressCompactionArtifactPart = true
@@ -1290,7 +1348,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.scratchpadTextProbe += text
       let watchEmittedProbe = false
       if (this.compactionArtifactWatchActive()) {
-        const verdict = this.classifyCompactionArtifactProbe(ctx.scratchpadTextProbe, false)
+        const verdict = this.classifyCompactionArtifactProbe(ctx.scratchpadTextProbe, false, ctx)
         if (verdict === 'pending') {
           return
         }
@@ -1413,6 +1471,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.textPartId === textId) {
         this.flushDeferredScratchpadText(ctx)
         this.flushScratchpadStreamRemainder(ctx)
+        this.flushToolProtocolStripRemainder(ctx)
       }
       if (!ctx.suppressActiveTextPart && ctx.textPartStarted && ctx.textPartId === textId) {
         ctx.sink.enqueue({ type: 'text-end', id: textId })
@@ -1508,6 +1567,12 @@ export class ClaudeCodeStreamAdapter {
       return blockText
     }
     const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(blockText)
+    if (stripped.length < blockText.length && this.compactionArtifactWatchActive()) {
+      // The snapshot carried scratchpad alongside this text: that is the runtime
+      // provenance distinguishing a compaction artifact from a bare
+      // summary-shaped answer (cherry-pr-review inv_a80cefcbe270db4f).
+      ctx.compactionScratchpadStripped = true
+    }
     const visible = this.trimAfterScratchpadStrip(blockText, stripped)
     return stripTrailingToolProtocolClosingFragments(visible)
   }
@@ -1757,7 +1822,7 @@ export class ClaudeCodeStreamAdapter {
       if (
         !(
           this.compactionArtifactWatchActive() &&
-          this.classifyCompactionArtifactProbe(fallbackDelta, true) === 'artifact'
+          this.classifyCompactionArtifactProbe(fallbackDelta, true, ctx) === 'artifact'
         )
       ) {
         const fallbackTextId = generateId()
@@ -2455,6 +2520,7 @@ export class ClaudeCodeStreamAdapter {
     const closedTextId = ctx.textPartId
     this.flushDeferredScratchpadText(ctx)
     this.flushScratchpadStreamRemainder(ctx)
+    this.flushToolProtocolStripRemainder(ctx)
     if (!ctx.suppressActiveTextPart && ctx.textPartStarted) {
       ctx.sink.enqueue({ type: 'text-end', id: closedTextId })
     }

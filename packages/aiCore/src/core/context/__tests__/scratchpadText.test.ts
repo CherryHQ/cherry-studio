@@ -5,6 +5,7 @@ import {
   stripKnownModelScratchpadBlocksPreservingCodeFences,
   stripTrailingToolProtocolClosingFragments,
   stripModelScratchpadBlocks,
+  textHasUnclosedInlineCode,
   textStartsWithModelScratchpadTag,
   textStartsWithNonScratchpadOpeningTag
 } from '../scratchpadText'
@@ -318,5 +319,27 @@ describe('unfinished fences inside scratchpad blocks', () => {
   it('strips analysis interrupted by an unfinished fence and unwraps the summary', () => {
     const input = '<analysis>I considered:\n```\n</analysis><summary>Keep</summary>'
     expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+  })
+})
+
+describe('round-3 scanner regressions', () => {
+  it('bounds a fence opened inside a scratchpad block at the block close even when a later fence matches (inv_e5404aa552bba2ea)', () => {
+    const input =
+      '<analysis>notes\n```ts\ncode without close\n</analysis>\n<summary>\n```ts\nshown\n```\n</summary>\nactual answer'
+    const stripped = stripKnownModelScratchpadBlocksPreservingCodeFences(input)
+    expect(stripped).not.toContain('notes')
+    expect(stripped).not.toContain('code without close')
+    expect(stripped).toContain('shown')
+    expect(stripped).toContain('actual answer')
+  })
+
+  it('strips nested same-tag scratchpad blocks through the matching outer close (inv_66625e6e9e1af1a5)', () => {
+    const input = '<analysis>outer <analysis>inner</analysis> still internal</analysis>visible answer'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('visible answer')
+  })
+
+  it('ignores escaped backticks when scanning for unclosed inline code (inv_c15500c90c596f07)', () => {
+    expect(textHasUnclosedInlineCode('an escaped \\` backtick alone')).toBe(false)
+    expect(textHasUnclosedInlineCode('an unclosed `span here')).toBe(true)
   })
 })

@@ -2301,6 +2301,46 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents).toEqual([{ type: 'compaction-start' }, { type: 'compaction-complete' }])
     })
 
+    it('keeps a bare summary-shaped answer visible after compaction success (inv_a80cefcbe270db4f)', () => {
+      const { adapter, parts } = createAdapter()
+      // No scratchpad wrapper: a user-requested answer that merely shares the
+      // compaction summary shape must not be suppressed.
+      const answer =
+        '<summary>\n' +
+        '1. Task Overview:\n   User-requested summary.\n\n' +
+        '2. Current State:\n   Work complete.\n' +
+        '</summary>'
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: answer } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      expect(text).toContain('Task Overview')
+      expect(text).toContain('Current State')
+    })
+
     it('emits healthy text that streams during the post-compaction grace window', () => {
       const { adapter, parts } = createAdapter()
 
@@ -2649,6 +2689,31 @@ describe('ClaudeCodeStreamAdapter', () => {
         .join('')
       expect(text).toBe('confirmModal escapes…\n\n')
       expect(text).not.toContain('</parameter>')
+    })
+
+    it('keeps the tool-protocol strip offset monotonic when a trailing fragment completes across deltas (inv_9a2a758db93aa142)', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Answer text </par' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ameter>' } })
+      )
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: ' continues' } })
+      )
+      adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+      const text = parts
+        .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+        .map((part) => part.delta)
+        .join('')
+      // No rewound-offset duplication of the partial fragment.
+      expect(text).toBe('Answer text </parameter> continues')
     })
 
     it('preserves inline code literals when the opening backtick arrives in a later delta', () => {
