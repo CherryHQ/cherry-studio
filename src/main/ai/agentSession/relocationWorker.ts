@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs'
+import path from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 
 export interface RelocationWorkerInput {
@@ -27,7 +29,19 @@ async function run(input: RelocationWorkerInput) {
     return result
   }
   const oldKey = await projectKey(input.oldCwd)
-  const newKey = await projectKey(input.newCwd)
+  let newCwd = input.newCwd
+  // Match the SDK's realpathSync semantics; native/async realpath expands Windows short names.
+  for (;;) {
+    try {
+      newCwd = path.join(realpathSync(newCwd), path.relative(newCwd, input.newCwd))
+      break
+    } catch (error) {
+      const parent = path.dirname(newCwd)
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || parent === newCwd) throw error
+      newCwd = parent
+    }
+  }
+  const newKey = await projectKey(newCwd)
   return { oldKey, newKey }
 }
 

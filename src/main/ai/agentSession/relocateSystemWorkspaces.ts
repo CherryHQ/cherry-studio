@@ -14,8 +14,7 @@ import {
   assertAgentStorageDirectory,
   assertAgentStoragePath,
   ensureAgentStorageDirectory,
-  removeAgentStorageSubdirectory,
-  resolveRealOrNearestExistingPath
+  removeAgentStorageSubdirectory
 } from '@main/ai/agents/agentDataDirectory'
 import {
   assertWorkspaceDirectoryIdentity,
@@ -195,7 +194,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     const { default: createWorker } = await import('./relocationWorker?nodeWorker')
     const workerData: RelocationWorkerInput = {
       oldCwd: workspace.path,
-      newCwd: await resolveRealOrNearestExistingPath(newPath)
+      newCwd: newPath
     }
     const result = z
       .strictObject({
