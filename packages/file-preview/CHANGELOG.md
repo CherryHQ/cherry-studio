@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.2.2
+
+### Patch Changes
+
+- [#22348](https://github.com/CherryHQ/cherry-studio/pull/22348) [`909214f`](https://github.com/CherryHQ/cherry-studio/commit/909214f68dd50bc04f1687c5ffc8845d4aac4fc4) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Italian translations for file-preview controls and messages.
+
 ## 0.2.1
 
 ### Patch Changes
