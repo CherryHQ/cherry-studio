@@ -1,13 +1,11 @@
 ---
-description: File editing session ownership, conditional persistence, observation leases, and retained draft recovery
+description: Independent file editing drafts, conditional persistence, revalidation, and retained draft recovery
 sources:
   - src/main/services/file/FileEditService.ts
-  - src/main/services/file/FileObservationManager.ts
   - src/renderer/services/fileEdit
   - src/renderer/hooks/useFileEditSession.ts
   - src/renderer/components/FileEditSessionProvider.tsx
   - src/shared/ipc/schemas/fileEdit.ts
-  - src/shared/ipc/schemas/fileObservation.ts
 ---
 
 # File Editing Sessions
@@ -16,64 +14,61 @@ English | [中文](file-editing.zh.md)
 
 ## Ownership
 
-`FileEditSessionProvider` creates a window-owned `FileEditSessionManager` in the main and sub-window composition roots. `useFileEditSession` acquires a lease and subscribes with `useSyncExternalStore`; it owns no draft, save timer, or SWR cache. Notes, Skill files, and artifact editing use the same session boundary.
+`FileEditSessionProvider` creates a window-owned `FileEditSessionManager`. `useFileEditSession(handle, ownerId)` subscribes to its snapshots; the hook owns no draft, save timer, or SWR cache.
 
 | Owner | Responsibility |
 |---|---|
-| Renderer manager | Canonical-resource registry, draft and disk baseline, revisions, writer attachment, save queue, replacement and mutation seals, retained draft inventory |
-| Editor | Interactive document and undo history; callbacks carry their attachment and document generation |
-| `FileEditService` | Window-owned edit leases, pinned entry/path targets, immutable write attempts and terminal receipts |
-| `FileObservationManager` | Shared watcher coverage and window-scoped observation subscriptions |
-| `DirectoryTreeManager` | Shared tree builders and renderer tree projections; releases its watcher lease independently of editing |
+| Renderer manager | Independent drafts, disk baselines, revisions, save queues, attachment generations, mutation barriers, and retained draft inventory |
+| Editor | Interactive document and undo history; callbacks carry attachment and document generations |
+| `FileEditService` | Window-owned edit leases, pinned filesystem targets, immutable write attempts, and terminal receipts |
+| `DirectoryTreeManager` | Existing directory tree watchers and tree invalidation events |
 
-A path and an entry resolving to the same permitted canonical address share a renderer session. Each locator remains separately leased in Main. An accepted edit retains its originating locator, so sharing a draft cannot turn an entry-target check into a path write. Only one attachment is writable; other attachments observe read-only snapshots. Symlink and hard-link alias unification is not promised.
-
-UNC and leading-double-slash addresses retain their original spelling in edit leases and observation roots. They do not pass through persistent-entry-key canonicalization, and alternate network spellings are not unified.
+Notes, each Skill, and each Agent artifact surface use distinct stable owner IDs. The registry matches an owner plus the exact handle kind and locator. Reopening that locator within the same owner restores a retained draft. A replacement attachment invalidates its predecessor's callbacks. Different owners, path aliases, and entry/path handles do not share drafts or elect a writer. Recovery actions address the unique `sessionId`, not a filesystem path.
 
 ## Persistence contract
 
 | Route | Contract |
 |---|---|
-| `file.edit.open` | Resolve a handle, enforce path policy, return a pinned edit ID, canonical resource key, and observation root |
+| `file.edit.open` | Resolve a handle, enforce path policy, pin its target, and return an opaque `editId` |
 | `file.edit.read` | Return a bounded coherent binary snapshot and the hash of those exact bytes |
 | `file.edit.write` | Submit immutable bytes with a mandatory expected version/hash and lease-local sequence |
 | `file.edit.settle_write` | Recover a terminal receipt; fence a sequence that has not started |
-| `file.edit.close` | Stop admission, settle accepted reads/writes, then release the lease and temporary-entry retention |
+| `file.edit.close` | Stop admission, settle accepted reads/writes, and release the lease and temporary-entry retention |
+
+Main resolves the original filesystem locator with asynchronous `realpath`, without first collapsing dot segments. It keeps the resolved target private and checks the locator again for subsequent reads and writes. Retargeting a symlink or moving an entry invalidates the old lease. Writes replace the resolved target while preserving a final symlink. Raw path access must pass managed-storage policy checks for both the requested address and the actual target. This pins an address, not an inode identity across arbitrary external replacements.
 
 The 8 MiB limit applies before and during loading. An already-open editor can grow beyond that limit. The codec preserves UTF-8 BOM and LF/CRLF, and rejects unsupported encoding or mixed line endings. Opening or changing editor mode does not serialize an untouched rich document back to disk.
 
 Writes return `committed`, `not-committed`, or `not-started`. A committed receipt includes the new baseline and `metadataRecoveryPending`; a metadata finalization failure must not replay committed bytes. If transport loses a receipt, the renderer settles the same sequence before issuing another write. It retains the attempt and draft while the result remains unknown.
 
-`flush()` captures the current draft and revision immediately. Its target waits behind older writes and cannot be replaced by a later edit. In particular, undoing to the previous disk text while a different save is pending still requires a subsequent write. Autosave debounces unsent edits. Persistent failures pause automatic retry while preserving editing and explicit retry.
+`flush()` captures the current draft and revision immediately. Its target waits behind older writes and cannot be replaced by a later edit. Undoing to the previous disk text while a different save is pending still requires a subsequent write. Autosave debounces unsent edits. Persistent failures pause automatic retry while preserving the draft and explicit retry.
 
-Entry writes, entry rename/delete/cleanup, and path mutations coordinate in entry-lock → path-mutex order. Hash validation applies whenever a hash is provided, including equal-size, preserved subsecond timestamps. Atomic replacement does not provide compare-and-swap against arbitrary external programs between validation and rename.
+Entry writes, entry rename/delete/cleanup, and path mutations coordinate in entry-lock → path-mutex order. Hash validation detects changed bytes even when size and timestamps match. Independently opened editors can both edit; a stale save reports a conflict and retains its local draft. Atomic replacement does not provide compare-and-swap against arbitrary external programs between validation and rename.
 
 ## Replacement and mutations
 
-`documentEpoch` changes for an initial document or explicit replacement, not ordinary edits or save receipts. Notes mount editors by session/epoch and remove the previous string-comparison hydration effect. Programmatic rich-editor hydration is silent. Editor-dependent UI waits for a Tiptap instance when an inactive tab resumes. A separate binding generation rejects callbacks captured before a seal/cancel cycle while preserving the current document and undo history.
+`documentEpoch` changes for an initial document or explicit replacement, not ordinary edits or save receipts. Notes mount editors by session/epoch. Programmatic rich-editor hydration is silent. A separate binding generation rejects callbacks from replaced attachments or before a mutation barrier while preserving the current document and undo history.
 
-`discard()` settles writes and restores the confirmed baseline. `reload()` settles writes before adopting a new disk document. `keepLocal()` seals input, captures the draft, reads a fresh baseline, and conditionally saves the captured text. Failure keeps the draft available.
+`discard()` settles writes and restores the confirmed baseline. `reload()` settles writes before adopting a new disk document. `keepLocal()` seals input, captures the draft, reads a fresh baseline, and conditionally saves the captured text. Failure retains the draft.
 
-`prepareMutation(roots)` seals matching sessions and flushes accepted edits. Mutations serialize within a window. New acquisitions wait for settlement; acquisitions interrupted by preparation release their stale leases and retry. Callers perform the filesystem operation, then `commit()` retires deleted resources or `commit({ from, to })` verifies and binds moved resources. `cancel()` restores input after a failed operation. Once commit or cancellation releases the seal, the manager reevaluates detached sessions for eviction: clean sessions without pending work release their leases, while unsaved or failed sessions remain recoverable. A failed post-move verification retains the source snapshot with an error; it cannot undo an already completed filesystem move. Notes use this boundary for rename, move, and deletion, including directories.
+`prepareMutation()` seals and flushes all retained sessions in the window. Composition, concurrent transitions, conflicts, save failures, and unresolved write outcomes block preparation. New acquisitions wait; interrupted acquisitions release their stale leases and retry. This conservative window-wide barrier avoids inferring affected resources from path prefixes.
 
-Mutation matching also covers UNC and leading-double-slash files and directory descendants. Comparisons preserve the network root, resolve dot segments within the share, and require a directory boundary; a single-slash local path or another share is not a match. Rebinding preserves the destination address and appends the relative descendant path using its separator style.
+After preparation, the caller performs rename, move, or deletion and calls the idempotent `finish()` in `finally`, including when the filesystem operation fails. It revalidates attached sessions, then releases the barrier. A missing or changed target becomes unavailable; the caller opens a destination as a new editing instance. The manager does not remap paths or transfer drafts across owners. Detached clean sessions are evicted; failed or unsaved sessions remain recoverable.
 
-## Observation
+## Revalidation
 
-`file.observe.create` waits for watcher readiness and buffers events until `file.observe.activate`. IDs, generations, owner windows, sequence numbers, and bounded queues protect the handshake. `file.observe.dispose` releases one subscription; the final lease closes the native watcher. Equivalent roots/options/filter policies can share coverage with a tree builder.
+Notes and Skills reuse existing tree invalidation callbacks. Active editors also reread on window focus, visible-document transitions, and reactivation. Editing adds no dedicated watcher service or shared watcher pool. Notifications invalidate knowledge; they never supply a replacement draft. Save correctness relies on conditional writes even when notifications are delayed or absent.
 
-The renderer observes parent directories independently of visible trees. Events invalidate knowledge; they never carry a replacement draft. The session rereads and checks its read generation, revision, pending writes, and seals before adopting a result. Notifications deferred during a save or sealed transition are revalidated when the session becomes available. Dirty content stays in memory and conflicting bytes pause saves. Gaps, overflow, and watcher errors trigger resubscription with bounded backoff and revalidation. Modification times alone never dismiss an editing event as a self-save echo.
+A reread checks its generation, draft revision, pending writes, and mutation barrier before adopting a result. Clean content can refresh; dirty content remains in memory and differing disk bytes set a conflict. Notifications deferred during a save or barrier are revalidated when the session becomes available.
 
-An observation read failure is logged and leaves freshness unknown. It neither sets nor clears a save error and does not pause autosave. Successful revalidation resumes normal reconciliation; genuine write failures still require retry or explicit discard.
+A transient observation read failure is logged and leaves freshness unknown. It does not erase the draft or create a save failure. Missing/retargeted leases, or failed revalidation during mutation completion, make the current binding unavailable. An explicit reload can clear the read error after a successful read; actual save failures retain their separate retry state.
 
 ## Closing and recovery
 
-Closing a file view releases its attachment and attempts to flush accepted edits while the renderer remains alive. Window close, application quit, relaunch, renderer reload, and pool reset retain their existing lifecycle behavior; there is no file-edit preparation barrier for those operations. Unsaved in-memory drafts are not guaranteed to survive them.
+Closing a file view releases its attachment and attempts to flush accepted edits while the renderer remains alive. A window recovery surface lists detached drafts with their owner and locator and offers copy/retry/discard. Clean settled sessions release Main leases after their attachments leave. Main also releases leases when their owner window is destroyed or the service stops, settling accepted operations.
 
-Main releases editing leases and observation subscriptions when their owner window is destroyed or the services stop, settling already accepted file operations. This cleanup cannot save edits that never reached Main. Reloading a renderer does not itself guarantee disposal of all leases held by its previous document.
-
-Releasing a view does not discard a dirty, failed, conflicted, or unknown-outcome session. The window recovery surface lists detached drafts and offers copy/retry/discard. Clean settled sessions release observations and Main leases after their attachments leave. This is in-process retention, not a crash-recovery journal or collaboration history.
+Window close, application quit, relaunch, renderer reload, and pool reset retain their existing lifecycle behavior; they have no file-edit preparation barrier. Main cleanup cannot save edits that never reached it, and renderer reload does not itself guarantee disposal of the previous document's leases. In-memory drafts are not guaranteed to survive these operations. Retention is not a crash-recovery journal or collaboration history.
 
 ## Verification boundaries
 
-Service tests cover real filesystem hashes, alias contention, rename, lease ownership, settlement fences, and metadata recovery. Renderer tests cover switching, stale callbacks, pinned flush targets, undo during save, failed-draft retention, replacement, mutation seals, composition veto, and observer reconnection. Platform-specific Electron acceptance and broader CI remain separate from these local contracts.
+Service tests cover real filesystem hashes, symlink traversal and retargeting, independent lease contention, rename ordering, settlement fences, and metadata recovery. Renderer tests cover independent owner drafts and conflicts, switching, stale callbacks, pinned flush targets, undo during save, retention, replacement, mutation barriers, and composition veto. Electron acceptance and broader CI remain separate from these contracts; local filesystem tests do not establish network filesystem guarantees.

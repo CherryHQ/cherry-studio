@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -17,7 +17,6 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { FileEditService } from '../FileEditService'
 import { FileManager } from '../FileManager'
 import { runPathMutationExclusive } from '../pathMutationLock'
-import * as managedStorageGuard from '../utils/managedStorageGuard'
 
 const bytes = (text: string) => new TextEncoder().encode(text)
 
@@ -56,18 +55,97 @@ describe('FileEditService persistence contract', () => {
     if (!handle) await writeFile(target, 'base')
     const resource = await service.open(owner, handle ?? { kind: 'path', path: target })
     handles.push(resource.editId)
-    return { resource, snapshot: await service.read(owner, resource.editId) }
+    return {
+      resource: {
+        ...resource,
+        path: handle?.kind === 'entry' ? files.getPhysicalPath(handle.entryId) : (handle?.path ?? target)
+      },
+      snapshot: await service.read(owner, resource.editId)
+    }
   }
 
-  it.each([
-    [String.raw`\\server\share\notes\note.md`, String.raw`\\server\share\notes`],
-    ['//server/share/notes/note.md', '//server/share/notes']
-  ])('preserves the filesystem address and observation parent for %s', async (input, parent) => {
-    vi.spyOn(managedStorageGuard, 'assertOutsideManagedStorageMutation').mockResolvedValue(undefined)
-    const target = AbsoluteFilePathSchema.parse(input)
-    const resource = await service.open(owner, { kind: 'path', path: target })
-    handles.push(resource.editId)
-    expect(resource).toMatchObject({ path: target, resourceKey: target, observationRoot: parent })
+  it('reads and saves through symlink-parent traversal without touching the lexical sibling', async () => {
+    await mkdir(path.join(root, 'a'))
+    await mkdir(path.join(root, 'other', 'dir'), { recursive: true })
+    await symlink(path.join(root, 'other', 'dir'), path.join(root, 'a', 'link'), 'junction')
+    const intended = path.join(root, 'other', 'note.md')
+    const sibling = path.join(root, 'a', 'note.md')
+    await writeFile(intended, 'intended')
+    await writeFile(sibling, 'sibling')
+    const target = AbsoluteFilePathSchema.parse(`${root}/a/link/../note.md`)
+    const { resource, snapshot } = await open({ kind: 'path', path: target })
+    expect(new TextDecoder().decode(snapshot.data)).toBe('intended')
+    expect(
+      await service.write(owner, {
+        editId: resource.editId,
+        sequence: 1,
+        expected: snapshot.baseline,
+        data: bytes('saved')
+      })
+    ).toMatchObject({ kind: 'committed' })
+    expect(await readFile(intended, 'utf8')).toBe('saved')
+    expect(await readFile(sibling, 'utf8')).toBe('sibling')
+  })
+
+  it.each(['path', 'entry'] as const)(
+    'edits a final symlink through a %s handle without replacing the link',
+    async (kind) => {
+      const target = path.join(root, 'target.md')
+      const link = AbsoluteFilePathSchema.parse(path.join(root, 'link.md'))
+      await writeFile(target, 'base')
+      await symlink(target, link)
+      const entry =
+        kind === 'entry' ? await files.ensureExternalEntry({ externalPath: link, cleanupPolicy: 'manual' }) : undefined
+      const { resource, snapshot } = await open(
+        entry ? { kind: 'entry', entryId: entry.id } : { kind: 'path', path: link }
+      )
+      expect(
+        await service.write(owner, {
+          editId: resource.editId,
+          sequence: 1,
+          expected: snapshot.baseline,
+          data: bytes('saved')
+        })
+      ).toMatchObject({ kind: 'committed' })
+      expect((await lstat(link)).isSymbolicLink()).toBe(true)
+      expect(await readFile(target, 'utf8')).toBe('saved')
+    }
+  )
+
+  it('rejects a retargeted symlink even when the replacement has identical content', async () => {
+    const link = AbsoluteFilePathSchema.parse(path.join(root, 'link.md'))
+    const first = path.join(root, 'first.md')
+    const second = path.join(root, 'second.md')
+    await writeFile(first, 'base')
+    await writeFile(second, 'base')
+    await symlink(first, link)
+    const { resource, snapshot } = await open({ kind: 'path', path: link })
+    await rm(link)
+    await symlink(second, link)
+    expect(
+      await service.write(owner, {
+        editId: resource.editId,
+        sequence: 1,
+        expected: snapshot.baseline,
+        data: bytes('wrong')
+      })
+    ).toMatchObject({ kind: 'not-committed', code: fileErrorCodes.EDIT_TARGET_CHANGED })
+    await expect(service.read(owner, resource.editId)).rejects.toMatchObject({
+      code: fileErrorCodes.EDIT_TARGET_CHANGED
+    })
+    expect(await readFile(first, 'utf8')).toBe('base')
+    expect(await readFile(second, 'utf8')).toBe('base')
+  })
+
+  it('denies managed storage reached through symlink-parent traversal', async () => {
+    await mkdir(path.join(root, 'managed', 'child'))
+    await symlink(path.join(root, 'managed', 'child'), path.join(root, 'link'), 'junction')
+    await writeFile(path.join(root, 'managed', 'secret.md'), 'protected')
+    await writeFile(path.join(root, 'secret.md'), 'decoy')
+    await expect(
+      open({ kind: 'path', path: AbsoluteFilePathSchema.parse(`${root}/link/../secret.md`) })
+    ).rejects.toThrow()
+    expect(await readFile(path.join(root, 'managed', 'secret.md'), 'utf8')).toBe('protected')
   })
 
   it('rejects an unfinished acquisition when the file service stops', async () => {
@@ -115,7 +193,6 @@ describe('FileEditService persistence contract', () => {
     const { resource, snapshot } = await open()
     const entry = await files.ensureExternalEntry({ externalPath: resource.path, cleanupPolicy: 'manual' })
     const second = await open({ kind: 'entry', entryId: entry.id })
-    expect(second.resource.resourceKey).toBe(resource.resourceKey)
     const outcomes = await Promise.all([
       service.write(owner, { editId: resource.editId, sequence: 1, expected: snapshot.baseline, data: bytes('path') }),
       service.write(owner, {

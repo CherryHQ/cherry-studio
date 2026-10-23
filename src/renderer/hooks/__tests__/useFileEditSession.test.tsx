@@ -46,7 +46,7 @@ afterEach(() => {
 
 it('preserves BOM, CRLF and raw Markdown on untouched load and after an actual edit', async () => {
   disk = new TextEncoder().encode('\ufeff__base__\r\n')
-  const { result } = renderHook(() => useFileEditSession(handle), { wrapper })
+  const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
   await waitFor(() => expect(result.current.status).toBe('ready'))
   expect(result.current.draft).toBe('__base__\n')
   await act(async () => result.current.flush())
@@ -63,7 +63,7 @@ it.each<[Uint8Array, string]>([
   [new TextEncoder().encode('a\r\nb\n'), 'mixed-line-endings']
 ])('blocks editing of unsupported text', async (bytes, reason) => {
   disk = bytes
-  const { result } = renderHook(() => useFileEditSession(handle), { wrapper })
+  const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
   await waitFor(() => expect(result.current.status).toBe('unsupported'))
   expect(result.current.unsupportedReason).toBe(reason)
   act(() => result.current.setDraft('replacement'))
@@ -71,7 +71,7 @@ it.each<[Uint8Array, string]>([
 })
 
 it('debounces real edits and rejects a callback captured before a document replacement', async () => {
-  const { result } = renderHook(() => useFileEditSession(handle), { wrapper })
+  const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
   await waitFor(() => expect(result.current.status).toBe('ready'))
   vi.useFakeTimers()
   const oldEdit = result.current.setDraft

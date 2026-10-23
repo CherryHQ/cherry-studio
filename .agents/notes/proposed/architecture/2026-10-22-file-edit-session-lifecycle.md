@@ -6,6 +6,8 @@ English | [中文](2026-10-22-file-edit-session-lifecycle.zh.md)
 
 ## Problem
 
+Scope revision: [Independent file editing instances and bounded persistence](2026-10-23-independent-file-edit-lifecycle.md) now owns the proposed current-PR scope and acceptance gate. The broader design below is retained for its alternatives and future lifecycle discussion; its shared-session, observation-pool and close requirements are not additional delivery prerequisites. Implementation and acceptance evidence follow that revision.
+
 Notes can expose one file's draft under another file's identity during a cached switch. Markdown normalization then triggers the page's string-comparison synchronization, which previously emitted an edit callback and saved the old content through the new file's model. The [bounded repair](../../implemented/bug-fix/2026-10-22-notes-session-isolation.md) binds callbacks to model instances, hides mismatched snapshots, and makes rich-editor snapshot loading silent. It preserves the live Markdown getter. Its local regressions and Electron reproduction establish that repair, not the absence of races throughout the editing lifecycle.
 
 The remaining design distributes ownership across React state mirrors, mutable model references, SWR snapshots, editor instances, and page effects. A file selection is a presentation decision, but previously also determined where a callback's content went. A Markdown representation difference is a formatting fact, but previously also acted as a synchronization command. Saving, changing modes, reloading, and disposing a view need explicit contracts rather than coordination through those incidental signals.

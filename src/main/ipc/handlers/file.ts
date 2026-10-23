@@ -39,12 +39,6 @@ function requireManagedSender(senderId: WindowId | null): TreeOwner {
  * on DataApi; these handlers cover live FS metadata and user-triggered mutations.
  */
 export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
-  'file.observe.create': async ({ rootPath, options }, { senderId }) =>
-    application.get('FileObservationManager').create(requireManagedSender(senderId).windowId, rootPath, options),
-  'file.observe.activate': async (lease, { senderId }) =>
-    application.get('FileObservationManager').activateObservation(requireManagedSender(senderId).windowId, lease),
-  'file.observe.dispose': async ({ observationId }, { senderId }) =>
-    application.get('FileObservationManager').dispose(requireManagedSender(senderId).windowId, observationId),
   'file.edit.open': async ({ handle }, { senderId }) =>
     application.get('FileEditService').open(requireManagedSender(senderId).windowId, handle),
   'file.edit.read': async ({ editId }, { senderId }) =>

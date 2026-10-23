@@ -1,20 +1,18 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { decodeFileText, encodeFileText, type DecodedFileText } from '@renderer/utils/fileTextSnapshot'
-import { toPathKey } from '@renderer/utils/path'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FileEditBaseline, FileEditResource, FileWriteOutcome } from '@shared/ipc/schemas/fileEdit'
-import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
-
-import { FileEditObservation } from './FileEditObservation'
 
 const logger = loggerService.withContext('FileEditSessionManager')
 
 export interface SessionSnapshot {
   readonly sessionId: string
-  readonly resourceKey: string
+  readonly ownerId: string
+  readonly locator: string
+  readonly readError?: Error
   readonly draft: string
   readonly savedContent: string
   readonly savedSizeBytes: number
@@ -43,22 +41,19 @@ interface WriteAttempt {
 }
 interface Session {
   resource: FileEditResource
-  draftResource: FileEditResource
-  locators: Map<string, FileEditResource>
-  sequences: Map<string, number>
+  key: string
+  sequence: number
   disk: DiskSnapshot
   snapshot: SessionSnapshot
   listeners: Set<() => void>
   attachments: Set<symbol>
-  writer?: symbol
+  binding?: symbol
   queue: Promise<void>
   pending: number
   attempt?: WriteAttempt
   timer?: ReturnType<typeof setTimeout>
   readGeneration: number
   transition: boolean
-  stopObservation: () => void
-  observationHealthy: boolean
   needsRevalidation: boolean
 }
 
@@ -76,41 +71,18 @@ export interface SessionLease {
 }
 
 export interface PreparedFileMutation {
-  commit(move?: { from: AbsoluteFilePath; to: AbsoluteFilePath }): Promise<void>
-  cancel(): void
+  finish(): Promise<void>
 }
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
 
-// Mutation matching must include filesystem addresses that cannot be persistent entry keys.
-function toMutationPathKey(path: AbsoluteFilePath): string | null {
-  const unc = path.startsWith('\\\\')
-  if (!unc && !path.startsWith('//')) return toPathKey(path)
-  const parts = path.slice(2).split(unc ? /[/\\]+/ : /\/+/)
-  const root = parts.splice(0, 2)
-  const segments: string[] = []
-  for (const part of parts) {
-    if (part === '..') segments.pop()
-    else if (part && part !== '.') segments.push(part)
-  }
-  return (unc ? '\\\\' : '//') + [...root, ...segments].join('/')
-}
-
-function mutationRelativePath(root: AbsoluteFilePath, path: AbsoluteFilePath): string | null {
-  const parent = toMutationPathKey(root)
-  const child = toMutationPathKey(path)
-  if (parent === null || child === null) return null
-  if (parent === child) return ''
-  const prefix = parent.endsWith('/') ? parent : `${parent}/`
-  return child.startsWith(prefix) ? child.slice(prefix.length) : null
-}
-
 class AcquisitionInterruptedError extends Error {}
 
 export class FileEditSessionManager {
   private readonly sessions = new Map<string, Session>()
+  private readonly acquisitions = new Map<string, Promise<Session>>()
   private acquisitionEpoch = 0
   private mutationSettled?: Promise<void>
   private composing = false
@@ -136,37 +108,31 @@ export class FileEditSessionManager {
       .map((session) => session.snapshot)
     for (const listener of this.inventoryListeners) listener()
   }
-  async recover(resourceKey: string, action: 'retry' | 'discard'): Promise<void> {
-    const session = this.sessions.get(resourceKey)
+  async recover(sessionId: string, action: 'retry' | 'discard'): Promise<void> {
+    const session = [...this.sessions.values()].find((candidate) => candidate.snapshot.sessionId === sessionId)
     if (!session || session.attachments.size) return
     if (action === 'discard') await this.replace(session, 'discard')
     else await this.flush(session)
   }
 
-  async prepareMutation(roots: readonly AbsoluteFilePath[]): Promise<PreparedFileMutation> {
+  async prepareMutation(): Promise<PreparedFileMutation> {
     if (this.composing || this.mutationSettled) throw new Error('File editing is not ready for a transition')
-    const affected = [...this.sessions.values()].filter((session) =>
-      roots.some((root) => mutationRelativePath(root, session.resource.path) !== null)
-    )
-    if (affected.some((session) => session.transition || session.snapshot.sealed))
-      throw new Error('A file transition is already running')
+    const affected = [...this.sessions.values()]
+    if (affected.some((session) => session.transition)) throw new Error('A file transition is already running')
     const settlement = Promise.withResolvers<void>()
     this.mutationSettled = settlement.promise
     this.acquisitionEpoch++
     for (const session of affected) {
       session.transition = true
+      session.readGeneration++
       this.cancelTimer(session)
       this.publish(session, { sealed: true })
     }
-    let finished = false
-    const cancel = () => {
-      if (finished) return
-      finished = true
+    const unseal = () => {
       for (const session of affected) {
         session.transition = false
         this.publish(session, { sealed: false })
         this.evict(session)
-        if (this.sessions.get(session.resource.resourceKey) === session) void this.invalidate(session)
       }
       this.mutationSettled = undefined
       settlement.resolve()
@@ -174,99 +140,52 @@ export class FileEditSessionManager {
     const results = await Promise.allSettled(affected.map((session) => this.flush(session)))
     const failure = results.find((result) => result.status === 'rejected')
     if (failure?.status === 'rejected') {
-      cancel()
+      unseal()
       throw failure.reason
     }
+    await Promise.all(affected.map((session) => session.queue))
+    let finishing: Promise<void> | undefined
     return {
-      cancel,
-      commit: async (move) => {
-        if (finished) return
-        finished = true
-        const results = await Promise.allSettled(
-          affected.map(async (session) => {
-            try {
-              if (move) {
-                const relative = mutationRelativePath(move.from, session.resource.path)
-                if (relative === null) return
-                const target = toPathKey(move.to) ?? move.to
-                const separator = move.to.startsWith('\\\\') ? '\\' : '/'
-                const prefix = target.endsWith(separator) || target.endsWith('/') ? target : `${target}${separator}`
-                const path = AbsoluteFilePathSchema.parse(
-                  relative ? prefix + relative.replaceAll('/', separator) : target
-                )
-                const resource = await ipcApi.request('file.edit.open', { handle: { kind: 'path', path } })
-                if (this.sessions.has(resource.resourceKey) && this.sessions.get(resource.resourceKey) !== session) {
-                  await ipcApi.request('file.edit.close', { editId: resource.editId })
-                  throw new Error('Destination already has an editing session')
-                }
-                let disk: DiskSnapshot
-                try {
-                  disk = await this.read(resource)
-                  if (disk.baseline.contentHash !== session.disk.baseline.contentHash)
-                    throw new Error('Moved file content changed before rebinding')
-                } catch (error) {
-                  await ipcApi.request('file.edit.close', { editId: resource.editId })
-                  throw error
-                }
-                const oldResource = session.resource
-                const oldLocators = [...session.locators.values()]
-                this.sessions.delete(oldResource.resourceKey)
-                session.stopObservation()
-                session.resource = resource
-                session.draftResource = resource
-                session.locators = new Map([[JSON.stringify({ kind: 'path', path }), resource]])
-                session.sequences.clear()
-                session.writer = undefined
-                this.sessions.set(resource.resourceKey, session)
-                session.stopObservation = this.observation.subscribe(resource.observationRoot, (available) => {
-                  session.observationHealthy = available
-                  void this.invalidate(session)
-                }).dispose
-                this.adoptBaseline(session, disk)
-                this.publish(session, {
-                  sessionId: crypto.randomUUID(),
-                  resourceKey: resource.resourceKey,
-                  documentEpoch: session.snapshot.documentEpoch + 1
-                })
-                await Promise.all(
-                  oldLocators.map((locator) => ipcApi.request('file.edit.close', { editId: locator.editId }))
-                )
-              } else {
-                session.writer = undefined
-                this.sessions.delete(session.resource.resourceKey)
-                session.stopObservation()
-                await Promise.all(
-                  [...session.locators.values()].map((locator) =>
-                    ipcApi.request('file.edit.close', { editId: locator.editId })
-                  )
-                )
-              }
-            } catch (error) {
-              this.publish(session, { saveError: asError(error) })
-              throw error
-            } finally {
-              session.transition = false
-              this.publish(session, { sealed: false })
-              this.evict(session)
-            }
-          })
-        )
-        const failed = results.find((result) => result.status === 'rejected')
-        this.mutationSettled = undefined
-        settlement.resolve()
-        if (failed?.status === 'rejected') throw failed.reason
+      finish: () => {
+        finishing ??= (async () => {
+          try {
+            await Promise.all(
+              affected.filter((session) => session.attachments.size).map((session) => this.invalidate(session, true))
+            )
+          } finally {
+            unseal()
+          }
+        })()
+        return finishing
       }
     }
   }
-  private readonly observation = new FileEditObservation()
 
-  async acquire(handle: FileHandle): Promise<SessionLease> {
+  async acquire(ownerId: string, handle: FileHandle): Promise<SessionLease> {
+    const locator = handle.kind === 'path' ? handle.path : handle.entryId
+    const key = JSON.stringify([ownerId, handle.kind, locator])
     for (;;) {
       while (this.mutationSettled) await this.mutationSettled
+      const epoch = this.acquisitionEpoch
+      const retained = this.sessions.get(key)
+      if (retained) {
+        const lease = this.attach(retained)
+        void this.invalidate(retained)
+        return lease
+      }
+      let opening = this.acquisitions.get(key)
+      if (!opening) {
+        opening = this.open(key, ownerId, locator, handle, epoch)
+        this.acquisitions.set(key, opening)
+      }
       try {
-        return await this.open(handle, this.acquisitionEpoch)
+        const session = await opening
+        if (this.mutationSettled || epoch !== this.acquisitionEpoch) continue
+        return this.attach(session)
       } catch (error) {
         if (!(error instanceof AcquisitionInterruptedError)) throw error
+      } finally {
+        if (this.acquisitions.get(key) === opening) this.acquisitions.delete(key)
       }
     }
   }
@@ -275,84 +194,51 @@ export class FileEditSessionManager {
     return [...this.sessions.values()].map((session) => session.snapshot)
   }
 
-  private async open(handle: FileHandle, acquisitionEpoch: number): Promise<SessionLease> {
+  private async open(
+    key: string,
+    ownerId: string,
+    locator: string,
+    handle: FileHandle,
+    epoch: number
+  ): Promise<Session> {
     const resource = await ipcApi.request('file.edit.open', { handle })
     try {
-      if (this.mutationSettled || acquisitionEpoch !== this.acquisitionEpoch)
-        throw new AcquisitionInterruptedError('File sessions are transitioning')
-      let session = this.sessions.get(resource.resourceKey)
-      if (!session) {
-        let observed: Session | undefined
-        const watch = this.observation.subscribe(resource.observationRoot, (available) => {
-          if (observed) {
-            observed.observationHealthy = available
-            void this.invalidate(observed)
-          }
-        })
-        let disk: DiskSnapshot
-        let observationSequence: number
-        try {
-          await watch.ready
-          observationSequence = watch.getSequence()
-          disk = await this.read(resource)
-        } catch (error) {
-          watch.dispose()
-          throw error
+      if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
+      const disk = await this.read(resource)
+      if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
+      const session: Session = {
+        key,
+        resource,
+        sequence: 0,
+        disk,
+        listeners: new Set(),
+        attachments: new Set(),
+        queue: Promise.resolve(),
+        pending: 0,
+        readGeneration: 0,
+        transition: false,
+        needsRevalidation: false,
+        snapshot: {
+          sessionId: crypto.randomUUID(),
+          ownerId,
+          locator,
+          draft: disk.content,
+          savedContent: disk.content,
+          savedSizeBytes: disk.baseline.version.size,
+          revision: 0,
+          documentEpoch: 1,
+          bindingEpoch: 0,
+          isDirty: false,
+          isSaving: false,
+          conflict: false,
+          metadataRecoveryPending: false,
+          outcomeUnknown: false,
+          freshness: 'known',
+          sealed: false
         }
-        if (this.mutationSettled || acquisitionEpoch !== this.acquisitionEpoch) {
-          watch.dispose()
-          throw new AcquisitionInterruptedError('File sessions are transitioning')
-        }
-        session = this.sessions.get(resource.resourceKey)
-        if (!session) {
-          session = {
-            resource,
-            draftResource: resource,
-            locators: new Map([[JSON.stringify(handle), resource]]),
-            sequences: new Map(),
-            disk,
-            listeners: new Set(),
-            attachments: new Set(),
-            queue: Promise.resolve(),
-            pending: 0,
-            readGeneration: 0,
-            transition: false,
-            stopObservation: watch.dispose,
-            observationHealthy: watch.isActive(),
-            needsRevalidation: false,
-            snapshot: {
-              sessionId: crypto.randomUUID(),
-              resourceKey: resource.resourceKey,
-              draft: disk.content,
-              savedContent: disk.content,
-              savedSizeBytes: disk.baseline.version.size,
-              revision: 0,
-              documentEpoch: 1,
-              bindingEpoch: 0,
-              isDirty: false,
-              isSaving: false,
-              conflict: false,
-              metadataRecoveryPending: false,
-              outcomeUnknown: false,
-              freshness: watch.isActive() ? 'known' : 'unknown',
-              sealed: false
-            }
-          }
-          this.sessions.set(resource.resourceKey, session)
-          observed = session
-          if (observationSequence !== watch.getSequence()) void this.invalidate(session)
-        } else watch.dispose()
       }
-      const locatorKey = JSON.stringify(handle)
-      const locator = session.locators.get(locatorKey) ?? resource
-      session.locators.set(locatorKey, locator)
-      const attachment = this.attach(session, locator)
-      if (locator.editId !== resource.editId) {
-        void ipcApi
-          .request('file.edit.close', { editId: resource.editId })
-          .catch((error) => logger.error('Redundant edit lease cleanup failed', asError(error)))
-      }
-      return attachment
+      this.sessions.set(key, session)
+      return session
     } catch (error) {
       await ipcApi
         .request('file.edit.close', { editId: resource.editId })
@@ -361,14 +247,14 @@ export class FileEditSessionManager {
     }
   }
 
-  private attach(session: Session, locator: FileEditResource): SessionLease {
+  private attach(session: Session): SessionLease {
     const attachment = Symbol('file attachment')
     session.attachments.add(attachment)
     this.publishInventory()
-    const writable = session.writer === undefined
-    if (writable) session.writer = attachment
+    session.binding = attachment
+    this.publish(session, { bindingEpoch: session.snapshot.bindingEpoch + 1 })
     let released = false
-    const current = () => !released && session.writer === attachment && !session.snapshot.sealed
+    const current = () => !released && session.binding === attachment && !session.snapshot.sealed
     const command = (run: () => Promise<void>) => {
       if (!current()) return Promise.reject(new Error('File editor binding is no longer writable'))
       return run()
@@ -381,7 +267,9 @@ export class FileEditSessionManager {
           session.listeners.delete(listener)
         }
       },
-      writable,
+      get writable() {
+        return !released && session.binding === attachment
+      },
       acceptEdit: (
         text,
         documentEpoch = session.snapshot.documentEpoch,
@@ -389,13 +277,13 @@ export class FileEditSessionManager {
       ) => {
         if (
           !current() ||
+          !!session.snapshot.readError ||
           documentEpoch !== session.snapshot.documentEpoch ||
           bindingEpoch !== session.snapshot.bindingEpoch
         )
           return false
         const draft = text.replace(/\r\n?/g, '\n')
         if (draft === session.snapshot.draft) return true
-        session.draftResource = locator
         this.publish(session, { draft, revision: session.snapshot.revision + 1 })
         this.schedule(session)
         return true
@@ -410,8 +298,8 @@ export class FileEditSessionManager {
         released = true
         session.attachments.delete(attachment)
         this.publishInventory()
-        if (session.writer === attachment) {
-          session.writer = undefined
+        if (session.binding === attachment) {
+          session.binding = undefined
           this.cancelTimer(session)
           if (session.snapshot.isDirty && !session.snapshot.saveError && !session.snapshot.conflict)
             void this.flush(session).catch(() => {})
@@ -425,7 +313,7 @@ export class FileEditSessionManager {
     const bindingEpoch =
       patch.sealed !== undefined && patch.sealed !== session.snapshot.sealed
         ? session.snapshot.bindingEpoch + 1
-        : session.snapshot.bindingEpoch
+        : (patch.bindingEpoch ?? session.snapshot.bindingEpoch)
     session.snapshot = { ...session.snapshot, ...patch, bindingEpoch }
     session.snapshot = { ...session.snapshot, isDirty: session.snapshot.draft !== session.disk.content }
     for (const listener of session.listeners) listener()
@@ -443,7 +331,7 @@ export class FileEditSessionManager {
     this.publish(session, {
       savedContent: disk.content,
       savedSizeBytes: disk.baseline.version.size,
-      freshness: session.observationHealthy ? 'known' : 'unknown'
+      freshness: 'known'
     })
   }
 
@@ -461,6 +349,7 @@ export class FileEditSessionManager {
   }
 
   private enqueue(session: Session, run: () => Promise<void>): Promise<void> {
+    session.readGeneration++
     session.pending++
     this.publish(session, { isSaving: true })
     const task = session.queue.then(run)
@@ -474,7 +363,7 @@ export class FileEditSessionManager {
           !session.pending &&
           session.needsRevalidation &&
           !session.snapshot.sealed &&
-          this.sessions.get(session.resource.resourceKey) === session
+          this.sessions.get(session.key) === session
         )
           void this.invalidate(session)
       })
@@ -484,7 +373,7 @@ export class FileEditSessionManager {
   private flush(session: Session): Promise<void> {
     this.cancelTimer(session)
     const { draft, revision } = session.snapshot
-    const resource = session.draftResource
+    const resource = session.resource
     return this.enqueue(session, async () => {
       try {
         await this.settle(session)
@@ -499,16 +388,10 @@ export class FileEditSessionManager {
     })
   }
 
-  private async save(
-    session: Session,
-    text: string,
-    revision: number,
-    resource = session.draftResource
-  ): Promise<void> {
+  private async save(session: Session, text: string, revision: number, resource = session.resource): Promise<void> {
     for (let retries = 0; retries < 4; retries++) {
       if (text === session.disk.content) return
-      const sequence = (session.sequences.get(resource.editId) ?? 0) + 1
-      session.sequences.set(resource.editId, sequence)
+      const sequence = ++session.sequence
       const attempt = { sequence, resource, text, revision, disk: session.disk }
       const data = encodeFileText(text, attempt.disk.lineEnding, attempt.disk.hasBom)
       session.attempt = attempt
@@ -575,7 +458,7 @@ export class FileEditSessionManager {
       try {
         await this.settle(session)
         if (mode !== 'discard') this.adoptBaseline(session, await this.read(session.resource))
-        this.publish(session, { conflict: false, saveError: undefined })
+        this.publish(session, { conflict: false, saveError: undefined, readError: undefined })
         if (mode === 'keep') await this.save(session, draft, revision)
         else
           this.publish(session, {
@@ -593,14 +476,14 @@ export class FileEditSessionManager {
     })
   }
 
-  private async invalidate(session: Session): Promise<void> {
-    const generation = ++session.readGeneration
-    const revision = session.snapshot.revision
+  private async invalidate(session: Session, preparing = false): Promise<void> {
     this.publish(session, { freshness: 'unknown' })
-    if (session.pending || session.snapshot.sealed) {
+    if (session.pending || (session.snapshot.sealed && !preparing)) {
       session.needsRevalidation = true
       return
     }
+    const generation = ++session.readGeneration
+    const revision = session.snapshot.revision
     session.needsRevalidation = false
     try {
       const disk = await this.read(session.resource)
@@ -608,9 +491,10 @@ export class FileEditSessionManager {
         session.readGeneration !== generation ||
         session.snapshot.revision !== revision ||
         session.pending ||
-        session.snapshot.sealed
+        (session.snapshot.sealed && !preparing)
       )
         return
+      this.publish(session, { readError: undefined })
       if (session.snapshot.isDirty) {
         if (disk.baseline.contentHash !== session.disk.baseline.contentHash) this.publish(session, { conflict: true })
         else this.adoptBaseline(session, disk)
@@ -625,11 +509,18 @@ export class FileEditSessionManager {
           documentEpoch: session.snapshot.documentEpoch + 1
         })
     } catch (error) {
-      if (generation === session.readGeneration)
+      if (generation === session.readGeneration) {
+        if (
+          preparing ||
+          (error instanceof IpcError &&
+            (error.code === fileErrorCodes.EDIT_MISSING || error.code === fileErrorCodes.EDIT_TARGET_CHANGED))
+        )
+          this.publish(session, { readError: asError(error) })
         logger.warn('File edit observation read failed', {
-          resourceKey: session.resource.resourceKey,
+          sessionId: session.snapshot.sessionId,
           error: asError(error)
         })
+      }
     }
   }
 
@@ -643,14 +534,13 @@ export class FileEditSessionManager {
       session.attempt
     )
       return
-    if (this.sessions.get(session.resource.resourceKey) !== session) return
-    this.sessions.delete(session.resource.resourceKey)
+    if (this.sessions.get(session.key) !== session) return
+    this.sessions.delete(session.key)
     this.publishInventory()
-    session.stopObservation()
     this.cancelTimer(session)
     session.readGeneration++
-    void Promise.all(
-      [...session.locators.values()].map((locator) => ipcApi.request('file.edit.close', { editId: locator.editId }))
-    ).catch((error) => logger.error('Edit lease cleanup failed', asError(error)))
+    void ipcApi
+      .request('file.edit.close', { editId: session.resource.editId })
+      .catch((error) => logger.error('Edit lease cleanup failed', asError(error)))
   }
 }

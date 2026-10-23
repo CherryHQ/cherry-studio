@@ -262,7 +262,9 @@ describe('SkillFileBrowser', () => {
       await Promise.resolve()
     })
 
-    expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('skill.reconcile', { skillId: 'skill-1' })
+    expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'skill.reconcile')).toEqual([
+      ['skill.reconcile', { skillId: 'skill-1' }]
+    ])
   })
 
   it('reports a saved file whose scoped Skill synchronization failed', async () => {

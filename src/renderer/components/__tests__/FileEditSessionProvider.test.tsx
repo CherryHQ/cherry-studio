@@ -15,7 +15,7 @@ let disk: string
 let fail: boolean
 
 function Editor() {
-  const session = useFileEditSession(handle)
+  const session = useFileEditSession(handle, 'notes')
   return (
     <textarea
       aria-label="draft"

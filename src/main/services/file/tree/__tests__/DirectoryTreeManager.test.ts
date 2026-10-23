@@ -38,11 +38,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
   }
 })
 
-import { MockApplicationUtils } from '@test-mocks/main/application'
-
 import { BaseService } from '@main/core/lifecycle'
-
-import { FileObservationManager } from '../../FileObservationManager'
 
 // Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it
@@ -109,7 +105,6 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-registry-'))
     BaseService.resetInstances()
-    MockApplicationUtils.setService('FileObservationManager', new FileObservationManager())
     registry = new DirectoryTreeManager()
     await registry._doInit()
   })
@@ -117,7 +112,6 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
   afterEach(async () => {
     await registry.disposeAll()
     await rm(tmp, { recursive: true, force: true })
-    MockApplicationUtils.resetServices()
     vi.restoreAllMocks()
   })
 

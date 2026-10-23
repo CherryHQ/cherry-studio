@@ -5,7 +5,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { fileEditRequestSchemas } from '@shared/ipc/schemas/fileEdit'
 import type { FileWriteOutcome } from '@shared/ipc/schemas/fileEdit'
-import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
+import { FileVersionSchema } from '@shared/types/file'
 
 interface ReadFixture {
   content: Uint8Array
@@ -26,18 +26,12 @@ export function createEditTransport(
       if (handle.kind !== 'path') throw new Error('Path fixture required')
       const editId = randomUUID()
       paths.set(editId, handle.path)
-      const normalized = handle.path.replaceAll('\\', '/')
-      return {
-        editId,
-        path: handle.path,
-        resourceKey: handle.path,
-        observationRoot: AbsoluteFilePathSchema.parse(normalized.slice(0, normalized.lastIndexOf('/')) || '/')
-      }
+      return { editId }
     }
-    if (route === 'file.edit.close') return undefined
-    if (route === 'file.observe.create') return { observationId: randomUUID(), generation: randomUUID(), sequence: 0 }
-    if (route === 'file.observe.activate') return true
-    if (route === 'file.observe.dispose') return undefined
+    if (route === 'file.edit.close') {
+      paths.delete(fileEditRequestSchemas[route].input.parse(input).editId)
+      return undefined
+    }
     if (route === 'file.edit.read') {
       const { editId } = fileEditRequestSchemas[route].input.parse(input)
       const result = await read(route, { editId, path: paths.get(editId) })

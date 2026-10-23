@@ -733,7 +733,7 @@ function AgentRightPaneStateProvider({
       ? getArtifactPaneSelectionPath(previewFileSelection)
       : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
-  const fileSession = useFileEditSession(editHandle)
+  const fileSession = useFileEditSession(editHandle, `agent-artifact:${sessionId}`)
   const discardFileDraft = fileSession.discard
   const systemWorkspacePath = useMemo(() => {
     if (workspaceType !== AGENT_WORKSPACE_TYPE.SYSTEM || !workspacePath) return undefined

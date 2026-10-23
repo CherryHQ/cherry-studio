@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import nodePath from 'node:path'
+import { realpath } from 'node:fs/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { hashContent, PathStaleVersionError } from '@main/utils/file'
+import { atomicWriteIfUnchanged, hashContent, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -20,16 +20,15 @@ import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/fil
 import { EditWriteLedger } from './edit/EditWriteLedger'
 import { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 import { runPathMutationExclusive } from './pathMutationLock'
-import { writeIfUnchangedByPath } from './utils/content'
 import { readEditSnapshot } from './utils/editSnapshot'
 import { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
-import { normalizeAccessPath } from './utils/normalizeAccessPath'
 
 const logger = loggerService.withContext('FileEditService')
 const MAX_LEASES_PER_WINDOW = 64
 interface EditLease {
   owner: WindowId
   resource: FileEditResource
+  path: AbsoluteFilePath
   handle: FileHandle
   ledger: EditWriteLedger
   reads: Set<Promise<FileEditRead>>
@@ -64,29 +63,23 @@ export class FileEditService extends BaseService {
     let retention: Disposable | undefined
     try {
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
-      const path = this.resolve(handle)
-      if (handle.kind === 'path') await assertOutsideManagedStorageMutation(path)
-      else {
+      if (handle.kind === 'entry') {
         const files = application.get('FileManager')
         const entry = await files.getById(handle.entryId)
         if (entry.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced')
           retention = files.retainTemporaryEntry(entry.id)
       }
+      const path = await this.resolve(handle)
+      if (handle.kind === 'path') await assertOutsideManagedStorageMutation(handle.path, path)
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
       if ([...this.leases.values()].filter((lease) => lease.owner === owner).length >= MAX_LEASES_PER_WINDOW) {
         throw new IpcError(fileErrorCodes.EDIT_LIMIT, 'Too many retained file editing sessions')
       }
-      const resource = {
-        editId: randomUUID(),
-        resourceKey: path,
-        path,
-        observationRoot: AbsoluteFilePathSchema.parse(
-          path.startsWith('\\\\') ? nodePath.win32.dirname(path) : nodePath.dirname(path)
-        )
-      }
+      const resource = { editId: randomUUID() }
       this.leases.set(resource.editId, {
         owner,
         resource,
+        path,
         handle: { ...handle },
         ledger: new EditWriteLedger(),
         reads: new Set(),
@@ -103,8 +96,11 @@ export class FileEditService extends BaseService {
     const lease = this.require(owner, editId)
     const task =
       lease.handle.kind === 'entry'
-        ? application.get('FileManager').readEditSnapshot(lease.handle.entryId, lease.resource.path)
-        : runPathMutationExclusive(() => readEditSnapshot(lease.resource.path))
+        ? application.get('FileManager').readEditSnapshot(lease.handle.entryId, lease.path)
+        : runPathMutationExclusive(async () => {
+            await this.validateTarget(lease)
+            return readEditSnapshot(lease.path)
+          })
     lease.reads.add(task)
     try {
       const snapshot = await task
@@ -132,22 +128,15 @@ export class FileEditService extends BaseService {
     ])
     return lease.ledger.write(sequence, fingerprint, async () => {
       try {
-        if (this.resolve(lease.handle) !== lease.resource.path) {
-          throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
-        }
-        if (lease.handle.kind === 'path') await assertOutsideManagedStorageMutation(lease.resource.path)
         const version =
           lease.handle.kind === 'entry'
             ? await application
                 .get('FileManager')
-                .writeIfUnchanged(
-                  lease.handle.entryId,
-                  data,
-                  expected.version,
-                  expected.contentHash,
-                  lease.resource.path
-                )
-            : await writeIfUnchangedByPath(lease.resource.path, data, expected.version, expected.contentHash)
+                .writeIfUnchanged(lease.handle.entryId, data, expected.version, expected.contentHash, lease.path)
+            : await runPathMutationExclusive(async () => {
+                await this.validateTarget(lease)
+                return atomicWriteIfUnchanged(lease.path, data, expected.version, expected.contentHash)
+              })
         return {
           kind: 'committed',
           sequence: sequence,
@@ -204,9 +193,15 @@ export class FileEditService extends BaseService {
     return lease
   }
 
-  private resolve(handle: FileHandle): AbsoluteFilePath {
+  private async validateTarget(lease: EditLease): Promise<void> {
+    if ((await this.resolve(lease.handle)) !== lease.path)
+      throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
+    await assertOutsideManagedStorageMutation(lease.path)
+  }
+
+  private async resolve(handle: FileHandle): Promise<AbsoluteFilePath> {
     const path = handle.kind === 'entry' ? application.get('FileManager').getPhysicalPath(handle.entryId) : handle.path
-    return normalizeAccessPath(path)
+    return AbsoluteFilePathSchema.parse(await realpath(path))
   }
 
   private closed(): IpcError {

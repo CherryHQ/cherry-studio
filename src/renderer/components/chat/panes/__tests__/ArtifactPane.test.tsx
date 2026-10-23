@@ -82,7 +82,7 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
     editMode === 'edit' && selectedFile
       ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
       : undefined
-  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined)
+  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined, 'artifact')
 
   return (
     <ArtifactPaneView
@@ -727,8 +727,7 @@ vi.mock('@renderer/ipc', async () => {
         if (route === 'file.tree.dispose') return mocks.treeDispose(input.treeId)
         return edit(route, input)
       },
-      on: (event: string, callback: unknown) =>
-        event === 'file.observe.event' ? () => {} : mocks.treeOnMutation(callback)
+      on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
     }
   }
 })

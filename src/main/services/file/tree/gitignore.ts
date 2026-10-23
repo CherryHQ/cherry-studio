@@ -21,7 +21,6 @@
  * a user-side `!.git` cannot un-ignore it.
  */
 
-import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -77,8 +76,6 @@ export function defaultRipgrepGlobArgs(): string[] {
 }
 
 export interface GitignorePredicate {
-  /** Fingerprint of the rules loaded for this predicate, for watcher sharing. */
-  readonly policyKey: string
   /** True if the absolute path should be excluded from scan/watch. */
   (absPath: string): boolean
 }
@@ -129,7 +126,7 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     return null
   }
 
-  const predicate = (absPath: string) => {
+  return (absPath: string) => {
     const normalized = absPath.replace(/\\/g, '/')
     if (normalized === normalizedRoot) return false
     if (!normalized.startsWith(`${normalizedRoot}/`)) return false
@@ -137,8 +134,4 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
     if (!rel) return false
     return ig.ignores(rel)
   }
-  const policyKey = createHash('sha256')
-    .update(JSON.stringify([DEFAULT_IGNORE_PATTERNS, raw ?? '', '.git']))
-    .digest('hex')
-  return Object.assign(predicate, { policyKey })
 }

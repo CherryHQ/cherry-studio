@@ -1,7 +1,4 @@
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,17 +38,8 @@ beforeEach(() => {
     if (route === 'file.edit.open') {
       const { handle } = fileEditRequestSchemas[route].input.parse(input)
       if (handle.kind !== 'path') throw new Error('Path fixture required')
-      return {
-        editId: crypto.randomUUID(),
-        resourceKey: handle.path,
-        path: handle.path,
-        observationRoot: AbsoluteFilePathSchema.parse('/notes')
-      }
+      return { editId: crypto.randomUUID() }
     }
-    if (route === 'file.observe.create')
-      return { observationId: crypto.randomUUID(), generation: crypto.randomUUID(), sequence: 0 }
-    if (route === 'file.observe.activate') return true
-    if (route === 'file.observe.dispose') return undefined
     if (route === 'file.edit.read') return disk
     if (route === 'file.edit.close') return undefined
     if (route === 'file.edit.settle_write' && input && typeof input === 'object' && 'sequence' in input) {
@@ -101,12 +89,12 @@ function snapshot(text: string): FileEditRead {
 
 describe('file editing lifetime', () => {
   it('retains a failed draft after release and rejects callbacks from the previous attachment', async () => {
-    const first = await manager.acquire(handle)
+    const first = await manager.acquire('notes', handle)
     failWrite = true
     first.acceptEdit('b')
     await expect(first.flush()).rejects.toThrow()
     first.release()
-    const next = await manager.acquire(handle)
+    const next = await manager.acquire('notes', handle)
     expect(next.getSnapshot().draft).toBe('b')
     expect(first.acceptEdit('stale')).toBe(false)
     failWrite = false
@@ -114,19 +102,31 @@ describe('file editing lifetime', () => {
     expect(new TextDecoder().decode(disk.data)).toBe('b')
   })
 
-  it('grants only one writer for two handles resolving to the same resource', async () => {
-    const [first, second] = await Promise.all([manager.acquire(handle), manager.acquire(handle)])
+  it('keeps different owners editable and reports a conflict without losing either draft', async () => {
+    const [first, second] = await Promise.all([manager.acquire('notes', handle), manager.acquire('artifact', handle)])
     expect(first.writable).toBe(true)
-    expect(second.writable).toBe(false)
-    expect(second.acceptEdit('b')).toBe(false)
-    first.acceptEdit('c')
-    expect(second.getSnapshot().draft).toBe('c')
+    expect(second.writable).toBe(true)
+    first.acceptEdit('notes edit')
+    second.acceptEdit('artifact edit')
+    expect(first.getSnapshot().draft).toBe('notes edit')
+    expect(second.getSnapshot().draft).toBe('artifact edit')
     await first.flush()
-    expect(writes).toEqual(['c'])
+    await expect(second.flush()).rejects.toThrow('external changes')
+    expect(second.getSnapshot()).toMatchObject({ draft: 'artifact edit', conflict: true, isDirty: true })
+    expect(new TextDecoder().decode(disk.data)).toBe('notes edit')
+  })
+
+  it('joins same-owner acquisitions and retires a replaced binding', async () => {
+    const [first, second] = await Promise.all([manager.acquire('notes', handle), manager.acquire('notes', handle)])
+    expect(first.getSnapshot().sessionId).toBe(second.getSnapshot().sessionId)
+    expect(first.acceptEdit('stale')).toBe(false)
+    expect(second.acceptEdit('current')).toBe(true)
+    await second.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('current')
   })
 
   it('flush pins the undo revision behind an older write even when that undo initially looks clean', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     const gate = Promise.withResolvers<void>()
     holdWrite = gate.promise
     lease.acceptEdit('b')
@@ -145,7 +145,7 @@ describe('file editing lifetime', () => {
   })
 
   it('settles a lost receipt before issuing the next sequence', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     loseReceipt = true
     failSettlement = true
     lease.acceptEdit('b')
@@ -159,7 +159,7 @@ describe('file editing lifetime', () => {
   })
 
   it('preserves the draft on an external change and only replaces it on explicit reload', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     lease.acceptEdit('b')
     disk = snapshot('c')
     await lease.invalidate()
@@ -170,8 +170,23 @@ describe('file editing lifetime', () => {
     expect(writes).toEqual([])
   })
 
+  it('rejects a delayed clean read after a local edit and reports the conflict on save', async () => {
+    const lease = await manager.acquire('notes', handle)
+    const read = Promise.withResolvers<FileEditRead>()
+    vi.mocked(ipcApi.request).mockImplementationOnce(() => read.promise)
+    const refreshing = lease.invalidate()
+    lease.acceptEdit('local edit')
+    disk = snapshot('external edit')
+    read.resolve(disk)
+    await refreshing
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local edit', savedContent: 'a', isDirty: true })
+    await expect(lease.flush()).rejects.toThrow('external changes')
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local edit', conflict: true })
+    expect(new TextDecoder().decode(disk.data)).toBe('external edit')
+  })
+
   it.each(['autosave', 'release'] as const)('continues %s after an observation read recovers', async (action) => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     const original = vi.mocked(ipcApi.request).getMockImplementation()!
     vi.mocked(ipcApi.request).mockImplementationOnce(async () => {
       throw new Error('temporary read failure')
@@ -190,7 +205,7 @@ describe('file editing lifetime', () => {
   })
 
   it('keeps a genuine write error through failed and successful observation reads', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     lease.acceptEdit('unsaved')
     failWrite = true
     await expect(lease.flush()).rejects.toThrow('File save failed')
@@ -213,7 +228,7 @@ describe('file editing lifetime', () => {
   })
 
   it('reconciles an invalidation received after commit but before the save receipt returns', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     const original = vi.mocked(ipcApi.request).getMockImplementation()!
     vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
       const result = await original(route, ...args)
@@ -231,7 +246,7 @@ describe('file editing lifetime', () => {
   })
 
   it('discards against the baseline established by an already accepted save', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     const gate = Promise.withResolvers<void>()
     holdWrite = gate.promise
     lease.acceptEdit('b')
@@ -245,111 +260,35 @@ describe('file editing lifetime', () => {
     expect(writes).toEqual(['b'])
   })
 
-  it('seals a file mutation until commit and rejects edits from its retired binding', async () => {
-    const lease = await manager.acquire(handle)
-    lease.acceptEdit('b')
-    const prepared = await manager.prepareMutation([path])
-    expect(new TextDecoder().decode(disk.data)).toBe('b')
-    expect(lease.acceptEdit('c')).toBe(false)
-    await prepared.commit()
-    expect(lease.acceptEdit('d')).toBe(false)
-    expect(manager.listRetained()).toEqual([])
-  })
-
-  it.each([
-    [String.raw`\\server\share\note.md`, String.raw`\\server\share\renamed.md`, '', false],
-    ['//server/share/note.md', '//server/share/renamed.md', '', false],
-    [String.raw`\\server\share\notes`, String.raw`\\server\share\moved`, String.raw`\nested\note.md`, true],
-    ['//server/share/notes/', '//server/share/moved/', 'nested/note.md', true],
-    [String.raw`\\server\share`, String.raw`\\backup\share`, String.raw`\nested\note.md`, true],
-    ['//server/share', '//backup/share', '/nested/note.md', true]
-  ])('flushes and rebinds network mutation %s', async (source, destination, suffix, directory) => {
-    const from = AbsoluteFilePathSchema.parse(source)
-    const to = AbsoluteFilePathSchema.parse(destination)
-    const sourceFile = AbsoluteFilePathSchema.parse(source + suffix)
-    const destinationFile = AbsoluteFilePathSchema.parse(destination + suffix)
-    const temp = mkdtempSync(join(tmpdir(), 'file-edit-move-'))
-    const physicalFrom = join(temp, 'source')
-    const physicalTo = join(temp, 'destination')
-    const oldFile = directory ? join(physicalFrom, 'nested', 'note.md') : physicalFrom
-    const newFile = directory ? join(physicalTo, 'nested', 'note.md') : physicalTo
-    if (directory) mkdirSync(join(physicalFrom, 'nested'), { recursive: true })
-    writeFileSync(oldFile, 'a')
-    const files = new Map([
-      [sourceFile, oldFile],
-      [destinationFile, newFile]
-    ])
-    const leases = new Map<string, string>()
-    const original = vi.mocked(ipcApi.request).getMockImplementation()!
-    vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
-      if (route === 'file.edit.open') {
-        const result = fileEditRequestSchemas[route].output.parse(await original(route, ...args))
-        const physical = files.get(result.path)
-        if (!physical) throw new Error(`Unexpected address: ${result.path}`)
-        leases.set(result.editId, physical)
-        return result
-      }
-      if (route === 'file.edit.read' || route === 'file.edit.write') {
-        const input = args[0]
-        if (!input || typeof input !== 'object' || !('editId' in input)) throw new Error('Missing edit ID')
-        const physical = leases.get(input.editId)
-        if (!physical) throw new Error('Missing file lease')
-        disk = snapshot(readFileSync(physical, 'utf8'))
-        const result = await original(route, ...args)
-        if (route === 'file.edit.write') writeFileSync(physical, disk.data)
-        return result
-      }
-      return original(route, ...args)
-    })
-    try {
-      const lease = await manager.acquire({ kind: 'path', path: sourceFile })
-      lease.acceptEdit('edited before rename')
-      const prepared = await manager.prepareMutation([from])
-      expect(readFileSync(oldFile, 'utf8')).toBe('edited before rename')
-      expect(lease.acceptEdit('during rename')).toBe(false)
-      renameSync(physicalFrom, physicalTo)
-      await prepared.commit({ from, to })
-      expect(lease.getSnapshot()).toMatchObject({ resourceKey: destinationFile, isDirty: false, sealed: false })
-      expect(lease.acceptEdit('stale source callback')).toBe(false)
-      lease.release()
-      const next = await manager.acquire({ kind: 'path', path: destinationFile })
-      expect(next.getSnapshot().draft).toBe('edited before rename')
-      expect(next.acceptEdit('edited after rename')).toBe(true)
-      await next.flush()
-      expect(readFileSync(newFile, 'utf8')).toBe('edited after rename')
-      expect(existsSync(oldFile)).toBe(false)
-      next.release()
-    } finally {
-      rmSync(temp, { recursive: true, force: true })
-    }
-  })
-
-  it.each([
-    [String.raw`\\server\share\notes`, String.raw`\\server\share\notes-other\note.md`],
-    ['//server/share/notes', '//server/share/notes-other/note.md'],
-    ['//server/share/notes', '/server/share/notes/note.md'],
-    [String.raw`\\server\share\notes`, String.raw`\\server\other\notes\note.md`],
-    ['//server/share/notes', '//server/share/notes/../other/note.md']
-  ])('does not include unrelated network sibling %s -> %s', async (root, sibling) => {
-    const lease = await manager.acquire({ kind: 'path', path: AbsoluteFilePathSchema.parse(sibling) })
-    lease.acceptEdit('unsaved sibling')
-    const prepared = await manager.prepareMutation([AbsoluteFilePathSchema.parse(root)])
-    expect(new TextDecoder().decode(disk.data)).toBe('a')
-    expect(lease.getSnapshot().sealed).toBe(false)
-    prepared.cancel()
-    await lease.flush()
-    expect(new TextDecoder().decode(disk.data)).toBe('unsaved sibling')
-    lease.release()
-  })
-
-  it('cancel restores input with a fresh binding generation and keeps the document epoch', async () => {
-    const lease = await manager.acquire(handle)
+  it('flushes the window before mutation and retires callbacks even when the operation is cancelled', async () => {
+    const lease = await manager.acquire('notes', handle)
     const old = lease.getSnapshot()
-    const prepared = await manager.prepareMutation([path])
-    prepared.cancel()
-    expect(lease.acceptEdit('b', old.documentEpoch, old.bindingEpoch)).toBe(false)
-    expect(lease.acceptEdit('c')).toBe(true)
+    lease.acceptEdit('b')
+    const prepared = await manager.prepareMutation()
+    expect(new TextDecoder().decode(disk.data)).toBe('b')
+    expect(lease.acceptEdit('during mutation')).toBe(false)
+    await prepared.finish()
+    expect(lease.acceptEdit('stale', old.documentEpoch, old.bindingEpoch)).toBe(false)
+    expect(lease.acceptEdit('current')).toBe(true)
     expect(lease.getSnapshot().documentEpoch).toBe(old.documentEpoch)
+  })
+
+  it('keeps a disappeared target non-writable and releases waiting acquisitions after a partial mutation', async () => {
+    const lease = await manager.acquire('notes', handle)
+    const prepared = await manager.prepareMutation()
+    const original = vi.mocked(ipcApi.request).getMockImplementation()!
+    vi.mocked(ipcApi.request).mockImplementationOnce(async () => {
+      throw new Error('missing after move')
+    })
+    const waiting = manager.acquire('artifact', handle)
+    await prepared.finish()
+    expect(lease.getSnapshot()).toMatchObject({ sealed: false, readError: expect.any(Error) })
+    expect(lease.acceptEdit('wrong target')).toBe(false)
+    vi.mocked(ipcApi.request).mockImplementation(original)
+    const next = await waiting
+    expect(next.acceptEdit('new instance')).toBe(true)
+    await next.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('new instance')
   })
 
   it('retries an acquisition interrupted by a mutation without publishing its stale read', async () => {
@@ -365,10 +304,10 @@ describe('file editing lifetime', () => {
       }
       return original(route, ...args)
     })
-    const acquiring = manager.acquire(handle)
+    const acquiring = manager.acquire('notes', handle)
     await reading.promise
-    const mutation = await manager.prepareMutation([path])
-    mutation.cancel()
+    const mutation = await manager.prepareMutation()
+    await mutation.finish()
     disk = snapshot('new')
     gate.resolve(snapshot('stale'))
     const lease = await acquiring
@@ -379,7 +318,7 @@ describe('file editing lifetime', () => {
     lease.release()
   })
 
-  it.each(['cancel', 'move'] as const)('releases detached clean sessions after mutation %s', async (outcome) => {
+  it('releases detached clean sessions after mutation settlement', async () => {
     const openLeases = new Set<string>()
     const original = vi.mocked(ipcApi.request).getMockImplementation()!
     vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
@@ -391,25 +330,24 @@ describe('file editing lifetime', () => {
       }
       return result
     })
-    const lease = await manager.acquire(handle)
-    const mutation = await manager.prepareMutation([path])
+    const lease = await manager.acquire('notes', handle)
+    const mutation = await manager.prepareMutation()
     lease.release()
     expect(openLeases.size).toBe(1)
-    if (outcome === 'cancel') mutation.cancel()
-    else await mutation.commit({ from: path, to: AbsoluteFilePathSchema.parse('/notes/moved.md') })
+    await mutation.finish()
     await vi.waitFor(() => expect(openLeases.size).toBe(0))
     expect(manager.listRetained()).toEqual([])
   })
 
   it('retains a detached failed mutation for recovery and releases queued acquisitions', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     lease.acceptEdit('unsaved')
     const gate = Promise.withResolvers<void>()
     holdWrite = gate.promise
     failWrite = true
-    const preparing = manager.prepareMutation([path])
+    const preparing = manager.prepareMutation()
     const rejected = expect(preparing).rejects.toThrow('File save failed')
-    const next = manager.acquire({ kind: 'path', path: AbsoluteFilePathSchema.parse('/notes/B.md') })
+    const next = manager.acquire('notes', { kind: 'path', path: AbsoluteFilePathSchema.parse('/notes/B.md') })
     const acquired = expect(next).resolves.toMatchObject({ writable: true })
     lease.release()
     gate.resolve()
@@ -417,7 +355,7 @@ describe('file editing lifetime', () => {
     await acquired
     expect(manager.getSnapshot()).toEqual([
       expect.objectContaining({
-        resourceKey: path,
+        locator: path,
         draft: 'unsaved',
         isDirty: true,
         sealed: false,
@@ -426,38 +364,19 @@ describe('file editing lifetime', () => {
     ])
     const nextLease = await next
     nextLease.release()
-    await manager.recover(path, 'discard')
-    await vi.waitFor(() => expect(manager.listRetained()).toEqual([]))
-  })
-
-  it('unblocks acquisitions after a failed move while retaining its detached source for recovery', async () => {
-    const lease = await manager.acquire(handle)
-    const mutation = await manager.prepareMutation([path])
-    lease.release()
-    disk = snapshot('changed destination')
-    const next = manager.acquire({ kind: 'path', path: AbsoluteFilePathSchema.parse('/notes/B.md') })
-    await expect(mutation.commit({ from: path, to: AbsoluteFilePathSchema.parse('/notes/moved.md') })).rejects.toThrow(
-      'Moved file content changed'
-    )
-    const nextLease = await next
-    expect(nextLease.getSnapshot().draft).toBe('changed destination')
-    expect(manager.getSnapshot()).toEqual([
-      expect.objectContaining({ resourceKey: path, draft: 'a', sealed: false, saveError: expect.any(Error) })
-    ])
-    nextLease.release()
-    await manager.recover(path, 'discard')
+    await manager.recover(lease.getSnapshot().sessionId, 'discard')
     await vi.waitFor(() => expect(manager.listRetained()).toEqual([]))
   })
 
   it('refuses file mutations during composition without discarding accepted text', async () => {
-    const lease = await manager.acquire(handle)
+    const lease = await manager.acquire('notes', handle)
     lease.acceptEdit('b')
     manager.setComposing(true)
-    await expect(manager.prepareMutation([path])).rejects.toThrow('transition')
+    await expect(manager.prepareMutation()).rejects.toThrow('transition')
     expect(lease.acceptEdit('c')).toBe(true)
     manager.setComposing(false)
-    const prepared = await manager.prepareMutation([path])
+    const prepared = await manager.prepareMutation()
     expect(new TextDecoder().decode(disk.data)).toBe('c')
-    prepared.cancel()
+    await prepared.finish()
   })
 })

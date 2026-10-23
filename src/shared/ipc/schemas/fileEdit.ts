@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { ContentHashSchema, FileHandleSchema } from '@shared/data/types/file'
-import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
+import { FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'
@@ -10,12 +10,7 @@ export { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 const editIdSchema = z.string().uuid()
 const sequenceSchema = z.int().positive().max(Number.MAX_SAFE_INTEGER)
 export const fileEditBaselineSchema = z.strictObject({ version: FileVersionSchema, contentHash: ContentHashSchema })
-const resourceSchema = z.strictObject({
-  editId: editIdSchema,
-  resourceKey: z.string(),
-  path: AbsoluteFilePathSchema,
-  observationRoot: AbsoluteFilePathSchema
-})
+const resourceSchema = z.strictObject({ editId: editIdSchema })
 const readSchema = z.strictObject({ data: uint8ArraySchema, baseline: fileEditBaselineSchema })
 const writeSchema = z.strictObject({
   editId: editIdSchema,

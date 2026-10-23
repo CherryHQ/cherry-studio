@@ -12,6 +12,8 @@
  * trusted for the OCC compare (file-manager-architecture.md §4.4 trust boundary).
  */
 
+import { realpath } from 'node:fs/promises'
+
 import { loggerService } from '@logger'
 import type { AtomicWriteStream } from '@main/utils/file'
 import {
@@ -26,7 +28,7 @@ import {
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
 
 import { ContentCommittedMetadataPendingError, type FileVersion, StaleVersionError } from '../../FileManager'
 import { runPathMutationExclusive } from '../../pathMutationLock'
@@ -114,11 +116,13 @@ export async function writeIfUnchanged(
 ): Promise<FileVersion> {
   return deps.contentWriteLock.runExclusive(id, async () => {
     const entry = deps.fileEntryService.getById(id)
-    const physical = resolvePhysicalPath(entry)
+    const address = resolvePhysicalPath(entry)
+    const physical = expectedPath === undefined ? address : AbsoluteFilePathSchema.parse(await realpath(address))
     const prepared = await prepareAtomicWrite(physical, data)
     try {
       return await runPathMutationExclusive(async () => {
-        const currentPath = resolvePhysicalPath(deps.fileEntryService.getById(id))
+        const currentAddress = resolvePhysicalPath(deps.fileEntryService.getById(id))
+        const currentPath = expectedPath === undefined ? currentAddress : await realpath(currentAddress)
         if (currentPath !== physical || (expectedPath !== undefined && currentPath !== expectedPath)) {
           throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
         }

@@ -34,7 +34,16 @@ export function FileEditSessionProvider({ children }: { children: ReactNode }) {
           <p className="text-sm">{t('notes.save_failure.description')}</p>
           {retained.map((session) => (
             <div key={session.sessionId} className="space-y-1">
-              <p className="break-all text-xs">{session.resourceKey}</p>
+              <p className="break-all text-xs">
+                {t(
+                  session.ownerId === 'notes'
+                    ? 'notes.title'
+                    : session.ownerId.startsWith('skill:')
+                      ? 'settings.skills.title'
+                      : 'agent.right_pane.tabs.files'
+                )}
+                : {session.locator}
+              </p>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -51,7 +60,7 @@ export function FileEditSessionProvider({ children }: { children: ReactNode }) {
                   disabled={session.isSaving}
                   onClick={() =>
                     void manager
-                      .recover(session.resourceKey, 'retry')
+                      .recover(session.sessionId, 'retry')
                       .catch(() => toast.error(translate.current('notes.save_failed')))
                   }>
                   {t('common.retry')}
@@ -62,7 +71,7 @@ export function FileEditSessionProvider({ children }: { children: ReactNode }) {
                   disabled={session.isSaving}
                   onClick={() =>
                     void manager
-                      .recover(session.resourceKey, 'discard')
+                      .recover(session.sessionId, 'discard')
                       .catch(() => toast.error(translate.current('notes.save_failed')))
                   }>
                   {t('agent.preview_pane.edit.discard')}

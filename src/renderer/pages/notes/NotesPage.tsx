@@ -69,9 +69,6 @@ const NotesPage: FC = () => {
   const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
-  // useLiveQuery drives the notes tree; the file content lives in a unified
-  // file↔memory session (SWR read + debounced autosave through the
-  // `file.write_if_unchanged` optimistic lock, with encoding/BOM/CRLF preserved).
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
   const [hasProjectedTree, setHasProjectedTree] = useState(false)
   const noteByPathRef = useRef(noteByPath)
@@ -81,11 +78,12 @@ const NotesPage: FC = () => {
     () => (activeFilePath ? createFilePathHandle(activeFilePath) : undefined),
     [activeFilePath]
   )
-  const fileSession = useFileEditSession(activeFileHandle)
+  const fileSession = useFileEditSession(activeFileHandle, 'notes')
   const {
     discard: discardFileDraft,
     flush: flushFileDraft,
     prepareMutation,
+    notifyExternalChange,
     reload: reloadFileDraft,
     setDraft: setFileDraft
   } = fileSession
@@ -121,7 +119,7 @@ const NotesPage: FC = () => {
     treeId,
     isLoading: isTreeLoading,
     error: treeError
-  } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
+  } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS, notifyExternalChange)
 
   // Surface tree-create failures (missing ripgrep, EACCES on the notes
   // folder, deleted root). Without this, the user sees a silently-empty
@@ -609,7 +607,7 @@ const NotesPage: FC = () => {
 
         // Persist any pending edit before removing the file so the session's
         // switch-flush can't resurrect a just-deleted path.
-        prepared = await prepareMutation([AbsoluteFilePathSchema.parse(nodeToDelete.externalPath)])
+        prepared = await prepareMutation()
 
         const metadataSnapshot = getMetadataSnapshot(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
         await removePath(nodeToDelete.externalPath, nodeToDelete.type === 'folder')
@@ -621,7 +619,7 @@ const NotesPage: FC = () => {
           throw fileError
         }
 
-        await prepared.commit()
+        await prepared.finish()
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
@@ -643,7 +641,7 @@ const NotesPage: FC = () => {
           toast.error(t('notes.delete_failed'))
         }
       } finally {
-        prepared?.cancel()
+        await prepared?.finish()
       }
     },
     [
@@ -674,7 +672,7 @@ const NotesPage: FC = () => {
         const oldPath = node.externalPath
         // Flush pending edits to the current path before it moves so the saved
         // content is carried through the rename (and no stale-path write races).
-        prepared = await prepareMutation([AbsoluteFilePathSchema.parse(oldPath)])
+        prepared = await prepareMutation()
         const renamed = await renameEntry(node, newName)
 
         // Tell the tree primitive about the rename so it mutates the
@@ -713,10 +711,7 @@ const NotesPage: FC = () => {
           return
         }
 
-        await prepared.commit({
-          from: AbsoluteFilePathSchema.parse(oldPath),
-          to: AbsoluteFilePathSchema.parse(renamed.path)
-        })
+        await prepared.finish()
 
         if (nextActivePath) {
           setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
@@ -736,7 +731,7 @@ const NotesPage: FC = () => {
             : t('notes.rename_failed')
         )
       } finally {
-        prepared?.cancel()
+        await prepared?.finish()
       }
     },
     [
@@ -875,10 +870,7 @@ const NotesPage: FC = () => {
 
         // Flush pending edits before the file moves so saved content is carried
         // through and no stale-path write races the move.
-        prepared = await prepareMutation([
-          AbsoluteFilePathSchema.parse(sourceNode.externalPath),
-          AbsoluteFilePathSchema.parse(destinationPath)
-        ])
+        prepared = await prepareMutation()
 
         if (sourceNode.type === 'file') {
           await window.api.file.move(sourceNode.externalPath, destinationPath)
@@ -906,10 +898,7 @@ const NotesPage: FC = () => {
           }
         }
 
-        await prepared.commit({
-          from: AbsoluteFilePathSchema.parse(sourceNode.externalPath),
-          to: AbsoluteFilePathSchema.parse(destinationPath)
-        })
+        await prepared.finish()
 
         if (nextActivePath) {
           setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
@@ -920,7 +909,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to move nodes:', error as Error)
         toast.error(t('notes.move_failed'))
       } finally {
-        prepared?.cancel()
+        await prepared?.finish()
       }
     },
     [

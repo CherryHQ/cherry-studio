@@ -1,4 +1,14 @@
-import { createContext, useCallback, use, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  createContext,
+  useCallback,
+  use,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 
 import type {
   FileEditSessionManager,
@@ -9,7 +19,6 @@ import { UnsupportedFileTextError, type UnsupportedFileTextReason } from '@rende
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { AbsoluteFilePath } from '@shared/types/file'
 
 export { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 export type { UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
@@ -36,14 +45,15 @@ export interface FileEditSession {
   reload(): Promise<void>
   keepDraft(): Promise<void>
   flush(): Promise<void>
-  prepareMutation(roots: readonly AbsoluteFilePath[]): Promise<PreparedFileMutation>
+  notifyExternalChange(): void
+  prepareMutation(): Promise<PreparedFileMutation>
 }
 
 const emptySubscription = () => () => {}
 const emptySnapshot = () => null
 const keyOf = (handle: FileHandle) => (handle.kind === 'entry' ? `entry:${handle.entryId}` : `path:${handle.path}`)
 
-export function useFileEditSession(handle: FileHandle | undefined): FileEditSession {
+export function useFileEditSession(handle: FileHandle | undefined, ownerId: string): FileEditSession {
   const manager = use(FileEditSessionContext)
   if (!manager) throw new Error('File editing requires a window session provider')
   const entryId = handle?.kind === 'entry' ? handle.entryId : undefined
@@ -53,13 +63,13 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     [entryId, path]
   )
   const key = stableHandle ? keyOf(stableHandle) : undefined
-  const request = useMemo(() => ({ key, manager }), [key, manager])
+  const request = useMemo(() => ({ key, manager, ownerId }), [key, manager, ownerId])
   const [acquired, setAcquired] = useState<{ request: typeof request; lease?: SessionLease; error?: Error }>()
   useLayoutEffect(() => {
     if (!stableHandle || !key) return
     let cancelled = false
     let lease: SessionLease | undefined
-    void manager.acquire(stableHandle).then(
+    void manager.acquire(ownerId, stableHandle).then(
       (result) => {
         if (cancelled) result.release()
         else {
@@ -75,10 +85,28 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       cancelled = true
       lease?.release()
     }
-  }, [manager, key, stableHandle, request])
+  }, [manager, ownerId, key, stableHandle, request])
 
   const lease = acquired?.request === request ? acquired?.lease : undefined
   const snapshot = useSyncExternalStore(lease?.subscribe ?? emptySubscription, lease?.getSnapshot ?? emptySnapshot)
+  const activatedLease = useRef<SessionLease | undefined>(undefined)
+  useEffect(() => {
+    if (!lease) return
+    const refresh = () => {
+      void lease.invalidate()
+    }
+    const visible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', visible)
+    if (activatedLease.current === lease) refresh()
+    activatedLease.current = lease
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', visible)
+    }
+  }, [lease])
   const epoch = snapshot?.documentEpoch
   const bindingEpoch = snapshot?.bindingEpoch
   const setDraft = useCallback(
@@ -101,13 +129,16 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       reload: () => invoke('reload'),
       keepDraft: () => invoke('keepLocal'),
       flush: () => invoke('flush'),
-      prepareMutation: (roots: readonly AbsoluteFilePath[]) => manager.prepareMutation(roots)
+      notifyExternalChange: () => {
+        void lease?.invalidate()
+      },
+      prepareMutation: () => manager.prepareMutation()
     }),
-    [invoke, manager]
+    [invoke, manager, lease]
   )
 
   return useMemo(() => {
-    const error = acquired?.request === request ? acquired?.error : undefined
+    const error = snapshot?.readError ?? (acquired?.request === request ? acquired?.error : undefined)
     const unsupportedReason =
       error instanceof UnsupportedFileTextError
         ? error.reason
@@ -118,7 +149,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       status: !handle ? 'idle' : unsupportedReason ? 'unsupported' : error ? 'error' : snapshot ? 'ready' : 'loading',
       sessionId: snapshot?.sessionId,
       documentEpoch: snapshot?.documentEpoch ?? 0,
-      readOnly: !lease?.writable || !!snapshot?.sealed,
+      readOnly: !lease?.writable || !!snapshot?.sealed || !!snapshot?.readError,
       savedContent: snapshot?.savedContent ?? '',
       savedSizeBytes: snapshot?.savedSizeBytes,
       draft: snapshot?.draft ?? '',

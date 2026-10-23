@@ -50,7 +50,7 @@ it('never exposes another file draft as ready when reopening a cached file', asy
   const observed: { path: string; draft: string }[] = []
   const { result, rerender } = renderHook(
     ({ handle }: { handle: FileHandle }) => {
-      const session = useFileEditSession(handle)
+      const session = useFileEditSession(handle, 'notes')
       useLayoutEffect(() => {
         if (session.status === 'ready' && handle.kind === 'path') {
           observed.push({ path: handle.path, draft: session.draft })
@@ -71,7 +71,7 @@ it('never exposes another file draft as ready when reopening a cached file', asy
 })
 
 it('rejects an old editor callback after switching files and after reopening the same path', async () => {
-  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle), {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
     initialProps: { handle: a },
     wrapper
   })
@@ -98,7 +98,7 @@ it('rejects an old editor callback after switching files and after reopening the
 })
 
 it('does not republish a released A attachment when B is abandoned before acquisition completes', async () => {
-  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle), {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
     initialProps: { handle: a },
     wrapper
   })
@@ -117,30 +117,26 @@ it('does not republish a released A attachment when B is abandoned before acquis
   await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
 })
 
-it.each(['cancel', 'commit'] as const)(
-  'opens the selected note when an unrelated mutation ends with %s',
-  async (outcome) => {
-    const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle), {
-      initialProps: { handle: a },
-      wrapper
-    })
-    await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
-    let mutation!: Awaited<ReturnType<typeof manager.prepareMutation>>
-    await act(async () => {
-      mutation = await manager.prepareMutation([AbsoluteFilePathSchema.parse('/notes/A.md')])
-    })
-    rerender({ handle: b })
-    await act(async () => {})
-    expect(result.current.status).toBe('loading')
-    expect(result.current.draft).toBe('')
-    await act(async () => {
-      if (outcome === 'cancel') mutation.cancel()
-      else await mutation.commit()
-    })
-    await waitFor(() => expect(result.current.status).toBe('ready'))
-    expect(result.current.draft).toBe('BRAVO')
-  }
-)
+it('opens the selected note when a mutation settles', async () => {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
+  })
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+  let mutation!: Awaited<ReturnType<typeof manager.prepareMutation>>
+  await act(async () => {
+    mutation = await manager.prepareMutation()
+  })
+  rerender({ handle: b })
+  await act(async () => {})
+  expect(result.current.status).toBe('loading')
+  expect(result.current.draft).toBe('')
+  await act(async () => {
+    await mutation.finish()
+  })
+  await waitFor(() => expect(result.current.status).toBe('ready'))
+  expect(result.current.draft).toBe('BRAVO')
+})
 
 it.each(['switch', 'unmount'] as const)('releases a queued acquisition abandoned by %s', async (outcome) => {
   const transport = ipc.request.getMockImplementation()!
@@ -150,7 +146,8 @@ it.each(['switch', 'unmount'] as const)('releases a queued acquisition abandoned
     const result = await transport(route, ...args)
     if (route === 'file.edit.open') {
       const resource = fileEditRequestSchemas[route].output.parse(result)
-      openLeases.set(resource.editId, resource.path)
+      const { handle } = fileEditRequestSchemas[route].input.parse(args[0])
+      if (handle.kind === 'path') openLeases.set(resource.editId, handle.path)
     } else if (route === 'file.edit.close') {
       const { editId } = fileEditRequestSchemas[route].input.parse(args[0])
       const path = openLeases.get(editId)
@@ -159,19 +156,19 @@ it.each(['switch', 'unmount'] as const)('releases a queued acquisition abandoned
     }
     return result
   })
-  const mutation = await manager.prepareMutation([AbsoluteFilePathSchema.parse('/notes/A.md')])
-  const { result, rerender, unmount } = renderHook(({ handle }) => useFileEditSession(handle), {
+  const mutation = await manager.prepareMutation()
+  const { result, rerender, unmount } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
     initialProps: { handle: b },
     wrapper
   })
   if (outcome === 'switch') rerender({ handle: a })
   else unmount()
-  await act(async () => mutation.cancel())
+  await act(async () => await mutation.finish())
   await waitFor(() => expect(closedPaths.has('/notes/B.md')).toBe(true))
   if (outcome === 'switch') {
     await waitFor(() => expect(result.current.status).toBe('ready'))
     expect(result.current.draft).toBe('ALPHA')
-    expect(manager.listRetained().map((session) => session.resourceKey)).toEqual(['/notes/A.md'])
+    expect(manager.listRetained().map((session) => session.locator)).toEqual(['/notes/A.md'])
     unmount()
   }
   await waitFor(() => expect(manager.listRetained()).toEqual([]))

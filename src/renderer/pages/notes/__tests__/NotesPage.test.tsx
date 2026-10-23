@@ -227,7 +227,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     sessionId: mocks.activeFilePath,
     documentEpoch: 1,
     readOnly: false,
-    prepareMutation: vi.fn(async () => ({ commit: vi.fn(async () => {}), cancel: vi.fn() })),
+    prepareMutation: vi.fn(async () => ({ finish: vi.fn(async () => {}) })),
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
     isDirty: mocks.sessionIsDirty,

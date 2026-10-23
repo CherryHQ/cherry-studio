@@ -119,6 +119,7 @@
  * design. The asymmetry above is the actual contract.
  */
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
@@ -1104,8 +1105,8 @@ export class FileManager extends BaseService implements IFileManager {
 
   async readEditSnapshot(id: FileEntryId, expectedPath: AbsoluteFilePath): Promise<FileEditRead> {
     return this.deps.contentWriteLock.runExclusive(id, () =>
-      runPathMutationExclusive(() => {
-        const path = this.getPhysicalPath(id)
+      runPathMutationExclusive(async () => {
+        const path = AbsoluteFilePathSchema.parse(await realpath(this.getPhysicalPath(id)))
         if (path !== expectedPath) throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
         return readEditingSnapshot(path)
       })
