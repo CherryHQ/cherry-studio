@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   publishDispatchChanges: vi.fn(),
   listAccepted: vi.fn(),
   listRecoverable: vi.fn(),
+  listRuntimeResumeTokensBySession: vi.fn(),
   resolveCrash: vi.fn(),
   reuseOrCreate: vi.fn(),
   deleteByIds: vi.fn<typeof agentSessionService.deleteByIdsWithImpact>(),
@@ -81,6 +82,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,
     listRecoverableSessionDeliveries: mocks.listRecoverable,
+    listRuntimeResumeTokensBySession: mocks.listRuntimeResumeTokensBySession,
     resolveCrashOrphanedMessages: mocks.resolveCrash
   }
 }))
@@ -121,7 +123,10 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { deleteAgentStateTx: mocks.deleteAgent, notifyDeleted: vi.fn(), getLifecycleState: () => 'trashed' }
 }))
 
-vi.mock('@main/ai/agents/agentOrphanSweep', () => ({ sweepAgentOrphans: vi.fn() }))
+vi.mock('@main/ai/agents/agentOrphanSweep', () => ({
+  sweepAgentOrphans: vi.fn(),
+  reclaimPurgedRuntimeSessions: vi.fn()
+}))
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
     setOwnerStateTx: () => ({ scheduleIds: [], deletedSchedules: [] }),
@@ -236,6 +241,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.idleListeners.clear()
     mocks.listAccepted.mockReturnValue([])
     mocks.listRecoverable.mockReturnValue([])
+    mocks.listRuntimeResumeTokensBySession.mockReturnValue(new Map<string, Set<string>>())
     mocks.hasLiveStream.mockReturnValue(false)
     mocks.hasUnsettledTopicWork.mockReturnValue(false)
     mocks.withDispatchLock.mockImplementation((_topicId: string, fn: () => Promise<unknown>) => fn())

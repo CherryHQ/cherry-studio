@@ -26,6 +26,13 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.voice.recognition.title'
   },
   {
+    anchorId: 'dictation-mouse-hold',
+    titleKey: 'settings.voice.mouse_hold.label',
+    descriptionKey: 'settings.voice.mouse_hold.description',
+    groupKey: 'settings.voice.recognition.title',
+    aliases: ['mouse hold', 'long press', '长按鼠标', '鼠标听写']
+  },
+  {
     anchorId: 'dictation-hold',
     titleKey: 'settings.voice.shortcuts.hold.label',
     groupKey: 'settings.voice.recognition.title',

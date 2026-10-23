@@ -28,6 +28,9 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
       capability('searchKeywords', 'optional', 'https://mcp.exa.ai/mcp'),
       capability('fetchUrls', 'optional', 'https://mcp.exa.ai/mcp')
     ]),
+    yuanbao: provider('yuanbao', 'Yuanbao', [
+      capability('searchKeywords', 'required', 'https://api.wsa.cloud.tencent.com')
+    ]),
     bocha: provider('bocha', 'Bocha', [capability('searchKeywords', 'required', 'https://api.bochaai.com')]),
     querit: provider('querit', 'Querit', [
       capability('searchKeywords', 'required', 'https://api.querit.ai'),
@@ -41,7 +44,7 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
       capability('searchKeywords', 'optional', 'https://api.firecrawl.dev'),
       capability('fetchUrls', 'optional', 'https://api.firecrawl.dev')
     ]),
-    crawl4ai: provider('crawl4ai', 'Crawl4AI', [capability('fetchUrls', 'optional')]),
+    crawl4ai: provider('crawl4ai', 'Crawl4AI', [capability('fetchUrls', 'optional', 'https://api.crawl4ai.com')]),
     parallel: provider('parallel', 'Parallel', [capability('searchKeywords', 'required', 'https://api.parallel.ai')]),
     serply: provider('serply', 'Serply', [capability('searchKeywords', 'required', 'https://api.serply.io')]),
     deepseek: provider('deepseek', 'DeepSeek', [

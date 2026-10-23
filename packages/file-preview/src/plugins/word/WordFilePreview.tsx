@@ -65,7 +65,7 @@ export default function WordFilePreview({
   document: previewDocument,
   onSelection
 }: FilePreviewPluginProps) {
-  const { options, failDocument } = usePreviewHost()
+  const { options, failDocument, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const docxClassName = `docx-preview-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const containerRef = useRef<HTMLDivElement>(null)
@@ -87,7 +87,10 @@ export default function WordFilePreview({
   const [zoom, setZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
   const [fitZoom, setFitZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
   const [manualZoom, setManualZoom] = useState(false)
-  const [normalizeSymbolBullets] = useState(() => options?.docx?.normalizeSymbolBullets === true)
+  const normalizeSymbolBulletsRef = useRef(options?.docx?.normalizeSymbolBullets === true)
+  useLayoutEffect(() => {
+    normalizeSymbolBulletsRef.current = options?.docx?.normalizeSymbolBullets === true
+  }, [options?.docx?.normalizeSymbolBullets])
   const fitWidth = options?.docx?.initialZoom === 'fit-width'
   const minZoom = fitWidth ? Math.min(DOCX_PREVIEW_MIN_ZOOM, fitZoom) : DOCX_PREVIEW_MIN_ZOOM
 
@@ -179,16 +182,11 @@ export default function WordFilePreview({
 
     const controller = new AbortController()
     const token = ++renderTokenRef.current
-    const isCurrent = () => renderTokenRef.current === token
+    const isCurrent = () => renderTokenRef.current === token && isCurrentDocument?.() !== false
+    // Font compatibility is sampled for this document; options alone must not trigger a reparse.
+    const normalizeSymbolBullets = normalizeSymbolBulletsRef.current
     setError(null)
     setLoading(true)
-    setCurrentPage(0)
-    setPageCount(0)
-    setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
-    setFitZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
-    setManualZoom(false)
-    fitScrollTopRef.current = null
-    pinchAnchorRef.current = null
 
     const stagingHost = document.createElement('div')
     const stagingBody = document.createElement('div')
@@ -228,12 +226,18 @@ export default function WordFilePreview({
           page.classList.add('docx-preview-page', 'docx-preview')
         })
         sanitizeHyperlinks(stagingBody)
+        const scrollTop = containerRef.current?.scrollTop ?? 0
+        const scrollLeft = containerRef.current?.scrollLeft ?? 0
         bodyContainer.replaceChildren(...stagingBody.childNodes)
         styleContainer.replaceChildren(...stagingStyle.childNodes)
+        if (containerRef.current) {
+          containerRef.current.scrollTop = scrollTop
+          containerRef.current.scrollLeft = scrollLeft
+        }
 
         const nextPageCount = Math.max(pages.length, 1)
         setPageCount(nextPageCount)
-        setCurrentPage(nextPageCount > 0 ? 1 : 0)
+        setCurrentPage((page) => clamp(page, 1, nextPageCount))
         focusContainer()
       } catch (loadError) {
         if (!isCurrent()) return
@@ -249,16 +253,14 @@ export default function WordFilePreview({
     return () => {
       controller.abort()
       renderTokenRef.current += 1
-      bodyContainer.innerHTML = ''
-      styleContainer.innerHTML = ''
       stagingHost.remove()
     }
-  }, [sourceId, focusContainer, previewDocument, failDocument, docxClassName, normalizeSymbolBullets])
+  }, [sourceId, focusContainer, previewDocument, failDocument, docxClassName, isCurrentDocument])
 
   useEffect(() => {
     const scrollRoot = containerRef.current
     const bodyContainer = bodyRef.current
-    if (!scrollRoot || !bodyContainer || pageCount <= 0) return
+    if (!scrollRoot || !bodyContainer || pageCount <= 0 || loading) return
 
     const pages = Array.from(bodyContainer.querySelectorAll<HTMLElement>('.docx-preview-page'))
     if (pages.length === 0) return
@@ -283,7 +285,7 @@ export default function WordFilePreview({
 
     pages.forEach((page) => observer.observe(page))
     return () => observer.disconnect()
-  }, [pageCount])
+  }, [pageCount, loading])
 
   // The marker goes on only after createPreviewSelection confirms the host receives something: an empty
   // paragraph must not look picked while the host gets null.
@@ -388,13 +390,13 @@ export default function WordFilePreview({
               data-picker={onSelection ? 'true' : undefined}
               onClick={handlePick}
               style={contentStyle}
-              className="mx-auto w-fit min-w-0 [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10 [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
+              className="mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10"
             />
           </div>
           {loading ? (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+              className="text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>
