@@ -99,7 +99,7 @@ vi.mock('../adapters', () => ({
   }
 }))
 
-import { clearSessionCanonicalEffort, registerSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
+import { clearSessionCanonicalEffort, syncSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 
 import type { OutputFormat } from '../adapters'
 import { gatewayErrorHandler } from '../errors'
@@ -598,9 +598,12 @@ describe('processMessage (streaming)', () => {
     await response
   })
 
-  it('restores the session canonical effort destination over the SDK transport tier before conversion (inv_234f741ac324acb8)', async () => {
+  it('restores the boundary-synced canonical effort destination over the SDK transport tier (inv_234f741ac324acb8)', async () => {
     mockIsInternalAgentRequest.mockReturnValue(true)
-    registerSessionCanonicalEffort('session-1', 'minimal')
+    // The session boundary's production write path (sync with the resolved
+    // canonical destination) -> real registry -> gateway restore -> converter
+    // input: one warmup-through-target pass.
+    syncSessionCanonicalEffort('session-1', 'minimal')
     try {
       const response = processMessage({
         params: { model: 'openai:gpt-4', max_tokens: 64, messages: [], output_config: { effort: 'low' }, stream: true },

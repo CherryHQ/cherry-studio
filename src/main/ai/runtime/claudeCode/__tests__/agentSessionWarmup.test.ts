@@ -310,6 +310,33 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     clearSessionCanonicalEffort('session-1')
   })
 
+  it('clears the recorded destination when a rebuild resolves a default effort (inv_234f741ac324acb8)', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-5',
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      reasoning: { selectableEfforts: ['minimal', 'low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'minimal' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+    expect(resolveSessionCanonicalEffort('session-1')).toBe('minimal')
+
+    // Same session rebuilt with the default effort: no canonical destination
+    // resolves, so the previously recorded one must be dropped rather than
+    // restored over the session's new literal intent.
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default')
+    expect(resolveSessionCanonicalEffort('session-1')).toBeUndefined()
+    clearSessionCanonicalEffort('session-1')
+  })
+
   it('preserves an SDK-native mapped destination tier verbatim across the gateway boundary', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: CHERRY_CLOUD_PROVIDER_ID,

@@ -26,7 +26,7 @@ import {
   resolveReasoningInvocation,
   resolveSelection
 } from '@main/ai/utils/reasoningSerializers'
-import { registerSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
+import { syncSessionCanonicalEffort } from '@main/ai/utils/sessionCanonicalEffort'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -565,14 +565,14 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       route.branch === 'gateway' &&
       resolveEffectiveEndpoint(provider, model).endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES
   })
-  if (thinkingOptions.canonicalEffort) {
-    // thinkingOptions.effort is the SDK transport tier, which may be the
-    // Anthropic-serialized carrier of this canonical destination (minimal ->
-    // low): record the destination so the gateway restores it during target
-    // serialization for this session's validated internal requests
-    // (cherry-pr-review inv_234f741ac324acb8).
-    registerSessionCanonicalEffort(sessionId, thinkingOptions.canonicalEffort)
-  }
+  // thinkingOptions.effort is the SDK transport tier, which may be the
+  // Anthropic-serialized carrier of this canonical destination (minimal ->
+  // low): record the destination so the gateway restores it during target
+  // serialization for this session's validated internal requests. A rebuild
+  // resolving a disabled/default effort or a non-gateway route clears the
+  // previous destination instead of leaving it stale (cherry-pr-review
+  // inv_234f741ac324acb8).
+  syncSessionCanonicalEffort(sessionId, thinkingOptions.canonicalEffort)
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)

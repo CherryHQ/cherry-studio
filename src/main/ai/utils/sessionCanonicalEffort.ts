@@ -27,3 +27,18 @@ export function resolveSessionCanonicalEffort(sessionId: string): string | undef
 export function clearSessionCanonicalEffort(sessionId: string): void {
   canonicalEffortBySession.delete(sessionId)
 }
+
+/**
+ * Overwrite-or-clear the session's recorded destination from a boundary
+ * build. A rebuild that resolves a disabled/default effort - or a route that
+ * no longer crosses the gateway - must not keep the previous destination:
+ * the gateway would restore a stale tier over the session's new literal
+ * intent.
+ */
+export function syncSessionCanonicalEffort(sessionId: string, canonicalEffort: string | undefined): void {
+  if (canonicalEffort) {
+    registerSessionCanonicalEffort(sessionId, canonicalEffort)
+  } else {
+    clearSessionCanonicalEffort(sessionId)
+  }
+}
