@@ -18,6 +18,9 @@ import { normalizeHeadingText } from '@cherrystudio/ui'
 
 import { isPathologicalLineShape } from '../../textPreviewGuard'
 
+/** Markdown's blank line: spaces and tabs only — a line holding any other character is content. */
+const isBlankLine = (line: string): boolean => /^[ \t]*$/.test(line)
+
 export interface MarkdownChunk {
   /** Markdown source for this chunk, including the carried reference definitions. */
   text: string
@@ -1986,10 +1989,18 @@ export function splitMarkdownChunks(
   // A trailing terminator ends its line rather than starting another, so the split's last element is
   // not a line. The long-line average counts lines, and an extra empty one would halve it.
   const lineCount = content.length > 0 && /[\r\n]$/.test(content) ? lines.length - 1 : lines.length
+  // The pathological shape is decided before any heading is read: this document falls back to the
+  // source view, where no heading id renders, and the heading scan is what those lines make slow.
+  let terminatorChars = 0
+  for (let i = 0; i < content.length; i++) {
+    const code = content.charCodeAt(i)
+    if (code === 10 || code === 13) terminatorChars += 1
+  }
+  const longLines = isPathologicalLineShape(lineCount, content.length - terminatorChars)
   // The next line with content on it, so a run of blank lines belongs to the block that spans it.
   const nextContent = new Array<number>(lines.length).fill(-1)
   for (let i = lines.length - 2, next = -1; i >= 0; i--) {
-    if (lines[i + 1].trim() !== '') next = i + 1
+    if (!isBlankLine(lines[i + 1])) next = i + 1
     nextContent[i] = next
   }
 
@@ -1998,7 +2009,6 @@ export function splitMarkdownChunks(
   // prefix is measured in lines rather than entries — the virtualizer estimates from this count.
   let definitionLines = 0
   const boundaries: number[] = []
-  let contentChars = 0
   let bufferChars = 0
   let fence: Fence | null = null
   let dollarFence = 0
@@ -2069,6 +2079,7 @@ export function splitMarkdownChunks(
   // whether one is defined can only be settled after the last line has been read.
   const lineHeadings = new Array<Array<{ source: string; plain: boolean }> | undefined>(lines.length).fill(undefined)
   const recordHeading = (line: number, source: string, plain = false): void => {
+    if (longLines) return
     ;(lineHeadings[line] ??= []).push({ source, plain })
   }
   // Every reference label the document defines, in the form references are matched by. A heading
@@ -2084,6 +2095,7 @@ export function splitMarkdownChunks(
   // single line may hold several of. The block is scanned whole, since its tag, text and closing
   // tag may sit on different lines.
   const recordHtmlHeadings = (line: number, content: string): void => {
+    if (longLines) return
     // Closing tags are indexed once, so an opening tag with no partner behind it costs a lookup
     // rather than a rescan of the block — a block of unmatched `<h1` tags is what makes that
     // difference.
@@ -2129,9 +2141,8 @@ export function splitMarkdownChunks(
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    const blank = line.trim() === ''
+    const blank = isBlankLine(line)
     bufferChars += line.length + 1
-    contentChars += line.length
 
     if (fence) {
       if (isClosingFence(line, fence)) fence = null
@@ -2193,7 +2204,7 @@ export function splitMarkdownChunks(
       const inside = afterQuoteMarkers(line, containerFence.quotes)
       const base = inside === null ? 0 : columnCount(line.slice(0, line.length - inside.length))
       const short = inside !== null && containerFence.contentColumn > base + leadingColumns(inside)
-      const blankish = inside !== null && inside.trim() === ''
+      const blankish = inside !== null && isBlankLine(inside)
       if (inside === null || (!blankish && short)) {
         containerFence = null
       } else {
@@ -2302,7 +2313,7 @@ export function splitMarkdownChunks(
       definitionContainer && insideContainer !== null
         ? // A marker-only line behind the definition's container (`>` on its own) is blank the way
           // the parser sees it: the quote reproduces the line and the definition spans it.
-          insideContainer.trim() === '' ||
+          isBlankLine(insideContainer) ||
           (INDENTED_LINE.test(insideContainer) && !startsBlock(insideContainer) && !sawBlankInDefinition) ||
           // Past a blank line the definition owns only lines the parser counts as indented to four
           // columns inside the container — `>  second` behind a `>` quote carries two, so it is a
@@ -2315,7 +2326,7 @@ export function splitMarkdownChunks(
     // it has to be remembered for the continuation line that follows it. Either kind ends the
     // paragraph a lazy line below would continue.
     if (blank && inDefinition && footnoteDefinition) footnoteParagraphOpen = false
-    if (definitionContainer && insideContainer !== null && (blank || insideContainer.trim() === '')) {
+    if (definitionContainer && insideContainer !== null && (blank || isBlankLine(insideContainer))) {
       sawBlankInDefinition = true
       footnoteParagraphOpen = false
     }
@@ -2355,9 +2366,9 @@ export function splitMarkdownChunks(
       if (carried !== null) {
         // A quoted definition's blank marker line carries as a plain blank line: the parser reads
         // the definition's paragraphs across it, and `>` alone would start a quote block of its own.
-        definitions.push(carried.trim() === '' ? '' : carried)
+        definitions.push(isBlankLine(carried) ? '' : carried)
         definitionLines += 1
-        if (carried.trim() !== '') footnoteParagraphOpen = continuesFootnoteParagraph(carried)
+        if (!isBlankLine(carried)) footnoteParagraphOpen = continuesFootnoteParagraph(carried)
         continue
       }
       definitions.push(line)
@@ -2470,7 +2481,7 @@ export function splitMarkdownChunks(
     // renders the plain paragraph it is only without its term.
     if (
       i > 0 &&
-      lines[i - 1].trim() !== '' &&
+      !isBlankLine(lines[i - 1]) &&
       followedBy >= 0 &&
       DEFINITION_LIST_DESCRIPTION.test(pastQuoteMarkers(lines[followedBy]).content)
     ) {
@@ -2567,7 +2578,7 @@ export function splitMarkdownChunks(
     })
     start = end
   }
-  return { chunks, longLines: isPathologicalLineShape(lineCount, contentChars) }
+  return { chunks, longLines }
 }
 
 /**

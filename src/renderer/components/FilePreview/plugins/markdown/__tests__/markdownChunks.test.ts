@@ -2704,6 +2704,21 @@ describe('a malformed tag that never closes', () => {
     expect(elapsed).toBeLessThan(1_000)
   })
 
+  it('reads raw-text openers that only a closing tag follows once', () => {
+    // A closing tag behind the run used to make every candidate scan to it: 8K/16K/32K repetitions
+    // measured 659/2,540/11,081 ms. The pathological shape now skips the heading scan before it
+    // starts, since the preview falls back to the source view anyway.
+    const content = `# ${'<style '.repeat(32_000)}</style>\n`
+
+    const started = Date.now()
+    const window = splitMarkdownChunks(content)
+    const elapsed = Date.now() - started
+
+    expect(window.longLines).toBe(true)
+    expect(window.chunks.length).toBeGreaterThan(0)
+    expect(elapsed).toBeLessThan(1_000)
+  })
+
   it('reads a block of unterminated heading openers once', () => {
     // Each `<h1` candidate was matched with `[^>]*>` in one regex, so a block that never closes
     // rescanned the rest of it per candidate: 256 KB took ~5.7s before the fallback was chosen.
@@ -2797,6 +2812,19 @@ describe('nested emphasis runs in a heading', () => {
     const content = `# foo***bar**baz*\n\n${'filler\n\n'.repeat(3072)}# foobarbaz\n\n[jump](#foobarbaz-1)\n`
 
     expect(chunkedHeadingIds(content)).toEqual(headingIds(content))
+  })
+})
+
+describe('a definition behind an NBSP-only line', () => {
+  it('keeps the definition inside the paragraph it cannot interrupt', () => {
+    // An NBSP is paragraph content under Markdown rules, so the line under it is still that
+    // paragraph and `[x]: /wrong` cannot open a definition; `trim()` treated the line as blank and
+    // hoisted it, turning the later literal `[x]` into a link the unsplit document never renders.
+    const content = 'intro\n \n[x]: /wrong\n\n[x]\n'
+    const chunks = chunksOf(content)
+
+    expect(resolvedReferenceUrls(content)).toEqual([])
+    expect(chunks.flatMap((chunk) => resolvedReferenceUrls(chunk.text))).toEqual([])
   })
 })
 
