@@ -2786,8 +2786,10 @@ describe('useFollowupQueue', () => {
     wireQuery([row('h', 'head')])
     const { claimHeadTrigger, setPausedTrigger } = wireMutations()
     let resolvePauseA!: () => void
-    setPausedTrigger.mockImplementation((args: { body: { scopeKey: string; paused: boolean } }) => {
-      if (args.body.scopeKey === SCOPE) {
+    // Optional parameter: the shared trigger mock is typed `() => Promise<any>`,
+    // and a required argument would fail variance under the project typecheck.
+    setPausedTrigger.mockImplementation((args?: { body: { scopeKey: string; paused: boolean } }) => {
+      if (args?.body.scopeKey === SCOPE) {
         return new Promise((resolve) => {
           resolvePauseA = () => resolve({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '' })
         }) as Promise<any>
