@@ -36,7 +36,7 @@ import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
-  ModelSchema,
+  ProviderListedModelSchema,
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
@@ -240,7 +240,7 @@ export const aiRequestSchemas = {
     // A listing, not a bare array: a provider whose "models" are its own files
     // (ComfyUI) holds some back, and the caller has to be able to say which.
     output: z.object({
-      models: z.array(ModelSchema.partial()),
+      models: z.array(ProviderListedModelSchema),
       skippedModels: z.array(z.string()).optional()
     })
   }),

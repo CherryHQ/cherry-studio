@@ -112,3 +112,19 @@ pnpm test:main tests/helpers/http/__tests__/mockChatServer.test.ts
 
 They do not verify desktop rendering or message persistence. Those assertions
 belong in the [regression scenarios](../../e2e/regression/README.md).
+
+## Stub Ollama server
+
+[`stubOllamaServer.ts`](stubOllamaServer.ts) exports `startStubOllamaServer(models)`,
+which starts a real HTTP server on an ephemeral `127.0.0.1` port. Configure the
+Ollama provider with its `baseUrl`. It serves `GET /api/tags`, `POST /api/show`,
+and `POST /api/chat` (JSON or NDJSON), using fixture capabilities and optional
+`thinking` metadata for discovery. This helper implements the Ollama protocol
+only; it does not serve OpenAI-compatible endpoints.
+
+Chat requests may omit `think`. A supplied `think` must exactly match a value in
+that model's advertised `thinking.values`; otherwise the server returns HTTP 400
+and records the rejection in `rejectedChats`. Unknown models return HTTP 404
+(and chat rejections are recorded). Accepted chat bodies appear in `chatBodies`;
+`showCalls` records model discovery requests. Always call `close()` in teardown
+to close the server and all connections.

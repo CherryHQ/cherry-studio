@@ -86,7 +86,7 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
 })
 
 // Import the SUT after the mocks are declared.
-const { listModels } = await import('../listModels')
+const { listModels, readOllamaReasoningControls } = await import('../listModels')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -1847,4 +1847,84 @@ describe('listModels — huggingFaceFetcher (router dialects)', () => {
       }
     }
   )
+})
+
+describe('Ollama discovered reasoning controls', () => {
+  it.each([
+    { values: ['low', 'medium', 'high'], controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }] },
+    { values: ['low', 'high'], controls: [{ kind: 'effort', values: ['low', 'high'] }] },
+    { values: [true, false], controls: [{ kind: 'toggle' }] },
+    { values: [false, true], controls: [{ kind: 'toggle' }] },
+    { values: [false], controls: [] },
+    { values: [false, false], controls: [] },
+    { values: [true], controls: [{ kind: 'effort', values: ['auto'] }] },
+    { values: [false, 'low', 'high'], controls: [{ kind: 'effort', values: ['none', 'low', 'high'] }] },
+    { values: [true, 'low', 'high'], controls: [{ kind: 'effort', values: ['auto', 'low', 'high'] }] },
+    { values: [false, true, 'low', 'high'], controls: [{ kind: 'effort', values: ['none', 'auto', 'low', 'high'] }] },
+    { values: ['low', 'max', 'high', 'low'], controls: [{ kind: 'effort', values: ['low', 'high'] }] },
+    { values: ['max'], controls: [] },
+    { values: ['none', 'auto'], controls: [] },
+    { values: ['false'], controls: [] },
+    { values: ['true', 'LOW', 'High', 'minimal', 'xhigh', 'ultra'], controls: [] },
+    { values: [], controls: [] },
+    { values: [false, 'max'], controls: [{ kind: 'effort', values: ['none'] }] },
+    {
+      values: ['high', 'low', 'high', true, null, 17],
+      controls: [{ kind: 'effort', values: ['high', 'low', 'auto'] }]
+    },
+    { values: undefined, controls: undefined },
+    { values: {}, controls: undefined },
+    { values: 'low', controls: undefined }
+  ])('maps $values without inventing wire selections', ({ values, controls }) => {
+    expect(readOllamaReasoningControls(values)).toEqual(controls)
+  })
+
+  it.each([undefined, {}, null, 'bad', { values: 'low' }])(
+    'keeps the context window with unusable thinking %j',
+    async (thinking) => {
+      const { OllamaShowResponseSchema } = await import('../listModelsSchemas')
+      const value = OllamaShowResponseSchema.parse({
+        model_info: { 'general.architecture': 'qwen3', 'qwen3.context_length': 40960 },
+        thinking
+      })
+      aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [{ name: 'qwen3.8:27b-q4_K_M' }] } })
+      aiSdkPostJsonToApiMock.mockResolvedValueOnce({ value })
+      const { models } = await listModels(
+        makeProvider({ id: 'ollama', defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT })
+      )
+      expect(models[0].contextWindow).toBe(40960)
+      expect(models[0].discoveredReasoningControls).toBeUndefined()
+    }
+  )
+
+  it.each(['ollama', 'cloned-ollama'])('discovers levels without tags thinking capability on %s', async (id) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: { models: [{ name: 'qwen3.8:27b', capabilities: ['completion'] }] }
+    })
+    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+      value: { thinking: { values: ['low', 'medium', 'high'], default: 'high' } }
+    })
+    const { models } = await listModels(
+      makeProvider({ id, presetProviderId: 'ollama', defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT })
+    )
+    expect(models[0]).toMatchObject({
+      apiModelId: 'qwen3.8:27b',
+      discoveredReasoningControls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }]
+    })
+    expect(models[0].reasoning).toBeUndefined()
+  })
+})
+
+it('retains thinking controls when show context metadata is malformed', async () => {
+  const { OllamaShowResponseSchema } = await import('../listModelsSchemas')
+  aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [{ name: 'tiny:1b' }] } })
+  aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+    value: OllamaShowResponseSchema.parse({
+      model_info: null,
+      thinking: { values: ['low', 'high'], default: { invalid: true } }
+    })
+  })
+  const { models } = await listModels(makeProvider({ id: 'ollama', defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT }))
+  expect(models[0].contextWindow).toBeUndefined()
+  expect(models[0].discoveredReasoningControls).toEqual([{ kind: 'effort', values: ['low', 'high'] }])
 })

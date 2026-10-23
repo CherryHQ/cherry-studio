@@ -858,7 +858,11 @@ export default defineConfig([
                 if (receiver === 'application' && method === 'get' && node.arguments[0]?.value === 'DbService') {
                   return { node, messageId: 'ambientDb', data: { name: "application.get('DbService')", fn } }
                 }
-                if (receiver === 'providerRegistryService' && method === 'resolveModel') return
+                if (
+                  receiver === 'providerRegistryService' &&
+                  (method === 'resolveModel' || databaseFreeMethods.includes(method))
+                )
+                  return
                 if (receiver.endsWith('Service') && !method.endsWith('Tx')) {
                   return { node, messageId: 'serviceEscape', data: { name: `${receiver}.${method}()`, fn } }
                 }
@@ -922,7 +926,10 @@ export default defineConfig([
   {
     files: ['src/main/data/services/ModelService.ts', 'src/main/data/services/ProviderRegistryService.ts'],
     rules: {
-      'tx-boundary/no-ambient-db-in-tx': ['error', { followHelpers: true, databaseFreeMethods: ['resolveModel'] }]
+      'tx-boundary/no-ambient-db-in-tx': [
+        'error',
+        { followHelpers: true, databaseFreeMethods: ['resolveModel', 'resolveReasoningProfile'] }
+      ]
     }
   },
   // i18n

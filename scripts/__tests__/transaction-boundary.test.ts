@@ -51,7 +51,7 @@ describe('transaction boundary lint gate', () => {
     expect(messages).toEqual([expect.objectContaining({ severity: 2, messageId: 'serviceEscape' })])
   })
 
-  it('allows caller-owned reads followed by explicit-context resolution', async () => {
+  it.each(['resolveModel', 'resolveReasoningProfile'])('allows caller-owned reads followed by %s', async (resolver) => {
     expect(
       await diagnostics(`
       class ModelService {
@@ -59,17 +59,17 @@ describe('transaction boundary lint gate', () => {
           const context = providerService.getReasoningContextsByProviderIdsTx(tx, [id]).get(id)
           return this.enrich(context, id)
         }
-        enrich(context, id) { return providerRegistryService.resolveModel(context, id) }
+        enrich(context, id) { return providerRegistryService.${resolver}(context, id) }
       }
     `)
     ).toEqual([])
   })
 
-  it('blocks reintroducing a service lookup behind the explicit-context resolver', async () => {
+  it.each(['resolveModel', 'resolveReasoningProfile'])('blocks service lookup behind %s', async (resolver) => {
     const messages = await diagnostics(
       `
       class ProviderRegistryService {
-        resolveModel(context, id) { return this.getContext(context.id) }
+        ${resolver}(context, id) { return this.getContext(context.id) }
         getContext(id) { return getDataService('ProviderService').getByProviderId(id) }
       }
     `,
