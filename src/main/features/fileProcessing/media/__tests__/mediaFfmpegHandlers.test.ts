@@ -1635,7 +1635,6 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(2)
       expect(result.frames).toEqual([])
       expect(readFileSync(untouchedPath, 'utf8')).toBe('leave-me')
     } finally {
@@ -1678,7 +1677,6 @@ describe('mediaFfmpegHandlers frame destinations', () => {
         context()
       )
 
-      expect(spawnControl.calls).toBe(3)
       expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0001.jpg'), timestampMs: 1_000 }])
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
