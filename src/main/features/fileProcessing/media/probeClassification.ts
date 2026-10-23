@@ -2,14 +2,12 @@ export interface FfprobeStream {
   codec_type?: string
   duration?: string
   disposition?: { attached_pic?: number | string }
-  nb_frames?: string
-  avg_frame_rate?: string
-  r_frame_rate?: string
   start_time?: string
 }
 
 export interface FfprobeFormat {
   duration?: string
+  start_time?: string
   format_name?: string
   tags?: Record<string, string>
 }
@@ -41,28 +39,41 @@ function isAttachedPicture(stream: FfprobeStream): boolean {
   return flag === 1 || flag === '1'
 }
 
-function parsePositiveRate(value: string | undefined): number | undefined {
-  if (value == null || value === '' || value === 'N/A' || value === '0/0') return undefined
-  const [rawNumerator, rawDenominator] = value.split('/')
-  const numerator = Number(rawNumerator)
-  const denominator = rawDenominator == null ? 1 : Number(rawDenominator)
-  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || numerator <= 0 || denominator <= 0) {
-    return undefined
-  }
-  return numerator / denominator
+function parseFiniteSeconds(value: string | undefined): number | undefined {
+  if (value == null || value === '' || value === 'N/A') return undefined
+  const seconds = Number(value)
+  return Number.isFinite(seconds) ? seconds : undefined
 }
 
-/** Latest video PTS that an input seek can decode. Rounded up, the next millisecond can miss the frame. */
-export function lastDecodableVideoTimestampMs(probe: FfprobeResult): number | undefined {
+export interface VideoTailProbePoint {
+  /** Video stream start plus its duration, in seconds on the container timeline. */
+  endSeconds: number
+  /** `format.start_time`. Input `-ss` is relative to this, not the video stream start. */
+  formatStartTimeSeconds: number
+}
+
+/** Where a bounded packet read should look. The video stream end is not an input seek. */
+export function videoTailProbePoint(probe: FfprobeResult): VideoTailProbePoint | undefined {
   const video = (probe.streams ?? []).find((stream) => stream.codec_type === 'video' && !isAttachedPicture(stream))
   if (!video) return undefined
-  const count = Number(video.nb_frames)
-  if (!Number.isInteger(count) || count < 1) return undefined
-  const rate = parsePositiveRate(video.avg_frame_rate) ?? parsePositiveRate(video.r_frame_rate)
-  if (rate == null) return undefined
-  const start = Number(video.start_time)
-  const startSeconds = Number.isFinite(start) && start > 0 ? start : 0
-  const timestampMs = Math.floor((startSeconds + (count - 1) / rate) * 1000 + 1e-6)
+  const formatStartTimeSeconds = parseFiniteSeconds(probe.format?.start_time) ?? 0
+  const videoStartSeconds = parseFiniteSeconds(video.start_time) ?? formatStartTimeSeconds
+  const durationSeconds = parseFiniteSeconds(video.duration) ?? parseFiniteSeconds(probe.format?.duration)
+  if (durationSeconds == null || durationSeconds <= 0) return undefined
+  return { endSeconds: videoStartSeconds + durationSeconds, formatStartTimeSeconds }
+}
+
+/** ffprobe interval covering the end of the video timeline, including a packet that starts earlier. */
+export function videoTailReadInterval(endSeconds: number): string {
+  return `${(endSeconds - 0.001).toFixed(6)}%${(endSeconds + 0.001).toFixed(6)}`
+}
+
+/**
+ * Input `-ss` is relative to the format start. Floor so rounding cannot pass the packet PTS.
+ */
+export function relativeInputSeekMs(ptsSeconds: number, formatStartTimeSeconds: number): number | undefined {
+  if (!Number.isFinite(ptsSeconds) || !Number.isFinite(formatStartTimeSeconds)) return undefined
+  const timestampMs = Math.floor((ptsSeconds - formatStartTimeSeconds) * 1000 + 1e-6)
   return timestampMs >= 0 ? timestampMs : undefined
 }
 
