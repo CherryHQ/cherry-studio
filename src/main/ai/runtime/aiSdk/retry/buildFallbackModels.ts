@@ -29,7 +29,7 @@ import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
-import type { NativeFileSupport } from '../params/nativeFileSupport'
+import { acceptsPreparedAudio, type NativeFileSupport } from '../params/nativeFileSupport'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -161,13 +161,20 @@ async function resolveFallback(
     extraFeatures: args.extraFeatures,
     getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
   })
-  const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
+  const unsupportedNativeType = (['image', 'pdf', 'audio', 'video'] as const).find(
     (type) => required[type] && !nativeFileSupport[type]
   )
   if (unsupportedNativeType) {
     logger.info('skipping fallback without required native file support', {
       uniqueModelId,
       fileType: unsupportedNativeType
+    })
+    return null
+  }
+  if (!acceptsPreparedAudio(required, nativeFileSupport)) {
+    logger.info('skipping fallback whose audio converter rejects a prepared MIME', {
+      uniqueModelId,
+      audioMediaTypes: required.audioMediaTypes
     })
     return null
   }
