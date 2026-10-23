@@ -4863,7 +4863,7 @@ describe('AgentComposer', () => {
     // registry key mounts and gains unsaved edits that never persisted into
     // the session cache (e.g. a message-edit session) (cherry-pr-review
     // inv_d544282ace304750).
-    let settlement: Promise<unknown> | undefined
+    let settlement: void | Promise<void> | undefined
     act(() => {
       settlement = mocks.surfaceProps?.onSendDraft({ text: 'submitted A', tokens: [] })
     })
