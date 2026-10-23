@@ -49,6 +49,20 @@ describe('builtinToolPolicy', () => {
     ).toBe(true)
   })
 
+  it('discovers only read_file when assistant-files is mounted without the host assistant server', () => {
+    // Bug: policies still advertised save_attachment and move_to_trash for the read-only surface.
+    const readOnlyFiles = new Set([...WITHOUT_HOST_TOOLS, 'assistant-files'])
+
+    expect(findBuiltinToolPolicy('mcp__assistant-files__read_file', readOnlyFiles)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__save_attachment', readOnlyFiles)).toBeUndefined()
+    expect(findBuiltinToolPolicy('mcp__assistant-files__move_to_trash', readOnlyFiles)).toBeUndefined()
+    expect(listBuiltinToolPolicies({ mountedServers: readOnlyFiles }).map((entry) => entry.toolName)).not.toEqual(
+      expect.arrayContaining(['save_attachment', 'move_to_trash'])
+    )
+    expect(findBuiltinToolPolicy('mcp__assistant-files__save_attachment', WITH_HOST_TOOLS)?.approval).toBe('required')
+    expect(findBuiltinToolPolicy('mcp__assistant-files__move_to_trash', WITH_HOST_TOOLS)?.approval).toBe('required')
+  })
+
   it('auto-approves preparing a diagnostic draft because it has no side effects', () => {
     expect(findBuiltinToolPolicy('mcp__assistant__prepare_diagnostic_report', WITH_HOST_TOOLS)).toMatchObject({
       approval: 'auto'
