@@ -77,6 +77,11 @@ vi.mock('./piSdk', () => ({
     createCodemodeExtension: () => () => undefined,
     createToolSearchExtension: () => () => undefined,
     createBashToolDefinition: () => ({ name: 'bash' }),
+    createReadToolDefinition: () => ({
+      name: 'read',
+      description: 'Read the contents of a file.',
+      execute: async () => ({ content: [], details: undefined })
+    }),
     createAgentSession: mocks.createAgentSession
   })
 }))
