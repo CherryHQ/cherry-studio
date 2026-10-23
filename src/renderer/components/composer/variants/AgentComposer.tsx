@@ -163,6 +163,8 @@ const FILE_IPC_BATCH_SIZE = 500
 type SubmittedAgentDraft = Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
 
 type ActiveAgentDraftEditor = {
+  /** The owning instance's clear callback — identifies same-instance settlements. */
+  owner: (options?: { preserveCache?: boolean }) => void
   /** True only while the visible editor holds exactly this submitted document. */
   isShowing: (submitted: SubmittedAgentDraft) => boolean
   /** Clear the submitted document from the editor, keeping an unrelated cached draft untouched. */
@@ -987,6 +989,7 @@ const AgentComposerInner = ({
     text
   ])
   const filesRef = useLatest(files)
+  const textRef = useLatest(text)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
@@ -1135,8 +1138,7 @@ const AgentComposerInner = ({
   const persistFinalDraft = useEffectEvent(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive) return
     if (suppressEmptyPersistRef.current) {
-      const current = actionsRef.current.getDraft()
-      if (current.text === '' && current.tokens.length === 0 && filesRef.current.length === 0) return
+      if (textRef.current === '' && draftTokensRef.current.length === 0 && filesRef.current.length === 0) return
       suppressEmptyPersistRef.current = false
     }
     // Managed-sync token changes never reach `draftTokens` (isSyncingTokensRef suppresses
@@ -1667,11 +1669,13 @@ const AgentComposerInner = ({
   // inv_8e5cbb8f581e03ec).
   useEffect(() => {
     const entry: ActiveAgentDraftEditor = {
+      owner: clearCurrentDraft,
       isShowing: (submitted) => {
-        const current = actionsRef.current.getDraft()
+        // Compare against the live state refs (what is actually on screen),
+        // not a surface serialization, which can lag the visible document.
         return (
-          current.text === submitted.text &&
-          JSON.stringify(current.tokens) === JSON.stringify(submitted.tokens) &&
+          textRef.current === submitted.text &&
+          JSON.stringify(draftTokensRef.current) === JSON.stringify(submitted.tokens) &&
           JSON.stringify(filesRef.current) === JSON.stringify(submitted.files) &&
           JSON.stringify(knowledgeBaseIdsRef.current) === JSON.stringify(submitted.knowledgeBaseIds)
         )
@@ -1812,7 +1816,20 @@ const AgentComposerInner = ({
             // entry (cherry-pr-review inv_ccf47fc3bab12fcf).
             const activeEditor = activeAgentDraftEditors.get(draftCacheKey)
             if (activeEditor) {
-              if (activeEditor.isShowing(submitted)) {
+              // Same instance that submitted: the synchronous revision guard
+              // sees edits that have not rendered yet. Another (reopened)
+              // instance has its own revision counter, so only its live
+              // document comparison applies (cherry-pr-review
+              // inv_8e5cbb8f581e03ec).
+              const unchanged =
+                (activeEditor.owner as unknown) === clearCurrentDraft
+                  ? queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision
+                  : true
+              // stillOwnsCache implies the cache still held the submitted
+              // document; otherwise the visible editor is cleared only when it
+              // verifiably shows exactly that document, preserving an
+              // unrelated cached draft (cherry-pr-review inv_ccf47fc3bab12fcf).
+              if (unchanged && (stillOwnsCache || activeEditor.isShowing(submitted))) {
                 activeEditor.clearSubmitted({ preserveCache: !stillOwnsCache })
               }
             } else if (
