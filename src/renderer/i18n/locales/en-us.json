@@ -5605,6 +5605,7 @@
   "settings.skills.invalidFormat": "Only ZIP files and directories are supported",
   "settings.skills.launchDraft": "Use the {{name}} Skill to help me with this task.",
   "settings.skills.launchFailed": "Could not try {{name}}",
+  "settings.skills.noSkillDirectoryFound": "No skill directory found: the archive must contain a directory with SKILL.md",
   "settings.skills.notFound": "Skill not found",
   "settings.skills.readOnly": "Read only",
   "settings.skills.remote.applyFailed": "Failed to update the Skill",
