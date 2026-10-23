@@ -133,12 +133,21 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
   it.each([
     ['onnx', Buffer.from(Array.from({ length: 4096 }, (_, i) => (i * 37 + 11) % 256))],
     ['zip', Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(128)])],
+    ['webm', Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(137)])],
     ['lrmx', Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n')],
     ['lrm', iconv.encode('<a>中文</a>', 'gbk')],
     ['bin', Buffer.concat([Buffer.alloc(1024 * 1024, 'a'), Buffer.from([0])])]
   ])('rejects binary or ambiguous bytes under unknown extension %s', async (ext, content) => {
     getByIdMock.mockResolvedValueOnce({ ext })
     readMock.mockResolvedValueOnce({ content })
+    expect(await extractDocumentText('e1')).toBeNull()
+    expect(decodeTextMock).not.toHaveBeenCalled()
+  })
+
+  it('does not decode media containers as document text', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+    readMock.mockResolvedValueOnce({ content: Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(137)]) })
+
     expect(await extractDocumentText('e1')).toBeNull()
     expect(decodeTextMock).not.toHaveBeenCalled()
   })
