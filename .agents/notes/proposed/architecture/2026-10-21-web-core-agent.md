@@ -47,7 +47,7 @@ Run the unmodified desktop agent-session host and agent UI over a browser runtim
 
 Implementation lands in one PR on top of this Spec.
 
-Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat runs, channels, session forks, deleting and archiving agents and sessions, user-chosen workspaces, attachments, and including workspace files in backups (milestone M4).
+Out of scope: remote MCP from `configurations`, skills, scheduled and heartbeat runs, channels, session forks, deleting and archiving agents and sessions, attachments, and including workspace files in backups (milestone M4). User-chosen workspaces are proposed in the [local folder note](2026-10-23-web-core-local-folder.md).
 
 ## Alternatives considered
 
