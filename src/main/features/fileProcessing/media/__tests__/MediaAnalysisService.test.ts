@@ -21,20 +21,21 @@ const visionExecution = (): MediaVisionExecutionConfig => ({
   endpointType: 'openai-chat-completions',
   baseUrl: 'https://api.openai.com/v1',
   sdkConfig: { providerId: 'openai-chat', providerSettings: { apiKey: 'secret-a' }, modelId: 'gpt-4o' },
-  usage: createAiUsageCaptureContext({
-    providerId: 'openai',
-    providerName: 'OpenAI',
-    modelId: 'gpt-4o',
-    modelName: 'GPT-4o',
-    pricing: {
-      input: { perMillionTokens: 2.5, currency: 'USD' },
-      output: { perMillionTokens: 10, currency: 'USD' }
-    },
-    billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: 'UTC', periods: [] },
-    trustProviderReportedCost: true,
-    reportedCostCurrency: 'USD',
-    credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
-  })
+  usage: () =>
+    createAiUsageCaptureContext({
+      providerId: 'openai',
+      providerName: 'OpenAI',
+      modelId: 'gpt-4o',
+      modelName: 'GPT-4o',
+      pricing: {
+        input: { perMillionTokens: 2.5, currency: 'USD' },
+        output: { perMillionTokens: 10, currency: 'USD' }
+      },
+      billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: 'UTC', periods: [] },
+      trustProviderReportedCost: true,
+      reportedCostCurrency: 'USD',
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' }
+    })
 })
 
 const runtime = vi.hoisted(() => ({
