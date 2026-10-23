@@ -174,3 +174,90 @@ it.each(['switch', 'unmount'] as const)('releases a queued acquisition abandoned
   await waitFor(() => expect(manager.listRetained()).toEqual([]))
   await waitFor(() => expect(openLeases.size).toBe(0))
 })
+
+it('masks the previous draft while loading and keeps loading callbacks detached after adoption', async () => {
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
+  })
+  await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+  const transport = ipc.request.getMockImplementation()!
+  const pending = Promise.withResolvers<void>()
+  ipc.request.mockImplementation(async (...args) => {
+    if (args[0] === 'file.edit.read') await pending.promise
+    return transport(...args)
+  })
+  rerender({ handle: b })
+  const loading = result.current
+  expect(loading).toMatchObject({
+    status: 'loading',
+    draft: '',
+    savedContent: '',
+    savedSizeBytes: undefined,
+    isDirty: false,
+    isSaving: false,
+    conflict: false,
+    saveError: undefined
+  })
+  await act(async () => pending.resolve())
+  await waitFor(() => expect(result.current.draft).toBe('BRAVO'))
+  act(() => loading.setDraft('loading callback leaked'))
+  for (const command of [loading.discard, loading.flush, loading.reload, loading.keepDraft])
+    await expect(command()).rejects.toThrow('not ready')
+  expect(result.current).toMatchObject({ draft: 'BRAVO', savedContent: 'BRAVO', isDirty: false })
+  expect(ipc.request.mock.calls.filter(([route]) => route === 'file.edit.write')).toEqual([])
+})
+
+it.each(['initial read', 'reload', 'save'] as const)('does not publish a late A %s into B', async (operation) => {
+  const transport = ipc.request.getMockImplementation()!
+  const pending = Promise.withResolvers<void>()
+  const started = Promise.withResolvers<void>()
+  const installGate = () => {
+    let gated = false
+    ipc.request.mockImplementation(async (...args) => {
+      if (!gated && args[0] === (operation === 'save' ? 'file.edit.write' : 'file.edit.read')) {
+        gated = true
+        started.resolve()
+        await pending.promise
+      }
+      return transport(...args)
+    })
+  }
+  if (operation === 'initial read') installGate()
+  const { result, rerender } = renderHook(({ handle }) => useFileEditSession(handle, 'notes'), {
+    initialProps: { handle: a },
+    wrapper
+  })
+  let task: Promise<void> | undefined
+  if (operation !== 'initial read') {
+    await waitFor(() => expect(result.current.draft).toBe('ALPHA'))
+    installGate()
+    act(() => {
+      if (operation === 'save') {
+        result.current.setDraft('A pending edit')
+        task = result.current.flush()
+      } else task = result.current.reload()
+    })
+  }
+  await act(async () => started.promise)
+  rerender({ handle: b })
+  await waitFor(() => expect(result.current.draft).toBe('BRAVO'))
+  await act(async () => {
+    pending.resolve()
+    await task
+  })
+  expect(result.current).toMatchObject({
+    status: 'ready',
+    draft: 'BRAVO',
+    savedContent: 'BRAVO',
+    isDirty: false,
+    isSaving: false,
+    conflict: false,
+    saveError: undefined
+  })
+  if (operation === 'save') {
+    const writes = ipc.request.mock.calls.filter(([route]) => route === 'file.edit.write')
+    expect(writes).toHaveLength(1)
+    expect(new TextDecoder().decode(writes[0][1].data)).toBe('A pending edit')
+  }
+})

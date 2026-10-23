@@ -23,6 +23,7 @@ on:
           - custom-assistant
           - chat-stream-failure
           - about
+          - settings
           - translation
           - quick-assistant
           - knowledge

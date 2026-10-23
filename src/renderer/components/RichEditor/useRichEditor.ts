@@ -76,7 +76,7 @@ export interface UseRichEditorReturn {
     onCancel: () => void
   }
 
-  /** Set markdown content */
+  /** Load or synchronize Markdown content without firing content-change callbacks. */
   setMarkdown: (content: string) => void
   /** Clear all content */
   clear: () => void

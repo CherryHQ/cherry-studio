@@ -101,8 +101,7 @@ PDF workers belong to individual previews and never change pdf.js global options
 Cleanup awaits the pdf.js loading task's destruction before terminating its worker,
 allowing document fonts to be released. There is no forced teardown timeout: an
 already-unresponsive worker can leave that destruction promise pending.
-Translations use an independent i18next instance with resources for all 13 desktop
-languages; other locales fall back to English.
+Translations use an independent i18next instance with resources for 14 languages; other locales fall back to English.
 
 `FilePreviewLayout.Shell` owns the shared header and toolbar placement.
 `FilePreviewLayout`, `FilePreviewToolbar` and its portal provider/host are also used
