@@ -32,6 +32,7 @@ import {
   rehypePrepareFileLinks,
   rehypeRestoreFileLinks
 } from './plugins/rehype-preserve-file-links'
+import { createRelativeImagePreservation } from './plugins/rehype-preserve-relative-images'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
 import {
   createMarkdownSanitizeSchema,
@@ -133,6 +134,7 @@ export interface MarkdownCoreProps {
   footnoteLabel?: string
   /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
   preserveFileLinkHrefs?: boolean
+  preserveRelativeImageSrcs?: boolean
 }
 
 export function MarkdownCore({
@@ -149,7 +151,8 @@ export function MarkdownCore({
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes',
-  preserveFileLinkHrefs = false
+  preserveFileLinkHrefs = false,
+  preserveRelativeImageSrcs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
   const stableComponents = useStableReference(components, isSameComponents)
@@ -169,6 +172,7 @@ export function MarkdownCore({
 
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
+    const relativeImages = createRelativeImagePreservation()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
     const effectiveSchema = preserveFileLinkHrefs
       ? {
@@ -189,15 +193,17 @@ export function MarkdownCore({
       rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
       [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
+      ...(preserveRelativeImageSrcs ? ([relativeImages.prepare] as Pluggable[]) : []),
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
+      ...(preserveRelativeImageSrcs ? ([relativeImages.restore] as Pluggable[]) : []),
       ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [hasSvgElement, id, stableExtraRehypePlugins, preserveFileLinkHrefs])
+  }, [hasSvgElement, id, stableExtraRehypePlugins, preserveFileLinkHrefs, preserveRelativeImageSrcs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value

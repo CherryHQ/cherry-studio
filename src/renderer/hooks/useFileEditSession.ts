@@ -139,25 +139,43 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     errorRetryCount: 0
   })
 
-  const [draft, setDraftState] = useState('')
-  const [savedContent, setSavedContentState] = useState('')
-  const [savedSizeBytes, setSavedSizeBytes] = useState<number | undefined>(undefined)
-  const [conflict, setConflictState] = useState(false)
-  const [saveError, setSaveErrorState] = useState<Error | undefined>(undefined)
-  const [isSaving, setIsSaving] = useState(false)
-  const [ready, setReady] = useState(false)
+  const [published, setPublished] = useState<{
+    owner: FileEditModel | null
+    draft: string
+    savedContent: string
+    savedSizeBytes?: number
+    conflict: boolean
+    saveError?: Error
+    isSaving: boolean
+  }>({ owner: null, draft: '', savedContent: '', conflict: false, isSaving: false })
 
   const modelRef = useRef<FileEditModel | null>(null)
+  const ownedModel = published.owner?.key === handleKey ? published.owner : null
+  const boundModel = isLoading ? null : ownedModel
+  if (published.owner && !ownedModel) {
+    setPublished({ owner: null, draft: '', savedContent: '', conflict: false, isSaving: false })
+  }
+  const { draft, savedContent, savedSizeBytes, conflict, saveError, isSaving } = ownedModel
+    ? published
+    : { draft: '', savedContent: '', savedSizeBytes: undefined, conflict: false, saveError: undefined, isSaving: false }
 
   // Mirror a model into React state — only while it is still the active model.
   const syncFromModel = useCallback((model: FileEditModel) => {
     if (modelRef.current !== model) return
-    setDraftState(model.draft)
-    setSavedContentState(model.snapshot.content)
-    setSavedSizeBytes(model.snapshot.version.size)
-    setConflictState(model.conflict)
-    setSaveErrorState(model.lastWriteError ?? undefined)
-    setReady(true)
+    setPublished((previous) => ({
+      owner: model,
+      draft: model.draft,
+      savedContent: model.snapshot.content,
+      savedSizeBytes: model.snapshot.version.size,
+      conflict: model.conflict,
+      saveError: model.lastWriteError ?? undefined,
+      isSaving: previous.owner === model && previous.isSaving
+    }))
+  }, [])
+
+  const publishSaving = useCallback((model: FileEditModel, saving: boolean) => {
+    if (modelRef.current !== model) return
+    setPublished((previous) => (previous.owner === model ? { ...previous, isSaving: saving } : previous))
   }, [])
 
   // The write loop is rebuilt every render (capturing the current `mutate`) but
@@ -165,7 +183,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
   const runWritesRef = useRef<(model: FileEditModel) => Promise<void>>(undefined)
   runWritesRef.current = async (model) => {
     let rebases = 0
-    if (modelRef.current === model) setIsSaving(true)
+    publishSaving(model, true)
     try {
       // Re-reads `model.draft` every round: edits made while a write was in
       // flight coalesce into one follow-up write with the rebased baseline.
@@ -243,7 +261,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
         }
       }
     } finally {
-      if (modelRef.current === model) setIsSaving(false)
+      publishSaving(model, false)
     }
   }
 
@@ -293,9 +311,8 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     syncFromModel(next)
   }, [data, handle, handleKey, syncFromModel])
 
-  // Path switch / unmount: hand the leaving model its final write (serialized
-  // on its own chain, against its own rebased baseline — safe even if a write
-  // is still in flight), then detach it and reset the mirrors.
+  // Finish the leaving model's serialized write against its own baseline,
+  // then detach it. Render-time ownership checks already mask its mirrors.
   useEffect(() => {
     return () => {
       debouncedWrite.cancel()
@@ -304,22 +321,14 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
         requestWrite(model)
       }
       modelRef.current = null
-      setDraftState('')
-      setSavedContentState('')
-      setSavedSizeBytes(undefined)
-      setConflictState(false)
-      setSaveErrorState(undefined)
-      setIsSaving(false)
-      setReady(false)
     }
   }, [handleKey, debouncedWrite, requestWrite])
 
   const setDraft = useCallback(
     (next: string) => {
-      const model = modelRef.current
-      if (!model) return
+      if (!boundModel || modelRef.current !== boundModel) return
+      const model = boundModel
       model.draft = next
-      setDraftState(next)
       if (
         model.lastWriteError instanceof IpcError &&
         model.lastWriteError.code === fileErrorCodes.COMMITTED_METADATA_PENDING
@@ -328,31 +337,32 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
         // not an automatic replay of the uncertain operation. A new managed
         // commit can also complete the still-null metadata with its own bytes.
         model.lastWriteError = null
-        setSaveErrorState(undefined)
       }
       // A persistent I/O failure must not turn every keystroke into another
       // doomed write. Keep accepting edits in memory and wait for an explicit
       // retry (`flush`) or discard from the consumer.
+      syncFromModel(model)
       if (!model.lastWriteError) debouncedWrite(model)
     },
-    [debouncedWrite]
+    [boundModel, debouncedWrite, syncFromModel]
   )
 
   const discard = useCallback(() => {
-    const model = modelRef.current
+    if (!boundModel || modelRef.current !== boundModel) return
+    const model = boundModel
     // An IPC write that has already started cannot be cancelled safely. Keep
     // the draft stable until it settles; consumers also disable discard while
     // `isSaving` is true, and this guard protects future callers.
-    if (!model || model.writeTask.isRunning) return
+    if (model.writeTask.isRunning) return
     debouncedWrite.cancel()
     model.draft = model.snapshot.content
     model.lastWriteError = null
     syncFromModel(model)
-  }, [debouncedWrite, syncFromModel])
+  }, [boundModel, debouncedWrite, syncFromModel])
 
   const reload = useCallback(async () => {
-    const model = modelRef.current
-    if (!model) return
+    if (!boundModel || modelRef.current !== boundModel) return
+    const model = boundModel
     debouncedWrite.cancel()
     await model.writeTask.promise
     const disk = await readFile(model.handle)
@@ -363,11 +373,11 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     model.lastWriteError = null
     syncFromModel(model)
     void mutate(model.key, disk, { revalidate: false })
-  }, [debouncedWrite, mutate, syncFromModel])
+  }, [boundModel, debouncedWrite, mutate, syncFromModel])
 
   const keepDraft = useCallback(async () => {
-    const model = modelRef.current
-    if (!model) return
+    if (!boundModel || modelRef.current !== boundModel) return
+    const model = boundModel
     debouncedWrite.cancel()
     await model.writeTask.promise
     const disk = await readFile(model.handle)
@@ -382,12 +392,12 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     if (model.draft !== model.snapshot.content) {
       throw model.lastWriteError ?? new Error('Current draft could not be saved')
     }
-  }, [debouncedWrite, mutate, requestWrite, syncFromModel])
+  }, [boundModel, debouncedWrite, mutate, requestWrite, syncFromModel])
 
   const flush = useCallback(async () => {
-    const model = modelRef.current
+    if (!boundModel || modelRef.current !== boundModel) return
+    const model = boundModel
     debouncedWrite.cancel()
-    if (!model) return
     requestWrite(model)
     await model.writeTask.promise
     // I/O failures and conflicts leave the draft dirty after the writer settles.
@@ -395,12 +405,12 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     if (model.draft !== model.snapshot.content) {
       throw model.lastWriteError ?? new Error('Pending edit could not be saved')
     }
-  }, [debouncedWrite, requestWrite])
+  }, [boundModel, debouncedWrite, requestWrite])
 
   const notifyExternalChange = useCallback(
     (eventMtimeMs?: number) => {
-      const model = modelRef.current
-      if (!model) return
+      if (!boundModel || modelRef.current !== boundModel) return
+      const model = boundModel
       // Never reload a dirty model from a watcher event — a genuine external
       // change surfaces at the next autosave via the write's version check.
       if (model.draft !== model.snapshot.content) return
@@ -431,7 +441,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
         }
       })()
     },
-    [mutate, syncFromModel]
+    [boundModel, mutate, syncFromModel]
   )
 
   return useMemo(() => {
@@ -444,7 +454,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       unsupportedReason = error.reason
     } else if (error) {
       status = 'error'
-    } else if (!ready || isLoading) {
+    } else if (!ownedModel || isLoading) {
       status = 'loading'
     } else {
       status = 'ready'
@@ -473,7 +483,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
   }, [
     handle,
     error,
-    ready,
+    ownedModel,
     isLoading,
     savedContent,
     savedSizeBytes,

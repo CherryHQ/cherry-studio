@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { previewTestDocument } from '../../../__tests__/previewTestDocument'
@@ -9,6 +10,14 @@ import type { PreviewDocument } from '../../../source'
 import type { PreviewOptions } from '../../../types'
 import PdfFilePreview from '../PdfFilePreview'
 import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
+
+type MockPageView = {
+  pdfPage: unknown
+  div: HTMLDivElement
+  height: number
+  viewport: { viewBox: number[]; convertToViewportPoint: (x: number, y: number) => number[] }
+  setPdfPage: (page: unknown) => void
+}
 
 const mocks = vi.hoisted(() => ({
   diagnostic: vi.fn(),
@@ -27,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   linkServiceSetViewer: vi.fn(),
   loadingTaskDestroy: vi.fn(),
   pdfDocument: {
+    loadingTask: { destroyed: false },
     destroy: vi.fn(),
     getOutline: vi.fn(),
     getPage: vi.fn(),
@@ -40,13 +50,21 @@ const mocks = vi.hoisted(() => ({
   pdfViewerScaleValues: [] as string[],
   pdfViewerSetDocument: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
+  firstPage: vi.fn(),
+  pageTop: 0,
+  pageReady: true,
   rangeTransportInstances: [] as Array<{
     abort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     fail: (error: unknown) => void
     document: PreviewDocument
     length: number
   }>,
-  viewerInstances: [] as Array<{ pageColors: { background?: string } | null }>
+  viewerInstances: [] as Array<{
+    pageColors: { background?: string } | null
+    currentPageNumber: number
+    currentScaleValue: string
+    getPageView: (index: number) => MockPageView
+  }>
 }))
 
 vi.mock('pdfjs-dist', () => ({
@@ -129,16 +147,60 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
 
   class MockPDFViewer {
     cleanup = mocks.pdfViewerCleanup
-    firstPagePromise = Promise.resolve()
+    firstPagePromise = mocks.firstPage()
     pageColors: { background?: string } | null
     setDocument = mocks.pdfViewerSetDocument
     private currentPage = 1
     private scale = 1
+    private scaleValue = ''
+    private pageViews = new Map<number, MockPageView>()
+
+    getPageView(index: number): MockPageView {
+      const cached = this.pageViews.get(index)
+      if (cached) return cached
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'offsetTop', { value: mocks.pageTop })
+      const view = {
+        div,
+        height: 1000,
+        viewport: { viewBox: [0, 0, 1000, 1000], convertToViewportPoint: (x: number, y: number) => [x, y] },
+        pdfPage: mocks.pageReady ? {} : (null as unknown),
+        setPdfPage(page: unknown) {
+          this.pdfPage = page
+        }
+      }
+      this.pageViews.set(index, view)
+      return view
+    }
+
+    update() {
+      const { container } = this.options
+      this.options.eventBus.dispatch('updateviewarea', {
+        location: {
+          pageNumber: this.currentPageNumber,
+          left: container.scrollLeft,
+          top: container.scrollTop - this.getPageView(this.currentPageNumber - 1).div.offsetTop
+        }
+      })
+    }
+
+    scrollPageIntoView({
+      pageNumber,
+      destArray
+    }: {
+      pageNumber: number
+      destArray: [unknown, unknown, number, number, unknown]
+    }) {
+      this.currentPageNumber = pageNumber
+      this.options.container.scrollLeft = destArray[2] ?? 0
+      this.options.container.scrollTop = this.getPageView(pageNumber - 1).div.offsetTop + (destArray[3] ?? 0)
+    }
 
     constructor(
       private options: {
         eventBus: MockEventBus
         pageColors: { background?: string } | null
+        container: HTMLDivElement
       }
     ) {
       this.pageColors = options.pageColors
@@ -160,7 +222,12 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
       return this.scale
     }
 
+    get currentScaleValue() {
+      return this.scaleValue
+    }
+
     set currentScaleValue(value: string) {
+      this.scaleValue = value
       mocks.pdfViewerScaleValues.push(value)
       this.scale = Number.isFinite(Number(value)) ? Number(value) : mocks.initialScale
       this.options.eventBus.dispatch('scalechanging', { scale: this.scale })
@@ -169,12 +236,14 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
     increaseScale(options?: unknown) {
       mocks.pdfViewerIncreaseScale(options)
       this.scale = Number((this.scale + 0.1).toFixed(2))
+      this.scaleValue = String(this.scale)
       this.options.eventBus.dispatch('scalechanging', { scale: this.scale })
     }
 
     decreaseScale(options?: unknown) {
       mocks.pdfViewerDecreaseScale(options)
       this.scale = Number((this.scale - 0.1).toFixed(2))
+      this.scaleValue = String(this.scale)
       this.options.eventBus.dispatch('scalechanging', { scale: this.scale })
     }
 
@@ -184,6 +253,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
       if (typeof scaleFactor === 'number') {
         // Match the engine boundary: pdf.js accepts scales at one-percent precision.
         this.scale = Math.min(10, Math.max(0.1, Math.round(this.scale * scaleFactor * 100) / 100))
+        this.scaleValue = String(this.scale)
         this.options.eventBus.dispatch('scalechanging', { scale: this.scale })
       }
     }
@@ -260,6 +330,24 @@ async function flushPdfEffects() {
   await Promise.resolve()
   await Promise.resolve()
   await Promise.resolve()
+}
+
+function observePdfResize() {
+  let resize: () => void = () => {
+    throw new Error('PDF container resize was not observed')
+  }
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        if (target.getAttribute('data-testid') === 'pdfjs-viewer-container') resize = () => this.callback([], this)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  return () => resize()
 }
 
 describe('PdfFilePreview', () => {
@@ -388,31 +476,44 @@ describe('PdfFilePreview', () => {
     )
   })
 
-  it('does not report a pick whose text arrives after the preview unmounted', async () => {
-    let resolveText: (value: { items: Array<{ str: string }> }) => void = () => {}
-    mocks.pdfDocument.getPage.mockResolvedValue({
-      getTextContent: () =>
-        new Promise((resolve) => {
-          resolveText = resolve
-        })
-    })
-    const onSelectionReference = vi.fn()
-    const view = renderPreview(0, 1024, onSelectionReference)
-    await act(flushPdfEffects)
-    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
-    const page = renderPage('2')
+  it.each(['unmount', 'document replacement'] as const)(
+    'does not report a pick whose text arrives after %s',
+    async (phase) => {
+      const user = userEvent.setup()
+      let resolveText: (value: { items: Array<{ str: string }> }) => void = () => {}
+      mocks.pdfDocument.getPage.mockResolvedValue({
+        getTextContent: () =>
+          new Promise((resolve) => {
+            resolveText = resolve
+          })
+      })
+      const onSelectionReference = vi.fn()
+      const view = renderPreview(0, 1024, onSelectionReference)
+      await act(flushPdfEffects)
+      await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+      const page = renderPage('2')
 
-    fireEvent.click(page)
-    await act(flushPdfEffects)
-    const callsBeforeUnmount = onSelectionReference.mock.calls.length
+      await user.click(page)
+      await act(flushPdfEffects)
+      const callsBeforeUnmount = onSelectionReference.mock.calls.length
 
-    view.unmount()
-    resolveText({ items: [{ str: 'late text' }] })
-    await act(flushPdfEffects)
+      if (phase === 'unmount') view.unmount()
+      else
+        view.rerender(
+          <PdfFilePreview
+            sourceId={filePath}
+            fileName="paper.pdf"
+            document={previewTestDocument(1024, 2, mocks.unusedRead, 1)}
+            onSelection={onSelectionReference}
+          />
+        )
+      resolveText({ items: [{ str: 'late text' }] })
+      await act(flushPdfEffects)
 
-    expect(onSelectionReference).not.toHaveBeenCalledWith(expect.objectContaining({ excerpt: 'late text' }))
-    expect(onSelectionReference).toHaveBeenCalledTimes(callsBeforeUnmount)
-  })
+      expect(onSelectionReference).not.toHaveBeenCalledWith(expect.objectContaining({ excerpt: 'late text' }))
+      expect(onSelectionReference).toHaveBeenCalledTimes(callsBeforeUnmount)
+    }
+  )
 
   it('prevents a link annotation from navigating when the click is a pick', async () => {
     mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
@@ -475,6 +576,8 @@ describe('PdfFilePreview', () => {
   beforeEach(() => {
     previewOptions = undefined
     mocks.initialScale = 1
+    mocks.pageTop = 0
+    mocks.pageReady = true
     vi.stubGlobal(
       'Worker',
       class {
@@ -504,6 +607,7 @@ describe('PdfFilePreview', () => {
       destroy: mocks.loadingTaskDestroy,
       promise: Promise.resolve(mocks.pdfDocument)
     })
+    mocks.firstPage.mockImplementation(() => Promise.resolve())
   })
 
   afterEach(() => {
@@ -969,11 +1073,18 @@ describe('PdfFilePreview', () => {
     expect(mocks.requestOpen).toHaveBeenCalledWith('too_large')
   })
 
-  it('reloads the document when the refresh key changes', async () => {
+  it('retains the page-relative position when refreshed page geometry differs from the old layout', async () => {
+    const user = userEvent.setup()
+    mocks.pageTop = 1000
     const view = renderPreview()
-    await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
-    const firstTransport = mocks.rangeTransportInstances[0]
-
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    // Instantiate the loaded page's old geometry before the next viewer is created.
+    mocks.viewerInstances[0].getPageView(1)
+    const region = screen.getByRole('region', { name: 'paper.pdf' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+    region.scrollTop = 1450
+    mocks.pageTop = 100
     view.rerender(
       <PdfFilePreview
         sourceId={filePath}
@@ -981,10 +1092,113 @@ describe('PdfFilePreview', () => {
         document={previewTestDocument(1024, 1, mocks.unusedRead, 1)}
       />
     )
-
-    await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(2))
-    expect(firstTransport.abort).toHaveBeenCalled()
+    await waitFor(() => expect(mocks.viewerInstances).toHaveLength(2))
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('2 / 3'))
+    expect(region.scrollTop).toBe(550)
   })
+
+  it('waits for the retained page geometry before restoring its reading anchor', async () => {
+    const user = userEvent.setup()
+    const view = renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    mocks.viewerInstances[0].getPageView(1)
+    const region = screen.getByRole('region', { name: 'paper.pdf' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+    region.scrollTop = 450
+    let finishPage!: (page: object) => void
+    mocks.pdfDocument.getPage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishPage = resolve
+      })
+    )
+    mocks.pageReady = false
+    view.rerender(
+      <PdfFilePreview
+        sourceId={filePath}
+        fileName="paper.pdf"
+        document={previewTestDocument(1024, 1, mocks.unusedRead, 1)}
+      />
+    )
+    await waitFor(() => expect(mocks.pdfDocument.getPage).toHaveBeenCalledWith(2))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    await act(async () => {
+      finishPage({})
+    })
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('2 / 3'))
+    expect(region.scrollTop).toBe(450)
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('ignores a retained page load that rejects after its viewer was removed', async () => {
+    const view = renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    mocks.viewerInstances[0].getPageView(0)
+    const region = screen.getByRole('region', { name: 'paper.pdf' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+    let failPage!: (error: Error) => void
+    mocks.pdfDocument.getPage.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        failPage = reject
+      })
+    )
+    mocks.pageReady = false
+    view.rerender(
+      <PdfFilePreview
+        sourceId={filePath}
+        fileName="paper.pdf"
+        document={previewTestDocument(1024, 1, mocks.unusedRead, 1)}
+      />
+    )
+    await waitFor(() => expect(mocks.pdfDocument.getPage).toHaveBeenCalledWith(1))
+    view.unmount()
+    await act(async () => {
+      failPage(new Error('Document replaced'))
+    })
+    expect(mocks.failDocument).not.toHaveBeenCalled()
+  })
+
+  it.each(['replacement arrives', 'old range fails'] as const)(
+    'retains zoom, page and scroll when %s',
+    async (phase) => {
+      const user = userEvent.setup()
+      const view = renderPreview()
+      await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+      const firstTransport = mocks.rangeTransportInstances[0]
+      await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+      await user.click(screen.getByRole('button', { name: 'common.next' }))
+      const region = screen.getByRole('region', { name: 'paper.pdf' })
+      Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+      region.scrollTop = 450
+      // pdf.js teardown can reset its viewer before React disconnects the viewer effect.
+      mocks.loadingTaskDestroy.mockImplementationOnce(async () => {
+        const viewer = mocks.viewerInstances[0]
+        viewer.currentPageNumber = 1
+        viewer.currentScaleValue = '1'
+        region.scrollTop = 0
+      })
+
+      if (phase === 'old range fails') {
+        // The host has closed the retained document, but its replacement is still opening.
+        act(() => firstTransport.fail(new Error('Old document closed')))
+        await screen.findByRole('alert')
+      }
+
+      view.rerender(
+        <PdfFilePreview
+          sourceId={filePath}
+          fileName="paper.pdf"
+          document={previewTestDocument(1024, 1, mocks.unusedRead, 1)}
+        />
+      )
+
+      await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(2))
+      expect(firstTransport.abort).toHaveBeenCalled()
+      await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('2 / 3'))
+      expect(screen.getByText('110%')).toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'paper.pdf' }).scrollTop).toBe(450)
+    }
+  )
 
   it('stops intercepting viewer input after unmount', async () => {
     const { unmount } = renderPreview()
@@ -1011,5 +1225,160 @@ describe('PdfFilePreview', () => {
     expect(keyboard.defaultPrevented).toBe(false)
     expect(pinch.defaultPrevented).toBe(false)
     expect(abortSignal.aborted).toBe(true)
+  })
+
+  it('clears a picked page on same-source refresh so the first new click selects it', async () => {
+    const user = userEvent.setup()
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
+    const onSelection = vi.fn()
+    const view = renderPreview(0, 1024, onSelection)
+    await act(flushPdfEffects)
+    await user.click(renderPage('2'))
+    await waitFor(() =>
+      expect(onSelection).toHaveBeenLastCalledWith(expect.objectContaining({ anchor: { format: 'pdf', page: 2 } }))
+    )
+    view.rerender(
+      <PdfFilePreview
+        sourceId={filePath}
+        fileName="paper.pdf"
+        document={previewTestDocument(1024, 2, mocks.unusedRead, 1)}
+        onSelection={onSelection}
+      />
+    )
+    await waitFor(() => expect(mocks.viewerInstances).toHaveLength(2))
+    const page = renderPage('2')
+    await act(flushPdfEffects)
+    expect(page).not.toHaveAttribute('data-pdf-picked')
+    await user.click(page)
+    await waitFor(() =>
+      expect(onSelection).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          revision: JSON.stringify({ size: 1024, mtimeMs: 2 }),
+          anchor: { format: 'pdf', page: 2 }
+        })
+      )
+    )
+  })
+
+  it('keeps the restored position when Activity hides a viewer waiting for its first page', async () => {
+    const user = userEvent.setup()
+    const first = previewTestDocument(1024, 1, mocks.unusedRead, 0)
+    const second = previewTestDocument(1024, 2, mocks.unusedRead, 1)
+    const content = (mode: 'visible' | 'hidden', document: PreviewDocument) => (
+      <Activity mode={mode}>
+        <PreviewHostContext value={{ resources, failDocument: mocks.failDocument }}>
+          <PdfFilePreview sourceId={filePath} fileName="paper.pdf" document={document} />
+        </PreviewHostContext>
+      </Activity>
+    )
+    const view = render(content('visible', first))
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
+    const region = screen.getByRole('region', { name: 'paper.pdf' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+    region.scrollTop = 450
+    let finishPage!: () => void
+    const pendingPage = new Promise<void>((resolve) => {
+      finishPage = resolve
+    })
+    mocks.firstPage.mockReturnValueOnce(pendingPage)
+    view.rerender(content('visible', second))
+    await waitFor(() => expect(mocks.viewerInstances).toHaveLength(2))
+    region.scrollTop = 0
+    view.rerender(content('hidden', second))
+    view.rerender(content('visible', second))
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('2 / 3'))
+    expect(screen.getByText('110%')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'paper.pdf' }).scrollTop).toBe(450)
+    await act(async () => {
+      finishPage()
+      await pendingPage
+    })
+  })
+
+  it('keeps automatic page-width fitting after refresh and a container resize', async () => {
+    previewOptions = { pdf: { outlineLayout: 'panel' } }
+    const resize = observePdfResize()
+    const view = renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    const region = screen.getByRole('region', { name: 'paper.pdf' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 600 })
+    act(() => resize())
+    mocks.initialScale = 0.5
+    view.rerender(
+      <PdfFilePreview
+        sourceId={filePath}
+        fileName="paper.pdf"
+        document={previewTestDocument(1024, 2, mocks.unusedRead, 1)}
+      />
+    )
+    await waitFor(() => expect(mocks.viewerInstances).toHaveLength(2))
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    expect(screen.getByText('100%')).toBeInTheDocument()
+    act(() => resize())
+    expect(screen.getByText('100%')).toBeInTheDocument()
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 450 })
+    mocks.initialScale = 0.75
+    act(() => resize())
+    expect(screen.getByText('75%')).toBeInTheDocument()
+  })
+
+  it('keeps the active viewer when responsive layout is enabled after loading', async () => {
+    const resize = observePdfResize()
+    const document = previewTestDocument(1024, 1, mocks.unusedRead, 0)
+    const content = () => (
+      <PreviewHostContext value={{ resources, options: previewOptions }}>
+        <PdfFilePreview sourceId={filePath} fileName="paper.pdf" document={document} />
+      </PreviewHostContext>
+    )
+    const view = render(content())
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    const region = screen.getByRole('region', { name: 'paper.pdf' })
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 600 })
+    previewOptions = { pdf: { outlineLayout: 'panel' } }
+    view.rerender(content())
+    await act(flushPdfEffects)
+    expect(mocks.viewerInstances).toHaveLength(1)
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 450 })
+    mocks.initialScale = 0.75
+    act(() => resize())
+    expect(screen.getByText('75%')).toBeInTheDocument()
+  })
+
+  it('fits a width change that occurs while neighboring page geometry is loading', async () => {
+    previewOptions = { pdf: { outlineLayout: 'panel' } }
+    const resize = observePdfResize()
+    const view = renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    const region = screen.getByRole('region', { name: 'paper.pdf' })
+    Object.defineProperty(region, 'clientHeight', { configurable: true, value: 1500 })
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 600 })
+    mocks.viewerInstances[0].getPageView(0)
+    mocks.pageReady = false
+    let finishPage!: (page: object) => void
+    mocks.pdfDocument.getPage.mockImplementation((page: number) =>
+      page === 2
+        ? new Promise((resolve) => {
+            finishPage = resolve
+          })
+        : Promise.resolve({})
+    )
+    view.rerender(
+      <PdfFilePreview
+        sourceId={filePath}
+        fileName="paper.pdf"
+        document={previewTestDocument(1024, 2, mocks.unusedRead, 1)}
+      />
+    )
+    await waitFor(() => expect(mocks.pdfDocument.getPage).toHaveBeenCalledWith(2))
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    Object.defineProperty(region, 'clientWidth', { configurable: true, value: 450 })
+    mocks.initialScale = 0.75
+    await act(async () => finishPage({}))
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    act(() => resize())
+    expect(screen.getByText('75%')).toBeInTheDocument()
   })
 })

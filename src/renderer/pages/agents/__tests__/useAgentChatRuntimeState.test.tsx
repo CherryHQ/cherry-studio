@@ -14,10 +14,12 @@ import { useConversationErrorToasts } from '@renderer/hooks/useConversationError
 import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
 import { toast } from '@renderer/services/toast'
 import type * as ToastServiceModule from '@renderer/services/toast'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { ActiveExecution, AiStreamOpenResponse } from '@shared/ai/transport'
-import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { AgentSessionMessageEntity, AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -45,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn(),
+  autoReadUpdate: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
   autoReadEnabled: true
 }))
@@ -89,6 +92,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/services/voice', () => ({
   autoReadService: {
+    update: mocks.autoReadUpdate,
     consume: mocks.autoReadConsume
   }
 }))
@@ -408,6 +412,7 @@ describe('useAgentChatRuntimeState', () => {
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadUpdate.mockReset()
     mocks.autoReadConsume.mockClear()
     mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
@@ -457,6 +462,43 @@ describe('useAgentChatRuntimeState', () => {
       }
     })
   })
+
+  it.each([
+    { agentType: 'local', liveCommands: undefined, canCompact: false },
+    { agentType: 'claude-code', liveCommands: undefined, canCompact: true },
+    { agentType: 'pi', liveCommands: undefined, canCompact: true },
+    {
+      agentType: 'local',
+      liveCommands: [{ name: 'compact', description: 'Compact context', argumentHint: '' }],
+      canCompact: true
+    },
+    {
+      agentType: 'claude-code',
+      liveCommands: [{ name: 'other', description: 'Other command', argumentHint: '' }],
+      canCompact: false
+    }
+  ])(
+    'exposes context compaction only when supported by $agentType ($canCompact)',
+    async ({ agentType, liveCommands, canCompact }) => {
+      if (liveCommands)
+        MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-1'), liveCommands)
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: agentType as AgentType,
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
+      )
+      expect(result.current.sessionId).toBe('session-1')
+      await act(async () => {
+        await mocks.controllerOptions.mock.lastCall![0].onError(new Error('context window exceeded'), { text: 'hello' })
+      })
+      const notification = toast.getToastQueue().toasts[0]
+      expect(notification).toBeDefined()
+      expect(Boolean(notification.action)).toBe(canCompact)
+    }
+  )
 
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)
@@ -893,6 +935,52 @@ describe('useAgentChatRuntimeState', () => {
       { key: originals[0].key, type: 'error' },
       { key: originals[1].key, type: 'success' }
     ])
+  })
+
+  it('reads a live manual Agent answer while excluding autonomous turns', async () => {
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
+    })
+    mocks.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    const onUpdate = mocks.useExecutionOverlay.mock.calls[0]?.[3]?.onUpdate
+    await act(async () => {
+      onUpdate?.('provider::model', {
+        attemptId: 8,
+        message: {
+          ...assistantMessage,
+          id: 'background',
+          parts: [{ type: 'text', text: 'Background.' }],
+          metadata: { turnOrigin: { kind: 'background-work' } }
+        }
+      })
+      onUpdate?.('provider::model', {
+        attemptId: 9,
+        message: {
+          ...assistantMessage,
+          id: 'manual',
+          parts: [
+            { type: 'reasoning', text: 'Secret.' },
+            { type: 'text', text: 'Manual answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Manual answer.'])
+    await coordinator.setEnabled(true)
+    await coordinator.setEnabled(false)
   })
 
   it('wires auto-read to overlay finish without taking over the terminal refresh handoff', () => {

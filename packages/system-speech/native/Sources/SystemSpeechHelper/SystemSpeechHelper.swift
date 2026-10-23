@@ -43,6 +43,8 @@ enum SystemSpeechHelper {
                     )
                 )
             )
+        case let .synthesizeStream(voiceId, text, speed):
+            try await AppleTts.stream(voiceId: voiceId, text: text, speed: speed)
         case let .synthesize(voiceId, text, outputPath, speed):
             let result = try await AppleTts.synthesize(
                 voiceId: voiceId,

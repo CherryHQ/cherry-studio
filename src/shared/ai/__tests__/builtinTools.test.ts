@@ -161,7 +161,7 @@ describe('builtin tool contracts', () => {
     // The model must be told the path boundary, not just the formats — it cannot see the guard.
     expect(toMarkdownInputSchema.shape.path.description).toContain('attachment announced with this session')
     expect(toMarkdownInputSchema.shape.path.description).toContain('agent data directory')
-    expect(TO_MARKDOWN_DESCRIPTION).toContain(TO_MARKDOWN_SUPPORTED_EXTENSIONS)
+    expect(TO_MARKDOWN_DESCRIPTION).toContain('See path')
     expect(TO_MARKDOWN_DESCRIPTION).toContain('local document')
     expect(TO_MARKDOWN_DESCRIPTION).toContain('OCR')
   })

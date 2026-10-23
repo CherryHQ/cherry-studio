@@ -211,7 +211,7 @@ const CaptureOverlay: FC = () => {
   }, [])
 
   const handleExport = useCallback(
-    async (action: 'commit' | 'save' | 'result', text = '') => {
+    async (action: 'commit' | 'copy' | 'save' | 'result', text = '') => {
       if (!imageRef.current || !state.selection || !initData) return
       try {
         const pngBytes = await generateSelectionPng(
@@ -221,7 +221,11 @@ const CaptureOverlay: FC = () => {
           annotationCanvasRef.current
         )
         if (action === 'result') await ipcApi.request('screenshot.submit_result', { pngBytes, text })
-        else await ipcApi.request(action === 'commit' ? 'screenshot.commit' : 'screenshot.save', { pngBytes })
+        else {
+          const route =
+            action === 'commit' ? 'screenshot.commit' : action === 'copy' ? 'screenshot.copy' : 'screenshot.save'
+          await ipcApi.request(route, { pngBytes })
+        }
       } catch (error) {
         logger.error('Failed to export the selection', error as Error)
         if (action === 'result') throw error
@@ -231,6 +235,7 @@ const CaptureOverlay: FC = () => {
   )
 
   const handleOk = useCallback(() => void handleExport('commit'), [handleExport])
+  const handleCopy = useCallback(() => void handleExport('copy'), [handleExport])
   const handleSave = useCallback(() => void handleExport('save'), [handleExport])
   const handleSubmitResult = useCallback((text: string) => handleExport('result', text), [handleExport])
   const handleCancel = useCallback(() => {
@@ -293,6 +298,7 @@ const CaptureOverlay: FC = () => {
           onFirstPaint={handleFirstPaint}
           onOk={handleOk}
           onSave={handleSave}
+          onCopy={handleCopy}
           onSubmitResult={initData.canSubmitResult ? handleSubmitResult : undefined}
           onCancel={handleCancel}
         />
@@ -318,6 +324,7 @@ function OverlayContent({
   onFirstPaint,
   onOk,
   onSave,
+  onCopy,
   onSubmitResult,
   onCancel
 }: {
@@ -336,6 +343,7 @@ function OverlayContent({
   onFirstPaint: () => void
   onOk: () => void
   onSave: () => void
+  onCopy: () => void
   onSubmitResult?: (text: string) => Promise<void>
   onCancel: () => void
 }) {
@@ -477,6 +485,7 @@ function OverlayContent({
           onRedo={annotation.redo}
           onOk={onOk}
           onSave={onSave}
+          onCopy={onCopy}
           onSubmitResult={onSubmitResult}
           onCancel={onCancel}
           onLayout={setToolbarLayout}
