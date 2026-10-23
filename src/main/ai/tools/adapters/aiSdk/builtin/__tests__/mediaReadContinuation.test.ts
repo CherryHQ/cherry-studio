@@ -1,9 +1,12 @@
 import type { UIMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import {
+  formatMediaAnalysisCompact,
+  formatMediaAnalysisFull
+} from '@main/features/fileProcessing/media/mediaAnalysisFormat'
+import { MEDIA_ANALYSIS_VERSION, type MediaAnalysis } from '@main/features/fileProcessing/media/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { MEDIA_ANALYSIS_VERSION, type MediaAnalysis } from '@shared/types/mediaAnalysis'
-import { formatMediaAnalysisCompact, formatMediaAnalysisFull } from '@shared/utils/mediaAnalysis'
 
 const { getByIdMock, analyzeToCompactText, analyzeToFullText, extractMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
