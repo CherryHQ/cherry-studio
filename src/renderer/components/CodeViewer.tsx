@@ -264,6 +264,7 @@ const CodeViewer = ({
     const saved = saveSelection()
     if (saved) {
       savedSelectionRef.current = saved
+      codeViewerSelectionManager.retain(scroller!)
       logger.debug('Selection saved for copy', {
         startLine: saved.startLine,
         endLine: saved.endLine
@@ -274,15 +275,6 @@ const CodeViewer = ({
   // 处理复制事件，确保跨虚拟滚动的复制能获取完整内容
   const handleCopy = useCallback(
     (event: ClipboardEvent) => {
-      const selection = window.getSelection()
-      // Ignore copies for selections outside this viewer
-      if (!selectionBelongsToViewer(selection)) {
-        return
-      }
-      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-        return
-      }
-
       // A live range reflects reselection; retain the saved range only for unmounted endpoints.
       const saved = saveSelection() ?? savedSelectionRef.current
 
@@ -342,7 +334,7 @@ const CodeViewer = ({
         logger.error('Custom copy failed', { error })
       }
     },
-    [selectionBelongsToViewer, expanded, saveSelection, rawLines]
+    [expanded, saveSelection, rawLines]
   )
 
   // Virtualizer 配置
@@ -559,6 +551,12 @@ const CodeViewer = ({
         return
       }
 
+      const current = saveSelection()
+      if (current) {
+        savedSelectionRef.current = current
+        codeViewerSelectionManager.retain(scrollerRef.current!)
+      }
+
       // In collapsed state, detect multi-line selection and request expand
       if (!expanded && onRequestExpand) {
         const saved = saveSelection()
@@ -574,28 +572,28 @@ const CodeViewer = ({
     [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer]
   )
   const selectionChangeHandlerRef = useRef(handleSelectionChange)
+  const copyHandlerRef = useRef(handleCopy)
 
   useLayoutEffect(() => {
     selectionChangeHandlerRef.current = handleSelectionChange
-  }, [handleSelectionChange])
+    copyHandlerRef.current = handleCopy
+  }, [handleSelectionChange, handleCopy])
 
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
 
-    return codeViewerSelectionManager.register(scroller, (selection) => selectionChangeHandlerRef.current(selection))
+    return codeViewerSelectionManager.register(
+      scroller,
+      (selection) => selectionChangeHandlerRef.current(selection),
+      (event) => copyHandlerRef.current(event)
+    )
   }, [])
 
-  // Listen for copy events
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scroller = scrollerRef.current
-    if (!scroller) return
-
-    scroller.addEventListener('copy', handleCopy as EventListener)
-    return () => {
-      scroller.removeEventListener('copy', handleCopy as EventListener)
-    }
-  }, [handleCopy])
+    if (scroller) codeViewerSelectionManager.release(scroller)
+  }, [value])
 
   // Report scrollHeight when it might change
   useLayoutEffect(() => {

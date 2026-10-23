@@ -188,6 +188,46 @@ describe('CodeViewer', () => {
     expect(copied).toBe(lines.slice(2, 31).join('\n'))
   })
 
+  it('copies the logical range after both endpoints unmount, until the user starts another selection', async () => {
+    const lines = Array.from({ length: 10_000 }, (_, index) => `line ${index}`)
+    const { getByText, queryByText, getByTestId } = render(
+      <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+        <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+      </div>
+    )
+    const range = document.createRange()
+    range.setStart(getByText('line 2').firstChild!, 0)
+    range.setEnd(getByText('line 10').firstChild!, 7)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const outer = getByTestId('outer')
+    outer.scrollTop = 3000
+    fireEvent.scroll(outer)
+    await waitFor(() => expect(queryByText('line 10')).toBeNull())
+    expect(queryByText('line 2')).toBeNull()
+    expect(selection.isCollapsed).toBe(true)
+    fireEvent(document, new Event('selectionchange'))
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    const copy = () => {
+      let copied = ''
+      const event = new Event('copy', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', {
+        value: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          }
+        }
+      })
+      document.body.dispatchEvent(event)
+      return { copied, prevented: event.defaultPrevented }
+    }
+    expect(copy()).toEqual({ copied: lines.slice(2, 11).join('\n'), prevented: true })
+    fireEvent.pointerDown(outer)
+    expect(copy()).toEqual({ copied: '', prevented: false })
+    selection.removeAllRanges()
+  })
+
   it('keeps a growing collapsed viewer pinned until the user scrolls away', () => {
     const props = { language: 'text', expanded: false, height: 300, autoScrollToBottom: true } as const
     const { container, rerender } = render(<CodeViewer {...props} value="first" />)
