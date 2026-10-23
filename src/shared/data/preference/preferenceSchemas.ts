@@ -537,6 +537,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'feature.voice.speech.model_id': string
     // target-key-definitions/complex/complex
+    'feature.voice.speech.read_expressive': boolean
+    // target-key-definitions/complex/complex
     'feature.voice.speech.speed': number
     // target-key-definitions/complex/complex
     'feature.voice.speech.voice_id': string
@@ -882,6 +884,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.voice.recognition.model_id': '',
     'feature.voice.speech.language': '',
     'feature.voice.speech.model_id': '',
+    'feature.voice.speech.read_expressive': true,
     'feature.voice.speech.speed': 1,
     'feature.voice.speech.voice_id': '',
     'menu.presentation_mode': 'cherry',

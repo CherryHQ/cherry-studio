@@ -167,6 +167,13 @@
       "description": "Exact installed system voice identifier; empty means no explicit selection"
     },
     {
+      "targetKey": "feature.voice.speech.read_expressive",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Read emoji and kaomoji as words during speech playback"
+    },
+    {
       "targetKey": "feature.voice.speech.speed",
       "type": "number",
       "defaultValue": 1,

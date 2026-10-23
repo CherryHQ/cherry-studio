@@ -1,9 +1,12 @@
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 import type { VoicePlaybackState } from '@shared/ipc/schemas/voice'
 import type { InputFor } from '@shared/ipc/types'
 import type { OutputFor } from '@shared/ipc/types'
 
+import { ensureExpressiveRulesLoaded } from './expressiveRulesBootstrap'
+import { speechLanguageFromLocale } from './expressiveText'
 import { FinitePlayback } from './FinitePlayback'
 import { PcmPlayback } from './PcmPlayback'
 import {
@@ -184,6 +187,7 @@ export class SpeechPlaybackService {
 
   initialize(): Promise<void> {
     if (this.initialization) return this.initialization
+    void ensureExpressiveRulesLoaded()
     const generation = this.lifecycleGeneration
     this.unsubscribeState = this.voice.subscribe(() => {
       const state = this.voice.getSnapshot()
@@ -221,7 +225,8 @@ export class SpeechPlaybackService {
     const plan = this.planText(input.text, {
       trigger: input.trigger,
       mode: input.textInput ? 'selection' : input.mode,
-      confirmed: input.confirmed
+      confirmed: input.confirmed,
+      language: speechLanguageFromLocale(i18n.language)
     })
     if (plan.status !== 'ready') return planningResult(plan)
     if (input.textInput) plan.chunks = [input.text]

@@ -664,3 +664,16 @@ export type McpResourceSavedBlob = z.infer<typeof mcpResourceSavedBlobSchema>
 export type McpResourceListOutput = z.infer<typeof mcpResourceListOutputSchema>
 export type McpResourceReadOutput = z.infer<typeof mcpResourceReadOutputSchema>
 export type McpResourceReadResult = z.infer<typeof mcpResourceReadResultSchema>
+
+export const VOICE_EXPRESSIVE_TOOL_NAME = 'voice_expressive'
+
+export const voiceExpressiveInputSchema = z.object({
+  action: z
+    .enum(['list', 'set', 'remove'])
+    .describe('list reads the rules, set adds or updates one, remove deletes by id'),
+  id: z.string().min(1).max(64).optional().describe('Rule id, required for remove'),
+  kind: z.enum(['emoji', 'kaomoji']).optional().describe('Rule kind, required for set'),
+  match: z.string().min(1).max(32).optional().describe('The emoji or kaomoji text, required for set'),
+  zh: z.string().min(1).max(40).optional().describe('Short Chinese label, required for set'),
+  en: z.string().min(1).max(40).optional().describe('Short English label, required for set')
+})
