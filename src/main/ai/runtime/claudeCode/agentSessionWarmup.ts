@@ -21,7 +21,11 @@ import {
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getUserReasoningEffortMap } from '@main/ai/utils/reasoningEffortPreferences'
-import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
+import {
+  encodeReasoningInvocation,
+  resolveReasoningInvocation,
+  resolveSelection
+} from '@main/ai/utils/reasoningSerializers'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -29,6 +33,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { applyUserReasoningEffortTranslation } from '@shared/ai/reasoningEffortMappings'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -549,10 +554,16 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
-  // The user effort map must apply exactly once. On a gateway route the gateway's
-  // providerOptionsMapper applies it, so applying it here as well would double-translate
-  // (High -> Medium -> Low); on direct and external-CLI routes this is the only application.
-  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
+  // The user effort map applies exactly once, at this boundary (the gateway's
+  // providerOptionsMapper deliberately never re-applies it). When the gateway
+  // route targets a non-Anthropic endpoint, Anthropic serialization cannot
+  // represent every canonical tier, so the mapped selection passes through
+  // verbatim for the gateway to serialize against the target profile.
+  const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort, {
+    gatewayToNonAnthropicTarget:
+      route.branch === 'gateway' &&
+      resolveEffectiveEndpoint(provider, model).endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  })
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
@@ -648,25 +659,46 @@ function resolveClaudeCodeReasoningContext(model: Model) {
  * translated into the Anthropic dialect by the profile, because serialization can discard the
  * canonical key before the gateway sees the request. A budget-based model keeps no effort field to
  * map downstream, and a cross-provider tier (GPT-5 minimal) serializes to an Anthropic value (low)
- * that would match the wrong map key there (cherry-pr-review inv_5fce608bcdee52df). The gateway
- * native pass-through then carries the already-mapped fields to the target endpoint.
+ * that would match the wrong map key there (cherry-pr-review inv_5fce608bcdee52df). On a gateway
+ * route to a non-Anthropic endpoint that serialization is also LOSSY for the mapped destination
+ * (minimal -> low), so the canonical, already-mapped tier passes through verbatim and the gateway
+ * serializes it against the target profile (cherry-pr-review inv_c617555adede2eca).
  */
 function resolveClaudeCodeThinkingOptions(
   model: Model,
-  reasoningEffort: ReasoningEffortOption
+  reasoningEffort: ReasoningEffortOption,
+  target?: { gatewayToNonAnthropicTarget?: boolean }
 ): { effort?: Options['effort']; thinking?: Options['thinking'] } {
   const { profile, invocationModel } = resolveClaudeCodeReasoningContext(model)
+  const userEffortMap = getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
   const invocation = resolveReasoningInvocation({
     selection: reasoningEffort,
     model: invocationModel,
     profile: profile.wire,
     maxTokens: model.maxOutputTokens,
-    userEffortMap: getUserReasoningEffortMap({ id: model.providerId }, invocationModel)
+    userEffortMap
   })
   const encoded = encodeReasoningInvocation(invocation)
 
+  let effort = encoded.effort as Options['effort'] | undefined
+  if (target?.gatewayToNonAnthropicTarget) {
+    // This route's Anthropic dialect ends at Cherry's own gateway, which
+    // serializes the literal tier against the TARGET profile. Anthropic
+    // serialization cannot represent every canonical tier (GPT-5 minimal
+    // serializes to low), so pass the canonical, already-mapped selection
+    // through verbatim or the configured destination is silently downgraded
+    // (cherry-pr-review inv_c617555adede2eca).
+    const canonical = resolveSelection(
+      applyUserReasoningEffortTranslation(reasoningEffort, userEffortMap),
+      invocationModel
+    )
+    if (canonical && canonical !== 'none' && canonical !== 'auto' && canonical !== 'default') {
+      effort = canonical as Options['effort']
+    }
+  }
+
   return {
-    effort: encoded.effort as Options['effort'] | undefined,
+    effort,
     thinking: encoded.thinking as Options['thinking'] | undefined
   }
 }

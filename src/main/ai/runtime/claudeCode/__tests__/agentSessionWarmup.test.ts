@@ -277,6 +277,33 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(thinkingOptions?.effort).toBe('high')
   })
 
+  it('preserves the mapped destination tier across the gateway boundary for a non-Anthropic target', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'gpt-5',
+      contextWindow: 128_000,
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      reasoning: { selectableEfforts: ['minimal', 'low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'minimal' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    // Anthropic serialization cannot represent GPT-5 minimal (it degrades to
+    // low); this route's Anthropic dialect ends at Cherry's gateway, which
+    // serializes the literal tier against the target profile, so the mapped
+    // destination must cross the boundary verbatim (cherry-pr-review
+    // inv_c617555adede2eca).
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('minimal')
+  })
+
   it('applies the user effort map to budget serialization on a gateway route', async () => {
     mocks.getProviderByProviderId.mockReturnValue({
       id: CHERRY_CLOUD_PROVIDER_ID,
