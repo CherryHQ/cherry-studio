@@ -84,6 +84,7 @@ import { ChatConversationControls, type ChatConversationControlsProps } from './
 import {
   clearChatDraftCacheIfMatches,
   type ChatComposerDraftCache,
+  hasChatDraftCacheEntry,
   hasChatDraftDocument,
   readChatDraftCache,
   subscribeChatDraftCache,
@@ -1630,6 +1631,11 @@ const ChatComposerInner = ({
     if (!hasChatDraftDocument(initialDraft)) return
     const mountRevision = draftEditRevisionRef.current
     return subscribeChatDraftCache(draftCacheScopeKey, () => {
+      // TTL expiry removes the cache entry outright; settlement rewrites it
+      // with an empty document. A missing entry is ordinary cache eviction -
+      // the visible draft was never submitted, so keep it in the editor
+      // (cherry-pr-review inv_994d0262e39459d3).
+      if (!hasChatDraftCacheEntry(draftCacheScopeKey)) return
       const cached = readChatDraftCache(draftCacheScopeKey)
       if (hasChatDraftDocument(cached)) return
       // A tool dispatch between mount and now (an attachment picked while an

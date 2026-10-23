@@ -714,6 +714,7 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.set).mockReset()
+    vi.mocked(cacheService.has).mockReset()
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.setCasual).mockReset()
     mocks.createTopic.mockReset()
@@ -3349,6 +3350,8 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockImplementation((key: string) =>
       key === 'chat.composer_draft.topic-1' ? cached : ''
     )
+    // Settlement rewrites the entry empty rather than deleting it: it stays present.
+    vi.mocked(cacheService.has).mockImplementation((key: string) => key === 'chat.composer_draft.topic-1')
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
       tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
@@ -3372,6 +3375,44 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
     // The conversation knowledge selection is preserved through the reconcile.
     expect(mocks.selectedKnowledgeBases).toEqual([base])
+  })
+
+  it('keeps the reopened draft when its cache entry expires instead of settling (inv_994d0262e39459d3)', async () => {
+    // The 24-hour TTL eviction deletes the entry outright rather than
+    // rewriting it empty: the missing entry is ordinary cache eviction, not a
+    // settled enqueue, so the visible unsent draft must survive.
+    let cached: unknown = {
+      text: 'queued while streaming',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: []
+    }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1' ? cached : ''
+    )
+    vi.mocked(cacheService.has).mockImplementation((key: string) => key === 'chat.composer_draft.topic-1')
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('queued while streaming'))
+
+    // TTL expiry: the entry is deleted outright (get misses, has reports gone).
+    cached = ''
+    vi.mocked(cacheService.has).mockReturnValue(false)
+    const listeners = vi
+      .mocked(cacheService.subscribe)
+      .mock.calls.filter(([key]) => key === 'chat.composer_draft.topic-1')
+      .map(([, listener]) => listener)
+    expect(listeners.length).toBeGreaterThan(0)
+    await act(async () => {
+      for (const listener of listeners) listener()
+    })
+
+    // The reconcile runs synchronously inside act; the draft must survive.
+    expect(mocks.surfaceProps?.text).toBe('queued while streaming')
   })
 
   it('persists the latest chat draft when the topic changes before tools finish loading', async () => {

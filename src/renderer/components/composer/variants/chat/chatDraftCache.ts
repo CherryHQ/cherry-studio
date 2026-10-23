@@ -58,6 +58,16 @@ export function readChatDraftPresence(topicId: string): boolean {
   return hasChatDraftContent(readChatDraftCache(topicId))
 }
 
+/**
+ * True while a cache ENTRY exists for the topic, even an emptied one. TTL
+ * expiry deletes the entry outright while enqueue settlement rewrites it with
+ * an empty document, so entry existence is what distinguishes ordinary cache
+ * eviction from a settled submission (cherry-pr-review inv_994d0262e39459d3).
+ */
+export function hasChatDraftCacheEntry(topicId: string): boolean {
+  return cacheService.has(getChatDraftCacheKey(topicId))
+}
+
 export function subscribeChatDraftCache(topicId: string, listener: () => void): () => void {
   return cacheService.subscribe(getChatDraftCacheKey(topicId), listener)
 }
