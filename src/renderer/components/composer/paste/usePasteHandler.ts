@@ -1,11 +1,12 @@
 import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import pasteHandling from './pasteHandling'
 
 export interface UsePasteHandlerOptions {
+  allowImageAttachments?: boolean
   supportedExts: string[]
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
   onResize?: () => void
@@ -35,6 +36,8 @@ export interface UsePasteHandlerOptions {
  * ```
  */
 export function usePasteHandler(options: UsePasteHandlerOptions) {
+  const allowImageAttachmentsRef = useRef(options.allowImageAttachments)
+  allowImageAttachmentsRef.current = options.allowImageAttachments
   const handlePaste = useCallback(
     async (event: ClipboardEvent) => {
       return await pasteHandling.handlePaste(
@@ -44,7 +47,8 @@ export function usePasteHandler(options: UsePasteHandlerOptions) {
         options.pasteLongTextAsFile,
         options.pasteLongTextThreshold,
         options.onResize ?? (() => {}),
-        options.t
+        options.t,
+        () => allowImageAttachmentsRef.current !== false
       )
     },
     [options]

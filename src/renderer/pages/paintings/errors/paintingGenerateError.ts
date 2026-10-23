@@ -31,6 +31,7 @@ export function translatePaintingGenerateError(error: Error): string {
     PROVIDER_DISABLED: 'error.provider_disabled',
     PROMPT_REQUIRED: 'paintings.prompt_required',
     TEXT_DESC_REQUIRED: 'paintings.text_desc_required',
+    IMAGE_INPUT_NOT_SUPPORTED: 'paintings.image_input_not_supported',
     IMAGE_REQUIRED: 'paintings.image_file_required',
     IMAGE_RETRY_REQUIRED: 'paintings.image_file_retry',
     EDIT_IMAGE_REQUIRED: 'paintings.edit.image_required',

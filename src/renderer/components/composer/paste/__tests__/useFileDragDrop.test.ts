@@ -372,4 +372,130 @@ describe('useFileDragDrop', () => {
     expect(toast.info).not.toHaveBeenCalled()
     expect(onTextDropped).not.toHaveBeenCalled()
   })
+  it.each([undefined, false])(
+    'preserves the extension rejection count with image policy %s and emits one toast',
+    async (allowImageAttachments) => {
+      fileApi.getPathForFile.mockImplementation((file) => `/tmp/${file.name}`)
+      fileApi.get.mockImplementation(async (path) => ({
+        ...createFileMetadata(path),
+        ext: path.endsWith('.png') ? '.png' : '.bin',
+        type: path.endsWith('.png') ? FILE_TYPE.IMAGE : FILE_TYPE.OTHER
+      }))
+      mocks.request.mockResolvedValue({ kind: 'file', type: FILE_TYPE.OTHER })
+      const translate = ((key: string, options?: { count: number }) => `${key}:${options?.count}`) as TFunction
+      let files: ComposerAttachment[] = []
+      const { result } = renderHook(() =>
+        useFileDragDrop({
+          supportedExts: ['.png'],
+          allowImageAttachments,
+          enabled: true,
+          t: translate,
+          setFiles: (updater) => {
+            files = updater(files)
+          }
+        })
+      )
+
+      await act(async () => {
+        await result.current.handleDrop?.(
+          createDropEvent('', [new File([''], 'pic.png'), new File([''], 'a.bin'), new File([''], 'b.bin')])
+        )
+      })
+
+      expect(files.map((file) => file.path)).toEqual(allowImageAttachments === false ? [] : ['/tmp/pic.png'])
+      expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported_count:2')
+      expect(toast.error).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([false, true, undefined])(
+    'applies image policy %s to file-list and textual-path drops',
+    async (allowImageAttachments) => {
+      const path = '/tmp/pic.png'
+      const image = { ...createFileMetadata(path), ext: '.png', type: FILE_TYPE.IMAGE }
+      fileApi.get.mockResolvedValue(image)
+      fileApi.getPathForFile.mockReturnValue(path)
+      mocks.request.mockResolvedValue({ kind: 'file' })
+      let files: ComposerAttachment[] = []
+      const { result } = renderHook(() =>
+        useFileDragDrop({
+          supportedExts: ['.png'],
+          allowImageAttachments,
+          enabled: true,
+          t,
+          setFiles: (updater) => {
+            files = updater(files)
+          }
+        })
+      )
+      for (const event of [createDropEvent('', [new File([''], 'pic.png')]), createDropEvent(path)]) {
+        files = []
+        vi.mocked(toast.info).mockClear()
+        await act(async () => {
+          await result.current.handleDrop?.(event)
+        })
+        expect(files).toEqual(
+          allowImageAttachments === false ? [] : [expect.objectContaining({ path, type: FILE_TYPE.IMAGE })]
+        )
+        if (allowImageAttachments === false)
+          expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported')
+      }
+    }
+  )
+
+  it('uses the latest policy while a drop is awaiting file metadata and keeps non-images', async () => {
+    const imagePath = '/tmp/pic.png'
+    const textPath = '/tmp/note.txt'
+    fileApi.getPathForFile.mockImplementation((file) => `/tmp/${file.name}`)
+    fileApi.get.mockImplementation(async (path) => ({
+      ...createFileMetadata(path),
+      ext: path === imagePath ? '.png' : '.txt',
+      type: path === imagePath ? FILE_TYPE.IMAGE : FILE_TYPE.TEXT
+    }))
+    let resolveMetadata!: (meta: { kind: string }) => void
+    let markStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+    mocks.request.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMetadata = resolve
+          markStarted()
+        })
+    )
+    let files: ComposerAttachment[] = []
+    const { result, rerender } = renderHook(
+      ({ allowImageAttachments }) =>
+        useFileDragDrop({
+          supportedExts: ['.png'],
+          allowImageAttachments,
+          enabled: true,
+          t,
+          setFiles: (updater) => {
+            files = updater(files)
+          }
+        }),
+      { initialProps: { allowImageAttachments: true } }
+    )
+    let pending!: Promise<void>
+    await act(async () => {
+      pending = result.current.handleDrop!(createDropEvent(imagePath))
+      await started
+    })
+    rerender({ allowImageAttachments: false })
+    await act(async () => {
+      resolveMetadata({ kind: 'file' })
+      await pending
+    })
+    expect(files).toEqual([])
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported')
+    mocks.request.mockResolvedValue({ kind: 'file', type: 'text' })
+    vi.mocked(toast.info).mockClear()
+    await act(async () => {
+      await result.current.handleDrop?.(createDropEvent('', [new File([''], 'pic.png'), new File([''], 'note.txt')]))
+    })
+    expect(files).toEqual([expect.objectContaining({ path: textPath, type: FILE_TYPE.TEXT })])
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported')
+  })
 })

@@ -195,6 +195,7 @@ describe('PaintingComposer', () => {
   it('renders the top image strip + add button and drops file pills for edit-image models', () => {
     mockIsEditImageModel.mockReturnValue(true)
     renderComposer()
+    expect(captured.surfaceProps?.allowImageAttachments).toBe(true)
     expect(captured.surfaceProps?.topContent).toBeTruthy()
     expect(captured.surfaceProps?.leadingContent).toBeTruthy()
     expect(captured.surfaceProps?.tokens).toEqual([])
@@ -203,6 +204,7 @@ describe('PaintingComposer', () => {
 
   it('keeps file pills and no image tray for non-edit models', () => {
     renderComposer()
+    expect(captured.surfaceProps?.allowImageAttachments).toBe(false)
     expect(captured.surfaceProps?.topContent).toBeUndefined()
     expect(captured.surfaceProps?.leadingContent).toBeUndefined()
     expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])

@@ -3015,6 +3015,7 @@
   "paintings.image_file_required": "Carregue primeiro uma imagem",
   "paintings.image_file_retry": "Volte a carregar a imagem",
   "paintings.image_handle_required": "Carregue primeiro uma imagem",
+  "paintings.image_input_not_supported": "As imagens de referência não estão disponíveis para este modelo. Remova-as ou escolha um modelo que suporte imagens de entrada.",
   "paintings.image_mix_failed": "Falha ao misturar imagens",
   "paintings.image_placeholder": "Nenhuma imagem disponível no momento",
   "paintings.image_size_options.auto": "Automático",

@@ -20,6 +20,7 @@ function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
 }
 
 export interface CanonicalGenerateOptions<T extends PaintingData> {
+  acceptsImageInput?: boolean
   /**
    * Throw a vendor-specific validation error before the generate call
    * fires. Use for cross-field rules that can't fit a single resolver.
@@ -70,6 +71,11 @@ export async function canonicalGenerate<T extends PaintingData>(
   const inputImageFiles = (painting.inputFiles ?? []).filter(
     (entry) => getFileTypeByExt(entry.ext ?? '') === FILE_TYPE.IMAGE
   )
+  const modelId = painting.model
+  if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+  if (inputImageFiles.length > 0 && options.acceptsImageInput !== true) {
+    throw createPaintingGenerateError('IMAGE_INPUT_NOT_SUPPORTED')
+  }
   const mode = options.mode ?? (inputImageFiles.length > 0 ? 'edit' : 'generate')
   const maxInputImages = options.support?.modes?.[mode]?.maxInputImages
   if (maxInputImages !== undefined && inputImageFiles.length > maxInputImages) {
@@ -83,9 +89,6 @@ export async function canonicalGenerate<T extends PaintingData>(
   }
 
   await checkProviderEnabled(provider)
-  const modelId = painting.model
-  if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
-
   const prompt = (painting.prompt ?? '').trim()
   const promptRequired =
     typeof options.requirePrompt === 'function' ? options.requirePrompt(painting) : (options.requirePrompt ?? true)

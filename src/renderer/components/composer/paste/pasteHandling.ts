@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
-import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
+import { FILE_TYPE, COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
 import { getFileExtension, isSupportedExtension, isSupportedFile } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { getFileTypeByExt } from '@shared/utils/file'
 
 import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
 
@@ -58,9 +59,22 @@ export const handlePaste = async (
   pasteLongTextAsFile?: boolean,
   pasteLongTextThreshold?: number,
   resizeTextArea?: () => void,
-  t?: (key: string) => string
+  t?: (key: string) => string,
+  getAllowImageAttachments?: () => boolean
 ): Promise<boolean> => {
   try {
+    let notifiedUnsupported = false
+    const notifyUnsupported = () => {
+      if (!notifiedUnsupported && t) toast.info(t('chat.input.file_not_supported'))
+      notifiedUnsupported = true
+    }
+    const rejectsImage = (extension: string) =>
+      getAllowImageAttachments?.() === false && getFileTypeByExt(extension) === FILE_TYPE.IMAGE
+    const appendFiles = (attachments: ComposerAttachment[]) => {
+      const accepted = attachments.filter((file) => !rejectsImage(file.ext))
+      if (accepted.length !== attachments.length) notifyUnsupported()
+      if (accepted.length) setFiles((prevFiles) => [...prevFiles, ...accepted])
+    }
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
     const extensionSet = new Set(supportExts)
     const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
@@ -84,7 +98,7 @@ export const handlePaste = async (
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         } else if (t) {
-          toast.info(t('chat.input.file_not_supported'))
+          notifyUnsupported()
         }
         return true
       }
@@ -108,7 +122,9 @@ export const handlePaste = async (
 
         if (pathBackedEntries.length === clipboardEntries.length) {
           const results = await Promise.allSettled(
-            pathBackedEntries.map(({ filePath }) => readPathBackedClipboardEntry(filePath, extensionSet))
+            pathBackedEntries.map(async ({ filePath }) =>
+              rejectsImage(getFileExtension(filePath)) ? null : readPathBackedClipboardEntry(filePath, extensionSet)
+            )
           )
           const attachments: ComposerAttachment[] = []
           let hasFileError = false
@@ -120,12 +136,12 @@ export const handlePaste = async (
             } else if (result.value) {
               attachments.push(result.value)
             } else if (t) {
-              toast.info(t('chat.input.file_not_supported'))
+              notifyUnsupported()
             }
           }
 
           if (attachments.length > 0) {
-            setFiles((prevFiles) => [...prevFiles, ...attachments])
+            appendFiles(attachments)
           }
           if (hasFileError && t) {
             toast.error(t('chat.input.file_error'))
@@ -136,6 +152,10 @@ export const handlePaste = async (
         let hasFileError = false
         for (const { file, filePath } of clipboardEntries) {
           try {
+            if (rejectsImage(getFileExtension(filePath || file.name))) {
+              notifyUnsupported()
+              continue
+            }
             if (!filePath) {
               if (isSupportedExtension(getFileExtension(file.name), supportExts)) {
                 const tempFilePath = await window.api.file.createTempFile(file.name)
@@ -144,19 +164,18 @@ export const handlePaste = async (
                 await window.api.file.write(tempFilePath, uint8Array)
                 const selectedFile = await window.api.file.get(tempFilePath)
                 if (selectedFile) {
-                  setFiles((prevFiles) => [
-                    ...prevFiles,
+                  appendFiles([
                     toComposerAttachment({
                       ...selectedFile,
                       origin_name: file.name
                     })
                   ])
                 } else if (t) {
-                  toast.info(t('chat.input.file_not_supported'))
+                  notifyUnsupported()
                 }
               } else {
                 if (t) {
-                  toast.info(t('chat.input.file_not_supported'))
+                  notifyUnsupported()
                 }
               }
               continue
@@ -164,9 +183,9 @@ export const handlePaste = async (
 
             const result = await readPathBackedClipboardEntry(filePath, extensionSet)
             if (result) {
-              setFiles((prevFiles) => [...prevFiles, result])
+              appendFiles([result])
             } else if (t && !hasPathlessClipboardFile) {
-              toast.info(t('chat.input.file_not_supported'))
+              notifyUnsupported()
             }
           } catch (error) {
             hasFileError = true

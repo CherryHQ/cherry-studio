@@ -3015,6 +3015,7 @@
   "paintings.image_file_required": "กรุณาอัปโหลดรูปภาพก่อน",
   "paintings.image_file_retry": "กรุณาอัปโหลดรูปภาพอีกครั้งก่อน",
   "paintings.image_handle_required": "กรุณาอัปโหลดรูปภาพก่อน",
+  "paintings.image_input_not_supported": "โมเดลนี้ไม่รองรับภาพอ้างอิง โปรดนำภาพออกหรือเลือกโมเดลที่รองรับอินพุตภาพ",
   "paintings.image_mix_failed": "ไม่สามารถผสมรูปภาพ",
   "paintings.image_placeholder": "ไม่มีรูปภาพ",
   "paintings.image_size_options.auto": "อัตโนมัติ",

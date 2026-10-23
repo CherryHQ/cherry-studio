@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Button as ToolbarButton } from '@cherrystudio/ui/components/primitives/button'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
@@ -4719,6 +4720,49 @@ describe('ComposerSurface', () => {
         type: 'document'
       })
     ])
+  })
+
+  it('replaces rejected rich-clipboard images with visible text and reports the batch once', async () => {
+    const notice = vi.spyOn(toast, 'info')
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} allowImageAttachments={false} setFiles={setFiles} />)
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const fragment = createComposerClipboardFragment([
+      { type: 'text', text: 'before ' },
+      ...['first', 'second'].map((id) => ({
+        type: 'token' as const,
+        token: {
+          id: `file:${id}`,
+          kind: 'file' as const,
+          label: `${id}.png`,
+          payload: {
+            fileTokenSourceId: id,
+            type: FILE_TYPE.IMAGE,
+            ext: '.png',
+            path: `/tmp/${id}.png`
+          }
+        },
+        fallbackText: `[${id}.png]`
+      })),
+      { type: 'text', text: ' after' }
+    ])
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: (type: string) => (type === COMPOSER_CLIPBOARD_FRAGMENT_MIME ? fragment : '') }
+    }
+    let handled: boolean | undefined
+    act(() => {
+      handled = mocks.editorOptions.handlePaste(mocks.currentView, event)
+    })
+    expect(handled).toBe(true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([
+      { type: 'text', text: 'before ' },
+      { type: 'text', text: '[first.png]' },
+      { type: 'text', text: '[second.png]' },
+      { type: 'text', text: ' after' }
+    ])
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(notice).toHaveBeenCalledExactlyOnceWith('chat.input.file_not_supported')
   })
 
   it('downgrades private clipboard file fragments without paths to fallback text', async () => {

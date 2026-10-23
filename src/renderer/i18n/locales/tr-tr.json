@@ -3015,6 +3015,7 @@
   "paintings.image_file_required": "Önce bir görsel yükleyin",
   "paintings.image_file_retry": "Önce görseli yeniden yükleyin",
   "paintings.image_handle_required": "Önce bir görsel yükleyin.",
+  "paintings.image_input_not_supported": "Bu model için referans görseller kullanılamıyor. Bunları kaldırın veya görsel girdisini destekleyen bir model seçin.",
   "paintings.image_mix_failed": "Görseller birleştirilemedi",
   "paintings.image_placeholder": "Kullanılabilir görsel yok",
   "paintings.image_size_options.auto": "Otomatik",

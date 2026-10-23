@@ -3015,6 +3015,7 @@
   "paintings.image_file_required": "Veuillez d'abord télécharger une image",
   "paintings.image_file_retry": "Veuillez réuploader l'image",
   "paintings.image_handle_required": "Veuillez d'abord télécharger une image",
+  "paintings.image_input_not_supported": "Les images de référence ne sont pas disponibles pour ce modèle. Supprimez-les ou choisissez un modèle qui accepte les images en entrée.",
   "paintings.image_mix_failed": "Échec du mélange des images",
   "paintings.image_placeholder": "Aucune image pour le moment",
   "paintings.image_size_options.auto": "Automatique",

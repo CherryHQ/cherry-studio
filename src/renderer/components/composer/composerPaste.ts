@@ -1,5 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 
+import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
@@ -25,7 +26,12 @@ interface ComposerPlainTextPasteOptions {
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
 }
 
+export interface ComposerClipboardPasteOptions extends ComposerPlainTextPasteOptions {
+  allowImageAttachments?: boolean
+}
+
 interface ComposerClipboardPasteOverride {
+  rejectedImageCount: number
   content: JSONContent[]
   files: ComposerAttachment[]
 }
@@ -125,12 +131,13 @@ function resolvePrivateClipboardToken(
 
 export function getComposerClipboardPasteOverride(
   fragment: ComposerClipboardFragment | null,
-  options: ComposerPlainTextPasteOptions
+  options: ComposerClipboardPasteOptions
 ): ComposerClipboardPasteOverride | null {
   if (!fragment?.segments.length) return null
 
   const content: JSONContent[] = []
   const files: ComposerAttachment[] = []
+  let rejectedImageCount = 0
 
   for (const segment of fragment.segments) {
     if (segment.type === 'text') {
@@ -139,7 +146,9 @@ export function getComposerClipboardPasteOverride(
     }
 
     const resolved = resolvePrivateClipboardToken(segment.token, options)
-    if (!resolved) {
+    const rejectedImage = options.allowImageAttachments === false && resolved?.file?.type === FILE_TYPE.IMAGE
+    if (rejectedImage) rejectedImageCount++
+    if (!resolved || rejectedImage) {
       for (const node of createComposerPlainTextContent(segment.fallbackText)) content.push(node)
       continue
     }
@@ -148,7 +157,7 @@ export function getComposerClipboardPasteOverride(
     if (resolved.file) files.push(resolved.file)
   }
 
-  return content.length ? { content, files } : null
+  return content.length || rejectedImageCount ? { content, files, rejectedImageCount } : null
 }
 
 export function createComposerMarkedTextPasteContent(

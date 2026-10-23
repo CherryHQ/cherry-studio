@@ -1,11 +1,11 @@
 import type { TFunction } from 'i18next'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { FileMetadata } from '@renderer/types/file'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { filterSupportedFiles, isSupportedFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
@@ -16,6 +16,7 @@ import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 const logger = loggerService.withContext('useFileDragDrop')
 
 export interface UseFileDragDropOptions {
+  allowImageAttachments?: boolean
   supportedExts: string[]
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
   onTextDropped?: (text: string) => void
@@ -101,8 +102,11 @@ async function splitDroppedFilesByKind(files: FileMetadata[]) {
  * ```
  */
 export function useFileDragDrop(options: UseFileDragDropOptions) {
+  const allowImageAttachmentsRef = useRef(options.allowImageAttachments)
+  allowImageAttachmentsRef.current = options.allowImageAttachments
   const handleDrop = useCallback(
     async (event: React.DragEvent<HTMLDivElement>) => {
+      const getAllowImageAttachments = () => allowImageAttachmentsRef.current !== false
       if (!options.enabled) {
         return
       }
@@ -117,18 +121,21 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
         const { directories, files } = await splitDroppedFilesByKind(droppedFiles)
         directories.forEach((directory) => options.onFolderPathDropped?.(directory.path))
 
-        const supportedFiles = await filterSupportedFiles(files, options.supportedExts)
+        const extensionSupportedFiles = await filterSupportedFiles(files, options.supportedExts)
+        const supportedFiles = extensionSupportedFiles.filter(
+          (file) => getAllowImageAttachments() || file.type !== FILE_TYPE.IMAGE
+        )
+        const extensionRejected = files.length - extensionSupportedFiles.length
+        const policyRejected = extensionSupportedFiles.length - supportedFiles.length
         if (supportedFiles.length > 0) {
           options.setFiles((prevFiles) => [...prevFiles, ...toComposerAttachments(supportedFiles)])
         }
 
         // 如果有不支持的文件，显示提示
-        if (files.length > 0 && supportedFiles.length !== files.length) {
-          toast.info(
-            options.t('chat.input.file_not_supported_count', {
-              count: files.length - supportedFiles.length
-            })
-          )
+        if (extensionRejected > 0) {
+          toast.info(options.t('chat.input.file_not_supported_count', { count: extensionRejected }))
+        } else if (policyRejected > 0) {
+          toast.info(options.t('chat.input.file_not_supported'))
         }
         return
       }
@@ -153,7 +160,10 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
             }
 
             const extensionSet = new Set(options.supportedExts)
-            if (!(await isSupportedFile(droppedPath, extensionSet))) {
+            if (
+              !(await isSupportedFile(droppedPath, extensionSet)) ||
+              (!getAllowImageAttachments() && selectedFile.type === FILE_TYPE.IMAGE)
+            ) {
               toast.info(options.t('chat.input.file_not_supported'))
               return
             }

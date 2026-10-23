@@ -3015,6 +3015,7 @@
   "paintings.image_file_required": "Пожалуйста, сначала загрузите изображение",
   "paintings.image_file_retry": "Пожалуйста, сначала загрузите изображение",
   "paintings.image_handle_required": "Пожалуйста, сначала загрузите изображение.",
+  "paintings.image_input_not_supported": "Референсные изображения недоступны для этой модели. Удалите их или выберите модель, поддерживающую ввод изображений.",
   "paintings.image_mix_failed": "Не удалось объединить изображения",
   "paintings.image_placeholder": "Изображение недоступно",
   "paintings.image_size_options.auto": "Авто",
