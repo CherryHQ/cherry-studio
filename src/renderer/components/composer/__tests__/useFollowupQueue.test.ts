@@ -1204,6 +1204,43 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('renews the held stamp after a successful re-stamp while the edit session stays live', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, takeDeleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      takeDeleteTrigger.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('db down'))
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+      // Restore POST, then the held re-stamp POST lands immediately.
+      await act(async () => {})
+      expect(postTrigger).toHaveBeenCalledTimes(2)
+
+      // A successful stamp still needs renewal: the edit session can outlive
+      // the service's stale-claim window, and an unrenewed held copy would age
+      // back into claimability mid-edit, letting a completion send the
+      // unfinished draft (cherry-pr-review inv_e1f6ae28d84c7e71).
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(Math.floor(STALE_SENDING_CLAIM_MS / 2) + 1)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(3)
+      const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+      expect(bodies[2][0].body.id).toBe(bodies[0][0].body.id)
+      expect(bodies[2][0].body.held).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('holds the restored outgoing copy when the switch fails after the restore landed', async () => {
     wireQuery([row('a', 'first'), row('b', 'second')])
     const { claimTrigger, postTrigger, takeDeleteTrigger, deleteTrigger, failTrigger } = wireMutations()

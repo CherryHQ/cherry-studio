@@ -515,6 +515,17 @@ export function useFollowupQueue({
       void (async () => {
         try {
           await enqueueTrigger({ body: { ...copy.body, held: true } })
+          if (tracked.cancelled) {
+            // The edit session ended while the stamp was in flight: the landed
+            // copy must not outlive the session it belonged to.
+            void removeTrigger({ params: { id: copy.body.id } }).catch(() => {})
+            return
+          }
+          // A landed stamp still needs renewal: the edit session can outlive
+          // the service's stale-claim window, and an unrenewed held copy ages
+          // back into claimability mid-edit, letting a completion send the
+          // unfinished draft (cherry-pr-review inv_e1f6ae28d84c7e71).
+          scheduleReenqueueRetryRef.current(copy.body, tracked, HELD_RESTORE_REFRESH_MS)
         } catch {
           // The landed copy is deliverable until the retry's stamp lands — a
           // narrow race the background retry converges.
@@ -522,7 +533,7 @@ export function useFollowupQueue({
         }
       })()
     },
-    [enqueueTrigger]
+    [enqueueTrigger, removeTrigger]
   )
 
   const takeForEditInner = useCallback(
