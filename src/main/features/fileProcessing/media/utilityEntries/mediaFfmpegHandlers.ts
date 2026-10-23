@@ -322,19 +322,31 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     const frames: Array<{ path: string; timestampMs: number }> = []
     const quality = Math.min(31, Math.max(2, Math.round(31 - (jpegQuality / 100) * 29)))
 
+    let durationMs = 0
+    try {
+      durationMs = probeDurationMs(await probeJson(filePath, signal, logger, pidRegistryPath))
+    } catch (error) {
+      signal.throwIfAborted()
+      if (error instanceof Error && error.message.startsWith('Media processing timed out')) throw error
+      logger.warn(`video duration unavailable: ${error instanceof Error ? error.message : String(error)}`)
+    }
+
     for (let index = 0; index < timestampsMs.length; index += 1) {
       signal.throwIfAborted()
       const timestampMs = timestampsMs[index]
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
       try {
-        const attempts = [
-          { seekMs: timestampMs, inputSeek: true },
-          { seekMs: timestampMs, inputSeek: false },
-          ...[100, 250, 500, 1_000].map((offset) => ({
-            seekMs: Math.max(0, timestampMs - offset),
-            inputSeek: false
-          }))
-        ]
+        const attempts =
+          durationMs > 0 && timestampMs > durationMs
+            ? [{ seekMs: timestampMs, inputSeek: true }]
+            : [
+                { seekMs: timestampMs, inputSeek: true },
+                { seekMs: timestampMs, inputSeek: false },
+                ...[100, 250, 500, 1_000].map((offset) => ({
+                  seekMs: Math.max(0, timestampMs - offset),
+                  inputSeek: false
+                }))
+              ]
         for (const attempt of attempts) {
           rmSync(outputPath, { force: true })
           const seekArgs = attempt.inputSeek
