@@ -218,10 +218,6 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       entriesByFile.set(file, entries)
       return entries
     }
-    if (await exists(oldProject)) {
-      await digest(root, oldProject)
-      if (oldProject !== newProject) await stage(oldProject, newProject)
-    }
     const retiredSessions = new Set(
       listRetiredAgentSessionMigrations(application.get('DbService').getDb()).map((migration) => migration.sessionId)
     )
@@ -254,6 +250,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         claudeConfigDirs.set(`${sessionId}:${checkpoint.runtimeSessionId}`, checkpoint.configDir)
       }
     }
+    const claudeHistory: Array<{ id: string; checkpoint: Record<string, unknown> | undefined }> = []
     for (const row of history) {
       // Pi recovery rebuilds these histories from SQLite after workspace relocation.
       if (retiredSessions.has(row.sessionId)) continue
@@ -272,37 +269,44 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       }
       const configDir = checkpoint?.configDir ?? claudeConfigDirs.get(`${row.sessionId}:${id}`)
       if (runtime === 'claude-code' && (!configDir || configDir === oldConfig)) {
-        if (!(await exists(oldProject))) {
-          // A removed symlinked ancestor can change the SDK key; persisted IDs still identify copied history.
-          const projectsRoot = path.dirname(oldProject)
-          await assertAgentStorageDirectory(root, projectsRoot)
-          const candidates: string[] = []
-          for (const project of await readdir(projectsRoot, { withFileTypes: true })) {
-            if (!project.isDirectory() || project.isSymbolicLink()) continue
-            const candidate = artifactPath(root, path.join('.claude', 'projects', project.name))
-            await assertAgentStoragePath(root, candidate)
-            if (await exists(path.join(candidate, id + '.jsonl'))) candidates.push(candidate)
-            if (candidates.length > 1) throw new Error('Ambiguous Claude project history')
-          }
-          if (candidates[0] === newProject) throw new Error('Relocation target already exists')
-          if (candidates.length) {
-            oldProject = candidates[0]
-            await stage(oldProject, newProject)
-          }
-        }
-        const file = path.join(oldProject, id + '.jsonl')
-        await assertAgentStoragePath(root, file)
-        if (!(await exists(file))) throw new Error('Claude history missing')
-        const entries = await readEntries(file)
-        if (
-          !entries.some(
-            (entry) => entry.sessionId === id && entry.uuid && (entry.type === 'user' || entry.type === 'assistant')
-          )
-        )
-          throw new Error('Claude history corrupt')
-        if (checkpoint?.messageUuid && !entries.some((entry) => entry.uuid === checkpoint.messageUuid))
-          throw new Error('Claude checkpoint history missing')
+        claudeHistory.push({ id, checkpoint })
       }
+    }
+    for (const { id } of claudeHistory) {
+      await assertAgentStoragePath(root, oldProject)
+      if (!(await exists(path.join(oldProject, id + '.jsonl')))) {
+        // A stale literal project can outlive a removed symlink ancestor; resolve required identities before staging.
+        const projectsRoot = path.dirname(oldProject)
+        await assertAgentStorageDirectory(root, projectsRoot)
+        const candidates: string[] = []
+        for (const project of await readdir(projectsRoot, { withFileTypes: true })) {
+          if (!project.isDirectory() || project.isSymbolicLink()) continue
+          const candidate = artifactPath(root, path.join('.claude', 'projects', project.name))
+          await assertAgentStoragePath(root, candidate)
+          if (await exists(path.join(candidate, id + '.jsonl'))) candidates.push(candidate)
+          if (candidates.length > 1) throw new Error('Ambiguous Claude project history')
+        }
+        if (candidates[0] === newProject) throw new Error('Relocation target already exists')
+        if (candidates.length) oldProject = candidates[0]
+      }
+    }
+    if (await exists(oldProject)) {
+      await digest(root, oldProject)
+      if (oldProject !== newProject) await stage(oldProject, newProject)
+    }
+    for (const { id, checkpoint } of claudeHistory) {
+      const file = path.join(oldProject, id + '.jsonl')
+      await assertAgentStoragePath(root, file)
+      if (!(await exists(file))) throw new Error('Claude history missing')
+      const entries = await readEntries(file)
+      if (
+        !entries.some(
+          (entry) => entry.sessionId === id && entry.uuid && (entry.type === 'user' || entry.type === 'assistant')
+        )
+      )
+        throw new Error('Claude history corrupt')
+      if (checkpoint?.messageUuid && !entries.some((entry) => entry.uuid === checkpoint.messageUuid))
+        throw new Error('Claude checkpoint history missing')
     }
     const configFile = path.join(newConfig, '.claude.json')
     await assertNoPendingRelocation(path.relative(root, configFile))

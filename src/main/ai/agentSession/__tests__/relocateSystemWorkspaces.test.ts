@@ -140,15 +140,18 @@ describe('system workspace relocation', () => {
     }).persistAssistant({ status, finalMessage: { id, role: 'assistant', parts: [{ type: 'text', text: status }] } })
   }
 
-  it.each(['retained', 'removed', 'ambiguous', 'linked', 'target-conflict'] as const)(
-    'recovers canonical Claude project ownership with the native worker: %s',
-    async (scenario) => {
+  it.each(
+    ['retained', 'removed', 'ambiguous', 'linked', 'target-conflict'].flatMap((scenario) =>
+      [false, true].map((obsolete) => ({ scenario, obsolete }))
+    )
+  )(
+    'recovers canonical Claude project ownership with the native worker: $scenario, obsolete=$obsolete',
+    async ({ scenario, obsolete }) => {
       const workspace = await createWorkspace('claude-code')
       const canonicalRoot = path.join(temporaryRoot, 'canonical-old')
       await mkdir(path.join(canonicalRoot, path.relative(path.join(temporaryRoot, 'old'), workspace.oldPath)), {
         recursive: true
       })
-      await symlink(canonicalRoot, path.join(temporaryRoot, 'old'), process.platform === 'win32' ? 'junction' : 'dir')
       const source = await readFile(path.resolve('src/main/ai/agentSession/relocationWorker.ts'), 'utf8')
       workerMocks.source = stripTypeScriptTypes(source).replaceAll(
         '@anthropic-ai/claude-agent-sdk',
@@ -160,6 +163,12 @@ describe('system workspace relocation', () => {
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
           new AbortController().signal
         ) as Promise<{ oldKey: string; newKey: string }>
+      const literalKey = (await keys()).oldKey
+      const obsoleteFile = obsolete
+        ? await writeHistory('claude-code', workspace.id, randomUUID(), literalKey)
+        : undefined
+      const obsoleteContents = obsoleteFile ? await readFile(obsoleteFile, 'utf8') : undefined
+      await symlink(canonicalRoot, path.join(temporaryRoot, 'old'), process.platform === 'win32' ? 'junction' : 'dir')
       const before = await keys()
       const nativeId = randomUUID()
       const file = await writeHistory('claude-code', workspace.id, nativeId, before.oldKey)
@@ -195,6 +204,7 @@ describe('system workspace relocation', () => {
         contents
       )
       expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(nativeId)
+      if (obsoleteFile) expect(await readFile(obsoleteFile, 'utf8')).toBe(obsoleteContents)
       if (scenario === 'target-conflict')
         expect(await readFile(path.join(newProject, 'keep.txt'), 'utf8')).toBe('existing target')
     }
