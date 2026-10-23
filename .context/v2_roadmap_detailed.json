@@ -1,81 +1,63 @@
 {
-  "generated_at": "2026-10-22T18:00:00Z",
+  "generated_at": "2026-10-23T17:00:00Z",
   "v2_branch_open_prs": 0,
   "v2_labeled_open_issues": [
-    {
-      "number": 20940,
-      "title": "Responses API TypeValidation abort",
-      "priority": "p1"
-    },
-    {
-      "number": 20941,
-      "title": "Work/Agent terminate empty no-response",
-      "priority": "p1"
-    },
-    {
-      "number": 21418,
-      "title": "Restore EPERM — data cannot be restored",
-      "priority": "p1"
-    },
-    {
-      "number": 22121,
-      "title": "Responses reasoning delta uninitialized",
-      "priority": "p1"
-    },
-    {
-      "number": 21667,
-      "title": "Agent blocked: pi-ai image history >20 MiB",
-      "priority": "p2"
-    },
-    {
-      "number": 20937,
-      "title": "DSH cannot read under Program Files (EPERM)",
-      "priority": "p1"
-    }
+    {"number": 20940, "title": "Responses API TypeValidation abort", "priority": "p1", "comments": 47, "updated": "2026-10-23"},
+    {"number": 20941, "title": "Work/Agent terminate empty no-response", "priority": "p1", "comments": 32, "updated": "2026-10-23"},
+    {"number": 22121, "title": "Responses reasoning delta uninitialized", "priority": "p1", "comments": 6, "updated": "2026-10-23"},
+    {"number": 21418, "title": "Restore EPERM — data cannot be restored (Windows)", "priority": "p1", "updated": "2026-10-22", "assignee": "DeJeune"},
+    {"number": 21667, "title": "Agent blocked: pi-ai image history >20 MiB (Windows)", "priority": "p2", "updated": "2026-10-23"},
+    {"number": 20937, "title": "DSH cannot read under Program Files (EPERM)", "priority": "p1", "updated": "2026-09-22"},
+    {"number": 20021, "title": "Windows OCR/embedding fail: onnxruntime_binding init", "priority": "p1", "updated": "2026-10-23"},
+    {"number": 20791, "title": "Windows 2.1.0 restore fails EPERM Local Storage rename", "priority": "p2", "updated": "2026-10-23"},
+    {"number": 19625, "title": "Windows in-app update leaves old 1.9.x installed", "priority": "p1", "updated": "2026-08-28"},
+    {"number": 17949, "title": "V2 regression: cannot check and manage topic prompt", "priority": "p1", "updated": "2026-08-28"}
   ],
   "open_pr_stacks": [
     {
-      "name": "orca/video-stack-20261016",
-      "prs": 4,
-      "target": "SiinXu/media-ffmpeg-linux-runtime",
-      "status": "In Review"
+      "name": "web-core-edition",
+      "prs": [22427, 22428, 22429, 22563],
+      "description": "Web Core edition (database layer → chat → Pi agents → harden with CSP)",
+      "status": "4 PRs in stack, foundation spec in #22427"
     },
     {
-      "name": "fix/subagent-resume",
-      "prs": 2,
-      "target": "main",
-      "status": "In Review"
+      "name": "agent-runtime-behavior",
+      "prs": [21995, 21996, 22010, 22014, 22107],
+      "description": "Harness-neutral agent behavior package, Pi runtime integration, native contexts",
+      "status": "Active development, feature branches"
     },
     {
-      "name": "split/20440 (hook + lifecycle)",
-      "prs": 2,
-      "target": "main",
-      "status": "In Review"
+      "name": "persist-follow-up-queue",
+      "prs": [22384, 22385, 22386, 22387],
+      "description": "4-part split from #20440: data layer → lifecycle → hook → composer UI",
+      "status": "Sequential split; #22384 targets main"
+    },
+    {
+      "name": "knowledge-ingestion",
+      "prs": [22089, 22090, 22094],
+      "description": "Batch imports beyond 20 files (#22089 ready-to-merge), file preparing state (#22094 ready-to-merge), embedding backfill",
+      "status": "2 PRs ready-to-merge"
+    },
+    {
+      "name": "shared-memory",
+      "prs": [22082, 22088, 22068],
+      "description": "Shared user memory runtime, assistant opt-in, desktop shared memory",
+      "status": "Feature development on codex branches"
     }
   ],
-  "planned_features": [
-    {
-      "number": 20675,
-      "title": "Server-side Agent Integration: Grok Bot, Muse, OpenAI Agent API",
-      "assignee": "vaayne",
-      "label": "planned"
-    },
-    {
-      "number": 21728,
-      "title": "Cherry Studio Web client",
-      "label": "p2"
-    },
-    {
-      "number": 15690,
-      "title": "Market Page: Skills, Assistant Library, MCP",
-      "label": "p1,internal-team"
-    },
-    {
-      "number": 22400,
-      "title": "Agent-provided models as Cherry gateway upstreams",
-      "label": "p3"
-    }
+  "ready_to_merge": [
+    {"number": 22089, "title": "feat(knowledge-ui): allow knowledge batch imports beyond 20 files", "base": "main"},
+    {"number": 22094, "title": "feat(knowledge-ingestion): let file items wait in preparing while copied in", "base": "eurfelux/knowledge-file-preparing-state"}
   ],
-  "all_prs_to_main": 72,
-  "ready_to_merge": 5
+  "upcoming_features_from_open_prs": [
+    "Web Core browser edition (database, chat, Pi agent tiers)",
+    "Shared user memory across assistants",
+    "Knowledge base: batch imports >20 files",
+    "Follow-up queue persistence (4-part implementation)",
+    "Agent behavior harness-neutral package",
+    "Browser download manager with segmented transfers",
+    "MCP Multi Calendar and Multi Mail hosted integrations",
+    "Voice: Kokoro read-aloud by speech duration",
+    "Provider: DotHoosh, Superbot, AI Stupid Level, Desearch, ContextFetch"
+  ]
 }

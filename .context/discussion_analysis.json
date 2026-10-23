@@ -1,49 +1,48 @@
 {
-  "generated_at": "2026-10-22T18:00:00Z",
-  "note": "Discussion data estimated from high-engagement issues (GraphQL Discussions scope unavailable).",
+  "generated_at": "2026-10-23T17:00:00Z",
+  "note": "Discussion data estimated from high-engagement issues (GraphQL Discussions API data not available in this run).",
   "trending_topics": {
-    "provider_compat": {
-      "description": "reasoning_effort incompatibility across 6+ providers (DeepSeek Flash, Gemini Argon, Copilot, GPT-4o, OpenAI-compat relays)",
-      "status": "critical — multiple P2 reports today"
+    "streaming_failures": {
+      "description": "Stream end-without-finish-reason, TypeValidation aborts on Responses API, reasoning delta uninitialized — cluster of P1 issues with 40-90 comments",
+      "status": "critical — multiple P1 reports active today, #20940 (47 comments), #19793 (42 comments), #20282 (86 comments)"
     },
     "agent_stability": {
-      "description": "Orphan sweep, autocompact thrashing, empty no-response, DashScope crash",
-      "status": "critical — 5 P1 agent issues active"
+      "description": "Autocompact thrashing, orphan sweep deletes session, empty no-response, DashScope crash, DeepSeek V4 tool-call no-output",
+      "status": "critical — 5+ P1 agent issues active, DeJeune assigned"
+    },
+    "provider_compat": {
+      "description": "reasoning_effort sent with function tools (DeepSeek, Gemini Argon, Copilot), DeepSeek Flash max_tokens format, OpenAI max_completion_tokens vs max_tokens",
+      "status": "high — repeated P2 reports, 3 duplicate chains visible"
     },
     "data_integrity": {
-      "description": "Notes overwrite, conversations disappear, WebDAV restore, DB stale paths",
-      "status": "critical — 5 P1 data issues active"
+      "description": "Windows restore EPERM, data directory relocation stale DB paths, conversations disappear on update, WebDAV pre-v2 data lost",
+      "status": "high — 4 P1 data issues open; #22399 resolved today"
     },
     "claude_code_integration": {
-      "description": "Bundled Claude Code too old (Work Chat rejection), orphan sweep, session management",
-      "status": "high"
+      "description": "Bundled Claude Code too old (Work Chat rejection), Windows NTSTATUS exit, autocompact thrashing, orphan sweep deletes session",
+      "status": "high — Windows-specific CC integration degraded"
     }
   },
   "high_comment_issues": [
-    {
-      "number": 20282,
-      "title": "Chat/Agent streams fail to parse HTTP 200 responses",
-      "comments": 67
-    },
-    {
-      "number": 19793,
-      "title": "Chat stream ends without finish reason",
-      "comments": 35
-    },
-    {
-      "number": 19847,
-      "title": "Agent DashScope terminates on server error",
-      "comments": 26
-    },
-    {
-      "number": 20941,
-      "title": "Work/Agent terminate with empty no-response",
-      "comments": 23
-    },
-    {
-      "number": 19321,
-      "title": "DeepSeek reasoning_text dropped",
-      "comments": 19
-    }
+    {"number": 20282, "title": "Chat/Agent streams fail to parse HTTP 200 responses", "comments": 86, "labels": ["p2", "bug", "chat", "agent", "models"]},
+    {"number": 20940, "title": "Responses API TypeValidation abort", "comments": 47, "labels": ["p1", "v2", "chat", "models"]},
+    {"number": 19793, "title": "Chat stream ends without finish reason", "comments": 42, "labels": ["p1", "chat", "models"]},
+    {"number": 20976, "title": "Cherry adapter rejects mid-conversation system messages", "comments": 43, "labels": ["p2", "bug"]},
+    {"number": 20941, "title": "Work/Agent terminate with empty no-response", "comments": 32, "labels": ["p1", "v2", "agent", "chat"]},
+    {"number": 19847, "title": "DashScope Qwen agent terminates on server error", "comments": 27, "labels": ["p1", "agent", "models"]},
+    {"number": 18150, "title": "DeepSeek V4 Flash 回传要求错误", "comments": 27, "labels": ["p1", "models"]},
+    {"number": 18894, "title": "Agent v2 context grows past provider window before compaction", "comments": 27, "labels": ["p2", "assistant"]},
+    {"number": 19321, "title": "DeepSeek reasoning_text dropped on tool continuations", "comments": 19, "labels": ["p1", "agent", "models"]},
+    {"number": 18741, "title": "DeepSeek V4 tool-call no-output breaks session", "comments": 17, "labels": ["p1", "agent", "chat"]}
+  ],
+  "new_issues_today": [
+    {"number": 22574, "title": "Support Anthropic prompt caching for Vercel AI Gateway", "type": "feature"},
+    {"number": 22572, "title": "Unexpected ~$200 API spend in 30 min", "type": "bug — high severity"},
+    {"number": 22571, "title": "Model bound to assistant fails after update", "type": "bug"},
+    {"number": 22570, "title": "txt attachment errors, pasting same text succeeds", "type": "bug"},
+    {"number": 22569, "title": "iOS TestFlight crash on launch", "type": "bug"},
+    {"number": 22568, "title": "CLI launch dialog closes immediately on Windows", "type": "bug"},
+    {"number": 22567, "title": "About Agent Deletion (discussion)", "type": "discussion"},
+    {"number": 22566, "title": "to_markdown fails on Windows ARM64 (win32-arm64 native build missing)", "type": "bug"}
   ]
 }

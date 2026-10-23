@@ -1,202 +1,159 @@
 {
-  "generated_at": "2026-10-22T18:00:00Z",
+  "generated_at": "2026-10-23T17:00:00Z",
   "source": "daily-agent-run",
   "totals": {
-    "open_issues": 1381,
+    "open_issues": 1422,
     "open_prs": 100,
-    "p1_issues": 107,
+    "p1_issues": 106,
+    "closed_issues_30d": 459,
     "v2_open_prs": 0
   },
+  "delta_vs_yesterday": {
+    "open_issues": "+41",
+    "p1_issues": "-1",
+    "note": "#22399 (Notes auto-save overwrite, p1) closed today"
+  },
   "pr_breakdown": {
-    "to_main": 72,
-    "to_other_branches": 28,
+    "to_main": 76,
+    "to_other_branches": 24,
     "draft": 0,
-    "ready_to_merge": 5,
-    "do_not_merge": 2
+    "ready_to_merge": 2,
+    "ready_to_merge_ids": [22089, 22094],
+    "do_not_merge": 0
   },
   "issue_type_distribution": {
     "bug_pct": 66,
-    "feature_pct": 33,
-    "other_pct": 1,
+    "feature_pct": 31,
+    "other_pct": 3,
     "note": "estimated from top-100 issues by recent activity"
   },
   "label_top10_from_sample": {
     "bug": 66,
-    "agent": 37,
-    "p2": 34,
-    "feature": 33,
-    "models": 29,
-    "p3": 24,
-    "needs-info": 23,
-    "ui-ux": 22,
+    "agent": 38,
+    "p2": 35,
+    "feature": 31,
+    "models": 30,
+    "p3": 25,
+    "needs-info": 24,
+    "ui-ux": 21,
     "chat": 20,
     "needs-review": 18
   },
-  "no_priority_label_pct": 32.0,
+  "no_priority_label_pct": 25.0,
   "p1_health": {
-    "total": 107,
-    "active_le7d": 15,
-    "aging_8_30d": 27,
-    "stale_31_90d": 55,
-    "zombie_gt90d": 10
+    "total": 106,
+    "active_le7d": 32,
+    "aging_8_30d": 16,
+    "stale_31_90d": 56,
+    "zombie_gt90d": 2
   },
   "top_p1_active_issues": [
     {
-      "number": 20940,
-      "title": "Responses API stream TypeValidation abort",
-      "labels": [
-        "p1",
-        "v2",
-        "chat",
-        "models"
-      ],
-      "updated_at": "2026-10-22"
-    },
-    {
-      "number": 19793,
-      "title": "Chat stream ends without finish reason",
-      "labels": [
-        "p1",
-        "chat",
-        "models"
-      ],
-      "updated_at": "2026-10-22",
-      "comments": 35
-    },
-    {
-      "number": 19321,
-      "title": "DeepSeek reasoning_text dropped on tool continuations",
-      "labels": [
-        "p1",
-        "agent",
-        "models"
-      ],
-      "updated_at": "2026-10-22",
-      "comments": 19
-    },
-    {
-      "number": 19847,
-      "title": "DashScope Qwen agent mid-response server error no recovery",
-      "labels": [
-        "p1",
-        "agent",
-        "models"
-      ],
-      "updated_at": "2026-10-22",
-      "comments": 26
-    },
-    {
-      "number": 21418,
-      "title": "Restore EPERM crash — data cannot be restored (Windows)",
-      "labels": [
-        "p1",
-        "windows",
-        "data",
-        "v2"
-      ],
-      "updated_at": "2026-10-22"
-    },
-    {
-      "number": 18373,
-      "title": "Data dir relocation leaves stale DB paths (Windows)",
-      "labels": [
-        "p1",
-        "windows",
-        "data"
-      ],
-      "updated_at": "2026-10-22",
-      "comments": 13
-    },
-    {
-      "number": 20941,
-      "title": "Work/Agent terminate with empty no-response error",
-      "labels": [
-        "p1",
-        "v2",
-        "agent",
-        "chat"
-      ],
-      "updated_at": "2026-10-22",
-      "comments": 23
-    },
-    {
-      "number": 22399,
-      "title": "Notes cached switch overwrites wrong file body",
-      "labels": [
-        "p1",
-        "data",
-        "ui-ux"
-      ],
-      "updated_at": "2026-10-22"
+      "number": 21905,
+      "title": "Work Agent aborts: Autocompact is thrashing",
+      "labels": ["p1"],
+      "updated_at": "2026-10-23",
+      "assignee": "DeJeune"
     },
     {
       "number": 22121,
       "title": "Responses reasoning delta without initialized part",
-      "labels": [
-        "p1",
-        "v2",
-        "chat",
-        "models"
-      ],
-      "updated_at": "2026-10-22"
+      "labels": ["p1", "v2", "chat", "models"],
+      "updated_at": "2026-10-23",
+      "comments": 6
+    },
+    {
+      "number": 20940,
+      "title": "Responses API stream TypeValidation abort",
+      "labels": ["p1", "v2", "chat", "models"],
+      "updated_at": "2026-10-23",
+      "comments": 47
+    },
+    {
+      "number": 20941,
+      "title": "Work/Agent terminate with empty no-response error",
+      "labels": ["p1", "v2", "agent", "chat"],
+      "updated_at": "2026-10-23",
+      "comments": 32
+    },
+    {
+      "number": 19793,
+      "title": "Chat stream ends without finish reason",
+      "labels": ["p1", "chat", "models"],
+      "updated_at": "2026-10-23",
+      "comments": 42
+    },
+    {
+      "number": 18765,
+      "title": "Agent sends max_tokens to OpenAI gateways (GPT-5.x 400)",
+      "labels": ["p1", "models", "agent"],
+      "updated_at": "2026-10-23",
+      "comments": 8
+    },
+    {
+      "number": 18741,
+      "title": "DeepSeek V4 tool call no-output breaks session (HTTP 400)",
+      "labels": ["p1", "agent", "chat"],
+      "updated_at": "2026-10-23",
+      "comments": 17,
+      "assignee": "DeJeune"
+    },
+    {
+      "number": 18150,
+      "title": "DeepSeek V4 Flash 0731 回传要求错误",
+      "labels": ["p1", "models"],
+      "updated_at": "2026-10-23",
+      "comments": 27,
+      "assignee": "DeJeune"
+    },
+    {
+      "number": 20476,
+      "title": "DeepSeek chat serialized with incomplete hex escape",
+      "labels": ["p1", "windows", "models", "chat"],
+      "updated_at": "2026-10-23",
+      "comments": 3
+    },
+    {
+      "number": 21418,
+      "title": "Restore EPERM crash — data cannot be restored (Windows)",
+      "labels": ["p1", "windows", "data", "v2"],
+      "updated_at": "2026-10-22",
+      "assignee": "DeJeune"
+    },
+    {
+      "number": 19847,
+      "title": "DashScope Qwen agent mid-response crash, no recovery",
+      "labels": ["p1", "agent", "models"],
+      "updated_at": "2026-10-22",
+      "comments": 27,
+      "assignee": "DeJeune"
+    },
+    {
+      "number": 19321,
+      "title": "Local API drops DeepSeek reasoning_text on tool continuations",
+      "labels": ["p1", "agent", "models"],
+      "updated_at": "2026-10-22",
+      "comments": 19
+    },
+    {
+      "number": 18373,
+      "title": "Data dir relocation leaves stale DB paths (Windows)",
+      "labels": ["p1", "windows", "data"],
+      "updated_at": "2026-10-22",
+      "comments": 13
+    },
+    {
+      "number": 19929,
+      "title": "Windows Agent sessions fail to start with spawn EPERM",
+      "labels": ["p1", "windows", "v2", "agent"],
+      "updated_at": "2026-10-22",
+      "comments": 4
     },
     {
       "number": 22401,
       "title": "Orphan sweep deletes active Claude Code session",
-      "labels": [
-        "p1",
-        "agent",
-        "claude-code"
-      ],
+      "labels": ["p1", "agent", "claude-code"],
       "updated_at": "2026-10-22"
-    },
-    {
-      "number": 22137,
-      "title": "Conversations and agents disappear after update",
-      "labels": [
-        "p1",
-        "data"
-      ],
-      "updated_at": "2026-10-21"
-    },
-    {
-      "number": 21905,
-      "title": "Work Agent aborts: Autocompact is thrashing",
-      "labels": [
-        "p1"
-      ],
-      "updated_at": "2026-10-20"
-    },
-    {
-      "number": 22026,
-      "title": "WebDAV pre-v2 data cannot be restored",
-      "labels": [
-        "p1",
-        "data",
-        "backup"
-      ],
-      "updated_at": "2026-10-20"
-    },
-    {
-      "number": 21864,
-      "title": "e2e harness: 3 defects block local PR verification",
-      "labels": [
-        "p1",
-        "macos",
-        "internal-team"
-      ],
-      "updated_at": "2026-10-20"
-    },
-    {
-      "number": 15690,
-      "title": "Market Page: Skills, Assistant Library, MCP (feature)",
-      "labels": [
-        "p1",
-        "feature",
-        "ui-ux",
-        "internal-team"
-      ],
-      "updated_at": "2026-10-20"
     }
   ]
 }
