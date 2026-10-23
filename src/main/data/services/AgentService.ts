@@ -21,6 +21,7 @@ import { promptService } from '@data/services/PromptService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { CHERRY_MCP_SERVER } from '@main/ai/agentMcpIdentities'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
@@ -40,7 +41,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { CHERRY_MCP_SERVER } from '@shared/utils/mcp'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AgentService')
@@ -808,13 +809,17 @@ export class AgentService {
             // the newcomer). Migrate the stored rules onto the post-change allocation; a PATCH
             // that submits `disabledTools` owns the list and skips migration.
             const mountSnapshot = (mcpIds: readonly string[]) =>
-              mcpIds.map((mcpId) => {
+              mcpIds.flatMap((mcpId) => {
                 const [mountedRow] = tx
-                  .select({ name: mcpServerTable.name })
+                  .select({ name: mcpServerTable.name, type: mcpServerTable.type })
                   .from(mcpServerTable)
                   .where(eq(mcpServerTable.id, mcpId))
                   .limit(1)
                   .all()
+                // The runtime never mounts the in-memory browser; it must not claim an
+                // allocation key in the migration either.
+                if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
+                  return []
                 return mountedRow ? { mcpId, name: mountedRow.name } : { mcpId }
               })
             const oldMountedServers = tx

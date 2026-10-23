@@ -14,6 +14,7 @@ import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { CHERRY_MCP_SERVER } from '@main/ai/agentMcpIdentities'
 import {
   migrateAgentDisabledToolsForServerRename,
   migrateDisabledToolsForServerRename,
@@ -22,7 +23,7 @@ import {
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames, CHERRY_MCP_SERVER } from '@shared/utils/mcp'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -219,11 +220,16 @@ export class McpServerService {
             .all()
             .flatMap(({ mcpServerId }) => {
               const [mountedRow] = tx
-                .select({ name: mcpServerTable.name })
+                .select({ name: mcpServerTable.name, type: mcpServerTable.type })
                 .from(mcpServerTable)
                 .where(eq(mcpServerTable.id, mcpServerId))
                 .limit(1)
                 .all()
+              // The runtime never mounts the in-memory browser (agentMcpServers skips it), so
+              // it must not claim an allocation key here either — counting it displaces a
+              // server NAMED after its folded segment onto a UUID the runtime never registers.
+              if (mountedRow && mountedRow.type === 'inMemory' && mountedRow.name === BuiltinMcpServerNames.browser)
+                return []
               return mountedRow ? [{ mcpId: mcpServerId, name: mountedRow.name }] : [{ mcpId: mcpServerId }]
             })
           const migrated = migrateAgentDisabledToolsForServerRename(agent.disabledTools ?? [], {

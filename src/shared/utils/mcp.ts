@@ -26,24 +26,6 @@ export type BuiltinMcpServerName = (typeof BuiltinMcpServerNames)[keyof typeof B
 
 export const BuiltinMcpServerNamesArray = Object.values(BuiltinMcpServerNames)
 
-/**
- * The Cherry-owned agent MCP servers. Which of them a session mounts is the runtime's call.
- * Lives in shared (re-exported by the tool-approval registry, its policy-side consumer) so the
- * data layer can reserve these keys when it mirrors the runtime's server-key allocation.
- */
-export const CHERRY_MCP_SERVER = {
-  CHERRY_TOOLS: 'cherry-tools',
-  BROWSER: 'browser',
-  COMPUTER: 'computer',
-  AUTOMATION: 'automation',
-  AGENT_MEMORY: 'agent-memory',
-  SKILLS: 'skills',
-  MCP_MANAGER: 'mcp-manager',
-  ASSISTANT: 'assistant',
-  ASSISTANT_FILES: 'assistant-files',
-  DOCTOR: 'doctor'
-} as const
-
 export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerName => {
   return BuiltinMcpServerNamesArray.some((n) => n === name)
 }

@@ -11,6 +11,9 @@
  * approval is a security policy and belongs in the runtime-neutral approval layer.
  */
 
+// Main-owned declaration (every consumer is main-process); re-exported to keep this registry
+// the policy-side canonical import path.
+import { CHERRY_MCP_SERVER } from '@main/ai/agentMcpIdentities'
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import { computerUseToolDefinitions } from '@main/ai/tools/computerUse'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
@@ -38,10 +41,6 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-// Shared home (with the other built-in MCP server names) so the data layer can reserve these
-// keys when mirroring the runtime's server-key allocation; re-exported to keep this registry
-// the policy-side canonical import path.
-import { CHERRY_MCP_SERVER } from '@shared/utils/mcp'
 
 import { listBrowserToolPolicies } from './browserToolPolicy'
 
