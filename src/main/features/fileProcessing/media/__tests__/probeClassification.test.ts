@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyFfprobeResult, planFrameTimestamps, sniffEbmlDocType } from '../probeClassification'
+import {
+  classifyFfprobeResult,
+  lastDecodableVideoTimestampMs,
+  planFrameTimestamps,
+  sniffEbmlDocType
+} from '../probeClassification'
 
 describe('classifyFfprobeResult', () => {
   it('does not classify attached cover art as video', () => {
@@ -60,5 +65,33 @@ describe('planFrameTimestamps', () => {
     expect(planFrameTimestamps(Number.NaN, 8, 4_000)).toEqual([])
     expect(planFrameTimestamps(0, 8, 4_000)).toEqual([])
     expect(planFrameTimestamps(1_000, 0, 4_000)).toEqual([])
+  })
+})
+
+describe('lastDecodableVideoTimestampMs', () => {
+  it('floors the last frame PTS so the seek stays on that frame', () => {
+    expect(
+      lastDecodableVideoTimestampMs({
+        streams: [{ codec_type: 'video', nb_frames: '72', avg_frame_rate: '12/1', start_time: '0' }]
+      })
+    ).toBe(5_916)
+    expect(
+      lastDecodableVideoTimestampMs({
+        streams: [{ codec_type: 'video', nb_frames: '2', avg_frame_rate: '0/0', r_frame_rate: '1/1' }]
+      })
+    ).toBe(1_000)
+  })
+
+  it('ignores cover art and unusable frame counts', () => {
+    expect(
+      lastDecodableVideoTimestampMs({
+        streams: [{ codec_type: 'video', disposition: { attached_pic: 1 }, nb_frames: '1', avg_frame_rate: '1/1' }]
+      })
+    ).toBeUndefined()
+    expect(
+      lastDecodableVideoTimestampMs({
+        streams: [{ codec_type: 'video', nb_frames: 'N/A', avg_frame_rate: '12/1' }]
+      })
+    ).toBeUndefined()
   })
 })
