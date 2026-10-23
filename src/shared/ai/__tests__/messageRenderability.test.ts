@@ -27,6 +27,12 @@ describe('isRenderablePart tool names', () => {
     }
   })
 
+  it('treats automation REPL tools as visible agent content', () => {
+    for (const name of ['automation_repl', 'automation_repl_reset']) {
+      expect(isRenderablePart(part({ type: `tool-${name}`, toolCallId: 'call-1' }))).toBe(true)
+    }
+  })
+
   it('treats agent session delegation tools as visible agent content', () => {
     for (const name of ['session_create', 'session_send']) {
       expect(isRenderablePart(part({ type: `tool-${name}`, toolCallId: 'call-1' }))).toBe(true)

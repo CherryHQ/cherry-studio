@@ -33,6 +33,11 @@ export const HIDDEN_MARKER_PART_TYPES: ReadonlySet<string> = new Set([
 const KNOWN_RENDERABLE_TOOL_NAMES = new Set<string>([
   'Agent',
   'AskUserQuestion',
+  // Automation REPL tools render through getAutomationReplKind
+  // (renderer/components/chat/messages/tools/automation/automationRepl.ts);
+  // keep in sync with the tool factory in AutomationReplTools.ts.
+  'automation_repl',
+  'automation_repl_reset',
   'Bash',
   'BashOutput',
   'Edit',
