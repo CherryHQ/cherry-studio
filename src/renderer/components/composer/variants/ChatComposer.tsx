@@ -1621,9 +1621,16 @@ const ChatComposerInner = ({
   // settlement clears by design (see clearChatDraftCacheIfMatches).
   useEffect(() => {
     if (!hasChatDraftDocument(initialDraft)) return
+    const mountRevision = draftEditRevisionRef.current
     return subscribeChatDraftCache(draftCacheScopeKey, () => {
       const cached = readChatDraftCache(draftCacheScopeKey)
       if (hasChatDraftDocument(cached)) return
+      // A tool dispatch between mount and now (an attachment picked while an
+      // enqueue is in flight) bumps the edit revision synchronously, before
+      // React commits the new snapshot: revision drift means pending
+      // mutations the snapshot comparison cannot see yet, so preserve the
+      // editor state (cherry-pr-review inv_677b55ab0fc0d69d).
+      if (draftEditRevisionRef.current !== mountRevision) return
       const visibleDraft = actionsRef.current.getDraft()
       if (
         visibleDraft.text === initialDraft.text &&

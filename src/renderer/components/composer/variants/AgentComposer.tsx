@@ -107,6 +107,7 @@ import {
 import {
   type AgentComposerDraftCache,
   type AgentComposerDraftCacheKey,
+  clearAgentDraftCacheIfMatches,
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
@@ -1723,6 +1724,8 @@ const AgentComposerInner = ({
       if (isStreaming && !options?.steer) {
         const enqueueScope = sessionTopicId
         const enqueueRevision = draftEditRevisionRef.current
+        const enqueueFiles = filesRef.current
+        const enqueueKnowledgeBaseIds = knowledgeBaseIdsRef.current
         // Hold the submission guard across the enqueue too: the direct-send guard below is
         // acquired only under this branch, so a second Send activation while this enqueue is
         // in flight would mint a second UUID and queue a duplicate. The editor stays editable
@@ -1730,8 +1733,29 @@ const AgentComposerInner = ({
         directSendInFlightRef.current = true
         try {
           const queued = await enqueueFollowup(draft, payload)
-          if (queued && queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
-            clearCurrentDraft()
+          if (queued) {
+            // An unmount between submit and settlement persists the submitted
+            // draft, and a reopened composer keeps editing it: reconcile
+            // against the current cached document and draft owner so this
+            // now-obsolete instance cannot overwrite the newer cached draft
+            // with empty content (cherry-pr-review inv_e49e883e1e3d4bb6).
+            const stillOwnsCache = clearAgentDraftCacheIfMatches(
+              draftCacheKey,
+              { workspaceKey, agentId },
+              {
+                text: draft.text,
+                tokens: draft.tokens,
+                files: enqueueFiles,
+                knowledgeBaseIds: enqueueKnowledgeBaseIds
+              }
+            )
+            if (
+              stillOwnsCache &&
+              queueScopeRef.current === enqueueScope &&
+              draftEditRevisionRef.current === enqueueRevision
+            ) {
+              clearCurrentDraft()
+            }
           }
         } finally {
           directSendInFlightRef.current = false
@@ -1750,8 +1774,10 @@ const AgentComposerInner = ({
       }
     },
     [
+      agentId,
       buildQueuedPayload,
       clearCurrentDraft,
+      draftCacheKey,
       enqueueFollowup,
       isStreaming,
       model,
@@ -1759,6 +1785,7 @@ const AgentComposerInner = ({
       sendQueuedPayload,
       sessionTopicId,
       t,
+      workspaceKey,
       workspaceWarning
     ]
   )

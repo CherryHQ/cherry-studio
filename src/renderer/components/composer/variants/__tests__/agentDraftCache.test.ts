@@ -4,6 +4,7 @@ import { cacheService } from '@data/CacheService'
 
 import type { ComposerSerializedToken } from '../../tokens'
 import {
+  clearAgentDraftCacheIfMatches,
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
@@ -197,5 +198,46 @@ describe('agentDraftCache', () => {
     expect(written).toEqual(expect.objectContaining({ shouldValidateSkills: true }))
     vi.mocked(cacheService.get).mockReturnValue(written)
     expect(readAgentDraftCache(getAgentDraftCacheKey('session-1'), scope).shouldValidateSkills).toBe(true)
+  })
+})
+
+describe('clearAgentDraftCacheIfMatches', () => {
+  beforeEach(() => {
+    vi.mocked(cacheService.get).mockReset()
+    vi.mocked(cacheService.set).mockReset()
+  })
+
+  const cacheKey = getAgentDraftCacheKey('session-1')
+  const scope = { workspaceKey: 'ws-1', agentId: 'agent-1' }
+  const submitted = { text: 'Queued message', tokens: [], files: [], knowledgeBaseIds: [] }
+
+  it('clears the entry when it still matches the submitted draft', () => {
+    vi.mocked(cacheService.get).mockReturnValue({
+      ...submitted,
+      workspaceKey: 'ws-1',
+      agentId: 'agent-1'
+    })
+
+    expect(clearAgentDraftCacheIfMatches(cacheKey, scope, submitted)).toBe(true)
+    expect(cacheService.set).toHaveBeenCalledWith(
+      cacheKey,
+      expect.objectContaining({ text: '', tokens: [], files: [], workspaceKey: 'ws-1', agentId: 'agent-1' }),
+      expect.any(Number)
+    )
+  })
+
+  it('preserves a newer cached draft owned by a reopened composer', () => {
+    // A reopened composer kept editing the persisted submission: clearing
+    // through the obsolete instance would erase the newer draft
+    // (cherry-pr-review inv_e49e883e1e3d4bb6).
+    vi.mocked(cacheService.get).mockReturnValue({
+      ...submitted,
+      text: 'Newer draft',
+      workspaceKey: 'ws-1',
+      agentId: 'agent-1'
+    })
+
+    expect(clearAgentDraftCacheIfMatches(cacheKey, scope, submitted)).toBe(false)
+    expect(cacheService.set).not.toHaveBeenCalled()
   })
 })

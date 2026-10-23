@@ -118,6 +118,42 @@ export function readAgentDraftCache(
   }
 }
 
+/**
+ * Clear the cached draft only when it still matches the draft that was just
+ * enqueued, and report whether the entry matched. An unmount between submit
+ * and settlement persists the submitted draft, and a reopened composer keeps
+ * editing it: clearing through the obsolete instance would overwrite the
+ * newer cached draft with empty content (cherry-pr-review
+ * inv_e49e883e1e3d4bb6). A mismatch is preserved untouched.
+ *
+ * Only the submitted document fields participate in the match. The scope
+ * fields (workspaceKey, agentId) survive the reset, like the model-selector
+ * fields in the chat variant.
+ */
+export function clearAgentDraftCacheIfMatches(
+  cacheKey: AgentComposerDraftCacheKey,
+  scope: AgentDraftCacheScope,
+  submitted: Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
+): boolean {
+  const cached = readAgentDraftCache(cacheKey, scope)
+  // Only a real cached document can belong to a newer owner: an empty entry
+  // (persistence disabled or nothing persisted yet) carries nothing to
+  // preserve and must not block the settlement clear.
+  const hasDocument = cached.text !== '' || cached.tokens.length > 0 || cached.files.length > 0
+  if (hasDocument) {
+    if (cached.text !== submitted.text) return false
+    if (JSON.stringify(cached.tokens) !== JSON.stringify(submitted.tokens)) return false
+    if (JSON.stringify(cached.files) !== JSON.stringify(submitted.files)) return false
+    if (JSON.stringify(cached.knowledgeBaseIds) !== JSON.stringify(submitted.knowledgeBaseIds)) return false
+  }
+  writeAgentDraftCache(cacheKey, {
+    ...EMPTY_DRAFT_CACHE,
+    workspaceKey: scope.workspaceKey,
+    agentId: scope.agentId
+  })
+  return true
+}
+
 export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {
   const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens] })
   cacheService.set(
