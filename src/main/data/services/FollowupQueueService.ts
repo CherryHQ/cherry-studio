@@ -258,6 +258,27 @@ export class FollowupQueueService {
               duplicate.claimToken = FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN
               duplicate.updatedAt = stampedAt
             }
+          } else if (
+            !dto.held &&
+            duplicate.status === 'pending' &&
+            duplicate.claimToken === FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN
+          ) {
+            // A non-held retry for a still-held copy means editor ownership
+            // transferred (the failure paths only re-stamp held): release the
+            // recovery hold so the queue head becomes claimable again.
+            const releasedAt = Date.now()
+            tx.update(followupQueueTable)
+              .set({ claimToken: null, updatedAt: releasedAt })
+              .where(
+                and(
+                  eq(followupQueueTable.id, duplicate.id),
+                  eq(followupQueueTable.status, 'pending'),
+                  eq(followupQueueTable.claimToken, FollowupQueueService.HELD_RECOVERY_CLAIM_TOKEN)
+                )
+              )
+              .run()
+            duplicate.claimToken = null
+            duplicate.updatedAt = releasedAt
           }
           return rowToItem(duplicate)
         }
@@ -534,6 +555,18 @@ export class FollowupQueueService {
     completionAt?: number
   ): { claimed: true; id: string; alreadySent: boolean } | { claimed: false } {
     const dbService = application.get('DbService')
+    // Publish completion-fence mutations only after the commit succeeds: a
+    // rollback must not retain the fence (retries would reject the claim while
+    // reconciliation finds no sending row to release it).
+    const releasedTokens = new Set<string>()
+    const recordedCompletions: Array<{ completionAt: number; claimToken: string }> = []
+    const hasConsumedTx = (key: string, completionAt: number): boolean => {
+      const reservations = this.consumedCompletions.get(key) ?? []
+      return (
+        reservations.some((entry) => entry.completionAt === completionAt && !releasedTokens.has(entry.claimToken)) ||
+        recordedCompletions.some((entry) => entry.completionAt === completionAt)
+      )
+    }
     const result = dbService.withWriteTx((tx) => {
       const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
       const [head] = tx
@@ -569,7 +602,7 @@ export class FollowupQueueService {
       // winner's own retry re-acquires, but any other claim for an
       // already-consumed completion is obsolete and must not deliver a second
       // row for the same turn (cherry-pr-review).
-      if (!ownRetry && completionAt != null && this.hasConsumedCompletion(scopeKey, completionAt)) {
+      if (!ownRetry && completionAt != null && hasConsumedTx(scopeKey, completionAt)) {
         // A reservation whose granted claim was abandoned before any send
         // (renderer crash after the grant, so no send and no release) must
         // not strand the row for that completion: once the claim has aged
@@ -595,9 +628,9 @@ export class FollowupQueueService {
             )
             .limit(1)
             .all()
-          if (abandoned) this.releaseConsumedCompletion(scopeKey, entry.claimToken)
+          if (abandoned) releasedTokens.add(entry.claimToken)
         }
-        if (this.hasConsumedCompletion(scopeKey, completionAt)) {
+        if (hasConsumedTx(scopeKey, completionAt)) {
           return { claimed: false as const }
         }
       }
@@ -614,10 +647,15 @@ export class FollowupQueueService {
         .returning({ id: followupQueueTable.id })
         .all()
       if (!updated) return { claimed: false as const }
-      // Record consumption atomically with the grant (the tx is synchronous).
-      if (completionAt != null) this.recordConsumedCompletion(scopeKey, completionAt, claimToken)
+      // Defer consumption to the post-commit publish: recording it inside the
+      // tx would leak the fence past a rollback.
+      if (completionAt != null) recordedCompletions.push({ completionAt, claimToken })
       return { claimed: true as const, id: head.id, alreadySent: head.sentAt != null }
     })
+    for (const token of releasedTokens) this.releaseConsumedCompletion(scopeKey, token)
+    for (const { completionAt: consumedAt, claimToken: consumedToken } of recordedCompletions) {
+      this.recordConsumedCompletion(scopeKey, consumedAt, consumedToken)
+    }
 
     if (result.claimed) notifyQueueChange('projection', scopeKey, [result.id])
     return result

@@ -966,4 +966,52 @@ describe('FollowupQueueService', () => {
       expect(enqueueIn('topic-a:assistant-1', 'a1')).toMatchObject({ scopeKey: 'topic-a:assistant-1' })
     })
   })
+
+  it('keeps the completion retryable when the claim commit fails', async () => {
+    const item = enqueueIn(SCOPE_A, 'retry after failed commit')
+    const dbService = application.get('DbService')
+    const original = dbService.withWriteTx.bind(dbService) as (fn: (tx: unknown) => unknown) => unknown
+    const injected = vi.spyOn(dbService, 'withWriteTx')
+    injected.mockImplementationOnce(((fn: (tx: unknown) => unknown) =>
+      original((tx) => {
+        fn(tx)
+        throw new Error('injected commit failure')
+      })) as typeof dbService.withWriteTx)
+    try {
+      expect(() => followupQueueService.claimHead(SCOPE_A, 'token-commit', 9700001)).toThrow('injected commit failure')
+    } finally {
+      injected.mockRestore()
+    }
+    const [row] = await dbh.db.select().from(followupQueueTable).where(eq(followupQueueTable.id, item.id))
+    expect(row.status).toBe('pending')
+    // The failed attempt must not retain the completion fence (cherry-pr-review):
+    // the retry for the same completion claims the head again.
+    expect(followupQueueService.claimHead(SCOPE_A, 'token-commit', 9700001)).toEqual({
+      claimed: true,
+      id: item.id,
+      alreadySent: false
+    })
+  })
+
+  it('releases a held copy when a non-held retry lands after ownership transferred', () => {
+    const item = followupQueueService.enqueue({
+      scopeKey: SCOPE_A,
+      draft: draft('switching away mid-recovery'),
+      payload: payload('switching away mid-recovery'),
+      held: true
+    })
+    // Held recovery copies stay ineligible even for their own window.
+    expect(followupQueueService.claimHead(SCOPE_A, 'token-hold', 9800001)).toEqual({ claimed: false })
+    followupQueueService.enqueue({
+      id: item.id,
+      scopeKey: SCOPE_A,
+      draft: draft('switching away mid-recovery'),
+      payload: payload('switching away mid-recovery')
+    })
+    expect(followupQueueService.claimHead(SCOPE_A, 'token-hold', 9800001)).toEqual({
+      claimed: true,
+      id: item.id,
+      alreadySent: false
+    })
+  })
 })

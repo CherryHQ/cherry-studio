@@ -1279,11 +1279,19 @@ describe('useFollowupQueue', () => {
         id: expect.any(String),
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
-        payload: { text: 'first edited', userMessageParts: [] }
+        payload: { text: 'first edited', userMessageParts: [] },
+        held: true
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
     expect(restoreId).not.toBe('a')
+    // The restore is born held; once the incoming take commits and editor
+    // ownership transfers, the same copy is re-POSTed unheld so it becomes
+    // claimable as ordinary pending content (cherry-pr-review).
+    expect(postTrigger).toHaveBeenCalledTimes(2)
+    const releaseBody = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>)[1][0]
+      .body
+    expect(releaseBody).toEqual(expect.objectContaining({ id: restoreId, held: false }))
     // 'a' was taken from slot 0, so its rebuilt copy goes back to the head.
     expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { position: 'first' } }] } })
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
@@ -1561,9 +1569,11 @@ describe('useFollowupQueue', () => {
       })
       expect(postTrigger).toHaveBeenCalledTimes(4)
       const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { held?: boolean } }]>
-      expect(bodies[0][0].body.held).toBeUndefined()
-      expect(bodies[1][0].body.held).toBeUndefined()
-      expect(bodies[2][0].body.held).toBeUndefined()
+      // The inline attempts are born held (they failed on the full queue);
+      // the landing retry keeps the copy held while the session owns it.
+      expect(bodies[0][0].body.held).toBe(true)
+      expect(bodies[1][0].body.held).toBe(true)
+      expect(bodies[2][0].body.held).toBe(true)
       expect(bodies[3][0].body.held).toBe(true)
     } finally {
       vi.useRealTimers()
@@ -1669,11 +1679,12 @@ describe('useFollowupQueue', () => {
     })
     expect(taken).toBeUndefined()
 
-    // Restore POST then held re-stamp POST for the same copy; the failed
-    // take's claim is released.
+    // Restore POST (born held at creation) then the held re-stamp POST for
+    // the same copy; the failed take's claim is released.
     await act(async () => {})
     expect(postTrigger).toHaveBeenCalledTimes(2)
     const bodies = postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>
+    expect(bodies[0][0].body.held).toBe(true)
     expect(bodies[1][0].body.id).toBe(bodies[0][0].body.id)
     expect(bodies[1][0].body.held).toBe(true)
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { claimToken: expect.any(String) } })
@@ -1749,11 +1760,19 @@ describe('useFollowupQueue', () => {
         id: expect.any(String),
         scopeKey: SCOPE,
         draft: { text: 'first edited', tokens: [] },
-        payload: { text: 'first edited', userMessageParts: [] }
+        payload: { text: 'first edited', userMessageParts: [] },
+        held: true
       }
     })
     const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
     expect(restoreId).not.toBe('a')
+    // The restore is born held; once the incoming take commits and editor
+    // ownership transfers, the same copy is re-POSTed unheld so it becomes
+    // claimable as ordinary pending content (cherry-pr-review).
+    expect(postTrigger).toHaveBeenCalledTimes(2)
+    const releaseBody = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string; held?: boolean } }]>)[1][0]
+      .body
+    expect(releaseBody).toEqual(expect.objectContaining({ id: restoreId, held: false }))
     expect(reorderTrigger).toHaveBeenCalledWith({ body: { moves: [{ id: restoreId, anchor: { position: 'first' } }] } })
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
   })
