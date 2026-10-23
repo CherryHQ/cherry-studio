@@ -301,7 +301,9 @@ export async function toModelMessages(
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
-    deduplicateLocalToolParts(dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))))
+    deduplicateLocalToolParts(
+      dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
+    )
   )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
