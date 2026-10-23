@@ -202,7 +202,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       if (!prepared && after !== before) throw new Error('Copied history changed')
       journal.operations.push({ source: sourceRelative, target: targetRelative, before, after })
     }
-    const oldProject = artifactPath(root, path.join('.claude', 'projects', result.oldKey))
+    let oldProject = artifactPath(root, path.join('.claude', 'projects', result.oldKey))
     const newProject = artifactPath(root, path.join('.claude', 'projects', result.newKey))
     const entriesByFile = new Map<string, Array<Record<string, unknown>>>()
     async function readEntries(file: string) {
@@ -272,6 +272,24 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
       }
       const configDir = checkpoint?.configDir ?? claudeConfigDirs.get(`${row.sessionId}:${id}`)
       if (runtime === 'claude-code' && (!configDir || configDir === oldConfig)) {
+        if (!(await exists(oldProject))) {
+          // A removed symlinked ancestor can change the SDK key; persisted IDs still identify copied history.
+          const projectsRoot = path.dirname(oldProject)
+          await assertAgentStorageDirectory(root, projectsRoot)
+          const candidates: string[] = []
+          for (const project of await readdir(projectsRoot, { withFileTypes: true })) {
+            if (!project.isDirectory() || project.isSymbolicLink()) continue
+            const candidate = artifactPath(root, path.join('.claude', 'projects', project.name))
+            await assertAgentStoragePath(root, candidate)
+            if (await exists(path.join(candidate, id + '.jsonl'))) candidates.push(candidate)
+            if (candidates.length > 1) throw new Error('Ambiguous Claude project history')
+          }
+          if (candidates[0] === newProject) throw new Error('Relocation target already exists')
+          if (candidates.length) {
+            oldProject = candidates[0]
+            await stage(oldProject, newProject)
+          }
+        }
         const file = path.join(oldProject, id + '.jsonl')
         await assertAgentStoragePath(root, file)
         if (!(await exists(file))) throw new Error('Claude history missing')

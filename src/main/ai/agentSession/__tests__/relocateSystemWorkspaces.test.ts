@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { createRequire, stripTypeScriptTypes } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -14,6 +16,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
+import { runForkWorker } from '@main/ai/runtime/fork'
 import { loadPiAi, loadPiSdk } from '@main/ai/runtime/pi/piSdk'
 import { resolveResumeTokenSessionFile } from '@main/ai/runtime/pi/piSessionFile'
 import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessionHistory'
@@ -21,12 +24,17 @@ import { migrateRetiredSessionHistories } from '@main/ai/runtime/pi/retiredSessi
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from '../relocateSystemWorkspaces'
 
+const workerMocks = vi.hoisted(() => ({ source: undefined as string | undefined }))
+
 // Keep filesystem publication and database recovery real; isolate only the native SDK worker.
 vi.mock('../relocationWorker?nodeWorker', async () => {
   const { EventEmitter } = await import('node:events')
   const { basename } = await import('node:path')
+  const { Worker } = await import('node:worker_threads')
   return {
     default: ({ workerData }: { workerData: { oldCwd: string; newCwd: string } }) => {
+      if (workerMocks.source)
+        return new Worker(new URL(`data:text/javascript,${encodeURIComponent(workerMocks.source)}`), { workerData })
       const worker = Object.assign(new EventEmitter(), { terminate: async () => 0 })
       setImmediate(() =>
         worker.emit('message', {
@@ -47,6 +55,7 @@ describe('system workspace relocation', () => {
   let root: string
 
   beforeEach(async () => {
+    workerMocks.source = undefined
     temporaryRoot = await mkdtemp(path.join(tmpdir(), 'cs-relocation-'))
     root = path.join(temporaryRoot, 'new', 'Data', 'Agents')
     await mkdir(root, { recursive: true })
@@ -95,10 +104,15 @@ describe('system workspace relocation', () => {
     return dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, id)).get()!.path
   }
 
-  async function writeHistory(runtime: 'claude-code' | 'pi', workspaceId: string, nativeId: string) {
+  async function writeHistory(
+    runtime: 'claude-code' | 'pi',
+    workspaceId: string,
+    nativeId: string,
+    projectKey = `old-${workspaceId}`
+  ) {
     const file =
       runtime === 'claude-code'
-        ? path.join(root, '.claude', 'projects', `old-${workspaceId}`, `${nativeId}.jsonl`)
+        ? path.join(root, '.claude', 'projects', projectKey, `${nativeId}.jsonl`)
         : path.join(root, '.pi', 'sessions', `2026-10-09_${nativeId}.jsonl`)
     const entry =
       runtime === 'claude-code'
@@ -125,6 +139,66 @@ describe('system workspace relocation', () => {
       })
     }).persistAssistant({ status, finalMessage: { id, role: 'assistant', parts: [{ type: 'text', text: status }] } })
   }
+
+  it.each(['retained', 'removed', 'ambiguous', 'linked', 'target-conflict'] as const)(
+    'recovers canonical Claude project ownership with the native worker: %s',
+    async (scenario) => {
+      const workspace = await createWorkspace('claude-code')
+      const canonicalRoot = path.join(temporaryRoot, 'canonical-old')
+      await mkdir(path.join(canonicalRoot, path.relative(path.join(temporaryRoot, 'old'), workspace.oldPath)), {
+        recursive: true
+      })
+      await symlink(canonicalRoot, path.join(temporaryRoot, 'old'), process.platform === 'win32' ? 'junction' : 'dir')
+      const source = await readFile(path.resolve('src/main/ai/agentSession/relocationWorker.ts'), 'utf8')
+      workerMocks.source = stripTypeScriptTypes(source).replaceAll(
+        '@anthropic-ai/claude-agent-sdk',
+        pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
+      )
+      const { default: createWorker } = await import('../relocationWorker?nodeWorker')
+      const keys = () =>
+        runForkWorker(
+          createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
+          new AbortController().signal
+        ) as Promise<{ oldKey: string; newKey: string }>
+      const before = await keys()
+      const nativeId = randomUUID()
+      const file = await writeHistory('claude-code', workspace.id, nativeId, before.oldKey)
+      const contents = await readFile(file, 'utf8')
+      persistClaudeTurn(
+        workspace.sessionId,
+        nativeId,
+        'paused',
+        path.join(temporaryRoot, 'old', 'Data', 'Agents', '.claude')
+      )
+      const oldProject = path.dirname(file)
+      const newProject = path.join(root, '.claude', 'projects', before.newKey)
+      let preservedFile = file
+      if (scenario === 'ambiguous')
+        await cp(oldProject, path.join(path.dirname(oldProject), 'duplicate-project'), { recursive: true })
+      if (scenario === 'linked') {
+        const outside = path.join(temporaryRoot, 'outside-history')
+        await rename(oldProject, outside)
+        await symlink(outside, oldProject, process.platform === 'win32' ? 'junction' : 'dir')
+        preservedFile = path.join(outside, `${nativeId}.jsonl`)
+      }
+      if (scenario === 'target-conflict') {
+        await mkdir(newProject)
+        await writeFile(path.join(newProject, 'keep.txt'), 'existing target')
+      }
+      if (scenario !== 'retained') await rm(canonicalRoot, { recursive: true })
+      expect((await keys()).oldKey === before.oldKey).toBe(scenario === 'retained')
+
+      const blocked = !['retained', 'removed'].includes(scenario)
+      expect(await relocateSystemWorkspaces()).toEqual(new Set(blocked ? [workspace.sessionId] : []))
+      expect(workspacePath(workspace.id)).toBe(blocked ? workspace.oldPath : workspace.newPath)
+      expect(await readFile(blocked ? preservedFile : path.join(newProject, `${nativeId}.jsonl`), 'utf8')).toBe(
+        contents
+      )
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(nativeId)
+      if (scenario === 'target-conflict')
+        expect(await readFile(path.join(newProject, 'keep.txt'), 'utf8')).toBe('existing target')
+    }
+  )
 
   it.each(['paused', 'error'] as const)('retains external Claude history ownership after a %s turn', async (status) => {
     const workspace = await createWorkspace('claude-code')
