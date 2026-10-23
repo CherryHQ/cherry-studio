@@ -1,24 +1,7 @@
 import type { Page } from '@playwright/test'
 
-import type { DataRequest, DataResponse } from '@shared/data/api/types'
-
-import { composerInput, gotoApp, removeAppData, sidebarApps } from './appPage'
-import { expect, test as harnessTest } from './fixtures'
-import { MOCK_PROVIDER_PORT } from './mockProvider'
-
-declare global {
-  interface Window {
-    api: { dataApi: { request(request: DataRequest): Promise<DataResponse> } }
-  }
-}
-
-// The app always opens the one local account, so its data is removed after each test.
-const test = harnessTest.extend<{ page: Page }>({
-  page: async ({ context }, provide) => {
-    await provide(context.pages()[0] ?? (await context.newPage()))
-    await removeAppData(context)
-  }
-})
+import { composerInput, gotoApp, sidebarApps, test, useMockProvider } from './appPage'
+import { expect } from './fixtures'
 
 test('runs the desktop main window with only the Web edition features', async ({ page }) => {
   const pageErrors: string[] = []
@@ -90,32 +73,30 @@ test('keeps a reply cut off by a reload and says it was interrupted', async ({ p
   await expect(messages.getByText(/^This reply was interrupted because the app closed\./)).toBeVisible()
 })
 
-/** Point every assistant at the mock endpoint; the trial's model source is not decided yet. */
-async function useMockProvider(page: Page, run: string): Promise<void> {
-  await page.evaluate(
-    async ({ baseUrl, providerId }) => {
-      const request = async (method: DataRequest['method'], path: string, body?: unknown) => {
-        const response = await window.api.dataApi.request({ id: crypto.randomUUID(), method, path, body })
-        if (response.error) throw new Error(`${method} ${path}: ${response.error.message}`)
-        return response.data as { items: { id: string }[] }
-      }
-      await request('POST', '/providers', {
-        providerId,
-        name: 'Mock provider',
-        defaultChatEndpoint: 'openai-chat-completions',
-        endpointConfigs: { 'openai-chat-completions': { baseUrl: `${baseUrl}/v1` } },
-        apiKeys: [{ id: crypto.randomUUID(), key: 'sk-web-trial', isEnabled: true }]
-      })
-      await request('POST', '/models', [
-        { providerId, modelId: 'mock-chat', name: 'Mock chat', endpointTypes: ['openai-chat-completions'] }
-      ])
-      for (const { id } of (await request('GET', '/assistants')).items) {
-        await request('PATCH', `/assistants/${id}`, { modelId: `${providerId}::mock-chat` })
-      }
-    },
-    { baseUrl: `http://localhost:${MOCK_PROVIDER_PORT}`, providerId: `mock-${run}` }
-  )
-}
+test('runs no script from HTML in a reply, in its preview or in a link', async ({ page }) => {
+  await gotoApp(page)
+  await useMockProvider(page, Date.now().toString(36))
+  await gotoApp(page)
+
+  const injected = "window.injected = 'reply'"
+  const reply = [
+    `Inline <img src="x" onerror="${injected}"> and <script>${injected}</script> HTML.`,
+    "[A link](javascript:window.injected='link')",
+    "```html\n<p>Preview body</p><script>parent.injected = 'preview'; navigator.storage.getDirectory().then(() => (parent.injected = 'opfs'))</script>\n```"
+  ].join('\n\n')
+  await composerInput(page).click()
+  await page.keyboard.type(`say ${JSON.stringify(reply)}`)
+  await page.keyboard.press('Enter')
+  const messages = page.getByLabel('Messages')
+  await expect(messages.getByText(/^Inline .* HTML\.$/)).toBeVisible()
+  await expect(
+    page.frameLocator('[data-testid="message-html-artifact"] iframe').getByText('Preview body')
+  ).toBeVisible()
+
+  await expect(messages.getByText('A link', { exact: true })).toBeVisible()
+  await expect(page.locator('a[href^="javascript:" i]')).toHaveCount(0)
+  expect(await page.evaluate(() => (window as { injected?: string }).injected)).toBeUndefined()
+})
 
 /** Status of the latest message in the only topic. */
 function replyStatus(page: Page): Promise<string | undefined> {

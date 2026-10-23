@@ -4,6 +4,8 @@ import { APP_PORT } from './e2e/appPage'
 import { MOCK_PROVIDER_PORT } from './e2e/mockProvider'
 
 const PORT = 4318
+// Both preview servers serve the CSP with a `report-uri` here (`contentSecurityPolicy`).
+const env = { WEB_CORE_CSP_REPORT_URI: `http://localhost:${MOCK_PROVIDER_PORT}/csp-reports` }
 
 // Runs against the built harness (`vite build`) and Web app (`build:app`), served with the
 // cross-origin-isolation headers.
@@ -20,12 +22,14 @@ export default defineConfig({
     {
       command: `./node_modules/.bin/vite preview --port ${PORT} --strictPort`,
       url: `http://localhost:${PORT}`,
+      env,
       reuseExistingServer: false
     },
     {
       command: `packages/web-core/node_modules/.bin/vite preview --config packages/web-core/vite.app.config.ts --port ${APP_PORT} --strictPort`,
       cwd: '../..',
       url: `http://localhost:${APP_PORT}`,
+      env,
       reuseExistingServer: false
     },
     {

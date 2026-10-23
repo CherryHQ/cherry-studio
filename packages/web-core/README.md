@@ -8,8 +8,9 @@ unmodified desktop main window on top of it. See the Agent Notes for the
 [chat](../../.agents/notes/proposed/architecture/2026-10-20-web-core-ai.md),
 [page bridge](../../.agents/notes/proposed/architecture/2026-10-20-web-core-page-bridge.md),
 [Web app](../../.agents/notes/proposed/architecture/2026-10-20-web-core-app.md),
-[agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md) and
-[agent local folders](../../.agents/notes/proposed/architecture/2026-10-23-web-core-local-folder.md).
+[agent](../../.agents/notes/proposed/architecture/2026-10-21-web-core-agent.md),
+[agent local folders](../../.agents/notes/proposed/architecture/2026-10-23-web-core-local-folder.md) and
+[hardening](../../.agents/notes/proposed/architecture/2026-10-23-web-core-hardening.md).
 
 - `./worker` — `startCoreWorker(self, extraCommands?, hooks?)` turns a dedicated Worker into a
   Core Worker. Commands: `open` (account), `request` (a DataApi `DataRequest`),
@@ -18,6 +19,34 @@ unmodified desktop main window on top of it. See the Agent Notes for the
   every `webContents.send` of the Worker (e.g. `DataApi_DataChanged`).
 - `src/page/preload.ts` — imported before any renderer module, it runs the desktop preload
   in the page; `connectCore(client)` then routes its `ipcRenderer` to the Worker.
+
+## What the Web edition can do
+
+Everything runs in the browser tab; closing the tab stops replies and agent turns, and the app
+opens in one tab at a time. Browsers: the current and previous major versions of Chrome, Edge,
+Firefox and Safari.
+
+| Feature | Web edition | Notes |
+| --- | --- | --- |
+| Chat: topics, messages, streaming, assistants | Yes | A reply cut off by a reload is kept and marked interrupted. |
+| Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. |
+| Settings | Provider, default model, general, appearance, about | Other sections are desktop-only. |
+| Agents | Pi runtime | Claude Code and other runtimes, skills, slash commands, heartbeat and scheduled runs are desktop-only. |
+| Agent file tools | Yes | `read`, `write`, `edit`, `ls`, `find`, `grep` in a workspace in the browser's storage. |
+| Agent in a folder on the computer | Chrome and Edge | Needs `showDirectoryPicker()`. |
+| Python | Yes | Pyodide, loaded from jsDelivr: pure-Python and Pyodide-built packages only. |
+| JavaScript | Yes | QuickJS, without network, file or DOM access. |
+| Shell commands | No | |
+| MCP servers | No | |
+| Deleting, archiving and forking agent sessions; editing a sent agent message | No | |
+| Attachments and file storage | No | |
+| Web search, knowledge bases | No | |
+| Paintings, translation, notes, mini apps and other sidebar apps | No | The sidebar offers agents and chat only. |
+| Backup and restore | Not yet | Planned (M4). Clearing the site's data deletes everything. |
+| Selection assistant, screenshots, global shortcuts, tray, auto-update | No | System features of the desktop app. |
+
+A desktop-only feature reached anyway (an old link, a stored setting) fails with
+`WebUnsupportedError` instead of acting.
 
 ## How the data layer runs here
 
@@ -153,6 +182,29 @@ Another edition builds its own Web app on this package, with its own Worker entr
   `mountOpfsDirectory` mounts any OPFS folder in ZenFS, and `deleteAccountData(account)` removes an
   account's database and files once no Worker holds it.
 
+## Serving
+
+Every response needs these headers; `webCoreHeaders()` in `vite.config.ts` defines them, the
+dev server and `vite preview` send them, and `build:app` writes them to `dist/app/_headers`
+(read by Cloudflare Pages and Netlify; copy them for other hosts, e.g. nginx `add_header … always`).
+
+- `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`: the
+  database needs a cross-origin-isolated page.
+- `Content-Security-Policy` (`contentSecurityPolicy()`): scripts only from the app, Pyodide's CDN and,
+  by hash, the Pyodide frame's inline script; WebAssembly but no `eval`; no plugins, no framing by
+  other sites; no `base-uri`, since HTML previews set their own base. `connect-src` allows any HTTPS host and local servers (`localhost`, `127.0.0.1`),
+  since users add their own providers; an edition passes its own `connectSrc`. zod's compiled
+  parsers need `eval`, so they are turned off by `src/runtime/zodJitless.ts`, which every page and
+  Worker entry imports before any module that uses zod (`src/page/preload.ts` and `startCoreWorker`
+  import it; an entry that imports desktop modules before them imports it first).
+
+Before starting the Worker, `src/page/browserSupport.ts` checks for WebAssembly, Workers, OPFS and
+cross-origin isolation, and the Worker checks for synchronous OPFS access handles. The start
+screen then names the cause: an unsupported browser, a site served without the isolation headers,
+or a browser that refuses storage (some private windows). Once the app is open,
+`src/page/persistentStorage.ts` asks for persistent storage and, if the browser refuses, warns
+once per account that the browser may delete the data.
+
 ## Database invariants
 
 - Non-pooled `opfs` VFS. The pooled `opfs-sahpool` VFS corrupted databases when a reload
@@ -175,3 +227,5 @@ directory stands in for a picked folder). `harness/bridge.html` loads the deskto
 Worker for `e2e/bridge.spec.ts`. `e2e/app.spec.ts` and `e2e/agent.spec.ts` drive the Web app (port 4320). `e2e/mockProvider.ts` is the
 OpenAI-compatible endpoint the chat and agent tests talk to; `call <tool> <json>` makes it call tools.
 `WEB_CORE_SCALE=1` adds the 50k-message timing run.
+Both preview servers send the CSP with a `report-uri` to the mock provider (`WEB_CORE_CSP_REPORT_URI`),
+and every test fails on a violation report from the page, its frames or its Workers.

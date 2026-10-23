@@ -1,3 +1,4 @@
+import '../runtime/zodJitless'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'

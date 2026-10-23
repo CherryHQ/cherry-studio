@@ -1,13 +1,13 @@
 import { resolve } from 'node:path'
 
-import { defineConfig, loadConfigFromFile, type UserConfig } from 'vite'
+import { defineConfig, loadConfigFromFile, type Plugin, type UserConfig } from 'vite'
 
 import {
   coreWorkerConfig,
-  crossOriginIsolation,
   pageDefines,
   replaceDesktopModules,
   resolveProcessAliases,
+  webCoreHeaders,
   workerAliases
 } from './vite.config'
 
@@ -27,15 +27,24 @@ const rendererAliases = Object.entries(renderer.resolve.alias)
   .filter(([name]) => name !== '@logger' && name !== '@data')
   .map(([name, replacement]) => ({ find: new RegExp(`^${escapeRegExp(name)}(?=/|$)`), replacement }))
 
+// Every response's headers, as the `_headers` file Cloudflare Pages and Netlify read; other hosts copy them.
+const headersFile: Plugin = {
+  name: 'web-core-headers-file',
+  generateBundle() {
+    const lines = Object.entries(webCoreHeaders()).map(([name, value]) => `  ${name}: ${value}`)
+    this.emitFile({ type: 'asset', fileName: '_headers', source: `/*\n${lines.join('\n')}\n` })
+  }
+}
+
 export default defineConfig({
   root: resolve(import.meta.dirname, 'app'),
   resolve: { alias: [...workerAliases, ...rendererAliases] },
   define: { ...renderer.define, ...pageDefines },
   // No `forbidNodeModules` here: the page keeps Vite's browser stubs for Node built-ins, as the desktop renderer does.
-  plugins: [resolveProcessAliases(), replaceDesktopModules(), ...(renderer.plugins ?? [])],
+  plugins: [resolveProcessAliases(), replaceDesktopModules(), ...(renderer.plugins ?? []), headersFile],
   worker: coreWorkerConfig,
-  server: { headers: crossOriginIsolation },
-  preview: { headers: crossOriginIsolation },
+  server: { headers: webCoreHeaders() },
+  preview: { headers: webCoreHeaders() },
   build: {
     outDir: resolve(import.meta.dirname, 'dist/app'),
     emptyOutDir: true,

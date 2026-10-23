@@ -1,15 +1,13 @@
 // The desktop's folder dialog for agent workspaces, answered with `showDirectoryPicker()` (Chrome and
 // Edge only). The Worker keeps and mounts the folder; when the browser needs the user's permission
 // again, a toast asks for it, since only a click in the page can.
-import i18next from 'i18next'
-
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { CoreClient } from '../client/CoreClient'
 import { type LocalFolderAccessRequest, PageChannel } from '../worker/protocol'
 import { handleInPage } from './electron'
+import { pageNotices } from './pageNotices'
 
-// The renderer catalog is desktop code; like the start screen, this module keeps its own strings.
 const resources = {
   en: {
     translation: {
@@ -50,23 +48,10 @@ type PermissionHandle = FileSystemDirectoryHandle & {
   requestPermission: (descriptor: { mode: 'readwrite' }) => Promise<PermissionState>
 }
 
-/** Strings in the renderer's current language, with its toasts. */
-async function notices() {
-  const [{ toast }, { default: rendererI18n }] = await Promise.all([
-    import('@renderer/services/toast'),
-    import('@renderer/i18n/resolver')
-  ])
-  const language = rendererI18n.language.toLowerCase()
-  const lng = language === 'zh-tw' || language === 'zh-hk' ? 'zh-TW' : language.startsWith('zh') ? 'zh-CN' : 'en'
-  const i18n = i18next.createInstance()
-  await i18n.init({ resources, lng, fallbackLng: 'en', interpolation: { escapeValue: false } })
-  return { toast, t: i18n.t.bind(i18n) }
-}
-
 async function pickFolder(client: CoreClient): Promise<string | null> {
   const picker = (window as PickerWindow).showDirectoryPicker
   if (!picker) {
-    const { toast, t } = await notices()
+    const { toast, t } = await pageNotices(resources)
     toast.warning({ title: t('unsupported_title'), description: t('unsupported_description') })
     return null
   }
@@ -82,7 +67,7 @@ async function pickFolder(client: CoreClient): Promise<string | null> {
 }
 
 async function offerAccess(client: CoreClient, folder: LocalFolderAccessRequest): Promise<void> {
-  const { toast, t } = await notices()
+  const { toast, t } = await pageNotices(resources)
   toast.warning({
     key: `local-folder-access-${folder.id}`,
     title: t('access_title', { name: folder.name }),
