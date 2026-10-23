@@ -8,6 +8,7 @@ import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
+import { extractDocumentParts, materializeDocumentImages } from './extractDocumentParts'
 import { ocrImageToText } from './ocrImageToText'
 import { probeOpenMineru } from './processors/openMineru/protocol'
 import { processorRegistry } from './processors/registry'
@@ -15,7 +16,13 @@ import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgro
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
 import type { FileProcessingJobPayload } from './tasks/shared'
-import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
+import type {
+  DocumentParts,
+  DocumentSource,
+  MaterializedDocumentImage,
+  ListAvailableFileProcessorsResult,
+  StartFileProcessingJobInput
+} from './types'
 import { getApiKey, getRequiredApiHost, getRequiredCapability } from './utils/provider'
 
 const logger = loggerService.withContext('FileProcessingService')
@@ -103,6 +110,22 @@ export class FileProcessingService extends BaseService {
    */
   ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
     return ocrImageToText(file, signal)
+  }
+
+  extractDocumentParts(
+    source: DocumentSource,
+    canonicalText: string | null,
+    signal?: AbortSignal
+  ): Promise<DocumentParts> {
+    return extractDocumentParts(source, canonicalText, signal)
+  }
+
+  materializeDocumentImages(
+    document: DocumentParts,
+    occurrenceIndices: readonly number[],
+    signal?: AbortSignal
+  ): Promise<MaterializedDocumentImage[]> {
+    return materializeDocumentImages(document, occurrenceIndices, signal)
   }
 
   /**
