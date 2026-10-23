@@ -37,12 +37,21 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   }
 }
 
+/**
+ * The submitted document fields only: text, tokens and files. Knowledge base
+ * and mentioned-model selections belong to the conversation scope, not the
+ * individual document, and survive enqueue settlement by design (see
+ * clearChatDraftCacheIfMatches). Counting them here makes a settled draft
+ * still look present, so the reopened-composer reconciliation returns early
+ * and leaves the already-queued message submittable a second time
+ * (cherry-pr-review inv_3aa62313c2ac8252).
+ */
 export function hasChatDraftDocument(draft: ChatComposerDraftCache): boolean {
-  return draft.text.length > 0 || draft.tokens.length > 0 || draft.files.length > 0 || draft.knowledgeBaseIds.length > 0
+  return draft.text.length > 0 || draft.tokens.length > 0 || draft.files.length > 0
 }
 
 export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
-  return hasChatDraftDocument(draft) || draft.mentionedModelIds.length > 0
+  return hasChatDraftDocument(draft) || draft.knowledgeBaseIds.length > 0 || draft.mentionedModelIds.length > 0
 }
 
 export function readChatDraftPresence(topicId: string): boolean {

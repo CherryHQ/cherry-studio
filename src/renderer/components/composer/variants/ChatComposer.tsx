@@ -1617,8 +1617,10 @@ const ChatComposerInner = ({
   // second time. When the cached document disappears while this editor still
   // holds exactly the draft it loaded at mount, clear the editor too; any edit
   // since mount diverges from the snapshot and is preserved (cherry-pr-review).
-  // Model-selector fields are excluded from both checks: they survive
-  // settlement clears by design (see clearChatDraftCacheIfMatches).
+  // Conversation-scope selections (knowledge bases, mentioned models) are
+  // excluded from both emptiness checks: they survive settlement clears by
+  // design (see clearChatDraftCacheIfMatches), so they must not count as a
+  // remaining document (cherry-pr-review inv_3aa62313c2ac8252).
   useEffect(() => {
     if (!hasChatDraftDocument(initialDraft)) return
     const mountRevision = draftEditRevisionRef.current

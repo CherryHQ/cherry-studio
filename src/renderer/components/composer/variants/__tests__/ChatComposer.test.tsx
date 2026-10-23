@@ -3191,7 +3191,18 @@ describe('ChatComposer', () => {
       key === 'chat.composer_draft.topic-1'
         ? {
             text: 'hello',
-            tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }],
+            tokens: [
+              {
+                id: 'knowledge:base-1',
+                kind: 'knowledge',
+                label: 'Base 1',
+                promptText:
+                  'The user attached knowledge base "Base 1" (id: base-1). Include "base-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.',
+                payload: { id: 'base-1', name: 'Base 1' },
+                index: 0,
+                textOffset: 0
+              }
+            ],
             files: [],
             knowledgeBaseIds: ['base-1']
           }
@@ -3215,7 +3226,18 @@ describe('ChatComposer', () => {
     mocks.knowledgeBasesLoading = true
     vi.mocked(cacheService.get).mockReturnValue({
       text: 'hello',
-      tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }],
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText:
+            'The user attached knowledge base "Base 1" (id: base-1). Include "base-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.',
+          payload: { id: 'base-1', name: 'Base 1' },
+          index: 0,
+          textOffset: 0
+        }
+      ],
       files: [],
       knowledgeBaseIds: ['base-1']
     })
@@ -3236,6 +3258,59 @@ describe('ChatComposer', () => {
       expect.objectContaining({ knowledgeBaseIds: [] }),
       expect.any(Number)
     )
+  })
+
+  it('clears the reopened editor when the queued enqueue settles with only the knowledge selection preserved', async () => {
+    // Settlement clears the submitted document but preserves the conversation
+    // knowledge selection. The surviving selection must not count as a
+    // remaining document, or the reconciliation returns early and the
+    // reopened editor keeps the queued message submittable a second time
+    // (cherry-pr-review inv_3aa62313c2ac8252).
+    const base = { id: 'base-1', name: 'Base 1' } as KnowledgeBase
+    mocks.knowledgeBases = [base]
+    let cached: unknown = {
+      text: 'queued while streaming',
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText:
+            'The user attached knowledge base "Base 1" (id: base-1). Include "base-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.',
+          payload: { id: 'base-1', name: 'Base 1' },
+          index: 0,
+          textOffset: 0
+        }
+      ],
+      files: [],
+      knowledgeBaseIds: ['base-1']
+    }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1' ? cached : ''
+    )
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([base]))
+    expect(mocks.surfaceProps?.text).toBe('queued while streaming')
+
+    // Settlement: the document fields are gone; the knowledge selection survives.
+    cached = { text: '', tokens: [], files: [], knowledgeBaseIds: ['base-1'] }
+    const listeners = vi
+      .mocked(cacheService.subscribe)
+      .mock.calls.filter(([key]) => key === 'chat.composer_draft.topic-1')
+      .map(([, listener]) => listener)
+    expect(listeners.length).toBeGreaterThan(0)
+    await act(async () => {
+      for (const listener of listeners) listener()
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+    // The conversation knowledge selection is preserved through the reconcile.
+    expect(mocks.selectedKnowledgeBases).toEqual([base])
   })
 
   it('persists the latest chat draft when the topic changes before tools finish loading', async () => {
