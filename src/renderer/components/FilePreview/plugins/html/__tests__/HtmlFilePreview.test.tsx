@@ -170,12 +170,19 @@ describe('HtmlFilePreview', () => {
     expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
   })
 
-  it('rejects files over 2 MiB before reading their contents', async () => {
-    renderPreview({ size: 2 * 1024 * 1024 + 1 })
+  it('rejects files over 8 MiB before reading their contents', async () => {
+    renderPreview({ size: 8 * 1024 * 1024 + 1 })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.html.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.html.too_large.description')
     expect(mocks.readText).not.toHaveBeenCalled()
+  })
+
+  it('renders files at exactly the 8 MiB limit', async () => {
+    mocks.readText.mockResolvedValueOnce('<h1>Boundary content</h1>')
+    renderPreview({ size: 8 * 1024 * 1024 })
+
+    expect(await screen.findByTestId('html-frame')).toHaveAttribute('srcdoc', '<h1>Boundary content</h1>')
   })
 
   it('logs the actual read error but shows only a localized description', async () => {

@@ -9,12 +9,12 @@ import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')
-const TEXT_PREVIEW_MAX_SIZE_MIB = 2
-const TEXT_PREVIEW_MAX_SIZE_BYTES = TEXT_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
+const TEXT_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
 
 type TextFileLoadState =
   | { status: 'empty' }
@@ -125,7 +125,7 @@ export default function TextFilePreview({ filePath, metadata, metadataRequest, r
           return
         }
 
-        if (loadedMetadata.size > TEXT_PREVIEW_MAX_SIZE_BYTES) {
+        if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }

@@ -10,7 +10,8 @@ import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
 import type * as LazyCodeEditorModule from '@renderer/components/LazyCodeEditor'
-import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { FileEditSessionContext, useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -81,7 +82,7 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
     editMode === 'edit' && selectedFile
       ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
       : undefined
-  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined)
+  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined, 'artifact')
 
   return (
     <ArtifactPaneView
@@ -104,10 +105,13 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
 
 // A fresh SWR cache per render so file content never bleeds across tests.
 function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
+  const [manager] = useState(() => new FileEditSessionManager())
   return (
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
-      <EditablePaneInner workspacePath={workspacePath} />
-    </SWRConfig>
+    <FileEditSessionContext value={manager}>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <EditablePaneInner workspacePath={workspacePath} />
+      </SWRConfig>
+    </FileEditSessionContext>
   )
 }
 
@@ -707,22 +711,26 @@ vi.mock('@renderer/components/command', () => ({
   }
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
-    // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
-    // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
-    // The `file.tree.*` routes fan out to the per-operation tree mocks the tests drive directly.
-    request: (route: string, input: { rootPath?: string; options?: unknown; treeId?: string; revision?: number }) => {
-      if (route === 'file.get_metadata') return mocks.getMetadata(input)
-      if (route === 'file.tree.create') return mocks.treeCreate(input.rootPath, input.options)
-      if (route === 'file.tree.activate') return mocks.treeActivate(input.treeId, input.revision)
-      if (route === 'file.tree.dispose') return mocks.treeDispose(input.treeId)
-      return mocks.ipcRequest(route, input)
-    },
-    on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
+vi.mock('@renderer/ipc', async () => {
+  const { createEditTransport } = await import('../../../../../../tests/helpers/file/editTransport')
+  const edit = createEditTransport((route, input) => mocks.ipcRequest(route, input))
+  return {
+    ipcApi: {
+      // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
+      // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
+      // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
+      // The `file.tree.*` routes fan out to the per-operation tree mocks the tests drive directly.
+      request: (route: string, input: { rootPath?: string; options?: unknown; treeId?: string; revision?: number }) => {
+        if (route === 'file.get_metadata') return mocks.getMetadata(input)
+        if (route === 'file.tree.create') return mocks.treeCreate(input.rootPath, input.options)
+        if (route === 'file.tree.activate') return mocks.treeActivate(input.treeId, input.revision)
+        if (route === 'file.tree.dispose') return mocks.treeDispose(input.treeId)
+        return edit(route, input)
+      },
+      on: (_event: string, callback: unknown) => mocks.treeOnMutation(callback)
+    }
   }
-}))
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -2027,11 +2035,11 @@ describe('ArtifactPane', () => {
 
     // The debounced autosave persists the large draft; the size cap only blocks
     // loading an already-oversized file into the editor.
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.edit.write', expect.anything()), {
       timeout: 3000
     })
-    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
-    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.edit.write')
+    if (!writeCall) throw new Error('Expected a file.edit.write request')
     expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
 
     // The active session stays editable even though the saved file is now too
@@ -2084,7 +2092,7 @@ describe('ArtifactPane', () => {
       resolveRetry({ mtime: 2, size: 7 })
     })
     await waitFor(() =>
-      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')).toHaveLength(3)
+      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(3)
     )
   })
 
@@ -2133,18 +2141,17 @@ describe('ArtifactPane', () => {
     })
 
     // Autosave (debounced) writes without a manual save button.
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.edit.write', expect.anything()), {
       timeout: 3000
     })
-    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
-    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.edit.write')
+    if (!writeCall) throw new Error('Expected a file.edit.write request')
     const writeInput = writeCall[1] as {
       data: Uint8Array
-      expectedVersion: { mtime: number; size: number }
+      expected: { version: { mtime: number; size: number } }
       handle: { kind: 'path'; path: string }
     }
-    expect(writeInput.handle).toEqual({ kind: 'path', path: '/tmp/workspace/notes.txt' })
-    expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
+    expect(writeInput.expected.version).toEqual({ mtime: 1, size: source.byteLength })
     const written = writeInput.data
     expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
     const writtenText = new TextDecoder().decode(written.slice(3))
