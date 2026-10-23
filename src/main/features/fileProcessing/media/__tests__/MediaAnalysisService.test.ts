@@ -9,10 +9,10 @@ import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { APPLE_ASR_MODEL_ID, QWEN3_ASR_MODEL_ID } from '@shared/ai/localVoice'
 import { TranscriptionInputKind, TranscriptionOutputKind } from '@shared/ai/voice'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { MEDIA_PIPELINE_VERSION } from '@shared/types/mediaAnalysis'
 
 import type * as MediaExecutionConfigModule from '../mediaExecutionConfig'
 import type { MediaExecutionConfig, MediaVisionExecutionConfig } from '../mediaExecutionConfig'
+import { MEDIA_PIPELINE_VERSION } from '../types'
 
 const visionExecution = (): MediaVisionExecutionConfig => ({
   uniqueModelId: 'openai::gpt-4o',
