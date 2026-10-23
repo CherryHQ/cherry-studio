@@ -18124,6 +18124,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-flare",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Flare",
@@ -18148,6 +18176,34 @@
       "capabilities": ["image-recognition", "image-generation"],
       "family": "gpt-image",
       "id": "gpt-image-2-5-sunburst",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": [
+                  "auto",
+                  "1024x1024",
+                  "1536x1024",
+                  "1024x1536",
+                  "1536x864",
+                  "864x1536",
+                  "1536x960",
+                  "3840x2160",
+                  "2160x3840"
+                ],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 2.5 Sunburst",
@@ -23017,5 +23073,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "6b81bfc9f3902e8c"
+  "version": "7692e6f21e262cae"
 }
