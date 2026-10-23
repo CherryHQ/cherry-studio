@@ -129,6 +129,65 @@ describe('CodeViewer', () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
+  it('copies a new selection immediately after saving a different range on scroll', () => {
+    const { container, getByText } = render(
+      <div style={{ overflowY: 'auto', height: 300 }}>
+        <CodeViewer value={'line 1\nline 2\nline 3'} language="text" expanded />
+      </div>
+    )
+    const selection = window.getSelection()!
+    const select = (text: string) => {
+      const range = document.createRange()
+      range.selectNodeContents(getByText(text))
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+    select('line 3')
+    fireEvent.scroll(container.querySelector('.shiki-scroller')!)
+    select('line 2')
+    let copied = ''
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        setData: (_type: string, value: string) => {
+          copied = value
+        }
+      }
+    })
+    getByText('line 2').dispatchEvent(event)
+    selection.removeAllRanges()
+    expect(copied).toBe('line 2')
+  })
+
+  it('retains the source range when virtualization removes a selection endpoint', async () => {
+    const lines = Array.from({ length: 100 }, (_, index) => `line ${index}`)
+    const { container, getByText, queryByText } = render(
+      <CodeViewer value={lines.join('\n')} language="text" expanded={false} wrapped={false} height={300} />
+    )
+    const range = document.createRange()
+    range.setStart(getByText('line 2').firstChild!, 0)
+    range.setEnd(getByText('line 30').firstChild!, 7)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const scroller = container.querySelector<HTMLElement>('.shiki-scroller')!
+    scroller.scrollTop = 900
+    fireEvent.scroll(scroller)
+    await waitFor(() => expect(queryByText('line 2')).toBeNull())
+    let copied = ''
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: {
+        setData: (_type: string, value: string) => {
+          copied = value
+        }
+      }
+    })
+    scroller.dispatchEvent(event)
+    selection.removeAllRanges()
+    expect(copied).toBe(lines.slice(2, 31).join('\n'))
+  })
+
   it('keeps a growing collapsed viewer pinned until the user scrolls away', () => {
     const props = { language: 'text', expanded: false, height: 300, autoScrollToBottom: true } as const
     const { container, rerender } = render(<CodeViewer {...props} value="first" />)

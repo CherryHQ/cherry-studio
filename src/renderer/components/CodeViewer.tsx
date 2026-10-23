@@ -283,11 +283,8 @@ const CodeViewer = ({
         return
       }
 
-      // Prefer saved selection from scroll, otherwise get it in real-time
-      let saved = savedSelectionRef.current
-      if (!saved) {
-        saved = saveSelection()
-      }
+      // A live range reflects reselection; retain the saved range only for unmounted endpoints.
+      const saved = saveSelection() ?? savedSelectionRef.current
 
       if (!saved) {
         logger.warn('Cannot get selection, using browser default')

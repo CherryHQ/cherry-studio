@@ -57,6 +57,30 @@ export class HighlightDocument {
   update(change: DocumentChange): void {
     if (change.type === 'replace') this.tokenizer.reset(change.code)
     else {
+      const lines = this.rows ? this.code.split('\n') : undefined
+      const splitsCrlf = (point: TextEdit['range']['start']) =>
+        lines &&
+        point.line < lines.length - 1 &&
+        lines[point.line].endsWith('\r') &&
+        point.character === lines[point.line].length
+      if (change.edits.some(({ range }) => splitsCrlf(range.start) || splitsCrlf(range.end))) {
+        // The tokenizer cannot address the interior of CRLF; apply this batch in source coordinates.
+        const offset = (point: TextEdit['range']['start']) =>
+          lines!.slice(0, point.line).reduce((total, line) => total + line.length + 1, point.character)
+        const edits = change.edits.map(({ range, newText }) => ({
+          start: offset(range.start),
+          end: offset(range.end),
+          newText
+        }))
+        edits.sort((a, b) => a.start - b.start || a.end - b.end)
+        const code = edits.reduceRight(
+          (source, edit) => source.slice(0, edit.start) + edit.newText + source.slice(edit.end),
+          this.code
+        )
+        this.tokenizer.reset(code)
+        this.indexLineEndings()
+        return
+      }
       const position = (point: TextEdit['range']['start']) => {
         const row = this.rows?.[point.line]
         if (!row) return point

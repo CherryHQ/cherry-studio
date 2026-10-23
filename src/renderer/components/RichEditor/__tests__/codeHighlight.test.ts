@@ -89,6 +89,7 @@ describe('code highlighting in RichEditor', () => {
     const editor = create('```typescript\nconst alpha = 1\nconst beta = 2\n```')
     await waitFor(() => expect(colors(editor).length).toBeGreaterThan(0))
     editor.commands.setTextSelection(7)
+    editor.commands.insertContent('new_')
     const selection = editor.state.selection.toJSON()
     const doc = editor.state.doc.toJSON()
     const before = colors(editor)
@@ -99,6 +100,11 @@ describe('code highlighting in RichEditor', () => {
     expect(editor.state.doc.toJSON()).toEqual(doc)
     expect(editor.state.selection.toJSON()).toEqual(selection)
     expect(documentUpdates).toBe(0)
+    editor.commands.undo()
+    expect(editor.state.doc.textContent).toBe('const alpha = 1\nconst beta = 2')
+    editor.commands.redo()
+    expect(editor.state.doc.toJSON()).toEqual(doc)
+    editor.commands.undo()
     editor.view.dispatch(editor.state.tr.split(17))
     expect(editor.view.dom.querySelectorAll('code')).toHaveLength(2)
     const secondPos = editor.state.doc.firstChild!.nodeSize
@@ -112,5 +118,25 @@ describe('code highlighting in RichEditor', () => {
     editor.commands.redo()
     expect(editor.getMarkdown()).toContain('const name = 1')
     expect(colors(editor).length).toBeGreaterThan(0)
+  })
+
+  it('keeps a CRLF code block editable after deleting only its CR', async () => {
+    const editor = create('')
+    editor.commands.setContent({
+      type: 'doc',
+      content: [
+        {
+          type: 'codeBlock',
+          attrs: { language: 'typescript' },
+          content: [{ type: 'text', text: 'const a=1;\r\nconst b=2;' }]
+        }
+      ]
+    })
+    await waitFor(() => expect(colors(editor).length).toBeGreaterThan(0))
+    editor.view.dispatch(editor.state.tr.delete(11, 12))
+    expect(editor.state.doc.textContent).toBe('const a=1;\nconst b=2;')
+    editor.view.dispatch(editor.state.tr.insertText('next_', 18))
+    expect(editor.state.doc.textContent).toBe('const a=1;\nconst next_b=2;')
+    expect(editor.view.dom.querySelector('code')?.textContent).toBe(editor.state.doc.textContent)
   })
 })
