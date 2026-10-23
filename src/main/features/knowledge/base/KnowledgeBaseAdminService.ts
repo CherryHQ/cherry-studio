@@ -204,7 +204,9 @@ export class KnowledgeBaseAdminService {
             // instead of re-running the (slow, paid) file processor.
             ...(item.data.indexedRelativePath
               ? { indexedPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.indexedRelativePath) }
-              : {})
+              : {}),
+            // Re-admit the off-list file past the add-time gate it was first opted through.
+            ...(item.data.allowArbitrary ? { allowArbitrary: true } : {})
           }
         })
       }

@@ -7,6 +7,8 @@ export {
   documentExts,
   imageExts,
   knowledgeFileProcessingExts,
+  knowledgeIndexableFileExtSet,
+  knowledgePlainTextFileExts,
   knowledgeSupportedFileExts,
   textExts,
   videoExts
