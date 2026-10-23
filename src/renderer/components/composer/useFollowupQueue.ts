@@ -371,6 +371,18 @@ export function useFollowupQueue({
     prevScopeForEditRef.current = scopeKey
     takenEditRef.current = null
   }
+  // A scope switch retires the old scope's edit session for the same reason
+  // unmount does: the old composer's cache owns the draft, so its held
+  // recovery row is redundant and must be closed, not abandoned to the hold
+  // expiry (cherry-pr-review inv_4e8303d70c4d5b9d). Effect, not render:
+  // closing fires mutations.
+  const prevScopeForSessionRef = useRef(scopeKey)
+  useEffect(() => {
+    if (prevScopeForSessionRef.current !== scopeKey) {
+      prevScopeForSessionRef.current = scopeKey
+      cancelTrackedEditRestoreRef.current()
+    }
+  }, [scopeKey])
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
@@ -439,6 +451,14 @@ export function useFollowupQueue({
       pendingClaim.clear()
       for (const timer of pendingTentativeReconcile.values()) clearTimeout(timer)
       pendingTentativeReconcile.clear()
+      // A live edit session leaves its held recovery row redundant on
+      // unmount: the composer cache already owns the draft. Close the row
+      // instead of abandoning renewal — an unclosed held copy ages back into
+      // claimability after the hold expires and delivers a duplicate of the
+      // retained draft. The removal joins the resolve retry chain on
+      // transient failure, which intentionally survives unmount
+      // (cherry-pr-review inv_4e8303d70c4d5b9d).
+      cancelTrackedEditRestoreRef.current()
     }
   }, [])
 
