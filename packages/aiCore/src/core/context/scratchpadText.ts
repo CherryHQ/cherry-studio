@@ -430,15 +430,22 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
     let blockCloseIdx = -1
     const enclosing = enclosingScratchpadTag(text, fenceStart)
     if (enclosing) {
-      const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
-      closer.lastIndex = afterOpen
-      let match: RegExpExecArray | null
-      while ((match = closer.exec(text)) !== null) {
-        if (!isBackslashEscaped(text, match.index)) {
-          blockCloseIdx = match.index
-          break
+      const findBlockClose = (from: number): number => {
+        const closer = new RegExp(`</${enclosing}\\s*>`, 'gi')
+        closer.lastIndex = from
+        let match: RegExpExecArray | null
+        while ((match = closer.exec(text)) !== null) {
+          if (!isBackslashEscaped(text, match.index)) return match.index
         }
+        return -1
       }
+      // A closer inside a fence that completes is literal fence content, not
+      // the block boundary: resolve the boundary at or past the fence's own
+      // close (cherry-pr-review inv_bbe597af484323aa). Only when no close
+      // exists past a completed fence is an inner closer the real boundary,
+      // truncating the dangling fence (inv_e5404aa552bba2ea).
+      const pastClose = closeEnd !== -1 ? findBlockClose(closeEnd) : -1
+      blockCloseIdx = pastClose !== -1 ? pastClose : findBlockClose(afterOpen)
     }
     if (closeEnd === -1 || (blockCloseIdx !== -1 && closeEnd > blockCloseIdx)) {
       const fenceEnd = blockCloseIdx !== -1 ? blockCloseIdx : text.length

@@ -342,4 +342,9 @@ describe('round-3 scanner regressions', () => {
     expect(textHasUnclosedInlineCode('an escaped \\` backtick alone')).toBe(false)
     expect(textHasUnclosedInlineCode('an unclosed `span here')).toBe(true)
   })
+
+  it('treats a closer inside a completed fence as literal, not the block boundary (inv_bbe597af484323aa)', () => {
+    const text = '<analysis>Example:\n```xml\n<analysis>foo</analysis>\n```\nSECRET</analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(text)).toBe('Keep')
+  })
 })
