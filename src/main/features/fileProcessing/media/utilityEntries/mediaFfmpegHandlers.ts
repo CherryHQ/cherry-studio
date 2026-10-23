@@ -22,8 +22,10 @@ import type {
 } from '@main/features/fileProcessing/media/mediaFfmpegProcess'
 import {
   classifyFfprobeResult,
-  lastDecodableVideoTimestampMs,
+  relativeInputSeekMs,
   sniffEbmlDocType,
+  videoTailProbePoint,
+  videoTailReadInterval,
   type FfprobeResult
 } from '@main/features/fileProcessing/media/probeClassification'
 
@@ -73,6 +75,42 @@ function appendBounded(current: string, chunk: string): { value: string; truncat
     : { value: next.slice(0, MAX_STDIO_CHARS), truncated: true }
 }
 
+const MAX_PTS_LINE_CHARS = 64
+
+/** Tracks the greatest complete `pts_time` line. A partial line is capped; the rest is discarded. */
+function createPacketPtsTracker(): {
+  push: (chunk: string) => void
+  maxSeconds: () => number | undefined
+} {
+  let max = Number.NEGATIVE_INFINITY
+  let partial = ''
+  let overflow = false
+  const consider = (line: string) => {
+    if (line.trim() === '') return
+    const pts = Number(line)
+    if (Number.isFinite(pts) && pts > max) max = pts
+  }
+  return {
+    push(chunk: string) {
+      if (overflow) return
+      const lines = (partial + chunk).split('\n')
+      partial = lines.pop() ?? ''
+      if (partial.length > MAX_PTS_LINE_CHARS) {
+        overflow = true
+        partial = ''
+        return
+      }
+      for (const line of lines) consider(line)
+    },
+    maxSeconds() {
+      if (overflow) return undefined
+      consider(partial)
+      partial = ''
+      return max === Number.NEGATIVE_INFINITY ? undefined : max
+    }
+  }
+}
+
 function registerChildPid(pid: number | undefined, pidRegistryPath?: string): void {
   if (pid == null || pid <= 0 || !pidRegistryPath) return
   try {
@@ -97,8 +135,8 @@ async function runCommand(
   args: string[],
   signal: AbortSignal,
   logger: Logger,
-  options: { ffmpeg?: boolean; pidRegistryPath?: string } = {}
-): Promise<{ stdout: string; truncated: boolean }> {
+  options: { ffmpeg?: boolean; pidRegistryPath?: string; maxPacketPts?: boolean } = {}
+): Promise<{ stdout: string; truncated: boolean; maxPacketPtsSeconds?: number }> {
   signal.throwIfAborted()
   const guardedArgs = [
     '-hide_banner',
@@ -122,6 +160,7 @@ async function runCommand(
     let truncated = false
     let settled = false
     let killReason: unknown
+    const packetPts = options.maxPacketPts ? createPacketPtsTracker() : undefined
     const childStdout = child.stdout
     const childStderr = child.stderr
 
@@ -133,7 +172,7 @@ async function runCommand(
       clearChildPid(child.pid, options.pidRegistryPath)
       signal.removeEventListener('abort', onAbort)
       if (error) reject(error instanceof Error ? error : new Error(String(error)))
-      else resolve({ stdout, truncated })
+      else resolve({ stdout, truncated, maxPacketPtsSeconds: packetPts?.maxSeconds() })
     }
     const requestKill = (reason: unknown) => {
       if (killReason !== undefined || settled) return
@@ -150,6 +189,10 @@ async function runCommand(
     childStdout.setEncoding('utf8')
     childStderr.setEncoding('utf8')
     childStdout.on('data', (chunk: string) => {
+      if (packetPts) {
+        packetPts.push(chunk)
+        return
+      }
       const appended = appendBounded(stdout, chunk)
       stdout = appended.value
       truncated ||= appended.truncated
@@ -208,7 +251,7 @@ async function probeJson(
       '-print_format',
       'json',
       '-show_entries',
-      'format=duration,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,duration,nb_frames,avg_frame_rate,r_frame_rate,start_time:stream_disposition=attached_pic',
+      'format=duration,start_time,format_name:format_tags=DOCTYPE,DocType,doctype:stream=index,codec_type,codec_name,duration,start_time:stream_disposition=attached_pic',
       '-i',
       filePath
     ],
@@ -225,22 +268,67 @@ function probeDurationMs(probe: unknown): number {
   return classifyFfprobeResult(probe).durationMs
 }
 
+/** A tool exit or unreadable probe text is missing metadata. Spawn, timeout, and stdio failures are not. */
+function isUnavailableProbeMetadata(error: unknown): boolean {
+  return (
+    error instanceof SyntaxError || (error instanceof Error && error.message.startsWith('Media tool failed (exit '))
+  )
+}
+
 async function videoSeekBounds(
   filePath: string,
   signal: AbortSignal,
   logger: Logger,
   pidRegistryPath?: string
 ): Promise<{ durationMs: number; lastFrameMs?: number }> {
+  let probe: unknown
   try {
-    const probe = await probeJson(filePath, signal, logger, pidRegistryPath)
-    if (!probe || typeof probe !== 'object') return { durationMs: 0 }
-    const parsed = probe as FfprobeResult
-    return { durationMs: classifyFfprobeResult(parsed).durationMs, lastFrameMs: lastDecodableVideoTimestampMs(parsed) }
+    probe = await probeJson(filePath, signal, logger, pidRegistryPath)
   } catch (error) {
     signal.throwIfAborted()
+    if (!isUnavailableProbeMetadata(error)) throw error
     logger.warn(`video seek bounds unavailable: ${error instanceof Error ? error.message : String(error)}`)
     return { durationMs: 0 }
   }
+  if (!probe || typeof probe !== 'object') return { durationMs: 0 }
+  const parsed = probe as FfprobeResult
+  const durationMs = classifyFfprobeResult(parsed).durationMs
+  const tail = videoTailProbePoint(parsed)
+  if (!tail) return { durationMs }
+
+  let ptsSeconds: number | undefined
+  try {
+    const { ffprobePath } = requireInitData()
+    // `V` is a video stream that is not an attached picture; `v:0` can be the cover.
+    const packets = await runCommand(
+      ffprobePath,
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'V:0',
+        '-show_entries',
+        'packet=pts_time',
+        '-of',
+        'csv=p=0',
+        '-read_intervals',
+        videoTailReadInterval(tail.endSeconds),
+        filePath
+      ],
+      signal,
+      logger,
+      { pidRegistryPath, maxPacketPts: true }
+    )
+    ptsSeconds = packets.maxPacketPtsSeconds
+  } catch (error) {
+    signal.throwIfAborted()
+    if (!isUnavailableProbeMetadata(error)) throw error
+    logger.warn(`video tail packets unavailable: ${error instanceof Error ? error.message : String(error)}`)
+    return { durationMs }
+  }
+
+  const lastFrameMs = ptsSeconds == null ? undefined : relativeInputSeekMs(ptsSeconds, tail.formatStartTimeSeconds)
+  return { durationMs, lastFrameMs }
 }
 
 export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = {
@@ -349,7 +437,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     for (let index = 0; index < timestampsMs.length; index += 1) {
       signal.throwIfAborted()
       const timestampMs = timestampsMs[index]
-      // Input seek needs a frame PTS at or after this time. Inside the container, use the last real frame.
+      // Input -ss counts from the format start. An in-duration anchor uses the last video packet PTS.
       let seekMs = timestampMs
       if (bounds.lastFrameMs != null && timestampMs > bounds.lastFrameMs && timestampMs <= bounds.durationMs) {
         seekMs = bounds.lastFrameMs
@@ -382,6 +470,8 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
                 '-frames:v',
                 '1',
                 '-an',
+                '-map',
+                '0:V:0',
                 '-update',
                 '1',
                 '-vf',
