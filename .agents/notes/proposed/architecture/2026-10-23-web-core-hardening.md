@@ -20,7 +20,7 @@ The design document's milestone M5 hardens the Web edition before release: isola
 All changes are in `packages/web-core`; desktop sources are not changed.
 
 1. **Content Security Policy.** web-core defines the policy once and serves it as a response header with COOP and COEP from the dev server and `vite preview`; the app build writes the headers to `dist/app/_headers` (the file Cloudflare Pages and Netlify read), and the README explains them for other hosts.
-   - `default-src 'self'`; `object-src 'none'`; `base-uri 'self'`; `form-action 'self'`; `frame-ancestors 'none'`.
+   - `default-src 'self'`; `object-src 'none'`; `form-action 'self'`; `frame-ancestors 'none'`. No `base-uri`: the desktop's HTML previews set `<base href="about:srcdoc">`, and `script-src` already limits where scripts come from.
    - `script-src 'self' 'wasm-unsafe-eval'`, plus the Pyodide CDN (`https://cdn.jsdelivr.net/pyodide/`). Inline scripts run only by hash: the build hashes the Pyodide sandbox frame's script, the only inline script the app needs. No `'unsafe-eval'`, no `'unsafe-inline'` for scripts: zod probes `eval` to compile faster parsers, so the page and the Worker turn that off (`jitless`) before any schema runs.
    - `worker-src 'self' data:` (the Pyodide worker starts from a `data:` URL, see the agent Spec); `frame-src 'self' data: blob:` for previews.
    - `style-src 'self' 'unsafe-inline'`: the desktop renderer injects styles at runtime; styles cannot run scripts.

@@ -20,7 +20,7 @@ Status: proposed
 所有改动都在 `packages/web-core` 内,不改桌面端源码。
 
 1. **内容安全策略。** web-core 在一处定义策略,开发服务器和 `vite preview` 把它和 COOP、COEP 一起作为响应头下发;应用构建时把这些响应头写进 `dist/app/_headers`(Cloudflare Pages 和 Netlify 读取的文件),README 说明其他托管方式怎么配置。
-   - `default-src 'self'`;`object-src 'none'`;`base-uri 'self'`;`form-action 'self'`;`frame-ancestors 'none'`。
+   - `default-src 'self'`;`object-src 'none'`;`form-action 'self'`;`frame-ancestors 'none'`。不设 `base-uri`:桌面端的 HTML 预览会设置 `<base href="about:srcdoc">`,而 `script-src` 已经限制了脚本的来源。
    - `script-src 'self' 'wasm-unsafe-eval'`,加上 Pyodide 的 CDN(`https://cdn.jsdelivr.net/pyodide/`)。内联脚本只按哈希放行:构建时对 Pyodide 沙箱 iframe 的脚本取哈希,这是应用唯一需要的内联脚本。脚本不允许 `'unsafe-eval'`,也不允许 `'unsafe-inline'`:zod 会试探 `eval` 来编译更快的校验函数,所以页面和 Worker 在任何校验运行之前先关掉它(`jitless`)。
    - `worker-src 'self' data:`(Pyodide worker 从 `data:` URL 启动,见 Agent Spec);预览用 `frame-src 'self' data: blob:`。
    - `style-src 'self' 'unsafe-inline'`:桌面端渲染层在运行时注入样式;样式不能执行脚本。
