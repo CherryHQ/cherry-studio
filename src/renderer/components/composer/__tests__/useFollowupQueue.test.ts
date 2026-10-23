@@ -2776,6 +2776,66 @@ describe('useFollowupQueue', () => {
     expect(result.current.paused).toBe(true)
   })
 
+  it('retains a pending Pause per scope when another scope pauses before the write settles', async () => {
+    // Pause assistant A while its PUT awaits retry, switch to assistant B in
+    // the same topic (the composer stays mounted) and pause it, then return
+    // to completed A before A's write lands. A single optimistic slot is
+    // clobbered by B here, so A falls back to persisted unpaused and drains
+    // despite Pause; holds must be retained per scope until acknowledgement
+    // or failure (cherry-pr-review inv_389ec2ffbe28356e).
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolvePauseA!: () => void
+    setPausedTrigger.mockImplementation((args: { body: { scopeKey: string; paused: boolean } }) => {
+      if (args.body.scopeKey === SCOPE) {
+        return new Promise((resolve) => {
+          resolvePauseA = () => resolve({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '' })
+        }) as Promise<any>
+      }
+      return Promise.resolve(undefined) as Promise<any>
+    })
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ scopeKey, status, lastCompletedAt }) =>
+        useFollowupQueue(baseProps({ scopeKey, status, lastCompletedAt, onDrain })),
+      {
+        initialProps: {
+          scopeKey: SCOPE,
+          status: 'streaming' as const,
+          lastCompletedAt: null as number | null
+        }
+      }
+    )
+
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    // Switch to assistant B in the same topic and pause it too.
+    await act(async () => {
+      rerender({ scopeKey: 's2', status: 'streaming', lastCompletedAt: null })
+    })
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    // Back to A, now completed, before A's PUT settles: A's hold must survive.
+    await act(async () => {
+      rerender({ scopeKey: SCOPE, status: 'done', lastCompletedAt: 100 })
+    })
+    expect(result.current.paused).toBe(true)
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolvePauseA()
+    })
+    expect(result.current.paused).toBe(true)
+  })
+
   it('coalesces rapid Pause/Resume so the server ends with the latest choice', async () => {
     wireQuery([])
     const { setPausedTrigger } = wireMutations()
