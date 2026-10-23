@@ -144,7 +144,7 @@ describe('CodeViewerSelectionManager', () => {
     expect(copy()).toEqual({ text: '', prevented: false })
   })
 
-  it.each(['pointer', 'keyboard', 'clear', 'focus', 'unmount', 'source'] as const)(
+  it.each(['pointer', 'secondary-outside', 'keyboard', 'clear', 'focus', 'unmount', 'source'] as const)(
     'releases a detached selection on intentional %s changes',
     (action) => {
       const { manager, createViewer, select } = setup()
@@ -157,6 +157,8 @@ describe('CodeViewerSelectionManager', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', metaKey: true }))
       expect(copy()).toEqual({ text: 'selected code', prevented: true })
       if (action === 'pointer') document.dispatchEvent(new Event('pointerdown'))
+      if (action === 'secondary-outside')
+        document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 2 }))
       if (action === 'keyboard') document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
       if (action === 'clear') {
         window.getSelection()!.removeAllRanges()

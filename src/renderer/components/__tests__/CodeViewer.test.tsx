@@ -361,6 +361,54 @@ describe('CodeViewer', () => {
     }
   )
 
+  it.each(['unchanged', 'changed-with-event', 'changed-before-copy', 'collapsed-before-copy'] as const)(
+    'reconciles a secondary click after anchor eviction when the native range is %s',
+    async (scenario) => {
+      const lines = Array.from({ length: 1000 }, (_, index) => `line ${index}`)
+      const { getByText, queryByText, getByTestId } = render(
+        <div data-testid="outer" style={{ overflowY: 'auto', height: 300 }}>
+          <CodeViewer value={lines.join('\n')} language="text" expanded wrapped={false} />
+        </div>
+      )
+      const selection = window.getSelection()!
+      const anchor = getByText('line 2')
+      fireEvent(anchor, new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+      selection.setBaseAndExtent(anchor.firstChild!, 0, getByText('line 30').firstChild!, 7)
+      fireEvent(document, new Event('selectionchange'))
+      fireEvent(document, new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+      const outer = getByTestId('outer')
+      outer.scrollTop = 600
+      fireEvent.scroll(outer)
+      await waitFor(() => expect(queryByText('line 2')).toBeNull())
+      // Chromium retains a shortened native range while the complete source range is saved.
+      selection.setBaseAndExtent(getByText('line 10').firstChild!, 0, getByText('line 30').firstChild!, 7)
+      const target = getByText('line 25')
+      fireEvent(target, new MouseEvent('pointerdown', { bubbles: true, button: 2 }))
+      if (scenario === 'unchanged') {
+        fireEvent(target, new MouseEvent('pointerup', { bubbles: true, button: 2 }))
+      } else {
+        selection.setBaseAndExtent(target.firstChild!, 1, target.firstChild!, 4)
+        if (scenario === 'collapsed-before-copy') selection.collapse(target.firstChild, 1)
+        if (scenario === 'changed-with-event') fireEvent(document, new Event('selectionchange'))
+      }
+      let copied = ''
+      const event = new Event('copy', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', {
+        value: {
+          setData: (_type: string, value: string) => {
+            copied = value
+          }
+        }
+      })
+      document.body.dispatchEvent(event)
+      expect(copied).toBe(
+        scenario === 'unchanged' ? lines.slice(2, 31).join('\n') : scenario === 'collapsed-before-copy' ? '' : 'ine'
+      )
+      expect(event.defaultPrevented).toBe(scenario !== 'collapsed-before-copy')
+      selection.removeAllRanges()
+    }
+  )
+
   it('does not copy an obsolete range after dragging back to the original anchor', () => {
     const { getByText } = render(<CodeViewer value={'first line\nsecond line'} language="text" />)
     const anchor = getByText('first line').firstChild!

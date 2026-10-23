@@ -1,5 +1,7 @@
 import { debounce } from 'es-toolkit/compat'
 
+type NativeSelectionSnapshot = Pick<Selection, 'anchorNode' | 'anchorOffset' | 'focusNode' | 'focusOffset'>
+
 type SelectionChangeHandler = (selection: Selection | null) => void
 type ViewerHandlers = {
   selection: SelectionChangeHandler
@@ -13,21 +15,36 @@ export class CodeViewerSelectionManager {
   private retained: { viewer: HTMLElement; start: Node; end: Node } | null = null
   private ownerDocument: Document | null = null
   private draggingViewer: HTMLElement | null = null
+  private pendingSelection: NativeSelectionSnapshot | null = null
   private readonly dispatchDeferredSelection = debounce(() => this.dispatchSelectionChange(), 100)
   private readonly handleSelectionChange = () => {
-    if (this.draggingViewer) this.dispatchSelectionChange()
+    if (this.draggingViewer || this.pendingSelection) this.dispatchSelectionChange()
     else this.dispatchDeferredSelection()
   }
   private readonly handlePointerDown = (event: PointerEvent) => {
+    const viewer = event.target instanceof Node ? this.findContainingViewer(event.target) : null
+    const selection = this.ownerDocument?.defaultView?.getSelection()
+    if (event.button === 2 && viewer && viewer === this.activeViewer && selection?.rangeCount) {
+      this.pendingSelection = {
+        anchorNode: selection.anchorNode,
+        anchorOffset: selection.anchorOffset,
+        focusNode: selection.focusNode,
+        focusOffset: selection.focusOffset
+      }
+      return
+    }
     this.clearSelection()
-    if (event.button !== 0 || !(event.target instanceof Node)) return
-    const viewer = this.findContainingViewer(event.target)
+    if (event.button !== 0) return
     if (!viewer) return
     this.activeViewer = viewer
     this.draggingViewer = viewer
     this.viewers.get(viewer)?.gesture?.(true)
   }
   private readonly handlePointerUp = () => {
+    if (this.pendingSelection) {
+      this.dispatchSelectionChange()
+      this.pendingSelection = null
+    }
     const viewer = this.draggingViewer
     if (!viewer) return
     this.dispatchSelectionChange()
@@ -49,6 +66,8 @@ export class CodeViewerSelectionManager {
   }
   private readonly handleCopy = (event: ClipboardEvent) => {
     if (event.defaultPrevented) return
+    if (this.reconcilePendingSelection()) this.dispatchSelectionChange()
+    this.pendingSelection = null
     const selection = this.ownerDocument?.defaultView?.getSelection() ?? null
     const viewer =
       this.findViewer(selection) ?? (this.retainsCollapsedSelection(selection) ? this.retained?.viewer : null)
@@ -116,6 +135,22 @@ export class CodeViewerSelectionManager {
     this.activeViewer = null
     this.retained = null
     this.draggingViewer = null
+    this.pendingSelection = null
+  }
+
+  private reconcilePendingSelection(): boolean {
+    const pending = this.pendingSelection
+    if (!pending) return false
+    const selection = this.ownerDocument?.defaultView?.getSelection()
+    if (
+      selection?.anchorNode === pending.anchorNode &&
+      selection.anchorOffset === pending.anchorOffset &&
+      selection.focusNode === pending.focusNode &&
+      selection.focusOffset === pending.focusOffset
+    )
+      return false
+    this.clearSelection()
+    return true
   }
 
   private retainsCollapsedSelection(selection: Selection | null): boolean {
@@ -130,6 +165,7 @@ export class CodeViewerSelectionManager {
   }
 
   private dispatchSelectionChange(): void {
+    this.reconcilePendingSelection()
     const selection = this.ownerDocument?.defaultView?.getSelection() ?? null
     if (
       this.draggingViewer &&
