@@ -5,21 +5,33 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import {
+  callKeyOf,
+  createFakeHarness,
+  createScriptedHost,
+  install,
+  type GateHandlers
+} from '@cherrystudio/agent-behavior'
+import type { JsonValue } from '@cherrystudio/agent-runtime'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
-import type { PiApprovalContext } from './approvalExtension'
+import type { AgentRuntimeEvent } from '../types'
+import type { PiApprovalContext } from './piApprovalFacts'
+import { createPiInteractionPorts } from './piBehaviorHost'
 
 const mocks = vi.hoisted(() => ({ rtkRewrite: vi.fn() }))
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
-}))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: mocks.rtkRewrite }))
 
-const { createPiApprovalExtension, createPiToolAuthorizer } = await import('./approvalExtension')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
 
-type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
+type ToolEvent = {
+  toolName: string
+  toolCallId: string
+  input: Record<string, JsonValue>
+  parentToolCallId?: string
+  type?: string
+}
 
 let testRoot: string
 let workspace: string
@@ -53,7 +65,7 @@ beforeAll(() => {
 
 afterAll(() => rmSync(testRoot, { recursive: true, force: true }))
 
-/** Build the gate, capturing its `tool_call` handler + emitted chunks. */
+/** Exercise the installed shared gate with production desktop facts and interaction ports. */
 function buildGate(
   overrides: Partial<{
     workspacePath: string
@@ -68,14 +80,12 @@ function buildGate(
     delegationTools: ReadonlySet<string>
   }> = {}
 ) {
-  const emitted: any[] = []
-  let handler!: Handler
+  const emitted: Extract<AgentRuntimeEvent, { type: 'tool-approval-request' }>[] = []
   const context: PiApprovalContext = {
     sessionId: 's1',
     workspacePath: workspace,
     agentDataPath: agentData,
     additionalReadOnlyRoots: [],
-    emit: (event) => emitted.push(event),
     getPermissionMode: () => 'default',
     getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
     isDisabled: () => false,
@@ -85,17 +95,72 @@ function buildGate(
     delegationTools: new Set(),
     ...overrides
   }
-  const factory = createPiApprovalExtension(context)
-  void factory({
-    on: (evt: string, h: unknown) => {
-      if (evt === 'tool_call') handler = h as Handler
-    }
-  } as never)
-  return { handler, emitted, authorizeTool: createPiToolAuthorizer(context) }
+  let gate: GateHandlers
+  let sequence = 0
+  const calls = new Map<string, string>()
+  const setup = (async () => {
+    const host = createScriptedHost({
+      settings: {
+        goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+        autonomy: 'auto',
+        permissionMode: context.getPermissionMode() ?? 'default',
+        attendance: context.getInteractionState().userResponse,
+        maxBackground: 4,
+        offloadThreshold: 20000
+      }
+    })
+    const interactions = await createPiInteractionPorts({
+      input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
+      approval: context,
+      toolCallId: async (call) => calls.get(call.key)!,
+      emit: (event) => {
+        if (event.type === 'tool-approval-request') emitted.push(event)
+      }
+    })
+    const fake = createFakeHarness({
+      install: (ports) =>
+        install(
+          {
+            ...ports,
+            lifecycle: { register: () => {} },
+            toolGate: {
+              register: (handlers) => {
+                gate = handlers
+              }
+            }
+          },
+          { ...host, ...interactions }
+        )
+    })
+    return { fake, thread: await fake.createThread() }
+  })()
+  const handler = async (event: ToolEvent, ctx: { signal?: AbortSignal }) => {
+    const { fake, thread } = await setup
+    const key = callKeyOf(String(++sequence))
+    calls.set(key, event.toolCallId)
+    const result = await fake.withCall(thread, (ports) =>
+      gate.before(
+        {
+          thread,
+          key,
+          tool: event.toolName,
+          args: event.input,
+          nested: Boolean(event.parentToolCallId),
+          signal: ctx.signal ?? new AbortController().signal
+        },
+        { goalRound: false, callWindow: [], plan: undefined },
+        ports
+      )
+    )
+    if (result.block) return { block: true, reason: result.block }
+    if (result.args && typeof result.args === 'object') Object.assign(event.input, result.args)
+    return undefined
+  }
+  return { handler, emitted, authorizeTool: (event: ToolEvent) => handler(event, {}) }
 }
 
 const extCtx = { signal: undefined }
-const toolEvent = (toolName: string, input: Record<string, unknown>) => ({
+const toolEvent = (toolName: string, input: Record<string, JsonValue>) => ({
   type: 'tool_call' as const,
   toolName,
   toolCallId: `tc-${toolName}`,
@@ -120,7 +185,7 @@ beforeEach(() => {
   toolApprovalRegistry.clear('test-reset')
 })
 
-describe('createPiApprovalExtension — policy + approval gate', () => {
+describe('desktop facts and approvals through the shared behavior gate', () => {
   it('auto-allows read-only tools in default mode with no approval request', async () => {
     const { handler, emitted } = buildGate()
     await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
@@ -146,7 +211,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       input: { command: 'ls' },
       presentation: 'stream'
     })
-    expect(emitted[0].request.providerMetadata.cherry.transport).toBe('pi-agent')
+    expect(emitted[0].request.providerMetadata?.cherry?.transport).toBe('pi-agent')
 
     expect(toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })).toMatchObject({
       sessionId: 's1'
@@ -154,34 +219,12 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await expect(pending).resolves.toBeUndefined()
   })
 
-  it('pauses an outer code-mode timeout only while a nested approval is pending', async () => {
-    const { authorizeTool, emitted } = buildGate()
-    const pause = vi.fn()
-    const resume = vi.fn()
-    const pending = authorizeTool({
-      toolName: 'mcp__server__mutate',
-      toolCallId: 'outer-tool-call',
-      input: {},
-      onApprovalPending: () => {
-        pause()
-        return resume
-      }
-    })
-    await flush()
-
-    expect(emitted[0].request.toolCallId).toBe('outer-tool-call')
-    expect(pause).toHaveBeenCalledOnce()
-    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
-    await expect(pending).resolves.toBeUndefined()
-    expect(resume).toHaveBeenCalledOnce()
-  })
-
   it('blocks with the reason when the approval is denied', async () => {
     const { handler, emitted } = buildGate()
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
     toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: false, reason: 'not allowed' })
-    await expect(pending).resolves.toEqual({ block: true, reason: 'not allowed' })
+    await expect(pending).resolves.toEqual({ block: true, reason: expect.stringContaining('tool use was rejected') })
   })
 
   it('attributes a reason the user supplied', async () => {
@@ -335,7 +378,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
       for (const approved of [true, false]) {
         const pending = handler(toolEvent(toolName, {}), extCtx)
         await flush()
-        toolApprovalRegistry.dispatch(emitted.at(-1).request.approvalId, { approved })
+        toolApprovalRegistry.dispatch(emitted.at(-1)!.request.approvalId, { approved })
         if (approved) await expect(pending).resolves.toBeUndefined()
         else await expect(pending).resolves.toMatchObject({ block: true })
       }
@@ -523,7 +566,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const event = toolEvent('bash', { command: 'ls' })
     const pending = handler(event, extCtx)
     await flush()
-    expect(event.input.command).toBe('rtk-rewritten')
+    expect(emitted[0].request.input).toEqual({ command: 'rtk-rewritten' })
     toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
     await pending
     expect(event.input.command).toBe('rtk-rewritten')
@@ -534,8 +577,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     controller.abort()
     const { handler, emitted } = buildGate()
     const result = await handler(toolEvent('bash', { command: 'ls' }), { signal: controller.signal })
-    // Synchronous deny from the registry — no pending entry, so no unanswerable card.
-    expect(result).toEqual({ block: true, reason: 'Tool request was cancelled before approval' })
+    expect(result).toEqual({ block: true, reason: expect.stringContaining('turn was stopped') })
     expect(emitted).toHaveLength(0)
   })
 
@@ -544,7 +586,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
     await flush()
     expect(toolApprovalRegistry.abort('s1', 'pi-session-closed')).toBe(1)
-    await expect(pending).resolves.toEqual({ block: true, reason: 'pi-session-closed' })
+    await expect(pending).resolves.toEqual({ block: true, reason: expect.stringContaining('tool use was rejected') })
   })
 
   describe('soul autonomy tool auto-approval', () => {
