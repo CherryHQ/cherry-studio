@@ -33,7 +33,7 @@ prints a machine-readable plan. Test commands are one Vitest invocation with exp
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
-Required workspace packages are built before typechecks and tests; main tests rebuild
+Required workspace packages, including sandbox, are built before typechecks and tests; main tests rebuild
 SQLite for Node. Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
 
@@ -53,8 +53,17 @@ Repository, typecheck, lint and i18n groups share one dependency installation in
 `basic-checks`, with separate plan conditions and step outcomes; later groups still
 run after an earlier group fails. Main/preload retain
 three Linux shards; renderer retains five. Selected package tests run once in their
-own job. macOS/Windows retain the platform-gated test inventory (including
-system speech); platform selection is deliberately conservative whenever main is selected.
+own job. macOS retains the platform-gated test inventory. Windows Server 2025
+runs platform contracts, including every sandbox contract test, without native
+sandbox execution or system-drive/Null-device preparation.
+
+A separate `windows-11-arm` matrix leg runs the sandbox CLI, Node/Python RPC,
+Windows boundary tests and CLI isolation acceptance. It installs only sandbox
+dependencies, checks Windows 11 24H2+ and requires MXC's actual `base-container`
+tier and a ready public probe. Missing isolation support fails the job; it never
+initializes or falls back to Tier 3. This leg remains part of the required
+`general-test` gate, so Server contract success does not imply native acceptance.
+See the [Windows CI decision](../../.agents/notes/implemented/testing/2026-10-19-sandbox-windows-ci.md).
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and

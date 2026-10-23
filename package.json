@@ -88,7 +88,7 @@
     "lint:fix": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache",
     "packages:build": "pnpm --filter @cherrystudio/provider-registry build && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build && pnpm --filter @cherrystudio/remote-protocol build && pnpm --filter @cherrystudio/remote-transport build && pnpm --filter @cherrystudio/file-preview build && pnpm --filter @cherrystudio/system-speech build && pnpm --filter @cherrystudio/web-search build",
     "packages:release": "pnpm packages:build && changeset publish",
-    "postinstall": "pnpm --filter @cherrystudio/remote-protocol build && pnpm --filter @cherrystudio/remote-transport build && pnpm --filter @cherrystudio/system-speech build",
+    "postinstall": "pnpm --filter @cherrystudio/remote-protocol build && pnpm --filter @cherrystudio/remote-transport build && pnpm --filter @cherrystudio/system-speech build && pnpm --filter @cherrystudio/sandbox build",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && node -e \"process.env.CI||require('child_process').execSync('prek install',{stdio:'inherit'})\"",
     "prepare:system-speech": "pnpm --filter @cherrystudio/system-speech prepare:native",
     "pretest": "pnpm rebuild:node",
@@ -116,6 +116,7 @@
     "test:remote-protocol": "vitest run --project remote-protocol",
     "test:remote-transport": "vitest run --project remote-transport",
     "test:renderer": "vitest run --project renderer",
+    "test:sandbox": "pnpm --filter @cherrystudio/sandbox test",
     "test:scripts": "vitest run --project scripts",
     "test:shared": "vitest run --project shared",
     "test:system-speech": "vitest run --project system-speech",
@@ -137,6 +138,7 @@
     "@cherrystudio/mlx-tts": "github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts",
     "@cherrystudio/remote-protocol": "workspace:*",
     "@cherrystudio/remote-transport": "workspace:*",
+    "@cherrystudio/sandbox": "workspace:*",
     "@cherrystudio/system-speech": "workspace:*",
     "@earendil-works/pi-ai": "1.0.0",
     "@earendil-works/pi-coding-agent": "1.0.0",
@@ -592,7 +594,7 @@
     "node-screenshots-win32-x64-msvc": "0.2.8"
   },
   "engines": {
-    "node": ">=24.12.0"
+    "node": ">=24.21.0 <25"
   },
   "packageManager": "pnpm@12.6.0+sha512.3ef68f951cb111ac204b4a5a16f0b2ddf0da56a96e0413e81d855d9f0b55ef926714709028e1cd00c405c2c5fb7b9e8ec4dc46777c805d0373c2f2ff00fd20ec",
   "desktopName": "CherryStudio.desktop"

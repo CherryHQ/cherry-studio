@@ -261,18 +261,50 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-2022]
+        os: [macos-latest, windows-2025, windows-11-arm]
     steps:
       - uses: actions/checkout@v7
       - name: macOS native build prerequisites
         if: runner.os == 'macOS'
         run: brew install python-setuptools
       - uses: ./.github/actions/setup-validation
+        if: matrix.os != 'windows-11-arm'
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
+        if: matrix.os != 'windows-11-arm'
         shell: bash
         run: ":"
+      - uses: actions/setup-node@v7
+        if: matrix.os == 'windows-11-arm'
+        with:
+          node-version-file: .node-version
+          architecture: arm64
+      - uses: pnpm/action-setup@v5
+        if: matrix.os == 'windows-11-arm'
+      - name: Install sandbox dependencies
+        if: matrix.os == 'windows-11-arm'
+        run: |
+          pnpm --filter @cherrystudio/sandbox... install --frozen-lockfile --ignore-scripts
+          pnpm --filter @cherrystudio/sandbox build
+      - name: Verify Windows 11 native host
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        timeout-minutes: 1
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          $os | Select-Object Caption, Version, BuildNumber, ProductType | Format-List
+          if ($os.ProductType -ne 1 -or [int]$os.BuildNumber -lt 26100) { throw 'Windows 11 24H2 or newer is required' }
+          pnpm --dir packages/sandbox exec vitest run --config vitest.acceptance.config.ts tests/acceptance/windowsHost.test.ts
+      - name: Windows 11 sandbox and RPC
+        if: matrix.os == 'windows-11-arm'
+        timeout-minutes: 10
+        run: pnpm --dir packages/sandbox exec vitest run --config vitest.config.ts tests/cli.test.ts tests/rpc.test.ts tests/windows.test.ts
+      - name: Windows 11 CLI isolation acceptance
+        if: matrix.os == 'windows-11-arm'
+        timeout-minutes: 5
+        run: pnpm --dir packages/sandbox exec vitest run --config vitest.acceptance.config.ts tests/acceptance/cli.test.ts
       - name: Platform contracts
+        if: matrix.os != 'windows-11-arm'
         env:
           VALIDATION_PLAN: ${{ needs.changes.outputs.plan }}
         run: pnpm check --group platform

@@ -79,6 +79,21 @@ describe('MainNetworkDevtoolsService helpers', () => {
     })
   })
 
+  it('describes raw Node header arrays without blocking requests or exposing credentials', () => {
+    const description = describeHttpRequest('http', [
+      'http://127.0.0.1:8080/',
+      {
+        headers: ['Host', '127.0.0.1:8080', 'Authorization', 'Bearer secret', 'Content-Type', 'application/json']
+      }
+    ])
+    expect(description.requestHeaders).toEqual({
+      Host: '127.0.0.1:8080',
+      Authorization: '<redacted>',
+      'Content-Type': 'application/json'
+    })
+    expect(description.requestContentType).toBe('application/json')
+  })
+
   it('describes Node http request arguments without leaking secrets', () => {
     const description = describeHttpRequest('https', [
       'https://example.com/v1/chat?token=abc',

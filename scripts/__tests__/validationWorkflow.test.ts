@@ -19,6 +19,35 @@ afterEach(() => {
 })
 
 describe('CI validation planning', () => {
+  it('keeps Windows native acceptance required on Windows 11 and off the Server contract runner', () => {
+    const job = workflow.jobs['platform-test']
+    expect(job.strategy.matrix.os).toEqual(expect.arrayContaining(['windows-2025', 'windows-11-arm']))
+    expect(workflow.jobs['general-test'].needs).toContain('platform-test')
+    const commands = (os: string) =>
+      job.steps
+        .filter(
+          (step: { if?: string }) =>
+            !step.if || new Function('matrix', 'runner', `return (${step.if})`)({ os }, { os: 'Windows' })
+        )
+        .map((step: { run?: string }) => step.run ?? '')
+        .join('\n')
+    const server = commands('windows-2025')
+    expect(server).toContain('pnpm check --group platform')
+    expect(server).not.toMatch(/setup:windows|host-prep|tests\/acceptance|tests\/windows\.test/)
+    const native = commands('windows-11-arm')
+    for (const file of [
+      'tests/cli.test.ts',
+      'tests/rpc.test.ts',
+      'tests/windows.test.ts',
+      'tests/acceptance/cli.test.ts',
+      'tests/acceptance/windowsHost.test.ts'
+    ])
+      expect(native).toContain(file)
+    expect(native).not.toMatch(/setup:windows|host-prep/)
+    expect(job['continue-on-error']).toBeUndefined()
+    expect(job.steps.some((step: Record<string, unknown>) => step['continue-on-error'])).toBe(false)
+  })
+
   it('uses the whole PR and push range even when the last commit only changes docs', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-plan-'))
     directories.push(cwd)

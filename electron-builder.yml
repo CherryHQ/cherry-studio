@@ -99,6 +99,7 @@ asarUnpack:
   - "node_modules/semver/**"
   - "node_modules/node-pty/**"
   - "node_modules/koffi/**"
+  - "node_modules/@microsoft/mxc-sdk/**"
   - "node_modules/@koromix/koffi-*/**"
   - "node_modules/yaml/**"
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
