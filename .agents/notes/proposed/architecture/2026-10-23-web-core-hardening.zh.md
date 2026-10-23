@@ -17,7 +17,7 @@ Status: proposed
 
 ## Proposal
 
-所有改动都在 `packages/web-core` 内,不改桌面端源码。
+所有改动都在 `packages/web-core` 内,只有桌面端首次启动页多了一个开关(`enableCherryInLogin`),Web 版把它关掉:CherryIN 登录要回调到本机,网页收不到。
 
 1. **内容安全策略。** web-core 在一处定义策略,开发服务器和 `vite preview` 把它和 COOP、COEP 一起作为响应头下发;应用构建时把这些响应头写进 `dist/app/_headers`(Cloudflare Pages 和 Netlify 读取的文件),README 说明其他托管方式怎么配置。
    - `default-src 'self'`;`object-src 'none'`;`form-action 'self'`;`frame-ancestors 'none'`。不设 `base-uri`:桌面端的 HTML 预览会设置 `<base href="about:srcdoc">`,而 `script-src` 已经限制了脚本的来源。
@@ -42,7 +42,7 @@ Status: proposed
    - **长对话:** 在一个话题里对模拟服务商进行 200 轮对话。每 50 轮记录一次从发送到回复显示出来的时间,以及页面和它的各个 Worker 的内存。
    - **长 Agent 会话:** 50 轮 Agent 对话,每轮写入并读取一个文件。记录同样的测量值。
    - 这份 Note 改为 implemented 时写入测量结果。
-6. **能力清单。** README 新增一张表,按用户能感知的功能(对话、附件、Agent 工具、Python、JavaScript、本地文件夹、MCP、知识库、小程序、备份等)列出 Web 版能做什么、哪些仍只在桌面端,以及每项需要的浏览器。Web 版不支持的功能已经会返回 `WebUnsupportedError`;这张表是用户和管理员查阅的地方。
+6. **能力清单。** README 新增一张表,按用户能感知的功能(对话、附件、Agent 工具、Python、JavaScript、本地文件夹、MCP、知识库、小程序、备份等)列出 Web 版能做什么、哪些仍只在桌面端,以及每项需要的浏览器。Web 版不支持的功能已经会返回 `WebUnsupportedError`;这张表是用户和管理员查阅的地方。Web 版同时不再显示通往这些功能的入口:启动台里的其他应用、输入框的工具、消息菜单里的笔记、知识库、朗读和笔记类应用导出、Agent 的浏览器、语音输入、帮助菜单、用户菜单里的 Cherry 账号和 CherryIN 登录。把消息保存或导出为 Markdown 或图片改为浏览器下载,Agent 的文件树和文件预览可以使用。
 
 不在范围内:企业版 Web 应用的加固(它的 CSP `connect-src`、只放在 Worker 内存里的 access token、不同个人资料之间的隔离)在企业仓库里做;后端鉴权随企业后端跟进;备份与恢复(M4);以及 #21728 验收项中依赖备份的那些证据。
 
@@ -61,7 +61,7 @@ Status: proposed
 - AC3 — 打开账号时会申请持久化存储;申请被拒绝时(模拟),每个账号只出现一次警告提示,重新加载后不再出现;申请被批准时不出现提示。(verification: packaged artifact)
 - AC4 — 在三个浏览器中,模型回复的 HTML 和 HTML 代码块预览里的脚本都不会运行,也读不到 OPFS;QuickJS 脚本看不到 `fetch`、`indexedDB`、`navigator` 和 `postMessage` 中的任何一个。(verification: packaged artifact)
 - AC5 — 长对话和长 Agent 会话测试在 Chromium 中运行,对话每 50 轮、Agent 每 10 轮记录一次回复耗时以及页面和它的各个 Worker 的内存,记录写在这份 Note 里。第 200 轮(对话)和第 50 轮(Agent)之后的内存,最多是第 50 轮(对话)和第 10 轮(Agent)之后的 1.5 倍;最后十次回复的平均耗时最多是最初十次的两倍。(verification: packaged artifact)
-- AC6 — README 有能力清单,清单中标为仅桌面端的每条路由都返回 `WebUnsupportedError`。`src/main`、`src/preload`、`src/renderer` 和 `src/shared` 下没有文件改动。(verification: change-scope report 和 code review)
+- AC6 — README 有能力清单,清单中标为仅桌面端的每条路由都返回 `WebUnsupportedError`。Web 版不显示第 6 条列出的入口,并能把消息保存为下载文件。`src/main`、`src/preload`、`src/renderer` 和 `src/shared` 下除首次启动页的 `enableCherryInLogin` 开关及其测试外没有文件改动。(verification: packaged artifact、change-scope report 和 code review)
 
 ## Risks
 
