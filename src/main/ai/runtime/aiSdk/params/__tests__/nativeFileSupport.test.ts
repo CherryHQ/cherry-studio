@@ -1,3 +1,4 @@
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { describe, expect, it } from 'vitest'
 
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -126,6 +127,78 @@ describe('resolveNativeFileSupport', () => {
 
     expect(ns.audio).toBe(true)
     expect(ns.video).toBe(false)
+    expect(ns.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+  })
+
+  it('records OpenAI chat audio MIME types without restricting converters that pass MIME through', () => {
+    const model = makeModel({
+      id: 'provider::multimodal',
+      apiModelId: 'multimodal',
+      name: 'multimodal',
+      capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION, MODEL_CAPABILITY.VIDEO_RECOGNITION]
+    })
+    const chat = resolveNativeFileSupport(makeProvider({ id: 'openai' }), model, {
+      aiSdkProviderId: 'openai-chat',
+      runtimeProviderId: 'openai-chat',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    const compatible = resolveNativeFileSupport(makeProvider({ id: 'hub' }), model, {
+      aiSdkProviderId: 'openai-compatible',
+      runtimeProviderId: 'openai-compatible',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    const chatEndpoint = resolveNativeFileSupport(makeProvider({ id: 'aihubmix' }), model, {
+      aiSdkProviderId: 'aihubmix',
+      runtimeProviderId: 'aihubmix',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    const google = resolveNativeFileSupport(makeProvider({ id: 'google' }), model, {
+      aiSdkProviderId: 'google',
+      runtimeProviderId: 'google',
+      endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    })
+    const openrouter = resolveNativeFileSupport(makeProvider({ id: 'openrouter' }), model, {
+      aiSdkProviderId: 'openrouter',
+      runtimeProviderId: 'openrouter',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+
+    expect(chat.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+    expect(compatible.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+    expect(chatEndpoint.audio).toBe(true)
+    expect(chatEndpoint.video).toBe(false)
+    expect(chatEndpoint.audioMediaTypes).toEqual(['audio/wav', 'audio/mp3', 'audio/mpeg'])
+    expect(google.audio).toBe(true)
+    expect(google.video).toBe(true)
+    expect(google.audioMediaTypes).toBeUndefined()
+    expect(openrouter.audio).toBe(true)
+    expect(openrouter.video).toBe(true)
+    expect(openrouter.audioMediaTypes).toContain('audio/ogg')
+    expect(openrouter.audioMediaTypes).not.toContain('audio/webm')
+  })
+
+  it('matches OpenRouter native audio routing to the installed converter', async () => {
+    const support = resolveNativeFileSupport(
+      makeProvider({ id: 'openrouter' }),
+      makeModel({
+        id: 'openrouter::multimodal',
+        apiModelId: 'multimodal',
+        name: 'multimodal',
+        capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION]
+      }),
+      { aiSdkProviderId: 'openrouter', runtimeProviderId: 'openrouter' }
+    )
+    const fetch = () => Promise.reject(new Error('converter accepted audio'))
+    const model = createOpenRouter({ apiKey: 'test', fetch })('test')
+    const generate = (mediaType: string) =>
+      model.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'file', data: Buffer.from('audio'), mediaType }] }]
+      })
+
+    expect(support.audioMediaTypes).not.toContain('audio/webm')
+    await expect(generate('audio/webm')).rejects.toThrow('Unsupported audio format: "audio/webm"')
+    expect(support.audioMediaTypes).toContain('audio/ogg')
+    await expect(generate('audio/ogg')).rejects.toThrow('converter accepted audio')
   })
 
   it('forces text for providers known to break on native files (qiniu)', () => {
