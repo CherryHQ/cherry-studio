@@ -1518,7 +1518,8 @@ describe('useFollowupQueue', () => {
       })
       await act(async () => {})
       expect(postTrigger).toHaveBeenCalled()
-      const heldCopyId = postTrigger.mock.calls[0][0].body.id as string
+      const heldCopyId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0]?.[0].body
+        .id as string
 
       // Navigate away with the edit session live: the composer cache owns the
       // draft, so the held recovery row is redundant. Unmount must close it —
@@ -1532,7 +1533,10 @@ describe('useFollowupQueue', () => {
         unmount()
       })
       await act(async () => {})
-      const closesForCopy = () => deleteTrigger.mock.calls.filter((c) => c[0]?.params?.id === heldCopyId).length
+      const closesForCopy = () =>
+        (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>).filter(
+          (c) => c[0].params?.id === heldCopyId
+        ).length
       expect(closesForCopy()).toBeGreaterThanOrEqual(1)
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5000)
@@ -1564,7 +1568,8 @@ describe('useFollowupQueue', () => {
       })
       await act(async () => {})
       expect(postTrigger).toHaveBeenCalled()
-      const heldCopyId = postTrigger.mock.calls[0][0].body.id as string
+      const heldCopyId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0]?.[0].body
+        .id as string
 
       // Switching scope retires the old scope's edit session: its held
       // recovery row must be closed, not left to the hold expiry
@@ -1573,7 +1578,11 @@ describe('useFollowupQueue', () => {
         rerender({ scopeKey: 's2' })
       })
       await act(async () => {})
-      expect(deleteTrigger.mock.calls.filter((c) => c[0]?.params?.id === heldCopyId).length).toBeGreaterThanOrEqual(1)
+      expect(
+        (deleteTrigger.mock.calls as unknown as Array<[{ params?: { id?: string } }]>).filter(
+          (c) => c[0].params?.id === heldCopyId
+        ).length
+      ).toBeGreaterThanOrEqual(1)
     } finally {
       vi.useRealTimers()
     }
