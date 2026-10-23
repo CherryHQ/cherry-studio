@@ -11,8 +11,8 @@ sources:
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
   - src/shared/ai/piBuiltinTools.ts
-  - patches/@sting8k__pi-vcc@0.8.1.patch
-  - scripts/piVccBundle.ts
+  - packages/agent-behavior/src
+  - packages/agent-runtime-pi/src
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
   - src/main/ai/messages/readConversation.ts
@@ -781,94 +781,43 @@ after any applicable live tightening has landed.
 
 ### Pi conversation compaction
 
-Cherry bundles `@sting8k/pi-vcc` and explicitly loads it for every Pi session.
-Users do not need to install the npm package or enable disk extension discovery.
-The main-process build compiles the extension into `out/main/pi-vcc.mjs`.
-`loadPiVccExtension` imports that ESM bundle and registers it through
-`DefaultResourceLoader.extensionFactories`; `noExtensions` remains enabled to
-prevent discovery of unrelated executable extensions. The source package is a
-build-time dependency; no TypeScript extension sources ship in `node_modules`.
-The separate ESM bundle preserves Pi SDK's import-only entry point while
-Cherry's main bundle remains CommonJS.
+The desktop Pi connection installs `agent-behavior` through the Runtime adapter.
+The shared context handlers request a summary from `piBehaviorHost.ts`, which makes
+one native model request through Cherry's gateway without starting another agent
+loop. Automatic compaction and `/compact` use this same path; text following
+`/compact` becomes summary instructions, never another user turn. An empty or
+failed summary cancels compaction without a second native fallback.
 
-#### User-visible behavior
+Pi retains its native JSONL history and writes the compaction boundary. Product
+messages remain a display projection. The shared `vcc_recall` tool searches the
+current conversation history, including after reopening; it cannot select an
+arbitrary session file. Recall is allowed as a metadata tool, unless explicitly
+disabled. Disabling recall does not disable compaction.
 
-With the default pi-vcc configuration, compaction works as follows:
+The previous pi-vcc dependency, patch, ESM bundle and configuration override are
+removed. There is no `/pi-vcc` command or separate compaction toggle. Tests in
+`PiRuntimeConnection.test.ts` cover instruction forwarding and product input
+boundaries, while the package behavior tests cover declined summaries and
+reopening native compaction history. Electron acceptance is checked separately.
 
-| Input | Compaction behavior |
-|---|---|
-| Automatic compaction or bare `/compact` | pi-vcc extracts transcript content algorithmically instead of asking an LLM to generate a summary. |
-| `/compact Focus on the API decisions` | Pi's native LLM summarizer receives `Focus on the API decisions` as summary instructions. |
-| `/compact keep:3` | Pi's native LLM summarizer receives `keep:3` as summary instructions; this does not select pi-vcc's keep-three-turns behavior. |
-| `/pi-vcc` or `/pi-vcc-recall` | These extension commands are not registered in Cherry. Use `/compact` to compact; the model can call `vcc_recall` to retrieve history. |
+### Pi behavior host
 
-Compaction reduces the model's active context; it does not erase the persisted
-session transcript. The `vcc_recall` tool searches the current session's raw
-JSONL history, so the model can retrieve details omitted from the compacted
-context, including after reopening that session. It cannot choose another
-session file or an arbitrary filesystem path.
+`piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
+Approvals and questions use existing cards; approval outcomes stay in message
+parts. Environment facts (disabled tools, protected paths, delegation attendance
+and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
+whether to run, ask or block. No new approval table is required.
 
-Cherry lists recall in the agent's tool settings. It is auto-approved in default
-and acceptEdits permission modes, including unattended turns, because it reads
-only the current session history. Explicitly disabling it still blocks access;
-disabling recall does not disable compaction.
+The Pi facet resolves behavior call keys to native tool ids. Each live child is
+observed separately and attached to its spawn card through the existing
+background-flow transport. Foreground completion can continue the same child in
+the background. User stop still observes the shared ownership rules.
 
-#### Why the bundled dependency is patched
-
-The version-pinned
-[pnpm patch](../../../patches/@sting8k__pi-vcc@0.8.1.patch) changes two integration
-behaviors. pnpm applies it during installation; there is no runtime source rewrite.
-
-First, unpatched pi-vcc does not interpret `/compact` text the same way as Pi's
-native summarizer. For `/compact Focus on the API decisions`, the call chain is:
-
-1. Cherry passes the text unchanged to `session.compact(customInstructions)`.
-2. pi-vcc intercepts the compaction and treats that text as a follow-up user
-   message, rather than instructions for the summary.
-3. Its `session_compact` handler calls `pi.sendUserMessage` with that text.
-4. Pi emits this event before clearing its manual-compaction state, so the
-   resulting prompt is rejected because compaction is still in progress. The
-   text neither guides the summary nor reaches the model as a follow-up.
-
-This failure occurs between pi-vcc and the Pi SDK; Cherry does not discard or
-rewrite the instructions. A thin wrapper that makes the same SDK call encounters
-the same failure. The patch makes pi-vcc defer to native compaction when ordinary
-nonempty custom instructions are present. Bare `/compact` and automatic
-compaction still use VCC. Merely delaying the follow-up would not preserve the
-original contract: summary instructions would still become a new user turn.
-
-Second, the patch removes registration of `/pi-vcc` and `/pi-vcc-recall`, while
-retaining the compaction hook and recall tool. Cherry tracks `/compact` as a
-manual compaction turn and closes that turn from compaction events. An extension
-command invoked through `session.prompt()` can return before its work completes,
-causing Cherry to finish the turn before the later compaction events arrive.
-Removing these command entry points keeps operations on the existing tracked
-paths without adding another command lifecycle to Cherry.
-
-The patch does not implement compaction or recall in Cherry. Pi and pi-vcc still
-own those operations; Cherry owns loading, permissions, and UI turn completion.
-Recall's tool-catalog entry and auto-approval are Cherry code, separate from the
-dependency patch. Remove the corresponding patch changes when an upstream
-version preserves native instruction semantics and offers a way to omit these
-commands, after verifying the same integration contracts.
-
-#### Configuration and verification
-
-All Cherry Pi sessions share
-`application.getPath('feature.agents.pi.root', 'pi-vcc-config.json')`, supplied to
-pi-vcc through `PI_VCC_CONFIG_PATH`. This is isolated from standalone Pi's
-configuration. Setting `overrideDefaultCompaction` to `false` restores native
-LLM compaction for bare `/compact` and automatic compaction; instruction-bearing
-`/compact` already uses native compaction. No separate compaction toggle is added
-to Cherry's UI.
-
-The real-SDK integration tests in
-[piVcc.test.ts](../../../src/main/ai/runtime/pi/piVcc.test.ts) cover default
-compaction without an LLM call, native instruction-guided compaction, recall
-after reopening, unattended approval, explicit disabling, command exclusion,
-and production file filtering. They build and load the real ESM artifact,
-including a native Node import with source-package resolution blocked.
-These checks do not replace a full installed Electron/asar smoke test.
+`PiRuntimeConnection` remains responsible for product branch bindings, input
+persistence, UI chunks and configuration reconciliation. It can retire after
+`AgentSessionRuntimeService` consumes the common Runtime directly; enabling
+shared behavior does not by itself replace those responsibilities. A reopened
+root restores history, but live children are not reconstructed after restart.
 
 ### Pi code mode
 

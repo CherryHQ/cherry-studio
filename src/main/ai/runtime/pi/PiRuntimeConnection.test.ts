@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,15 +25,15 @@ import {
   createTestBinding,
   MODEL,
   scriptedModel,
+  respondingModel,
   tempDir
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
+import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
-import * as PiApproval from './approvalExtension'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { buildPiLoginPathPrefix, PiRuntimeConnection } from './PiRuntimeConnection'
-import type * as PiSdk from './piSdk'
 
 const modelId = 'test::test-model'
 
@@ -41,7 +41,8 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   binding: vi.fn(),
   prompt: vi.fn(),
-  interaction: vi.fn<() => ToolGuardInteractionState>()
+  interaction: vi.fn<() => ToolGuardInteractionState>(),
+  delegated: vi.fn()
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -68,11 +69,19 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
 }))
 vi.mock('./piMcpExtension', async (original) => ({
   ...(await original<typeof PiMcpExtension>()),
-  createPiMcpExtension: () => () => {}
-}))
-vi.mock('./piSdk', async (original) => ({
-  ...(await original<typeof PiSdk>()),
-  loadPiVccExtension: async () => () => {}
+  createPiMcpExtension: () => (pi: { registerTool: (tool: unknown) => void }) => {
+    for (const name of ['session_create', 'session_send'])
+      pi.registerTool({
+        name: buildPiMcpToolName('cherry-tools', name),
+        label: name,
+        description: name,
+        parameters: Type.Object({}),
+        execute: async () => {
+          mocks.delegated()
+          return { content: [{ type: 'text', text: 'delegated' }] }
+        }
+      })
+  }
 }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
 
@@ -87,6 +96,7 @@ describe('desktop Pi root connection', () => {
 
   beforeEach(() => {
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
+    mocks.delegated.mockClear()
     directory = tempDir('desktop-pi')
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
@@ -123,7 +133,7 @@ describe('desktop Pi root connection', () => {
         id: modelId,
         providerId: 'test',
         name: 'Model',
-        capabilities: [],
+        capabilities: ['function-call'],
         supportsStreaming: true,
         isEnabled: true,
         isHidden: false
@@ -213,31 +223,273 @@ describe('desktop Pi root connection', () => {
     'preserves live delegation approval in %s mode after connecting through the Runtime',
     async (permission_mode) => {
       snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode }
-      const extension = vi.spyOn(PiApproval, 'createPiApprovalExtension')
-      const { connection } = await connect()
-      const authorize = PiApproval.createPiToolAuthorizer(extension.mock.calls[0][0])
-
-      for (const name of ['session_create', 'session_send']) {
-        const request = { toolName: buildPiMcpToolName('cherry-tools', name), toolCallId: name, input: {} }
-        await expect(authorize(request)).resolves.toBeUndefined()
-        mocks.interaction.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
-        await expect(authorize(request)).resolves.toMatchObject({ block: true })
-        mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
-      }
+      const tool = buildPiMcpToolName('cherry-tools', 'session_send')
+      setScript([
+        assistantReply([{ type: 'toolCall', id: 'interactive', name: tool, arguments: {} }], 'toolUse'),
+        assistantReply('first done'),
+        assistantReply([{ type: 'toolCall', id: 'headless', name: tool, arguments: {} }], 'toolUse'),
+        assistantReply('second done'),
+        assistantReply([{ type: 'toolCall', id: 'ask', name: tool, arguments: {} }], 'toolUse'),
+        assistantReply('third done')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('interactive') })
+      await done(events)
+      expect(mocks.delegated.mock.calls.length).toBe(1)
+      events.length = 0
+      mocks.interaction.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      await connection.send({ message: message('headless') })
+      await done(events)
+      const refused = script.calls.at(-1)!.messages.findLast((entry) => entry.role === 'toolResult')
+      expect(JSON.stringify(refused)).toContain('Cross-Session delegation requires an interactive user turn')
+      expect(mocks.delegated.mock.calls.length).toBe(1)
       expect(toolApprovalRegistry.size()).toBe(0)
-
+      events.length = 0
+      mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
       snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
-      await expect(connection.reconcile({ modelId: input.modelId })).resolves.toBe('patched')
-      const pending = authorize({
-        toolName: buildPiMcpToolName('cherry-tools', 'session_send'),
-        toolCallId: 'after-mode-change',
-        input: {}
+      expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+      await connection.send({ message: message('ask') })
+      await expect.poll(() => events.find((event) => event.type === 'tool-approval-request')).toBeDefined()
+      const request = events.find((event) => event.type === 'tool-approval-request')!
+      if (request.type !== 'tool-approval-request') throw new Error('No approval')
+      expect(request.request.toolCallId).toBe('ask')
+      toolApprovalRegistry.dispatch(request.request.approvalId, {
+        approved: false,
+        reasonSource: 'user',
+        reason: 'declined'
       })
-      await vi.waitFor(() => expect(toolApprovalRegistry.size()).toBe(1))
-      toolApprovalRegistry.abort(input.sessionId, 'test-cancel')
-      await expect(pending).resolves.toMatchObject({ block: true })
+      await done(events)
+      expect(mocks.delegated.mock.calls.length).toBe(1)
+      expect(script.calls.at(-1)!.messages.findLast((entry) => entry.role === 'toolResult')).toMatchObject({
+        content: [expect.objectContaining({ text: expect.stringContaining('the user said:\ndeclined') })]
+      })
     }
   )
+
+  // Catches approval edits being shown in the UI but the original write still executing.
+  it('executes only approved arguments and returns a question answer to the native loop', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    setScript([
+      assistantReply([toolCallPart('write', 'write', { path: 'original.txt', content: 'original' })], 'toolUse'),
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Which database?',
+                header: 'Database',
+                options: [
+                  { label: 'Postgres', description: 'Relational' },
+                  { label: 'Redis', description: 'In memory' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply('Use Redis')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('write and ask') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+    expect(existsSync(join(directory, 'original.txt'))).toBe(false)
+    expect(approvals()[0].request.toolCallId).toBe('write')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { path: 'approved.txt', content: 'approved' }
+    })
+    await expect.poll(() => approvals().length).toBe(2)
+    expect(approvals()[1].request).toMatchObject({ toolCallId: 'ask', toolName: 'AskUserQuestion' })
+    toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Which database?': 'Redis' } }
+    })
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(readFileSync(join(directory, 'approved.txt'), 'utf8')).toBe('approved')
+    expect(existsSync(join(directory, 'original.txt'))).toBe(false)
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('Redis')
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  // Catches shutdown waiting indefinitely for an unanswered desktop question.
+  it('withdraws a pending question on close without another model request', async () => {
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Next',
+                options: [
+                  { label: 'Yes', description: 'Continue' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      )
+    ])
+    const { connection, events, consuming } = await connect()
+    await connection.send({ message: message('ask') })
+    await expect.poll(() => events.some((event) => event.type === 'tool-approval-request')).toBe(true)
+    await connection.close()
+    await consuming
+    expect(toolApprovalRegistry.size()).toBe(0)
+    expect(script.calls).toHaveLength(1)
+  })
+
+  // Catches a child stream being dropped or attributed to the root's text, and a continuation creating a new child.
+  it('streams a foreground child and continues the same child in the desktop connection', async () => {
+    let root = ''
+    let child = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      if (call.sessionId !== root) {
+        child = call.sessionId!
+        childRuns++
+        return assistantReply(childRuns === 1 ? 'child first answer' : 'child continued answer')
+      }
+      const last = JSON.stringify(call.messages.at(-1))
+      if (last.includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      if (last.includes('continue child'))
+        return assistantReply(
+          [toolCallPart('continue', 'message_subagent', { id: child, message: 'continue work' })],
+          'toolUse'
+        )
+      return assistantReply('parent finished')
+    }, 1)
+    const { connection, events } = await connect()
+    await connection.send({ message: message('initialize') })
+    await done(events)
+    root = script.calls[0].sessionId!
+    childRuns = 0
+    events.length = 0
+    await connection.send({ message: message('delegate now') })
+    await done(events)
+    const firstChild = child
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    const childText = () =>
+      events
+        .flatMap((event) =>
+          event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []
+        )
+        .join('')
+    expect(childText()).toBe('child first answer')
+    expect(text(events)).toBe('parent finished')
+    expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
+      data: { taskId: child, toolUseId: 'spawn', title: 'scan', status: 'completed', isBackgrounded: false }
+    })
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'background-flow-chunk',
+        rootToolCallId: 'spawn',
+        chunk: expect.objectContaining({
+          type: 'text-start',
+          providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
+        })
+      })
+    )
+    events.length = 0
+    await connection.send({ message: message('continue child') })
+    await done(events)
+    await expect.poll(() => childText()).toContain('child continued answer')
+    expect(child).toBe(firstChild)
+    expect(nativeFiles()).toHaveLength(2)
+    await expect
+      .poll(() =>
+        script.calls
+          .filter((call) => call.sessionId === root)
+          .some((call) => JSON.stringify(call.messages).includes('child continued answer'))
+      )
+      .toBe(true)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  // Catches a background stop missing the child and a late stop cancelling its parent's later turn.
+  it('stops a running background child without cancelling a later parent turn', async () => {
+    const held = gate()
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return held.wait(assistantReply('must not finish'))
+      return JSON.stringify(call.messages.at(-1)).includes('delegate now')
+        ? assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan', background: true })], 'toolUse')
+        : assistantReply('parent finished')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate now') })
+    await held.reached
+    await done(events)
+    const tasks = events.find((event) => event.type === 'background-tasks' && event.tasks.length > 0)
+    if (tasks?.type !== 'background-tasks') throw new Error('No child task')
+    expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
+      data: { taskId: tasks.tasks[0].id, toolUseId: 'spawn', status: 'in_progress', isBackgrounded: true }
+    })
+    expect(await connection.stopTask(tasks.tasks[0].id)).toBe(true)
+    held.open()
+    await expect
+      .poll(() => events.filter((event) => event.type === 'background-work-state').at(-1))
+      .toMatchObject({ active: false })
+    expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
+      data: { taskId: tasks.tasks[0].id, toolUseId: 'spawn', status: 'stopped', isBackgrounded: true }
+    })
+    events.length = 0
+    await connection.send({ message: message('later parent turn') })
+    await done(events)
+    expect(text(events)).toBe('parent finished')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  // Catches the desktop never opening a receive-only stream when a paused goal resumes.
+  it('starts and finishes an autonomous goal turn when plan permission is lifted', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'plan' }
+    script = respondingModel((call) => {
+      if (call.systemPrompt?.includes('Evaluate whether the objective'))
+        return assistantReply('{"verdict":"met","reason":"checked"}')
+      const last = call.messages.at(-1)
+      if (last?.role === 'toolResult' && last.toolName === 'get_goal') {
+        const content = last.content.find((part) => part.type === 'text')
+        if (content?.type !== 'text') throw new Error('No goal view')
+        const { goal } = JSON.parse(content.text)
+        return assistantReply(
+          [
+            toolCallPart('complete', 'update_goal', {
+              goal_id: goal.id,
+              revision: goal.revision,
+              action: 'complete',
+              evidence: 'checked files'
+            })
+          ],
+          'toolUse'
+        )
+      }
+      if (last?.role === 'toolResult') return assistantReply('completed')
+      return assistantReply([toolCallPart('get', 'get_goal')], 'toolUse')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal check the files') })
+    await done(events)
+    expect(script.calls).toHaveLength(0)
+    events.length = 0
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    const started = events.findIndex((event) => event.type === 'autonomous-turn-state' && event.state === 'started')
+    const firstChunk = events.findIndex((event) => event.type === 'chunk')
+    expect(started).toBeGreaterThanOrEqual(0)
+    expect(started).toBeLessThan(firstChunk)
+    expect(events.at(-1)).toMatchObject({ type: 'autonomous-turn-state', state: 'finished' })
+    expect(script.calls).toHaveLength(4)
+    expect(events[started]).toMatchObject({ origin: { kind: 'goal-round', round: 1 } })
+  })
 
   it('streams through the Runtime, records placed and completed separately, and saves a native checkpoint', async () => {
     const { connection, events } = await connect()
@@ -431,6 +683,8 @@ describe('desktop Pi root connection', () => {
     expect(text(events.slice(before))).toBe('')
     expect(messages.hasSubmission(input.sessionId, compact.id)).toBe(false)
     expect(events.slice(before).some((event) => event.type === 'compaction-complete')).toBe(true)
+    expect(script.calls.at(-1)!.systemPrompt).toContain('Summarize the conversation')
+    expect(script.calls.at(-1)!.tools).toEqual([])
   })
 
   it('forwards attachment paths through the input boundary while retaining private input facts', async () => {

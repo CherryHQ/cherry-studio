@@ -2,8 +2,8 @@
 
 `PiRuntimeConnection` connects desktop root sessions through `createPiRuntime` from
 `@cherrystudio/agent-runtime-pi`. Cherry owns product messages and branch bindings; Pi owns
-native history, execution, and compaction. Independent desktop child projections and Durable
-desktop integration remain separate work.
+native history and execution. The connection installs shared `agent-behavior` rules through production
+`HostPorts` and observes each live child independently. Durable desktop integration remains separate work.
 
 The Pi adapter is a production dependency loaded with dynamic `import()`. Keep its ESM-only native
 dependencies outside the bundled CommonJS Main entry; a static import fails during Electron startup.
@@ -25,16 +25,40 @@ of the externally exposed gateway setting. Its origin participates in the connec
 a listener restart retires warm connections. Trusted headers carry reasoning, tier and Fast selections
 to the same Cherry parameter builder used by other requests.
 
-Pi's session retry policy owns retry decisions. The native HTTP client and gateway do not add
-retries. Native usage is for context and display; it must not create another billing record.
+The behavior adapter disables native retries; the native HTTP client and gateway do not add retries.
+Native usage is for context and display; it must not create another billing record. Only root model
+calls emit native usage updates on the root stream; child, summary and verifier calls still contribute
+to gateway billing. Product message totals use the gateway's aggregated provider calls.
 Model metadata, native errors and tool validation follow Pi's provider implementation. There is no
 `ModelCallPort`, custom AI SDK stream protocol, metadata codec or implicit session requirement.
+
+## Host ports
+
+`piBehaviorHost.ts` connects shared behavior to the existing approval registry, question cards, model
+catalog, native Pi model binding and output files. `piApprovalFacts.ts` collects tool, workspace and
+interaction facts; `agent-behavior` decides permission policy. Cross-session delegation still requires
+an interactive user turn. Child tools use the root's live agent policy.
+
+Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
+`toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
+existing message parts; pending questions do not resume after restart. No new database table is used.
+
+Compaction calls the host summarizer once through the native gateway binding; goal completion calls
+the verifier through the same path without a tool loop. Empty or failed summaries cancel compaction.
+`agent-behavior` provides `vcc_recall`; the old pi-vcc extension and build artifact are removed.
+Large tool output is saved under `feature.agents.outputs`, which read tools may access.
 
 ## Desktop ownership
 
 `ThreadProjection` converts ordered runtime items into UI chunks. A snapshot establishes its baseline;
 it never replays recovered content into the product archive. Tool items use the Pi facet's opaque
-lookup and the existing tool renderer. Observation loss fails the turn and retires the owner.
+lookup and the existing tool renderer. Child output maps to its native spawn call in the existing
+background-flow transport. Goal rounds and background delivery announce autonomous turn boundaries.
+Observation loss fails the turn and retires the owner.
+
+`PiRuntimeConnection` remains the bridge to `AgentSessionRuntimeService`: it owns product input
+persistence, branch bindings, UI chunks, trace context and configuration reconciliation. Retiring the
+class requires moving those consumers to `ThreadHandle`; installing behavior alone does not remove it.
 
 Before dispatch, Main records submission identity and facts on the existing user row. Native placement
 and settlement update those facts; final assistant persistence commits response associations in the

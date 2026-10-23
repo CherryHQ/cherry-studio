@@ -136,6 +136,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.284",
+    "@cherrystudio/agent-behavior": "workspace:*",
     "@cherrystudio/agent-runtime-pi": "workspace:*",
     "@cherrystudio/computer-use": "0.1.9",
     "@cherrystudio/mlx-asr": "github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr",
@@ -290,7 +291,6 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@sentry/vite-plugin": "5.4.0",
     "@shikijs/markdown-it": "^3.12.0",
-    "@sting8k/pi-vcc": "0.8.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-router": "^1.170.18",
     "@tanstack/react-virtual": "^3.13.24",

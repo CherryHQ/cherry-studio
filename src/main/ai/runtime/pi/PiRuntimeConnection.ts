@@ -1,10 +1,13 @@
+import { randomUUID } from 'node:crypto'
 import { readFileSync, readdirSync, lstatSync } from 'node:fs'
 
 import type { Usage } from '@earendil-works/pi-ai'
 import type { ContextUsage, ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { SpanKind, SpanStatusCode, type Span } from '@opentelemetry/api'
+import * as z from 'zod'
 
 import { application } from '@application'
+import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
 import { runtimeId, type InputState, type Observation, type ObservationPayload } from '@cherrystudio/agent-runtime'
 import type { AgentRuntimeEvent as PiEvent, PiRuntime, PiThreadHandle } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -18,7 +21,6 @@ import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
-import { readRetryPolicy } from '@main/ai/runtime/aiSdk'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -34,6 +36,7 @@ import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandRes
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -44,7 +47,9 @@ import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
@@ -57,21 +62,24 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../types'
-import { createPiApprovalExtension } from './approvalExtension'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
+import { createPiBehaviorHost } from './piBehaviorHost'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
-import { loadPiSdk, loadPiVccExtension } from './piSdk'
+import { loadPiSdk } from './piSdk'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
+const childResultSchema = z.object({
+  details: z.object({ sessionId: z.string(), background: z.literal(false), outcome: z.string() })
+})
 
 function quoteShellWord(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`
@@ -140,6 +148,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private active = false
   private sending = false
   private manualCompactInFlight = false
+  private autonomous = false
+  private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
+  private readonly childOrigins = new Map<string, { parentToolCallId: string; description: string }>()
+  private readonly childTaskStates = new Map<string, AgentTaskEventPartData>()
+  private readonly childHandles = new Map<string, Promise<PiThreadHandle | undefined>>()
   private failure?: unknown
   private connectionSignature?: string
   private permissionMode: AgentPermissionMode = 'default'
@@ -174,6 +187,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.adapter.handleToolStart(id, item.name, JSON.parse(item.argumentsText))
       } else {
         this.adapter.handleToolEnd(id, this.toolNames.get(id) ?? '', item.data, item.outcome === 'error')
+        if (this.toolNames.get(id) === 'subagent') {
+          const result = childResultSchema.safeParse(item.data)
+          if (result.success)
+            this.publishChildTask(result.data.details.sessionId, childTaskStatus(result.data.details.outcome))
+        }
         const span = this.toolSpans.get(id)
         if (span)
           endAgentRuntimeSpan(span, { code: item.outcome === 'error' ? SpanStatusCode.ERROR : SpanStatusCode.OK })
@@ -209,12 +227,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.mcpServerSnapshots = initialSnapshot.mcpServerSnapshots
     const pi = await loadPiSdk()
     const { createPiRuntime } = await import('@cherrystudio/agent-runtime-pi')
-    const binding = await createPiGatewayModelBinding(
-      this.input,
-      initialSnapshot.provider,
-      initialSnapshot.model,
-      (usage) => this.recordUsage(usage)
-    )
+    const { callKeyOf } = await import('@cherrystudio/agent-behavior')
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
     const shellPath = resolvePiShellPath()
@@ -253,7 +266,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
-      additionalReadOnlyRoots: additionalSkillPaths,
+      additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.agents.outputs')],
       // Approval follows the mounted server set; disabledTools still blocks at fire-time.
       autoApprovedTools: new Set(
         mountedPolicies
@@ -324,12 +337,40 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           workspacePath
         )
       : pi.SessionManager.create(workspacePath, sessionDir, { id: nativeId })
+    const binding = await createPiGatewayModelBinding(
+      this.input,
+      initialSnapshot.provider,
+      initialSnapshot.model,
+      (usage, sessionId) => {
+        if (sessionId === nativeId) this.recordUsage(usage)
+      }
+    )
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
       commandPrefix: loginPathPrefix,
       shellPath,
       spawnHook: (context) => ({ ...context, env: mergePiBashExecutionEnv(context.env) })
     }) as ToolDefinition
-    const retry = readRetryPolicy()
+    const toolCallId = async (call: CallRef) => {
+      const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
+      if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+      try {
+        const id = opened.value.pi.toolCallId(call)
+        if (!id) throw new Error('Behavior call has no native tool identity')
+        return id
+      } finally {
+        await opened.value.release()
+      }
+    }
+    const behavior = await createPiBehaviorHost({
+      input: this.input,
+      root: runtimeId(nativeId),
+      binding,
+      model: initialSnapshot.model,
+      approval: approvalContext,
+      emit: (event) => this.eventQueue.push(event),
+      observe: (event) => this.handleBehaviorEvent(event),
+      toolCallId
+    })
     const options = {
       ...binding,
       cwd: workspacePath,
@@ -342,22 +383,29 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       builtinTools: ['read', 'bash', 'edit', 'write'],
       tools: [managedBashTool],
       excludeTools: [...this.disabledTools],
+      behavior: {
+        ...behavior,
+        configureChild: async (child: Parameters<typeof behavior.configureChild>[0]) => {
+          const configured = await behavior.configureChild(child)
+          this.childOrigins.set(child.thread.id, {
+            description: child.origin.description,
+            parentToolCallId: await toolCallId({
+              thread: child.parent.id,
+              key: callKeyOf(child.origin.parentToolCallId)
+            })
+          })
+          return configured
+        }
+      },
       settings: {
-        retry: {
-          enabled: retry.enabled,
-          maxRetries: retry.maxAttempts - 1,
-          ...(retry.backoffEnabled ? {} : { baseDelayMs: 0 })
-        },
         ...(shellPath ? { shellPath } : {}),
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
       },
       extensionFactories: [
-        createPiApprovalExtension(approvalContext),
         createPiIdentityExtension(agentDataPath),
         pi.createCodemodeExtension({ models: false }),
         pi.createToolSearchExtension(),
-        createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log')),
-        await loadPiVccExtension(application.getPath('feature.agents.pi.root', 'pi-vcc-config.json'))
+        createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
       ],
       onEvent: (event: PiEvent) => this.handleNativeEvent(event)
     }
@@ -461,7 +509,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           this.failure ??= new Error(event.input.error?.message ?? event.input.outcome)
       } else if (event.type === 'activity.changed') {
         this.active = event.activity.state === 'active'
+        if (this.active && !this.sending && !this.closing) {
+          this.autonomous = true
+          this.sending = true
+          this.failure = undefined
+          this.eventQueue.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin })
+          this.nextOrigin = { kind: 'background-work' }
+        }
         if (event.activity.state === 'idle' && this.sending && !this.manualCompactInFlight) this.finishTurn()
+      } else if (event.type === 'subagent.upsert' && event.subagent.child) {
+        this.observeChild(event.subagent.child.id)
       } else if (event.type === 'diagnostic') {
         this.failure ??= new Error(event.error.message)
         if (!this.active) this.finishTurn()
@@ -476,6 +533,119 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         logger.error('Failed to retire Pi after observation error', { error: closeError })
       )
     }
+  }
+
+  private handleBehaviorEvent(event: BehaviorEvent): void {
+    if (this.handle && event.thread !== this.handle.thread.id) return
+    if (event.type === 'goal-round') this.nextOrigin = { kind: 'goal-round', round: event.round.round }
+    else if (event.type === 'goal-notice') {
+      const id = randomUUID()
+      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-start', id } })
+      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-delta', id, delta: event.notice.text } })
+      this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
+    } else if (event.type === 'subagents') {
+      for (const view of event.views) {
+        this.publishChildTask(
+          view.sessionId,
+          view.status === 'finished' ? childTaskStatus(view.outcome) : 'in_progress',
+          true
+        )
+      }
+      const running = event.views.filter((view) => view.status !== 'finished')
+      this.eventQueue.push({
+        type: 'background-tasks',
+        tasks: running.map((view) => ({
+          id: view.sessionId,
+          type: 'subagent',
+          description: view.description,
+          toolCallId: this.childOrigins.get(view.sessionId)?.parentToolCallId
+        }))
+      })
+      this.eventQueue.push({ type: 'background-work-state', active: running.length > 0 })
+    }
+  }
+
+  private publishChildTask(id: string, status: AgentTaskEventPartData['status'], background?: boolean): void {
+    const origin = this.childOrigins.get(id)
+    if (!origin) return
+    const previous = this.childTaskStates.get(id)
+    const isBackgrounded = background ?? previous?.isBackgrounded ?? false
+    if (previous && previous.status === status && previous.isBackgrounded === isBackgrounded) return
+    const data: AgentTaskEventPartData = {
+      event: !previous ? 'started' : status === 'in_progress' ? 'updated' : 'notification',
+      taskId: id,
+      toolUseId: origin.parentToolCallId,
+      taskType: 'subagent',
+      title: origin.description,
+      status,
+      isBackgrounded
+    }
+    this.childTaskStates.set(id, data)
+    this.eventQueue.push({ type: 'background-task-event', data })
+    this.eventQueue.push({
+      type: 'background-flow-chunk',
+      rootToolCallId: origin.parentToolCallId,
+      chunk: { type: 'data-agent-task-event', id: `task-${id}`, data }
+    })
+  }
+
+  private observeChild(id: string): void {
+    if (this.childHandles.has(id) || !this.childOrigins.has(id)) return
+    const origin = this.childOrigins.get(id)!
+    this.publishChildTask(id, 'in_progress')
+    this.childHandles.set(
+      id,
+      (async () => {
+        const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
+        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        const handle = opened.value
+        const emit = (chunk: CherryUIMessageChunk) => {
+          this.eventQueue.push({
+            type: 'background-flow-chunk',
+            rootToolCallId: origin.parentToolCallId,
+            chunk: parentChunk(chunk, origin.parentToolCallId)
+          })
+        }
+        const adapter = new PiStreamAdapter({ enqueue: emit }, (name) =>
+          resolvePiMcpToolMetadata(handle.pi.toolDefinition(name), this.mcpServerSnapshots)
+        )
+        const names = new Map<string, string>()
+        const projection = new ThreadProjection(emit, (item) => {
+          const ref = item.type === 'tool-call' ? item.ref : item.call
+          const callId = ref && handle.pi.toolCallId(ref)
+          if (!callId) throw new Error('Child tool has no call identity')
+          if (item.type === 'tool-call') {
+            names.set(callId, item.name)
+            adapter.handleToolStart(callId, item.name, JSON.parse(item.argumentsText))
+          } else {
+            adapter.handleToolEnd(callId, names.get(callId) ?? '', item.data, item.outcome === 'error')
+            names.delete(callId)
+          }
+        })
+        const observed = await handle.observe((event) => {
+          projection.accept(event)
+          if (event.type === 'activity.changed' && event.activity.state === 'active')
+            this.publishChildTask(id, 'in_progress')
+          else if (event.type === 'input.changed' && event.input.outcome)
+            this.publishChildTask(id, childTaskStatus(event.input.outcome))
+          else if (event.type === 'diagnostic') this.publishChildTask(id, 'error')
+        })
+        if (observed.status !== 'confirmed') throw new Error(observed.error.message)
+        return handle
+      })().catch((error) => {
+        logger.error('Failed to observe Pi child', { id, error })
+        this.eventQueue.push({ type: 'error', error })
+        return undefined
+      })
+    )
+  }
+
+  async stopTask(taskId: string): Promise<boolean> {
+    const handle = await this.childHandles.get(taskId)
+    if (!handle?.interrupt) return false
+    const result = await handle.interrupt()
+    if (result.status !== 'confirmed') throw new Error(result.error.message)
+    return true
   }
 
   private captureInput(input: InputState): void {
@@ -572,6 +742,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined
       })
     }
+    if (this.autonomous) {
+      this.autonomous = false
+      this.eventQueue.push({ type: 'autonomous-turn-state', state: 'finished' })
+    }
   }
 
   private cancelQueuedInputs(): void {
@@ -648,6 +822,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const nextDisabled = normalizeDisabledTools(snapshot.agent.disabledTools, snapshot)
     const disabled = this.active ? new Set([...this.disabledTools, ...nextDisabled]) : nextDisabled
     const changed = nextPermissionMode !== this.permissionMode || !setsEqual(disabled, this.disabledTools)
+    const permissionChanged = this.permissionMode !== nextPermissionMode
     this.permissionMode = nextPermissionMode
     this.disabledTools = disabled
     if (
@@ -658,6 +833,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       Boolean(input.fastMode) !== Boolean(this.input.fastMode)
     )
       return 'rebuild'
+    if (permissionChanged) {
+      const result = await this.handle?.pi.permissionModeChanged()
+      if (result && result.status !== 'confirmed') return 'failed'
+    }
     return changed ? 'patched' : 'current'
   }
 
@@ -716,9 +895,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     await this.observation?.stop()
     this.flushInputs()
     await this.handle?.release()
+    await Promise.all([...this.childHandles.values()].map(async (child) => (await child)?.release()))
     this.endToolSpans('Pi owner closed')
     this.eventQueue.close()
   }
+}
+
+function childTaskStatus(outcome: string | undefined): AgentTaskEventPartData['status'] {
+  if (outcome === 'completed') return 'completed'
+  if (outcome === 'aborted' || outcome === 'stopped' || outcome === 'interrupted') return 'stopped'
+  return 'error'
 }
 
 function normalizeDisabledTools(
@@ -782,4 +968,23 @@ function parseManualCompactCommand(content: string): { instructions: string } | 
   const trimmed = content.trim()
   if (!/^\/compact(?:\s|$)/.test(trimmed)) return undefined
   return { instructions: trimmed.slice('/compact'.length).trim() }
+}
+
+function parentChunk(chunk: CherryUIMessageChunk, parentToolCallId: string): CherryUIMessageChunk {
+  switch (chunk.type) {
+    case 'text-start':
+    case 'text-end':
+    case 'reasoning-start':
+    case 'reasoning-end':
+    case 'tool-input-start':
+    case 'tool-input-available':
+    case 'tool-output-available':
+    case 'tool-output-error':
+      return {
+        ...chunk,
+        providerMetadata: { ...chunk.providerMetadata, cherry: { ...chunk.providerMetadata?.cherry, parentToolCallId } }
+      }
+    default:
+      return chunk
+  }
 }

@@ -6,14 +6,61 @@ Concurrent handles share one execution source; release stops observation, while 
 
 Each Pi handle exposes `input.submit` and `input.policies`. Root contexts support `reject`,
 `steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
-controller: a live run receives a queued message; a finished child needs `SubagentPort.load` to
-start another background run. An unsupported policy is rejected before native dispatch.
+controller: a live run receives a queued message; a finished child continues in the background.
+The legacy controller needs `SubagentPort.load`; the behavior-backed controller retains the same
+native session. An unsupported policy is rejected before native dispatch.
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
 Pi owns the execution loop, tools, context accounting and compaction. The package has no AI SDK
 dependency and imports no Cherry application code.
 
+## Common runtime with Cherry behavior
+
+Pass `behavior: { host, configureChild }` in `PiSessionOptions` to install
+[`agent-behavior`](../agent-behavior/README.md) through `createPiBehavior`. Each root and its children
+share one behavior instance. `host` implements the existing `HostPorts`: application facts and
+services such as approval UI, model selection, settings, output storage and summarization.
+The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
+
+`configureChild({ thread, parent, origin })` supplies the native model/runtime, extensions and
+listeners once per child context. The selected model must match `origin.modelKey` (`provider/id`).
+Unspecified native options inherit from the root. The adapter installs the behavior extension and
+summarizer on every child, filters parent-only tools, and disables native retries and cache warming
+as required by the behavior adapter's request accounting.
+
+- Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
+  `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
+- Child `input.submit` supports `steer` through `entries.messageSubagent`, using the same admission,
+  continuation and reporting rules as the model's `message_subagent` tool. Its native custom input
+  carries the caller's `inputId`, including when a background report job starts the continuation.
+  A refused continuation returns `rejected`; no raw child prompt bypasses that decision.
+- `interrupt()` records a user stop through the root or child entry. A foreground child's stop
+  stops its parent turn; a finished child does not stop later work. A continued child's run is
+  background work and has no cancellation ownership from its completed foreground run.
+- `pi.permissionModeChanged()` notifies behavior after the host changes permission settings;
+  `pi.compact(instructions)` uses its summary acceptance and compaction lifecycle. A declined
+  summary returns `rejected` with code `declined`; no native summary fallback runs.
+- Subagent relations are projected onto the parent; each live child can be opened, observed and
+  released independently. Releasing a handle stops its observations. Shutdown closes the shared
+  behavior instance, all native sessions and projections.
+
+This is an opt-in migration path: omitting `behavior` retains the existing native extension path.
+Combining it with legacy `subagents`, `offload`, `recall` or a direct compaction summarizer is rejected.
+Host extensions must not install duplicate behavior tools or start native runs themselves.
+The desktop connection opts in through `src/main/ai/runtime/pi/piBehaviorHost.ts`; its production
+approval, question, model, summary, verifier and output ports use existing Cherry services.
+
+Reopening a root restores native history and child relations, but does not reconstruct child sessions
+or resume work. A loader cannot reopen a stored child as an independent root: that returns
+`child-owner-unavailable`. Reconstructing the owning child graph after restart remains separate work.
+
+`tests/behaviorRuntime.test.ts` exercises these public accesses against real Pi execution with
+scripted native providers and host ports, rather than calling the harness ports directly.
+
 ## Session builder
+
+The standalone extension APIs below describe the legacy native-builder path. Shared behavior rules
+are documented in `agent-behavior`; the [behavior ports](#behavior-ports) section describes their Pi adapter.
 
 `createAgentRuntimeSession({ modelRuntime, model, cwd, agentDir, ... })` returns a native
 `AgentSession` and an asynchronous `dispose()` method. The model runtime is borrowed: the caller
@@ -38,7 +85,7 @@ Cherry registers native Pi providers against its internal gateway in `src/main/a
 The gateway owns upstream credentials and billing. Pi owns protocol replay, tool execution and session retries.
 
 Cherry's desktop root Pi connection uses this package through `create/open/observe/input.submit`.
-Independent desktop child projections are not yet connected. Native session, goal and subagent
+Live child projections feed the existing desktop tool-card transport. Native session, goal and subagent
 tests live in `tests/`, using Pi providers directly. `tests/sessionSupport.ts` supplies native
 scripted streams with fixed usage for budget and compaction assertions, without an HTTP or AI SDK fixture.
 Cherry gateway integration tests remain in `src/main/ai/runtime/pi/`.
@@ -79,6 +126,7 @@ item-to-tool-call lookup. These remain Pi-specific, without enlarging the common
 `compact(instructions?)` serializes with input admission and rejects an actively streaming root;
 it does not abort that turn to compact. `cancelQueuedInputs()` is owner-only and idle-only: it clears
 native queued input, records `aborted` for known unplaced inputs, and returns their identities.
+`permissionModeChanged()` is available only with behavior installed; otherwise it returns `unsupported`.
 Released access cannot use these controls. Neither operation deletes the native history.
 
 ## Input correlation

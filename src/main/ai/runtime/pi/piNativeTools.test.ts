@@ -8,20 +8,21 @@ import {
   type AssistantMessage
 } from '@earendil-works/pi-ai'
 import {
-  createAgentSession,
   createCodemodeExtension,
   createToolSearchExtension,
-  DefaultResourceLoader,
   ModelRuntime,
   SessionManager,
-  SettingsManager,
   type AgentSessionEvent
 } from '@earendil-works/pi-coding-agent'
 import { Server } from '@modelcontextprotocol/server'
 import { serveMcpTestServer } from '@test-helpers/mcp/client'
 import { expect, it } from 'vitest'
+import * as z from 'zod'
 
-import { createPiApprovalExtension } from './approvalExtension'
+import { createScriptedHost, install } from '@cherrystudio/agent-behavior'
+import { createPiBehavior, createAgentRuntimeSession } from '@cherrystudio/agent-runtime-pi'
+
+import { readPiApprovalFacts } from './piApprovalFacts'
 import { createPiMcpExtension } from './piMcpExtension'
 import { PiStreamAdapter, resolvePiMcpToolMetadata } from './piStreamAdapter'
 
@@ -75,10 +76,6 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       return fixture
     })
     const pi = await import('@earendil-works/pi-coding-agent')
-    const settingsManager = SettingsManager.inMemory(
-      { retry: { enabled: false }, compaction: { enabled: false } },
-      { projectTrusted: true }
-    )
     const modelRuntime = await ModelRuntime.create({
       credentials: new InMemoryCredentialStore(),
       modelsPath: null,
@@ -138,34 +135,24 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         }
       ]
     })
-    const resourceLoader = new DefaultResourceLoader({
-      cwd,
-      agentDir: cwd,
-      settingsManager,
-      noExtensions: true,
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: true,
-      extensionFactories: [
-        createCodemodeExtension({ models: false }),
-        createToolSearchExtension(),
-        createPiMcpExtension(
-          pi,
-          {
-            fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server },
-            ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, connect: shadow } })
-          },
-          join(cwd, 'mcp.log')
-        ),
-        createPiApprovalExtension({
+    const host = createScriptedHost({
+      settings: {
+        goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+        autonomy: 'auto',
+        permissionMode: 'bypassPermissions',
+        attendance: 'unavailable',
+        maxBackground: 4,
+        offloadThreshold: 20000
+      },
+      modelKeys: { parentModelKey: 'fixture/fixture', defaultChildModelKey: 'fixture/fixture' }
+    })
+    host.approvals.facts = async (_call, tool) => {
+      return readPiApprovalFacts(
+        {
           sessionId: 'fixture',
           workspacePath: cwd,
           agentDataPath: cwd,
           additionalReadOnlyRoots: [],
-          emit: () => {
-            throw new Error('Disabled tools must not request approval')
-          },
           getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
           getPermissionMode: () => 'bypassPermissions',
           isDisabled: (name) => name === `${nativePrefix}forbidden`,
@@ -173,27 +160,50 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
           approvalRequiredTools: new Set(),
           nonBypassableApprovalTools: new Set(),
           delegationTools: new Set()
+        },
+        tool.name,
+        z.record(z.string(), z.json()).parse(tool.args)
+      )
+    }
+    const runtime = createPiBehavior({
+      install: (ports) => {
+        install(ports, host)
+      },
+      openSession: async ({ sessionManager, extension, summarize }) => {
+        const native = await createAgentRuntimeSession({
+          cwd,
+          agentDir: cwd,
+          modelRuntime,
+          model: modelRuntime.getModel('fixture', 'fixture')!,
+          sessionManager,
+          settings: { retry: { enabled: false } },
+          compaction: { enabled: false, reserveTokens: 1000, keepRecentTokens: 1000, summarize },
+          extensionFactories: [
+            createCodemodeExtension({ models: false }),
+            createToolSearchExtension(),
+            createPiMcpExtension(
+              pi,
+              {
+                fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server },
+                ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, connect: shadow } })
+              },
+              join(cwd, 'mcp.log')
+            ),
+            extension
+          ]
         })
-      ]
+        native.session.subscribe((event) => {
+          events.push(event)
+          adapter.handleEvent(event)
+        })
+        resolveMetadata = (name) => resolvePiMcpToolMetadata(native.session.getToolDefinition(name), snapshots)
+        return native
+      }
     })
-    await resourceLoader.reload()
-    const { session } = await createAgentSession({
-      cwd,
-      agentDir: cwd,
-      modelRuntime,
-      model: modelRuntime.getModel('fixture', 'fixture'),
-      settingsManager,
-      resourceLoader,
-      sessionManager: SessionManager.inMemory(cwd)
-    })
-    session.subscribe((event) => {
-      events.push(event)
-      adapter.handleEvent(event)
-    })
-    resolveMetadata = (name) => resolvePiMcpToolMetadata(session.getToolDefinition(name), snapshots)
+    const thread = await runtime.openConversation(SessionManager.inMemory(cwd))
     try {
-      await session.bindExtensions({})
-      await session.prompt('Run the native tools')
+      await runtime.prompt(thread, 'Run the native tools')
+      await expect.poll(() => events.some((event) => event.type === 'agent_end')).toBe(true)
       await mkdir('.context/cherry-electron-dev', { recursive: true })
       await writeFile(
         `.context/cherry-electron-dev/pi-native-${binding}-events.json`,
@@ -237,8 +247,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         events.some((event) => event.type === 'tool_execution_start' && event.toolName === `${nativePrefix}read_value`)
       ).toBe(true)
     } finally {
-      await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' })
-      session.dispose()
+      await runtime.close()
       await rm(cwd, { recursive: true, force: true })
     }
   }

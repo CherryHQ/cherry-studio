@@ -522,15 +522,26 @@ export function buildAgentToolFlowProjection(
     const selectedOutput =
       selectedToolOutput !== undefined
         ? selectedToolOutput
-        : selectedToolPart
-          ? getToolPartOutput(selectedToolPart)
+        : selectedToolPart && 'output' in selectedToolPart
+          ? selectedToolPart.output
           : undefined
     const selectedOutputText = textFromContent(selectedOutput)
+    const details = isRecord(selectedOutput) ? selectedOutput.details : undefined
+    const isPiSubagentReceipt =
+      selectedToolPart &&
+      isToolUIPart(selectedToolPart) &&
+      getToolName(selectedToolPart) === 'subagent' &&
+      isRecord(details) &&
+      typeof details.sessionId === 'string' &&
+      typeof details.background === 'boolean'
+    const hasChildText = assistantParts.some((part) => part.type === 'text' && part.text.trim())
     // A detached Agent result is only a control receipt and may expose internal ids or paths. Its
     // actual conversation already arrives through the child flow parts collected above.
-    const outputText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
-      ? undefined
-      : selectedOutputText
+    const outputText =
+      isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText) ||
+      (isPiSubagentReceipt && (details.background || hasChildText))
+        ? undefined
+        : selectedOutputText
     if (outputText) assistantParts.push({ type: 'text', text: outputText })
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
