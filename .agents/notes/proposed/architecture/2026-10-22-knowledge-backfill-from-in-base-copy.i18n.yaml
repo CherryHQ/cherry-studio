@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-22-knowledge-backfill-from-in-base-copy.md
-2026-10-22-knowledge-backfill-from-in-base-copy.md: 39730b6de2046474705f5ed4e56ea49833e13a45
-2026-10-22-knowledge-backfill-from-in-base-copy.zh.md: efd63c9bc86e0326dc8e2863b119d36a916cebed
+2026-10-22-knowledge-backfill-from-in-base-copy.md: f99ef377128a47e543328500cf9ccb3b5dd17dae
+2026-10-22-knowledge-backfill-from-in-base-copy.zh.md: d27bac0b63abf5e4b77e0d5ae5220cea740b57c3

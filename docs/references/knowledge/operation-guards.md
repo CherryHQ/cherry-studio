@@ -265,9 +265,12 @@ exist: the backfill never reads them.
 
 Under the base mutation lock, one write transaction persists the
 model/dimensions through `KnowledgeBaseService.updateTx(..., { allowEmbeddingModelBackfill: true })`
-and moves every non-deleting `completed`/`failed` leaf to `processing`
-(`activateSettledLeavesTx`), rolling their containers up to `processing`. Either
-both commit or neither does, so no leaf reads as `completed` without vectors.
+and moves every `completed` leaf to `processing` (`activateCompletedLeavesTx`),
+rolling their containers up to `processing`. Either both commit or neither does,
+so no leaf reads as `completed` without vectors. `failed` leaves keep their
+status and error: search never returns them, and any later reindex indexes them
+with the model. A failed URL may also have no snapshot, and scheduling it would
+fetch the page.
 After the lock, each activated leaf goes through `scheduleItem` like a newly
 added item: its own `knowledge.index-documents` job reads the `raw/` file, its
 pinned processed artifact, or the captured URL/note snapshot, and
@@ -330,7 +333,7 @@ When changing these operations, check the operation-specific failure behavior be
 | `addItems` | Reject | N/A | Conflict strategy | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` (uncommitted; same transaction as enqueue) | Roll back to the previous status |
 | `reindexItems` | Reject | Yes | Entire subtree terminal; selected root sources available | None | Throw; no active state was written |
-| `enableEmbeddingModel` | Reject | All non-deleting leaves | BM25-only base; every root subtree terminal (no source check) | Model/dimensions and every leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
+| `enableEmbeddingModel` | Reject | All `completed` leaves | BM25-only base; every root subtree terminal (no source check) | Model/dimensions and every `completed` leaf's `processing` in one transaction | Mark that leaf `failed`; schedule the rest; config remains enabled |
 | `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

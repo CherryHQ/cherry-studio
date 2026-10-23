@@ -482,20 +482,20 @@ export class KnowledgeItemService {
   }
 
   /**
-   * Move every settled (`completed`/`failed`) leaf of a base back to `processing` on the caller's
-   * transaction and roll their containers up, so the leaves read as unfinished until each is indexed again.
+   * Move every `completed` leaf of a base back to `processing` on the caller's transaction and roll
+   * their containers up, so the leaves read as unfinished until each is indexed again.
    *
    * @returns The activated leaf ids, oldest first.
    */
-  activateSettledLeavesTx(tx: DbOrTx, baseId: string): string[] {
+  activateCompletedLeavesTx(tx: DbOrTx, baseId: string): string[] {
     const rows = tx
       .update(knowledgeItemTable)
-      .set({ status: 'processing', error: null })
+      .set({ status: 'processing' })
       .where(
         and(
           eq(knowledgeItemTable.baseId, baseId),
           ne(knowledgeItemTable.type, 'directory'),
-          inArray(knowledgeItemTable.status, ['completed', 'failed'])
+          eq(knowledgeItemTable.status, 'completed')
         )
       )
       .returning({

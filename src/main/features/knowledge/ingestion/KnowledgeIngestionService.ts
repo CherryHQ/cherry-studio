@@ -303,9 +303,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * update` still rejects switching an already-configured model this way; that case
    * keeps going through `restoreBase` because it does invalidate existing vectors.
    *
-   * The model and every leaf's move back to `processing` commit in one transaction, so no
-   * leaf reads as `completed` without vectors, even after a quit. Each leaf is then indexed by
+   * The model and every `completed` leaf's move back to `processing` commit in one transaction, so
+   * no leaf reads as `completed` without vectors, even after a quit. Each leaf is then indexed by
    * its own regular job from the base's own copy; nothing is re-acquired from the originals.
+   * `failed` leaves are left alone: they are not searchable, and any later reindex embeds them.
    */
   async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
@@ -319,7 +320,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const { updatedBase, leafItemIds } = await this.knowledgeLockManager.runExclusive(baseId, () =>
       application.get('DbService').withWriteTx((tx) => ({
         updatedBase: knowledgeBaseService.updateTx(tx, baseId, patch, { allowEmbeddingModelBackfill: true }),
-        leafItemIds: knowledgeItemService.activateSettledLeavesTx(tx, baseId)
+        leafItemIds: knowledgeItemService.activateCompletedLeavesTx(tx, baseId)
       }))
     )
 

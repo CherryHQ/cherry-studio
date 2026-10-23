@@ -388,9 +388,9 @@ describe('KnowledgeService integration', () => {
     const URL_ID = '0198f3f2-7d3c-7abc-8def-123456789abc'
     const DIR_ID = '0198f3f2-7d3d-7abc-8def-123456789abc'
     const CHILD_ID = '0198f3f2-7d3e-7abc-8def-123456789abc'
-    const FAILED_NOTE_ID = '0198f3f2-7d3f-7abc-8def-123456789abc'
+    const FAILED_URL_ID = '0198f3f2-7d3f-7abc-8def-123456789abc'
     const DELETING_NOTE_ID = '0198f3f2-7d40-7abc-8def-123456789abc'
-    const LEAF_IDS = [FILE_ID, NOTE_ID, URL_ID, CHILD_ID, FAILED_NOTE_ID]
+    const LEAF_IDS = [FILE_ID, NOTE_ID, URL_ID, CHILD_ID]
 
     // Originals live under a path that does not exist, as if the user had moved them after importing.
     const seedBm25Base = async () => {
@@ -443,11 +443,12 @@ describe('KnowledgeService integration', () => {
           type: 'file',
           data: { source: '/moved/docs/a.md', relativePath: path('docs/a.md') }
         }),
-        row(FAILED_NOTE_ID, {
+        // Its first fetch failed, so it never captured a snapshot.
+        row(FAILED_URL_ID, {
           status: 'failed',
-          error: 'boom',
-          type: 'note',
-          data: { source: 'Failed', content: 'Failed\nbody' }
+          error: 'fetch failed',
+          type: 'url',
+          data: { source: 'https://unreachable.example', url: 'https://unreachable.example' }
         }),
         row(DELETING_NOTE_ID, {
           status: 'deleting',
@@ -469,7 +470,7 @@ describe('KnowledgeService integration', () => {
     const enable = (service: InstanceType<typeof KnowledgeService>) =>
       service.enableEmbeddingModel(BM25_BASE_ID, { embeddingModelId, dimensions: 1536 })
 
-    it('takes every leaf out of completed with the model, then indexes each leaf from the in-base copy', async () => {
+    it('takes every completed leaf out of completed with the model, then indexes each from the in-base copy', async () => {
       await seedBm25Base()
       const service = new KnowledgeService()
 
@@ -480,6 +481,8 @@ describe('KnowledgeService integration', () => {
         expect((await statusOf(id)).status).toBe('processing')
       }
       expect((await statusOf(DELETING_NOTE_ID)).status).toBe('deleting')
+      // Scheduling the snapshotless url would fetch it; a failed leaf keeps its own error instead.
+      expect(await statusOf(FAILED_URL_ID)).toMatchObject({ status: 'failed', error: 'fetch failed' })
       // One regular indexing job per leaf, even though every original is gone; nothing re-acquires
       // from the originals and the pinned processed artifact is indexed without reprocessing.
       expect([...indexedItemIds()].sort()).toEqual([...LEAF_IDS].sort())
@@ -497,7 +500,7 @@ describe('KnowledgeService integration', () => {
       knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
 
       expect((await statusOf(NOTE_ID)).status).toBe('completed')
-      for (const id of [FILE_ID, URL_ID, CHILD_ID, FAILED_NOTE_ID]) {
+      for (const id of [FILE_ID, URL_ID, CHILD_ID]) {
         expect(await statusOf(id)).toMatchObject({ status: 'failed', error: KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED })
       }
     })
@@ -505,7 +508,7 @@ describe('KnowledgeService integration', () => {
     it('commits neither the model nor any status when activating the leaves fails', async () => {
       await seedBm25Base()
       const service = new KnowledgeService()
-      const activate = vi.spyOn(knowledgeItemService, 'activateSettledLeavesTx').mockImplementationOnce(() => {
+      const activate = vi.spyOn(knowledgeItemService, 'activateCompletedLeavesTx').mockImplementationOnce(() => {
         throw new Error('activation failed')
       })
 
@@ -532,7 +535,7 @@ describe('KnowledgeService integration', () => {
         status: 'failed',
         error: 'Failed to schedule knowledge item job: queue unavailable'
       })
-      expect(indexedItemIds()).toEqual(expect.arrayContaining([FILE_ID, NOTE_ID, CHILD_ID, FAILED_NOTE_ID]))
+      expect(indexedItemIds()).toEqual(expect.arrayContaining([FILE_ID, NOTE_ID, CHILD_ID]))
     })
 
     it('rejects while an item of the base is still running, before committing the model', async () => {
