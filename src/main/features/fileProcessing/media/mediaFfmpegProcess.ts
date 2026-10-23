@@ -10,6 +10,8 @@ import { getBinaryName } from '@main/utils/binaryResolver'
 export interface MediaFfmpegInitData {
   ffmpegPath: string
   ffprobePath: string
+  /** Bundled Linux `ffmpeg/lib`. Absent on Darwin and Windows. */
+  linuxLibraryDir?: string
 }
 
 export interface MediaProbeInput {
@@ -64,19 +66,26 @@ export const mediaFfmpegProcess = defineUtilityProcess<MediaFfmpegContract, Medi
   entry: 'media-ffmpeg',
   cancellation: 'cooperative',
   idleTimeoutMs: 5 * 60 * 1000,
-  // Read the immutable packaged tree, never a mutable user tool copy.
-  createInitData: () => ({
-    ffmpegPath: packagedMediaBinary('ffmpeg'),
-    ffprobePath: packagedMediaBinary('ffprobe')
-  })
+  createInitData: () => {
+    if (process.platform === 'linux') {
+      return {
+        ffmpegPath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffmpeg')),
+        ffprobePath: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.bin', 'ffprobe')),
+        linuxLibraryDir: toAsarUnpackedPath(application.getPath('feature.file_processing.ffmpeg.lib'))
+      }
+    }
+    // Read the immutable packaged tree, never a mutable user tool copy.
+    return {
+      ffmpegPath: packagedMediaBinary('ffmpeg'),
+      ffprobePath: packagedMediaBinary('ffprobe')
+    }
+  }
 })
 
+function packagedPlatformDir(): string {
+  return path.join(application.getPath('app.root.resources.binaries'), `${process.platform}-${process.arch}`)
+}
+
 function packagedMediaBinary(name: string): string {
-  return toAsarUnpackedPath(
-    path.join(
-      application.getPath('app.root.resources.binaries'),
-      `${process.platform}-${process.arch}`,
-      getBinaryName(name)
-    )
-  )
+  return toAsarUnpackedPath(path.join(packagedPlatformDir(), getBinaryName(name)))
 }
