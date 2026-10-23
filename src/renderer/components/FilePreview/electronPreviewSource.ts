@@ -3,24 +3,29 @@ import { ipcApi } from '@renderer/ipc'
 import type { AbsoluteFilePath, FileVersion } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
-import type { FilePreviewFileMetadata } from './types'
+import type { FilePreviewFileMetadata, FilePreviewMetadataRequest } from './types'
 
 const RANGE_CHUNK_SIZE_BYTES = 1024 * 1024
 
 export function createElectronPreviewSource(
   filePath: AbsoluteFilePath,
   name: string,
-  metadata: FilePreviewFileMetadata
+  metadata: FilePreviewFileMetadata | FilePreviewMetadataRequest
 ): PreviewSource {
-  const size = metadata.size
-  // file.read reports a floored mtime; the metadata type does not promise one.
-  const mtime = Math.floor(metadata.modifiedAt)
   const handle = createFilePathHandle(filePath)
   return {
     id: filePath,
     name,
     async open(signal) {
       signal?.throwIfAborted()
+      const openedMetadata = typeof metadata === 'function' ? await metadata() : metadata
+      signal?.throwIfAborted()
+      if (!openedMetadata || ('kind' in openedMetadata && openedMetadata.kind !== 'file')) {
+        throw new PreviewError('load_error', 'Preview target is not an available file')
+      }
+      const size = openedMetadata.size
+      // file.read reports a floored mtime; the metadata type does not promise one.
+      const mtime = Math.floor(openedMetadata.modifiedAt)
       let closed = false
       const accept = (content: Uint8Array, version: FileVersion, expectedLength: number, offset: number) => {
         if (closed) throw new PreviewError('closed', 'Preview source is closed')
