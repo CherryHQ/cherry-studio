@@ -437,7 +437,8 @@ export function useFollowupQueue({
   // Scoped slots, so a pending Resume in one conversation is never overwritten
   // by a Pause in another.
   const pausedInflightRef = useRef(new Set<string>())
-  const pausedQueuedRef = useRef(new Map<string, boolean>())
+  const pausedQueuedRef = useRef(new Map<string, { paused: boolean; generation: number }>())
+  const pausedGenerationRef = useRef(new Map<string, number>())
 
   // Track mount state for background timers. Resolve retries intentionally
   // survive unmount (a sent row must still be dequeued); claim retries stop.
@@ -907,26 +908,33 @@ export function useFollowupQueue({
   const setPaused = useCallback(
     (nextPaused: boolean) => {
       const scope = scopeKeyRef.current
+      // Each toggle owns a generation: only the latest request's failure may
+      // release the hold, so an obsolete failure cannot delete a newer
+      // Pause (cherry-pr-review inv_b1a53e2ac3bacba5).
+      const generation = (pausedGenerationRef.current.get(scope) ?? 0) + 1
+      pausedGenerationRef.current.set(scope, generation)
       setPausedOverrides((prev) => ({ ...prev, [scope]: nextPaused }))
-      const request = { scopeKey: scope, paused: nextPaused }
+      const request = { scopeKey: scope, paused: nextPaused, generation }
       // Coalesce rapid toggles within this scope: only the latest queued
       // request is sent after the in-flight PUT settles, so the server ends
       // with the user's choice. Other scopes' writes are untouched.
       if (pausedInflightRef.current.has(scope)) {
-        pausedQueuedRef.current.set(scope, nextPaused)
+        pausedQueuedRef.current.set(scope, { paused: nextPaused, generation })
         return
       }
       pausedInflightRef.current.add(scope)
-      const send = async (current: { scopeKey: string; paused: boolean }) => {
+      const send = async (current: { scopeKey: string; paused: boolean; generation: number }) => {
         try {
           await setPausedTrigger({ body: { scopeKey: current.scopeKey, paused: current.paused } })
         } catch {
           toast.error(t('message.error.operation_unavailable'))
           // Release the optimistic hold so a failed Pause cannot park the
-          // drain. Only clear when the hold still matches this request: a
-          // newer toggle issued mid-flight owns the hold now.
+          // drain. Only this request's generation may clear it: a newer
+          // toggle issued mid-flight owns the hold now, and an obsolete
+          // failure must not release that newer hold (Boolean equality
+          // cannot tell them apart) (cherry-pr-review inv_b1a53e2ac3bacba5).
           setPausedOverrides((prev) => {
-            if (prev[current.scopeKey] !== current.paused) return prev
+            if (pausedGenerationRef.current.get(current.scopeKey) !== current.generation) return prev
             const next = { ...prev }
             delete next[current.scopeKey]
             return next
@@ -938,7 +946,7 @@ export function useFollowupQueue({
         let queued = pausedQueuedRef.current.get(scope)
         while (queued !== undefined) {
           pausedQueuedRef.current.delete(scope)
-          await send({ scopeKey: scope, paused: queued })
+          await send({ scopeKey: scope, paused: queued.paused, generation: queued.generation })
           queued = pausedQueuedRef.current.get(scope)
         }
         pausedInflightRef.current.delete(scope)

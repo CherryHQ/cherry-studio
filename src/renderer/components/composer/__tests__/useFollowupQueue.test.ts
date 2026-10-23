@@ -2928,6 +2928,55 @@ describe('useFollowupQueue', () => {
     expect(result.current.paused).toBe(true)
   })
 
+  it('keeps the newest Pause hold when an older Pause write fails mid-toggle (inv_b1a53e2ac3bacba5)', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let rejectFirst!: (reason?: unknown) => void
+    setPausedTrigger
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectFirst = reject
+          })
+      )
+      .mockResolvedValue({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '' } as any)
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })),
+      { initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } } }
+    )
+
+    // Pause -> Resume -> Pause while the first PUT is in flight: the newest
+    // request owns the optimistic hold.
+    act(() => {
+      result.current.setPaused(true)
+    })
+    act(() => {
+      result.current.setPaused(false)
+    })
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    // The FIRST write fails now: its obsolete failure must not release the
+    // newer Pause hold - Boolean equality would delete it and persisted
+    // unpaused would permit automatic delivery.
+    await act(async () => {
+      rejectFirst(new Error('network down'))
+    })
+    expect(result.current.paused).toBe(true)
+
+    // A completion edge in that window stays parked until the final write
+    // settles.
+    await act(async () => {
+      rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+    })
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
+  })
+
   it('retains a pending Pause per scope when another scope pauses before the write settles', async () => {
     // Pause assistant A while its PUT awaits retry, switch to assistant B in
     // the same topic (the composer stays mounted) and pause it, then return
