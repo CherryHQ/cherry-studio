@@ -416,6 +416,12 @@ const RichEditor = ({
     })
   }
 
+  useEffect(() => {
+    if (!editable) {
+      closeTableActionMenu()
+    }
+  }, [editable])
+
   const handlePlusButtonClick = useCallback(
     (event: MouseEvent) => {
       // 防止事件冒泡

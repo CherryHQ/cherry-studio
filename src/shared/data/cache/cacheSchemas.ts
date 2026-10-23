@@ -373,6 +373,12 @@ export type SharedCacheSchema = {
   // mirrors the linked file-processing job's progress here every poll round so the row can
   // show a percentage during the 'processing' wait; absence means no progress was reported.
   'knowledge.item.file_processing_progress.${itemId}': number | null
+  /**
+   * Roots a notes library has occupied in this session, oldest first, ending at
+   * the live one. Lets a selection parked on any earlier root follow the library
+   * across several consecutive migrations.
+   */
+  'notes.directory_root_transition': { roots: string[] } | undefined
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -416,7 +422,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
   'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null,
-  'knowledge.item.file_processing_progress.${itemId}': null
+  'knowledge.item.file_processing_progress.${itemId}': null,
+  'notes.directory_root_transition': undefined
 }
 
 /**

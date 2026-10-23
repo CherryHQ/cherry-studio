@@ -8,13 +8,15 @@ import { loggerService } from '@logger'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
-import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
+import { useNotesFileEditSession } from '@renderer/pages/notes/NotesFileEditSessionProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { consumeNotesDirectoryRootTransition } from '@renderer/services/notesDirectoryRootTransition'
+import { blockNotesActionsDuringMigration } from '@renderer/services/notesMigrationGuard'
 import {
   addDir,
   addNote,
@@ -37,7 +39,7 @@ import { toast } from '@renderer/services/toast'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle, type DirectoryTreeOptions, type TreeMutationEvent } from '@shared/utils/file'
+import { type DirectoryTreeOptions, type TreeMutationEvent } from '@shared/utils/file'
 
 import HeaderNavbar from './HeaderNavbar'
 import NotesEditor, { NotesEditorLoading } from './NotesEditor'
@@ -76,15 +78,12 @@ const NotesPage: FC = () => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
-  const activeFileHandle = useMemo(
-    () => (activeFilePath ? createFilePathHandle(activeFilePath) : undefined),
-    [activeFilePath]
-  )
-  const fileSession = useFileEditSession(activeFileHandle)
+  const fileSession = useNotesFileEditSession()
   const {
     discard: discardFileDraft,
     flush: flushFileDraft,
     notifyExternalChange,
+    refreshFromDiskIfClean,
     reload: reloadFileDraft,
     setDraft: setFileDraft
   } = fileSession
@@ -154,6 +153,13 @@ const NotesPage: FC = () => {
     toast.error(t('notes.tree_load_failed'))
   }, [treeError, notesPath, treeId, t])
 
+  useEffect(() => {
+    if (!activeFilePath || fileSession.isDirty || fileSession.status !== 'ready') {
+      return
+    }
+    void refreshFromDiskIfClean()
+  }, [activeFilePath, fileSession.isDirty, fileSession.status, treeVersion, refreshFromDiskIfClean])
+
   const requestFileTransition = useCallback(
     (transition: () => void) => {
       if (fileSession.isDirty) {
@@ -198,11 +204,25 @@ const NotesPage: FC = () => {
     })
   }, [])
 
+  // Notes-root transitions (migration / fallback): remembered until the new
+  // tree is projected so the active selection can follow the moved library.
+  // The chain ends at the live root, so a selection parked on any earlier root
+  // still maps even after several consecutive migrations.
+  const notesRootTransitionRef = useRef<string[] | null>(null)
+  const lastSeenNotesPathRef = useRef<string | undefined>(notesPath)
+
   // Project the FS tree (from `useDirectoryTree`) into the legacy
   // `NotesTreeNode[]` shape every time the FS changes — watcher events
   // bump `treeVersion`, the user toggling sort changes `sortType`, and
   // the initial mount triggers when `treeRoot` first becomes non-null.
   useEffect(() => {
+    if (lastSeenNotesPathRef.current !== notesPath) {
+      notesRootTransitionRef.current =
+        notesPath && lastSeenNotesPathRef.current ? consumeNotesDirectoryRootTransition(notesPath) : null
+      lastSeenNotesPathRef.current = notesPath
+    } else if (notesPath && !notesRootTransitionRef.current) {
+      notesRootTransitionRef.current = consumeNotesDirectoryRootTransition(notesPath)
+    }
     if (!treeRoot || !notesPath) {
       setNotesTree([])
       setHasProjectedTree(false)
@@ -298,12 +318,18 @@ const NotesPage: FC = () => {
   }, [contentLoadError, t])
 
   useEffect(() => {
+    const persistNotesPath = (nextPath: string) =>
+      updateNotesPath(nextPath).catch((error: unknown) => logger.error('Failed to persist notes path:', error as Error))
+
     async function initialize() {
       if (!notesPath) {
         // 首次启动，获取默认路径
-        const info = await ipcApi.request('app.get_info')
-        const defaultPath = info.notesPath
-        updateNotesPath(defaultPath)
+        try {
+          const info = await ipcApi.request('app.get_info')
+          void persistNotesPath(info.notesPath)
+        } catch (error) {
+          logger.error('Failed to initialize default notes path:', error as Error)
+        }
         return
       }
 
@@ -320,8 +346,12 @@ const NotesPage: FC = () => {
           defaultPath
         })
 
-        // 重置为默认路径
-        updateNotesPath(defaultPath)
+        toast.warning({
+          title: t('notes.directory_unavailable_fallback', { path: defaultPath }),
+          timeout: 10000
+        })
+
+        void persistNotesPath(defaultPath)
 
         // 检查默认路径下是否有笔记文件
         try {
@@ -367,6 +397,21 @@ const NotesPage: FC = () => {
       !isCreatingNoteRef.current
 
     if (shouldClearPath) {
+      // A notes-root change may have moved the selected note to the same
+      // relative location in the new directory — follow it instead of clearing.
+      const chain = notesRootTransitionRef.current
+      const activePath = activeFilePath ? normalizePathValue(activeFilePath) : ''
+      // The selection can sit on any root the library has occupied; hops are
+      // non-nesting, so at most one contains it. Map that one to the live root so
+      // a window lagging a migration behind still follows instead of clearing.
+      const sourceRoot = chain?.find((root) => activePath.startsWith(`${root}/`))
+      const liveRoot = chain?.at(-1)
+      const mappedPath = sourceRoot && liveRoot ? `${liveRoot}${activePath.slice(sourceRoot.length)}` : undefined
+      if (mappedPath && findNodeByPath(notesTree, mappedPath)?.type === 'file') {
+        notesRootTransitionRef.current = null
+        requestFileTransition(() => setActiveFilePath(AbsoluteFilePathSchema.parse(mappedPath)))
+        return
+      }
       logger.warn('Clearing activeFilePath - node not found in tree', {
         activeFilePath,
         reason: 'Node not found in current tree'
@@ -531,6 +576,9 @@ const NotesPage: FC = () => {
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string, targetFolderId?: string) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         const targetPath = getTargetFolderPath(targetFolderId)
         if (!targetPath) {
@@ -549,6 +597,9 @@ const NotesPage: FC = () => {
 
   const createNote = useCallback(
     async (name: string, targetFolderId?: string) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         isCreatingNoteRef.current = true
 
@@ -636,6 +687,9 @@ const NotesPage: FC = () => {
   // 删除节点
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         const nodeToDelete = findNode(notesTree, nodeId)
         if (!nodeToDelete) return
@@ -691,6 +745,9 @@ const NotesPage: FC = () => {
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         isRenamingRef.current = true
 
@@ -777,6 +834,9 @@ const NotesPage: FC = () => {
   // 处理文件上传
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
+      if (blockNotesActionsDuringMigration(t)) {
+        return
+      }
       try {
         if (!files || files.length === 0) {
           toast.warning(t('notes.no_file_selected'))
@@ -842,6 +902,9 @@ const NotesPage: FC = () => {
   const handleMoveNode = useCallback(
     async (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => {
       if (!notesPath) {
+        return
+      }
+      if (blockNotesActionsDuringMigration(t)) {
         return
       }
 
