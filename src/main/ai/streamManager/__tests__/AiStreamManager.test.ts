@@ -1963,28 +1963,64 @@ describe('AiStreamManager', () => {
 
       const suspended = mgr.suspendUnadmittedRuntimeTurn(topicId)
 
-      // The renderer's stream closes with the suspension: its terminal
-      // NoResponseError arrives at suspend time, before the upstream closes.
-      expect(renderer.errorResults).toHaveLength(1)
-      expect(renderer.errorResults[0]).toMatchObject({ error: { name: 'NoResponseError' } })
-      expect(renderer.errorResults[0].isTopicDone).toBe(true)
+      // Suspension is not terminal for the renderer: the deferred turn resumes
+      // after the preempting generation, so no error fires at suspend time
+      // (cherry-pr-review inv_08c1f8600f4b7796).
+      expect(renderer.errorResults).toEqual([])
+      expect(renderer.doneResults).toEqual([])
 
       feed.close()
       await suspended
 
-      // The renderer was detached at suspend: no late continuation events.
-      expect(renderer.doneResults).toEqual([])
       // Persistence and runtime listeners were detached without terminal events.
       expect(persistence.doneResults).toEqual([])
       expect(runtime.doneResults).toEqual([])
       expect(persistence.errorResults).toEqual([])
       expect(runtime.errorResults).toEqual([])
-      // Channel-class listeners keep continuation semantics: the empty turn
-      // completes as an ordinary continuation, not a failure
-      // (cherry-pr-review).
+      // Renderer- and channel-class listeners keep continuation semantics: the
+      // empty close completes as an ordinary continuation, not a failure.
       expect(channel.errorResults).toEqual([])
       expect(channel.doneResults).toHaveLength(1)
       expect(channel.doneResults[0].isTopicDone).toBe(false)
+      expect(renderer.errorResults).toEqual([])
+      expect(renderer.doneResults).toHaveLength(1)
+      expect(renderer.doneResults[0].isTopicDone).toBe(false)
+    })
+
+    it('carries renderer listeners into the resumed runtime turn after suspension', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1'
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const renderer = new FakeListener(`wc:1:${topicId}`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [renderer]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      const suspended = mgr.suspendUnadmittedRuntimeTurn(topicId)
+      feed.close()
+      await suspended
+      expect(renderer.doneResults).toHaveLength(1)
+
+      // Resumption: the deferred turn restarts and the suspended renderer
+      // listener is carried into the new execution (cherry-pr-review
+      // inv_08c1f8600f4b7796).
+      const resumedFeed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(resumedFeed.stream)
+      mgr.startRuntimeTurn({
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: []
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalledTimes(2))
+      resumedFeed.close()
+      await vi.waitFor(() => expect(renderer.doneResults).toHaveLength(2))
+      expect(renderer.errorResults).toEqual([])
     })
 
     it('does not let trace flush failure block terminal completion', async () => {

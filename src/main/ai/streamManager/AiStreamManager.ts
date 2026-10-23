@@ -1005,36 +1005,15 @@ export class AiStreamManager extends BaseService {
       }
     }
 
-    // The renderer's stream closes with the suspension: surface the empty turn
-    // as the terminal NoResponseError to renderer listeners only, then detach
-    // them. Other listener classes (channel:, remote:, sse:) keep continuation
-    // semantics — the preempting receive-only turn completes them with an
-    // ordinary isTopicDone=false instead of a failure classification
-    // (cherry-pr-review).
-    const noResponseError: SerializedError = {
-      name: 'NoResponseError',
-      message: 'No response',
-      stack: null,
-      i18nKey: 'no_response'
-    }
-    for (const listener of stream.listeners.values()) {
-      if (!isRendererListener(listener) || listener.terminalPhase) continue
-      try {
-        void listener.onError({
-          error: noResponseError,
-          status: 'error',
-          modelId: undefined,
-          attemptId: undefined,
-          userMessageId: undefined,
-          topicAttemptWatermark: this.getTopicAttemptWatermark(stream),
-          anchorMessageId: undefined,
-          isTopicDone: true
-        })
-      } catch (err) {
-        logger.warn('suspendUnadmittedRuntimeTurn renderer listener threw', { topicId, err })
-      }
-      stream.listeners.delete(listener.id)
-    }
+    // The suspended turn is retained for resumption: deferTurnForReceiveOnly
+    // re-launches it once the preempting receive-only generation releases the
+    // connection. No listener is terminalized here - renderer (wc:) listeners
+    // stay attached, the empty upstream close completes every listener with
+    // continuation semantics (done, isTopicDone=false via willContinueTopic),
+    // and startRuntimeTurn carries the listeners into the resumed turn. A
+    // genuinely empty RESUMED turn still surfaces the NoResponseError through
+    // the ordinary close classification (cherry-pr-review
+    // inv_08c1f8600f4b7796).
 
     await Promise.allSettled([...stream.executions.values()].map((execution) => execution.loopPromise))
   }
