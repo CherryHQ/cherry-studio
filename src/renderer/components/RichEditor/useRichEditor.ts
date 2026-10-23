@@ -8,6 +8,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
+import {
+  areNotesEditsLockedForRelocation,
+  hasPendingNotesImagePastes,
+  trackPendingNotesImagePaste
+} from '@renderer/hooks/notesFileEditFlush'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import { createRichEditorExtensions } from './createExtensions'
@@ -43,6 +48,8 @@ export interface UseRichEditorOptions {
   ariaLabel?: string
   /** Whether users can insert images */
   enableImageInsertion?: boolean
+  /** Coordinate in-flight image pastes with notes directory relocation */
+  trackImagePastesForRelocation?: boolean
   /** Slash-menu commands hidden for this editor instance */
   disabledCommands?: readonly string[]
   /** Show table action menu (row/column) with concrete actions and position */
@@ -100,6 +107,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     enableSpellCheck = false,
     ariaLabel,
     enableImageInsertion = true,
+    trackImagePastesForRelocation = false,
     disabledCommands,
     onShowTableActionMenu,
     scrollParent
@@ -303,10 +311,17 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const htmlHasImage = htmlDoc?.querySelector('img') != null
 
         if (imageItem && enableImageInsertion) {
+          if (trackImagePastesForRelocation && areNotesEditsLockedForRelocation()) {
+            return true
+          }
           const file = imageItem.getAsFile()
           if (file) {
-            // Handle image paste by saving to local storage
-            void handleImagePaste(file)
+            const paste = handleImagePaste(file)
+            if (trackImagePastesForRelocation) {
+              void trackPendingNotesImagePaste(paste)
+            } else {
+              void paste
+            }
             return true
           }
         }
@@ -385,7 +400,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onUpdate: ({ editor, transaction }) => {
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
-      if (!editable || !transaction.docChanged || !editor.isFocused) return
+      const drainInFlightImagePaste =
+        trackImagePastesForRelocation && areNotesEditsLockedForRelocation() && hasPendingNotesImagePastes()
+      if ((!editable && !drainInFlightImagePaste) || !transaction.docChanged || !editor.isFocused) return
 
       const content = editor.getText()
       try {

@@ -7,6 +7,8 @@ import { DictationShortcutHost } from '@renderer/components/DictationShortcutHos
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
+import { NotesFileEditSessionProvider } from '@renderer/components/notes/NotesFileEditSessionProvider'
+import { NotesRelocationFlushListener } from '@renderer/components/notes/NotesRelocationFlushListener'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
@@ -46,7 +48,10 @@ function SubWindowApp(): React.ReactElement {
           <CommandContextKeyProvider>
             <CommandProvider>
               <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <SubWindowAppShell />
+                <NotesFileEditSessionProvider>
+                  <NotesRelocationFlushListener />
+                  <SubWindowAppShell />
+                </NotesFileEditSessionProvider>
                 <SubWindowRuntime />
                 <ConversationNotificationRuntime />
                 <McpInteractionHost />

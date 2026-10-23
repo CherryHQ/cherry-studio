@@ -46,6 +46,12 @@ vi.mock('@renderer/components/ThemeProvider', () => ({
     throw new Error('theme provider boom')
   }
 }))
+vi.mock('@renderer/components/notes/NotesFileEditSessionProvider', () => ({
+  NotesFileEditSessionProvider: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
+vi.mock('@renderer/components/notes/NotesRelocationFlushListener', () => ({
+  NotesRelocationFlushListener: () => null
+}))
 
 import MainApp, { MainWindowContent } from '../MainApp'
 

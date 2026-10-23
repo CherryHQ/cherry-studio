@@ -12,6 +12,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
+import { resetNotesEditFlushTrackingForTests } from '../notesFileEditFlush'
 import { FILE_EDIT_MAX_SIZE_BYTES, useFileEditSession } from '../useFileEditSession'
 
 const path = '/ws/notes.txt' as AbsoluteFilePath
@@ -44,6 +45,7 @@ function renderSession() {
 
 beforeEach(() => {
   ipcMocks.request.mockReset()
+  resetNotesEditFlushTrackingForTests()
 })
 
 afterEach(() => {
@@ -779,5 +781,135 @@ describe('useFileEditSession', () => {
     const { result } = renderSession()
     await waitFor(() => expect(result.current.status).toBe('unsupported'))
     expect(result.current.unsupportedReason).toBe('mixed-line-endings')
+  })
+
+  it('accepts draft updates while autosave is suppressed without scheduling a write', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+    const suppressAutosave = vi.fn(() => true)
+    const { result } = renderHook(() => useFileEditSession(handle, { suppressAutosave }), { wrapper })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    act(() => result.current.setDraft('with image\n'))
+    expect(result.current.draft).toBe('with image\n')
+    expect(result.current.isDirty).toBe(true)
+    expect(writeCalls()).toHaveLength(0)
+    expect(suppressAutosave).toHaveBeenCalled()
+  })
+
+  it('rejects a departing relocation flush when unmount cannot persist a dirty draft', async () => {
+    vi.useFakeTimers()
+    try {
+      const diskFull = new Error('disk full')
+
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('clean\n')))
+      const { result, unmount } = renderHook(
+        () => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }),
+        { wrapper }
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      act(() => result.current.setDraft('dirty\n'))
+
+      ipcMocks.request.mockImplementation((route: string) => {
+        if (route === 'file.write_if_unchanged') {
+          return Promise.reject(diskFull)
+        }
+        return Promise.reject(new Error(`unexpected route: ${route}`))
+      })
+
+      await act(async () => {
+        unmount()
+        const { flushAllNotesEdits } = await import('../notesFileEditFlush')
+        await expect(flushAllNotesEdits()).rejects.toBe(diskFull)
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not track a departing relocation write after discarding a conflicted draft', async () => {
+    const { flushAllNotesEdits } = await import('../notesFileEditFlush')
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result, unmount } = renderHook(
+        () => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }),
+        { wrapper }
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      // Drive an external-change conflict: stale write, verification read diverged.
+      act(() => result.current.setDraft('changed'))
+      ipcMocks.request
+        .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+      expect(result.current.conflict).toBe(true)
+
+      // "Discard and continue": the dialog discards while the model is attached.
+      act(() => result.current.discard())
+      expect(result.current.conflict).toBe(false)
+      expect(result.current.isDirty).toBe(false)
+
+      const writesBeforeFlush = writeCalls().length
+      await act(async () => {
+        unmount()
+        // Nothing can block the flush: a discarded clean model registers nothing.
+        await expect(flushAllNotesEdits()).resolves.toBeUndefined()
+      })
+      expect(writeCalls()).toHaveLength(writesBeforeFlush)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries a failed departing relocation save on a later flush and releases it once it lands', async () => {
+    const { flushAllNotesEdits } = await import('../notesFileEditFlush')
+    vi.useFakeTimers()
+    try {
+      const diskFull = new Error('disk full')
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('clean\n')))
+      const { result, unmount } = renderHook(
+        () => useFileEditSession(handle, { trackDepartingWritesForRelocation: true }),
+        { wrapper }
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      act(() => result.current.setDraft('dirty\n'))
+
+      ipcMocks.request.mockImplementation((route: string) => {
+        if (route === 'file.write_if_unchanged') {
+          return Promise.reject(diskFull)
+        }
+        return Promise.reject(new Error(`unexpected route: ${route}`))
+      })
+
+      await act(async () => {
+        unmount()
+        // Unsafeguarded: the failed departure keeps rejecting the flush.
+        await expect(flushAllNotesEdits()).rejects.toBe(diskFull)
+      })
+
+      // The environment recovers (e.g. freed disk space); the next flush retries the save.
+      ipcMocks.request.mockImplementation(() => Promise.resolve(writeResult(5, 8)))
+      await act(async () => {
+        await expect(flushAllNotesEdits()).resolves.toBeUndefined()
+      })
+
+      const writesAfterRetry = writeCalls().length
+      await act(async () => {
+        // Resolved records are removed: no further departing writes happen.
+        await expect(flushAllNotesEdits()).resolves.toBeUndefined()
+      })
+      expect(writeCalls()).toHaveLength(writesAfterRetry)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

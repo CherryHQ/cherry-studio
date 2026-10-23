@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 
 import { loggerService } from '@logger'
+import { trackDepartingNotesFileWrite } from '@renderer/hooks/notesFileEditFlush'
 import { ipcApi } from '@renderer/ipc'
 import type { FileTextLineEnding, UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 import { decodeFileText, encodeFileText, UnsupportedFileTextError } from '@renderer/utils/fileTextSnapshot'
@@ -86,6 +87,8 @@ export interface FileEditSession {
    * callers must not proceed with operations that would lose it.
    */
   flush: () => Promise<void>
+  /** Drops a scheduled debounced autosave without writing. */
+  cancelPendingAutosave: () => void
   /**
    * A watcher observed a change on this file. Pass the event's mtime (ms) when
    * available so a self-save echo is dismissed without any IPC. Dirty models are
@@ -93,6 +96,8 @@ export interface FileEditSession {
    * next autosave through the optimistic write's version check.
    */
   notifyExternalChange: (eventMtimeMs?: number) => void
+  /** Reload from disk when the model is clean (e.g. after the notes tree reconnects). */
+  refreshFromDiskIfIdle: () => Promise<void>
 }
 
 async function readFile(handle: FileHandle): Promise<FileEditSnapshot> {
@@ -130,7 +135,13 @@ const isAmbiguousMtime = (mtime: number) => mtime % 1000 === 0
  * The hook holds one path's state, so call it at a level stable across the
  * consuming view's remounts.
  */
-export function useFileEditSession(handle: FileHandle | undefined): FileEditSession {
+export function useFileEditSession(
+  handle: FileHandle | undefined,
+  options?: { suppressAutosave?: () => boolean; trackDepartingWritesForRelocation?: boolean }
+): FileEditSession {
+  const suppressAutosaveRef = useRef(options?.suppressAutosave)
+  suppressAutosaveRef.current = options?.suppressAutosave
+  const trackDepartingWritesForRelocation = options?.trackDepartingWritesForRelocation ?? false
   const { mutate } = useSWRConfig()
   const handleKey = handle ? keyOf(handle) : null
   const { data, error, isLoading } = useSWR<FileEditSnapshot, Error>(handleKey, () => readFile(handle!), {
@@ -148,6 +159,16 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
   const [ready, setReady] = useState(false)
 
   const modelRef = useRef<FileEditModel | null>(null)
+
+  const cacheSnapshotIfActive = useCallback(
+    (model: FileEditModel, snapshot: FileEditSnapshot) => {
+      if (modelRef.current !== model) {
+        return
+      }
+      void mutate(model.key, snapshot, { revalidate: false })
+    },
+    [mutate]
+  )
 
   // Mirror a model into React state — only while it is still the active model.
   const syncFromModel = useCallback((model: FileEditModel) => {
@@ -183,7 +204,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
           model.lastWriteError = null
           syncFromModel(model)
           // Keep the SWR cache in step so a later reopen sees the saved bytes.
-          void mutate(model.key, model.snapshot, { revalidate: false })
+          cacheSnapshotIfActive(model, model.snapshot)
         } catch (writeError) {
           if (writeError instanceof IpcError && writeError.code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
             logger.warn('Autosave bytes committed; metadata recovery is pending', {
@@ -195,7 +216,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
               model.snapshot = disk
               model.lastWriteError = writeError
               syncFromModel(model)
-              void mutate(model.key, disk, { revalidate: false })
+              cacheSnapshotIfActive(model, disk)
               // The bytes did land. Stop this write loop so the same payload
               // is never retried merely because metadata finalization failed.
               // A later user edit may start a new save against the refreshed
@@ -223,14 +244,14 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
               // Disk already holds exactly what we tried to write.
               model.snapshot = disk
               syncFromModel(model)
-              void mutate(model.key, disk, { revalidate: false })
+              cacheSnapshotIfActive(model, disk)
               continue
             }
             if (disk.content === baseline.content && ++rebases <= MAX_STALE_REBASES) {
               // Metadata-only touch (mtime advanced, content identical) —
               // rebase onto the new version and retry the write.
               model.snapshot = disk
-              void mutate(model.key, disk, { revalidate: false })
+              cacheSnapshotIfActive(model, disk)
               continue
             }
             model.conflict = true
@@ -248,7 +269,10 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
   }
 
   // The running loop re-reads the latest draft, so concurrent requests join it.
-  const requestWrite = useCallback((model: FileEditModel) => {
+  const requestWrite = useCallback((model: FileEditModel, writeOptions?: { force?: boolean }) => {
+    if (!writeOptions?.force && suppressAutosaveRef.current?.()) {
+      return
+    }
     if (model.conflict) return
     void model.writeTask.run(() => runWritesRef.current?.(model) ?? Promise.resolve())
   }, [])
@@ -300,8 +324,26 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     return () => {
       debouncedWrite.cancel()
       const model = modelRef.current
-      if (model && !model.conflict && model.draft !== model.snapshot.content) {
-        requestWrite(model)
+      if (model && (model.conflict || model.draft !== model.snapshot.content)) {
+        const persistDepartingEdits = async () => {
+          if (!model.conflict && model.draft !== model.snapshot.content) {
+            requestWrite(model, { force: true })
+          }
+          await model.writeTask.promise
+          if (model.conflict || model.draft !== model.snapshot.content) {
+            throw model.lastWriteError ?? new Error('Pending edit could not be saved')
+          }
+        }
+        if (trackDepartingWritesForRelocation) {
+          // Start the final write now; relocation flushes rejoin it in flight and
+          // retry it after failures until it lands (tracked attempt, see
+          // notesFileEditFlush). Discarding the draft resolves the model here
+          // first, so a discarded clean model never registers anything.
+          void persistDepartingEdits().catch(() => undefined)
+          trackDepartingNotesFileWrite(persistDepartingEdits)
+        } else {
+          void persistDepartingEdits().catch(() => undefined)
+        }
       }
       modelRef.current = null
       setDraftState('')
@@ -312,12 +354,17 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       setIsSaving(false)
       setReady(false)
     }
-  }, [handleKey, debouncedWrite, requestWrite])
+  }, [handleKey, debouncedWrite, requestWrite, trackDepartingWritesForRelocation])
 
   const setDraft = useCallback(
     (next: string) => {
       const model = modelRef.current
       if (!model) return
+      if (suppressAutosaveRef.current?.()) {
+        model.draft = next
+        setDraftState(next)
+        return
+      }
       model.draft = next
       setDraftState(next)
       if (
@@ -347,6 +394,10 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     debouncedWrite.cancel()
     model.draft = model.snapshot.content
     model.lastWriteError = null
+    // Dropping the draft also resolves the conflict: the model is back to the
+    // exact disk state, so a departing model must not surface a rejected
+    // departing save for content the user explicitly threw away.
+    model.conflict = false
     syncFromModel(model)
   }, [debouncedWrite, syncFromModel])
 
@@ -384,11 +435,15 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     }
   }, [debouncedWrite, mutate, requestWrite, syncFromModel])
 
+  const cancelPendingAutosave = useCallback(() => {
+    debouncedWrite.cancel()
+  }, [debouncedWrite])
+
   const flush = useCallback(async () => {
     const model = modelRef.current
     debouncedWrite.cancel()
     if (!model) return
-    requestWrite(model)
+    requestWrite(model, { force: true })
     await model.writeTask.promise
     // I/O failures and conflicts leave the draft dirty after the writer settles.
     // Reject so callers abort the operation that prompted the flush.
@@ -396,6 +451,28 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       throw model.lastWriteError ?? new Error('Pending edit could not be saved')
     }
   }, [debouncedWrite, requestWrite])
+
+  const refreshFromDiskIfIdle = useCallback(async () => {
+    const model = modelRef.current
+    if (!model || model.draft !== model.snapshot.content) return
+    const draftBefore = model.draft
+    try {
+      const disk = await readFile(model.handle)
+      if (modelRef.current !== model) return
+      if (model.draft !== draftBefore || model.draft !== model.snapshot.content) return
+      if (disk.version.mtime < model.snapshot.version.mtime) return
+      if (disk.content === model.snapshot.content) {
+        model.snapshot = disk
+        return
+      }
+      model.snapshot = disk
+      model.draft = disk.content
+      syncFromModel(model)
+      cacheSnapshotIfActive(model, disk)
+    } catch (reloadError) {
+      logger.error('Idle disk refresh failed', reloadError as Error)
+    }
+  }, [cacheSnapshotIfActive, syncFromModel])
 
   const notifyExternalChange = useCallback(
     (eventMtimeMs?: number) => {
@@ -411,27 +488,9 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
         const floored = Math.floor(eventMtimeMs)
         if (floored === model.snapshot.version.mtime && !isAmbiguousMtime(floored)) return
       }
-      void (async () => {
-        try {
-          const disk = await readFile(model.handle)
-          if (modelRef.current !== model) return
-          if (model.draft !== model.snapshot.content) return // became dirty meanwhile
-          if (disk.version.mtime < model.snapshot.version.mtime) return // stale read (monotonic guard)
-          if (disk.content === model.snapshot.content) {
-            // Content unchanged — just advance the version baseline quietly.
-            model.snapshot = disk
-            return
-          }
-          model.snapshot = disk
-          model.draft = disk.content
-          syncFromModel(model)
-          void mutate(model.key, disk, { revalidate: false })
-        } catch (reloadError) {
-          logger.error('External-change reload failed', reloadError as Error)
-        }
-      })()
+      void refreshFromDiskIfIdle()
     },
-    [mutate, syncFromModel]
+    [refreshFromDiskIfIdle]
   )
 
   return useMemo(() => {
@@ -468,7 +527,9 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       reload,
       keepDraft,
       flush,
-      notifyExternalChange
+      cancelPendingAutosave,
+      notifyExternalChange,
+      refreshFromDiskIfIdle
     }
   }, [
     handle,
@@ -486,6 +547,8 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     reload,
     keepDraft,
     flush,
-    notifyExternalChange
+    cancelPendingAutosave,
+    notifyExternalChange,
+    refreshFromDiskIfIdle
   ])
 }

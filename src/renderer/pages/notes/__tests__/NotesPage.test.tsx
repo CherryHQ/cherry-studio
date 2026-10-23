@@ -221,8 +221,8 @@ vi.mock('@renderer/hooks/useNote', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useFileEditSession', () => ({
-  useFileEditSession: () => ({
+vi.mock('@renderer/components/notes/NotesFileEditSessionProvider', () => ({
+  useNotesFileEditSession: () => ({
     status: mocks.sessionStatus,
     savedContent: mocks.sessionStatus === 'ready' ? mocks.currentContent : '',
     draft: mocks.sessionStatus === 'ready' ? mocks.sessionDraft : '',
@@ -236,7 +236,8 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
     discard: mocks.discardSession,
     reload: mocks.reloadSession,
     flush: mocks.flushSession,
-    notifyExternalChange: mocks.notifyExternalChange
+    notifyExternalChange: mocks.notifyExternalChange,
+    refreshFromDiskIfIdle: vi.fn(async () => {})
   })
 }))
 
