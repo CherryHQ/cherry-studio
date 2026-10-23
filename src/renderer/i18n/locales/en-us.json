@@ -1468,6 +1468,7 @@
   "error.render.block": "This content block failed to render",
   "error.render.description": "Failed to render message content. Please check if the message content format is correct",
   "error.render.title": "Render Error",
+  "error.reply_interrupted": "This reply was interrupted because the app closed. Regenerate it to get a complete answer.",
   "error.requestBody": "Request Body",
   "error.requestBodyValues": "Request Body Values",
   "error.requestUrl": "Request URL",

@@ -1468,6 +1468,7 @@
   "error.render.block": "Khối nội dung này không thể hiển thị",
   "error.render.description": "Không thể hiển thị nội dung tin nhắn. Vui lòng kiểm tra xem định dạng nội dung tin nhắn có đúng không",
   "error.render.title": "Lỗi Kết Xuất",
+  "error.reply_interrupted": "Câu trả lời này bị gián đoạn vì ứng dụng đã đóng. Hãy tái tạo để nhận câu trả lời đầy đủ.",
   "error.requestBody": "Phần thân yêu cầu",
   "error.requestBodyValues": "Giá trị phần thân yêu cầu",
   "error.requestUrl": "URL yêu cầu",

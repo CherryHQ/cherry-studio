@@ -1468,6 +1468,7 @@
   "error.render.block": "Bu içerik bloğu görüntülenemedi",
   "error.render.description": "Mesaj içeriği görüntülenemedi. Mesaj içeriği biçiminin doğru olup olmadığını kontrol edin",
   "error.render.title": "Görüntüleme Hatası",
+  "error.reply_interrupted": "Uygulama kapandığı için bu yanıt kesintiye uğradı. Eksiksiz bir yanıt almak için yeniden oluşturun.",
   "error.requestBody": "İstek Gövdesi",
   "error.requestBodyValues": "İstek Gövdesi Değerleri",
   "error.requestUrl": "İstek URL'si",

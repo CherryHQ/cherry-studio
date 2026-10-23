@@ -1468,6 +1468,7 @@
   "error.render.block": "Este bloque de contenido no se pudo mostrar",
   "error.render.description": "Error al renderizar la fórmula, por favor, compruebe si el formato de la fórmula es correcto",
   "error.render.title": "Error de renderizado",
+  "error.reply_interrupted": "Esta respuesta se interrumpió porque la aplicación se cerró. Regénérela para obtener una respuesta completa.",
   "error.requestBody": "Contenido de la solicitud",
   "error.requestBodyValues": "Cuerpo de la solicitud",
   "error.requestUrl": "Ruta de solicitud",
