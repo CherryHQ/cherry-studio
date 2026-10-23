@@ -27,6 +27,14 @@ const endpointsOf = (providerId: string, modelId: string): string[] | undefined 
   return entry.endpointTypes
 }
 
+describe('Ollama native thinking endpoint', () => {
+  it('defaults to the endpoint that encodes thinking as think', () => {
+    const ollama = provider('ollama')
+    expect(ollama.defaultChatEndpoint).toBe('ollama-chat')
+    expect(ollama.endpointConfigs?.['ollama-chat']?.reasoningFormat?.type).toBe('ollama')
+  })
+})
+
 describe('dashscope (Bailian) endpoint matrix', () => {
   /**
    * Bailian serves the whole qwen line on Chat Completions — the OpenAI-compatible Chat doc

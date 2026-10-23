@@ -49,7 +49,7 @@ import type {
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -85,6 +85,7 @@ const PRESET_DELTA_FIELDS = [
   'maxInputTokens',
   'maxOutputTokens',
   'supportsStreaming',
+  'reasoning',
   'parameters',
   'pricing'
 ] as const
@@ -294,6 +295,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'endpointTypes',
   ['parameterSupport', 'parameters'],
   'supportsStreaming',
+  'reasoning',
   'contextWindow',
   'maxInputTokens',
   'maxOutputTokens',
@@ -323,7 +325,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
     supportsStreaming: dto.supportsStreaming ?? true,
-    reasoning: null,
+    reasoning: dto.reasoning ?? null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
     isEnabled: true,
@@ -357,7 +359,7 @@ function collectPresetDeltaFields(dto: CreateModelDto | UpdateModelDto, baseline
 
     const value = dto[key]
     if (value === undefined) continue
-    if (!baseline || !matchesBaseline(value, getBaselineField(baseline, field), field)) {
+    if (field === 'reasoning' || !baseline || !matchesBaseline(value, getBaselineField(baseline, field), field)) {
       deltaFields.add(field)
     }
   }
@@ -388,7 +390,7 @@ function presetDeltaToNewUserModel(
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
     supportsStreaming: fields.has('supportsStreaming') ? (dto.supportsStreaming ?? null) : null,
-    reasoning: null,
+    reasoning: fields.has('reasoning') ? (dto.reasoning ?? null) : null,
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
     isEnabled: true,
@@ -396,7 +398,7 @@ function presetDeltaToNewUserModel(
   }
 }
 
-function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
+function applyStoredPresetDeltas(baseline: Model, row: UserModelRow, profile?: ResolvedReasoningProfile): Model {
   return applyUserOverlay(baseline, {
     name: row.name,
     description: row.description,
@@ -409,6 +411,10 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,
+    reasoning:
+      profile?.format === 'ollama' && row.reasoning?.controls !== undefined
+        ? projectRuntimeReasoning(row.reasoning, profile.wire)
+        : undefined,
     parameterSupport: row.parameters as RuntimeParameterSupport | null,
     pricing: row.pricing
   })
@@ -476,11 +482,11 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
 
 function createPresetFallback(
   row: UserModelRow,
-  profile?: ResolvedReasoningProfile['wire'],
+  profile?: ResolvedReasoningProfile,
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
-  const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+  const baseline = createCustomModel(row.providerId, row.modelId, profile?.wire, serviceTierControl)
+  return applyStoredModelState(applyStoredPresetDeltas(baseline, row, profile), row)
 }
 
 class ModelService {
@@ -573,7 +579,7 @@ class ModelService {
 
       if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
         const field = String(dbKey) as PresetDeltaField
-        if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
+        if (field !== 'reasoning' && baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
           ;(updates as Record<string, unknown>)[dbKey] = null
         } else {
           ;(updates as Record<string, unknown>)[dbKey] = value
@@ -719,17 +725,24 @@ class ModelService {
       rows.map((row) => row.providerId)
     )
     return rows.flatMap((row) => {
-      const providerContext = providerContexts.get(row.providerId)
-      if (!providerContext) return []
+      const context = providerContexts.get(row.providerId)
+      if (!context) return []
+      const providerContext =
+        row.endpointTypes?.[0] === ENDPOINT_TYPE.OLLAMA_CHAT
+          ? { ...context, defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT }
+          : context
       if (row.presetModelId) {
         try {
           const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
             providerRegistryService.resolveModel(providerContext, row.modelId)
           if (providerModel) {
-            return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+            return {
+              ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row, reasoningProfile), row),
+              presetModelId: null
+            }
           }
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
+            return createPresetFallback(row, reasoningProfile, serviceTierControl)
           }
 
           const baseline = mergePresetModel(
@@ -740,7 +753,7 @@ class ModelService {
             reasoningProfile.support,
             serviceTierControl
           )
-          const resolved = applyStoredPresetDeltas(baseline, row)
+          const resolved = applyStoredPresetDeltas(baseline, row, reasoningProfile)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
@@ -760,7 +773,10 @@ class ModelService {
         const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.resolveModel(providerContext, modelId)
         if (providerModel) {
-          return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+          return {
+            ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row, reasoningProfile), row),
+            presetModelId: null
+          }
         }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
@@ -811,7 +827,9 @@ class ModelService {
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
-        if (registryModel) {
+        if (reasoningProfile.format === 'ollama' && model.reasoning?.controls !== undefined) {
+          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
+        } else if (registryModel) {
           reasoning = registryModel.reasoning
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)

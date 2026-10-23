@@ -457,6 +457,60 @@ describe('listModels — Ollama capabilities', () => {
     })
   }
 
+  it('discovers the exact Qwen3.8 thinking levels from show without tag capabilities', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [{ name: 'qwen3.8:27b' }] } })
+    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+      value: {
+        capabilities: ['completion', 'tools', 'thinking'],
+        thinking: { values: [false, 'low', 'medium', 'xhigh'], default: 'medium' },
+        model_info: { 'general.architecture': 'qwen35', 'qwen35.context_length': 262144 }
+      }
+    })
+
+    const { models } = await listModels(makeOllamaProvider())
+
+    expect(models[0]).toMatchObject({
+      apiModelId: 'qwen3.8:27b',
+      endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT],
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+      contextWindow: 262144,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'xhigh'],
+        defaultEffort: 'medium'
+      }
+    })
+  })
+
+  it.each([
+    { values: [false, true], defaultValue: true, expected: ['none', 'auto'], defaultEffort: 'auto' },
+    {
+      values: ['low', 'medium', 'high'],
+      defaultValue: 'medium',
+      expected: ['low', 'medium', 'high'],
+      defaultEffort: 'medium'
+    },
+    { values: [true], defaultValue: true, expected: ['auto'], defaultEffort: 'auto' },
+    { values: [false], defaultValue: false, expected: [], defaultEffort: undefined },
+    {
+      values: [false, 'low', 'future-tier'],
+      defaultValue: 'future-tier',
+      expected: ['none', 'low'],
+      defaultEffort: undefined
+    }
+  ])('only exposes supported controls for $values', async ({ values, defaultValue, expected, defaultEffort }) => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { models: [{ name: 'custom-alias:latest' }] } })
+    aiSdkPostJsonToApiMock.mockResolvedValueOnce({
+      value: { thinking: { values, default: defaultValue } }
+    })
+
+    const { models } = await listModels(makeOllamaProvider())
+
+    expect(models[0].reasoning?.selectableEfforts).toEqual(expected)
+    expect(models[0].reasoning?.defaultEffort).toBe(defaultEffort)
+    expect(models[0].capabilities?.includes(MODEL_CAPABILITY.REASONING)).toBe(values.some((value) => value !== false))
+  })
+
   it('maps native thinking support to the reasoning capability without declaring controls', async () => {
     aiSdkGetFromApiMock.mockResolvedValueOnce({
       value: {

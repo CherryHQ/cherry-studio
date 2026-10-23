@@ -5,6 +5,7 @@ export default defineProvider({
   name: 'Ollama',
   availableInEditions: ['global', 'cn'],
   authOptional: true,
+  defaultChatEndpoint: 'ollama-chat',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',

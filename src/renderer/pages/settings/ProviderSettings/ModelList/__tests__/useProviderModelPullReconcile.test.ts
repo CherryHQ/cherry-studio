@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { useProviderModelPullReconcile } from '../useProviderModelPullReconcile'
 
@@ -14,6 +14,7 @@ const { reconcileTriggerMock } = vi.hoisted(() => ({
   reconcileTriggerMock: vi.fn()
 }))
 const createModelsMock = vi.fn()
+const updateModelsMock = vi.fn()
 const deleteModelsMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
 const fetchResolvedProviderModelsMock = vi.fn()
@@ -32,6 +33,7 @@ const useProviderMock = vi.fn()
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelMutations: () => ({
     createModels: createModelsMock,
+    updateModels: updateModelsMock,
     deleteModels: deleteModelsMock,
     isCreating: false,
     isDeleting: false,
@@ -102,6 +104,7 @@ describe('useProviderModelPullReconcile', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/providers/:providerId/models:reconcile', reconcileTriggerMock)
     createModelsMock.mockResolvedValue([])
+    updateModelsMock.mockResolvedValue([])
     deleteModelsMock.mockResolvedValue(undefined)
     reconcileTriggerMock.mockResolvedValue([])
     enableProviderWhenModelsAvailableMock.mockResolvedValue(undefined)
@@ -112,6 +115,73 @@ describe('useProviderModelPullReconcile', () => {
       provider: { id: 'openai', isEnabled: false },
       enableProvider: enableProviderMock
     })
+  })
+
+  it('refreshes only discovered reasoning on saved models and preserves their other configuration', async () => {
+    const reasoning = {
+      controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+      selectableEfforts: ['none', 'low', 'medium', 'xhigh'],
+      defaultEffort: 'medium'
+    }
+    const saved = {
+      ...localModel,
+      id: 'ollama::qwen3.8:27b',
+      providerId: 'ollama',
+      name: 'My name',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      contextWindow: 8192
+    }
+    useModelsMock.mockReturnValue({ models: [saved] })
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce({
+      models: [{ ...saved, reasoning }],
+      discoveredReasoning: [{ id: saved.id, reasoning, capabilities: [MODEL_CAPABILITY.REASONING] }]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('ollama'))
+    await act(async () => {
+      await result.current.reloadModels()
+    })
+    expect(updateModelsMock).toHaveBeenCalledWith([
+      {
+        uniqueModelId: saved.id,
+        patch: { reasoning, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING] }
+      }
+    ])
+    expect(createModelsMock).not.toHaveBeenCalled()
+    expect(deleteModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('leaves saved reasoning untouched when only a registry fallback is available', async () => {
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce({
+      models: [{ ...localModel, reasoning: { selectableEfforts: ['none', 'auto'] } }]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+    await act(async () => {
+      await result.current.reloadModels()
+    })
+    expect(updateModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('does not rewrite unchanged native metadata after runtime projection adds undefined fields', async () => {
+    const reasoning = {
+      controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+      selectableEfforts: ['none', 'low', 'medium', 'xhigh'],
+      defaultEffort: 'medium'
+    }
+    const saved = {
+      ...localModel,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { ...reasoning, summaryOptions: undefined, thinkingTokenLimits: undefined }
+    }
+    useModelsMock.mockReturnValue({ models: [saved] })
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce({
+      models: [saved],
+      discoveredReasoning: [{ id: saved.id, capabilities: saved.capabilities, reasoning }]
+    })
+    const { result } = renderHook(() => useProviderModelPullReconcile('ollama'))
+    await act(async () => {
+      await result.current.reloadModels()
+    })
+    expect(updateModelsMock).not.toHaveBeenCalled()
   })
 
   it('opens the drawer using the resolved list and saved models without appending catalog entries', async () => {

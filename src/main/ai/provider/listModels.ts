@@ -30,7 +30,8 @@ import {
   ENDPOINT_TYPE,
   endpointImpliedCapability,
   MODALITY,
-  MODEL_CAPABILITY
+  MODEL_CAPABILITY,
+  REASONING_EFFORT
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
@@ -246,12 +247,12 @@ function readOllamaContextLength(modelInfo: Record<string, unknown> | undefined)
  * alone overruns the window and Ollama truncates the conversation away (#18643). Its own guidance
  * puts agent and coding workloads at 64k+, which only the model's real window can satisfy.
  */
-async function fetchOllamaContextWindow(
+async function fetchOllamaModelInfo(
   baseUrl: string,
   provider: Provider,
   model: string,
   signal?: AbortSignal
-): Promise<number | undefined> {
+): Promise<z.infer<typeof OllamaShowResponseSchema> | undefined> {
   try {
     const { value } = await postJsonToApi({
       url: `${baseUrl}/api/show`,
@@ -265,11 +266,35 @@ async function fetchOllamaContextWindow(
       abortSignal: signal,
       fetch: modelListFetch
     })
-    return readOllamaContextLength(value.model_info)
+    return value
   } catch (error) {
     // A model that cannot be inspected still belongs in the list; it falls back to the default window.
-    logger.warn('failed to read Ollama context length', { model, error })
+    logger.warn('failed to read Ollama model metadata', { model, error })
     return undefined
+  }
+}
+
+function readOllamaReasoning(thinking: z.infer<typeof OllamaShowResponseSchema>['thinking']): Model['reasoning'] {
+  if (!thinking) return undefined
+  const efforts = Object.values(REASONING_EFFORT)
+  const selectableEfforts = Array.from(
+    new Set(
+      thinking.values.flatMap((value) => {
+        if (value === false) return [REASONING_EFFORT.NONE]
+        if (value === true) return [REASONING_EFFORT.AUTO]
+        return efforts.filter((effort) => effort === value && effort !== 'none' && effort !== 'auto')
+      })
+    )
+  )
+  if (!thinking.values.some((value) => value !== false)) {
+    return { controls: [], selectableEfforts: [] }
+  }
+  const nativeDefault = thinking.default === false ? 'none' : thinking.default === true ? 'auto' : thinking.default
+  const defaultEffort = selectableEfforts.find((effort) => effort === nativeDefault)
+  return {
+    controls: selectableEfforts.length ? [{ kind: 'effort', values: selectableEfforts }] : [],
+    selectableEfforts,
+    ...(defaultEffort ? { defaultEffort } : {})
   }
 }
 
@@ -286,19 +311,27 @@ const ollamaFetcher: ModelFetcher = {
       abortSignal: signal
     })
     const models = dedup(response.models, (m) => m.name)
-    const contextWindows = await Promise.all(
-      models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
-    )
+    const modelInfos = await Promise.all(models.map((m) => fetchOllamaModelInfo(baseUrl, provider, m.name, signal)))
     return listing(
       models.map((m, index) => {
+        const info = modelInfos[index]
+        const nativeCapabilities = info?.capabilities ?? m.capabilities
+        const reasoning = readOllamaReasoning(info?.thinking)
+        const contextWindow = readOllamaContextLength(info?.model_info)
         const capabilities: Model['capabilities'] = []
-        if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
-        if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
-        if (m.capabilities?.includes('embedding')) capabilities.push(MODEL_CAPABILITY.EMBEDDING)
+        if (
+          reasoning ? info?.thinking?.values.some((value) => value !== false) : nativeCapabilities?.includes('thinking')
+        ) {
+          capabilities.push(MODEL_CAPABILITY.REASONING)
+        }
+        if (nativeCapabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+        if (nativeCapabilities?.includes('embedding')) capabilities.push(MODEL_CAPABILITY.EMBEDDING)
         return toModel(m.name, provider, {
           ownedBy: 'ollama',
           capabilities,
-          ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
+          endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT],
+          ...(reasoning ? { reasoning } : {}),
+          ...(contextWindow ? { contextWindow } : {})
         })
       })
     )
