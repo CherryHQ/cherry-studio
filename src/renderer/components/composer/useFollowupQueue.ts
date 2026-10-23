@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload, TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -14,6 +15,7 @@ import {
   STALE_SENDING_CLAIM_MS,
   type FollowupQueueItem as FollowupQueueRow
 } from '@shared/data/types/followupQueue'
+import { createFileEntryHandle } from '@shared/utils/file'
 
 import type { ComposerSerializedDraft } from './tokens'
 
@@ -91,6 +93,34 @@ async function buildRestoreBody(
     .map((attachment) => attachment.entryId)
     .filter((id): id is string => typeof id === 'string')
   return { id, scopeKey, draft, payload: durablePayload, ...(fileEntryIds.length > 0 ? { fileEntryIds } : {}) }
+}
+
+// Taking a row closes its file refs, so restore each managed attachment's
+// bytes as an editor-owned Blob (the base behavior) BEFORE the delete: the
+// visible draft must never depend on a managed entry the idle sweep can
+// reclaim mid-edit (cherry-pr-review inv_e39933046420a12b). The send-time part
+// build prefers a Blob over a path, and re-enqueueing persists a fresh entry.
+async function hydrateTakenAttachments(payload: ComposerQueuedMessagePayload): Promise<ComposerQueuedMessagePayload> {
+  const attachments = payload.attachments
+  if (!attachments?.some((attachment) => typeof attachment.entryId === 'string' && !(attachment.blob instanceof Blob)))
+    return payload
+  const hydrated = await Promise.all(
+    attachments.map(async (attachment) => {
+      if (typeof attachment.entryId !== 'string' || attachment.blob instanceof Blob) return attachment
+      try {
+        const { content, mime } = await ipcApi.request('file.read', {
+          handle: createFileEntryHandle(attachment.entryId),
+          options: { mode: 'full', encoding: 'binary' }
+        })
+        return { ...attachment, blob: new Blob([new Uint8Array(content)], { type: mime }) }
+      } catch {
+        // The entry is already unreadable: keep the path-based attachment — it
+        // stays readable until the sweep actually reclaims it.
+        return attachment
+      }
+    })
+  )
+  return { ...payload, attachments: hydrated }
 }
 
 // A resolve write that fails with NOT_FOUND needs no retry: the row is
@@ -363,6 +393,10 @@ export function useFollowupQueue({
   // Background claim retries, unlike resolve retries, belong to the live edge:
   // they stop when the hook unmounts.
   const pendingClaimRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // Reconciliation ticks for parked tentative consumptions, keyed by scope: a
+  // winner that abandons its grant without dispatch must let a live losing
+  // window retry the completion (cherry-pr-review inv_d411c32e0bd3cc85).
+  const pendingTentativeReconcileRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   // Drafts orphaned when a scope switch lands mid-take and the replacement
   // enqueue keeps failing: retried until the write lands, like resolve retries.
   const pendingReenqueueRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -386,10 +420,13 @@ export function useFollowupQueue({
   useEffect(() => {
     mountedRef.current = true
     const pendingClaim = pendingClaimRef.current
+    const pendingTentativeReconcile = pendingTentativeReconcileRef.current
     return () => {
       mountedRef.current = false
       for (const timer of pendingClaim.values()) clearTimeout(timer)
       pendingClaim.clear()
+      for (const timer of pendingTentativeReconcile.values()) clearTimeout(timer)
+      pendingTentativeReconcile.clear()
     }
   }, [])
 
@@ -656,6 +693,11 @@ export function useFollowupQueue({
         }
         if (restoreSlot <= incomingSlot) incomingSlot += 1
       }
+      // The take below closes the row's file refs: hydrate each managed
+      // attachment into an editor-owned Blob first, so the restored draft never
+      // depends on an entry the idle sweep can reclaim mid-edit
+      // (cherry-pr-review inv_e39933046420a12b).
+      const restoredItem: FollowupQueueItem = { ...item, payload: await hydrateTakenAttachments(item.payload) }
       // A committed DELETE can still time out: retry once and treat NOT_FOUND
       // as deleted, so a lost response cannot drop the draft.
       let deleted = false
@@ -734,8 +776,8 @@ export function useFollowupQueue({
         takenEditRef.current = null
         return undefined
       }
-      takenEditRef.current = { item, slot: Math.max(incomingSlot, 0), scopeKey: scope }
-      return item
+      takenEditRef.current = { item: restoredItem, slot: Math.max(incomingSlot, 0), scopeKey: scope }
+      return restoredItem
     },
     [claimItem, takeDeleteTrigger, enqueueTrigger, reorderTrigger, markFailedTrigger, holdRestoredCopy, t]
   )
@@ -1116,6 +1158,43 @@ export function useFollowupQueue({
     [claimItem, deliverWonClaim, t]
   )
 
+  // Reconcile a parked tentative consumption: a lost claim parks the edge only
+  // while the winner's reservation is live. If the winner releases the grant
+  // without dispatch (or crashes and the reservation ages out server-side),
+  // the parked completion must retry — otherwise every drain gate in this
+  // window rejects it forever (cherry-pr-review inv_d411c32e0bd3cc85). A
+  // delivered winner acks the durable shared marker pre-send, making the
+  // session park redundant; a winner still mid-send re-wins the claim race
+  // and re-parks, which reschedules this tick.
+  const scheduleTentativeReconcileRef = useRef<(scope: string, completionAt: number) => void>(() => {})
+  scheduleTentativeReconcileRef.current = (scope, completionAt) => {
+    if (pendingTentativeReconcileRef.current.has(scope)) return
+    const tick = () => {
+      pendingTentativeReconcileRef.current.delete(scope)
+      if (!mountedRef.current || scopeKeyRef.current !== scope) return
+      // Delivery landed while parked: the durable shared marker fences the
+      // completion now, so drop the redundant session park and stop.
+      if (loadConsumed(scope) === completionAt) {
+        if (tentativeConsumedRef.current.get(scope) === completionAt) tentativeConsumedRef.current.delete(scope)
+        return
+      }
+      // No delivery landed: lift the park and re-drive the drain so an
+      // abandoned reservation stops stranding the completion. The claim is the
+      // arbiter — a winner still in flight re-parks below.
+      if (tentativeConsumedRef.current.get(scope) === completionAt) tentativeConsumedRef.current.delete(scope)
+      if (
+        statusRef.current !== 'done' ||
+        lastCompletedAtRef.current == null ||
+        isCompletionConsumed(scopeKeyRef.current, lastCompletedAtRef.current, tentativeConsumedRef.current) ||
+        drainBlockedRef.current
+      )
+        return
+      const head = itemsRef.current[0]
+      if (head) void drainHeadRef.current(head)
+    }
+    pendingTentativeReconcileRef.current.set(scope, setTimeout(tick, 5000))
+  }
+
   // Background claim retry while the completion edge stays unacked: a claim
   // request that keeps failing must not strand the queued head until the next
   // turn. Each retry re-reads the current head; the attempt that wins the
@@ -1197,6 +1276,11 @@ export function useFollowupQueue({
         // the next completion.
         if (scopeKeyRef.current === scope && itemsRef.current[0] && completionAt != null) {
           tentativeConsumedRef.current.set(scope, completionAt)
+          // A winner that abandons the grant without dispatch releases its
+          // reservation server-side; the reconcile tick retries the completion
+          // instead of stranding it behind this session park
+          // (cherry-pr-review inv_d411c32e0bd3cc85).
+          scheduleTentativeReconcileRef.current(scope, completionAt)
         }
         return
       }

@@ -11,6 +11,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMocks.request } }))
+
 import {
   FOLLOWUP_QUEUE_LIMIT,
   STALE_SENDING_CLAIM_MS,
@@ -130,6 +133,7 @@ describe('useFollowupQueue', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     MockCacheUtils.resetMocks()
+    ipcMocks.request.mockReset()
   })
 
   it('surfaces the persisted rows as items', () => {
@@ -620,6 +624,81 @@ describe('useFollowupQueue', () => {
     expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' }, body: { claimToken: expect.any(String) } })
     expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(failTrigger).not.toHaveBeenCalled()
+  })
+
+  it('hydrates a taken persisted attachment into an editor-owned Blob before deleting the row', async () => {
+    const persisted = row('h', 'head')
+    ;(persisted as any).payload = {
+      text: 'head',
+      userMessageParts: [],
+      attachments: [
+        {
+          id: 'shot',
+          name: 'screenshot.png',
+          origin_name: 'screenshot.png',
+          ext: '.png',
+          path: '/data/files/entry-1.png',
+          entryId: 'entry-1'
+        }
+      ]
+    }
+    wireQuery([persisted])
+    const { claimTrigger, takeDeleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const bytes = new Uint8Array([1, 2, 3])
+    ipcMocks.request.mockResolvedValueOnce({ content: bytes, mime: 'image/png' })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: any
+    await act(async () => {
+      taken = await result.current.takeForEdit('h', () => null)
+    })
+
+    const attachment = taken.payload.attachments[0]
+    expect(attachment.blob).toBeInstanceOf(Blob)
+    expect(attachment.blob.type).toBe('image/png')
+    expect(attachment.blob.size).toBe(bytes.length)
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
+      handle: { kind: 'entry', entryId: 'entry-1' },
+      options: { mode: 'full', encoding: 'binary' }
+    })
+    // Ownership must be continuous: the editor owns the bytes before the
+    // queue row's file refs close (cherry-pr-review inv_e39933046420a12b).
+    expect(ipcMocks.request.mock.invocationCallOrder[0]).toBeLessThan(takeDeleteTrigger.mock.invocationCallOrder[0])
+  })
+
+  it('completes the take with the path-based attachment when hydration fails', async () => {
+    const persisted = row('h', 'head')
+    ;(persisted as any).payload = {
+      text: 'head',
+      userMessageParts: [],
+      attachments: [
+        {
+          id: 'shot',
+          name: 'screenshot.png',
+          origin_name: 'screenshot.png',
+          ext: '.png',
+          path: '/data/files/entry-1.png',
+          entryId: 'entry-1'
+        }
+      ]
+    }
+    wireQuery([persisted])
+    const { claimTrigger, takeDeleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    ipcMocks.request.mockRejectedValueOnce(new Error('entry gone'))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: any
+    await act(async () => {
+      taken = await result.current.takeForEdit('h', () => null)
+    })
+
+    expect(taken.payload.attachments[0].blob).toBeUndefined()
+    expect(taken.payload.attachments[0].path).toBe('/data/files/entry-1.png')
+    expect(takeDeleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
   })
 
   it('refuses the edit take when another window owns the send', async () => {
@@ -2069,6 +2148,105 @@ describe('useFollowupQueue', () => {
       rerender({ scopeKey: 's2', completion: { status: 'done', lastCompletedAt: 100 } })
     })
     expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a parked completion when the winning claim is abandoned without delivery', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger, deleteTrigger } = wireMutations()
+      // The first claim loses (another window owns the head); the reconcile
+      // tick's retry wins once the winner's reservation is released.
+      claimHeadTrigger
+        .mockResolvedValueOnce({ claimed: false })
+        .mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+      const onDrain = vi.fn(async () => true)
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
+      })
+      await act(async () => {
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+      })
+
+      // Parked: no send and no durable marker while the reservation is live.
+      expect(onDrain).not.toHaveBeenCalled()
+      expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+
+      // The abandoned reservation is gone, so the retry delivers the row
+      // (cherry-pr-review inv_d411c32e0bd3cc85).
+      expect(onDrain).toHaveBeenCalledWith(row('h', 'head').payload)
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(cacheService.getShared('followup_queue.consumed.s1')).toBe(100)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops reconciling a parked completion once the winner delivers it', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: false })
+      const onDrain = vi.fn(async () => true)
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
+      })
+      await act(async () => {
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+      })
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+
+      // The winner's pre-send ack lands in the durable shared marker.
+      act(() => {
+        cacheService.setShared('followup_queue.consumed.s1', 100)
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000)
+      })
+
+      // The park is redundant once the durable fence lands: no retry fires.
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+      expect(onDrain).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('re-parks and keeps retrying while the winner is still mid-send', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValue({ claimed: false })
+      const onDrain = vi.fn(async () => true)
+      const { rerender } = renderHook(({ completion }) => useFollowupQueue(baseProps({ ...completion, onDrain })), {
+        initialProps: { completion: { status: 'streaming', lastCompletedAt: null as number | null } }
+      })
+      await act(async () => {
+        rerender({ completion: { status: 'done', lastCompletedAt: 100 } })
+      })
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      // The winner's claim is still live, so the retry loses and re-parks.
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(3)
+
+      expect(onDrain).not.toHaveBeenCalled()
+      expect(cacheService.getShared('followup_queue.consumed.s1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('lets a reopened window drain a completion whose winning claim was abandoned without sending', async () => {
