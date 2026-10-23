@@ -335,6 +335,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       signal.throwIfAborted()
       const timestampMs = timestampsMs[index]
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
+      rmSync(outputPath, { force: true })
       try {
         const attempts =
           durationMs > 0 && timestampMs > durationMs
