@@ -276,6 +276,66 @@ describe('agent right pane projections', () => {
     expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
   })
 
+  it.each([true, false])('renders Pi child content once without its background=%s control receipt', (background) => {
+    const selected = toolPart(
+      'root',
+      'subagent',
+      undefined,
+      'output-available',
+      { prompt: 'Read facts' },
+      {
+        content: [{ type: 'text', text: 'Child report\n(id: private-child-id — continue with message_subagent)' }],
+        details: { sessionId: 'private-child-id', background, outcome: background ? undefined : 'completed' }
+      }
+    )
+    const parts = [selected, textPart('Child report', 'root')]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      expect.objectContaining({ type: 'text', text: 'Child report' })
+    ])
+    expect(JSON.stringify(projection.messages)).not.toContain('private-child-id')
+  })
+
+  it('keeps a Pi foreground report when no child text was observed', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'subagent',
+        undefined,
+        'output-available',
+        { prompt: 'Read facts' },
+        {
+          content: [{ type: 'text', text: 'Child report' }],
+          details: { sessionId: 'child-id', background: false, outcome: 'completed' }
+        }
+      )
+    ]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([{ type: 'text', text: 'Child report' }])
+  })
+
+  it('does not turn a Pi background launch receipt into an assistant reply before child output arrives', () => {
+    const parts = [
+      toolPart(
+        'root',
+        'subagent',
+        undefined,
+        'output-available',
+        { prompt: 'Read facts' },
+        {
+          content: [{ type: 'text', text: 'Started private-child-id' }],
+          details: { sessionId: 'private-child-id', background: true }
+        }
+      )
+    ]
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.messages.map((item) => item.role)).toEqual(['user'])
+    expect(JSON.stringify(projection.messages)).not.toContain('private-child-id')
+  })
+
   it.each(['async_launched', 'remote_launched'] as const)(
     'hides a structured %s receipt without borrowing task status',
     (status) => {
