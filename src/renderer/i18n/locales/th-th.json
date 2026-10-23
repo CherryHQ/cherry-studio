@@ -5710,6 +5710,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "System OCR เรียกใช้ OCR engine ดั้งเดิมของระบบโดยตรง เร็วที่สุด แต่ความแม่นยำขึ้นอยู่กับเวอร์ชัน OS",
   "settings.tool.file_processing.processors.tesseract.description": "OCR engine โอเพนซอร์สของ Google ที่รันภายในเครื่องทั้งหมด",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "อธิบายเฟรมวิดีโอที่สุ่มด้วยโมเดลแชทที่รับภาพได้ ภาพเฟรมจะถูกส่งไปยังผู้ให้บริการที่เลือก ข้อความบนหน้าจอยังใช้ตัวประมวลผล OCR ที่กำหนดไว้ในการตั้งค่า OCR ส่วนเสียงพูดใช้โมเดลรู้จำที่เลือกในการตั้งค่าเสียง",
+  "settings.tool.file_processing.video_vision.title": "โมเดลวิชันวิดีโอ",
   "settings.tool.websearch.blacklist": "บัญชีดำ",
   "settings.tool.websearch.blacklist_invalid_entries": "รายการบัญชีดำไม่ถูกต้อง: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "กรุณาใช้รูปแบบต่อไปนี้ (คั่นด้วยบรรทัดใหม่)\nการจับคู่รูปแบบ: *://*.example.com/*\nนิพจน์ทั่วไป: /example\\.(net|org)/",
