@@ -238,7 +238,23 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
 
     await runCommand(
       ffmpegPath,
-      ['-y', '-i', filePath, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-f', 'wav', wavPath],
+      [
+        '-y',
+        '-i',
+        filePath,
+        '-vn',
+        '-map_metadata',
+        '-1',
+        '-ac',
+        '1',
+        '-ar',
+        '16000',
+        '-c:a',
+        'pcm_s16le',
+        '-f',
+        'wav',
+        wavPath
+      ],
       signal,
       logger,
       { ffmpeg: true, pidRegistryPath }
@@ -271,6 +287,8 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
           (durationMs / 1000).toFixed(3),
           '-i',
           wavPath,
+          '-map_metadata',
+          '-1',
           '-ac',
           '1',
           '-ar',
@@ -309,29 +327,48 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
       const timestampMs = timestampsMs[index]
       const outputPath = join(outputDir, `frame-${String(index).padStart(4, '0')}.jpg`)
       try {
-        await runCommand(
-          ffmpegPath,
-          [
-            '-y',
-            '-ss',
-            (timestampMs / 1000).toFixed(3),
-            '-i',
-            filePath,
-            '-frames:v',
-            '1',
-            '-an',
-            '-update',
-            '1',
-            '-vf',
-            `scale=w='min(iw,${maxEdgePx})':h='min(ih,${maxEdgePx})':force_original_aspect_ratio=decrease`,
-            '-q:v',
-            String(quality),
-            outputPath
-          ],
-          signal,
-          logger,
-          { ffmpeg: true, pidRegistryPath }
-        )
+        const attempts = [
+          { seekMs: timestampMs, inputSeek: true },
+          { seekMs: timestampMs, inputSeek: false },
+          ...[100, 250, 500, 1_000].map((offset) => ({
+            seekMs: Math.max(0, timestampMs - offset),
+            inputSeek: false
+          }))
+        ]
+        for (const attempt of attempts) {
+          rmSync(outputPath, { force: true })
+          const seekArgs = attempt.inputSeek
+            ? ['-ss', (attempt.seekMs / 1000).toFixed(3), '-i', filePath]
+            : ['-i', filePath, '-ss', (attempt.seekMs / 1000).toFixed(3)]
+          try {
+            await runCommand(
+              ffmpegPath,
+              [
+                '-y',
+                ...seekArgs,
+                '-frames:v',
+                '1',
+                '-an',
+                '-update',
+                '1',
+                '-vf',
+                `scale=w='min(iw,${maxEdgePx})':h='min(ih,${maxEdgePx})':force_original_aspect_ratio=decrease`,
+                '-q:v',
+                String(quality),
+                outputPath
+              ],
+              signal,
+              logger,
+              { ffmpeg: true, pidRegistryPath }
+            )
+          } catch (error) {
+            signal.throwIfAborted()
+            if (!(error instanceof Error) || !error.message.startsWith('Media tool failed (exit ')) {
+              throw error
+            }
+          }
+          if (existsSync(outputPath)) break
+        }
       } catch (error) {
         signal.throwIfAborted()
         logger.warn(
