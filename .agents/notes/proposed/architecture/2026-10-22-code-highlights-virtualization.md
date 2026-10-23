@@ -205,6 +205,8 @@ Also exercise 10,000 lines with an offset before the viewer, a 50,000-character 
 
 The approved implementation was exercised on macOS arm64 / Apple M5 using an isolated Electron development profile. The shared core also preserves CRLF and standalone CR when adapting engine line boundaries to LF-delimited viewer ranges. The HTML/Markdown routes retain their existing escaped-source failure behavior.
 
+Image capture materializes CodeViewer rows from an authoritative source snapshot only for the explicit capture. The capture pipeline awaits full-range highlighting and the React layout commit before measuring or cloning, then awaits restoration of the virtualized view on success or failure. Capture highlighting uses a separate, released session so viewport work cannot replace its result. Normal viewing remains virtualized; capture temporarily pays the full-document DOM cost and retains the existing image-dimension limit. Local regression checks cover complete source including trailing blank lines, offscreen highlighting, rasterization failure and partial preparation failure. A macOS Electron capture included all 120 highlighted lines in a 1748 × 5066 PNG and restored the original 43 mounted rows; the offscreen Blob path also included all 120 lines.
+
 | Area | Local evidence |
 | --- | --- |
 | Shared core and Streamdown | 72 tests across seven UI/core files; includes lazy metadata, cache limits and retry, mixed line endings, real-component stale callbacks, and streaming Markdown |

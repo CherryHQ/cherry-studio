@@ -2,13 +2,14 @@ import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-import type { ThemedToken } from '@cherrystudio/ui/code-highlight'
+import type { HighlightResult, ThemedToken } from '@cherrystudio/ui/code-highlight'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelectionManager'
 import { getReactStyleFromToken } from '@renderer/utils/codeHighlight'
+import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 
@@ -97,7 +98,15 @@ const CodeViewer = ({
 }: CodeViewerProps) => {
   const [_lineNumbers] = usePreference('chat.code.show_line_numbers')
   const [_fontSize] = usePreference('chat.message.font_size')
-  const { getCodePreProperties, isCodeThemeDark } = useCodeStyle()
+  const { getCodePreProperties, isCodeThemeDark, highlightRange, cleanupTokenizers } = useCodeStyle()
+  const [capture, setCapture] = useState<{ lines: string[]; tokens: HighlightResult | null } | null>(null)
+  const captureCommitRef = useRef<(() => void) | null>(null)
+  useLayoutEffect(() => {
+    captureCommitRef.current?.()
+    captureCommitRef.current = null
+  }, [capture])
+  useLayoutEffect(() => () => captureCommitRef.current?.(), [])
+
   const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
@@ -120,6 +129,40 @@ const CodeViewer = ({
   const highlight = options?.highlight ?? true
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.split('\n') : []), [value])
+
+  useLayoutEffect(() => {
+    const root = shikiThemeRef.current
+    if (!root) return
+    const prepare = async () => {
+      const captureId = `${callerId}-capture`
+      let captureTokens: HighlightResult | null = null
+      try {
+        if (highlight)
+          captureTokens = await highlightRange(value, language, captureId, { start: 0, end: rawLines.length })
+      } finally {
+        if (highlight) cleanupTokenizers(captureId)
+      }
+      if (shikiThemeRef.current !== root) return () => {}
+      const scrollTop = scrollerRef.current?.scrollTop ?? 0
+      await new Promise<void>((resolve) => {
+        captureCommitRef.current = resolve
+        setCapture({ lines: rawLines, tokens: captureTokens })
+      })
+      return async () => {
+        if (shikiThemeRef.current !== root) return
+        await new Promise<void>((resolve) => {
+          captureCommitRef.current = resolve
+          setCapture(null)
+        })
+        if (scrollerRef.current) scrollerRef.current.scrollTop = scrollTop
+      }
+    }
+    const onPrepare = (event: Event) => {
+      if (event instanceof ImageCaptureEvent) event.preparations.push(prepare())
+    }
+    root.addEventListener(ImageCaptureEvent.type, onPrepare)
+    return () => root.removeEventListener(ImageCaptureEvent.type, onPrepare)
+  }, [callerId, cleanupTokenizers, highlight, highlightRange, language, rawLines, value])
 
   useEffect(() => {
     if (!autoScrollToBottom || expanded) {
@@ -607,8 +650,12 @@ const CodeViewer = ({
     scroller.scrollTop = scroller.scrollHeight
   }, [autoScrollToBottom, expanded, rawLines.length, totalSize])
 
+  const renderedLines = capture?.lines ?? rawLines
+  const renderedTokens = capture ? capture.tokens : tokens
+  const renderedItems = capture ? capture.lines.map((_, index) => ({ key: index, index })) : virtualItems
+
   return (
-    <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
+    <div ref={shikiThemeRef} data-image-capture-content="" style={expanded || capture ? undefined : { height }}>
       <div
         ref={scrollerRef}
         className="shiki-scroller relative block [scrollbar-color:auto] overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em]"
@@ -618,32 +665,37 @@ const CodeViewer = ({
             '--gutter-width': `${gutterDigits}ch`,
             '--line-height': `${lineHeight}px`,
             fontSize,
-            height: expanded ? undefined : height,
-            maxHeight: expanded ? undefined : maxHeight,
-            overflowY: expanded ? 'hidden' : 'auto'
+            height: expanded || capture ? undefined : height,
+            maxHeight: expanded || capture ? undefined : maxHeight,
+            overflowY: capture ? 'visible' : expanded ? 'hidden' : 'auto'
           } as React.CSSProperties
         }>
         <div
           ref={listRef}
           className="shiki-list"
           style={{
-            height: `${totalSize}px`,
+            height: capture ? 'auto' : `${totalSize}px`,
             width: '100%',
             position: 'relative'
           }}>
           <div
             style={{
-              position: 'absolute',
+              position: capture ? 'relative' : 'absolute',
               top: 0,
               left: 0,
               width: '100%',
-              transform: `translateY(${(virtualItems[0]?.start ?? scrollMargin) - scrollMargin}px)`
+              transform: capture
+                ? undefined
+                : `translateY(${(virtualItems[0]?.start ?? scrollMargin) - scrollMargin}px)`
             }}>
-            {virtualItems.map((virtualItem) => (
-              <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
+            {renderedItems.map((virtualItem) => (
+              <div
+                key={virtualItem.key}
+                data-index={virtualItem.index}
+                ref={capture ? undefined : virtualizer.measureElement}>
                 <VirtualizedRow
-                  rawLine={rawLines[virtualItem.index]}
-                  tokenLine={highlight ? tokens?.lines[virtualItem.index - tokens.start] : undefined}
+                  rawLine={renderedLines[virtualItem.index]}
+                  tokenLine={highlight ? renderedTokens?.lines[virtualItem.index - renderedTokens.start] : undefined}
                   highlightEnabled={highlight}
                   showLineNumbers={lineNumbers}
                   expanded={expanded}

@@ -1,13 +1,23 @@
 // @vitest-environment jsdom
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, waitFor } from '@testing-library/react'
+import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '../../utils/image'
 import CodeViewer from '../CodeViewer'
 
+vi.mock('html-to-image', () => ({ toCanvas: vi.fn() }))
+
 const getCodePreProperties = async () => ({ class: 'shiki' })
+const captureHighlight = vi.hoisted(() => ({ read: vi.fn(), cleanup: vi.fn() }))
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ getCodePreProperties, isCodeThemeDark: false })
+  useCodeStyle: () => ({
+    getCodePreProperties,
+    isCodeThemeDark: false,
+    highlightRange: captureHighlight.read,
+    cleanupTokenizers: captureHighlight.cleanup
+  })
 }))
 vi.mock('@renderer/hooks/useCodeHighlight', () => ({
   useCodeHighlight: () => ({ tokens: null, highlightLines, resetHighlight })
@@ -20,6 +30,8 @@ let scrollHeight = 1200
 let measuredRowHeight: (element: HTMLElement) => number = () => 21
 
 beforeEach(() => {
+  captureHighlight.read.mockReset()
+  captureHighlight.cleanup.mockReset()
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setMultiplePreferenceValues({
     'chat.code.show_line_numbers': false,
@@ -63,6 +75,63 @@ afterEach(() => {
 })
 
 describe('CodeViewer', () => {
+  it.each(['data-url', 'blob', 'failure', 'offscreen-highlighted'] as const)(
+    'captures every source line and restores virtualization after %s',
+    async (mode) => {
+      const lines = [...Array.from({ length: 120 }, (_, index) => `line ${index}  `), '']
+      lines[119] = 'final line 🍒  '
+      const highlighted = mode === 'offscreen-highlighted'
+      if (highlighted) prefixHeight = 5000
+      captureHighlight.read.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        return { start: 0, lines: lines.map((content) => [{ content, offset: 0, color: '#ff0000' }]) }
+      })
+      const { container } = render(
+        <CodeViewer value={lines.join('\n')} language="text" expanded options={{ highlight: highlighted }} />
+      )
+      expect(container.querySelectorAll('.line-content').length).toBeLessThan(lines.length)
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (root) => {
+        expect([...root.querySelectorAll('.line-content')].map((line) => line.textContent)).toEqual(lines)
+        if (highlighted)
+          expect(root.querySelector('[data-index="119"] .line-content span')).toHaveStyle({ color: '#ff0000' })
+        if (mode === 'failure') throw new Error('rasterization failed')
+        return Object.assign(document.createElement('canvas'), { toDataURL: () => 'data:image/png;base64,dGVzdA==' })
+      })
+      const result =
+        mode === 'blob'
+          ? captureScrollableAsBlob({ current: container }, (blob) => {
+              expect(blob?.type).toBe('image/png')
+              expect(blob?.size).toBe(4)
+            })
+          : captureScrollableAsDataUrl({ current: container })
+      if (mode === 'failure') {
+        await waitFor(() => expect(result).rejects.toThrow('rasterization failed'))
+      } else {
+        await waitFor(() =>
+          expect(result).resolves.toBe(mode === 'blob' ? undefined : 'data:image/png;base64,dGVzdA==')
+        )
+      }
+      expect(container.querySelectorAll('.line-content').length).toBeLessThan(lines.length)
+    }
+  )
+
+  it('restores prepared viewers when another viewer cannot prepare its capture', async () => {
+    const value = Array.from({ length: 120 }, (_, index) => `line ${index}`).join('\n')
+    captureHighlight.read.mockRejectedValueOnce(new Error('preparation failed'))
+    const { container } = render(
+      <>
+        <CodeViewer value={value} language="text" expanded options={{ highlight: false }} />
+        <CodeViewer value={value} language="text" expanded />
+      </>
+    )
+    const result = captureScrollableAsDataUrl({ current: container })
+    await waitFor(() => expect(result).rejects.toThrow('preparation failed'))
+    for (const viewer of container.querySelectorAll('.code-viewer')) {
+      expect(viewer.querySelectorAll('.line-content').length).toBeLessThan(120)
+      expect(viewer.querySelector('[data-index="119"]')).toBeNull()
+    }
+  })
+
   it('keeps expanded documents virtualized and scrolls using the outer viewport and list offset', async () => {
     prefixHeight = 600
     const lines = Array.from({ length: 10000 }, (_, index) => `line ${index}`)
