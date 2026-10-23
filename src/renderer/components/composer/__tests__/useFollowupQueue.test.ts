@@ -1208,6 +1208,106 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('retries the restored-copy cleanup when the delete fails transiently after the edit session ends', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      postTrigger
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+      const restoreId = (postTrigger.mock.calls as unknown as Array<[{ body: { id: string } }]>)[0][0].body.id
+
+      // A transient DELETE failure must not strand the copy past the held
+      // window, where a later completion would deliver cleared or duplicated
+      // content (cherry-pr-review inv_a9a4ae6a7ed17c68).
+      deleteTrigger.mockRejectedValueOnce(new Error('temporary outage'))
+      await act(async () => {
+        result.current.releaseEdit()
+      })
+      await act(async () => {})
+      expect(deleteTrigger).toHaveBeenCalledTimes(1)
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: restoreId } })
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(deleteTrigger).toHaveBeenCalledTimes(2)
+      expect(deleteTrigger).toHaveBeenLastCalledWith({ params: { id: restoreId } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries the cleanup when the session is cancelled during an in-flight restoration', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('a', 'first'), row('b', 'second')])
+      const { claimTrigger, postTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValue({ claimed: true })
+      let resolveRestore: ((value: unknown) => void) | undefined
+      postTrigger
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockRejectedValueOnce(new Error('queue full'))
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveRestore = resolve
+            })
+        )
+
+      const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+      await act(async () => {
+        await result.current.takeForEdit('a', () => null)
+      })
+      const captureOutgoing = vi.fn(() => ({ draft: draft('first edited'), payload: payload('first edited') }))
+      await act(async () => {
+        await result.current.takeForEdit('b', captureOutgoing)
+      })
+
+      // The restore write is in flight when the session ends.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(postTrigger).toHaveBeenCalledTimes(4)
+      deleteTrigger.mockRejectedValueOnce(new Error('temporary outage'))
+      await act(async () => {
+        result.current.releaseEdit()
+      })
+      await act(async () => {
+        resolveRestore?.({})
+      })
+      await act(async () => {})
+      expect(deleteTrigger).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(deleteTrigger).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('marks the background restore retry of a still-edited item as held', async () => {
     vi.useFakeTimers()
     try {

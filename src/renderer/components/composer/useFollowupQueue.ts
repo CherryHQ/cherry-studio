@@ -956,7 +956,20 @@ export function useFollowupQueue({
     if (tracked.restored) {
       // The retry already re-queued the item during the session: the session's
       // end (sent/cleared/replaced) must not leave a deliverable copy behind.
-      void removeTrigger({ params: { id: tracked.restoreId } }).catch(() => {})
+      // A transient DELETE failure must not strand it either — once the held
+      // stamp expires, a later completion would deliver cleared or duplicated
+      // content — so a failed cleanup joins the resolve retry chain until the
+      // copy is closed or confirmed absent (cherry-pr-review
+      // inv_a9a4ae6a7ed17c68).
+      void (async () => {
+        try {
+          await removeTrigger({ params: { id: tracked.restoreId } })
+          if (mountedRef.current) void refetch()
+        } catch (error) {
+          if (isAlreadyResolved(error)) return
+          scheduleResolveRetryRef.current(tracked.restoreId, true, '')
+        }
+      })()
     }
   }
 
@@ -988,8 +1001,15 @@ export function useFollowupQueue({
           if (tracked) {
             if (tracked.cancelled) {
               // The edit session ended while the write was in flight: reconcile
-              // — the landed copy must not outlive the session it belonged to.
-              void removeTrigger({ params: { id: body.id } }).catch(() => {})
+              // — the landed copy must not outlive the session it belonged to,
+              // and a transient DELETE failure must not strand it past the held
+              // window either (cherry-pr-review inv_a9a4ae6a7ed17c68).
+              try {
+                await removeTrigger({ params: { id: body.id } })
+                if (mountedRef.current) void refetch()
+              } catch (error) {
+                if (!isAlreadyResolved(error)) scheduleResolveRetryRef.current(body.id, true, '')
+              }
               return
             }
             tracked.restored = true
