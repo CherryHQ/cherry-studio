@@ -281,6 +281,74 @@ describe('mediaFfmpegHandlers frame destinations', () => {
       rmSync(outputDir, { recursive: true, force: true })
     }
   })
+
+  it('keeps a later frame when an earlier seek exits without an image', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-partial-frame-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    spawnControl.replacement = () => {
+      const call = spawnControl.calls
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (call === 1) {
+          child.emit('close', 234)
+          return
+        }
+        writeFileSync(join(outputDir, 'frame-0001.jpg'), 'later-frame')
+        child.emit('close', 0)
+      })
+      return child
+    }
+
+    try {
+      const result = await mediaFfmpegHandlers.extractFrames(
+        {
+          filePath: '/video.mp4',
+          outputDir,
+          timestampsMs: [99_000, 1_000],
+          maxEdgePx: 120,
+          jpegQuality: 70
+        },
+        context()
+      )
+
+      expect(spawnControl.calls).toBe(2)
+      expect(result.frames).toEqual([{ path: join(outputDir, 'frame-0001.jpg'), timestampMs: 1_000 }])
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects when the media executable cannot start', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-missing-ffmpeg-'))
+    applyMediaFfmpegInitData({ ffmpegPath: '/missing/ffmpeg', ffprobePath: '/missing/ffprobe' })
+    spawnControl.replacement = () => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+      const child = Object.assign(new EventEmitter(), { pid: 424242, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        child.emit('error', Object.assign(new Error('spawn /missing/ffmpeg ENOENT'), { code: 'ENOENT' }))
+      })
+      return child
+    }
+
+    try {
+      await expect(
+        mediaFfmpegHandlers.extractFrames(
+          {
+            filePath: '/video.mp4',
+            outputDir,
+            timestampsMs: [0, 1_000],
+            maxEdgePx: 120,
+            jpegQuality: 70
+          },
+          context()
+        )
+      ).rejects.toThrow('ENOENT')
+      expect(spawnControl.calls).toBe(1)
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
 })
 
 async function waitForFile(filePath: string): Promise<void> {
