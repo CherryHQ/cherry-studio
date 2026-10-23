@@ -2309,18 +2309,18 @@ export function splitMarkdownChunks(
     // interrupt a paragraph — the indent under one is its own lazy line — so only a line free of
     // an open paragraph may open it.
     const indentedCode = !blank && previousStatus === 'block' && leadingColumns(line) >= 4 && !startsBlock(line)
-    const indentedContinuation =
-      definitionContainer && insideContainer !== null
-        ? // A marker-only line behind the definition's container (`>` on its own) is blank the way
-          // the parser sees it: the quote reproduces the line and the definition spans it.
-          isBlankLine(insideContainer) ||
+    const indentedContinuation = definitionContainer
+      ? insideContainer !== null &&
+        // A marker-only line behind the definition's container (`>` on its own) is blank the way
+        // the parser sees it: the quote reproduces the line and the definition spans it.
+        (isBlankLine(insideContainer) ||
           (INDENTED_LINE.test(insideContainer) && !startsBlock(insideContainer) && !sawBlankInDefinition) ||
           // Past a blank line the definition owns only lines the parser counts as indented to four
           // columns inside the container — `>  second` behind a `>` quote carries two, so it is a
           // quoted paragraph of its own and carrying it would print it in every chunk.
           (sawBlankInDefinition && continuesDefinitionAfterBlank(insideContainer) && !startsBlock(insideContainer)) ||
-          (blank && continuesDefinitionAfterBlank(strippedNextContent(lines, nextContent, i, definitionContainer)))
-        : indentedCode || (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
+          (blank && continuesDefinitionAfterBlank(strippedNextContent(lines, nextContent, i, definitionContainer))))
+      : indentedCode || (blank && continuesDefinitionAfterBlank(lines[nextContent[i]]))
     // A blank line the definition spans — a bare one, or the definition's own container markers on
     // a line of their own (`>`), which is blank the way the parser sees it — ends no container, so
     // it has to be remembered for the continuation line that follows it. Either kind ends the

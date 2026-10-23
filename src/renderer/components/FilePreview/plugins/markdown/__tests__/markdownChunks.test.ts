@@ -721,6 +721,19 @@ describe('splitMarkdownChunks', () => {
     expect(chunks.filter((chunk) => chunk.text.includes('> [^n]'))).toHaveLength(1)
   })
 
+  it('ends a quoted footnote definition when the line outside the quote is indented code', () => {
+    // The line dropped the quote marker, so it is not inside the container the definition lives in;
+    // the parser keeps it as an indented code block of its own and the note holds only `note`.
+    const content = ['> [^x]: note', '', '    second', '', 'see [^x]'].join('\n')
+
+    const chunks = chunksOf(content)
+
+    expect(chunks).toHaveLength(1)
+    const definition = parsed(chunks[0].text).children.find((node) => node.type === 'footnoteDefinition')
+    expect(definition).toBeDefined()
+    expect(JSON.stringify(definition)).not.toContain('second')
+  })
+
   it('carries a definition whose title escapes its own delimiter', () => {
     // An escaped quote is part of the title, so the definition is a definition; read as a closing
     // delimiter it would fail the title shape and the reference would degrade to literal text.
