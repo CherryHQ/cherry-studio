@@ -1,5 +1,11 @@
 # @cherrystudio/file-preview
 
+## 0.2.3
+
+### Patch Changes
+
+- [#22548](https://github.com/CherryHQ/cherry-studio/pull/22548) [`a48cb07`](https://github.com/CherryHQ/cherry-studio/commit/a48cb075dda8053226081617308a157c4be4039e) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Enable native text selection and copying in DOCX previews while preserving paragraph references during text dragging.
+
 ## 0.2.2
 
 ### Patch Changes
