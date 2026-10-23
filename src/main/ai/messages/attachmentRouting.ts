@@ -163,7 +163,7 @@ async function resolveAttachmentFileType(
   entryId: string,
   bareExt: string,
   signal?: AbortSignal
-): Promise<{ fileType: FileType; mediaType?: string }> {
+): Promise<{ fileType: FileType; mediaType?: string; unknownProbe?: boolean }> {
   if (bareExt.replace(/^\./, '').toLowerCase() !== 'webm') {
     const fileType = getFileTypeByExt(bareExt)
     const mediaType = dispatchAudioMediaType(bareExt)
@@ -173,7 +173,7 @@ async function resolveAttachmentFileType(
   // A .webm name can still be Matroska or MP4. Kind chooses the capability; probe.mime is dispatched.
   if (probe.kind === 'video') return { fileType: FILE_TYPE.VIDEO, mediaType: probe.mime }
   if (probe.kind === 'audio') return { fileType: FILE_TYPE.AUDIO, mediaType: probe.mime }
-  return { fileType: FILE_TYPE.OTHER }
+  return { fileType: FILE_TYPE.OTHER, unknownProbe: true }
 }
 
 /**
@@ -332,6 +332,17 @@ async function prepareChatMessage<T extends UIMessage>(
       if (isNative(bareExt, fileType, ctx.nativeSupport, resolved.mediaType)) {
         if (!(await inlineNative(part, resolved.mediaType))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
+          kept.push(noteOf(handle))
+        }
+        continue
+      }
+
+      // An unknown WebM probe is a binary container, not a text document. Keep
+      // the file reference for path-forwarding callers and show a safe note in chat.
+      if (resolved.unknownProbe) {
+        if (ctx.keepUnroutableFileParts) {
+          kept.push(part)
+        } else {
           kept.push(noteOf(handle))
         }
         continue
