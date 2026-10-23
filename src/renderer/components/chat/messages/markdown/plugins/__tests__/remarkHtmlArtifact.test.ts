@@ -1120,6 +1120,47 @@ After.`
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
   })
 
+  // Ordinary body content right after the summary label (a `<div>`) hides a LATER inner opener
+  // from the label-split search: emitting the whole node as the label orphans that opener, so
+  // its close collapses into an artifact code node. The opener count of the remainder after the
+  // label must still reach the pairing bookkeeping.
+  it('keeps an inner opener behind body content in the summary node in the bookkeeping', () => {
+    const source = `<details>
+
+<summary>Outer</summary>
+<div>Introduction</div>
+<details><summary>Inner</summary>
+
+Inner body
+
+</details>
+
+Outer tail
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual([
+      'html',
+      'html',
+      'paragraph',
+      'html',
+      'paragraph',
+      'html',
+      'paragraph'
+    ])
+    expect(tree.children[1]).toMatchObject({
+      type: 'html',
+      value: expect.stringContaining('<summary>Outer</summary>')
+    })
+    expect((tree.children[1] as { value: string }).value).toContain('<details><summary>Inner</summary>')
+    expect(tree.children[3]).toMatchObject({ type: 'html', value: '</details>' })
+    expect(tree.children[5]).toMatchObject({ type: 'html', value: '</details>' })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
   // Inside SVG (foreign content) the raw-text algorithm never applies and a self-closing
   // `<title/>` really ends the element: waiting for a `</title>` that never comes loses the
   // document's real `</html>`, and the raw HTML loses its stylesheet to Markdown sanitization.
@@ -1139,6 +1180,34 @@ After.`
       lang: 'html',
       value: source.split('\n\n').slice(1, 3).join('\n\n')
     })
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
+  })
+
+  // `foreignObject` is an HTML integration point: its children parse as HTML, so the script
+  // raw-text algorithm applies inside it and the literal `</details>` in the script string is
+  // source code. Exempting the whole SVG subtree from raw text lets that literal hijack the
+  // pairing close and shred the embedded document.
+  it('keeps the document artifact when a script string inside foreignObject hides a close', () => {
+    const source = `Before
+
+<details>
+<summary>Doc</summary>
+
+<html><body><svg><foreignObject><script>const text="</details>";</script></foreignObject></svg><p>Card</p></body></html>
+
+</details>
+
+After.`
+    const tree = parse(source)
+
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'html', 'code', 'html', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({ type: 'html', value: '<details>\n<summary>Doc</summary>' })
+    expect(tree.children[2]).toMatchObject({
+      type: 'code',
+      lang: 'html',
+      value: source.split('\n\n')[2]
+    })
+    expect((tree.children[3] as { value: string }).value).toBe('</details>')
     expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph', children: [{ value: 'After.' }] })
   })
 

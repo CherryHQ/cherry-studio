@@ -138,10 +138,13 @@ function findDocumentHtmlClose(value: string, state: ContainerScanState): number
       continue
     }
     // A close tag of anything else: its interior holds no boundary, skip past the marker. A
-    // foreign-content namespace close leaves that context.
+    // foreign-content namespace close leaves that context; a `foreignObject` close leaves the
+    // HTML integration point.
     if (value.startsWith('</', lt)) {
       if (/^<\/(?:svg|math)[\s>]/i.test(value.slice(lt))) {
         state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
+      } else if (/^<\/foreignobject[\s>]/i.test(value.slice(lt))) {
+        state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
       }
       position = lt + 2
       continue
@@ -238,7 +241,7 @@ const SAME_NODE_RAW_TEXT_ELEMENT_NAMES = RAW_TEXT_ELEMENT_NAMES.filter(
 // (`title="</details>"` is legal HTML whose decoy must not reach the depth counter); a generic
 // tag does the same so a quoted `>` never ends the tag early.
 const CONTAINER_LEXICAL_TOKEN_REGEX = new RegExp(
-  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
+  `<!--[\\s\\S]*?-->|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>|<(${SAME_NODE_RAW_TEXT_ELEMENT_NAMES.join('|')})\\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\\s\\S]*?<\\/\\1\\s*>|<\\/?details(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:foreignobject)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<\\/(?:svg|math)(?=[\\s>/])(?:"[^"]*"|'[^']*'|[^>"'])*>|<[a-z](?:"[^"]*"|'[^']*'|[^>"'])*>`,
   'gi'
 )
 
@@ -332,6 +335,11 @@ interface ContainerScanState {
   scriptDoubleEscaped?: boolean
   /** Foreign-content (SVG/MathML) namespace depth: the raw-text algorithm never applies inside. */
   foreignDepth?: number
+  /**
+   * HTML integration point depth (`<foreignObject>` in foreign content): its children parse as
+   * HTML, so the raw-text algorithm applies again inside it.
+   */
+  foreignHtmlIntegrationDepth?: number
 }
 
 // A completed tag whose `>` is preceded by the self-closing marker. In foreign content it
@@ -341,8 +349,10 @@ function isSelfClosingTag(value: string, start: number, end: number): boolean {
   return /\/\s*>$/.test(value.slice(start, end))
 }
 
+// Foreign content (SVG/MathML) EXCEPT its HTML integration points (`foreignObject`): inside an
+// integration point children parse as HTML, so the raw-text algorithm applies there again.
 function isForeignContext(state: ContainerScanState): boolean {
-  return (state.foreignDepth ?? 0) > 0
+  return (state.foreignDepth ?? 0) > 0 && (state.foreignHtmlIntegrationDepth ?? 0) === 0
 }
 
 /**
@@ -364,6 +374,15 @@ function applyCompletedTag(
   const name = tagName?.toLowerCase()
   if (name === 'svg' || name === 'math') {
     if (!isSelfClosingTag(value, tagStart, tagEnd)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
+    return
+  }
+  // A `foreignObject` inside foreign content is an HTML integration point: its children parse
+  // as HTML (raw text applies again), so track its depth. Inside an existing integration point
+  // it is an ordinary unknown HTML element.
+  if (name === 'foreignobject') {
+    if (isForeignContext(state) && !isSelfClosingTag(value, tagStart, tagEnd)) {
+      state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+    }
     return
   }
   if (state.pendingRawText !== undefined) {
@@ -402,6 +421,7 @@ function resetStreamState(state: ContainerScanState): void {
   state.scriptEscaped = undefined
   state.scriptDoubleEscaped = undefined
   state.foreignDepth = undefined
+  state.foreignHtmlIntegrationDepth = undefined
 }
 
 // Detects a tag OPENer (`<div`, `<details`, …) — close tags (`</div>`) are complete by
@@ -450,6 +470,10 @@ function findUnfinishedTagEnd(value: string, from: number, state: ContainerScanS
 // a pairing search needs to know about the nodes preceding its own start.
 function scanContainerBoundaries(value: string, state: ContainerScanState, trackDepth = true): ContainerScanResult {
   let position = 0
+  // Both searches scan to end-of-input on miss while position only grows: cache them, or every
+  // token iteration pays a full O(n) re-scan (quadratic on token-dense input).
+  let commentStart: number | undefined
+  let cdataStart: number | undefined
   while (position < value.length) {
     // An unterminated comment keeps swallowing content — across later nodes — until its `-->`.
     if (state.inComment) {
@@ -521,8 +545,12 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
     // A comment opening before the next token cannot terminate in the remaining input (a
     // complete comment would have matched as the token itself): it swallows the rest of the
     // input — across later nodes — so no boundary inside it may be trusted.
-    const commentStart = value.indexOf('<!--', position)
-    const cdataStart = value.indexOf('<![CDATA[', position)
+    if (commentStart === undefined || (commentStart !== -1 && commentStart < position)) {
+      commentStart = value.indexOf('<!--', position)
+    }
+    if (cdataStart === undefined || (cdataStart !== -1 && cdataStart < position)) {
+      cdataStart = value.indexOf('<![CDATA[', position)
+    }
     // Same detection for a tag opener that precedes the first complete token: the token
     // alternatives match ANY complete tag at its own position, so an opener earlier than the
     // first match never completes in this node — its attribute text may hide boundaries.
@@ -574,9 +602,21 @@ function scanContainerBoundaries(value: string, state: ContainerScanState, track
         state.foreignDepth = Math.max((state.foreignDepth ?? 1) - 1, 0)
         continue
       }
+      if (token.startsWith('</foreignobject')) {
+        state.foreignHtmlIntegrationDepth = Math.max((state.foreignHtmlIntegrationDepth ?? 1) - 1, 0)
+        continue
+      }
       const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
       if (name === 'svg' || name === 'math') {
         if (!isSelfClosingTag(token, 0, token.length)) state.foreignDepth = (state.foreignDepth ?? 0) + 1
+        continue
+      }
+      // A `foreignObject` in foreign content is an HTML integration point (children parse as
+      // HTML); inside an existing one it is an ordinary unknown HTML element.
+      if (name === 'foreignobject') {
+        if (isForeignContext(state) && !isSelfClosingTag(token, 0, token.length)) {
+          state.foreignHtmlIntegrationDepth = (state.foreignHtmlIntegrationDepth ?? 0) + 1
+        }
         continue
       }
       // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
@@ -612,6 +652,10 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
   let scanned = 0
   let rawText: string | undefined
   let foreignDepth = 0
+  let foreignHtmlIntegrationDepth = 0
+  // Same monotone-position cache as the pairing scan: an end-of-input miss must not re-scan per
+  // token iteration.
+  let commentStart: number | undefined
   CONTAINER_LEXICAL_TOKEN_REGEX.lastIndex = 0
   let match: RegExpExecArray | null
   while (true) {
@@ -642,7 +686,9 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
     if (value.indexOf('>', scanned) === -1) return undefined
     match = CONTAINER_LEXICAL_TOKEN_REGEX.exec(value)
     if (match === null) return undefined
-    const commentStart = value.indexOf('<!--', scanned)
+    if (commentStart === undefined || (commentStart !== -1 && commentStart < scanned)) {
+      commentStart = value.indexOf('<!--', scanned)
+    }
     if (commentStart !== -1 && commentStart < match.index) {
       return undefined // an unfinished comment opens before the boundary and never terminates
     }
@@ -654,13 +700,29 @@ function findUnmatchedDetailsClose(value: string): { start: number; end: number 
         foreignDepth = Math.max(foreignDepth - 1, 0)
         continue
       }
+      if (token.startsWith('</foreignobject')) {
+        foreignHtmlIntegrationDepth = Math.max(foreignHtmlIntegrationDepth - 1, 0)
+        continue
+      }
       const name = /^<([a-z][a-z0-9-]*)/.exec(token)?.[1]
       if (name === 'svg' || name === 'math') {
         if (!isSelfClosingTag(token, 0, token.length)) foreignDepth += 1
         continue
       }
+      // A `foreignObject` in foreign content is an HTML integration point (children parse as
+      // HTML); inside an existing one it is an ordinary unknown HTML element.
+      if (name === 'foreignobject') {
+        if (foreignDepth > 0 && foreignHtmlIntegrationDepth === 0 && !isSelfClosingTag(token, 0, token.length)) {
+          foreignHtmlIntegrationDepth += 1
+        }
+        continue
+      }
       // HTML has no self-closing on non-void elements: `<script/>` still opens a raw-text body.
-      if (name !== undefined && RAW_TEXT_CLOSE_REGEXES.has(name) && foreignDepth === 0) {
+      if (
+        name !== undefined &&
+        RAW_TEXT_CLOSE_REGEXES.has(name) &&
+        !(foreignDepth > 0 && foreignHtmlIntegrationDepth === 0)
+      ) {
         rawText = name
       }
       continue
@@ -954,6 +1016,9 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // the disclosure's LABEL, so it stays raw beside the boundary — as an artifact iframe
         // the native disclosure has no summary element and the browser shows its default label.
         let bodyStart = 0
+        // Disclosures opened in the label node's remainder (see below) owe this body range
+        // their closes.
+        let remainderOpens = 0
         const firstBody = body[0]
         if (firstBody?.type === 'html' && HTML_SUMMARY_OPEN_REGEX.test(stripLeadingHtmlMetadata(firstBody.value))) {
           const summaryEnd = findSummaryElementEnd(firstBody.value)
@@ -972,6 +1037,12 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
             } else {
               children.push(firstBody)
               bodyStart = 1
+              // Body content before any opener (`<div>…`) voids the opener search above, but
+              // the remainder can still OPEN disclosures: count them (scratch state only) so
+              // the body range keeps their closes raw.
+              const remainderState: ContainerScanState = { count: 0 }
+              scanContainerBoundaries(rest, remainderState)
+              remainderOpens = remainderState.count
             }
           } else {
             // The label's open tag never completed in this node (streaming): keep the whole
@@ -983,7 +1054,13 @@ export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
         // The paired close closes the outermost opening of the opening node; every opening
         // retained next to it has no matching open inside the body, so its close arrives as an
         // unpaired body node and must stay raw (see the fallback below).
-        processRange(body, bodyStart, body.length, Math.max(paired.retainedOpens - 1, 0), paired.bodyEntryState)
+        processRange(
+          body,
+          bodyStart,
+          body.length,
+          Math.max(paired.retainedOpens - 1, 0) + remainderOpens,
+          paired.bodyEntryState
+        )
         children.push(sliceHtmlNode(closeNode, paired.closeStart, paired.closeEnd))
         // At the close the lexical stream is plain: the pairing scan could only resolve a real
         // `</details>` boundary once every raw-text body, comment, tag and CDATA section ended.
