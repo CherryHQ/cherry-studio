@@ -1,20 +1,26 @@
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import type { CreateMessageRequestParamsBase } from '@modelcontextprotocol/client'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { modelMessageSchema } from 'ai'
+import { APICallError, modelMessageSchema, type UIMessage } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
+import type * as AttachmentRoutingModule from '../messages/attachmentRouting'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
+import type { BuiltAgentParams } from '../runtime/aiSdk/params/buildAgentParams'
+import type * as BuildFallbackModelsModule from '../runtime/aiSdk/retry/buildFallbackModels'
+import type * as CreateRetryableWrapModule from '../runtime/aiSdk/retry/createRetryableWrap'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
+import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
@@ -66,6 +72,7 @@ const mockReconcileSkills = vi.fn()
 const mockRegisterBuiltinTools = vi.fn()
 const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 const mockRecordRequest = vi.fn()
+const mockPrepareChatMessages = vi.fn()
 const mockAddFileRefsTx = vi.fn()
 
 vi.mock('@application', () => ({
@@ -238,6 +245,17 @@ vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
 vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
   readRetryPolicy: () => mockReadRetryPolicy()
 }))
+
+vi.mock('../messages/attachmentRouting', async (importOriginal) => {
+  const actual = await importOriginal<typeof AttachmentRoutingModule>()
+  return {
+    ...actual,
+    prepareChatMessages: (messages: never, context: never) =>
+      mockPrepareChatMessages.getMockImplementation()
+        ? mockPrepareChatMessages(messages, context)
+        : actual.prepareChatMessages(messages, context)
+  }
+})
 
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
@@ -1919,6 +1937,229 @@ describe('AiService tool approval', () => {
         onRetryEvent: expect.any(Function)
       })
     )
+  })
+
+  it('requires audio fallback support after probing an audio-only WebM', async () => {
+    const service = createService()
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: true,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: ['fallback::model']
+    })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: true, video: false },
+      fileAttachments: []
+    })
+    const original: UIMessage = {
+      id: 'message-1',
+      role: 'user',
+      parts: [{ type: 'file', mediaType: 'video/webm', url: 'file:///clip.webm', filename: 'clip.webm' }]
+    }
+    mockPrepareChatMessages.mockImplementation(async (messages: Array<{ parts?: Array<{ mediaType?: string }> }>) =>
+      messages.map((message) => ({
+        ...message,
+        parts: message.parts?.map((part) =>
+          part.mediaType === 'video/webm' ? { ...part, mediaType: 'audio/webm' } : part
+        )
+      }))
+    )
+
+    try {
+      await service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        messages: [original],
+        requestOptions: { signal: new AbortController().signal }
+      })
+
+      expect(mockPrepareChatMessages).toHaveBeenCalled()
+      expect(mockBuildFallbackModels).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requiredNativeFileSupport: {
+            image: false,
+            pdf: false,
+            audio: true,
+            video: false,
+            audioMediaTypes: ['audio/webm']
+          }
+        })
+      )
+    } finally {
+      mockPrepareChatMessages.mockReset()
+    }
+  })
+
+  it('rejects an OpenAI chat fallback after Google primary failure on prepared audio/webm', async () => {
+    const { buildFallbackModels: buildFallbackModelsActual } = await vi.importActual<typeof BuildFallbackModelsModule>(
+      '../runtime/aiSdk/retry/buildFallbackModels'
+    )
+    const { createRetryableWrap: createRetryableWrapActual } = await vi.importActual<typeof CreateRetryableWrapModule>(
+      '../runtime/aiSdk/retry/createRetryableWrap'
+    )
+    const { resolveAiSdkProviderId } = await import('../provider/endpoint')
+    const { resolveNativeFileSupport } = await import('../runtime/aiSdk/params/nativeFileSupport')
+    const paramsModule = await import('../runtime/aiSdk/params/buildAgentParams')
+    let recordedFallbackSupport: ReturnType<typeof resolveNativeFileSupport> | undefined
+    // The fallback builder calls this export. The primary path stays on its own stub.
+    const agentParamsSpy = vi.spyOn(paramsModule, 'buildAgentParams').mockImplementation(async (input) => {
+      const endpointType = input.model.endpointTypes?.[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      const aiSdkProviderId = resolveAiSdkProviderId(input.provider, endpointType)
+      const nativeFileSupport = resolveNativeFileSupport(input.provider, input.model, {
+        endpointType,
+        aiSdkProviderId,
+        runtimeProviderId: aiSdkProviderId
+      })
+      recordedFallbackSupport = nativeFileSupport
+      return {
+        sdkConfig: {
+          providerId: aiSdkProviderId,
+          providerOptionsKey: 'openai',
+          providerSettings: {},
+          modelId: input.model.apiModelId ?? input.model.id
+        },
+        credentialReceipt: { attribution: 'matched', id: 'fallback-key', masked: 'sk-o****udio' },
+        tools: undefined,
+        plugins: [],
+        system: undefined,
+        options: {},
+        hookParts: [],
+        nativeFileSupport,
+        fileAttachments: []
+      } as BuiltAgentParams
+    })
+    const service = createService()
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: true,
+      maxAttempts: 1,
+      backoffEnabled: false,
+      fallbackModelIds: ['openai::gpt-4o-audio']
+    })
+    mockBuildFallbackModels.mockImplementation((options) =>
+      buildFallbackModelsActual(options as Parameters<typeof buildFallbackModelsActual>[0])
+    )
+    mockCreateRetryableWrap.mockImplementation(
+      (options) =>
+        createRetryableWrapActual(options as Parameters<typeof createRetryableWrapActual>[0]) as
+          | ((model: unknown) => unknown)
+          | undefined
+    )
+    mockProviderGetByProviderId.mockImplementation((id: string) =>
+      makeProvider({
+        id,
+        isEnabled: true,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            adapterFamily: 'openai',
+            baseUrl: 'https://api.openai.com/v1'
+          }
+        }
+      })
+    )
+    mockModelGetByKey.mockImplementation((providerId: string, modelId: string) =>
+      makeModel({
+        id: `${providerId}::${modelId}`,
+        providerId,
+        apiModelId: modelId,
+        name: modelId,
+        capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    )
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'google', providerSettings: {}, modelId: 'gemini-2.5-flash' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'google', name: 'Google', reportsActualCost: false },
+      model: {
+        id: 'google::gemini-2.5-flash',
+        name: 'Gemini',
+        capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION]
+      },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: true, video: false },
+      fileAttachments: []
+    })
+    const original: UIMessage = {
+      id: 'message-1',
+      role: 'user',
+      parts: [{ type: 'file', mediaType: 'video/webm', url: 'file:///clip.webm', filename: 'clip.webm' }]
+    }
+    mockPrepareChatMessages.mockImplementation(async (messages: Array<{ parts?: Array<{ mediaType?: string }> }>) =>
+      messages.map((message) => ({
+        ...message,
+        parts: message.parts?.map((part) =>
+          part.mediaType === 'video/webm' ? { ...part, mediaType: 'audio/webm' } : part
+        )
+      }))
+    )
+    const primaryError = new APICallError({
+      message: 'google primary failed',
+      url: 'https://generativelanguage.googleapis.com/v1beta',
+      requestBodyValues: {},
+      statusCode: 500,
+      isRetryable: false
+    })
+    const primaryGenerate = vi.fn().mockRejectedValue(primaryError)
+    const primaryModel = {
+      specificationVersion: 'v3',
+      provider: 'google',
+      modelId: 'gemini-2.5-flash',
+      supportedUrls: {},
+      doGenerate: primaryGenerate,
+      doStream: vi.fn()
+    } as unknown as LanguageModelV3
+
+    try {
+      await service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        messages: [original],
+        requestOptions: { signal: new AbortController().signal }
+      })
+
+      const wrap = mockCreateRetryableWrap.mock.results.at(-1)?.value as
+        | ((model: LanguageModelV3) => LanguageModelV3)
+        | undefined
+      expect(wrap).toEqual(expect.any(Function))
+      await expect(wrap!(primaryModel).doGenerate({ prompt: [] })).rejects.toBe(primaryError)
+      expect(primaryGenerate).toHaveBeenCalledOnce()
+      expect(agentParamsSpy).toHaveBeenCalledOnce()
+      expect(recordedFallbackSupport?.audio).toBe(true)
+      expect(recordedFallbackSupport?.audioMediaTypes).not.toContain('audio/webm')
+      expect(mockBuildFallbackModels).toHaveBeenCalledWith(
+        expect.objectContaining({
+          primaryUniqueModelId: 'google::gemini-2.5-flash',
+          requiredNativeFileSupport: {
+            image: false,
+            pdf: false,
+            audio: true,
+            video: false,
+            audioMediaTypes: ['audio/webm']
+          }
+        })
+      )
+    } finally {
+      agentParamsSpy.mockRestore()
+      mockBuildFallbackModels.mockReset()
+      mockCreateRetryableWrap.mockReset()
+      mockPrepareChatMessages.mockReset()
+    }
   })
 
   it('honors maxRetries: 0 for generateText without building fallbacks', async () => {

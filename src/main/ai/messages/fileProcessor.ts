@@ -51,15 +51,22 @@ function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
   return { ...part, mediaType: fallback }
 }
 
+function mediaTypeForDispatch(storedMime: string, trusted?: string): string {
+  // Probe MIME can disagree with the extension-derived type stored for the same bytes.
+  if (trusted && PROPER_MEDIA_TYPE_RE.test(trusted)) return trusted
+  return storedMime
+}
+
 /**
  * Resolve a FileEntryId via FileManager → base64 data URL + its on-disk MIME.
  * Returns `null` on missing entry / unreadable file so the caller can fall
  * through to the `file://` URL branch.
  */
-async function fileEntryIdToDataUrl(fileEntryId: string) {
+async function fileEntryIdToDataUrl(fileEntryId: string, trustedMediaType?: string) {
   try {
     const { content, mime } = await application.get('FileManager').read(fileEntryId, { encoding: 'base64' })
-    return { url: `data:${mime};base64,${content}`, mediaType: mime }
+    const mediaType = mediaTypeForDispatch(mime, trustedMediaType)
+    return { url: `data:${mediaType};base64,${content}`, mediaType }
   } catch (error) {
     logger.warn('Failed to inline file from fileEntryId', {
       fileEntryId,
@@ -74,11 +81,12 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
  * MIME. Returns `null` on failure so callers can drop the part rather than
  * abort the whole request.
  */
-async function fileUrlToDataUrl(fileUrl: string) {
+async function fileUrlToDataUrl(fileUrl: string, trustedMediaType?: string) {
   try {
     const absPath = AbsoluteFilePathSchema.parse(fileURLToPath(fileUrl))
     const { data, mime } = await fsRead(absPath, { encoding: 'base64' })
-    return { url: `data:${mime};base64,${data}`, mediaType: mime }
+    const mediaType = mediaTypeForDispatch(mime, trustedMediaType)
+    return { url: `data:${mediaType};base64,${data}`, mediaType }
   } catch (error) {
     logger.warn('Failed to inline file:// URL', { fileUrl, error: error instanceof Error ? error.message : error })
     return null
@@ -97,22 +105,25 @@ async function fileUrlToDataUrl(fileUrl: string) {
  * same signature. Add the provider/model strategy input then — callers won't
  * need to change.
  */
-export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
-  const materialized = await materializeInner(part)
+export async function materializeNativeFilePart(
+  part: FileUIPart,
+  options?: { mediaType?: string }
+): Promise<FileUIPart | null> {
+  const materialized = await materializeInner(part, options?.mediaType)
   return materialized === null ? null : sanitizeFilePartMediaType(materialized)
 }
 
-async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
+async function materializeInner(part: FileUIPart, trustedMediaType?: string): Promise<FileUIPart | null> {
   const fileEntryId = readCherryMeta(part)?.fileEntryId
   if (fileEntryId) {
-    const inlined = await fileEntryIdToDataUrl(fileEntryId)
+    const inlined = await fileEntryIdToDataUrl(fileEntryId, trustedMediaType)
     if (inlined) return { ...part, ...inlined }
     // fileEntry missing / unreadable — try to rescue from a still-valid
     // `file://` snapshot (legacy / migrated rows). If no usable file:// URL
     // is available, drop the part rather than emit `{type:'file', data:''}`.
     const url = part.url
     if (!url || !url.startsWith('file://')) return null
-    const rescued = await fileUrlToDataUrl(url)
+    const rescued = await fileUrlToDataUrl(url, trustedMediaType)
     return rescued ? { ...part, ...rescued } : null
   }
 
@@ -120,7 +131,7 @@ async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
   if (!url) return part
   if (!url.startsWith('file://')) return part
 
-  const inlined = await fileUrlToDataUrl(url)
+  const inlined = await fileUrlToDataUrl(url, trustedMediaType)
   if (!inlined) return null
 
   return { ...part, ...inlined }
