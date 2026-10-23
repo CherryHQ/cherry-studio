@@ -2727,13 +2727,20 @@ describe('useFollowupQueue', () => {
     const onDrain = vi.fn(async () => true)
 
     const { result, rerender } = renderHook(
-      ({ scopeKey, status, lastCompletedAt }) =>
-        useFollowupQueue(baseProps({ scopeKey, status, lastCompletedAt, onDrain })),
+      ({
+        scopeKey,
+        status,
+        lastCompletedAt
+      }: {
+        scopeKey: string
+        status: 'streaming' | 'done'
+        lastCompletedAt: number | null
+      }) => useFollowupQueue(baseProps({ scopeKey, status, lastCompletedAt, onDrain })),
       {
         initialProps: {
           scopeKey: SCOPE,
-          status: 'streaming' as const,
-          lastCompletedAt: null as number | null
+          status: 'streaming',
+          lastCompletedAt: null
         }
       }
     )
