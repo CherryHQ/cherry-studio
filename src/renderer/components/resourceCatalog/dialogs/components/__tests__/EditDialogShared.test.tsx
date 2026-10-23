@@ -187,6 +187,38 @@ describe('EditDialogShared', () => {
     expect(mockUseKnowledgeBases).toHaveBeenCalledWith({ revalidateOnFocus: true })
   })
 
+  it('finds eligible knowledge bases by ID while excluding already linked IDs', async () => {
+    const user = userEvent.setup()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        { id: 'base-alpha', name: 'Research Library', itemCount: 2 },
+        { id: 'base-linked', name: 'Linked Library', itemCount: 1 }
+      ],
+      isLoading: false
+    })
+    function Harness() {
+      const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: { knowledgeBaseIds: ['base-linked'] } })
+      return (
+        <Form {...form}>
+          <KnowledgeStep form={form} portalContainer={null} />
+          <output aria-label="Selected knowledge IDs">{form.watch('knowledgeBaseIds').join(',')}</output>
+        </Form>
+      )
+    }
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    const search = screen.getByPlaceholderText('Search knowledge bases')
+    await user.type(search, '  BASE-LINKED  ')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    await user.clear(search)
+    await user.type(search, '  BASE-ALPHA  ')
+    const option = screen.getByRole('option', { name: /Research Library/ })
+    expect(option).toHaveTextContent('2 docs')
+    await user.click(option)
+    expect(screen.getByLabelText('Selected knowledge IDs')).toHaveTextContent('base-linked,base-alpha')
+    expect(screen.queryByPlaceholderText('Search knowledge bases')).not.toBeInTheDocument()
+  })
+
   it('closes and disables the knowledge picker when submission starts', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [{ id: 'knowledge-1', name: 'Knowledge one', itemCount: 1 }],

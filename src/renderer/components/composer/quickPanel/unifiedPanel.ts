@@ -184,8 +184,8 @@ const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
 }
 
 function getUnifiedQuickPanelMatchText(item: QuickPanelListItem) {
-  // `filterText`, when set, is the authoritative search field for the item
-  // (e.g. skills set it to their name only). Hidden aliases may still expand search.
+  // Truthy `filterText` is authoritative; producers choose which metadata it includes.
+  // Hidden aliases may still expand search.
   if (item.filterText) {
     return item.searchAliases ? `${item.filterText} ${item.searchAliases.join(' ')}` : item.filterText
   }

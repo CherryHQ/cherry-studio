@@ -1170,6 +1170,10 @@ describe('edit dialogs', () => {
       params: { targetType: 'assistant', targetId: ASSISTANT.id }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    const search = screen.getByRole('combobox')
+    fireEvent.change(search, { target: { value: '00000000-0000-4000' } })
+    expect(screen.queryByRole('option', { name: /Reusable prompt/ })).not.toBeInTheDocument()
+    fireEvent.change(search, { target: { value: '' } })
     fireEvent.click(await screen.findByText('Reusable prompt'))
 
     await waitFor(() =>

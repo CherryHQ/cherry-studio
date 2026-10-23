@@ -40,6 +40,60 @@ const renderSelector = (onChange = vi.fn()) => {
 }
 
 describe('KnowledgeBaseSelector', () => {
+  it('searches IDs independently, preserves disabled rows and order, and selects the ID', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const metadataOptions = [
+      { value: 'base-alpha', label: 'Research Library' },
+      { value: 'base-beta', label: 'Unavailable Library', disabled: true },
+      { value: 'base-gamma', label: 'Other Notes' }
+    ]
+    render(
+      <KnowledgeBaseSelector
+        aria-label="Select knowledge base"
+        options={metadataOptions}
+        placeholder="Choose a knowledge base"
+        searchPlaceholder="Search knowledge bases"
+        emptyText="No results"
+        onChange={onChange}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Select knowledge base' }))
+    const search = screen.getByPlaceholderText('Search knowledge bases')
+    for (const query of ['  BASE-ALPHA  ', 'ALPHA']) {
+      await user.clear(search)
+      await user.type(search, query)
+      expect
+        .soft(
+          screen.queryAllByRole('option').map((row) => row.textContent),
+          query
+        )
+        .toEqual(['Research Library'])
+    }
+    await user.clear(search)
+    await user.type(search, 'library base-')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    await user.clear(search)
+    await user.type(search, 'BASE-BETA')
+    const disabled = screen.getByRole('option', { name: 'Unavailable Library' })
+    expect(disabled).toHaveAttribute('aria-disabled', 'true')
+    await user.click(disabled)
+    await user.keyboard('{Enter}')
+    expect(onChange).not.toHaveBeenCalled()
+    for (const query of ['', '   ']) {
+      await user.clear(search)
+      if (query) await user.type(search, query)
+      expect(screen.getAllByRole('option').map((row) => row.textContent)).toEqual(
+        metadataOptions.map((row) => row.label)
+      )
+    }
+    await user.clear(search)
+    await user.type(search, 'ALPHA')
+    await user.click(screen.getByRole('option', { name: 'Research Library' }))
+    expect(onChange).toHaveBeenCalledWith('base-alpha')
+    expect(screen.queryByPlaceholderText('Search knowledge bases')).not.toBeInTheDocument()
+  })
+
   it('filters Chinese and mixed names by initials, shows no results and restores options on clear', async () => {
     const user = userEvent.setup()
     render(

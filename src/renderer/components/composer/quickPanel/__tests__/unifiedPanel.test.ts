@@ -244,7 +244,9 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
           label: 'Skills',
           icon: 'skill',
           sources: ['root-panel'],
-          rootSearchItems: [{ id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill }],
+          rootSearchItems: [
+            { id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf Read and analyze PDFs', action: insertSkill }
+          ],
           action: vi.fn()
         },
         {
@@ -456,7 +458,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
             id: 'skill:pdf',
             label: 'pdf',
             description: 'Read and analyze PDFs',
-            filterText: 'pdf',
+            filterText: 'pdf Read and analyze PDFs',
             icon: 'skill'
           }
         ],
@@ -471,9 +473,9 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     const quickPhrases = options.list.find((item) => item.label === '提示词管理')!
     const webSearch = options.list.find((item) => item.label === '网络搜索')!
 
-    // Skills keep their explicit root-panel search field and do not match descriptions.
+    // Skill producers include descriptions in their authoritative root search text.
     expect(filterFn(skill, 'pdf', fuzzyRegex, pinyinCache)).toBe(true)
-    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(false)
+    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(true)
 
     // Chinese row matches by substring, pinyin substring, and pinyin initial substring...
     expect(filterFn(quickPhrases, '提示词', fuzzyRegex, pinyinCache)).toBe(true)
@@ -486,6 +488,26 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(filterFn(webSearch, 'wlss', fuzzyRegex, pinyinCache)).toBe(true)
     // ...but not by a loose fuzzy subsequence of its pinyin or initials.
     expect(filterFn(quickPhrases, 'sl', fuzzyRegex, pinyinCache)).toBe(false)
+  })
+
+  it('treats explicit search text as authoritative while appending hidden aliases', () => {
+    const options = createUnifiedQuickPanelOpenOptions([], {
+      quickPanel,
+      additionalItems: [
+        {
+          id: 'explicit',
+          filterText: 'needle',
+          label: 'Zebra',
+          description: 'Otter',
+          searchAliases: ['shortcut'],
+          icon: 'search'
+        }
+      ]
+    })
+    expect(getVisibleItems(options, 'needle')).toHaveLength(1)
+    expect(getVisibleItems(options, 'shortcut')).toHaveLength(1)
+    expect(getVisibleItems(options, 'zebra')).toHaveLength(0)
+    expect(getVisibleItems(options, 'otter')).toHaveLength(0)
   })
 
   it('dispatches generated launcher actions with source and query context', () => {

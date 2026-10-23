@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
+import type { QuickPanelContextType } from '@renderer/components/QuickPanel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
@@ -27,6 +28,7 @@ import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAni
 import * as ComposerDraftModule from '../../composerDraft'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
+import { createUnifiedQuickPanelOpenOptions } from '../../quickPanel/unifiedPanel'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
@@ -3208,6 +3210,45 @@ describe('AgentComposer', () => {
     expect(items?.[0]?.id).not.toContain('/workspace/docs/notes.md')
   })
 
+  it('finds producer skill metadata through the real root matcher without exposing absent descriptions', () => {
+    mocks.availableSkills = [
+      pdfSkill,
+      { name: 'metrics', filename: 'metrics', description: '数据分析' },
+      { name: 'brief', filename: 'brief' }
+    ]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const launcher = mocks.registeredLaunchers.get('agent-skills')![0]
+    const options = createUnifiedQuickPanelOpenOptions([launcher], {
+      quickPanel: { open: vi.fn() } as unknown as QuickPanelContextType
+    })
+    const matchingIds = (query: string) =>
+      options.list.filter((item) => options.filterFn!(item, query, /./, new WeakMap())).map((item) => item.id)
+    for (const query of ['ANALYZE', 'naly', 'pdf']) {
+      expect.soft(matchingIds(query), query).toContain('skill:pdf')
+    }
+    for (const query of ['数据', 'shujufenxi', 'sjfx', 'metrics']) {
+      expect.soft(matchingIds(query), query).toContain('skill:metrics')
+    }
+    expect(matchingIds('plugins.skills')).toEqual(expect.arrayContaining(['skill:pdf', 'skill:metrics', 'skill:brief']))
+    for (const id of ['skill:pdf', 'skill:metrics', 'skill:brief']) {
+      expect(matchingIds('')).not.toContain(id)
+    }
+    expect(matchingIds('brief')).toContain('skill:brief')
+    expect(matchingIds('undefined')).not.toContain('skill:brief')
+    const pdf = options.list.find((item) => item.id === 'skill:pdf')!
+    expect(pdf.label).toBe('pdf')
+    expect(pdf.description).toBe('Read and analyze PDFs')
+    expect(options.list.find((item) => item.id === 'skill:brief')!.filterText).not.toContain('undefined')
+  })
+
   it('exposes available skills and a manage footer through the skills submenu launcher', () => {
     mocks.availableSkills = [pdfSkill]
 
@@ -3242,8 +3283,7 @@ describe('AgentComposer', () => {
       expect.objectContaining({
         id: 'skill:pdf',
         label: 'pdf',
-        description: 'Read and analyze PDFs',
-        filterText: 'pdf'
+        description: 'Read and analyze PDFs'
       })
     )
     expect(skillItem?.suffix).toBeUndefined()
