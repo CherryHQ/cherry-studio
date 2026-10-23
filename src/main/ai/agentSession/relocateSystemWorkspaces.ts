@@ -19,7 +19,10 @@ import {
 import {
   assertWorkspaceDirectoryIdentity,
   inspectWorkspaceStorage,
-  validateWorkspaceArchive
+  validateWorkspaceArchive,
+  validateWorkspaceContents,
+  workspaceDirectoryIdentity,
+  type WorkspaceStorageRecord
 } from '@main/ai/agents/agentWorkspaceStorage'
 import { blockWorkspaceRelocation } from '@main/ai/runtime/agentSessionWorkspace'
 import { runForkWorker } from '@main/ai/runtime/fork'
@@ -96,7 +99,7 @@ async function digest(root: string, file: string): Promise<string> {
   return hash.digest('hex')
 }
 
-function artifactPath(root: string, relative: string): string {
+function artifactPath(root: string, relative: string, workspacePath: string): string {
   const segments = relative.split(/[\\/]/)
   if (segments.some((part) => !part || part === '.' || part === '..') || path.isAbsolute(relative)) {
     throw new Error('Invalid relocation artifact path')
@@ -106,20 +109,59 @@ function artifactPath(root: string, relative: string): string {
     ((segments.length === 2 && segments[1] === '.claude.json') || (segments.length === 3 && segments[1] === 'projects'))
   // Older journals may still need to restore retired DSH artifacts.
   const dsh = segments.length === 4 && segments[0] === '.dsh' && segments[1] === 'sessions'
-  if (!claude && !dsh) throw new Error('Artifact is outside managed runtime history')
+  const storage =
+    path.join(...segments) === path.join('system', `${workspaceLayout(workspacePath).suffix}.storage.json`)
+  if (!claude && !dsh && !storage) throw new Error('Artifact is outside managed relocation storage')
   return path.join(root, ...segments)
 }
 
+async function reconcileCopiedStorage(root: string, oldPath: string, newPath: string, record: WorkspaceStorageRecord) {
+  if (record.operation === 'purge' || !record.directory) return undefined
+  let suffixes = ['']
+  if (record.operation === 'archive') suffixes = record.phase === 'staging' ? ['', '.archiving'] : ['.archiving']
+  else if (record.phase === 'preparing' && record.source === 'pending') suffixes = ['.archiving']
+  else if (record.phase === 'prepared') {
+    suffixes = [path.join('.restoring', record.operationId), '']
+    if (record.source === 'pending') suffixes.push('.archiving')
+  }
+  for (const suffix of ['', '.archiving']) {
+    if (!suffixes.includes(suffix) && (await exists(`${newPath}${suffix}`)))
+      throw new Error('Workspace storage has unverified copies')
+  }
+  const candidates: string[] = []
+  for (const suffix of suffixes) if (await exists(`${newPath}${suffix}`)) candidates.push(suffix)
+  if (!candidates.length) return undefined
+  if (candidates.length !== 1) throw new Error('Workspace storage has unverified copies')
+  const suffix = candidates[0]
+  const target = `${newPath}${suffix}`
+  const identity = await workspaceDirectoryIdentity(root, target)
+  if (JSON.stringify(identity) === JSON.stringify(record.directory)) return undefined
+
+  // A copied inode is trusted only against the journal-owned source and identical contents.
+  const oldRoot = workspaceLayout(oldPath).agents
+  const source = `${oldPath}${suffix}`
+  const original = await inspectWorkspaceStorage(oldRoot, oldPath)
+  if (JSON.stringify(original?.record) !== JSON.stringify(record)) throw new Error('Workspace storage journal changed')
+  await assertWorkspaceDirectoryIdentity(oldRoot, source, record.directory)
+  await validateWorkspaceContents(source)
+  await validateWorkspaceContents(target)
+  if ((await digest(oldRoot, source)) !== (await digest(root, target)))
+    throw new Error('Copied workspace contents changed')
+  await assertWorkspaceDirectoryIdentity(oldRoot, source, record.directory)
+  await assertWorkspaceDirectoryIdentity(root, target, identity)
+  return { ...record, directory: identity }
+}
+
 async function recover(root: string, directory: string, journal: Journal): Promise<void> {
-  workspaceLayout(journal.oldPath)
-  workspaceLayout(journal.newPath)
+  if (workspaceLayout(journal.oldPath).suffix !== workspaceLayout(journal.newPath).suffix)
+    throw new Error('Relocation workspace identity changed')
   if (path.basename(directory) !== journal.workspaceId) throw new Error('Invalid relocation journal owner')
   const workspace = agentWorkspaceService.getById(journal.workspaceId, { includeSystem: true })
   if (workspace.type !== 'system') throw new Error('Relocation workspace is no longer managed')
   const committed = workspace.path === journal.newPath
   if (!committed && workspace.path !== journal.oldPath) throw new Error('Relocation workspace changed')
   for (const [index, operation] of [...journal.operations.entries()].reverse()) {
-    const source = artifactPath(root, operation.source)
+    const source = artifactPath(root, operation.source, journal.newPath)
     const backup = path.join(directory, 'backup', String(index))
     const staged = path.join(directory, 'staged', String(index))
     if (!('target' in operation)) {
@@ -133,7 +175,7 @@ async function recover(root: string, directory: string, journal: Journal): Promi
       }
       continue
     }
-    const target = artifactPath(root, operation.target)
+    const target = artifactPath(root, operation.target, journal.newPath)
     for (const file of [source, target, backup, staged]) await assertAgentStoragePath(root, file)
     if (committed) {
       if ((await digest(root, target)) !== operation.after) throw new Error('Published history changed during recovery')
@@ -166,8 +208,16 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     ...row,
     checkpoint: row.checkpoint ? (JSON.parse(row.checkpoint) as Record<string, unknown>) : undefined
   }))
+  let relocatedStorage: WorkspaceStorageRecord | undefined
+  const storage = await inspectWorkspaceStorage(root, newPath)
+  if (storage?.record) {
+    const record = storage.record
+    if (!history.some((row) => row.sessionId === record.sessionId))
+      throw new Error('Workspace operation belongs to another session')
+    relocatedStorage = await reconcileCopiedStorage(root, workspace.path, newPath, record)
+    if (relocatedStorage) storage.record = relocatedStorage
+  }
   if (history.some((row) => row.messageId)) {
-    const storage = await inspectWorkspaceStorage(root, newPath)
     if (!storage?.directory && !storage?.pending) {
       const record = storage?.record
       if (storage?.archive) await validateWorkspaceArchive(`${newPath}.tar.gz`)
@@ -225,8 +275,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
     async function stage(source: string, target: string, prepared?: string) {
       const sourceRelative = path.relative(root, source)
       const targetRelative = path.relative(root, target)
-      artifactPath(root, sourceRelative)
-      artifactPath(root, targetRelative)
+      artifactPath(root, sourceRelative, newPath)
+      artifactPath(root, targetRelative, newPath)
       await assertNoPendingRelocation(sourceRelative, targetRelative)
       await assertAgentStoragePath(root, target)
       if (source !== target && (await exists(target))) throw new Error(`Relocation target already exists: ${target}`)
@@ -251,8 +301,8 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         } else await cp(from, to, { recursive: true, force: false, errorOnExist: true })
       }
     }
-    const oldProject = artifactPath(root, path.join('.claude', 'projects', result.oldKey))
-    const newProject = artifactPath(root, path.join('.claude', 'projects', result.newKey))
+    const oldProject = artifactPath(root, path.join('.claude', 'projects', result.oldKey), newPath)
+    const newProject = artifactPath(root, path.join('.claude', 'projects', result.newKey), newPath)
     const entriesByFile = new Map<string, Array<Record<string, unknown>>>()
     async function readEntries(file: string) {
       const cached = entriesByFile.get(file)
@@ -332,7 +382,7 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         const candidates: string[] = []
         for (const project of await readdir(projectsRoot, { withFileTypes: true })) {
           if (!project.isDirectory() || project.isSymbolicLink()) continue
-          const candidate = artifactPath(root, path.join('.claude', 'projects', project.name))
+          const candidate = artifactPath(root, path.join('.claude', 'projects', project.name), newPath)
           await assertAgentStoragePath(root, candidate)
           if (await exists(path.join(candidate, id + '.jsonl'))) candidates.push(candidate)
           if (candidates.length > 1) throw new Error('Ambiguous Claude project history')
@@ -399,16 +449,21 @@ async function relocate(root: string, workspace: { id: string; path: string }, n
         }
       }
     }
+    if (relocatedStorage) {
+      const prepared = path.join(directory, 'storage.json')
+      await atomicWriteFile(AbsoluteFilePathSchema.parse(prepared), JSON.stringify(relocatedStorage), { mode: 0o600 })
+      await stage(`${newPath}.storage.json`, `${newPath}.storage.json`, prepared)
+    }
     await atomicWriteFile(AbsoluteFilePathSchema.parse(journalPath), JSON.stringify(journal), { mode: 0o600 })
     for (const [index, operation] of journal.operations.entries()) {
-      const source = artifactPath(root, operation.source)
+      const source = artifactPath(root, operation.source, newPath)
       if ((await digest(root, source)) !== operation.before)
         throw new Error('Runtime history changed during relocation')
       if (!('target' in operation)) {
         await rename(source, path.join(directory, 'backup', String(index)))
         continue
       }
-      const target = artifactPath(root, operation.target)
+      const target = artifactPath(root, operation.target, newPath)
       await ensureAgentStorageDirectory(root, path.dirname(target))
       if (source !== target && (await exists(target))) throw new Error('Runtime history target conflict')
       await rename(source, path.join(directory, 'backup', String(index)))

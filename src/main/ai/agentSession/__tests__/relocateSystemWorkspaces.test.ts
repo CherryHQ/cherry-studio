@@ -7,6 +7,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -275,73 +276,173 @@ describe('system workspace relocation', () => {
     }
   )
 
-  it.each(['packing', 'restoring'] as const)('relocates interrupted archived storage: %s', async (phase) => {
-    const workspace = await createWorkspace('pi')
-    dbh.db
-      .update(agentWorkspaceTable)
-      .set({ path: workspace.newPath })
-      .where(eq(agentWorkspaceTable.id, workspace.id))
-      .run()
-    dbh.db.update(agentSessionTable).set({ deletedAt: 123 }).where(eq(agentSessionTable.id, workspace.sessionId)).run()
-    const nativeId = randomUUID()
-    await writeHistory('pi', workspace.id, nativeId)
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        sessionId: workspace.sessionId,
-        role: 'assistant',
-        status: 'success',
-        runtimeResumeToken: nativeId,
-        data: { parts: [] }
-      })
-      .run()
-    await writeFile(path.join(workspace.newPath, 'output.txt'), 'recoverable output')
-    const packing = vi
-      .spyOn(workspaceStorage, 'packWorkspaceDirectory')
-      .mockRejectedValueOnce(new Error('packing interrupted'))
-    await expect(
-      agentWorkspaceStorageService.archiveWorkspace({ id: workspace.sessionId, path: workspace.newPath })
-    ).rejects.toThrow('packing interrupted')
-    packing.mockRestore()
-    if (phase === 'restoring') {
-      const move = workspaceStorage.moveWorkspacePath
-      const restoring = vi
-        .spyOn(workspaceStorage, 'moveWorkspacePath')
-        .mockImplementation(async (managedRoot, from, to) => {
-          if (to === workspace.newPath) throw new Error('restore interrupted')
-          await move(managedRoot, from, to)
-        })
-      await expect(
-        agentWorkspaceStorageService.restoreWorkspaces(
-          [{ id: workspace.sessionId, path: workspace.newPath }],
-          () => undefined
-        )
-      ).rejects.toThrow('restore interrupted')
-      restoring.mockRestore()
-    }
-    const journal = await readFile(`${workspace.newPath}.storage.json`)
-    const nextRoot = path.join(temporaryRoot, 'moved', 'Data', 'Agents')
-    await mkdir(path.dirname(nextRoot), { recursive: true })
-    await rename(root, nextRoot)
-    root = nextRoot
-    const relocated = path.join(root, 'system', '2026-10-09', workspace.id)
-
-    expect(await relocateSystemWorkspaces()).toEqual(new Set())
-    expect(workspacePath(workspace.id)).toBe(relocated)
-    expect(await readFile(`${relocated}.storage.json`)).toEqual(journal)
-    await expect(readdir(relocated)).rejects.toMatchObject({ code: 'ENOENT' })
-    expect(await relocateSystemWorkspaces()).toEqual(new Set())
-    await agentWorkspaceStorageService.restoreWorkspaces([{ id: workspace.sessionId, path: relocated }], () => {
+  it.each<{
+    phase: 'packing' | 'restoring'
+    copy: boolean
+    empty?: boolean
+    fault?:
+      | 'contents'
+      | 'source-identity'
+      | 'source-journal'
+      | 'foreign-owner'
+      | 'missing-source'
+      | 'linked'
+      | 'hardlinked'
+      | 'occupied'
+      | 'rollback'
+      | 'interrupted'
+  }>([
+    { phase: 'packing', copy: false },
+    { phase: 'restoring', copy: false },
+    { phase: 'packing', copy: true },
+    { phase: 'restoring', copy: true },
+    { phase: 'packing', copy: true, empty: true },
+    { phase: 'restoring', copy: true, empty: true },
+    ...(['packing', 'restoring'] as const).flatMap((phase) =>
+      (
+        [
+          'contents',
+          'source-identity',
+          'source-journal',
+          'foreign-owner',
+          'missing-source',
+          'linked',
+          'hardlinked',
+          'occupied',
+          'rollback',
+          'interrupted'
+        ] as const
+      ).map((fault) => ({ phase, copy: true, fault }))
+    )
+  ])(
+    'relocates interrupted archived storage: $phase (copy: $copy, empty: $empty, fault: $fault)',
+    async ({ phase, copy, empty, fault }) => {
+      const workspace = await createWorkspace('pi')
+      dbh.db
+        .update(agentWorkspaceTable)
+        .set({ path: workspace.newPath })
+        .where(eq(agentWorkspaceTable.id, workspace.id))
+        .run()
       dbh.db
         .update(agentSessionTable)
-        .set({ deletedAt: null })
+        .set({ deletedAt: 123 })
         .where(eq(agentSessionTable.id, workspace.sessionId))
         .run()
-    })
-    expect(await readFile(path.join(relocated, 'output.txt'), 'utf8')).toBe('recoverable output')
-    expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(nativeId)
-    await expect(readFile(`${relocated}.storage.json`)).rejects.toMatchObject({ code: 'ENOENT' })
-  })
+      const nativeId = randomUUID()
+      await writeHistory('pi', workspace.id, nativeId)
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          sessionId: workspace.sessionId,
+          role: 'assistant',
+          status: 'success',
+          runtimeResumeToken: nativeId,
+          data: { parts: [] }
+        })
+        .run()
+      if (empty)
+        dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, workspace.sessionId)).run()
+      await writeFile(path.join(workspace.newPath, 'output.txt'), 'recoverable output')
+      const packing = vi
+        .spyOn(workspaceStorage, 'packWorkspaceDirectory')
+        .mockRejectedValueOnce(new Error('packing interrupted'))
+      await expect(
+        agentWorkspaceStorageService.archiveWorkspace({ id: workspace.sessionId, path: workspace.newPath })
+      ).rejects.toThrow('packing interrupted')
+      packing.mockRestore()
+      if (phase === 'restoring') {
+        const move = workspaceStorage.moveWorkspacePath
+        const restoring = vi
+          .spyOn(workspaceStorage, 'moveWorkspacePath')
+          .mockImplementation(async (managedRoot, from, to) => {
+            if (to === workspace.newPath) throw new Error('restore interrupted')
+            await move(managedRoot, from, to)
+          })
+        await expect(
+          agentWorkspaceStorageService.restoreWorkspaces(
+            [{ id: workspace.sessionId, path: workspace.newPath }],
+            () => undefined
+          )
+        ).rejects.toThrow('restore interrupted')
+        restoring.mockRestore()
+      }
+      const journal = await readFile(`${workspace.newPath}.storage.json`)
+      const nextRoot = path.join(temporaryRoot, 'moved', 'Data', 'Agents')
+      await mkdir(path.dirname(nextRoot), { recursive: true })
+      if (copy) await cp(root, nextRoot, { recursive: true, force: false, errorOnExist: true, dereference: true })
+      else await rename(root, nextRoot)
+      root = nextRoot
+      const relocated = path.join(root, 'system', '2026-10-09', workspace.id)
+      const original = JSON.parse(journal.toString())
+      const suffix = phase === 'packing' ? '.archiving' : path.join('.restoring', original.operationId)
+      const oldDirectory = `${workspace.newPath}${suffix}`
+      const newDirectory = `${relocated}${suffix}`
+      if (fault === 'contents') await writeFile(path.join(newDirectory, 'output.txt'), 'changed copy')
+      if (fault === 'source-identity') {
+        await rename(oldDirectory, `${oldDirectory}.saved`)
+        await cp(`${oldDirectory}.saved`, oldDirectory, { recursive: true })
+      }
+      if (fault === 'source-journal')
+        await writeFile(`${workspace.newPath}.storage.json`, JSON.stringify({ ...original, operationId: randomUUID() }))
+      if (fault === 'foreign-owner')
+        await writeFile(`${relocated}.storage.json`, JSON.stringify({ ...original, sessionId: randomUUID() }))
+      if (fault === 'missing-source') await rename(oldDirectory, `${oldDirectory}.saved`)
+      if (fault === 'linked') {
+        await rename(newDirectory, `${newDirectory}.saved`)
+        await symlink(oldDirectory, newDirectory, process.platform === 'win32' ? 'junction' : 'dir')
+      }
+      if (fault === 'hardlinked') {
+        await rm(path.join(newDirectory, 'output.txt'))
+        await link(path.join(oldDirectory, 'output.txt'), path.join(newDirectory, 'output.txt'))
+      }
+      if (fault === 'occupied') await mkdir(relocated)
+      let publishedJournal: Buffer | undefined
+      if (fault === 'rollback' || fault === 'interrupted') {
+        vi.spyOn(agentWorkspaceService, 'relocateSystemWorkspaceTx').mockImplementationOnce(() => {
+          if (fault === 'interrupted') {
+            publishedJournal = readFileSync(`${relocated}.storage.json`)
+            writeFileSync(`${relocated}.storage.json`, 'conflicting journal')
+          }
+          throw new Error('database commit interrupted')
+        })
+      }
+      if (fault) {
+        const before = await readFile(`${relocated}.storage.json`)
+        expect(await relocateSystemWorkspaces()).toEqual(new Set([workspace.sessionId]))
+        expect(workspacePath(workspace.id)).toBe(workspace.newPath)
+        if (fault === 'interrupted') {
+          expect(await readFile(`${relocated}.storage.json`, 'utf8')).toBe('conflicting journal')
+          await writeFile(`${relocated}.storage.json`, publishedJournal!)
+        } else expect(await readFile(`${relocated}.storage.json`)).toEqual(before)
+        if (fault !== 'rollback' && fault !== 'interrupted') return
+      }
+
+      mockMainLoggerService.error.mockClear()
+      const protectedSessions = await relocateSystemWorkspaces()
+      expect(
+        protectedSessions,
+        mockMainLoggerService.error.mock.calls.map(([, context]) => context?.error?.stack).join('\n')
+      ).toEqual(new Set())
+      expect(workspacePath(workspace.id)).toBe(relocated)
+      if (copy) {
+        const relocatedRecord = JSON.parse(await readFile(`${relocated}.storage.json`, 'utf8'))
+        expect(relocatedRecord).toEqual({ ...original, directory: expect.any(Object) })
+        expect(relocatedRecord.directory).not.toEqual(original.directory)
+      } else expect(await readFile(`${relocated}.storage.json`)).toEqual(journal)
+      await expect(readdir(relocated)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await relocateSystemWorkspaces()).toEqual(new Set())
+      await agentWorkspaceStorageService.restoreWorkspaces([{ id: workspace.sessionId, path: relocated }], () => {
+        dbh.db
+          .update(agentSessionTable)
+          .set({ deletedAt: null })
+          .where(eq(agentSessionTable.id, workspace.sessionId))
+          .run()
+      })
+      expect(await readFile(path.join(relocated, 'output.txt'), 'utf8')).toBe('recoverable output')
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(workspace.sessionId)).toBe(empty ? null : nativeId)
+      await expect(readFile(`${relocated}.storage.json`)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  )
 
   it.each(['missing', 'corrupt', 'linked', 'hardlinked'] as const)(
     'retains the old path when archived workspace storage is %s',
