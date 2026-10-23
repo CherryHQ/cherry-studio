@@ -405,4 +405,25 @@ describe('round-3 scanner regressions', () => {
     const text = '<analysis>Example:\n```xml\n<analysis>foo</analysis>\n```\nSECRET</analysis><summary>Keep</summary>'
     expect(stripModelScratchpadBlocks(text)).toBe('Keep')
   })
+  it('resolves the real scratchpad boundary instead of an inline-code mention in the following summary (inv_4b313ccdbd33f14b)', () => {
+    const input =
+      '<analysis>SECRET_INTERNAL\n```ts\nunfinished\n</analysis>\n<summary>\n```ts\nshown\n```\nExample `</analysis>`\n</summary>'
+    const out = stripModelScratchpadBlocks(input)
+    expect(out).not.toContain('SECRET_INTERNAL')
+    expect(out).toContain('shown')
+    expect(out).toContain('Example')
+  })
+
+  it('counts mixed space/tab indentation with CommonMark tab stops (inv_c51149ed55871417)', () => {
+    const input = 'Example:\n\n   \t<thinking>literal example</thinking>'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toContain('<thinking>literal example</thinking>')
+    expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')
+  })
+
+  it('keeps backslash-escaped tool closing tags as literal text (inv_c4d88ac9b0f0f954)', () => {
+    expect(stripTrailingToolProtocolClosingFragments('Answer \\</parameter>')).toBe('Answer \\</parameter>')
+    expect(stripTrailingToolProtocolClosingFragments('Answer \\</parameter> </invoke name="x">')).toBe(
+      'Answer \\</parameter>'
+    )
+  })
 })

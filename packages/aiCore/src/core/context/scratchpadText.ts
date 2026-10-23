@@ -177,6 +177,60 @@ function isInsideInlineCodeBefore(text: string, markerStart: number): boolean {
   return false
 }
 
+/**
+ * True when `index` sits inside a complete inline-code span. Spans cannot
+ * cross a blank line, so the scan starts at the containing block's edge.
+ */
+function isInsideCompleteInlineCodeSpan(text: string, index: number): boolean {
+  let blockStart = 0
+  const blankLine = /\n[ \t]*\n/g
+  let blank: RegExpExecArray | null
+  while ((blank = blankLine.exec(text)) !== null && blank.index + blank[0].length <= index) {
+    blockStart = blank.index + blank[0].length
+  }
+  let pos = blockStart
+  while (pos < index) {
+    const tick = text.indexOf('`', pos)
+    if (tick === -1 || tick >= index) return false
+    if (isBackslashEscaped(text, tick)) {
+      pos = tick + 1
+      continue
+    }
+    let run = 0
+    while (tick + run < text.length && text[tick + run] === '`') run++
+    if (run >= 3) {
+      // A 3+ run is fence material, not an inline-code opener: pairing it
+      // with a later fence marker would declare real block boundaries
+      // "inside a span" and hide them (cherry-pr-review inv_4b313ccdbd33f14b
+      // vs inv_e5404aa552bba2ea). The pipeline masks fences before inline
+      // spans, so an inline span never contains a fence here either.
+      pos = tick + run
+      continue
+    }
+    let j = tick + run
+    let closedAt = -1
+    while (j < text.length) {
+      if (text[j] !== '`') {
+        j++
+        continue
+      }
+      let closeRun = 0
+      while (j < text.length && text[j] === '`') {
+        closeRun++
+        j++
+      }
+      if (closeRun === run && !isBackslashEscaped(text, j - closeRun)) {
+        closedAt = j
+        break
+      }
+    }
+    if (closedAt === -1) return false
+    if (index > tick && index < closedAt) return true
+    pos = closedAt
+  }
+  return false
+}
+
 function lineEndAfter(text: string, from: number): number {
   const lf = text.indexOf('\n', from)
   if (lf === -1) return text.length
@@ -397,7 +451,21 @@ function maskIndentedCodeBlocks(text: string): {
   // CommonMark 0.31.2 §4.4: any indentation of four or more columns opens an
   // indented code block - five/eight spaces and repeated tabs are valid too
   // (cherry-pr-review inv_4ab3f6f347edda60).
-  const isIndentedCodeLine = (line: string): boolean => /^(?: {4,}|\t+)\S/.test(line)
+  // CommonMark 0.31.2 §4.4 + §2.2: indentation is measured in columns with
+  // tab stops - a tab advances to the next multiple of four, so three spaces
+  // and a tab (column four) opens an indented code block just like four
+  // spaces, five/eight spaces, or repeated tabs (cherry-pr-review
+  // inv_4ab3f6f347edda60, inv_c51149ed55871417).
+  const indentedCodeColumns = (line: string): number => {
+    let columns = 0
+    for (let k = 0; k < line.length; k++) {
+      if (line[k] === ' ') columns += 1
+      else if (line[k] === '\t') columns += 4 - (columns % 4)
+      else break
+    }
+    return columns
+  }
+  const isIndentedCodeLine = (line: string): boolean => line.trim() !== '' && indentedCodeColumns(line) >= 4
 
   const outLines: string[] = []
   let i = 0
@@ -538,7 +606,13 @@ function maskCodeFences(text: string): {
         closer.lastIndex = from
         let match: RegExpExecArray | null
         while ((match = closer.exec(text)) !== null) {
-          if (!isBackslashEscaped(text, match.index)) return match.index
+          if (isBackslashEscaped(text, match.index)) continue
+          // A closer mentioned inside a complete inline-code span is literal
+          // code content (e.g. Example `</analysis>` in the following
+          // summary), never the block boundary (cherry-pr-review
+          // inv_4b313ccdbd33f14b).
+          if (isInsideCompleteInlineCodeSpan(text, match.index)) continue
+          return match.index
         }
         return -1
       }
@@ -856,7 +930,7 @@ export function stripModelScratchpadBlocks(raw: string): string {
 
 /** Closing-only pseudo tool-call markup sometimes appended after visible prose in parentless text blocks. */
 const TRAILING_TOOL_PROTOCOL_CLOSE_RE =
-  /(?:\s*<\/(?:(?:\uFF5C\uFF5C|\|\|)DSML(?:\uFF5C\uFF5C|\|\|)\s*)?(?:parameter|invoke|tool_calls|tool_result)\b[^>]*>\s*)+$/iu
+  /\s*<\/(?:(?:\uFF5C\uFF5C|\|\|)DSML(?:\uFF5C\uFF5C|\|\|)\s*)?(?:parameter|invoke|tool_calls|tool_result)\b[^>]*>\s*$/iu
 
 /** Strips a trailing run of tool-protocol closing tags; does not touch tags in fences or inline code. */
 export function stripTrailingToolProtocolClosingFragments(raw: string): string {
@@ -865,11 +939,17 @@ export function stripTrailingToolProtocolClosingFragments(raw: string): string {
   const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
   const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
   let out = inlineMasked
-  let previous: string
-  do {
-    previous = out
-    out = out.replace(TRAILING_TOOL_PROTOCOL_CLOSE_RE, '')
-  } while (out !== previous)
+  for (;;) {
+    const trailing = TRAILING_TOOL_PROTOCOL_CLOSE_RE.exec(out)
+    if (!trailing) break
+    // A backslash-escaped closing tag is literal text, not a protocol
+    // fragment: check escape parity before removing each closing fragment,
+    // consistently with scratchpad-tag handling (cherry-pr-review
+    // inv_c4d88ac9b0f0f954).
+    const tagIndex = trailing.index + trailing[0].indexOf('<')
+    if (isBackslashEscaped(out, tagIndex)) break
+    out = out.slice(0, trailing.index)
+  }
   out = unmaskInlineCodeSpans(out, spans, inlineBase)
   out = unmaskIndentedCodeBlocks(out, blocks, indentedBase)
   return unmaskCodeFences(out, fences, fenceBase)
