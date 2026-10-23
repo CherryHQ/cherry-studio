@@ -1,4 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -48,6 +50,7 @@ import {
   assertPiProviderUsable,
   buildPiGatewayInjection,
   buildPiProviderInjection,
+  materializePiProviderStream,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiUnsupportedProviderError,
@@ -1282,5 +1285,130 @@ describe('Anthropic adaptive thinking projection', () => {
         rmSync(directory, { recursive: true, force: true })
       }
     })
+  })
+})
+
+describe('Responses summary permission through production materialization', () => {
+  it.each([
+    { id: 'doubao', summary: undefined, suppressed: true },
+    { id: 'openai', summary: true, suppressed: false },
+    { id: 'unlinked-custom', summary: undefined, suppressed: true }
+  ])('applies the merged endpoint policy for $id on the wire', async ({ id, summary, suppressed }) => {
+    const requests: { body: Record<string, any>; status: number }[] = []
+    const marker = `materialized-${id}-22480`
+    const server = createServer(async (req, res) => {
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(Buffer.from(chunk))
+      const body = JSON.parse(Buffer.concat(chunks).toString())
+      const hasSummary = body.reasoning && Object.hasOwn(body.reasoning, 'summary')
+      const status = suppressed && hasSummary ? 400 : 200
+      requests.push({ body, status })
+      if (status === 400) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ code: 'InvalidParameter', message: 'json: unknown field "summary"' }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      const events = [
+        { type: 'response.created', response: { id: 'resp-22480', status: 'in_progress' } },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: { id: 'msg-22480', type: 'message', role: 'assistant', content: [] }
+        },
+        { type: 'response.output_text.delta', output_index: 0, content_index: 0, delta: marker },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-22480',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 }
+          }
+        }
+      ]
+      for (const event of events) res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      res.end()
+    })
+    server.requestTimeout = 3_000
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      const provider = makeProvider({
+        id,
+        presetProviderId: null,
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-responses': {
+            adapterFamily: 'openai',
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+            ...(summary === undefined ? {} : { dialect: { reasoningSummary: summary } })
+          }
+        }
+      })
+      const model = makeModel({
+        id: `${id}::doubao-seed-evolving`,
+        providerId: id,
+        apiModelId: 'doubao-seed-evolving',
+        capabilities: ['reasoning'],
+        endpointTypes: ['openai-responses', 'openai-chat-completions']
+      })
+      const injection = buildPiProviderInjection(provider, model, 'test-key')
+      expect(injection.suppressReasoningSummary).toBe(suppressed)
+      const materialized = await materializePiProviderStream(injection)
+      const registered = injection.providerConfig.models![0]
+      const piModel = {
+        ...registered,
+        api: injection.api,
+        provider: injection.providerName,
+        baseUrl: injection.providerConfig.baseUrl
+      } as PiModel<'openai-responses'>
+      const result = await materialized
+        .streamSimple(piModel, normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] }), {
+          apiKey: 'test-key',
+          reasoning: 'medium',
+          maxRetries: 0,
+          timeoutMs: 2_000
+        })
+        .result()
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].status).toBe(200)
+      expect(result.stopReason).toBe('stop')
+      expect(result.content).toContainEqual(expect.objectContaining({ type: 'text', text: marker }))
+      expect(requests[0].body.reasoning.effort).toBe('medium')
+      expect(Object.hasOwn(requests[0].body.reasoning, 'summary')).toBe(!suppressed)
+      if (!suppressed) {
+        expect(requests[0].body.reasoning.summary).toBe('auto')
+        expect(materialized.providerConfig).toBe(injection.providerConfig)
+      }
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+
+  it('keeps chat-completions and gateway configs and builtin streams unchanged', async () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://example.com' },
+        'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://example.com' }
+      }
+    })
+    const model = makeModel({ endpointTypes: ['openai-chat-completions'] })
+    const injections = [
+      buildPiProviderInjection(provider, model, REAL_KEY),
+      buildPiGatewayInjection(provider, makeModel({ endpointTypes: ['openai-responses'] }), GATEWAY)
+    ]
+    const { loadPiApiStreamSimple } = await import('./piSdk')
+    for (const injection of injections) {
+      expect(injection.suppressReasoningSummary).toBe(false)
+      const materialized = await materializePiProviderStream(injection)
+      expect(materialized.providerConfig).toBe(injection.providerConfig)
+      expect(materialized.streamSimple).toBe(await loadPiApiStreamSimple(injection.api))
+    }
   })
 })

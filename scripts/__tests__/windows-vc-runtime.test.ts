@@ -388,7 +388,11 @@ describe('verifyWindowsRuntimePayload', () => {
 
   const stubDownload = (responses: { status: number; location?: string }[]) => {
     const urls: string[] = []
-    vi.spyOn(https, 'get').mockImplementation(((url, options, callback) => {
+    vi.spyOn(https, 'get').mockImplementation(((
+      url: string,
+      options: https.RequestOptions,
+      callback: (response: Readable) => void
+    ) => {
       urls.push(String(url))
       const reply = responses.shift()!
       const response = Object.assign(Readable.from(['downloaded EXE']), {

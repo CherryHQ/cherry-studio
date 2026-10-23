@@ -322,6 +322,10 @@
       "sources": ["src/main/services/file/tree","src/main/services/file/watcher.ts","src/renderer/hooks/useDirectoryTree.ts","src/shared/ipc/schemas/file.ts","src/shared/utils/file/tree.ts"]
     },
     {
+      "path": "docs/references/file/file-editing.md",
+      "sources": ["src/main/services/file/FileEditService.ts","src/renderer/components/FileEditSessionProvider.tsx","src/renderer/hooks/useFileEditSession.ts","src/renderer/services/fileEdit","src/shared/ipc/schemas/fileEdit.ts"]
+    },
+    {
       "path": "docs/references/file/file-entry-cleanup.md",
       "sources": ["src/main/data/db/schemas/file.ts","src/main/data/db/schemas/fileRelations.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/services/file/internal/entryCleanup.ts"]
     },

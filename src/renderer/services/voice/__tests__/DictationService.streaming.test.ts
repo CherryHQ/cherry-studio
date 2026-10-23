@@ -96,14 +96,15 @@ function harness() {
 describe('streaming dictation lifecycle', () => {
   it('replaces hypotheses but submits only the completed result after tail drain', async () => {
     const h = harness()
-    await h.service.start()
+    const run = h.service.startScoped()
+    await run.result
     h.revise({ revision: 2, text: '你好世界', provisionalStart: 2, final: false })
     h.revise({ revision: 1, text: 'stale', provisionalStart: 0, final: false })
     expect(h.service.getSnapshot().transcript?.text).toBe('你好世界')
     h.revise({ revision: 3, text: '您好世界', provisionalStart: 4, final: true })
     expect(h.service.getSnapshot().phase).toBe('recording')
     expect(h.service.getSnapshot().recoveryAvailable).toBe(false)
-    const stopping = h.service.stop()
+    const stopping = run.stop()
     expect(h.operation.finish).not.toHaveBeenCalled()
     h.tail.resolve(1731)
     await vi.waitFor(() => expect(h.operation.finish).toHaveBeenCalledWith(1731))
