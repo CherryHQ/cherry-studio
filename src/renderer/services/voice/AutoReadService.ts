@@ -5,6 +5,7 @@ import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
 
+import { speechLanguageFromLocale } from './expressiveText'
 import { IncrementalReadableText } from './incrementalReadableText'
 import { normalizeReadableText } from './readableText'
 import { speechPlaybackService } from './SpeechPlaybackService'
@@ -132,7 +133,7 @@ export class AutoReadService {
         scope: input.scope,
         messageId: input.message.id,
         controller: new AbortController(),
-        parser: new IncrementalReadableText(),
+        parser: new IncrementalReadableText(speechLanguageFromLocale(i18n.language)),
         input: new SpeechTextInput(),
         text: '',
         final: false,
@@ -263,7 +264,9 @@ export class AutoReadService {
 
     const text = getTextFromParts(input.message.parts ?? [])
     try {
-      if (!normalizeReadableText(text)) return { status: 'skipped', key, reason: 'empty' }
+      if (!normalizeReadableText(text, { language: speechLanguageFromLocale(i18n.language) })) {
+        return { status: 'skipped', key, reason: 'empty' }
+      }
 
       const result = await this.#playback.start({
         text,

@@ -155,10 +155,23 @@ export type VoiceSessionEvent =
       playback?: VoicePlaybackState
     }
 
+export const ExpressiveRuleSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['emoji', 'kaomoji']),
+  match: z.string(),
+  zh: z.string(),
+  en: z.string(),
+  source: z.enum(['ai', 'manual']),
+  createdAt: z.number()
+})
+
+export type ExpressiveRuleView = z.infer<typeof ExpressiveRuleSchema>
+
 export type VoiceEventSchemas = {
   'ai.voice.transcript_event': TranscriptionStreamEvent
   'ai.voice.stream_event': SpeechStreamEvent
   'ai.voice.session_event': VoiceSessionEvent
+  'voice.expressive.changed': Array<z.infer<typeof ExpressiveRuleSchema>>
 }
 
 const voiceStatus = z.strictObject({
@@ -172,6 +185,8 @@ const speechModelId = z.enum([APPLE_TTS_MODEL_ID, WINDOWS_TTS_MODEL_ID, QWEN3_TT
 
 export const voiceRequestSchemas = {
   'ai.voice.resources.open_settings': defineRoute({ input: z.void(), output: z.void() }),
+  'voice.expressive.list': defineRoute({ input: z.void(), output: z.array(ExpressiveRuleSchema) }),
+  'voice.expressive.remove': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() }),
   'ai.voice.transcription.resolve': defineRoute({
     input: z.strictObject({ modelId: asrModelId.optional(), language: transcriptionLanguage.optional() }),
     output: z.strictObject({

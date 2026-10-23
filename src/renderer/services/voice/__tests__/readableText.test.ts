@@ -236,3 +236,28 @@ describe('planReadableText', () => {
     })
   })
 })
+
+describe('expression labels in readable text', () => {
+  it('rewrites emoji and kaomoji before the text reaches speech', () => {
+    expect(normalizeReadableText('完成了 😄 (＾▽＾)')).toBe('完成了 [开心] [开心]')
+  })
+
+  it('uses English labels when asked', () => {
+    expect(normalizeReadableText('done 😄', { language: 'en' })).toBe('done [happy]')
+  })
+
+  it('applies the same rewrite to an explicit selection', () => {
+    expect(normalizeReadableText('😭 太难了', { mode: 'selection' })).toBe('[大哭] 太难了')
+  })
+
+  it('leaves ordinary parentheses and inline code alone', () => {
+    expect(normalizeReadableText('调用 `f(x)` 计算 (a+b)')).toBe('调用 f(x) 计算 (a+b)')
+  })
+
+  it('carries the language into the plan', () => {
+    const plan = planReadableText('😄', { trigger: 'manual', language: 'en' })
+
+    expect(plan.status).toBe('ready')
+    expect(plan.chunks.join('')).toBe('[happy]')
+  })
+})

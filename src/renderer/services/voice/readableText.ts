@@ -8,11 +8,19 @@ import { unified } from 'unified'
 
 import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
+import { expressiveToSpeech, type SpeechLanguage } from './expressiveText'
+
 export const READABLE_TEXT_CONFIRMATION_THRESHOLD = 5_000
 export const SPEECH_ADAPTER_TEXT_LIMIT = 10_000
 export const READABLE_TEXT_CHUNK_LIMIT = 4_000
 
 export type ReadableTextMode = 'document' | 'selection'
+
+export interface ReadableTextOptions {
+  mode?: ReadableTextMode
+  /** Language used for the labels that replace emoji and kaomoji. */
+  language?: SpeechLanguage
+}
 export type ReadableTextTrigger = 'manual' | 'auto_read'
 
 export type ReadableTextPlan =
@@ -218,11 +226,15 @@ function normalizeWhitespace(value: string): string {
     .replace(/ +([,.;:!?。！？；：])/g, '$1')
 }
 
-export function normalizeReadableText(input: string, options: { mode?: ReadableTextMode } = {}): string {
-  if (options.mode === 'selection') return normalizeWhitespace(stripCitationMarkers(input))
+export function normalizeReadableText(input: string, options: ReadableTextOptions = {}): string {
+  const language = options.language ?? 'zh'
+  if (options.mode === 'selection') {
+    return expressiveToSpeech(normalizeWhitespace(stripCitationMarkers(input)), language)
+  }
 
   const tree = markdownParser.runSync(markdownParser.parse(input), input)
-  return normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(blocksToHtml(tree.children))))
+  const text = normalizeWhitespace(stripCitationMarkers(toReadableHtmlText(blocksToHtml(tree.children))))
+  return expressiveToSpeech(text, language)
 }
 
 function safeSliceEnd(text: string, start: number, maximumEnd: number): number {
@@ -287,9 +299,9 @@ export function chunkReadableText(text: string, requestedLimit = READABLE_TEXT_C
 
 export function planReadableText(
   input: string,
-  options: { trigger: ReadableTextTrigger; mode?: ReadableTextMode; confirmed?: boolean }
+  options: { trigger: ReadableTextTrigger; mode?: ReadableTextMode; confirmed?: boolean; language?: SpeechLanguage }
 ): ReadableTextPlan {
-  const normalized = normalizeReadableText(input, { mode: options.mode })
+  const normalized = normalizeReadableText(input, { mode: options.mode, language: options.language })
   const normalizedLength = normalized.length
 
   if (normalizedLength > READABLE_TEXT_CONFIRMATION_THRESHOLD) {

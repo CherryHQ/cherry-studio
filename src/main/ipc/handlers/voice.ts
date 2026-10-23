@@ -18,6 +18,10 @@ async function callVoice<T>(
 }
 
 export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
+  'voice.expressive.list': async () => application.get('VoiceExpressiveService').list(),
+  'voice.expressive.remove': async ({ id }) => {
+    await application.get('VoiceExpressiveService').remove(id)
+  },
   'ai.voice.transcription.start': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.startStreamingTranscription(owner, input)),
   'ai.voice.input.write': (input, { senderId }) =>
