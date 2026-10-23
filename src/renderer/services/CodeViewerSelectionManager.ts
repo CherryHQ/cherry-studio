@@ -11,10 +11,11 @@ export class CodeViewerSelectionManager {
   private readonly handleSelectionChange = debounce(() => this.dispatchSelectionChange(), 100)
   private readonly handlePointerDown = () => this.clearSelection()
   private readonly handleKeyDown = (event: KeyboardEvent) => {
-    if (['Shift', 'Control', 'Meta', 'Alt'].includes(event.key)) return
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') return
-    if (event.ctrlKey && event.key === 'Insert') return
-    this.clearSelection()
+    const selectsAll = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a'
+    const extendsSelection =
+      event.shiftKey &&
+      ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)
+    if (event.key === 'Escape' || selectsAll || extendsSelection) this.clearSelection()
   }
   private readonly handleFocus = (event: FocusEvent) => {
     if (event.target instanceof Node && !this.activeViewer?.contains(event.target)) this.clearSelection()

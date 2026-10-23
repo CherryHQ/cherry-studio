@@ -89,8 +89,18 @@ describe('CodeViewerSelectionManager', () => {
   it.each([
     { key: 'c', ctrlKey: true },
     { key: 'c', metaKey: true },
-    { key: 'Insert', ctrlKey: true }
-  ])('preserves detached selections for the copy shortcut %j', (shortcut) => {
+    { key: 'Insert', ctrlKey: true },
+    { key: 'PageDown' },
+    { key: 'PageUp' },
+    { key: 'ArrowDown' },
+    { key: 'ArrowUp' },
+    { key: 'ArrowLeft' },
+    { key: 'ArrowRight' },
+    { key: 'Home', ctrlKey: true },
+    { key: 'End', ctrlKey: true },
+    { key: ' ' },
+    { key: ' ', shiftKey: true }
+  ])('preserves detached selections for copying or scrolling with %j', (shortcut) => {
     const { manager, createViewer, select } = setup()
     const { viewer, content } = createViewer('selected code')
     select(content.firstChild!)
@@ -101,6 +111,24 @@ describe('CodeViewerSelectionManager', () => {
     expect(window.getSelection()!.isCollapsed).toBe(true)
     document.dispatchEvent(new KeyboardEvent('keydown', shortcut))
     expect(copy()).toEqual({ text: 'selected code', prevented: true })
+  })
+
+  it.each([
+    { key: 'Escape' },
+    { key: 'a', ctrlKey: true },
+    { key: 'a', metaKey: true },
+    ...['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].map((key) => ({
+      key,
+      shiftKey: true
+    }))
+  ])('releases detached selections when changing selection with %j', (shortcut) => {
+    const { manager, createViewer, select } = setup()
+    const { viewer, content } = createViewer('selected code')
+    select(content.firstChild!)
+    manager.retain(viewer)
+    content.remove()
+    document.dispatchEvent(new KeyboardEvent('keydown', shortcut))
+    expect(copy()).toEqual({ text: '', prevented: false })
   })
 
   it.each(['pointer', 'keyboard', 'clear', 'focus', 'unmount', 'source'] as const)(
