@@ -30,9 +30,12 @@ Firefox and Safari.
 | --- | --- | --- |
 | Chat: topics, messages, streaming, assistants | Yes | A reply cut off by a reload is kept and marked interrupted. |
 | Model providers | Yes | Requests go from the browser, so the provider must allow CORS from the app's origin. |
+| CherryIN sign-in, Cherry account, the built-in CherryAI model | No | First-run setup offers provider setup only; CherryIN works with an API key. |
+| Saving and exporting messages | Markdown and image downloads | Notes, knowledge bases, Word and note apps are desktop-only. |
 | Settings | Provider, default model, general, appearance, about | Other sections are desktop-only. |
 | Agents | Pi runtime | Claude Code and other runtimes, skills, slash commands, heartbeat and scheduled runs are desktop-only. |
 | Agent file tools | Yes | `read`, `write`, `edit`, `ls`, `find`, `grep` in a workspace in the browser's storage. |
+| Agent file tree and file preview | Yes | The preview is read-only. A local folder's tree does not see changes made outside the app. |
 | Agent in a folder on the computer | Chrome and Edge | Needs `showDirectoryPicker()`. |
 | Python | Yes | Pyodide, loaded from jsDelivr: pure-Python and Pyodide-built packages only. |
 | JavaScript | Yes | QuickJS, without network, file or DOM access. |
@@ -41,7 +44,9 @@ Firefox and Safari.
 | Deleting, archiving and forking agent sessions; editing a sent agent message | No | |
 | Attachments and file storage | No | |
 | Web search, knowledge bases | No | |
-| Paintings, translation, notes, mini apps and other sidebar apps | No | The sidebar offers agents and chat only. |
+| Paintings, translation, notes, mini apps and other sidebar apps | No | The sidebar and launchpad offer agents and chat only. |
+| Dictation, read aloud, the agent's browser | No | |
+| Help menu: release notes, guide, diagnostics, feedback | No | |
 | Backup and restore | Not yet | Planned (M4). Clearing the site's data deletes everything. |
 | Selection assistant, screenshots, global shortcuts, tray, auto-update | No | System features of the desktop app. |
 
@@ -159,8 +164,12 @@ another tab holds it, `src/page/startError.ts` replaces the spinner with the rea
 reload button. `pageModuleReplacements` swaps renderer modules
 in the page: Sentry is off, the settings menu keeps the provider, default model,
 general, appearance and about sections, creating an agent shows Pi as its runtime
-instead of a choice, and the Pyodide worker starts in a sandboxed iframe. Nothing under
-`src/renderer` is edited.
+instead of a choice, and the Pyodide worker starts in a sandboxed iframe. The launchpad, the
+composer's tools, the message menu, the user menu and first-run setup keep only the entries the
+Web edition serves, and the help menu and dictation are left out. `src/page/tailwind.css` points
+Tailwind at the renderer, since the Vite root here is `app/`. Saving a message or an image
+becomes a browser download (`src/page/fileDownloads.ts`). The one renderer edit is first-run
+setup's `enableCherryInLogin` switch, off here.
 
 ## Editions
 

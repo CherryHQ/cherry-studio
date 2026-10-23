@@ -5,3 +5,5 @@ import { unsupported, unsupportedClass } from './unsupported'
 export const hashContent = unsupported('Tool-output file storage')
 export const PathStaleVersionError = unsupportedClass('Local files')
 export const openRequestPath = unsupported('Local files')
+// The file preview only reads; saving an edit from it is not served.
+export const atomicWriteIfUnchanged = unsupported('Editing files in the preview')

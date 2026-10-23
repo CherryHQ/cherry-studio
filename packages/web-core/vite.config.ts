@@ -143,6 +143,8 @@ export const workerModuleReplacements: Record<string, string> = {
   'ipc/handlers/ipcHandlers.ts': runtime('ipcHandlers.ts'),
   'services/CopilotService.ts': disabled('providers.ts'),
   'services/file/index.ts': disabled('files.ts'),
+  'services/file/tree/search.ts': runtime('fileTreeSearch.ts'),
+  'services/file/watcher.ts': runtime('fileWatcher.ts'),
   'services/webSearch/WebSearchService.ts': disabled('webSearch.ts'),
   'utils/appEdition.ts': runtime('appEdition.ts'),
   'utils/builtinSkills.ts': disabled('skills.ts'),
@@ -153,9 +155,19 @@ export const workerModuleReplacements: Record<string, string> = {
 
 /** Renderer modules replaced in the page, keyed by their path under `src/renderer`. */
 const pageModuleReplacements: Record<string, string> = {
+  'assets/styles/tailwind.css': page('tailwind.css'),
   'components/settingsMenu.ts': page('settingsMenu.ts'),
   'components/AgentRuntimeOption.tsx': page('AgentRuntimeOption.tsx'),
+  'components/UserAccountPanel.tsx': page('UserAccountPanel.tsx'),
+  'components/chat/messages/frame/messageMenuBarActions.tsx': page('messageMenuBarActions.ts'),
+  'components/chat/messages/hooks/useMessageExportActions.ts': page('messageExportActions.ts'),
+  'components/composer/ComposerToolRuntime.tsx': page('composerToolRuntime.ts'),
+  'components/composer/tools/builtinTools.ts': page('composerTools.ts'),
+  'components/composer/variants/shared/ComposerDictationButton.tsx': page('ComposerDictationButton.ts'),
+  'components/layout/HelpMenu.tsx': page('HelpMenu.ts'),
+  'hooks/useLaunchpadAppOrder.ts': page('launchpadAppOrder.ts'),
   'services/sentry.ts': page('sentry.ts'),
+  'windows/main/onboarding/OnboardingPage.tsx': page('OnboardingPage.tsx'),
   'workers/pyodide.worker.ts?worker': page('pyodideWorker.ts')
 }
 

@@ -2,6 +2,7 @@ import '../src/page/preload'
 import { CoreClient } from '../src/client/CoreClient'
 import { checkBrowserSupport } from '../src/page/browserSupport'
 import { connectCore } from '../src/page/electron'
+import { installFileDownloads } from '../src/page/fileDownloads'
 import { installLocalFolders } from '../src/page/localFolders'
 import { reportNativeTheme } from '../src/page/nativeTheme'
 import { requestPersistentStorage } from '../src/page/persistentStorage'
@@ -19,6 +20,7 @@ async function start(): Promise<void> {
   const client = new CoreClient(new Worker(new URL('./coreWorker.ts', import.meta.url), { type: 'module' }))
   connectCore(client)
   installLocalFolders(client)
+  installFileDownloads()
   reportNativeTheme()
   await client.open(LOCAL_ACCOUNT)
 }

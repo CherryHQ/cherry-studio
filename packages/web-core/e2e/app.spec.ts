@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-import { composerInput, gotoApp, sidebarApps, test, useMockProvider } from './appPage'
+import { APP_URL, composerInput, gotoApp, send, setUpAssistant, sidebarApps, test, useMockProvider } from './appPage'
 import { expect } from './fixtures'
 
 test('runs the desktop main window with only the Web edition features', async ({ page }) => {
@@ -23,6 +23,44 @@ test('runs the desktop main window with only the Web edition features', async ({
     'About & Feedback'
   ])
   expect(pageErrors).toEqual([])
+})
+
+test('leaves out the entries for desktop and Cherry account services', async ({ page }) => {
+  await page.goto(APP_URL)
+  // CherryIN signs in through a callback on the computer, which a Web page cannot receive.
+  await expect(page.getByRole('button', { name: 'Set up another provider' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Connect CherryIN' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Set up later' }).click()
+  await composerInput(page).waitFor()
+
+  await expect(page.getByRole('button', { name: 'Help' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /dictation/i })).toHaveCount(0)
+  await page.getByRole('button', { name: 'User', exact: true }).click()
+  const panel = page.getByRole('dialog')
+  await expect(panel.getByRole('button')).toHaveText(['Enter your name', 'Settings'])
+  await expect(panel.getByRole('radio')).toHaveCount(3)
+})
+
+test('saves a reply as a Markdown download', async ({ page }) => {
+  await gotoApp(page)
+  await useMockProvider(page, Date.now().toString(36))
+  await setUpAssistant(page)
+  await gotoApp(page)
+  await send(page, 'save me')
+  await expect(page.getByText('echo: save me')).toBeVisible()
+
+  await page.getByText('echo: save me').hover()
+  await page.getByRole('button', { name: 'More actions' }).click()
+  // Notes and knowledge bases are desktop features.
+  await expect(page.getByRole('menuitem', { name: 'Save to Notes' })).toHaveCount(0)
+  await page.getByRole('menuitem', { name: 'Save', exact: true }).click()
+  const download = page.waitForEvent('download')
+  await page.getByRole('menuitem', { name: 'Save to Local File' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toMatch(/^\d{12}\.md$/)
+  expect(await (await file.createReadStream()).toArray().then((chunks) => Buffer.concat(chunks).toString())).toBe(
+    'echo: save me'
+  )
 })
 
 test('tells a second tab that the app is already open instead of loading forever', async ({ page, context }) => {

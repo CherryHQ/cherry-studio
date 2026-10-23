@@ -8,6 +8,7 @@ import type { CacheService } from '@main/data/CacheService'
 import type { DataApiService } from '@main/data/DataApiService'
 import type { PreferenceService } from '@main/data/PreferenceService'
 import type { IpcApiService } from '@main/ipc/IpcApiService'
+import type { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import type { PythonService } from '@main/services/PythonService'
 
 import type { WebDbService } from '../database/WebDbService'
@@ -32,6 +33,7 @@ export interface WebServices {
   RuntimeActivityService: Pick<RuntimeActivityService, 'begin'>
   AgentSessionRuntimeService: AgentSessionRuntimeService
   ClaudeCodeWarmQueryManager: Pick<ClaudeCodeWarmQueryManager, 'close' | 'closeAgentSessionWarm'>
+  DirectoryTreeManager: DirectoryTreeManager
 }
 
 /**

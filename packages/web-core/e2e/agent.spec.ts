@@ -81,6 +81,26 @@ test('leaves no file when a write is denied', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Allow/ })).toHaveCount(0)
 })
 
+test('lists the files the agent writes in the file tree and previews them', async ({ page }) => {
+  await gotoApp(page, 'Work')
+  await setUpAssistant(page)
+  await gotoApp(page, 'Work')
+
+  await send(page, 'please call write {"path":"notes/first.txt","content":"the first file"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText(/^tools said:/)).toBeVisible()
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByText('notes', { exact: true }).click()
+  await page.getByText('first.txt', { exact: true }).click()
+  await expect(page.getByText('the first file', { exact: true })).toBeVisible()
+
+  // A file written while the tree is open shows up without reopening it.
+  await page.getByRole('button', { name: 'Back' }).click()
+  await send(page, 'please call write {"path":"second.txt","content":"the second file"}')
+  await page.getByRole('button', { name: /^Allow/ }).click()
+  await expect(page.getByText('second.txt', { exact: true })).toBeVisible()
+})
+
 test('runs Python in the page after approval', async ({ page }) => {
   await gotoApp(page, 'Work')
   await setUpAssistant(page)

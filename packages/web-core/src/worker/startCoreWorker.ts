@@ -1,4 +1,6 @@
 import '../runtime/zodJitless'
+import { readFile } from 'node:fs/promises'
+
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { CherryAssistantSeeder } from '@data/db/seeding/seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'
@@ -10,6 +12,7 @@ import { CacheService } from '@main/data/CacheService'
 import { DataApiService } from '@main/data/DataApiService'
 import { PreferenceService } from '@main/data/PreferenceService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
+import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { PythonService } from '@main/services/PythonService'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -52,6 +55,8 @@ async function startPageServices(hooks: CoreWorkerHooks) {
   application.register('WindowManager', new WebWindowManager())
   // The desktop keeps renderer logs in its log file; the page has already written them to its console.
   ipcMain.handle(IpcChannel.App_LogToMain, () => undefined)
+  // The file preview's text; the desktop also detects encodings other than UTF-8.
+  ipcMain.handle(IpcChannel.Fs_ReadText, (_event, path) => readFile(String(path), 'utf-8'))
   for (const [name, service] of [
     ['CacheService', new CacheService()],
     ['DataApiService', hooks.createDataApiService?.() ?? new DataApiService()],
@@ -102,6 +107,9 @@ async function startAccountServices(opened: OpenedDatabase) {
   const agentSessions = new AgentSessionRuntimeService()
   await agentSessions._doInit()
   application.register('AgentSessionRuntimeService', agentSessions)
+  const directoryTrees = new DirectoryTreeManager()
+  await directoryTrees._doInit()
+  application.register('DirectoryTreeManager', directoryTrees)
 }
 
 function serializeError(error: unknown): SerializedError {
@@ -168,6 +176,7 @@ export function startCoreWorker(
       await application.get('AgentSessionRuntimeService')._doStop()
       await application.get('AiStreamManager')._doStop()
       await application.get('PreferenceService')._doStop()
+      await application.get('DirectoryTreeManager')._doStop()
       opened.close()
       unmountLocalFolders()
       unmountAccountFiles()
