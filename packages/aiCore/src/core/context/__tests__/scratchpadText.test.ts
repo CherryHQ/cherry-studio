@@ -97,6 +97,24 @@ describe('scratchpadText', () => {
     expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('<summary>Keep</summary>')
   })
 
+  it('treats a closing tag inside a longer inline-code span as literal content (inv_48f6cb86775e99c6)', () => {
+    // The span swallows the first `</analysis>`: the real boundary is the
+    // later unwrapped closer, and the internal tail must not survive.
+    const input = '<analysis>Use `the </analysis> tag` in code. SECRET_INTERNAL_TEXT</analysis><summary>Keep</summary>'
+    expect(stripModelScratchpadBlocks(input)).toBe('Keep')
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(input)).toBe('<summary>Keep</summary>')
+  })
+
+  it('keeps literal private-use placeholder tokens from the original text (inv_b4be6544122b016d)', () => {
+    const literal = 'See \uE000INLINE_CODE_0\uE001 for the marker shape.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(literal)).toBe(literal)
+    expect(stripModelScratchpadBlocks(literal)).toBe(literal)
+    // With real inline code masked in the same pass, the literal token still survives.
+    const mixed = 'Use `code` and \uE000INLINE_CODE_0\uE001 literally.'
+    expect(stripKnownModelScratchpadBlocksPreservingCodeFences(mixed)).toBe(mixed)
+    expect(stripModelScratchpadBlocks(mixed)).toBe(mixed)
+  })
+
   it('preserves scratchpad literals inside an indented Markdown code block (inv_29a1cf6c61a8326f)', () => {
     const input = 'Example:\n\n    <thinking>literal example</thinking>\n\nNext steps\u2026'
     expect(stripModelScratchpadBlocks(input)).toContain('<thinking>literal example</thinking>')

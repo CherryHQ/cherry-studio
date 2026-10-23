@@ -70,21 +70,17 @@ function parseLeadingOpeningTag(text: string): ParsedOpeningTag | null {
   if (afterOpener > text.length) return null
   return parsed
 }
-const CODE_FENCE_PLACEHOLDER_PREFIX = '\uE000CODE_FENCE_'
-const CODE_FENCE_PLACEHOLDER_SUFFIX = '\uE001'
-const CODE_FENCE_PLACEHOLDER = new RegExp(`${CODE_FENCE_PLACEHOLDER_PREFIX}(\\d+)${CODE_FENCE_PLACEHOLDER_SUFFIX}`, 'g')
-const INLINE_CODE_PLACEHOLDER_PREFIX = '\uE000INLINE_CODE_'
-const INLINE_CODE_PLACEHOLDER_SUFFIX = '\uE001'
-const INLINE_CODE_PLACEHOLDER = new RegExp(
-  `${INLINE_CODE_PLACEHOLDER_PREFIX}(\\d+)${INLINE_CODE_PLACEHOLDER_SUFFIX}`,
-  'g'
-)
-const INDENTED_CODE_PLACEHOLDER_PREFIX = '\uE000INDENTED_CODE_'
-const INDENTED_CODE_PLACEHOLDER_SUFFIX = '\uE001'
-const INDENTED_CODE_PLACEHOLDER = new RegExp(
-  `${INDENTED_CODE_PLACEHOLDER_PREFIX}(\\d+)${INDENTED_CODE_PLACEHOLDER_SUFFIX}`,
-  'g'
-)
+const PLACEHOLDER_BASES = ['\uE000', '\uE002', '\uE004', '\uE006']
+// The original text may itself contain private-use placeholder tokens (a
+// literal U+E000 example in prose). Pick an emission base absent from the
+// input so generated tokens stay distinguishable, and never delete an
+// unknown-index token on unmask (cherry-pr-review inv_b4be6544122b016d).
+function pickPlaceholderBase(text: string, kind: string): string {
+  for (const base of PLACEHOLDER_BASES) {
+    if (!text.includes(`${base}${kind}_`)) return base
+  }
+  return PLACEHOLDER_BASES[0]
+}
 
 function isValidFenceLinePrefix(prefix: string): boolean {
   let i = 0
@@ -286,7 +282,9 @@ function maskInlineCodeSpans(text: string): {
   text: string
   spans: string[]
   ranges: Array<{ start: number; end: number }>
+  placeholderBase: string
 } {
+  const placeholderBase = pickPlaceholderBase(text, 'INLINE_CODE')
   const spans: string[] = []
   const ranges: Array<{ start: number; end: number }> = []
   const scratchpadRanges = findScratchpadBlockRanges(text)
@@ -358,15 +356,18 @@ function maskInlineCodeSpans(text: string): {
     const span = text.slice(pos, closedAt)
     spans.push(span)
     ranges.push({ start: pos, end: closedAt })
-    out += `${INLINE_CODE_PLACEHOLDER_PREFIX}${spans.length - 1}${INLINE_CODE_PLACEHOLDER_SUFFIX}`
+    out += `${placeholderBase}INLINE_CODE_${spans.length - 1}\uE001`
     pos = closedAt
   }
 
-  return { text: out, spans, ranges }
+  return { text: out, spans, ranges, placeholderBase }
 }
 
-function unmaskInlineCodeSpans(text: string, spans: string[]): string {
-  return text.replace(INLINE_CODE_PLACEHOLDER, (_, index) => spans[Number(index)] ?? '')
+function unmaskInlineCodeSpans(text: string, spans: string[], placeholderBase = '\uE000'): string {
+  return text.replace(
+    new RegExp(`${placeholderBase}INLINE_CODE_(\\d+)\\uE001`, 'g'),
+    (match, index) => spans[Number(index)] ?? match
+  )
 }
 
 /**
@@ -379,7 +380,12 @@ function unmaskInlineCodeSpans(text: string, spans: string[]): string {
  * only starts at the text edge or after a blank line. A run inside a
  * scratchpad block stays unmasked so it cannot hide the block's boundary.
  */
-function maskIndentedCodeBlocks(text: string): { text: string; blocks: string[] } {
+function maskIndentedCodeBlocks(text: string): {
+  text: string
+  blocks: string[]
+  placeholderBase: string
+} {
+  const placeholderBase = pickPlaceholderBase(text, 'INDENTED_CODE')
   const blocks: string[] = []
   const lines = text.split('\n')
   const lineOffsets: number[] = []
@@ -425,15 +431,18 @@ function maskIndentedCodeBlocks(text: string): { text: string; blocks: string[] 
       end++
     }
     blocks.push(lines.slice(i, lastContent + 1).join('\n'))
-    outLines.push(`${INDENTED_CODE_PLACEHOLDER_PREFIX}${blocks.length - 1}${INDENTED_CODE_PLACEHOLDER_SUFFIX}`)
+    outLines.push(`${placeholderBase}INDENTED_CODE_${blocks.length - 1}\uE001`)
     paragraphOpen = false
     i = lastContent + 1
   }
-  return { text: outLines.join('\n'), blocks }
+  return { text: outLines.join('\n'), blocks, placeholderBase }
 }
 
-function unmaskIndentedCodeBlocks(text: string, blocks: string[]): string {
-  return text.replace(INDENTED_CODE_PLACEHOLDER, (_, index) => blocks[Number(index)] ?? '')
+function unmaskIndentedCodeBlocks(text: string, blocks: string[], placeholderBase = '\uE000'): string {
+  return text.replace(
+    new RegExp(`${placeholderBase}INDENTED_CODE_(\\d+)\\uE001`, 'g'),
+    (match, index) => blocks[Number(index)] ?? match
+  )
 }
 
 function isCodeFenceMarkerAtLineStart(text: string, markerStart: number): boolean {
@@ -480,7 +489,12 @@ function enclosingScratchpadTag(text: string, pos: number): string | null {
   return stack.length ? stack[stack.length - 1] : null
 }
 
-function maskCodeFences(text: string): { text: string; fences: string[] } {
+function maskCodeFences(text: string): {
+  text: string
+  fences: string[]
+  placeholderBase: string
+} {
+  const placeholderBase = pickPlaceholderBase(text, 'CODE_FENCE')
   const fences: string[] = []
   let out = ''
   let pos = 0
@@ -539,22 +553,25 @@ function maskCodeFences(text: string): { text: string; fences: string[] } {
     if (closeEnd === -1 || (blockCloseIdx !== -1 && closeEnd > blockCloseIdx)) {
       const fenceEnd = blockCloseIdx !== -1 ? blockCloseIdx : text.length
       fences.push(text.slice(fenceStart, fenceEnd))
-      out += `${CODE_FENCE_PLACEHOLDER_PREFIX}${fences.length - 1}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
+      out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
       pos = fenceEnd
       continue
     }
 
     const fenceEnd = closeEnd
     fences.push(text.slice(fenceStart, fenceEnd))
-    out += `${CODE_FENCE_PLACEHOLDER_PREFIX}${fences.length - 1}${CODE_FENCE_PLACEHOLDER_SUFFIX}`
+    out += `${placeholderBase}CODE_FENCE_${fences.length - 1}\uE001`
     pos = fenceEnd
   }
 
-  return { text: out, fences }
+  return { text: out, fences, placeholderBase }
 }
 
-function unmaskCodeFences(text: string, fences: string[]): string {
-  return text.replace(CODE_FENCE_PLACEHOLDER, (_, index) => fences[Number(index)] ?? '')
+function unmaskCodeFences(text: string, fences: string[], placeholderBase = '\uE000'): string {
+  return text.replace(
+    new RegExp(`${placeholderBase}CODE_FENCE_(\\d+)\\uE001`, 'g'),
+    (match, index) => fences[Number(index)] ?? match
+  )
 }
 
 /** True when a line ends with 1–2 backtick/tilde characters that may complete a fence on the next delta. */
@@ -671,58 +688,85 @@ export function textStartsWithNonScratchpadOpeningTag(text: string): boolean {
 
 /** Strips known scratchpad wrappers without touching fenced code blocks. */
 export function stripKnownModelScratchpadBlocksPreservingCodeFences(raw: string): string {
-  const { text: fenceMasked, fences } = maskCodeFences(raw)
-  const { text: indentedMasked, blocks } = maskIndentedCodeBlocks(fenceMasked)
-  const { text: inlineMasked, spans } = maskInlineCodeSpans(indentedMasked)
+  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
+  const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
   const stripped = stripKnownModelScratchpadBlocks(inlineMasked)
-  const withInline = unmaskInlineCodeSpans(stripped, spans)
-  const withIndented = unmaskIndentedCodeBlocks(withInline, blocks)
-  return unmaskCodeFences(withIndented, fences)
-}
-
-/**
- * True when the scratchpad tag at [tagStart, tagEnd) is the entire content of
- * an inline code span - immediately flanked by matching backtick runs. Such a
- * tag is a literal mention of the wrapper, not a boundary: treating it as the
- * block end leaves the block's real internal tail in replacement context
- * (cherry-pr-review inv_ed290cd7b29202da). A tag merely INSIDE a larger code
- * span (other content between it and the backticks) still ends the block.
- */
-function isInlineCodeWrappedTag(text: string, tagStart: number, tagEnd: number): boolean {
-  let openRun = 0
-  let i = tagStart - 1
-  while (i >= 0 && text[i] === '`') {
-    openRun++
-    i--
-  }
-  if (openRun === 0 || isBackslashEscaped(text, tagStart - openRun)) return false
-  let closeRun = 0
-  let j = tagEnd
-  while (j < text.length && text[j] === '`') {
-    closeRun++
-    j++
-  }
-  if (closeRun !== openRun || isBackslashEscaped(text, tagEnd)) return false
-  return true
+  const withInline = unmaskInlineCodeSpans(stripped, spans, inlineBase)
+  const withIndented = unmaskIndentedCodeBlocks(withInline, blocks, indentedBase)
+  return unmaskCodeFences(withIndented, fences, fenceBase)
 }
 
 function findScratchpadBlockEnd(text: string, openIndex: number, tagName: string, openerLength: number): number {
   const afterOpen = openIndex + openerLength
   // Nested same-tag wrappers pair by depth: stopping at the first close would
   // leave the outer block's remaining internal text (and its real closer) in
-  // the output (cherry-pr-review inv_66625e6e9e1af1a5).
+  // the output (cherry-pr-review inv_66625e6e9e1af1a5). Complete inline-code
+  // spans resolve BEFORE wrapper boundaries: a tag inside one is literal code
+  // content, except a spanned closing tag that is the block's last closer -
+  // an unmatched backtick then keeps the real boundary instead of leaking the
+  // block (cherry-pr-review inv_48f6cb86775e99c6 and its twin).
   const tagPattern = new RegExp(`<(/?)${tagName}(?=[\\s/>])[^>]*>`, 'gi')
   tagPattern.lastIndex = afterOpen
   let depth = 1
   let end = -1
   let tagMatch: RegExpExecArray | null
+  const codeSpans: Array<{ start: number; end: number }> = []
+  let spanCursor = afterOpen
+  const collectSpansUntil = (limit: number): void => {
+    let pos = spanCursor
+    while (pos < limit) {
+      const tick = text.indexOf('`', pos)
+      if (tick === -1 || tick >= limit) break
+      if (isBackslashEscaped(text, tick)) {
+        pos = tick + 1
+        continue
+      }
+      let run = 0
+      while (tick + run < text.length && text[tick + run] === '`') run++
+      let j = tick + run
+      let closedAt = -1
+      while (j < text.length) {
+        if (text[j] !== '`') {
+          j++
+          continue
+        }
+        let closeRun = 0
+        while (j < text.length && text[j] === '`') {
+          closeRun++
+          j++
+        }
+        if (closeRun === run && !isBackslashEscaped(text, j - closeRun)) {
+          closedAt = j
+          break
+        }
+      }
+      if (closedAt === -1) {
+        // Unmatched run: advance past it whole rather than reinterpreting its suffix.
+        pos = tick + run
+        continue
+      }
+      codeSpans.push({ start: tick, end: closedAt })
+      pos = closedAt
+    }
+    spanCursor = Math.max(spanCursor, limit)
+  }
   while ((tagMatch = tagPattern.exec(text)) !== null) {
     if (isBackslashEscaped(text, tagMatch.index)) continue
-    if (isInlineCodeWrappedTag(text, tagMatch.index, tagMatch.index + tagMatch[0].length)) continue
+    collectSpansUntil(tagMatch.index)
+    const tagEnd = tagMatch.index + tagMatch[0].length
+    const span = codeSpans.find((s) => tagMatch.index > s.start && tagEnd <= s.end)
+    if (span) {
+      if (tagMatch[1] !== '/') continue
+      const later = new RegExp(`</${tagName}\\s*>`, 'gi')
+      later.lastIndex = span.end
+      if (later.test(text)) continue
+      // Last closer inside a code span: it stays the boundary.
+    }
     if (tagMatch[1] === '/') {
       depth--
       if (depth === 0) {
-        end = tagMatch.index + tagMatch[0].length
+        end = tagEnd
         break
       }
     } else if (!tagMatch[0].endsWith('/>')) {
@@ -792,9 +836,9 @@ function unwrapWholeSummaryWrapper(text: string): string | null {
 }
 
 export function stripModelScratchpadBlocks(raw: string): string {
-  const { text: fenceMasked, fences } = maskCodeFences(raw)
-  const { text: indentedMasked, blocks } = maskIndentedCodeBlocks(fenceMasked)
-  const { text: inlineMasked, spans } = maskInlineCodeSpans(indentedMasked)
+  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
+  const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
   let out = stripKnownModelScratchpadBlocks(inlineMasked)
 
   const unwrapped = unwrapWholeSummaryWrapper(out)
@@ -802,9 +846,9 @@ export function stripModelScratchpadBlocks(raw: string): string {
     out = unwrapped
   }
 
-  out = unmaskInlineCodeSpans(out, spans)
-  out = unmaskIndentedCodeBlocks(out, blocks)
-  out = unmaskCodeFences(out, fences)
+  out = unmaskInlineCodeSpans(out, spans, inlineBase)
+  out = unmaskIndentedCodeBlocks(out, blocks, indentedBase)
+  out = unmaskCodeFences(out, fences, fenceBase)
   return out.replace(/\n{3,}/g, '\n\n').trim()
 }
 
@@ -815,16 +859,16 @@ const TRAILING_TOOL_PROTOCOL_CLOSE_RE =
 /** Strips a trailing run of tool-protocol closing tags; does not touch tags in fences or inline code. */
 export function stripTrailingToolProtocolClosingFragments(raw: string): string {
   if (!raw) return raw
-  const { text: fenceMasked, fences } = maskCodeFences(raw)
-  const { text: indentedMasked, blocks } = maskIndentedCodeBlocks(fenceMasked)
-  const { text: inlineMasked, spans } = maskInlineCodeSpans(indentedMasked)
+  const { text: fenceMasked, fences, placeholderBase: fenceBase } = maskCodeFences(raw)
+  const { text: indentedMasked, blocks, placeholderBase: indentedBase } = maskIndentedCodeBlocks(fenceMasked)
+  const { text: inlineMasked, spans, placeholderBase: inlineBase } = maskInlineCodeSpans(indentedMasked)
   let out = inlineMasked
   let previous: string
   do {
     previous = out
     out = out.replace(TRAILING_TOOL_PROTOCOL_CLOSE_RE, '')
   } while (out !== previous)
-  out = unmaskInlineCodeSpans(out, spans)
-  out = unmaskIndentedCodeBlocks(out, blocks)
-  return unmaskCodeFences(out, fences)
+  out = unmaskInlineCodeSpans(out, spans, inlineBase)
+  out = unmaskIndentedCodeBlocks(out, blocks, indentedBase)
+  return unmaskCodeFences(out, fences, fenceBase)
 }

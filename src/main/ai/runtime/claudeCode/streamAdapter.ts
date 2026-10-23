@@ -1165,21 +1165,28 @@ export class ClaudeCodeStreamAdapter {
   }
 
   /**
-   * Leading whitespace of the visible stream's open line when that line is so
-   * far ONLY indentation of four or more columns (or a tab) and cannot be a
+   * Leading whitespace of the visible stream's open line when that line sits
+   * at four or more columns of indentation (or a tab) and cannot be a
    * paragraph continuation: the next delta continues an indented Markdown
    * code block, a context the scratchpad scanner cannot see once the
-   * whitespace was already emitted (cherry-pr-review inv_b4f675e18911386f).
+   * indentation (and any already-emitted content) has landed
+   * (cherry-pr-review inv_b4f675e18911386f, inv_07cd547fcfcb085d).
    */
   private emittedIndentOnlyLinePrefix(text: string): string {
     const lineStart = text.lastIndexOf('\n') + 1
     const openLine = text.slice(lineStart)
-    if (!/^[ \t]+$/.test(openLine) || !/^(?: {4,}|\t)/.test(openLine)) return ''
-    if (lineStart === 0) return openLine
+    // Any open line already sitting at four or more columns of indentation is
+    // an indented-code line, whether the delta split inside the leading
+    // whitespace or after content landed: the next chunk continues that line
+    // and must be scanned with its indentation restored (cherry-pr-review
+    // inv_07cd547fcfcb085d).
+    const indent = openLine.match(/^(?: {4,}|\t+)/)?.[0]
+    if (!indent) return ''
+    if (lineStart === 0) return indent
     const prevLineEnd = lineStart - 1
     const prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1
     const prevLine = text.slice(prevLineStart, prevLineEnd)
-    if (prevLine.trim() === '' || /^(?: {4,}|\t)/.test(prevLine)) return openLine
+    if (prevLine.trim() === '' || /^(?: {4,}|\t)/.test(prevLine)) return indent
     return ''
   }
 
@@ -1614,6 +1621,14 @@ export class ClaudeCodeStreamAdapter {
     if (visibleText) {
       this.handleAssistantText(visibleText, sdkParentToolUseId, ctx)
     }
+
+    // Snapshot block order varies: when the text block follows the tool
+    // blocks, per-block handling would leave the preamble flagged as the
+    // answer. A message with tool calls is always a tool round, so the
+    // message-level state wins (cherry-pr-review inv_58329b90d53633c8).
+    if (tools.length > 0 && ctx === this.ctx) {
+      this.assistantAnswerSinceUserPrompt = false
+    }
   }
 
   /** Per content block so multi-block streaming offsets match snapshot reconciliation. */
@@ -1643,6 +1658,13 @@ export class ClaudeCodeStreamAdapter {
     sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
+    // A tool call means the turn is mid-work: text the same message carried is
+    // a preamble, not the requested answer, so it must not arm artifact
+    // suppression against the answer that follows the tool result
+    // (cherry-pr-review inv_58329b90d53633c8).
+    if (ctx === this.ctx) {
+      this.assistantAnswerSinceUserPrompt = false
+    }
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
     // The name may be missing here too, in which case the streamed one (if any) stands.
