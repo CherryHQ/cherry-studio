@@ -572,7 +572,7 @@ describe('prepareChatMessages — routing', () => {
       expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\ntranscript')
     })
 
-    it('does not analyze a WebM probe that finds neither audio nor video', async () => {
+    it('does not decode an unknown WebM probe as document text', async () => {
       getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
       probeMock.mockResolvedValueOnce({
         durationMs: 0,
@@ -581,18 +581,35 @@ describe('prepareChatMessages — routing', () => {
         mime: 'application/octet-stream',
         kind: 'unknown'
       })
-      // Unknown probe is FILE_TYPE.OTHER. Null is the conservative decoder rejecting binary bytes.
-      extractMock.mockResolvedValueOnce(null)
-
       const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], ALL)
 
       expect(probeMock).toHaveBeenCalledOnce()
       expect(resolveMock).not.toHaveBeenCalled()
       expect(mediaAnalysisMock).not.toHaveBeenCalled()
-      expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
-      expect(textOf(out.parts)[0]).toBe(
-        'Attached file "clip.webm":\nCannot read the attached file "clip.webm" as text (unsupported file type).'
-      )
+      expect(extractMock).not.toHaveBeenCalled()
+      expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm": [could not read this file].')
+    })
+
+    it('keeps an unknown WebM file for path-forwarding callers', async () => {
+      getByIdMock.mockResolvedValueOnce({ ext: 'webm' })
+      probeMock.mockResolvedValueOnce({
+        durationMs: 0,
+        hasAudio: false,
+        hasVideo: false,
+        mime: 'application/octet-stream',
+        kind: 'unknown'
+      })
+
+      const messages = [userMessage([fileWithEntry('e1', 'clip.webm', 'video/webm')])] as UIMessage[]
+      const [out] = await prepareChatMessages(messages, {
+        attachments: collectFileAttachments(messages),
+        nativeSupport: ALL,
+        isToolCapable: true,
+        keepUnroutableFileParts: true
+      })
+
+      expect(out.parts).toEqual([expect.objectContaining({ type: 'file', filename: 'clip.webm' })])
+      expect(extractMock).not.toHaveBeenCalled()
     })
 
     it('rethrows cancellation from the WebM probe', async () => {
