@@ -226,6 +226,22 @@ describe('clearAgentDraftCacheIfMatches', () => {
     )
   })
 
+  it('preserves the persisted knowledge selection when clearing the submitted document (inv_7b04aab48bb4f87e)', () => {
+    vi.mocked(cacheService.get).mockReturnValue({
+      ...submitted,
+      knowledgeBaseIds: ['base-1'],
+      workspaceKey: 'ws-1',
+      agentId: 'agent-1'
+    })
+
+    expect(clearAgentDraftCacheIfMatches(cacheKey, scope, submitted)).toBe(true)
+    expect(cacheService.set).toHaveBeenCalledWith(
+      cacheKey,
+      expect.objectContaining({ text: '', tokens: [], files: [], knowledgeBaseIds: ['base-1'] }),
+      expect.any(Number)
+    )
+  })
+
   it('preserves a newer cached draft owned by a reopened composer', () => {
     // A reopened composer kept editing the persisted submission: clearing
     // through the obsolete instance would erase the newer draft

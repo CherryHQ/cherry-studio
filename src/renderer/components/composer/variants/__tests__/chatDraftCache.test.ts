@@ -189,6 +189,56 @@ describe('clearChatDraftCacheIfMatches', () => {
     )
   })
 
+  it('preserves the persisted knowledge selection when clearing the submitted document (inv_7b04aab48bb4f87e)', () => {
+    vi.mocked(cacheService.get).mockReturnValue({
+      ...submitted,
+      knowledgeBaseIds: ['base-1'],
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
+    })
+
+    clearChatDraftCacheIfMatches('topic-a', submitted)
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-a',
+      {
+        text: '',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: ['base-1'],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      },
+      expect.any(Number)
+    )
+  })
+
+  it('clears the submitted document even when the knowledge selection changed after submitting', () => {
+    // The knowledge selection is conversation-scoped composer state: changing
+    // it must not resurrect the queued message text on the next reopen.
+    vi.mocked(cacheService.get).mockReturnValue({
+      ...submitted,
+      knowledgeBaseIds: ['base-2'],
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
+    })
+
+    clearChatDraftCacheIfMatches('topic-a', submitted)
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-a',
+      {
+        text: '',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: ['base-2'],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      },
+      expect.any(Number)
+    )
+  })
+
   it('preserves the whole record when newer document edits diverge', () => {
     const edited = {
       text: 'edited after submit',

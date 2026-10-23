@@ -133,7 +133,7 @@ export function readAgentDraftCache(
 export function clearAgentDraftCacheIfMatches(
   cacheKey: AgentComposerDraftCacheKey,
   scope: AgentDraftCacheScope,
-  submitted: Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
+  submitted: Pick<AgentComposerDraftCache, 'text' | 'tokens' | 'files'>
 ): boolean {
   const cached = readAgentDraftCache(cacheKey, scope)
   // Only a real cached document can belong to a newer owner: an empty entry
@@ -144,10 +144,13 @@ export function clearAgentDraftCacheIfMatches(
     if (cached.text !== submitted.text) return false
     if (JSON.stringify(cached.tokens) !== JSON.stringify(submitted.tokens)) return false
     if (JSON.stringify(cached.files) !== JSON.stringify(submitted.files)) return false
-    if (JSON.stringify(cached.knowledgeBaseIds) !== JSON.stringify(submitted.knowledgeBaseIds)) return false
   }
+  // The knowledge selection is conversation-scoped state the user may have
+  // changed after submitting: it neither participates in the match nor is
+  // reset (cherry-pr-review inv_7b04aab48bb4f87e).
   writeAgentDraftCache(cacheKey, {
     ...EMPTY_DRAFT_CACHE,
+    knowledgeBaseIds: cached.knowledgeBaseIds,
     workspaceKey: scope.workspaceKey,
     agentId: scope.agentId
   })

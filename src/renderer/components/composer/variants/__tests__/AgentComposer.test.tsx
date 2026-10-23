@@ -63,6 +63,7 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  filesDispatchListeners: [] as Array<() => void>,
   setSelectedKnowledgeBases: vi.fn(),
   inputAdapterFocus: vi.fn(),
   surfaceFocus: vi.fn(),
@@ -462,7 +463,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   }),
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
-    subscribeFilesDispatch: () => () => {},
+    subscribeFilesDispatch: (listener: () => void) => {
+      mocks.filesDispatchListeners.push(listener)
+      return () => {}
+    },
     setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: vi.fn(),
     addNewTopic: vi.fn(),
@@ -890,6 +894,7 @@ describe('AgentComposer', () => {
     })
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
+    mocks.filesDispatchListeners = []
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
     mocks.surfaceFocus.mockReset()
@@ -4884,6 +4889,45 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('unsaved B')
+  })
+
+  it('keeps a just-dispatched attachment in a reopened composer when a delayed enqueue settles (inv_390d6de6f59203f8)', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    act(() => mocks.surfaceProps?.onTextChange('submitted A'))
+
+    // The enqueue stays in flight while a reopened composer takes over the
+    // draft key and a tool/picker dispatch lands an attachment synchronously,
+    // before React commits it to the live refs (cherry-pr-review
+    // inv_390d6de6f59203f8).
+    let settlement: void | Promise<void> | undefined
+    act(() => {
+      settlement = mocks.surfaceProps?.onSendDraft({ text: 'submitted A', tokens: [] })
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+    await act(async () => {
+      for (const listener of mocks.filesDispatchListeners) listener()
+      mocks.setFiles([file])
+      await settlement
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.files, 'a pending attachment is an editor mutation: settlement must not clear it').toEqual([file])
   })
 
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {

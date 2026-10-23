@@ -61,21 +61,24 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
  * mismatch is preserved untouched.
  *
  * Only the submitted document fields participate in the match and the reset.
- * The model-selector fields (mentionedModelIds, modelMultiSelectMode) are
- * composer-scope state the user may have changed after submitting; clearing
- * them here would silently revert that newer selection (cherry-pr-review).
+ * The selector fields (knowledgeBaseIds, mentionedModelIds, modelMultiSelectMode)
+ * are conversation/composer-scope selections the user may have changed after
+ * submitting; matching on them would resurrect the submitted document, and
+ * clearing them here would silently revert that newer selection — normal
+ * composer clearing preserves them too (cherry-pr-review
+ * inv_b9cdc5f7ec400343, inv_7b04aab48bb4f87e).
  */
 export function clearChatDraftCacheIfMatches(
   topicId: string,
-  submitted: Pick<ChatComposerDraftCache, 'text' | 'tokens' | 'files' | 'knowledgeBaseIds'>
+  submitted: Pick<ChatComposerDraftCache, 'text' | 'tokens' | 'files'>
 ): void {
   const cached = readChatDraftCache(topicId)
   if (cached.text !== submitted.text) return
   if (JSON.stringify(cached.tokens) !== JSON.stringify(submitted.tokens)) return
   if (JSON.stringify(cached.files) !== JSON.stringify(submitted.files)) return
-  if (JSON.stringify(cached.knowledgeBaseIds) !== JSON.stringify(submitted.knowledgeBaseIds)) return
   writeChatDraftCache(topicId, {
     ...EMPTY_DRAFT_CACHE,
+    knowledgeBaseIds: cached.knowledgeBaseIds,
     mentionedModelIds: cached.mentionedModelIds,
     modelMultiSelectMode: cached.modelMultiSelectMode
   })

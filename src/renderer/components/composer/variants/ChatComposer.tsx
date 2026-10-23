@@ -1900,7 +1900,6 @@ const ChatComposerInner = ({
         const enqueueDraftTopic = draftCacheScopeKey
         const enqueueRevision = draftEditRevisionRef.current
         const enqueueFiles = filesRef.current
-        const enqueueKnowledgeBaseIds = knowledgeBaseIdsRef.current
         // Hold the submission guard across the enqueue too: the direct-send guard below is
         // acquired only under this branch, so a second Send activation while this enqueue is
         // in flight would mint a second UUID and queue a duplicate. The editor stays editable
@@ -1917,8 +1916,7 @@ const ChatComposerInner = ({
             clearChatDraftCacheIfMatches(enqueueDraftTopic, {
               text: draft.text,
               tokens: draft.tokens,
-              files: enqueueFiles,
-              knowledgeBaseIds: enqueueKnowledgeBaseIds
+              files: enqueueFiles
             })
             if (queueScopeRef.current === enqueueScope && draftEditRevisionRef.current === enqueueRevision) {
               clearCurrentDraft()

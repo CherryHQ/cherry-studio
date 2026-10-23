@@ -1029,6 +1029,11 @@ const AgentComposerInner = ({
   // Bumped synchronously on every user draft edit (text, tokens, attachments). An awaited enqueue only clears
   // the composer when nothing changed meanwhile, so newer unsent input is never wiped by an older submission.
   const draftEditRevisionRef = useRef(0)
+  // The revision as of the last React commit. A synchronous dispatch (attachment
+  // picker, runtime tool) bumps draftEditRevisionRef before its state commit, so
+  // a gap between the two marks a pending mutation the live refs cannot see yet
+  // (cherry-pr-review inv_390d6de6f59203f8).
+  const committedEditRevisionRef = useRef(0)
   const handleTextChange = useCallback(
     (nextText: string) => {
       draftEditRevisionRef.current += 1
@@ -1600,6 +1605,9 @@ const AgentComposerInner = ({
   useEffect(() => {
     draftEditRevisionRef.current += 1
   }, [files])
+  useEffect(() => {
+    committedEditRevisionRef.current = draftEditRevisionRef.current
+  })
   // The effect above runs after React commits — too late when an enqueue
   // resolves in the same window. Tool dispatches (the attachment picker,
   // runtime tools) bypass the revision wrapper below, so track attachment
@@ -1672,7 +1680,12 @@ const AgentComposerInner = ({
       owner: clearCurrentDraft,
       isShowing: (submitted) => {
         // Compare against the live state refs (what is actually on screen),
-        // not a surface serialization, which can lag the visible document.
+        // not a surface serialization, which can lag the visible document. A
+        // revision ahead of the last commit is a synchronous pending mutation
+        // (e.g. a just-dispatched attachment) the refs do not reflect yet:
+        // treat the document as changed rather than clearing it
+        // (cherry-pr-review inv_390d6de6f59203f8).
+        if (draftEditRevisionRef.current !== committedEditRevisionRef.current) return false
         return (
           textRef.current === submitted.text &&
           JSON.stringify(draftTokensRef.current) === JSON.stringify(submitted.tokens) &&
