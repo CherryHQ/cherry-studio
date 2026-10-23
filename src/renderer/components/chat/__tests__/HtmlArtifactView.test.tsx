@@ -709,6 +709,86 @@ describe('HtmlArtifactView', () => {
     }
   })
 
+  it('rejects a body filling the frame without further surface style mutations', async () => {
+    // A body filling the frame must not feed its bottom margin back into the next measurement.
+    render(
+      <HtmlArtifactView
+        html='<style>body{min-height:100vh;margin:0 0 1px}</style><div style="height:20px">x</div>'
+        title="Preview"
+      />
+    )
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    if (!frameDocument) throw new Error('Expected iframe document')
+
+    const { body, documentElement } = frameDocument
+    body.style.cssText = 'min-height:100vh;margin:0 0 1px'
+    const child = frameDocument.createElement('div')
+    child.textContent = 'x'
+    child.style.height = '20px'
+    body.replaceChildren(child)
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height)
+    })
+    Object.defineProperty(body, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    Object.defineProperty(documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => iframe.clientHeight + 1
+    })
+    vi.spyOn(body, 'getBoundingClientRect').mockImplementation(
+      () => ({ bottom: iframe.clientHeight, height: iframe.clientHeight, width: 100 }) as DOMRect
+    )
+    vi.spyOn(child, 'getBoundingClientRect').mockReturnValue({ bottom: 20, height: 20, width: 100 } as DOMRect)
+    const frameRange = (iframe.contentWindow as unknown as { Range: typeof Range }).Range
+    const rangePrototype = frameRange.prototype as Range & { getBoundingClientRect?: unknown }
+    const originalRangeGetBoundingClientRect = rangePrototype.getBoundingClientRect
+    Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ bottom: 23, height: 20, width: 100 }) as DOMRect
+    })
+
+    let styleMutations = 0
+    const observer = new MutationObserver((records) => {
+      styleMutations += records.length
+    })
+
+    try {
+      await act(async () => {
+        fireEvent.load(iframe)
+      })
+      const firstHeight = surface.style.height
+      observer.observe(surface, { attributes: true, attributeFilter: ['style'] })
+
+      for (let round = 0; round < 10; round += 1) {
+        await act(async () => {
+          fireEvent.load(iframe)
+        })
+        expect(surface.style.height).toBe(firstHeight)
+        for (const callback of [...mocks.resizeObserverCallbacks]) {
+          await act(async () => callback([], {} as ResizeObserver))
+          expect(surface.style.height).toBe(firstHeight)
+        }
+        expect(styleMutations + observer.takeRecords().length).toBe(0)
+      }
+    } finally {
+      observer.disconnect()
+      if (originalRangeGetBoundingClientRect === undefined) {
+        delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+      } else {
+        Object.defineProperty(rangePrototype, 'getBoundingClientRect', {
+          configurable: true,
+          value: originalRangeGetBoundingClientRect
+        })
+      }
+    }
+  })
+
   it('stabilizes at the natural height when a nested bottom margin collapses through its wrapper', () => {
     render(<HtmlArtifactView html="<main><p>Page</p></main>" title="Preview" />)
 

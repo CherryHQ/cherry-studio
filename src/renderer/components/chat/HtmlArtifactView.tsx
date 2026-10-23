@@ -148,11 +148,11 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       }
     }
 
-    // Allow only last-line leading/descent beyond the sweep, not author padding.
-    // Exclude viewport-filling bodies (100vh/100%) that would feed the next frame height back into measurement.
+    // A box filling the frame (min-height:100vh, height:100%) is viewport geometry; its margins can add a pixel per write.
+    // Only a box strictly smaller than the frame can be content.
     const intrinsicBodyBoxHeight =
       bodyHeight > 0 &&
-      bodyHeight <= iframe.clientHeight &&
+      bodyHeight < iframe.clientHeight &&
       bodyBoxHeight - renderedContentBottom <= MAX_BODY_BOX_EXCESS_PX
         ? bodyBoxHeight
         : 0
